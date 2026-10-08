@@ -7,44 +7,37 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- 2026-10-07 Re-pilot of the round 3 build (b7590f8de) confirms built: runs named "PageRank" on
-  outline, key, inspector title, "Made with"; "Show all labels" checkbox; count shortened to
-  "77 labels, 7 hidden" -> "77 labels"; Size "+" opens its list at once, titled "Size by attribute"
-  (the same name as the chain tooltip -- the two-name split is gone without a word change).
-- 2026-10-07 Method naming is NOT finished: the layout form's "Group by: Communities", the key's
-  "Group 1..6", and the inspector subtitle "Measure from PageRank, Oct 7" still carry result or
-  generic words. Round 3 check: one name per run on every surface, including layout forms.
-- 2026-10-07 New leak: layout refusals show graphty-element's own English as is ('the layout
-  "bipartite" needs exactly two groups, and "results.louvain.group" names 6'; "No crossings ...
-  planar"). Element must return a code and params; app words it under Method. File it, no app
-  rewording of the English string.
-- 2026-10-07 Still unfixed and deferred by the Director (severity 2, all succeeded): one refusal
-  for a damaged file on both routes (Data page E_PARSE_FAILED reuses the Open route's sentence);
-  Overview "Undirected, from the file: directed 0" overflows and "Edges per ..." truncates. Push
-  both into round 4 -- they pay for any words added since.
-- 2026-10-07 Announcements decided (round 2 change 5): "<Name>: 77 nodes, 254 edges" on load,
-  "PageRank finished" on a run, replacing "added, running". Watch for double speech and that the
-  run name used is the method name.
-- 2026-10-07 CSV export headers still `results.louvain.group`, `results.louvain.groupSize`, and the
-  CSV warning is developer prose. Before renaming, confirm whether column names are a format
-  contract (one-way door -> owner-decisions.md).
+- 2026-10-07 TIER 2 word proposal made (see Thinking, "Tier 2 words"). Three word conflicts between
+  refined B and the glossary must be settled before building: neighborhood "Out, In or Both" vs
+  glossary "Follow: Out | In | All"; Path popover "Direction" vs glossary (Direction is the
+  graph's property only -> "Follow"); weight meaning "Stronger | Farther | Capacity" vs glossary
+  roles similarity/distance/capacity/unknown. Proposed: glossary wins on Follow; refined B's
+  meaning words stay on screen, glossary updated to map them, plus a "Not set" state.
+- 2026-10-07 Shortest path on friends.csv reads tie strength as distance: a WRONG ANSWER, not a
+  wording gap. Words cannot fix it: an unset meaning must never be read as distance (element).
+  "Shortest route" in the legend uses a rejected synonym ("route"); say "path".
+- 2026-10-07 Select where: "=weight > 3" fails silently (uncaught throw). Need a code from the
+  element and a refusal under the box; whether the element accepts bare numbers is a query-format
+  change -> one-way door, owner-decisions.md.
+- 2026-10-07 Path row crash (RunValues histogram on a boolean): the path row's Data tab is
+  Summary, Members, Made with, Notes per refined B -- route by the run's kind, not a word issue.
+- 2026-10-07 Method naming not finished: layout "Group by: Communities", key "Group 1..6",
+  "Measure from PageRank, Oct 7". One name per run on every surface, including layout forms.
+- 2026-10-07 Element English leaks in layout refusals; element must return code + params. File it.
+- 2026-10-07 Deferred, push into round 4: one refusal for a damaged file on both routes; "Undirected,
+  from the file: directed 0" overflow; "Edges per ..." truncation; raw hex "Color 6366F1".
+- 2026-10-07 CSV export headers `results.louvain.group` -- confirm whether a format contract
+  (one-way door) before renaming.
 - 2026-10-07 Keep word for word: "N labels, M hidden" + "Show all labels", the Open-route refusal,
-  the usage card, "Saved in this browser". Do not reword T10; it now measures the switch.
-- 2026-10-07 Everything's Style shows a raw hex "Color 6366F1" and "Size 1" after a run sized the
-  dots -- a value with no meaning to a reader and stale against the drawing. Candidate for round 4.
-- 2026-10-07 Nothing after a run says what PageRank measures; the description lives only in the
-  Analyze list. Do not add help text; watch whether participants misstate the basis in T7.
+  the usage card, "Saved in this browser".
 - 2026-10-06 Words cannot fix a missing route; fix by deletion first; refusals sit next to the
   control that failed; a word never promises what the screen does not do.
-- 2026-10-06 The app writes ALL reader-facing words; a missing fact or an English string from the
-  element is an element defect, never reworded in the app.
-- 2026-10-06 Budgets: at rest <= 50 words, inspector ~30 (max 40). Bar 9 (words at rest) has never
-  run -- it must run on the round 3 build before fixes replace it.
-- 2026-10-06 Simulated evidence: a fail is strong, a pass weak; word findings need a code cause or a
-  reproduction; screen-reader findings on the tool's blind spots are not shown.
-- 2026-10-06 Task wording never echoes a fix's words; every wording change tested on two domains.
-- 2026-10-06 One name per thing: header "Les Mis work" vs outline "Graph Les Miserables" after a
-  save; still open.
+- 2026-10-06 The app writes ALL reader-facing words; an English string from the element is an
+  element defect, never reworded in the app.
+- 2026-10-06 Budgets: at rest <= 50 words, inspector ~30 (max 40). Bar 9 never run.
+- 2026-10-06 Simulated evidence: a fail is strong, a pass weak; task wording never echoes a fix.
+- 2026-10-06 One name per thing: header "Les Mis work" vs outline "Graph Les Miserables"; and now
+  the Sources list shows only the last file and the header reads "From <last file>" (tier 2 audit).
 
 ## Priorities and values
 
@@ -209,6 +202,28 @@ I read this file at the start of every session and update it as I decide and lea
   drift that per-page fixes miss.
 
 ## Thinking
+
+- 2026-10-07 **Tier 2 words (proposal to the studio, not yet decided or tested).** Filters: chip
+  "Full graph" / "Filtered: 2 of 22 nodes" (glossary state word + the "N of M" form); step reads
+  as one sentence "[weight] [is at least] [4]"; an edge-attribute step's inspector line "Keeps
+  edges that pass and the nodes at their ends"; empty "No filters. Add filter"; after undo the
+  notice names the step. Checkbox: accessible name "Apply step: weight is at least 4"; the
+  glossary's "Turn off step" is a menu verb -- one of the two must go (open). Path: "Path between"
+  (P), fields From, To, Follow (directed only), Weight; summary "3 nodes, 2 edges, length 7"
+  (length only with a distance weight); never "route". Notes: refined B section 8 words as
+  written; empty "No notes. Add note (N)". Weight: Data page "Higher means: Stronger | Farther |
+  Capacity", with nothing chosen for an auto-picked column; Analyze "Weight: weight, stronger
+  (loaded)"; override recorded in Made with "Weight: emails, stronger (this run only)"; no meaning
+  -> path runs refuse or run unweighted with "(unweighted)". Node weight: line only on entries the
+  catalog marks; attribute text "No measure reads node weight yet". Replace: "Replace with
+  file...", page title "Replace: friends.csv", report "Was 20 nodes, 60 edges; now 22, 74";
+  stale rows "Data changed since this run -- Rerun". Edge inspector title "Ava -- Kofi" /
+  "Ava -> Kofi". Neighborhood popover: "1 | 2 | 3 hops", "Follow: Out | In | All".
+- 2026-10-07 Element must give codes, not English, for: filter plan counts per step; selector
+  parse failure (number needs backticks, unknown attribute); path refusal (no path, weight has no
+  meaning); replace report (added, removed, changed counts); staleness reason (data replaced,
+  filter changed) by data version, not by count.
+
 
 - 2026-10-07 Announcement words (round 3 proposal): load "<Name>: 77 nodes, 254 edges"; run
   "<Method> running" then "<Method> finished". Both from the element's load and run events; no

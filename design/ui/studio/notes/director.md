@@ -5,10 +5,15 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-07 (tier 2 design decided: `next-steps/tier2-design.md`).
+Last updated: 2026-10-07 (tier 2 pilot findings turned into fix units).
 
 ## Top of mind
 
+- 2026-10-07: TIER 2 PILOTS (T4, T17, T18, T20, T22, T24) all reached success; no blocker stops a
+  path. Fixing every app, element and tool defect they found before the owner runs the study.
+  Two doors at most: a per-load record of left-out unmatched rows on `data.sources()`, and a
+  find-box rule check that does not apply (only if no existing method answers it). The Path
+  popover's weight box reads the element's `plan({op:"algo.run"})` caveats, not an app rule.
 - 2026-10-07: TIER 2 DESIGN DECIDED: `next-steps/tier2-design.md`. In: filters (element-owned
   steps), Path popover, Notes place, Sources listing every load, weight meaning at load + every run
   on the loaded weight (REQUIRED, owner rule), neighborhood hops/Follow in the list header,
@@ -30,8 +35,6 @@ Last updated: 2026-10-07 (tier 2 design decided: `next-steps/tier2-design.md`).
   study himself. NO touch/tablet profile, NO keyboard-only study (do not plan one).
 - 2026-10-07: The path-row crash needs NO element API: `RESULT_SHAPE_CONTRACTS` already gives
   path fields (`onPath`, `order`, `hops`, `cost`) and `layer: "highlight"`. App reads the shape.
-- 2026-10-07: Round 3 units: `next-steps/round3-units.md` (focus, contrast, refusal codes, export
-  words, screenshot chain, 3D size trace, Force cloud, Sources row, re-measure).
 - 2026-10-07: The tier 1 studio is DONE by the stop rule "round 3 finished", not by passing.
   Report: `report.md`. Real people later (graphty.app opt-in usage data, 5-8 analysts, one real
   screen-reader user).
@@ -162,6 +165,15 @@ Last updated: 2026-10-07 (tier 2 design decided: `next-steps/tier2-design.md`).
   no "Rerun all". Weight words from glossary 11 (similarity/distance/capacity/unknown); the
   element keeps its published `"strength"` spelling and grows `"capacity"`.
 
+- 2026-10-07 -- Tier 2 pilot fixes (me). Shared row truncation (Filters condition, Sources name)
+  is one compact-mantine fix in `EllipsizedName`, not two app tooltips: both rows already use it,
+  so the defect is the component's (first hover). The Overview's runaway Direction value is two
+  fixes: compact-mantine `DataRow` lets a long stat value run over its name, and the app quotes the
+  file's raw statement ("directed 0"). Overview under a filter: the app names the whole-graph
+  counts and adds the element's visible counts; no filtered statistics API (no task needs
+  components of the filtered graph). "Higher means" left unselected on purpose: it is the trap T20
+  measures; only its hint's contrast is checked.
+
 ## Tried: worked / did not work
 
 - 2026-09-27..10-02 -- Eight simulated rounds on mocks and a clickable skeleton. Places were right;
@@ -206,6 +218,11 @@ Last updated: 2026-10-07 (tier 2 design decided: `next-steps/tier2-design.md`).
   path-crash fix needs no API (shape contract), `ElementAtResult` already types edges, notes are
   already in the project file, selector refusals already carry a code, and `WeightMeaning` exists
   -- five would-be doors became zero or a field. Also found T4 needs no multi-type load.
+
+- 2026-10-07 (tier 2 pilots) -- Worked: pilots naming the screenshot and the test line made every
+  finding a unit without a re-walk. Two answer-key claims were wrong about the build (Everything
+  does not replace the selection; bare-number refusal shows only after Enter): pilot the key, not
+  only the app.
 
 ## Thinking
 

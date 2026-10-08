@@ -7,47 +7,37 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-1. (2026-10-07) Round 3 watch, sizing: Size "+" now opens its picker at once (pilot T9 and T15
-   reach the end in one step fewer). The only sizing change, so round 3 credits it. Pass bar:
-   fewer than half of sizing sessions name the path as a guess (round 2: 18 of 18). If it still
-   costs, next candidate is the "Shape" heading: the menu still reads "Add to Shape: Size, Shape".
-2. (2026-10-07) Round 3 watch, names: "Show all labels" beside "N labels, M hidden" (pilot T10
-   both datasets, 5 steps). T10 keeps its prompt, so it now tests the switch. Watch whether people
-   see it and whether the full-names drawing (overlapping names) reads as done or as a mess.
-3. (2026-10-07) I was wrong that a show-all control had to wait for the element: the element
-   already had `layoutBehavior.labels.declutter`. Before calling a door "blocked on the element",
-   read the element's existing config and catalog.
-4. (2026-10-07) A run is named by its method everywhere (pilot T7, T16: row, key, inspector,
-   "Made with"). My subtitle-only proposal lost to "no third naming state" -- correct by one home.
-   Watch for anyone missing the result word ("Influence") now that it is gone.
-5. (2026-10-07) Grouping candidates come from the element (`optionsFor` "partition" values); the
-   app's `groupings()` goes. Pilot T11: Rings and Columns by group open with "Group by:
-   Communities". New IA watch: Spectral, Circle (a sphere in 3D) and concentric Rings did not
-   untangle anything -- the Layout list may offer methods that do not answer the task.
-6. (2026-10-07) The Degree-row chevron is now part of the row (shared compact-mantine fix). Pass
-   bar: no dead first click on the chevron. Keep Neighborhood (G) for keyboard; add no doors.
-7. (2026-10-07) Still open, deferred to after round 3: the key box covering nodes on every load
-   (placement question; needs element API; the seed is the owner's); one refusal sentence for a
-   damaged file from both intake doors; Overview "Undirected, from the file: directed 0" overflow
-   and truncated "Edges per ...", "Les Mis..." (pilot T6, unfixed two builds running).
-8. (2026-10-07) "Selection 18" vs "Javert's 17 connections": my "Javert and his 17" was rejected
-   (the app cannot know gender). If the mismatch recurs, propose a neutral form ("Javert and 17
-   connections") rather than re-sending the old one.
-9. (2026-10-07) The first drawing shows no names (pilot T16): the likely reason a newcomer stops.
-   A default, not a door; raise it only with evidence from the first-look task.
-10. (2026-10-07) Lesson: propose one change per path. Two of my round 2 proposals (bound Size plus
-    a heading rename) were cut to one so round 3 can credit it. Pick the stronger one myself.
-11. (2026-10-06) Fix the door people reach for before marking the door they ignore; then mark it
-    -- the chevron cue was what people used.
-12. (2026-10-06) A refusal lives next to the control that caused it; one refusal per cause, same
-    words from every door.
-13. (2026-10-06) Rejected, do not re-propose without new evidence: filling Size's list with results
-    (second bind door); names in the Summary (second neighbor list); a Style-tab pointer to Label;
-    Size arriving pre-bound to the row's result (sizes by a group id on a community run).
-14. (2026-10-07) Do not change: rail (Graph, Data), Analyze and "Start here", File list and intake,
-    Values tab, save and reopen. No failure traced to them in rounds 1-2.
-15. (2026-10-06) Simulated participants share one model: a pass is weak, a failure strong. Count a
-    deterministic layout event once per dataset, but remember every user of that sample meets it.
+1. (2026-10-07) Tier 2 build order is element-first: the edge-attribute filter defect (0 nodes),
+   every run defaulting to the loaded weight with a meaning, numbers in rules without backticks
+   (or a neutral { code, params } refusal instead of a throw), edge picking plus an edge
+   selection look, and a run output's kind (measure vs membership) so the app never guesses.
+2. (2026-10-07) One popover per job, every door opens it: Path popover (canvas menu Path
+   between, P, Analyze > Shortest path); Neighborhood popover (G, canvas menu) with 1-3 hops,
+   Out/In/Both and Select | Filter to neighbors | Add as steps. "Grow by one hop" in "..." goes.
+3. (2026-10-07) The path-row crash (RunValues histogram on a boolean) is an app guess about run
+   kind; fix by reading the element's output kind, not by a try/catch around histogram.
+4. (2026-10-07) Notes need a third rail place (Notes) and the built-in Notes row; first check that
+   the project file saves notes (project/ code does not mention them as of today).
+5. (2026-10-07) Two tier 1 defects surfaced by the tier 2 audit belong in this pass: Sources lists
+   only the last file, and a CSV opened into an open project skips the Data page (weight never
+   chosen). Both break "one intake, one home per source".
+6. (2026-10-07) Do not draw a node Weight role until something reads it (no promise without a
+   place): ship it together with PageRank restart weights, or not at all.
+7. (2026-10-07) Round 3 watch: Size "+" opens its picker at once; "Show all labels" beside
+   "N labels, M hidden"; run named by its method everywhere. Bars in Decisions below.
+8. (2026-10-07) Before calling a door "blocked on the element", read the element's existing
+   config and catalog (the declutter lesson).
+9. (2026-10-07) Grouping candidates come from the element (`optionsFor` "partition"). Watch the
+   Layout list offering methods that do not answer the task (Spectral, Circle).
+10. (2026-10-07) Deferred: key box covering nodes; one refusal sentence for a damaged file;
+    Overview truncation ("Edges per ...").
+11. (2026-10-07) "Selection 18" vs "Javert's 17 connections": if it recurs, propose "Javert and
+    17 connections" (neutral), not the rejected "his".
+12. (2026-10-07) Propose one change per path so a round can credit it.
+13. (2026-10-06) A refusal lives next to the control that caused it; same words from every door.
+14. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
+    in the Summary; a Style-tab pointer to Label; Size pre-bound to the row's result.
+15. (2026-10-06) Simulated participants share one model: a pass is weak, a failure strong.
 
 ## Priorities and values
 
@@ -174,6 +164,15 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   sizing change), "Javert and his 17 connections" (gender unknowable). I accept all: each reason
   is a graph fact or a one-home argument, not taste.
 
+- 2026-10-07 (IA proposal for tier 2, from the tier 2 audit): build each gap where refined B
+  already put it (Data > Filters plus the header chip; Path popover; Notes place; Sources row
+  "Replace with file..."; main menu "Select where..."; Neighborhood popover); the element first
+  provides the facts the app would otherwise guess (output kind, weight meaning, rule errors as
+  codes, edge pick, filter on edge attributes). Not decided by refined B and decided here: the
+  doors live on the canvas menu until a selection bar exists; "Grow by one hop" leaves "...";
+  a stale run row gets a mark, and rerun stays per row (no "Rerun all" yet). Reason: one home per
+  job; every guess the app makes about a run or a rule is an element defect hidden.
+
 ## Tried: worked / did not work
 
 - 2026-09-28 to 10-02 -- Tree tests (text outline only). Worked as a ranking of where to look:
@@ -267,6 +266,8 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Sources
 
+- refined B sections 2.1, 2.3 (selection bar, Path popover), 7, 8, 10.1 (Select where), 11.3
+  (weight, several tables); tier1-design.md section 7; the tier 2 audit list (2026-10-07)
 - `design/ui/studio/rounds/round-2/decisions.md`, `insights.md`; `rounds/r2/pilot/T6`-`T16/pilot.md`
   (2026-10-07)
 

@@ -4,32 +4,35 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
-## 2026-10-07 -- A run goes out of date when its data changes, and says why: `StaleNote.reason`
+## 2026-10-07 -- Why a selector was refused, as a code: `E_BAD_SELECTOR` `details.reason`
 
-**What.** `run.stale` (and `run.record.stale`) is no longer null after a load or an edit changes
-the data the run read while its scope still holds the same nodes and edges. The note gains
-`reason: "data-changed" | "scope-changed"` (new exported type `StaleReason`): `data-changed` when
-the graph's node and edge records, endpoints or weights differ from when the run started (a
-reload of the same people with new weights), `scope-changed` when the same data resolves to other
-elements (a filter, the selection or a set changed). Data wins when both happened. The run record
-carries the digest it compares, as a new optional field `scope.data` on `RunScopeRecord`, so a
-saved project keeps it; a record without it (an older file) compares scopes only, as before.
-Starting a run again under an id whose data changed now re-runs it instead of returning the old
-result. A replacing load keeps runs, style layers and notes (checked; no change needed).
+**What.** Every `E_BAD_SELECTOR` refusal now carries `details.reason`, a stable code, beside the
+existing `details.position` and the other details. An expression selector (also what
+`select({ where })` and Find's `=` queries use) gives one of `unclosed-quote`,
+`bare-word-needs-quotes`, `bad-quoted-name`, `unsupported-syntax`, `pipe-not-supported`,
+`expression-reference-not-supported`, `number-needs-backticks`, `bad-character`, `dot-needs-name`,
+`name-contains-dot`, `function-not-supported`, `unclosed-parenthesis`, `missing-operand`,
+`not-needs-parentheses`, `trailing-input`, `quoted-whole-expression` or `reads-no-attribute`. A
+selector of the wrong shape gives `bare-string`, `not-a-selector`, `where-missing`,
+`has-path-missing`, `ids-not-a-list`, `not-an-id`, `top-path-not-a-result`, `top-n-not-whole`,
+`bad-member-scope` or `unknown-kind`. One existing detail moves: a refused `member` selector used to
+put the scope parser's own details under `details.reason`; they are now under `details.scope`. The
+query language itself is unchanged. `weight > 3` is refused with `reason: "number-needs-backticks"`,
+`position: 9`. The codes are documented on the error code and in the source, not exported as a type.
 
-**Why.** Staleness compared the scope's membership only, so replacing a file with one holding the
-same nodes and new weights left every PageRank, community and path run looking current while its
-numbers described the old data. The tier 2 design shows such a run as out of date with a reason
-the reader can act on ("the data changed" means re-run; "the filter changed" may be intended), and
-the app must not compute that itself.
+**Why.** The element returns facts and the app writes the words. Until now the only way for a
+consumer to tell a reader what was wrong with a query was to parse the English message. The app's
+Find box shows nothing at all for `=weight > 3` today (the refusal escapes as an uncaught error);
+with a code it can say "put the 3 in backticks" in its own words.
 
-**Alternatives.** Compare an input counter instead of a content digest: cheaper, but reloading the
-same file would mark every run out of date. Track only the columns a run read: exact, but the
-element does not yet record which attributes an algorithm read (weight, node weight). Put the
-digest inside the scope digest: the scope digest is documented as membership only, and merging
-them loses the reason. Edge ids are left out of the digest, because the element assigns them per
-load; an edge-metric run's values after a reload of the same file are therefore not flagged even
-though they are keyed by the old edge ids (open).
+**Alternatives.** Export the codes as a union type: a stronger contract, but every new refusal
+would then be a type change; easy to add later. Keep only the message: every consumer parses
+English. Use a separate error code per mistake: too many top-level codes for one kind of failure.
+
+**Owner question.** Should the query language accept a bare number (`weight > 3`) instead of
+refusing it and asking for backticks (`` weight > `3` ``)? JMESPath, which the language is a subset
+of, does not, so accepting it would make an accepted selector mean something JMESPath would refuse;
+but nearly every person who types a comparison writes the bare number first.
 
 ## 2026-10-07 -- Every run reads the loaded weight: `descriptor.weightMeaning` and one `weight` option
 
@@ -72,6 +75,61 @@ left for when a plugin needs the uniform option.
 today. Should it convert instead -- `1/w`, `1 - w` (for a weight in 0..1), or `-log w` (for a
 probability) -- and if so, which, chosen by whom? This build counts hops and says so, because
 any conversion silently picks one of three different answers.
+
+## 2026-10-07 -- A filter on an edge attribute narrows the edges: `nodes: "all" | "ends"`
+
+**What.** A `range` or `categories` rule (in `visibility.set`, a rule set or any rule tree) now
+speaks about each half whose elements carry the attribute. Before, both always read nodes only, so
+a rule on an edge column such as `{ kind: "range", attribute: "data.weight", min: 4 }` found no
+node with a weight, hid every node, and with them every edge: 0 nodes and 0 edges. Now that rule
+keeps the edges of weight 4 or more. Both leaves gain an optional field `nodes` (new exported type
+`AttributeLeafNodes`): `"all"`, the default, says nothing about nodes, so every node stays (on the
+friends sample: 20 nodes, 12 edges); `"ends"` keeps only the nodes at the ends of a kept edge (19
+nodes, 12 edges). A rule on a column both halves carry narrows both; with `"ends"` a node must pass
+and be an end. A column neither half carries still holds no node and is reported in
+`unresolvedPaths`, as before. The value source a session builds gains an optional `halvesOf(path)`
+on the exported `FilterValueSource`, so a rule asked about one element still reads one element.
+
+**Why.** "Show only the strong friendships" is a tier 2 task, and the element's documented rule
+model (each leaf speaks nodes, edges or both, and is silent about the rest) already covers it; the
+two attribute leaves simply ignored the edge half. Readers ask two different questions of an edge
+filter -- "which ties are strong, among everyone" and "who has a strong tie" -- and the second
+cannot be built from the first without a neighborhood walk the app must not do, hence the option.
+
+**Alternatives.** A new leaf kind (`edge-range`): a second spelling of the same rule, and every
+consumer must pick the right one by knowing where a column lives. A required `on: "nodes" |
+"edges"` field: explicit, but it breaks every stored rule and asks the consumer for a fact the
+element already knows. Defaulting to `"ends"`: matches some readers' first guess, but contradicts
+the documented silent-half rule and makes `any` / `all` groups with node leaves behave
+surprisingly. Expressing "ends" as `{ any: [...] }` of an `edges` leaf and a neighborhood: not
+possible today without listing seed nodes.
+
+## 2026-10-07 -- A run goes out of date when its data changes, and says why: `StaleNote.reason`
+
+**What.** `run.stale` (and `run.record.stale`) is no longer null after a load or an edit changes
+the data the run read while its scope still holds the same nodes and edges. The note gains
+`reason: "data-changed" | "scope-changed"` (new exported type `StaleReason`): `data-changed` when
+the graph's node and edge records, endpoints or weights differ from when the run started (a
+reload of the same people with new weights), `scope-changed` when the same data resolves to other
+elements (a filter, the selection or a set changed). Data wins when both happened. The run record
+carries the digest it compares, as a new optional field `scope.data` on `RunScopeRecord`, so a
+saved project keeps it; a record without it (an older file) compares scopes only, as before.
+Starting a run again under an id whose data changed now re-runs it instead of returning the old
+result. A replacing load keeps runs, style layers and notes (checked; no change needed).
+
+**Why.** Staleness compared the scope's membership only, so replacing a file with one holding the
+same nodes and new weights left every PageRank, community and path run looking current while its
+numbers described the old data. The tier 2 design shows such a run as out of date with a reason
+the reader can act on ("the data changed" means re-run; "the filter changed" may be intended), and
+the app must not compute that itself.
+
+**Alternatives.** Compare an input counter instead of a content digest: cheaper, but reloading the
+same file would mark every run out of date. Track only the columns a run read: exact, but the
+element does not yet record which attributes an algorithm read (weight, node weight). Put the
+digest inside the scope digest: the scope digest is documented as membership only, and merging
+them loses the reason. Edge ids are left out of the digest, because the element assigns them per
+load; an edge-metric run's values after a reload of the same file are therefore not flagged even
+though they are keyed by the old edge ids (open).
 
 ## 2026-10-07 -- Filter steps: `visibility.steps` and `visibility.setSteps()`
 
@@ -120,64 +178,6 @@ last file). A consumer cannot rebuild the list itself without recounting what ea
 **Alternatives.** Keep only `source()` and let the app keep its own list (state the app would
 own, lost on undo and on reopen). Make `source()` return an array (breaking). Record the list in
 the load report (`lastImport()` describes only the last load, and is not saved).
-
-## 2026-10-07 -- A filter on an edge attribute narrows the edges: `nodes: "all" | "ends"`
-
-**What.** A `range` or `categories` rule (in `visibility.set`, a rule set or any rule tree) now
-speaks about each half whose elements carry the attribute. Before, both always read nodes only, so
-a rule on an edge column such as `{ kind: "range", attribute: "data.weight", min: 4 }` found no
-node with a weight, hid every node, and with them every edge: 0 nodes and 0 edges. Now that rule
-keeps the edges of weight 4 or more. Both leaves gain an optional field `nodes` (new exported type
-`AttributeLeafNodes`): `"all"`, the default, says nothing about nodes, so every node stays (on the
-friends sample: 20 nodes, 12 edges); `"ends"` keeps only the nodes at the ends of a kept edge (19
-nodes, 12 edges). A rule on a column both halves carry narrows both; with `"ends"` a node must pass
-and be an end. A column neither half carries still holds no node and is reported in
-`unresolvedPaths`, as before. The value source a session builds gains an optional `halvesOf(path)`
-on the exported `FilterValueSource`, so a rule asked about one element still reads one element.
-
-**Why.** "Show only the strong friendships" is a tier 2 task, and the element's documented rule
-model (each leaf speaks nodes, edges or both, and is silent about the rest) already covers it; the
-two attribute leaves simply ignored the edge half. Readers ask two different questions of an edge
-filter -- "which ties are strong, among everyone" and "who has a strong tie" -- and the second
-cannot be built from the first without a neighborhood walk the app must not do, hence the option.
-
-**Alternatives.** A new leaf kind (`edge-range`): a second spelling of the same rule, and every
-consumer must pick the right one by knowing where a column lives. A required `on: "nodes" |
-"edges"` field: explicit, but it breaks every stored rule and asks the consumer for a fact the
-element already knows. Defaulting to `"ends"`: matches some readers' first guess, but contradicts
-the documented silent-half rule and makes `any` / `all` groups with node leaves behave
-surprisingly. Expressing "ends" as `{ any: [...] }` of an `edges` leaf and a neighborhood: not
-possible today without listing seed nodes.
-
-## 2026-10-07 -- Why a selector was refused, as a code: `E_BAD_SELECTOR` `details.reason`
-
-**What.** Every `E_BAD_SELECTOR` refusal now carries `details.reason`, a stable code, beside the
-existing `details.position` and the other details. An expression selector (also what
-`select({ where })` and Find's `=` queries use) gives one of `unclosed-quote`,
-`bare-word-needs-quotes`, `bad-quoted-name`, `unsupported-syntax`, `pipe-not-supported`,
-`expression-reference-not-supported`, `number-needs-backticks`, `bad-character`, `dot-needs-name`,
-`name-contains-dot`, `function-not-supported`, `unclosed-parenthesis`, `missing-operand`,
-`not-needs-parentheses`, `trailing-input`, `quoted-whole-expression` or `reads-no-attribute`. A
-selector of the wrong shape gives `bare-string`, `not-a-selector`, `where-missing`,
-`has-path-missing`, `ids-not-a-list`, `not-an-id`, `top-path-not-a-result`, `top-n-not-whole`,
-`bad-member-scope` or `unknown-kind`. One existing detail moves: a refused `member` selector used to
-put the scope parser's own details under `details.reason`; they are now under `details.scope`. The
-query language itself is unchanged. `weight > 3` is refused with `reason: "number-needs-backticks"`,
-`position: 9`. The codes are documented on the error code and in the source, not exported as a type.
-
-**Why.** The element returns facts and the app writes the words. Until now the only way for a
-consumer to tell a reader what was wrong with a query was to parse the English message. The app's
-Find box shows nothing at all for `=weight > 3` today (the refusal escapes as an uncaught error);
-with a code it can say "put the 3 in backticks" in its own words.
-
-**Alternatives.** Export the codes as a union type: a stronger contract, but every new refusal
-would then be a type change; easy to add later. Keep only the message: every consumer parses
-English. Use a separate error code per mistake: too many top-level codes for one kind of failure.
-
-**Owner question.** Should the query language accept a bare number (`weight > 3`) instead of
-refusing it and asking for backticks (`` weight > `3` ``)? JMESPath, which the language is a subset
-of, does not, so accepting it would make an accepted selector mean something JMESPath would refuse;
-but nearly every person who types a comparison writes the bare number first.
 
 ## 2026-10-07 -- Focusing the element focuses its drawing (`delegatesFocus`)
 
@@ -432,6 +432,29 @@ makes every graph format behave the same way.
 (every other consumer still gets a partial graph by default). Add a load option such as
 `partial: "keep" | "refuse"` (new public API; the default still has to be chosen).
 
+## 2026-10-07 -- "Fit to graph" can keep the current angle: `keepAngle`
+
+**What.** The built-in camera view `fitToGraph` declares one option, `keepAngle` (boolean, default
+false), in its catalog descriptor. With it on, in 3D the view frames every node from the direction
+the camera looks from now -- the pivot rotation, roll included, is kept and only the target and the
+distance change -- instead of jumping to the fixed diagonal. It has no effect in 2D. The screenshot
+option `camera` also accepts `{ preset, params }`, so a capture can pass a named view's options:
+`captureScreenshot({ camera: { preset: "fitToGraph", params: { keepAngle: true } } })`. The graphty
+app asks for it when the Export dialog's View is "Whole graph". The distance puts every corner of the
+graph's box, padded 10 percent, inside the narrower field of view, so every node is in shot from
+any angle. Without the option every number is unchanged to the digit, so no saved picture moves.
+
+**Why.** "Whole graph" in 3D exported a picture turned to an angle the reader never chose, with a
+quarter of it empty: the drawing on screen and the drawing in the file did not match. A third-party
+consumer exporting "everything, as I see it" had no way to ask for it except computing the camera
+itself, which is graph functionality the element owns.
+
+**Alternatives.** A new built-in view, such as `fitFromHere` (a second name for nearly the same
+rule, and one more entry in every picker). Change `fitToGraph` to always keep the angle (moves every
+saved picture and every "Fit" press). Have the app compute the camera from the bounds (a workaround
+of exactly the kind the repository forbids). Name the option differently (`fromCurrent`,
+`preserveDirection`).
+
 ## 2026-10-07 -- A capture can leave the selection highlight out: `showSelection`
 
 **What.** `ScreenshotOptions` gains `showSelection?: boolean`, default `true` (the image shows what
@@ -526,29 +549,6 @@ sentence on; it has no coded refusal yet. The app's Analyze popover still shows 
 refusals in the element's words: the codes exist now, the app's words for them do not. The
 inspector's Method select disables a layout that cannot run but does not say why (the Layout
 popover does).
-
-## 2026-10-07 -- "Fit to graph" can keep the current angle: `keepAngle`
-
-**What.** The built-in camera view `fitToGraph` declares one option, `keepAngle` (boolean, default
-false), in its catalog descriptor. With it on, in 3D the view frames every node from the direction
-the camera looks from now -- the pivot rotation, roll included, is kept and only the target and the
-distance change -- instead of jumping to the fixed diagonal. It has no effect in 2D. The screenshot
-option `camera` also accepts `{ preset, params }`, so a capture can pass a named view's options:
-`captureScreenshot({ camera: { preset: "fitToGraph", params: { keepAngle: true } } })`. The graphty
-app asks for it when the Export dialog's View is "Whole graph". The distance puts every corner of the
-graph's box, padded 10 percent, inside the narrower field of view, so every node is in shot from
-any angle. Without the option every number is unchanged to the digit, so no saved picture moves.
-
-**Why.** "Whole graph" in 3D exported a picture turned to an angle the reader never chose, with a
-quarter of it empty: the drawing on screen and the drawing in the file did not match. A third-party
-consumer exporting "everything, as I see it" had no way to ask for it except computing the camera
-itself, which is graph functionality the element owns.
-
-**Alternatives.** A new built-in view, such as `fitFromHere` (a second name for nearly the same
-rule, and one more entry in every picker). Change `fitToGraph` to always keep the angle (moves every
-saved picture and every "Fit" press). Have the app compute the camera from the bounds (a workaround
-of exactly the kind the repository forbids). Name the option differently (`fromCurrent`,
-`preserveDirection`).
 
 ## 2026-10-07 -- Node size that ignores depth: `layoutBehavior.node.depthIndependentSize`
 

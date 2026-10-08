@@ -15,6 +15,18 @@ save and reopen.
 
 ## Top of mind
 
+- 2026-10-07 **Tier 2 build order (my proposal):** the path-row crash first (a live defect that
+  wipes the app), then the element's edge-attribute filter defect, Filters, the loaded-weight
+  default, Notes, the Path popover, Select where, Replace with file, the neighborhood distance,
+  edge selection, several tables, node weight last. Several tables is the biggest and its load
+  description is a one-way door.
+- 2026-10-07 **Keep the round-2 neighbors win when adding distance.** G and the Degree row still
+  act at once (1 hop, the named list); Hops 1-3, direction, Filter to neighbors and Add as steps
+  go INTO that list's header, not a popover in front of it. This departs from refined B's
+  Neighborhood popover; reversible, mine.
+- 2026-10-07 **Pick fields beat Shift-click.** The Path popover's From and To are pick fields
+  (click the field, then a node on the canvas, or type a name with Find's list). Audit: a second
+  node needed Shift-click on unlabeled dots.
 - 2026-10-07 **Round 3 must prove the unwalked fixes, not assume them.** The re-pilot (build
   b7590f8de) walked every tier 1 task by pointer and all reach their end state, but no pilot
   touched the menu-to-dialog focus, 2D Fit, the chevron hit area, the canvas name and focus ring,
@@ -24,8 +36,6 @@ save and reopen.
   bound to the run": on a community run that would size by a group id -- the Director was right).
   Esc on that list leaves a fixed "1", no Size key row, focus on the chain-link (T9 B/06). Count
   how many stop there believing they sized.
-- 2026-10-07 **Watch "Show all labels".** It reaches every name in 5 steps (T10), but names are
-  tiny and overlap once all are on. Record "unreadable" as opinion, not a failed step.
 - 2026-10-07 **Recovery routes are first-class.** Fit is what a lost reader presses. A broken
   recovery route outranks a slow forward route. Also watch selection recentering that pushes
   nodes under the toolbar (T12) and Spectral framing a knot under it (T11).
@@ -34,8 +44,6 @@ save and reopen.
 - 2026-10-07 **Feedback that contradicts the drawing:** Everything's Style tab shows Color blue,
   Size 1 while every dot is orange and sized by the run above it (T15 finding 4). Same trust
   failure as round 8's "panel says one thing, drawing another". Watch; candidate for round 4.
-- 2026-10-07 **Overlays hide nodes and the element cannot frame around them** (no fit inset).
-  Needs public element API; the owner's call, after round 3, as a placement question.
 - 2026-10-07 **Element English leaks into my refusals** (layout refusal sentence, "centre").
   The in-place refusal pattern holds; its words must come from codes (issue #867 family).
 - 2026-10-07 **The neighbors flow is done** (round 2: 8 of 8; re-pilot via G also works). Do not
@@ -45,7 +53,6 @@ save and reopen.
 - 2026-10-06 **Change one thing per problem per round,** so the round can tell what helped.
 - 2026-10-06 **Every detour must work or not look clickable. Refusals in place, under the field,
   until the value changes.** Held through round 2.
-- 2026-10-06 **Notices: 6 s, pause on hover, never the only way back.** Esc one thing per press.
 - 2026-10-06 **Not doing yet:** first-run tour, toolbar words, names drawn by default, the Size
   move, a chain-link label.
 - 2026-10-06 **Where a fix goes:** graph logic in graphty-element; flows, focus, words in the app;
@@ -208,22 +215,27 @@ Each with its reason. A screen that breaks one is a defect.
   "+" opens its picker instead (Label "+" pattern). Not changed: Force unsettled cloud (untraced),
   4x print export, key placement and fit inset (new API, seed is the owner's).
 
+- 2026-10-07 Tier 2 proposals (mine, for the Director; from the tier 2 audit and refined B
+  sections 2.3, 7, 8, 10.1, 10.3, 11.3). Keep refined B where decided. Mine where it departs or
+  is silent: (a) the path run's Values tab lists the route in order with hop count and total,
+  chosen by the element's per-field type, never a histogram on a boolean (audit crash at
+  `RunValues.tsx:171`); (b) Find with a leading "=" shows a live first row "Select where <rule>:
+  N edges" and a malformed rule's reason under the box from an element code (today the error
+  escapes uncaught); (c) Replace with file marks each changed row "Numbers changed" and offers
+  Rerun on the row, not an automatic rerun of slow runs (criterion 6); (d) the filter chip is
+  drawn only once a step exists (restraint) -- refined B draws "Full graph" always, open;
+  (e) Analyze shows "Weight: not read by Degree" on entries that read none, from a catalog fact.
+  Open owner questions: how a "stronger" weight becomes a distance for shortest path (1/w,
+  refuse, or ask); bare numbers in the rule language (`weight > 3`) as a query-language change.
+
 ## Tried: worked / did not work
 
-- 2026-09-13 v1 shell panel locks and autohide: did not work. Locking one panel closed the other;
-  clicking a node closed the right panel. Taught: panel lifecycle needs one simple rule.
-- 2026-09-13 v1 command palette that did not focus its input; search box that could not be typed
-  in: did not work (owner caught both). Taught: a state's initial focus goes to what it opened.
-- 2026-09-27 Silent undo vs undo with a notice (round 1-2): silent lost people (5 of 5); notice
-  kept. Two of five pressed Ctrl+Y and nothing happened -- add Ctrl+Y as Redo off macOS.
-- 2026-09-28 Filter step undo that deleted the step: did not work (severity 4). Undo now unticks
-  the step and keeps it in the list. Taught: undo must never destroy what the reader can toggle.
-- 2026-09-29 Find and Go to focusing the walk without selecting (round 4): left a keyboard user
-  with three nodes selected by accident; later replaced by "picking selects and frames".
-- 2026-09-29 Undo notice lasting "until the next action": failed in alert triage -- one alert's
-  notice greeted the next. Now the notice clears when the reader moves to another object.
-- 2026-09-29 Notice-only recovery of a cleared selection vs notice plus Ctrl+Z restore (round 6):
-  restore worked (0 of 8 wrong end states vs 5 of 8).
+- 2026-09-13..29 (summarized) Did not work: v1 panel locks and autohide (one rule needed); a
+  palette and search box that did not focus (initial focus goes to what opened); silent undo (5 of
+  5 lost a step; Ctrl+Y must be Redo off macOS); a filter-step undo that DELETED the step
+  (severity 4: undo unticks and keeps it -- applies to tier 2 Filters); Find focusing without
+  selecting; a notice lasting "until the next action". Worked: Ctrl+Z restoring a cleared
+  selection (0 of 8 wrong vs 5 of 8).
 - 2026-09-30 My groups-list proposal (measures do not auto-paint; a run's group cannot be dragged
   out of its run; Space toggles paint; Alt+Up/Down moves a row): the owner overruled "measures do
   not paint"; the keyboard map for tree rows mostly survived into refined structure B.

@@ -72,3 +72,15 @@ checkbox was cut to a sliver (A) or pushed off the row entirely (B), and B could
 off: the click timed out and the panel scrolled. compact-mantine now shrinks only a slot that holds
 pinned text; a slot of controls keeps its size (`compact-mantine/src/theme/css/tree.css.ts`, test
 "keeps a pinned checkbox whole on a narrow row with a count").
+
+## Re-walk, 2026-10-07, second pass
+
+Walked again with the same steps on a frozen copy of the served build (graphty 0.8.55, build
+75cbc3a9a0e9, worktree at commit 089d6e542 with uncommitted changes). Screenshots and logs are in
+`../T17-2/` (`T17A/`, `T17B/`, `T17A.log`, `T17B.log`). Every step exited 0 with no script error,
+console error, failed request or "the drawing is still moving".
+
+**Result: reached on both datasets.** A: chip "19 of 20 nodes", Overview "Nodes showing 19 of 20",
+"Edges showing 12 of 41"; unticking the step brings back all 20 people and 41 ties. B: chip "26 of
+77 nodes", "Edges showing 51 of 254"; unticking brings back all 77 characters. The hover tooltips
+give the full condition. The step's checkbox stays whole and clickable on both rows.

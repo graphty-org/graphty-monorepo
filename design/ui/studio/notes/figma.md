@@ -5,10 +5,14 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-07 (round 2 closed; re-pilot read; round 3 watch list on top).
+Last updated: 2026-10-07 (tier 2 gap proposal added; round 3 watch list kept).
 
 ## Top of mind
 
+0. (2026-10-07) Tier 2 build proposal sent (Decisions, 2026-10-07 tier 2). Order: crash and
+   escapes first (paint-tree path row, '=weight > 3'), then the selection bar as the home of
+   Path between / Add note / Neighborhood, then Filters, Notes, weight. Several tables and node
+   weight are the element-heavy items; every new element API is an owner record.
 1. (2026-10-07) Round 3 measures the twelve round-2 changes. The re-pilot reached every end state
    with no blocker: Size "+" opens its list at once (T9), runs read "PageRank" everywhere (T7,
    T16), group layouts enable after Louvain with "Group by: Communities" chosen (T11), "Show all
@@ -43,7 +47,6 @@ Last updated: 2026-10-07 (round 2 closed; re-pilot read; round 3 watch list on t
     finding, not a 3.5x measure.
 14. (2026-10-06) Ledger debt: `figma-crosswalk.md` section 4 lacks rows for undo notices, the
     Discard prompt and Save/Save as.
-15. (2026-10-07) Lesson kept: one smallest change per failure, so a round can attribute results.
 
 ## Priorities and values
 
@@ -109,6 +112,18 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- 2026-10-07 (me, tier 2 gap proposal) Build to refined B where it is decided: Data > Filters with
+  an Apply checkbox and the header chip; Path popover with pick fields (P, the selection bar, the
+  node menu); Notes place with N; Neighborhood popover (1-3 hops, Out/In/Both, Filter to
+  neighbors, Add as steps) replacing the hidden "Grow by one hop" (one home); Select where popover
+  above the toolbar; Replace with file... on the source row menu; Analyze's uniform Weight line.
+  Figma reasons: click selects anything on the canvas (edges too), add-first, one home per
+  capability, nothing escapes as a script error. Not decided in the sources, my calls: the
+  selection bar is the first thing to build because four verbs need it; Replace reruns every run
+  row and marks changed numbers (Figma: instances follow the main component); a typed rule in Find
+  shows one live row "Select where <rule> (n)". Element asks: edge-attribute filter fix, weight
+  default and meaning, a content revision for staleness, numbers without backticks or a neutral
+  error code, edge picking and an edge selection style, field kinds on a run result.
 - 2026-10-07 (studio, round 2 close) Twelve changes for round 3, one per problem, in the owning
   package: menu-to-dialog focus (compact-mantine Menu defaults); the key drops a block painted
   over on every node (element, owner-decision record); 2D Fit frames the graph (element); group

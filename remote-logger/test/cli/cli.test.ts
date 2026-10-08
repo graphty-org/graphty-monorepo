@@ -93,6 +93,19 @@ describe("CLI", () => {
             expect(result.showHelp).toBe(false);
         });
 
+        test("refuses a non-numeric --port instead of listening on NaN", () => {
+            const result = parseArgs(["--port", "90a0"]);
+            expect(result.error).toBe('--port must be an integer from 1 to 65535, got "90a0"');
+            expect(result.options.port).toBeUndefined();
+        });
+
+        test("refuses an out-of-range or missing --port", () => {
+            expect(parseArgs(["--port", "0"]).error).toContain("--port");
+            expect(parseArgs(["--port", "65536"]).error).toContain("--port");
+            expect(parseArgs(["--port", "-1"]).error).toContain("--port");
+            expect(parseArgs(["--port"]).error).toContain("--port");
+        });
+
         test("should parse multiple arguments together", () => {
             const result = parseArgs(["--port", "9090", "--host", "0.0.0.0", "--quiet", "--log-file", "./logs.jsonl"]);
             expect(result.options.port).toBe(9090);

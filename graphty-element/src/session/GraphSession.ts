@@ -75,6 +75,7 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
+import { dataDigest } from "./project/digest";
 import {
     Dispatcher,
     type DispatchFunction,
@@ -83,7 +84,6 @@ import {
     type TransactionOptions as DispatchOptions,
     type TransactionScope as DispatchScope,
 } from "./project/Dispatcher";
-import { dataDigest } from "./project/digest";
 import { nodeOfKey, ROWS_MOVED } from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";

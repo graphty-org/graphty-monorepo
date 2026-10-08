@@ -192,6 +192,7 @@
         "Styles/Selection Highlight::Opacity",
         "Styles/Selection Highlight::RestyledWhileSelected",
         "Styles/Selection Highlight::Scale",
+        "Styles/Selection Highlight::SelectedEdge",
         "Undo::Baseline",
         "Undo::FilterThenUndo",
         "Undo::ImportThenUndo",

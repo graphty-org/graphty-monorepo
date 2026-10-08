@@ -356,6 +356,34 @@ describe("session.capabilities.xr", () => {
         assert.isNull(element.session.capabilities.xr.active);
     });
 
+    test("stops listening on navigator.xr when the element leaves the page", async () => {
+        const { xr } = navigator;
+        assert.exists(xr);
+        const listening = new Set<EventListenerOrEventListenerObject>();
+        const add = xr.addEventListener.bind(xr);
+        const remove = xr.removeEventListener.bind(xr);
+        xr.addEventListener = (type: string, listener: EventListenerOrEventListenerObject | null, ...rest: []) => {
+            if (type === "devicechange" && listener !== null) {
+                listening.add(listener);
+            }
+            add(type, listener, ...rest);
+        };
+        xr.removeEventListener = (type: string, listener: EventListenerOrEventListenerObject | null, ...rest: []) => {
+            if (type === "devicechange" && listener !== null) {
+                listening.delete(listener);
+            }
+            remove(type, listener, ...rest);
+        };
+
+        await mountDefaultGraph();
+        assert.isAbove(listening.size, 0, "the element never listened for WebXR device changes");
+
+        element.remove();
+
+        // A listener left on navigator.xr keeps the removed element's whole graph alive.
+        assert.strictEqual(listening.size, 0, "a devicechange listener outlived the element");
+    });
+
     test("answers unsupported when the browser never answers, within 1500 ms", async () => {
         const { xr } = navigator;
         assert.exists(xr);

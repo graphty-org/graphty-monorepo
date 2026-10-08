@@ -178,10 +178,10 @@ function rowOf(snapshot: GraphSnapshot, id: NodeId, hint: number): number {
 }
 
 /**
- * The arrangement of one session: the current capture, the generation of the lane it matches,
+ * The arrangement of one session: the current capture, the change count of the lane it matches,
  * the `arrangement` and `pins` hooks, and the `positions.*` commands' writes.
  *
- * Its invariant: while the lane's generation equals the one recorded here, the lane holds the
+ * Its invariant: while the lane's change count equals the one recorded here, the lane holds the
  * arrangement of the history's cursor, A(cursor). A seal, a restore and a `positions.set` keep it;
  * a layout write breaks it until the next seal.
  */
@@ -240,7 +240,7 @@ export class Arrangement {
      */
     bind(source: LaneSource | null): void {
         this.source = source;
-        this.captured = source?.positions.generation ?? 0;
+        this.captured = source?.positions.changes ?? 0;
         this.exact = null;
     }
 
@@ -249,7 +249,7 @@ export class Arrangement {
      * @returns True when it has.
      */
     get moved(): boolean {
-        return this.source !== null && this.source.positions.generation !== this.captured;
+        return this.source !== null && this.source.positions.changes !== this.captured;
     }
 
     /**
@@ -397,7 +397,7 @@ export class Arrangement {
         }
 
         draft.arrange(rowPatch(ids, rows, values));
-        this.captured = lane.generation;
+        this.captured = lane.changes;
         this.exact = null;
         this.written = true;
         // The engine takes the new rows as its own at the next pass.
@@ -498,7 +498,7 @@ export class Arrangement {
      */
     private current(capture: ArrangementCapture): void {
         (this.state as { arrangement: ArrangementCapture | null }).arrangement = capture;
-        this.captured = this.source?.positions.generation ?? 0;
+        this.captured = this.source?.positions.changes ?? 0;
         this.exact = capture;
     }
 
@@ -554,7 +554,7 @@ export class Arrangement {
             }
 
             source.positions.moved();
-            this.captured = source.positions.generation;
+            this.captured = source.positions.changes;
             this.exact = exact;
         }
 
@@ -565,7 +565,7 @@ export class Arrangement {
         this.written = false;
         this.engine?.loadArrangement(restoring, wrote);
         if (atRest) {
-            this.captured = source?.positions.generation ?? 0;
+            this.captured = source?.positions.changes ?? 0;
         }
     }
 

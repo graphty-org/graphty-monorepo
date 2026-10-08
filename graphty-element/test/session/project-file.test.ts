@@ -39,35 +39,35 @@ function withDegree(): { harness: Harness; calls: () => number } {
             .map((edge) => ({ id: edge.id, values: { from: String(edge.source) } }));
 
         // The fields name the run "$", as the element's own algorithms declare them.
-        return Promise.resolve({
-            result: createRunResult({
-                runId: context.runId,
-                shape: "node-metric",
-                fields: [
-                    {
-                        name: "value",
-                        plainName: "Connections",
-                        technicalName: "degree",
-                        kind: "node",
-                        type: "number",
-                        path: "results.$.value",
-                    },
-                    {
-                        name: "from",
-                        plainName: "From",
-                        technicalName: "from",
-                        kind: "edge",
-                        type: "string",
-                        path: "results.$.from",
-                    },
-                ],
-                measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
-                nodes,
-                edges,
-                caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "degree", notes: [] },
-                durationMs: 1,
-            }),
+        const result = createRunResult({
+            runId: context.runId,
+            shape: "node-metric",
+            fields: [
+                {
+                    name: "value",
+                    plainName: "Connections",
+                    technicalName: "degree",
+                    kind: "node",
+                    type: "number",
+                    path: "results.$.value",
+                },
+                {
+                    name: "from",
+                    plainName: "From",
+                    technicalName: "from",
+                    kind: "edge",
+                    type: "string",
+                    path: "results.$.from",
+                },
+            ],
+            measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
+            nodes,
+            edges,
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "degree", notes: [] },
+            durationMs: 1,
         });
+        // The summary rides along, as the element's own executor hands it over.
+        return Promise.resolve({ result, summary: result.summary() });
     };
     const harness: Harness = makeSession({ runs: { execute } });
     ({ store } = harness);
@@ -222,6 +222,24 @@ describe("the project file", () => {
 
         source.session.dispose();
         session.dispose();
+    });
+
+    it("gives a reopened run the record it was saved with, summary included", async () => {
+        const source = await busySession();
+        const before = source.session.runs.get("links")?.record;
+        assert.isDefined(before?.summary?.measured, "the run has a count");
+        const { text } = await source.session.project.save();
+
+        const { harness: target } = withDegree();
+        await target.session.project.open(text);
+        const after = target.session.runs.get("links")?.record;
+        // Caveats and duration are the record's own, saved from it; the counts come back as they were.
+        assert.strictEqual(after?.summary?.measured, before?.summary?.measured);
+        assert.strictEqual(after?.summary?.count, before?.summary?.count);
+        assert.deepStrictEqual(after?.summary?.groups, before?.summary?.groups);
+
+        source.session.dispose();
+        target.session.dispose();
     });
 
     it("carries edge results and the edge selection over to the edge ids of the session it opens in", async () => {

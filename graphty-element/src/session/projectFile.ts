@@ -1130,30 +1130,27 @@ async function readProject(
                     problems.push({ code: "W_DATA_DIFFERS", params: { slice: "runs", id: run.id } });
                 }
 
-                canned.set(run.id, {
-                    result: createRunResult({
-                        runId: run.id,
-                        shape: run.shape,
-                        fields: run.fields,
-                        measured: run.measured,
-                        graph: run.graph,
-                        nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) =>
-                            nodeIds.has(node) ? node : undefined,
-                        ),
-                        // Edges are keyed by position in the data; data that differs leaves them out.
-                        edges: sameData
-                            ? rowsOf(
-                                  edgeIds.map((_, at) => at),
-                                  run.edges.columns,
-                                  (at) => edgeIds[at],
-                              )
-                            : [],
-                        caveats: run.caveats,
-                        durationMs: run.durationMs,
-                    }),
-                    caveats: run.caveats,
+                const result = createRunResult({
+                    runId: run.id,
+                    shape: run.shape,
                     fields: run.fields,
+                    measured: run.measured,
+                    graph: run.graph,
+                    nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
+                    // Edges are keyed by position in the data; data that differs leaves them out.
+                    edges: sameData
+                        ? rowsOf(
+                              edgeIds.map((_, at) => at),
+                              run.edges.columns,
+                              (at) => edgeIds[at],
+                          )
+                        : [],
+                    caveats: run.caveats,
+                    durationMs: run.durationMs,
                 });
+                // The summary too, as a fresh execution hands it over: the run's record (its count,
+                // its groups) is read from it.
+                canned.set(run.id, { result, summary: result.summary(), caveats: run.caveats, fields: run.fields });
                 const { algorithm, params, scope, seed, sample, exact } = remap(run);
                 try {
                     await tx.runs.start(algorithm, params, {

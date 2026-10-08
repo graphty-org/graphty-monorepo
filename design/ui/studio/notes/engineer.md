@@ -15,6 +15,15 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+0000. (2026-10-08) **A reopened run keeps its summary (graphty-element `projectFile.ts`, no door).**
+      Opening a project hands each saved result to its run as a canned outcome; that outcome had
+      no `summary`, so `run.record.summary` was undefined and every app row reading
+      `summary.measured` lost its count ("PageRank 20" -> "PageRank"). Fix: the canned outcome
+      carries `summary: result.summary()`, exactly as `AlgorithmManager.execute` does. The "dimmed
+      icon" in the pilot was only the unselected-row tone (dimming is for hidden rows only). Test:
+      `project-file.test.ts` "gives a reopened run the record it was saved with". Evidence
+      `tmp/r1-dry1-reopened-run-count/A/04.png` (PageRank 20), `B/04.png` (PageRank 15).
+
 000. (2026-10-08) **Marks visible on a colored drawing (graphty-element; owner doors listed).**
      Highlight default `#D55E00` -> `#332288` (Tol indigo): vermilion was Delta E 1 from the
      default ramp's 2nd step. A grid search of sRGB found ONLY dark blues/violets clear Delta E 15
@@ -118,6 +127,10 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
+- (2026-10-08) A canned outcome (project open) must carry everything a live execution's outcome
+  does: result, summary, fields, caveats. Reason: the run's record is built from the outcome, so
+  any field left off silently vanishes from `run.record` after a reopen while the result itself
+  looks fine. Watch for the next field added to `RunOutcome`.
 - (2026-10-08) **A selected edge gets its own three settings, flat (`edgeColor`, `edgeScale`,
   `edgeOpacity`).** Reason: no one value serves a translucent ring around a ball and a band beside
   a one-pixel line; changing the shared gold would move every node halo, and blue is too close to
@@ -192,6 +205,9 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Worked: comparing `run.record.summary` before save and after open in a node test.
+  Comparing the whole summary did NOT work: caveats and durationMs differ because the file saves
+  the record's merged caveats and wall time, not the executor's raw ones -- compare the counts.
 - (2026-10-08) Choosing a default color: measure it, never eyeball. `default-palette-quality.test.ts`
   has the color science (OKLab, Machado CVD); a scratch copy in `tmp/r1-dry1-marks-visible/`
   (`search.mjs` grid search, `pair.mjs` pairwise) found the feasible region in seconds.

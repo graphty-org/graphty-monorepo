@@ -188,6 +188,8 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
     readonly lastRenumbering?: Renumbering | null;
     /** Whether the next read of the graph would freeze a snapshot; see `GraphStore.stale`. */
     readonly stale?: boolean;
+    /** Whether the graph holds no node rows, answered without freezing; see `GraphStore.holdsNoRows`. */
+    readonly holdsNoRows?: boolean;
     /**
      * The attribute revisions and input tick of whoever builds the stores (design/sets 6.2): the
      * data manager's, the same across a Clear. Absent, the store's own.
@@ -1890,10 +1892,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         get positions() {
             return store.store.positions;
         },
-        // A store of the element's own answers from its snapshot: an edge's endpoint left behind
-        // by its edge is a row with no record, and a capture that took it for empty lost the row.
+        // The data manager answers from the GraphStore it holds, without freezing: an edge's
+        // endpoint left behind by its edge is a row with no record, which "no rows" would lose.
         holdsNoRows: () =>
-            store.store instanceof GraphStore ? store.store.holdsNoRows : store.store.getSnapshot().nodeCount === 0,
+            store.store instanceof GraphStore ? store.store.holdsNoRows : (store.store.holdsNoRows ?? true),
         get stale() {
             return (store.store as { readonly stale?: boolean }).stale === true;
         },

@@ -157,6 +157,8 @@ const box = (part = null) =>
         }
         return name ? globalThis.document.getElementById(`wait-${name}`).textContent : "open";
     }, part);
+// The targets screen shows the whole list: no refresh running, every capture downloaded.
+const listSettled = () => page.locator("#listline[data-settled]").waitFor();
 // The item's images have been on screen long enough for a decision to count.
 const ready = () => page.locator("#stage[data-ready]").waitFor();
 const progress = () => page.locator("#progress").textContent();
@@ -2949,9 +2951,10 @@ async function openStoryFromGrid(number) {
 describe("review page: the inbox", () => {
     it("opens on what waits, counts it in the title, opens the first undecided image, and keeps the token", async () => {
         await open((r) => ({ gh: twoPrs(r, capturedItems()) }), { review: false });
+        await listSettled();
         const rows = page.locator(".inbox-row");
-        await expect.poll(() => rows.count()).toBe(2);
-        await expect.poll(() => page.title()).toBe("(2) Visual review");
+        expect(await rows.count()).toBe(2);
+        expect(await page.title()).toBe("(2) Visual review");
         expect(await page.locator(".inbox h2").textContent()).toBe("Ready for you (2)");
         expect(await rows.first().textContent()).toMatch(/^#123 PR 123\d+ images, CI, just now$/);
         const box = await rows.first().boundingBox();
@@ -2961,7 +2964,8 @@ describe("review page: the inbox", () => {
         await page.locator("#app.story-screen").waitFor();
         // The notifier's link carries no token: a browser that used the page before still opens it.
         await page.goto(`${origin}/`);
-        await expect.poll(() => page.locator(".inbox-row").count()).toBe(2);
+        await listSettled();
+        expect(await page.locator(".inbox-row").count()).toBe(2);
     });
 
     it("shows coupled pull requests as one group, and Review together decides a shared image on both", async () => {
@@ -2986,8 +2990,9 @@ describe("review page: the inbox", () => {
 
     it("lists a pull request with a failed story under Not ready with its reason, never as ready", async () => {
         await open((r) => ({ gh: twoPrs(r) }), { review: false });
+        await listSettled();
         const bad = page.locator(".inbox-bad");
-        await expect.poll(() => bad.count()).toBe(2);
+        expect(await bad.count()).toBe(2);
         expect(await page.locator(".inbox-row").count()).toBe(0);
         expect(await page.locator(".inbox h2").textContent()).toBe("Nothing waiting for you");
         expect(await bad.first().textContent()).toContain(
@@ -3148,5 +3153,49 @@ describe("review page: safe filters and the pull request's context", () => {
         expect(await page.locator("#spot-all").getAttribute("aria-pressed")).toBe("false");
         expect(await page.locator("#zoom-all").getAttribute("aria-pressed")).toBe("true");
         expect(await look()).toEqual([false, true]);
+    });
+
+    it("loads spotlit tiles the server made, and makes the same tile itself when the server cannot", async () => {
+        await open((r) => ({ gh: onePr()(r) }));
+        const tile = page.locator('.tile[data-file="button--primary.dark.png"] img');
+        await tile.waitFor({ state: "visible" });
+        const lit = () => tile.evaluate((n) => n.classList.contains("spot") && n.classList.contains("zoomed"));
+        // The tile's picture at its own size, kept in the page under `name`: 400 x 250 RGBA is
+        // 400,000 numbers, about a second to carry out of the browser as JSON.
+        const pixels = (name) =>
+            tile.evaluate(async (img, key) => {
+                await img.decode();
+                const c = new globalThis.OffscreenCanvas(img.naturalWidth, img.naturalHeight);
+                c.getContext("2d").drawImage(img, 0, 0);
+                globalThis[key] = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+            }, name);
+        let refused = 0;
+        await page.route("**/api/spot/**", (route) => {
+            refused++;
+            return route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
+        });
+        await page.locator("#spot-all").click();
+        await page.locator("#zoom-all").click();
+        await expect.poll(lit).toBe(true);
+        expect(refused).toBeGreaterThan(0);
+        await pixels("own");
+        await page.unroute("**/api/spot/**");
+        // Off and on again: the tile asks the server again, which answers this time.
+        await page.locator("#zoom-all").click();
+        const answered = page.waitForResponse(
+            (res) => res.url().includes("/api/spot/123/compact-mantine/both/button--primary.dark.png") && res.ok(),
+        );
+        await page.locator("#zoom-all").click();
+        await answered;
+        await expect.poll(lit).toBe(true);
+        await pixels("served");
+        const [length, ownLength, mean] = await page.evaluate(() => {
+            const [own, served] = [globalThis.own, globalThis.served];
+            const sum = served.reduce((total, v, i) => total + Math.abs(v - own[i]), 0);
+            return [served.length, own.length, sum / own.length];
+        });
+        expect(length).toBe(ownLength);
+        // The same picture, scaled by another filter: on average within 1 of 255 per channel.
+        expect(mean).toBeLessThan(1);
     });
 });

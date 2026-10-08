@@ -519,6 +519,11 @@ export class EventManager implements Manager {
             case "graph-frame-stable":
             case "elements-removed":
             case "selection-changed":
+            case "graph-started":
+            case "layout-changed":
+            case "operation-cancelled":
+            case "stats-update":
+            case "input-enabled-changed":
             case "ai-status-change":
             case "ai-command-start":
             case "ai-command-complete":

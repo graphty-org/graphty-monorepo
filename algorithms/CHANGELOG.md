@@ -1,3 +1,18 @@
+## 3.3.11 (2026-10-08)
+
+### 🩹 Fixes
+
+- **algorithms:** start free nodes unlabeled in semi-supervised label propagation ([#959](https://github.com/graphty-org/graphty-monorepo/issues/959))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.24
+- Updated graph-format to 1.3.9
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.3.10 (2026-10-08)
 
 ### 🩹 Fixes

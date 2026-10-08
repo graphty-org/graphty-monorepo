@@ -8,7 +8,7 @@
 import type { GraphSession, RunDistinction, Scope, SetId } from "@graphty/graphty-element/session";
 
 /** The facts a run's name is worded from: a `Run`, or its `record`. */
-export interface NamedRun {
+interface NamedRun {
     readonly algorithm: string;
     readonly params: Readonly<Record<string, unknown>>;
     readonly distinguishedBy: RunDistinction | null;
@@ -54,7 +54,7 @@ function differenceWords(value: unknown): string {
  * @param setName - a kept set's name.
  * @returns a short phrase.
  */
-export function scopeWords(spec: Scope, setName: (id: SetId) => string | undefined): string {
+function scopeWords(spec: Scope, setName: (id: SetId) => string | undefined): string {
     if (spec === "visible") {
         return "visible";
     }

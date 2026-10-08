@@ -41,16 +41,55 @@ export function brandesOracle(
     options: { readonly sources?: readonly number[]; readonly precision?: "f32" | "f64" } = {},
 ): BrandesResult {
     const n = s.nodeCount;
-    const { rowPtr, colIdx } = s;
-    const round = options.precision === "f32" ? Math.fround : (x: number): number => x;
     const sources = options.sources ?? Array.from({ length: n }, (_, i) => i);
-    const vertex = new Float64Array(n);
-    const perArc = new Float64Array(s.arcCount);
     const perSource: BrandesSource[] = [];
+    const [sums] = sweep(s, sources, [options.precision ?? "f64"], (source) => perSource.push(source));
+    return { ...sums, perSource };
+}
+
+/**
+ * Brandes from every vertex at several precisions at once: one breadth-first search per source serves them all
+ * (depth and sigma do not depend on the precision, only the accumulation does), and no per-source state is kept.
+ * @param s - the snapshot
+ * @param precisions - the precisions, e.g. ["f64", "f32"]
+ * @returns the sums, one per precision, in the order given
+ */
+export function brandesAtPrecisions(
+    s: GraphSnapshot,
+    precisions: readonly ("f32" | "f64")[],
+): Omit<BrandesResult, "perSource">[] {
+    return sweep(
+        s,
+        Array.from({ length: s.nodeCount }, (_, i) => i),
+        precisions,
+        () => undefined,
+    );
+}
+
+/**
+ * The Brandes sweep: per source the forward search, then the reverse-order accumulation once per precision.
+ * @param s - the snapshot
+ * @param sources - the sources
+ * @param precisions - the precisions to accumulate in
+ * @param keep - handed each source's forward state
+ * @returns the sums, one per precision
+ */
+function sweep(
+    s: GraphSnapshot,
+    sources: readonly number[],
+    precisions: readonly ("f32" | "f64")[],
+    keep: (source: BrandesSource) => void,
+): Omit<BrandesResult, "perSource">[] {
+    const n = s.nodeCount;
+    const { rowPtr, colIdx } = s;
+    const sums = precisions.map((precision) => ({
+        round: precision === "f32" ? Math.fround : (x: number): number => x,
+        vertex: new Float64Array(n),
+        perArc: new Float64Array(s.arcCount),
+    }));
     for (const source of sources) {
         const depth = new Int32Array(n).fill(-1);
         const sigma = new Float64Array(n);
-        const delta = new Float64Array(n);
         const stack: number[] = [];
         depth[source] = 0;
         sigma[source] = 1;
@@ -69,23 +108,26 @@ export function brandesOracle(
                 }
             }
         }
-        for (let i = stack.length - 1; i >= 0; i--) {
-            const w = stack[i];
-            let acc = 0;
-            for (let a = rowPtr[w]; a < rowPtr[w + 1]; a++) {
-                const v = colIdx[a];
-                if (depth[v] === depth[w] + 1) {
-                    const term = round(round(round(sigma[w]) / round(sigma[v])) * round(1 + delta[v]));
-                    acc = round(acc + term);
-                    perArc[a] = round(perArc[a] + term);
+        for (const { round, vertex, perArc } of sums) {
+            const delta = new Float64Array(n);
+            for (let i = stack.length - 1; i >= 0; i--) {
+                const w = stack[i];
+                let acc = 0;
+                for (let a = rowPtr[w]; a < rowPtr[w + 1]; a++) {
+                    const v = colIdx[a];
+                    if (depth[v] === depth[w] + 1) {
+                        const term = round(round(round(sigma[w]) / round(sigma[v])) * round(1 + delta[v]));
+                        acc = round(acc + term);
+                        perArc[a] = round(perArc[a] + term);
+                    }
+                }
+                delta[w] = acc;
+                if (w !== source) {
+                    vertex[w] = round(vertex[w] + acc);
                 }
             }
-            delta[w] = acc;
-            if (w !== source) {
-                vertex[w] = round(vertex[w] + acc);
-            }
         }
-        perSource.push({ depth, sigma });
+        keep({ depth, sigma });
     }
-    return { vertex, perArc, perSource };
+    return sums.map(({ vertex, perArc }) => ({ vertex, perArc }));
 }

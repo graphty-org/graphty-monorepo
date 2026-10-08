@@ -1417,8 +1417,8 @@ function resolveAcceleration(
  * from having to know that the session's attributes all live under one root today.
  * @param records - Where the attribute bags are read.
  * @param readSnapshot - Reads the snapshot the indices address.
- * @returns The value source.
  * @param kindsOf - Which halves carry a path, as {@link fieldKindsOf} answers.
+ * @returns The value source.
  */
 function valueSourceOf(
     records: SessionRecordSource,
@@ -1435,11 +1435,11 @@ function valueSourceOf(
         // key, as a style selector reads them: the importer removes the keys they arrived under.
         edgeValue: (index: number, path: Path): unknown =>
             records.edgeAttributes(index)?.[keyOf(path)] ?? edgeEndpointOf(readSnapshot(), index, keyOf(path)),
-    };
         halvesOf: (path: Path) => {
             const kinds = kindsOf(path);
             return { node: kinds.includes("node"), edge: kinds.includes("edge") };
         },
+    };
 }
 
 /**
@@ -2051,11 +2051,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Kept sets, published as `session.sets`.
     const edgeMember = (id: EdgeId): EdgeMember | undefined =>
         sessionEdgeMember(snapshot(), id, (row) => records.edgeAttributes(row), readData().knownFields.edgeIdPath);
-    // What a `{ set }` reference names and what "visible" reads, so a door can refuse a chain of
-    // references that loops (design/sets 5.2). Read through calls: the sets and the visibility
     // Which halves carry a value path: what a dependency and an attribute filter leaf read.
     const fieldKinds = (path: Path): readonly string[] =>
         fieldKindsOf(path, data, (run) => runs.get(run)?.result?.fields);
+    // What a `{ set }` reference names and what "visible" reads, so a door can refuse a chain of
+    // references that loops (design/sets 5.2). Read through calls: the sets and the visibility
     // API are built below.
     const dependencies: DependencySources = {
         referent: (id: SetId) => setsStoreOf(sets).get(id)?.definition,

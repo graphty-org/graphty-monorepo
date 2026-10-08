@@ -357,12 +357,12 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    AttributeLeafNodes,
     FilterResult,
     FilterStep,
     RuleTree,
     TimeStep,
     TimeWindow,
-    AttributeLeafNodes,
     VisibilityApi,
     VisibilityChange,
     VisibilitySummary,

@@ -80,8 +80,8 @@ import type {
     FindResult,
     GraphStatistics,
     LoadChoices,
-    LoadedWeight,
     LoadedSource,
+    LoadedWeight,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -554,7 +554,10 @@ export class SessionData implements SessionDataApi {
             resets
                 ? {
                       op: "batch",
-                      steps: [{ op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } }, step],
+                      steps: [
+                          { op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } },
+                          step,
+                      ],
                   }
                 : step,
         );

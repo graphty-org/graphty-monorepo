@@ -1474,8 +1474,16 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         op: "data.setSource",
                         source: { type: "json", name: "Door source", config: {} },
                         sources: [
-                            { type: "json", config: {}, tables: [], added: { nodes: 2, edges: 1 }, name: "Door source" },
+                            {
+                                type: "json",
+                                config: {},
+                                tables: [],
+                                added: { nodes: 2, edges: 1 },
+                                name: "Door source",
+                            },
                         ],
+                    },
+                ],
             },
             // Reads and holds a source; the draft it returns loads through data.import.
             prepare: READ,

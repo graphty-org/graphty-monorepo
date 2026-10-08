@@ -1420,10 +1420,12 @@ export type RuleTree = {
     readonly attribute: Path;
     readonly min?: number;
     readonly max?: number;
+    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "categories";
     readonly attribute: Path;
     readonly values: readonly string[];
+    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "degree";
     readonly min?: number;

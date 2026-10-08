@@ -55,8 +55,7 @@ export type EdgeId = string;
  * over an edge drawn beneath it; an edge is found within a few pixels of its line.
  */
 export type ElementAtResult =
-    | { readonly kind: "node"; readonly id: NodeId }
-    | { readonly kind: "edge"; readonly id: EdgeId };
+    { readonly kind: "node"; readonly id: NodeId } | { readonly kind: "edge"; readonly id: EdgeId };
 
 /** The identity of a run. Stable, selector-safe and author-assignable. */
 export type RunId = string;
@@ -1088,6 +1087,14 @@ export type ScopeInput = Exclude<Scope, { define: unknown }> | { define: SetDefi
 export type SelectionDirection = "in" | "out" | "all";
 
 /**
+ * Which nodes a `range` or `categories` leaf keeps when its attribute lives on edges (such as
+ * `data.weight`). `"all"` (the default): the leaf is silent about nodes, so every node stays and
+ * only the passing edges are kept. `"ends"`: only the nodes at the ends of a passing edge are kept.
+ * When the nodes carry the attribute too, `"ends"` keeps a node only when it passes AND is an end.
+ */
+export type AttributeLeafNodes = "all" | "ends";
+
+/**
  * A rule tree: what the visibility filter keeps, and what a rule set holds.
  *
  * Every leaf speaks about nodes, edges or both, and is SILENT about the rest: `all` and `any` fold
@@ -1099,14 +1106,6 @@ export type SelectionDirection = "in" | "out" | "all";
  * group with no members constrains nothing.
  *
  * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
-/**
- * Which nodes a `range` or `categories` leaf keeps when its attribute lives on edges (such as
- * `data.weight`). `"all"` (the default): the leaf is silent about nodes, so every node stays and
- * only the passing edges are kept. `"ends"`: only the nodes at the ends of a passing edge are kept.
- * When the nodes carry the attribute too, `"ends"` keeps a node only when it passes AND is an end.
- */
-export type AttributeLeafNodes = "all" | "ends";
-
  */
 export type RuleTree =
     | { readonly kind: "expression"; readonly where: Query }

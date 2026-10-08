@@ -93,9 +93,9 @@ export interface AttributeDescriptor {
 }
 
 // @public
-// @public
 export type AttributeLeafNodes = "all" | "ends";
 
+// @public
 export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
 
 // @public
@@ -434,8 +434,10 @@ export type GraphtyErrorCode =
 */
 | "E_BAD_LAYER"
 /**
-* A style layer's selector does not parse. `details` carry the character offset. The caller
-* corrects the selector; the layer is not added.
+* A style layer's selector does not parse. `details.reason` is a stable code naming the
+* mistake (such as `number-needs-backticks`), so a consumer writes its own words without
+* reading the message; an expression's refusal also carries the character offset
+* (`details.position`). The caller corrects the selector; the layer is not added.
 */
 | "E_BAD_SELECTOR"
 /**
@@ -1246,15 +1248,15 @@ export type RuleTree = {
     readonly attribute: Path;
     readonly min?: number;
     readonly max?: number;
+    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "categories";
     readonly attribute: Path;
-    readonly nodes?: AttributeLeafNodes;
     readonly values: readonly string[];
+    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "degree";
     readonly min?: number;
-    readonly nodes?: AttributeLeafNodes;
     readonly max?: number;
     readonly direction?: SelectionDirection;
 } | {

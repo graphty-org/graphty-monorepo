@@ -50,7 +50,7 @@ const sha256 = (data) => createHash("sha256").update(data).digest("hex");
  * @param root the checkout
  * @returns Map of repo-relative path to content id
  */
-export function treeFiles(root) {
+function treeFiles(root) {
     const files = new Map();
     for (const line of split0(git(root, ["ls-files", "-s", "-z"]))) {
         const tab = line.indexOf("\t");
@@ -122,7 +122,7 @@ export function fingerprint(root) {
  * @param root the checkout
  * @returns `{ roots, outputs, deps }` (Maps by project name), or null when nx cannot answer
  */
-export function projectGraph(root) {
+function projectGraph(root) {
     if (!existsSync(join(root, "nx.json"))) {
         return null;
     }
@@ -170,7 +170,7 @@ export function projectGraph(root) {
  * @param roots Map of project name to directory
  * @returns Map of project name to the Set of project names it refers to
  */
-export function pathRefs(root, roots) {
+function pathRefs(root, roots) {
     const byDir = new Map([...roots].map(([name, dir]) => [dir, name]));
     const refs = new Map();
     for (const [name, dir] of roots) {

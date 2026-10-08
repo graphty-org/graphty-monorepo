@@ -38,10 +38,10 @@ import {
     FA2_DISTANCE_FLOOR,
     FA2_DISTANCE_FLOOR_SQ,
     FA2_FOLD_LANES,
-} from "./constants";
-import { resolveNodeVector, resolveWeights } from "./inputs";
-import { seedPositions } from "./seed";
-import type { ForceAtlas2Options, LayoutSimulation } from "./types";
+} from "./constants.js";
+import { resolveNodeVector, resolveWeights } from "./inputs.js";
+import { seedPositions } from "./seed.js";
+import type { ForceAtlas2Options, LayoutSimulation } from "./types.js";
 
 /** The options of the ForceAtlas2Simulation constructor: every ForceAtlas2Options field, plus `compat`. */
 export type ForceAtlas2SimulationOptions = ForceAtlas2Options & {

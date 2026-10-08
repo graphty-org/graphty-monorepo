@@ -2,8 +2,8 @@
  * Kamada-Kawai layout algorithm optimization functions
  */
 
-import { _lbfgsDirection } from "./lbfgs";
-import { _backtrackingLineSearch } from "./line-search";
+import { _lbfgsDirection } from "./lbfgs.js";
+import { _backtrackingLineSearch } from "./line-search.js";
 
 /**
  * Solve the Kamada-Kawai layout optimization problem

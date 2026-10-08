@@ -39,6 +39,8 @@
  * shows up as a trend rather than as a sudden red.
  */
 
+import { existsSync, readFileSync } from "node:fs";
+
 import jmespath from "jmespath";
 import { assert, describe, it } from "vitest";
 
@@ -155,8 +157,14 @@ function quietContext(): RepaintContext {
  * changes the stack it was made against and cannot be made twice; the FASTEST round is the
  * estimate, so what is reported is steady-state work rather than the first pass through code the
  * engine has not compiled yet.
+ *
+ * EIGHT AND NOT FOUR because main-thread time still moves with where the thread ran: on a hybrid
+ * processor an efficiency core, or a performance core whose sibling hyperthread is busy, takes
+ * longer over the same work. Under a fully loaded machine four rounds left the edit's best between
+ * 20 and 32 ms and the margin as low as 1.11x; eight gave a lowest margin of 1.70x on the same
+ * machine in the same hour. A round costs a few tens of milliseconds, so the extra four are cheap.
  */
-const ROUNDS = 4;
+const ROUNDS = 8;
 
 interface Harness {
     /** The engine under test. */
@@ -176,20 +184,39 @@ interface Measurement {
 }
 
 /**
- * How much processor time this process has used, in milliseconds.
+ * Where Linux keeps how long the calling thread has been on a processor, in nanoseconds.
+ */
+const THREAD_SCHEDSTAT = "/proc/thread-self/schedstat";
+
+/** Whether {@link THREAD_SCHEDSTAT} can be read here; it is Linux-only. */
+const HAS_THREAD_SCHEDSTAT = existsSync(THREAD_SCHEDSTAT);
+
+/**
+ * How much processor time THIS THREAD has used, in milliseconds.
  *
  * WHY THE BUDGET IS ASSERTED AGAINST THIS AND NOT THE CLOCK. The suite runs many files at once on
  * a machine with fewer cores than files, so a pass doing 10 ms of work takes 28 ms of clock while
  * the scheduler is running somebody else, and a clock ceiling would be a test of how busy the
  * runner is.
  *
- * It is an UPPER BOUND on the main-thread work the design's budget is stated in, never an
- * understatement: it counts every thread this process has, so V8's background collector and its
- * background compiler are in it too. On an idle machine it measures 13.7 ms where the clock says
- * 10.0 ms, and both are printed.
- * @returns Milliseconds of user plus system time.
+ * WHY THIS THREAD AND NOT THE PROCESS. The budget is main-thread work, and the process's total
+ * (`process.cpuUsage()`) also counts V8's background collector and compiler threads. The colour
+ * edit allocates heavily, so they ran beside it for a large and varying share: one idle machine
+ * measured the same edit at 17.8 to 31.5 ms of process time while its clock read 13 to 20 ms, and
+ * the ratio below failed a pre-push gate by 1.5% on a branch that did not touch the repaint
+ * (issue #1365). The kernel's per-thread run time is exact to the nanosecond and counts only the
+ * thread the test runs on. `process.threadCpuUsage()` would say the same thing in name, but on a
+ * tick-accounting kernel it moves in 4 ms steps, which is a third of the edit being measured.
+ *
+ * Off Linux there is no such file, and this falls back to the whole process's time, which can
+ * only overstate the work and never hides a slower repaint.
+ * @returns Milliseconds this thread has spent on a processor.
  */
 function cpuMs(): number {
+    if (HAS_THREAD_SCHEDSTAT) {
+        return Number(readFileSync(THREAD_SCHEDSTAT, "utf8").split(" ")[0]) / 1e6;
+    }
+
     const { user, system } = process.cpuUsage();
 
     return (user + system) / 1000;
@@ -477,8 +504,8 @@ describe("interning is a hash, not a scan", () => {
      *
      * THE TOTAL IS THIRTY-TWO THOUSAND AND NOT EIGHT, and that is a measurement fix rather than a
      * threshold one. At eight thousand the window was a single millisecond, and
-     * {@link cpuMs} charges this process's BACKGROUND COLLECTOR to it -- so one collection landing
-     * inside the window read as eight times the work, and the ratio this test asserts failed
+     * {@link cpuMs} then counted the whole process, BACKGROUND COLLECTOR included -- so one
+     * collection landing inside the window read as eight times the work, and the ratio this test asserts failed
      * roughly one full-suite run in six with nothing wrong with the code. Four times the work per
      * window puts the collection's share back in proportion; every threshold below is unchanged.
      * @param distinct - How many distinct styles one run builds.

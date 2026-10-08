@@ -17,7 +17,7 @@
  * per-submit `direction`, `unvisitedCount`, `unvisitedDegreeSum` and `switches` word against the host model,
  * `unvisitedListLen` against the oracle's complement and `compactCount` against that word, `depth` against the
  * oracle (the only checks that see an inverted growing test); the 500-node path from its MIDDLE and the hub-clique
- * fixture (source 0, hubs 1 and 2, a clique on 3..255) forced bottom-up (`alpha U32_MAX, beta 0`: every growing
+ * fixture (source 0, hubs 1 and 2, a clique on 3..255) forced bottom-up (`direction bottom-up, beta 0`: every growing
  * boundary switches and nothing switches back), which is what exercises `bfs-bottom-up` and `bfs-bitset-build`,
  * with the clique's `arcsScanned` pinned to EXACTLY one read per bottom-up claim (each clique row's first in-neighbour
  * is hub 1, so the early exit reads exactly one arc per claim; without it every 254-arc row is read whole, and a
@@ -30,7 +30,7 @@
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
 import { type BfsTuning, bfsWithTuning } from "../../src/algorithms/bfs.js";
-import { BEAMER_BETA, FUSED_FRONTIER_MAX, MAX_LEVELS_PER_SUBMIT, U32_MAX } from "../../src/constants.js";
+import { BEAMER_ALPHA, BEAMER_BETA, FUSED_FRONTIER_MAX, MAX_LEVELS_PER_SUBMIT, U32_MAX } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { isWebGpuGraphError } from "../../src/errors.js";
 import { CommandBatch } from "../../src/kernel/batch.js";
@@ -53,8 +53,8 @@ const FORCED_PATHS: readonly (readonly [string, BfsTuning])[] = [
     ["fused", { fusedMax: U32_MAX, direction: "top-down" }],
 ];
 
-/** Every growing boundary switches to bottom-up (`m_u / U32_MAX` is 0) and nothing switches back before the frontier shrinks (P8-T8 Step 6). */
-const FORCED_BOTTOM_UP: BfsTuning = { alpha: U32_MAX, beta: 0 };
+/** Every growing boundary switches to bottom-up (`mode 2`) and nothing switches back before the frontier shrinks (P8-T8 Step 6). */
+const FORCED_BOTTOM_UP: BfsTuning = { direction: "bottom-up", beta: 0 };
 
 /** The hub-clique fixture's last vertex: 0 the source, 1 and 2 the hubs, 3..255 the clique. */
 const CLIQUE_LAST = 255;
@@ -141,17 +141,18 @@ export function directionModel(
     tuning: BfsTuning,
     maxDepth?: number,
 ): ReturnType<typeof expectedDirections> {
-    const { sizes, degreeSums } = levelStatsOf(s, depth);
+    const { sizes, degreeSums, inDegreeSums } = levelStatsOf(s, depth);
     return expectedDirections(
         sizes,
         degreeSums,
+        inDegreeSums,
         s.nodeCount,
         s.arcCount,
-        tuning.alpha ?? Math.max(1, Math.floor(s.arcCount / s.nodeCount)),
+        tuning.alpha ?? BEAMER_ALPHA,
         tuning.beta ?? BEAMER_BETA,
         tuning.levelsPerSubmit ?? MAX_LEVELS_PER_SUBMIT,
         maxDepth,
-        tuning.direction === "top-down",
+        { auto: 0, "top-down": 1, "bottom-up": 2 }[tuning.direction ?? "auto"] as 0 | 1 | 2,
     );
 }
 

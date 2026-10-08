@@ -1631,10 +1631,6 @@ describe("release.yml", () => {
 
     it("holds the whole release when anything fails: no pull request, no builds kept, nothing published, one issue", () => {
         assert.match(held, /needs: \[pick, ci, t4, hosts, audit, train\]/);
-        assert.match(
-            held,
-            /if: \$\{\{ !cancelled\(\) && needs.pick.outputs.release == 'true' && \(contains\(needs.\*.result, 'failure'\) \|\| contains\(needs.\*.result, 'cancelled'\)\) \}\}/,
-        );
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
         // the publish job finds only builds the train kept, and only the train keeps them
         assert.equal(release.match(/name: release-builds-/g).length, 2);
@@ -1644,12 +1640,14 @@ describe("release.yml", () => {
         // one issue naming what failed: found by its title prefix and updated, else created with the labels
         // githerd and triage read
         for (const [result, name] of [
+            ["PICK", "candidate pick"],
             ["CI", "CI"],
             ["T4", "T4 GPU"],
             ["HOSTS", "Hosts"],
             ["AUDIT", "security audit"],
+            ["TRAIN", "release pull request"],
         ]) {
-            assert.ok(held.includes(`[ "$${result}_RESULT" != failure ] || what+=("${name}")`), name);
+            assert.ok(held.includes(`"${name}=$${result}_RESULT"`), name);
         }
         assert.match(held, /title="Release held: \$\{what\} failed on \$\{SHA:0:7\}"/);
         assert.match(held, /open=\$\(tools\/release-held.sh open "\$title" "\$RUNNER_TEMP\/body.md"\)/);
@@ -1659,13 +1657,212 @@ describe("release.yml", () => {
         assert.match(helper, /gh issue comment "\$open"/);
         assert.match(helper, /--label bug --label priority:high --label effort:medium/);
         assert.match(held, /::error::release held/);
-        // a lane only cancelled: a red run, no issue (nothing to fix; the next attempt retries)
-        assert.match(held, /if \[ "\$\{#what\[@\]\}" = 0 \]; then\n(\s+#[^\n]*\n)+\s+echo "::error::[^\n]*\n\s+exit 1/);
+        // the only way out without an issue is the T4 runner loss the re-run repeats (tested with it)
+        assert.equal(held.match(/\n\s+exit [0-9]/g).length, 1);
         // a refused or lost T4 runner has no code fix: the issue says so
         assert.match(held, /if \[ "\$T4_RESULT" = failure \]; then\n\s+echo\n\s+echo "If the T4 job was refused/);
         // and the next train that passes closes it, as its last step
         const close = train.indexOf("tools/release-held.sh close");
         assert.ok(close > train.indexOf("gh pr create"), "closed only after the release pull request");
+    });
+
+    // A train attempt ends with a release pull request or a "Release held" issue, never with neither. Run
+    // 37635516841 (2026-10-07) ended with neither: a GitHub Actions outage left CI's "All Checks Pass" queued for
+    // good, its result "abandoned", and held's `if` listed only failure and cancelled.
+    describe("never ends a train attempt without a pull request or a held issue", () => {
+        const trainNeeds = /\n {8}needs: \[([^\]]*)\]/.exec(train)[1].split(", ");
+        const condition = /\n {8}if: \$\{\{ (.*) \}\}\n/.exec(held)[1];
+        // the condition as JavaScript: GitHub's expression syntax here is a subset of it
+        const runs = (results, release = "true") =>
+            new Function(
+                "needs",
+                `return ${condition.replace(/\balways\(\)/g, "true").replace(/!cancelled\(\)/g, "true")};`,
+            )(
+                Object.fromEntries(
+                    ["pick", "ci", "t4", "hosts", "audit", "train"].map((j) => [
+                        j,
+                        { result: results[j] ?? "success", outputs: { release: j === "pick" ? release : undefined } },
+                    ]),
+                ),
+            );
+        // every result a job can end with, including the ones GitHub does not document
+        const NOT_SUCCESS = ["failure", "cancelled", "skipped", "abandoned", "timed_out", "a-result-not-yet-invented"];
+
+        it("needs every job the train needs, and the train", () => {
+            assert.deepEqual(trainNeeds, ["pick", "ci", "t4", "hosts", "audit"]);
+            assert.match(held, new RegExp(`needs: \\[${[...trainNeeds, "train"].join(", ")}\\]`));
+        });
+
+        it("runs whatever the run's state: always(), never a list of red results", () => {
+            assert.match(condition, /^always\(\) && /);
+            assert.doesNotMatch(condition, /cancelled\(\)|contains\(|== 'failure'|== 'cancelled'/);
+        });
+
+        it("runs for every non-success result of every lane the train needs", () => {
+            for (const lane of trainNeeds.filter((j) => j !== "pick")) {
+                for (const result of NOT_SUCCESS) {
+                    // a lane that did not succeed skips the train
+                    assert.equal(runs({ [lane]: result, train: "skipped" }), true, `${lane} ${result}`);
+                }
+            }
+            for (const result of NOT_SUCCESS) {
+                assert.equal(runs({ train: result }), true, `train ${result}`);
+            }
+        });
+
+        it("runs when the pick itself did not finish, but not when it skipped by design", () => {
+            for (const result of NOT_SUCCESS.filter((r) => r !== "skipped")) {
+                assert.equal(
+                    runs(
+                        {
+                            pick: result,
+                            ci: "skipped",
+                            t4: "skipped",
+                            hosts: "skipped",
+                            audit: "skipped",
+                            train: "skipped",
+                        },
+                        "",
+                    ),
+                    true,
+                    result,
+                );
+            }
+            // a push (the publish job's run) and a restart whose build failed skip the pick
+            assert.equal(
+                runs(
+                    {
+                        pick: "skipped",
+                        ci: "skipped",
+                        t4: "skipped",
+                        hosts: "skipped",
+                        audit: "skipped",
+                        train: "skipped",
+                    },
+                    "",
+                ),
+                false,
+            );
+        });
+
+        it("stays quiet when the train opened its pull request, or the pick found nothing to release", () => {
+            assert.equal(runs({}), false);
+            const none = { ci: "skipped", t4: "skipped", hosts: "skipped", audit: "skipped", train: "skipped" };
+            assert.equal(runs(none, "false"), false);
+        });
+
+        // The issue step, run in a scratch directory with stubs: gh lists this attempt's jobs (run 37635516841's
+        // shape: CI's "All Checks Pass" never ran, "Queue Checks Pass" failed on it) and tools/release-held.sh
+        // records the issue it would open.
+        const issue = (env, jobs) => {
+            const script = /- name: Open or update the held-release issue\n\s+run: \|\n([\s\S]*?)\n\n/.exec(held)[1];
+            const dir = mkdtempSync(join(tmpdir(), "release-held-"));
+            try {
+                mkdirSync(join(dir, "tools"));
+                mkdirSync(join(dir, "bin"));
+                writeFileSync(join(dir, "jobs.json"), JSON.stringify({ jobs }));
+                // `gh api .../jobs --jq <filter>` answers from jobs.json through the real jq; a job log is empty
+                writeFileSync(
+                    join(dir, "bin", "gh"),
+                    `#!/bin/bash\ncase "$2" in */jobs\\?*) jq -r "$4" "${join(dir, "jobs.json")}";; esac\n`,
+                    { mode: 0o755 },
+                );
+                writeFileSync(join(dir, "tools", "gpu-runner-lost.sh"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+                writeFileSync(
+                    join(dir, "tools", "release-held.sh"),
+                    `#!/bin/sh\necho "$2" > "${join(dir, "title")}"\ncp "$3" "${join(dir, "body")}"\necho 42\n`,
+                    { mode: 0o755 },
+                );
+                const run = spawnSync("bash", ["-c", script.replace(/^ {18}/gm, "")], {
+                    cwd: dir,
+                    encoding: "utf8",
+                    env: {
+                        ...process.env,
+                        PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+                        GITHUB_SERVER_URL: "https://github.com",
+                        GITHUB_REPOSITORY: "o/r",
+                        GITHUB_RUN_ID: "37635516841",
+                        GITHUB_RUN_ATTEMPT: "1",
+                        RUNNER_TEMP: dir,
+                        TRIGGER: "schedule",
+                        SHA: "44ab26d10658f95c66025ab391219e2865b94aa8",
+                        PICK_RESULT: "success",
+                        CI_RESULT: "success",
+                        T4_RESULT: "success",
+                        HOSTS_RESULT: "success",
+                        AUDIT_RESULT: "success",
+                        TRAIN_RESULT: "skipped",
+                        ...env,
+                    },
+                });
+                assert.equal(run.status, 0, run.stderr);
+                return {
+                    title: readFileSync(join(dir, "title"), "utf8"),
+                    body: readFileSync(join(dir, "body"), "utf8"),
+                };
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        };
+        const JOBS = [
+            { id: 1, name: "Pick the release candidate", status: "completed", conclusion: "success", steps: [] },
+            { id: 2, name: "CI / Build", status: "completed", conclusion: "success", steps: [] },
+            { id: 3, name: "CI / All Checks Pass", status: "queued", conclusion: null, steps: [] },
+            {
+                id: 4,
+                name: "CI / Queue Checks Pass",
+                status: "completed",
+                conclusion: "failure",
+                steps: [{ name: "Check the run passed, and was the full suite in the queue", conclusion: "failure" }],
+            },
+            { id: 5, name: "Coverage", status: "completed", conclusion: "skipped", steps: [] },
+            { id: 6, name: "Hold the release", status: "in_progress", conclusion: null, steps: [] },
+        ];
+
+        it("opens the issue for an abandoned CI call, naming the job that never ran", () => {
+            const { title, body } = issue({ CI_RESULT: "abandoned" }, JOBS);
+            assert.equal(title, "Release held: CI failed on 44ab26d\n");
+            assert.match(body, /Results: candidate pick success, CI abandoned, T4 GPU success, /);
+            assert.match(body, /Jobs that did not pass: CI \/ All Checks Pass, CI \/ Queue Checks Pass\n/);
+            assert.match(body, /\nCI \/ All Checks Pass: never finished \(still queued\)/);
+            assert.match(body, /\nCI \/ Queue Checks Pass \(failure\): Check the run passed/);
+            assert.match(body, /githubstatus\.com/);
+            assert.doesNotMatch(body, /Hold the release|Coverage/);
+        });
+
+        it("opens the issue when a lane was only cancelled", () => {
+            const { title } = issue({ T4_RESULT: "cancelled" }, []);
+            assert.equal(title, "Release held: T4 GPU failed on 44ab26d\n");
+        });
+
+        it("opens the issue when the pick itself failed", () => {
+            const { title } = issue(
+                {
+                    PICK_RESULT: "failure",
+                    CI_RESULT: "skipped",
+                    T4_RESULT: "skipped",
+                    HOSTS_RESULT: "skipped",
+                    AUDIT_RESULT: "skipped",
+                },
+                [],
+            );
+            assert.equal(title, "Release held: candidate pick failed on 44ab26d\n");
+        });
+
+        it("names a failed train, and holds the outage hint back when a job failed on its own", () => {
+            const { title, body } = issue({ TRAIN_RESULT: "failure" }, [
+                {
+                    id: 7,
+                    name: "Open the release pull request",
+                    status: "completed",
+                    conclusion: "failure",
+                    steps: [{ name: "Version the packages", conclusion: "failure" }],
+                },
+            ]);
+            assert.equal(title, "Release held: release pull request failed on 44ab26d\n");
+            assert.match(body, /Open the release pull request \(failure\): Version the packages/);
+            assert.doesNotMatch(body, /githubstatus/);
+        });
     });
 
     describe("restarts a held release on a master push whose build passed", () => {

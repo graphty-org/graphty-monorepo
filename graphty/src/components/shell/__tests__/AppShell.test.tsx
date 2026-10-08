@@ -34,6 +34,7 @@ import { LAYOUT_METADATA } from "../../../data/layoutMetadata";
 import { createFakeSession, type FakeSession } from "../../../test/fakeSession";
 import { ACCELERATION_SETTINGS_STORAGE_KEY } from "../defaults/accelerationSettings";
 import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID } from "../defaults/styleDescriptors";
+import { BASE_LAYER_DELETE_REASON } from "../panel/StyleLayerList";
 import { SHELL_LAYOUT_STORAGE_KEY } from "../shellLayoutStorage";
 import { LAYOUT_MENU_LABEL } from "../statusbar/LayoutChipMenu";
 
@@ -2361,12 +2362,11 @@ describe("AppShell", () => {
             expect(fake.layers().map((layer) => layer.name)).toEqual(["default", "selection", ...expected]);
         });
 
-        it("draws the reader's own layers and never the element's", async () => {
-            /* The element's base and selection layers are locked: removing, editing or moving
-               one is refused, so a list that drew them would offer three controls that all
-               say no. `locked` is exactly `source.by === "element"`, which replaces naming
-               them from a list of two strings -- and that list lost the suppression for a
-               reader who called their own layer "default". */
+        it("draws the element's own layers below the reader's, with their delete disabled", async () => {
+            /* The element's base layers are locked: removing, editing or moving one is refused,
+               so the list draws them with delete and hide disabled and the reason in the title
+               (StylePanel.dc.html's Base layer row). `locked` is exactly
+               `source.by === "element"`, never a name. */
             const { container } = await renderStylePanel();
 
             installGraph(container, ["Mine"]);
@@ -2374,10 +2374,58 @@ describe("AppShell", () => {
             await settleSession();
 
             const list = screen.getByTestId("style-layers");
+            const rows = within(list).getAllByRole("treeitem");
 
-            expect(within(list).getByText("Mine")).toBeInTheDocument();
-            expect(within(list).queryByText("default")).not.toBeInTheDocument();
-            expect(within(list).queryByText("selection")).not.toBeInTheDocument();
+            expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual(["Mine", "selection", "default"]);
+            expect(within(rows[2]).getByRole("button", { name: "Delete layer" })).toHaveAttribute(
+                "title",
+                BASE_LAYER_DELETE_REASON,
+            );
+        });
+
+        it("hides and shows a layer through the element's enabled flag", async () => {
+            const { container } = await renderStylePanel();
+            const fake = installGraph(container, ["Mine"]);
+
+            await settleSession();
+
+            const mine = (): HTMLElement =>
+                within(screen.getByTestId("style-layers")).getByRole("treeitem", { name: "Mine" });
+
+            fireEvent.click(within(mine()).getByRole("button", { name: "Hide layer" }));
+            await settleSession();
+
+            expect(fake.layers().find((layer) => layer.name === "Mine")?.enabled).toBe(false);
+            expect(mine()).toHaveAttribute("data-dimmed");
+
+            fireEvent.click(within(mine()).getByRole("button", { name: "Hide layer" }));
+            await settleSession();
+
+            expect(fake.layers().find((layer) => layer.name === "Mine")?.enabled).toBe(true);
+        });
+
+        it("deletes a layer through the element, and never the element's own", async () => {
+            const { container } = await renderStylePanel();
+            const fake = installGraph(container, ["Mine"]);
+
+            await settleSession();
+
+            const list = screen.getByTestId("style-layers");
+
+            fireEvent.click(
+                within(within(list).getByRole("treeitem", { name: "default" })).getByRole("button", {
+                    name: "Delete layer",
+                }),
+            );
+            fireEvent.click(
+                within(within(list).getByRole("treeitem", { name: "Mine" })).getByRole("button", {
+                    name: "Delete layer",
+                }),
+            );
+            await settleSession();
+
+            expect(fake.layers().map((layer) => layer.name)).toEqual(["default", "selection"]);
+            expect(within(list).queryByRole("treeitem", { name: "Mine" })).not.toBeInTheDocument();
         });
     });
 

@@ -1,9 +1,9 @@
 import { type GraphSnapshot, type NodeRef, resolveNode } from "@graphty/graph-format";
 
-import type { LayoutResult } from "../positions";
-import { toLayoutSnapshot } from "../simulation/snapshot";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common";
-import { shellRows } from "./shell";
+import type { LayoutResult } from "../positions.js";
+import { toLayoutSnapshot } from "../simulation/snapshot.js";
+import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
+import { shellRows } from "./shell.js";
 
 /** Options of the index-based radial layout. */
 export interface RadialLayoutOptions extends CommonLayoutOptions {

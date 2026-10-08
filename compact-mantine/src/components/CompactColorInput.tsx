@@ -1,4 +1,4 @@
-import { ActionIcon, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, Tooltip, VisuallyHidden } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import React, { useEffect, useId, useState } from "react";
 
@@ -469,17 +469,20 @@ export function CompactColorInput({
 
             {/* Drawn only once there is something to undo; a 24px target (WCAG 2.2, 2.5.8). */}
             {showReset && !isDefault && (
-                <ActionIcon
-                    variant="subtle"
-                    size={PANEL_GRID.TRAIL}
-                    c={PANEL_INK.CHROME}
-                    data-testid="compact-color-input-reset"
-                    disabled={disabled}
-                    aria-label={labels.resetToDefault(label ?? labels.colorGenericName)}
-                    onClick={handleReset}
-                >
-                    <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
-                </ActionIcon>
+                // An icon-only button says what it does on hover, not only to a screen reader.
+                <Tooltip label={labels.resetToDefault(label ?? labels.colorGenericName)}>
+                    <ActionIcon
+                        variant="subtle"
+                        size={PANEL_GRID.TRAIL}
+                        c={PANEL_INK.CHROME}
+                        data-testid="compact-color-input-reset"
+                        disabled={disabled}
+                        aria-label={labels.resetToDefault(label ?? labels.colorGenericName)}
+                        onClick={handleReset}
+                    >
+                        <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
+                    </ActionIcon>
+                </Tooltip>
             )}
 
             {annotation.description !== undefined && (

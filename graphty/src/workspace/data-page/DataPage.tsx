@@ -3,6 +3,7 @@ import "./data-page.css";
 import {
     DataTable,
     type DataTableColumn,
+    PANEL_GRID,
     Popout,
     PopoutManager,
     SegmentedControl,
@@ -30,7 +31,7 @@ import {
 } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { meaningGloss } from "../analyze/words";
+import { meaningGloss, weightName } from "../analyze/words";
 import { missingNodes } from "../data-place/words";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
@@ -54,6 +55,7 @@ import {
     count,
     formatName,
     graphName,
+    modelWords,
     plural,
     READABLE_FORMATS,
     type Refusal,
@@ -209,6 +211,18 @@ export function DataPage(): React.JSX.Element {
     /** Whether the next chosen files join the table on the page (Tables "+") or replace the source. */
     const joining = useRef(false);
 
+    // A table the reader just added is the one the preview shows once the files are read again,
+    // not the first table: the view follows the reader's own action.
+    const added = useRef<string | null>(null);
+    const { draft, setTableId } = page;
+    useEffect(() => {
+        const table = draft?.tables.find((each) => each.name === added.current);
+        if (table !== undefined) {
+            added.current = null;
+            setTableId(table.id);
+        }
+    }, [draft, setTableId]);
+
     const chooseFiles = (join: boolean): void => {
         joining.current = join;
         fileInput.current?.click();
@@ -239,6 +253,7 @@ export function DataPage(): React.JSX.Element {
             });
             return;
         }
+        added.current = held.length > 0 ? (files[0]?.name ?? null) : null;
         page.setSource({ kind: "files", files: next });
     };
 
@@ -638,17 +653,16 @@ function ModelStrip({ page, draft }: PartProps & { draft: LoadDraft }): React.JS
     if (report === null || source === null) {
         return null;
     }
-    let text: string;
-    if (draft.tables.every((table) => table.fixed)) {
-        const name = source.kind === "files" ? baseName(source.files[0].name) : sourceName(source);
-        text = `${name}: ${plural(report.counts.nodes, "node")}, ${plural(report.counts.edges, "edge")}`;
-    } else {
-        const edgeTable = draft.tables.find((table) => rowsAreOf(draft, table, page.choices) === "edges");
-        text =
-            edgeTable === undefined
-                ? `node (${count(report.counts.nodes)})`
-                : `node (${count(report.counts.nodes)}) --${baseName(edgeTable.name)} (${count(report.counts.edges)})--> node`;
+    const fixed = draft.tables.every((table) => table.fixed);
+    let names = draft.tables.map((table) => baseName(table.name));
+    if (fixed) {
+        names = [source.kind === "files" ? baseName(source.files[0].name) : sourceName(source)];
     }
+    const edges =
+        fixed || draft.tables.some((table) => rowsAreOf(draft, table, page.choices) === "edges")
+            ? report.counts.edges
+            : null;
+    const text = modelWords(names, report.counts.nodes, edges, page.choices.directed);
     return (
         <Text size="sm" fw={600} data-testid="model-strip">
             {text}
@@ -715,7 +729,7 @@ function WeightLine({ page, draft, table }: PartProps & { draft: LoadDraft; tabl
     return (
         <Stack gap={2}>
             <Text size="xs">
-                Weight: {weight}
+                Weight: {weightName(weight, meaning)}
                 {auto ? <span className="dp-auto">auto</span> : null}
             </Text>
             <Input.Wrapper
@@ -851,6 +865,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                     <div key={column.name} className="dp-role">
                         <StyleSelect
                             label={column.name}
+                            aria-label={`Role of ${column.name}`}
                             value={chosen}
                             defaultValue={own ?? "auto"}
                             options={options}
@@ -871,6 +886,43 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
     );
 }
 
+/** The grid's cell text: compact-mantine's body type (11px, weight 450, 0.055px tracking); headers at 600. */
+const CELL_FONT = "11px";
+const CELL_TRACKING = "0.055px";
+
+/** A cell's padding (12 + 8) and a header's (16 + 32 for its menu), from the DataTable's styles. */
+const CELL_PAD = 20;
+const HEADER_PAD = 48;
+
+/** The narrowest and widest a column is drawn; a longer value is cut and its tooltip has it whole. */
+const COLUMN_MIN = 64;
+const COLUMN_MAX = 320;
+
+let measurer: CanvasRenderingContext2D | null = null;
+
+/**
+ * How wide a column must be to show its header and every value given, whole.
+ * @param header - the column's name.
+ * @param values - its shown values.
+ * @returns the width in pixels.
+ */
+function fitWidth(header: string, values: readonly string[]): number {
+    measurer ??= document.createElement("canvas").getContext("2d");
+    if (measurer === null) {
+        return COLUMN_MIN;
+    }
+    const family = getComputedStyle(document.body).fontFamily;
+    measurer.letterSpacing = CELL_TRACKING;
+    measurer.font = `600 ${CELL_FONT} ${family}`;
+    let widest = measurer.measureText(header).width + HEADER_PAD;
+    measurer.font = `450 ${CELL_FONT} ${family}`;
+    for (const value of values) {
+        widest = Math.max(widest, measurer.measureText(value).width + CELL_PAD);
+    }
+    // One pixel more: the cell lays text out on subpixels and rounds its own box down.
+    return Math.min(COLUMN_MAX, Math.max(COLUMN_MIN, Math.ceil(widest) + 1));
+}
+
 /**
  * The sample grid: the table's first rows, or every unmatched or rejected row.
  * @param props - Component props
@@ -879,23 +931,29 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
  * @returns The grid
  */
 function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.JSX.Element {
-    const columns = useMemo<DataTableColumn<DraftRow>[]>(
-        () => [
+    const rows = useMemo(() => page.rows?.records ?? [], [page.rows]);
+    const columns = useMemo<DataTableColumn<DraftRow>[]>(() => {
+        const cell = (row: DraftRow, name: string): string | null => {
+            const value = row.values[name];
+            return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+                ? String(value)
+                : null;
+        };
+        return [
             { id: "#line", header: "Line", value: (row) => row.line, align: "end", width: 64 },
             ...table.columns.map((column) => ({
                 id: column.name,
                 header: column.name,
-                value: (row: DraftRow) => {
-                    const value = row.values[column.name];
-                    return value === null || value === undefined || typeof value === "object"
-                        ? null
-                        : (value as string);
-                },
+                value: (row: DraftRow) => cell(row, column.name),
+                // Wide enough for its longest shown value, so "Dmitri Volkov" is not cut while
+                // the table has room to spare.
+                width: fitWidth(
+                    column.name,
+                    rows.map((row) => cell(row, column.name) ?? ""),
+                ),
             })),
-        ],
-        [table],
-    );
-    const rows = page.rows?.records ?? [];
+        ];
+    }, [table, rows]);
     const what = page.filter === "unmatched" ? "unmatched row" : "row that could not be read";
     const caption =
         page.filter === "all"
@@ -919,7 +977,16 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
                     </Anchor>
                 )}
             </Group>
-            <DataTable label={`Rows of ${table.name}`} columns={columns} data={rows} height={240} />
+            {/* As tall as its rows, so every row the caption counts is on screen; the pane
+                scrolls when they do not fit, never a box inside it. */}
+            <DataTable
+                label={`Rows of ${table.name}`}
+                columns={columns}
+                data={rows}
+                // Each row and the header is one pitch plus the table's 1px grid line, plus the
+                // table's 1px padding.
+                height={(PANEL_GRID.ROW_PITCH + 1) * (Math.max(rows.length, 1) + 1) + 1}
+            />
         </Stack>
     );
 }

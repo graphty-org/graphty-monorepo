@@ -15,6 +15,19 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+0000000. (2026-10-08) **Import page in reader words (app + compact-mantine).** Summary line
+         `modelWords()` ("people and messages: 12 nodes, 22 edges; each edge goes both ways" -- the
+         direction clause only once Direction is chosen; the CSV report has no direction fact);
+         roles "From"/"To"; the preview follows a table added through "+" (`added` ref, matched by
+         table name); preview columns sized by canvas `measureText` at the cell type (450 weight,
+         0.055px tracking, +1px) and the grid as tall as its rows, `(32 + 1) * (rows + 1) + 1`
+         (1px grid gap per row + 1px padding); `meaningGloss` is a whole sentence in every state;
+         "Weight: km (farther)" via `weightName`; role box `aria-label="Role of km"` (new optional
+         StyleSelect prop, team decision); reset tooltips on all three Style* resets. NOT done: the
+         hint's type still differs from the 9px labels -- it is the theme's 11px field hint (the
+         legibility decision of the shared-controls fix, and a test); matching would mean 9px hints
+         or 11px labels theme-wide. Raised for the director. Evidence `tmp/r1-dry1-import-page/`
+         (T4A/04, 06, 08; T20B/06, 07, 09).
 000000. (2026-10-08) **Shared controls: no clipped segment, one focus ring, legible find hints.**
         (a) SegmentedControl: `.cm-sc-control { flex: 1 1 0 }` in a content-sized track gave every
         option the AVERAGE width, so "Leave out" beside "Add" lost its padding and end. Fix:
@@ -48,17 +61,11 @@ acceptance test. "The studio worktree" is
       `project-file.test.ts` "gives a reopened run the record it was saved with". Evidence
       `tmp/r1-dry1-reopened-run-count/A/04.png` (PageRank 20), `B/04.png` (PageRank 15).
 
-000. (2026-10-08) **Marks visible on a colored drawing (graphty-element; owner doors listed).**
-     Highlight default `#D55E00` -> `#332288` (Tol indigo): vermilion was Delta E 1 from the
-     default ramp's 2nd step. A grid search of sRGB found ONLY dark blues/violets clear Delta E 15
-     from the indigo node, darkgrey edge, whitesmoke and the YlOrBr ramp under all 3 color
-     blindnesses (tritan kills teals/blues, protan/deutan kill greens/reds). Cost: on an
-     unmeasured drawing the route is dark indigo among periwinkle nodes (lightness, not hue).
-     Selected edge: new `edgeColor` `#0077BB` / `edgeScale` 2.5 / `edgeOpacity` 1 on the selection
-     style; the band is drawn BEHIND the line (material `zOffset` + `zOffsetUnits` -- `zOffset`
-     alone does nothing for a camera-facing quad) as a casing. Evidence
-     `tmp/r1-dry1-marks-visible/` (T18A/05, T18B/05, T20B/05, T22B/04, T22B-middle-x3.png).
-     The app's Highlight color still writes only the node halo `color`.
+000. (2026-10-08) **Marks visible (graphty-element; owner doors).** Highlight default -> `#332288`
+     (only dark blues/violets clear Delta E 15 from the defaults under all 3 color blindnesses);
+     selected edge `edgeColor` `#0077BB` / `edgeScale` 2.5 / `edgeOpacity` 1, a casing behind the
+     line (`zOffsetUnits`). Evidence `tmp/r1-dry1-marks-visible/`. The app's Highlight color
+     still writes only the node halo `color`.
 00. (2026-10-08) **A continuous measure's histogram is banded (element `buildHistogram`).** Per-value
     bars only for integer / all-whole / single / repeated values; else bands. Owner door listed.
     Tests `statistics.test.ts`, `column-histogram.test.ts`; evidence `tmp/r1-dry1-histogram-bands/`.
@@ -167,17 +174,9 @@ acceptance test. "The studio worktree" is
   in Tree's `label`; Rerun passes `stale.scopeSpec`; the weight meaning is re-applied in the page
   (table ids are known only once read). Rejected: Rerun all, auto-rerun.
 
-- (2026-10-07) **Notes: one command (`notes.add`), the inspector decides the target** at press
-  time; over 64 selected disables it; the list is a plain `ul` with roving tabindex.
-
-- (2026-10-07) **Weight meaning in the app (no new API).** Data page "Higher means" ->
-  `TableMapping.weightMeaning`; Analyze/Path one Weight select (loaded first); Overview "Loaded weight".
-
-- (2026-10-07) **A run's Values view is chosen from its shape** (`viewOf()`, `RunValues.tsx`):
-  groups -> sizes; highlight + `order` -> path; highlight -> count; number -> histogram.
-
-- (2026-10-07) **Selected edges drawn from the mask, not a style layer** (selection is not a layer);
-  since 288624ad1 a halo band from the node halo's settings, not a 3:1 recolor.
+- (2026-10-07, condensed) Notes: one command (`notes.add`), target decided at press time. Weight
+  meaning in the app: "Higher means" -> `TableMapping.weightMeaning`. A run's Values view is chosen
+  from its shape (`viewOf()`). Selected edges come from the mask, not a style layer.
 
 - (2026-10-07) **Filter steps: one list verb `setSteps`, counts only in `plan`** (8966b0888, owner
   door); steps beside `filter` so an unticked rule survives undo and the file. Rejected: live counts
@@ -224,6 +223,11 @@ acceptance test. "The studio worktree" is
   5 s test timeout (5.5 s) while the browser project shared the CPU; alone it passes in time. Not
   touched by row changes; watch it if it recurs.
 
+- (2026-10-08) Worked: canvas `measureText` for a DataTable column's content width, once the
+  font weight and `letterSpacing` match the cell's (400 weight measured 3px short at 450). A
+  Mantine Tooltip in jsdom never opens (use a `.browser.test.tsx`); the theme's open delay is
+  1000 ms, so `findByRole("tooltip", {}, { timeout: 3000 })`. The study tool cannot click a role
+  box named only "km" when the grid header is also "km" (pilots used `--click-at`); "Role of km" fixes it.
 - (2026-10-08) Worked: comparing `run.record.summary` before save and after open in a node test.
   Comparing the whole summary did NOT work: caveats and durationMs differ because the file saves
   the record's merged caveats and wall time, not the executor's raw ones -- compare the counts.
@@ -256,30 +260,16 @@ none)` on; not fixed).
 - (2026-10-07) A header above a list moves Tab counts (list-collecting tests must skip its buttons).
 - (2026-10-07) The element FREEZES Babylon's active-mesh list on a still frame: a mesh toggled
   outside an update pass needs `getUpdateManager().meshesShownOrHidden()`.
-- (2026-10-07) **Study prep: what bit.** `project.open(file)` does NOT load into the element;
-  knownFields leak between imports (fresh page per file). `design/ui/studio/tmp/` is gitignored:
-  copy evidence under `rounds/`.
-- (2026-10-07) **Study tool habits.** Two unlabeled nodes: Find `=id == 'A' || id == 'B'`. Freeze
-  `graphty/dist` with `REAL_DIST`. Add a file to an open project: `--key Control+o --upload`.
-  Directed sample with named edge ends: `bus-stops.csv`.
+- (2026-10-07) Study prep: `project.open(file)` does NOT load into the element; `tmp/` is
+  gitignored (copy evidence under `rounds/`). Tool: Find `=id == 'A' || id == 'B'`; freeze with
+  `REAL_DIST`; add a file to an open project with `--key Control+o --upload`.
 
-- (2026-10-07) **A list that closes on blur moved Find path from under the pointer** (first click
-  lost): the list now floats (`analyze/path.css`). Also: `autoFocus` loses to Mantine's focus trap
-  (use `data-autofocus`); a focused ToggleIconButton's tooltip takes the first Esc; keep a
-  `role=status` mounted and change its text. Never wait with `pgrep -f '<my own words>'`.
-- (2026-10-07) A Mantine Select is role `combobox`; `keys.isTypingTarget` swallowed Ctrl+Z after a
-  checkbox (fixed at the root).
-- (2026-10-07) **Another agent's write can silently undo my edit** in a shared file (RunValues
-  lost my hunks when 2df88ddef landed). Re-grep my changes in every touched file just before
-  committing. Prettier from the worktree ROOT (`npx prettier --write graphty/...`), not from
-  `graphty/`. AttributeDescriptor `type` is "integer" for whole-number CSV columns: a number
-  filter must accept both "number" and "integer".
-
-- (2026-10-07) **Find rule refusals (f09aae3aa).** `selection.apply` (also `ScopeApi`, some
-  `GraphSession` doors) THROWS SYNCHRONOUSLY on a bad selector despite returning a Promise --
-  element defect, unfiled; the app uses `try/await`. Mantine TextInput overrides `aria-invalid`/
-  `aria-describedby`: pass `error={text}` + `errorProps={{ role: "alert" }}`. Element
-  `details.position` is 0-based after "="; the reader's character is `position + 2`.
+- (2026-10-07, condensed) A list that closes on blur moved Find path from under the pointer (now
+  floats). `autoFocus` loses to Mantine's focus trap (`data-autofocus`). Keep a `role=status`
+  mounted, change its text. Re-grep my hunks in shared files before committing (another agent's
+  write can undo them). Prettier from the worktree root. CSV whole numbers are type "integer".
+  `selection.apply` THROWS SYNCHRONOUSLY on a bad selector (element defect, unfiled). Mantine
+  TextInput: `error={text}` + `errorProps={{ role: "alert" }}`; selector `position` is 0-based after "=".
 
 - (2026-10-07) `--hover "<name>"` rests on the row's CENTER (often its count); `--hover-at` on a point.
   Hovering a filter step by its checkbox name ("Apply step: ...") hits the checkbox, whose own

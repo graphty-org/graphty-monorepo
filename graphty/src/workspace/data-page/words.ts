@@ -12,14 +12,18 @@ import type { PageRole } from "./choices";
 const ROLE_WORDS: Readonly<Record<PageRole, string>> = {
     key: "Key",
     label: "Name",
-    source: "From -> node",
-    target: "To -> node",
+    // Plain words, not "From -> node": the arrow read as code notation (tier 2 dry run).
+    source: "From",
+    target: "To",
     weight: "Weight",
     // Not "Time": beside Weight, a column of minutes read it as its own role (tier 2 pilot, T20).
     time: "Date or time",
     edgeId: "Edge id",
     attribute: "Attribute",
 };
+
+/** Joins names: "a and b", "a, b, and c". */
+const AND = new Intl.ListFormat("en-US", { type: "conjunction" });
 
 /**
  * A role's menu words.
@@ -66,6 +70,28 @@ export function replaceWords(was: Size, now: Size): string {
 }
 
 /**
+ * The page's summary line: what the load makes, in words that follow the Direction choice.
+ * @param names - what the tables are called, without extensions.
+ * @param nodes - the nodes the load makes.
+ * @param edges - the edges it makes, or null when no table holds edges.
+ * @param directed - the Direction choice.
+ * @returns "people and messages: 12 nodes, 22 edges; each edge goes one way".
+ */
+export function modelWords(
+    names: readonly string[],
+    nodes: number,
+    edges: number | null,
+    directed: boolean | "auto",
+): string {
+    const made = edges === null ? plural(nodes, "node") : `${plural(nodes, "node")}, ${plural(edges, "edge")}`;
+    const text = `${AND.format(names)}: ${made}`;
+    if (edges === null || edges === 0 || directed === "auto") {
+        return text;
+    }
+    return `${text}; each edge goes ${directed ? "one way" : "both ways"}`;
+}
+
+/**
  * The status line after a replacing load.
  * @param name - the source that was replaced.
  * @param now - the graph after the load.
@@ -85,8 +111,6 @@ export function replacedWords(name: string, now: Size, outOfDate: number): strin
 export function baseName(name: string): string {
     return name.replace(/\.[^.]*$/, "") || name;
 }
-
-const AND = new Intl.ListFormat("en-US", { type: "conjunction" });
 
 /**
  * What a new graph is called: every file its loads read, without extensions.

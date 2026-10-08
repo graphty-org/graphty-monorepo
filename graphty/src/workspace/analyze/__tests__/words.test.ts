@@ -136,7 +136,10 @@ describe("the Analyze popover's words", () => {
         });
         assert.equal(unset, "not read -- w has no meaning chosen, and a path needs a distance");
         assert.equal(weightName("weight", "distance", "loaded"), "weight (farther, loaded)");
-        assert.equal(meaningGloss("strength"), "larger = closer");
+        // A whole sentence in every state, never a fragment such as "smaller = closer".
+        for (const meaning of ["strength", "distance", "capacity", null] as const) {
+            assert.match(meaningGloss(meaning), /^A higher weight .*\.$|^Choose what a higher weight means\..*\.$/);
+        }
         for (const text of [skipped, unset, weightName("x", "capacity"), meaningGloss(null)]) {
             assert.notMatch(text, /strength|stronger/i);
         }

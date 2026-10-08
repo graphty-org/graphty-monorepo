@@ -36,6 +36,17 @@ const PEOPLE = "id,name,team\na,Ann,red\nb,Bo,blue\nc,Cy,red\n";
 const TIES = "source,target,weight\na,b,2\nb,c,5\nc,z,1\n";
 /** Three edges name `y` or `z`, neither of which the node file holds. */
 const TIES_SEVERAL_UNMATCHED = "source,target,weight\na,b,2\nc,z,1\nz,a,4\nb,y,3\n";
+/** What Higher means says before the reader chooses. */
+const UNSET_HINT =
+    "Choose what a higher weight means. Until you do, a path counts every edge as one step, and PageRank and communities read a higher weight as closer.";
+/** Twelve people, two of them with names longer than the grid's default column. */
+const STAFF = [
+    "id,name,team",
+    ...Array.from(
+        { length: 12 },
+        (_, i) => `p${String(i + 1)},${i === 3 ? "Dmitri Volkov-Lindqvist" : `Person ${String(i + 1)}`},Programs`,
+    ),
+].join("\n");
 /** Trips between stations, under linking columns the element does not recognize. */
 const TRIPS = "from_station,to_station,trips\nx,y,10\ny,z,3\nz,x,7\n";
 
@@ -199,7 +210,7 @@ describe("the Data page on the real element", () => {
 
             const strip = await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
             // Leave out is the default: the edge to z is dropped.
-            assert.equal(strip.textContent, "node (3) --ties (2)--> node");
+            assert.equal(strip.textContent, "people and ties: 3 nodes, 2 edges");
             const report = screen.getByRole("region", { name: "Match report" });
             assert.include(report.textContent, "1 edge row names a node missing from the node rows.");
 
@@ -210,7 +221,7 @@ describe("the Data page on the real element", () => {
 
             await userEvent.click(within(report).getByText("Add"));
             await waitFor(() => {
-                assert.equal(screen.getByTestId("model-strip").textContent, "node (4) --ties (3)--> node");
+                assert.equal(screen.getByTestId("model-strip").textContent, "people and ties: 4 nodes, 3 edges");
             });
 
             await userEvent.click(loadButton());
@@ -290,17 +301,17 @@ describe("the Data page on the real element", () => {
             assert.include(alert.textContent, "The file has: from_station, to_station, trips.");
             assert.equal(loadButton().getAttribute("aria-disabled"), "true");
 
-            await pick("from_station", "From -> node");
-            await pick("to_station", "To -> node");
+            await pick("Role of from_station", "From");
+            await pick("Role of to_station", "To");
             await waitFor(() => {
-                assert.equal(screen.getByTestId("model-strip").textContent, "node (3) --trips (3)--> node");
+                assert.equal(screen.getByTestId("model-strip").textContent, "trips: 3 nodes, 3 edges");
             });
             assert.isNull(screen.queryByRole("alert"));
             assert.isNull(loadButton().getAttribute("aria-disabled"));
             assert.notEqual(document.activeElement, loadButton(), "an edit back to ready leaves focus where it is");
             assert.isNotNull(screen.getByText("Weight: none (each edge counts 1)"));
 
-            await pick("trips", "Weight");
+            await pick("Role of trips", "Weight");
             await screen.findByText("Weight: trips");
             await pick("Direction", "Directed");
             await userEvent.click(loadButton());
@@ -323,7 +334,7 @@ describe("the Data page on the real element", () => {
             await chooseFiles(new File(["source;target\na;b\nb;c\n"], "ties.csv"));
             await waitFor(
                 () => {
-                    assert.equal(screen.getByTestId("model-strip").textContent, "node (3) --ties (2)--> node");
+                    assert.equal(screen.getByTestId("model-strip").textContent, "ties: 3 nodes, 2 edges");
                 },
                 { timeout: TIMEOUT_MS },
             );
@@ -331,7 +342,7 @@ describe("the Data page on the real element", () => {
             await userEvent.click(screen.getByRole("button", { name: /^File settings/ }));
             await pick("Separator", "Tab");
             // Read again with tabs, the file is one column.
-            await screen.findByRole("combobox", { name: "source;target" }, { timeout: TIMEOUT_MS });
+            await screen.findByRole("combobox", { name: "Role of source;target" }, { timeout: TIMEOUT_MS });
         },
         TIMEOUT_MS * 2,
     );
@@ -343,7 +354,7 @@ describe("the Data page on the real element", () => {
             const { store } = await openFromEmptyApp();
             await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));
             await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
-            await pick("name", "Attribute");
+            await pick("Role of name", "Attribute");
             await userEvent.click(loadButton());
             await waitFor(
                 () => {
@@ -387,7 +398,7 @@ describe("the Data page on the real element", () => {
             await waitFor(
                 () => {
                     assert.equal(
-                        screen.getByRole<HTMLInputElement>("combobox", { name: "name" }).value,
+                        screen.getByRole<HTMLInputElement>("combobox", { name: "Role of name" }).value,
                         "Attribute",
                         "the role the reader chose comes back",
                     );
@@ -507,7 +518,7 @@ describe("the Data page on the real element", () => {
             const report = await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
             await userEvent.click(await within(report).findByText("Add", {}, { timeout: TIMEOUT_MS }));
             await waitFor(() => {
-                assert.equal(screen.getByTestId("model-strip").textContent, "node (4) --ties (3)--> node");
+                assert.equal(screen.getByTestId("model-strip").textContent, "people and ties: 4 nodes, 3 edges");
             });
             await userEvent.click(loadButton());
             await waitFor(
@@ -563,7 +574,7 @@ describe("the Data page on the real element", () => {
             const { session } = await openFromEmptyApp();
             await chooseFiles(new File(["from,to,emails\np01,p02,14\np02,p03,9\n"], "messages.csv"));
             await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
-            await pick("emails", "Weight");
+            await pick("Role of emails", "Weight");
 
             const higher = await screen.findByRole("radiogroup", { name: "Higher means" }, { timeout: TIMEOUT_MS });
             // Unset until the reader chooses, and drawn so: "Not set" is the checked choice.
@@ -574,7 +585,7 @@ describe("the Data page on the real element", () => {
                     .map((radio) => radio.labels?.[0]?.textContent ?? "");
             assert.deepEqual(checked(), ["Not set"]);
             await userEvent.click(within(higher).getByText("Closer"));
-            await screen.findByText("larger = closer");
+            await screen.findByText("A higher weight means a closer tie, such as more emails between two people.");
             assert.deepEqual(checked(), ["Closer"]);
             // And back: Not set leaves the weight with no meaning again.
             await userEvent.click(within(higher).getByText("Not set"));
@@ -600,16 +611,92 @@ describe("the Data page on the real element", () => {
             await openFromEmptyApp();
             await chooseFiles(new File(["from,to,emails\np01,p02,14\np02,p03,9\n"], "messages.csv"));
             await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
-            await pick("emails", "Weight");
-            const hint = await screen.findByText(
-                "paths ignore it; PageRank and communities read it as larger = closer",
-                {},
-                { timeout: TIMEOUT_MS },
-            );
+            await pick("Role of emails", "Weight");
+            const hint = await screen.findByText(UNSET_HINT, {}, { timeout: TIMEOUT_MS });
             const ratio = contrastOnPage(hint);
             assert.isAtLeast(ratio, 4.5, `the hint measures ${ratio.toFixed(2)}:1`);
             // Mantine sizes a bare wrapper's description as its size minus 2px: 7px at xs.
             assert.equal(getComputedStyle(hint).fontSize, "11px");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "words the summary line, and its direction follows the Direction choice",
+        async () => {
+            await openFromEmptyApp();
+            await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));
+            const strip = await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+            assert.equal(strip.textContent, "people and ties: 3 nodes, 2 edges");
+            await pick("Direction", "Undirected");
+            await waitFor(() => {
+                assert.equal(strip.textContent, "people and ties: 3 nodes, 2 edges; each edge goes both ways");
+            });
+            await pick("Direction", "Directed");
+            await waitFor(() => {
+                assert.equal(strip.textContent, "people and ties: 3 nodes, 2 edges; each edge goes one way");
+            });
+            assert.notInclude(document.body.textContent, "->", "no code notation on the page");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "shows the table the reader just added, not the first one",
+        async () => {
+            await openFromEmptyApp();
+            await chooseFiles(new File([PEOPLE], "people.csv"));
+            await screen.findByRole("grid", { name: "Rows of people.csv" }, { timeout: TIMEOUT_MS });
+            await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "File..." }));
+            await chooseFiles(new File([TIES], "ties.csv"));
+            await screen.findByRole("grid", { name: "Rows of ties.csv" }, { timeout: TIMEOUT_MS });
+            assert.include(screen.getByRole("button", { current: true }).textContent, "Edges: ties.csv");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "draws every sample row and each name whole when the page has room",
+        async () => {
+            await page.viewport(1440, 900);
+            await openFromEmptyApp();
+            await chooseFiles(new File([STAFF], "staff.csv"));
+            const grid = await screen.findByRole("grid", { name: "Rows of staff.csv" }, { timeout: TIMEOUT_MS });
+            await screen.findByText("The first 12 rows of 12");
+            await waitFor(() => {
+                // The header and all 12 rows, with no scroll inside the table.
+                assert.lengthOf(within(grid).getAllByRole("row"), 13);
+            });
+            const box = screen.getByTestId("data-table-viewport");
+            assert.isAtMost(box.scrollHeight, box.clientHeight, "no scroll inside the table");
+            const name = within(grid).getByText("Dmitri Volkov-Lindqvist");
+            assert.isAtMost(name.scrollWidth, name.clientWidth, "the longest name is not cut");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "names each role box after its column, says what a weight's meaning is in a sentence, and shows it in the summary",
+        async () => {
+            await openFromEmptyApp();
+            await chooseFiles(new File(["from,to,km\na,b,3\nb,c,6\n"], "trails.csv"));
+            await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+            await pick("Role of km", "Weight");
+            await screen.findByText(UNSET_HINT, {}, { timeout: TIMEOUT_MS });
+            const higher = screen.getByRole("radiogroup", { name: "Higher means" });
+            await userEvent.click(within(higher).getByText("Farther"));
+            await screen.findByText(
+                "A higher weight means farther apart, such as a longer trail; a path takes the smallest total.",
+            );
+            assert.isNotNull(screen.getByText("Weight: km (farther)"));
+
+            // The reset beside a chosen role says what it does on hover.
+            await userEvent.hover(screen.getByRole("button", { name: "Reset km to default" }));
+            assert.equal(
+                (await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent,
+                "Reset km to default",
+            );
         },
         TIMEOUT_MS * 2,
     );

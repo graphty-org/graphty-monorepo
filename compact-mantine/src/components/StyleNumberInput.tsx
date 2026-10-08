@@ -1,4 +1,4 @@
-import { ActionIcon, Group, TextInput } from "@mantine/core";
+import { ActionIcon, Group, TextInput, Tooltip } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import React, { useMemo } from "react";
 
@@ -275,17 +275,20 @@ export function StyleNumberInput({
                 WCAG 2.2 (2.5.8) target-size minimum, and the same height as
                 the field, so bottom alignment puts the two level. */}
             {!isDefault && (
-                <ActionIcon
-                    variant="subtle"
-                    size={PANEL_GRID.TRAIL}
-                    c={PANEL_INK.CHROME}
-                    data-testid="style-number-input-reset"
-                    disabled={disabled}
-                    aria-label={labels.resetToDefault(label)}
-                    onClick={handleReset}
-                >
-                    <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
-                </ActionIcon>
+                // An icon-only button says what it does on hover, not only to a screen reader.
+                <Tooltip label={labels.resetToDefault(label)}>
+                    <ActionIcon
+                        variant="subtle"
+                        size={PANEL_GRID.TRAIL}
+                        c={PANEL_INK.CHROME}
+                        data-testid="style-number-input-reset"
+                        disabled={disabled}
+                        aria-label={labels.resetToDefault(label)}
+                        onClick={handleReset}
+                    >
+                        <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
+                    </ActionIcon>
+                </Tooltip>
             )}
         </Group>
     );

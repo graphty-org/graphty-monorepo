@@ -4,6 +4,20 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- Decided by the team: StyleSelect takes an `aria-label`, and every reset button has a tooltip
+
+**What.** compact-mantine's `StyleSelect` gains an optional `aria-label` prop, forwarded to the
+field. Unset, the visible label is still the only name, as before. The reset button beside a
+`StyleSelect`, `StyleNumberInput` or `CompactColorInput` now shows its name ("Reset km to
+default") as a tooltip on hover. Additive: no prop changes meaning and no default changes.
+
+**Why.** On the import page each column's role box is labeled with the column's own name, "km",
+which says nothing about what the box sets and collides with the grid's "km" header; the page now
+names it "Role of km", which still holds the visible word (WCAG 2.5.3). The reset is an icon-only
+button, and an icon-only button must say what it does to a pointer user too, so the fix is in the
+shared controls rather than one page. Tests: `compact-mantine/tests/components/StyleSelect.test.tsx`,
+`compact-mantine/tests/components/ResetTooltip.browser.test.tsx`.
+
 ## 2026-10-08 -- For the owner: a compact-mantine stat row grows instead of cutting its reading
 
 **What.** In `@graphty/compact-mantine`, a `DataRow` with `stat` whose reading does not fit beside

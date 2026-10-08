@@ -28,8 +28,9 @@
  *   closing are in its batch. No clock: merges count. Once, a `types` pass over every open issue
  *   (20 per job) re-judges each type label now that `infrastructure` exists (owner decision
  *   2026-10-06; `state.triagePasses.typesQueued`).
- * - `issue-<n>`: one queued issue job per session githerd may invite (`workers.sessions`, one
- *   when it names none), for the issues at the front of the ranked list; the next is made once one
+ * - `issue-<n>`: as many queued issue jobs as the sessions githerd may invite reported room for
+ *   (`issueDemand`: at least one, at most twice `workers.maxActive`, per session), for the issues at
+ *   the front of the ranked list; the next is made once one
  *   leaves the queue, never one per backlog issue. An issue a session
  *   deferred (`state.deferred`, done.mjs) is left out until its revision changes. Only the types of
  *   `backlog.issueTypes` get a new job (bug and infrastructure by default) unless the owner picked the
@@ -588,7 +589,8 @@ function cancelClosedIssueJobs(state, cancel) {
 }
 
 /**
- * The issue jobs: one queued per session githerd may invite, for the issue at the front (an open
+ * The issue jobs: as many queued as the sessions githerd may invite have room for (`issueDemand`),
+ * for the issues at the front (an open
  * order first, then the ranked list); the re-land of every pull request a revert took out; and an issue job whose issue
  * closed is cancelled.
  * @param {any} state the daemon state
@@ -608,10 +610,10 @@ function issueJobs(state, config, now, add, cancel) {
         (j) => j.kind === "issue" && j.state === "queued" && j.facts?.scope !== "promote",
     ).length;
     const priorities = config.labels?.priorities ?? [];
-    // One queued issue job per session githerd may invite (`workers.sessions`, one when it names
-    // none), all made in this pass, so an issue every session passes on does not leave the others
+    // As many queued issue jobs as the sessions githerd may invite have room for (`issueDemand`),
+    // all made in this pass, so an issue every session passes on does not leave the others
     // without work; a critical one never waits behind a lower one.
-    const room = Math.max(config.workers?.sessions?.length ?? 1, 1);
+    const room = issueDemand(state, config);
     const tried = new Set();
     for (;;) {
         const candidates = issueCandidates(state, config, now, deferred);
@@ -621,6 +623,32 @@ function issueJobs(state, config, now, add, cancel) {
         addIssueJob(state, config, now, add, top, candidates);
         queued += 1;
     }
+}
+
+/**
+ * How many issue jobs to keep queued: the sum, over the sessions githerd may invite
+ * (`workers.sessions`; every session that reported room when it names none, at least one), of the
+ * room each last reported in its capacity answer (`state.capacity`, less the jobs it claimed
+ * since), at least one and at most twice `workers.maxActive` per session. A session that never
+ * answered counts one. Queued jobs are never cancelled when the demand falls.
+ * @param {any} state the daemon state
+ * @param {any} config the normalized config
+ * @returns {number} the demand
+ */
+function issueDemand(state, config) {
+    const most = 2 * (config.workers?.maxActive ?? 3);
+    const jobs = Object.values(state.jobs ?? {});
+    const rooms = Object.entries(state.capacity ?? {}).map(([session, said]) => {
+        const claimed = jobs.filter((j) => j.claim?.session === session && j.claim.at >= said.at).length;
+        return Math.min(Math.max(said.n - claimed, 1), most);
+    });
+    // ponytail: capacity is keyed by session id and workers.sessions by name, so the largest
+    // answers stand in for the named sessions; record the name with the answer if that misleads.
+    const sessions = Math.max(config.workers?.sessions?.length ?? rooms.length, 1);
+    rooms.sort((a, b) => b - a);
+    let demand = 0;
+    for (let i = 0; i < sessions; i++) demand += rooms[i] ?? 1;
+    return demand;
 }
 
 /**

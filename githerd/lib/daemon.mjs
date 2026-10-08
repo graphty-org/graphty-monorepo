@@ -144,6 +144,7 @@ import {
 } from "./owner.mjs";
 import { readPushes } from "./prepush.mjs";
 import { containerStart, identify, liveTickets } from "./proc.mjs";
+import { backPressure } from "./pressure.mjs";
 import {
     inferOwners,
     inRepository,
@@ -1914,6 +1915,7 @@ export async function startDaemon({
         await workerPass();
         if (state.trust.login) {
             await run("invites", async () => {
+                state.pressure = await backPressure({ root, repo: config.repo, get: (path) => gh.get(path) });
                 await inviteIdle(t);
                 await askStatus(t);
             });

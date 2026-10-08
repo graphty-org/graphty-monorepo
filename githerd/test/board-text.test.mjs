@@ -56,6 +56,21 @@ describe("renderBoard", () => {
         expect(text.split("\n").slice(1)).toEqual(["JOBS: none", "  invited 2 idle sessions at 11:42"]);
     });
 
+    it("names what holds new work back under the jobs, and nothing while the shared resources have room", () => {
+        const held = view({
+            pressure: ["2 pushes waiting in the push queue", "1 GitHub Actions run queued for a runner"],
+        });
+        expect(renderBoard(held, NOW, "jobs").split("\n").slice(1)).toEqual([
+            "JOBS: none",
+            "  NEW WORK HELD BACK: 2 pushes waiting in the push queue; 1 GitHub Actions run queued for a runner",
+        ]);
+        expect(
+            renderBoard(view({ pressure: [] }), NOW, "jobs")
+                .split("\n")
+                .slice(1),
+        ).toEqual(["JOBS: none"]);
+    });
+
     it("shows what merge a pull request and a job wait for", () => {
         const job = {
             ...newJob({ kind: "pr", target: "#740", id: "pr-740" }, NOW),

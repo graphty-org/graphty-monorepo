@@ -1507,11 +1507,16 @@ shows each limit with the measurement that applied at the last start.
   queued while no session is idle is announced when one goes idle. The `workers` group gates it: in
   dry-run each invitation is a `would-do` line. Each is ledgered (`sessions-invited`), and the board
   shows the last one ("invited N idle sessions at HH:MM"). A session that holds jobs is also
-  invited while busy when it has room: the status question asks "Can you take another job?", the
-  session answers with `capacity` in `githerd_expect`, githerd keeps the last answer
+  invited while busy when it has room: the status question asks how many more jobs it can work in
+  parallel, the session answers with `capacity` in `githerd_expect`, githerd keeps the last answer
   (`state.capacity[session]`), and the session has room while that answer is above the jobs it
   claimed since. A session that never answered is invited only while idle.
-- **A session works at most `workers.maxActive` jobs at once** (default 3, 1 to 20). A session
+- **Back-pressure, not an allowance, limits new work** (the owner, 2026-10-08; `lib/pressure.mjs`).
+  While pushes wait in the push queue, the repository's Actions runs are queued for a runner, or
+  every test slot is taken with runs waiting, no session is invited to new work and the status
+  question tells it to take none, naming the constraint; the board and status name it too. Each is
+  read every poll, so invitations resume on the first poll after it clears.
+- **`workers.maxActive` is a runaway guard** (default 3, 1 to 20), never presented to sessions as an allowance. A session
   holding that many jobs in `working` or `starting`, or `waiting` on its own local task, is not
   invited, and `githerd_claim` refuses it another queued job with "you hold 3 active jobs; finish
   or report one first", whatever `capacity` it reported. Blocked, parked, verifying jobs and waits

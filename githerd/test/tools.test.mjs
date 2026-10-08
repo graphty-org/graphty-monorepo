@@ -280,6 +280,14 @@ describe("githerd_status", () => {
         );
     });
 
+    it("names what holds new work back in the queue section", () => {
+        const text = status({ schema: 1, pressure: ["4 test runs waiting for a test slot"] }, { section: "queue" });
+        expect(text).toContain("QUEUE (0): nothing to do\n  NEW WORK HELD BACK: 4 test runs waiting for a test slot");
+        expect(
+            json({ schema: 1, pressure: ["4 test runs waiting for a test slot"] }, { section: "queue" }).queue,
+        ).toMatchObject({ pressure: ["4 test runs waiting for a test slot"] });
+    });
+
     it("refuses an unknown section in the data builder", () => {
         expect(() => statusData({}, ctxFor(), { section: "nope" })).toThrow(/unknown section/);
     });

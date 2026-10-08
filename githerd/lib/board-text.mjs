@@ -9,6 +9,7 @@ import { TERMINAL } from "./board.mjs";
 import { flakeData, flakeLines } from "./flakes.mjs";
 import { prHolder, prOf } from "./queue.mjs";
 import { sharedLines } from "./shared.mjs";
+import { newWorkLines } from "./pressure.mjs";
 import { jobWaits, mergeWhat } from "./waits.mjs";
 
 /** The board's sections, in order; banners and faults always come first. */
@@ -267,7 +268,8 @@ const RENDER = {
             : [];
         // Issues a session deferred, until their revision changes (done.mjs).
         const deferred = Object.entries(v.state.deferred ?? {}).map(([n, d]) => `  deferred #${n} -- ${d.reason}`);
-        if (!jobs.length) return ["JOBS: none", ...invited, ...deferred];
+        const held = newWorkLines(v.state.pressure);
+        if (!jobs.length) return ["JOBS: none", ...held, ...invited, ...deferred];
         const waits = jobWaits(v.state);
         return [
             `JOBS (${jobs.length}):`,
@@ -276,6 +278,7 @@ const RENDER = {
                 // The holder's last answer to githerd's status question (asks.mjs statusStep).
                 ...(j.status ? [`    status ${when(j.status.at)}: ${j.status.text}`] : []),
             ]),
+            ...held,
             ...invited,
             ...deferred,
         ];

@@ -10,6 +10,7 @@
 import * as board from "./board.mjs";
 import { flakeData, flakeLines } from "./flakes.mjs";
 import { sharedLines } from "./shared.mjs";
+import { newWorkLines } from "./pressure.mjs";
 import { GRACE_DAYS } from "./proposals.mjs";
 import { issueTypes, jobInUse, jobOrder, ownerWaitingPrs, prInUse, prOf } from "./queue.mjs";
 
@@ -225,6 +226,7 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
             ownerWaiting: ownerWaitingPrs(state, now),
             deferred: Object.entries(state.deferred ?? {}).map(([n, d]) => ({ issue: Number(n), reason: d.reason })),
             invited: state.invited ?? null,
+            pressure: state.pressure ?? [],
         };
     }
     if (want("sessions")) {
@@ -404,12 +406,22 @@ function prLines(prs) {
  *   inUse?: {job: string, reason: string}[],
  *   inFlight: {job: string, state: string, reason: string, status?: {at: string, text: string} | null}[],
  *   ownerWaiting: {target: string, reason: string}[], deferred?: {issue: number, reason: string}[],
- *   invited?: {at: string, count: number, acting: boolean} | null}} queue the queue data, with the last
- *   invitation of idle sessions
+ *   invited?: {at: string, count: number, acting: boolean} | null, pressure?: string[]}} queue the queue
+ *   data, with the last invitation of idle sessions and what holds new work back (pressure.mjs)
  * @returns {string[]} the lines
  */
-function queueLines({ items, skipped, inUse = [], inFlight, ownerWaiting, deferred = [], invited = null }) {
+function queueLines({
+    items,
+    skipped,
+    inUse = [],
+    inFlight,
+    ownerWaiting,
+    deferred = [],
+    invited = null,
+    pressure = [],
+}) {
     const lines = [`QUEUE (${items.length})${items.length ? ":" : ": nothing to do"}`];
+    lines.push(...newWorkLines(pressure));
     for (const i of items) lines.push(`  ${i.job} -- ${i.reason}`);
     if (invited) {
         const did = invited.acting ? "invited" : "would have invited";

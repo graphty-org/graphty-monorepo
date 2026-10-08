@@ -95,10 +95,15 @@ the session that takes it calls `githerd_verdict` with code or environment. Only
 allows a revert; an environment verdict lifts the hold. When a job waits in the queue with no
 free worker slot, githerd messages the sessions in this repository with room once per job, inviting
 them to call `githerd_next` and claim it. A session has room while it is idle, or while the
-`capacity` it last gave in `githerd_expect` (its answer to the status question's "Can you take
-another job?") is above the jobs it claimed since. A session working `workers.maxActive` jobs (default
-3: working, starting, or waiting on its own task; blocked, parked and verifying jobs do not count) is
-not invited, and `githerd_claim` refuses it another until it finishes or reports one. The queue
+`capacity` it last gave in `githerd_expect` (how many more jobs it can work in parallel) is above
+the jobs it claimed since. No fixed allowance limits a session; the shared resources do: while
+pushes wait in the push queue, the repository's Actions runs wait for a runner, or every test slot
+is taken with runs waiting, githerd invites no session to new work and its status question says to
+take none; the board names the constraint. `workers.maxActive` (working, starting, or waiting on its
+own task; blocked, parked and verifying jobs do not count) is only a runaway guard: a session at it
+is not invited, and `githerd_claim` refuses it another until it finishes or reports one. The number
+of queued issue jobs follows the room the sessions reported (at least one, at most twice
+`workers.maxActive`, per session). The queue
 finishes before it starts: within one owner priority, a broken pull request's job, a review or a
 fix to verify comes before a fresh issue. A session calls `githerd_next` for its job (a worker) or the queued jobs it could
 take (an owner session), and `githerd_claim` with its overlap judgment before any edit. A pull

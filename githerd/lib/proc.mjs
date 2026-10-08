@@ -8,7 +8,7 @@
  * pid and tmux pane it recorded is void.
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
 
 /** @typedef {{pid: number, startTime: string, bootId: string}} ProcessIdentity */
@@ -107,7 +107,8 @@ export function pushQueueTickets(root) {
 }
 
 /**
- * The push queue's live tickets in queue order, critical first, then by arrival.
+ * The push queue's live tickets in queue order, critical first, then by arrival; a ticket whose
+ * process is gone is removed.
  * @param {string} root the main checkout
  * @returns {{pid: number, cwd: string, command: string}[]} each ticket's process, worktree and command
  */
@@ -126,7 +127,12 @@ export function liveTickets(root) {
             const [rank, at, pid] = parts.length === 2 ? ["1", ...parts] : parts;
             return { name, rank: Number(rank), at: BigInt(at), pid: Number(pid) };
         })
-        .filter((t) => Number.isInteger(t.pid) && alive(t.pid))
+        .filter((t) => {
+            if (!Number.isInteger(t.pid) || alive(t.pid)) return Number.isInteger(t.pid);
+            // A dead push's ticket is removed, as the queue script removes it.
+            rmSync(join(dir, t.name), { force: true });
+            return false;
+        })
         .sort((a, b) => a.rank - b.rank || Math.sign(Number(a.at - b.at)))
         .flatMap((t) => {
             try {

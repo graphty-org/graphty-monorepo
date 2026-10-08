@@ -1124,8 +1124,11 @@ from its shell, with the command line the message prints (`node <githerd>/bin/gi
 <pr>` or `... disown <pr>`); the command acts only for the session it runs under.
 While your session holds a job, githerd asks it where the job stands every 15 minutes
 ("githerd: status check on <job> ..."). Answer with `githerd_expect`: the job, one line of status as
-`reason`. The question also asks whether you can
-take another job: set `capacity` to how many more you can take now (0 if none). A question still unanswered when the next
+`reason`. The question also says whether the shared resources (the push queue, CI runners, the
+test slots) have room: while they do, take as many jobs as you can work in parallel, each in a
+background subagent, and set `capacity` to how many more you can take now (saying in `reason` what
+stops you, if something does); while one is saturated, take none until githerd invites you again.
+A question still unanswered when the next
 one is due puts the job back in the queue, and so does your session ending. So do the job's work in
 a background subagent or workflow, and keep the main conversation free to answer.
 Commands, the MCP server and the owner's one-time prerequisites are in `githerd/README.md`.

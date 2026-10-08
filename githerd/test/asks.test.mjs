@@ -264,6 +264,16 @@ describe("inviting idle sessions to pull work", () => {
         expect(f.sent).toHaveLength(2);
     });
 
+    it("invites nobody while a shared resource is saturated, and resumes once it has room", async () => {
+        const state = { ...queued("issue-5", "triage-new-1"), pressure: ["2 pushes waiting in the push queue"] };
+        const f = fake();
+        expect(await inviteStep(state, { ...f.opts(), offered })).toEqual([]);
+        expect(f.sent).toEqual([]);
+        state.pressure = [];
+        await inviteStep(state, { ...f.opts(), offered });
+        expect(f.sent).toHaveLength(2);
+    });
+
     it("names a verdict job's exact failure key in its invitation", async () => {
         const KEY = "CI / Build / Security audit";
         const id = "verdict-ci-build-security-audit";
@@ -611,6 +621,18 @@ describe("asking an owner session for the status of the job it holds", () => {
     const at = (/** @type {string} */ hm) => new Date(`2026-10-05T${hm}:00Z`);
     const opts = (/** @type {any} */ f, /** @type {any} */ over = {}) => f.opts({ minutes: 15, ...over });
 
+    it("tells the session to take no new job while a shared resource is saturated, naming it", async () => {
+        const f = fake();
+        const state = { ...claimed(), pressure: ["3 GitHub Actions runs queued for a runner"] };
+        await statusStep(state, opts(f, { now: at("12:15") }));
+        expect(f.sent[0][1]).toContain(
+            "The shared resources are saturated (3 GitHub Actions runs queued for a runner): take no new job now; " +
+                "githerd invites you again as soon as they have room.",
+        );
+        expect(f.sent[0][1]).not.toContain("have room, so this session may take");
+        expect(f.sent[0][1]).toMatch(/do not count toward your capacity/);
+    });
+
     it("asks only the holding session, once per interval, naming the tool and the subagent rule", async () => {
         const f = fake();
         const state = claimed();
@@ -619,7 +641,14 @@ describe("asking an owner session for the status of the job it holds", () => {
         expect(f.sent.map(([socket]) => socket)).toEqual(["/s1.sock"]);
         expect(f.sent[0][1]).toContain("status check on the jobs this session holds:\n- issue-186 (#186)\n");
         expect(f.sent[0][1]).toContain("calling githerd_expect once per listed job");
-        expect(f.sent[0][1]).toContain("Can you take another job? Answer that with capacity set");
+        expect(f.sent[0][1]).toContain(
+            "The shared resources (push queue, CI runners, test slots) have room, so this session may take as many " +
+                "jobs as it can work in parallel, each in its own background subagent or workflow. Answer with " +
+                "capacity set, in those githerd_expect calls, to how many more jobs this session can take now; if " +
+                "something specific stops you taking more, say what in reason.",
+        );
+        // No fixed per-session allowance is named: workers.maxActive is only a runaway guard.
+        expect(f.sent[0][1]).not.toMatch(/up to \d+ jobs|0 if none/);
         expect(f.sent[0][1]).toMatch(
             /jobs that are only waiting to push, for CI, for the owner's review or to merge do not count toward your capacity: count only jobs you are actively working when you answer capacity\./i,
         );

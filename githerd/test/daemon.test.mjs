@@ -190,6 +190,8 @@ function respond({ args, input }) {
             ? httpOutput({ status: 401, body: { message: "Bad credentials" } })
             : ok({ login: scene.login ?? "owner" });
     }
+    if (path.includes("/actions/runs?status=queued"))
+        return ok({ total_count: scene.queuedRuns ?? 0, workflow_runs: [] });
     if (path.includes("/actions/workflows/ci.yml/runs?")) return ok({ workflow_runs: scene.ci });
     if (path.includes("/actions/workflows/release.yml/runs?")) return ok({ workflow_runs: scene.release ?? [] });
     if (path.includes("/actions/workflows/gpu.yml/runs?")) return ok({ workflow_runs: scene.gpu ?? [] });

@@ -613,6 +613,30 @@ describe("syncJobs: issues", () => {
         expect(run()).toEqual([]);
     });
 
+    it("queues as many issue jobs as the invitable sessions reported room for, capped per session", () => {
+        const config = normalizeConfig({
+            repo: "o/r",
+            lanes: { ci: { workflow: "ci.yml", gating: "required" } },
+            labels: CONFIG.labels,
+            workers: { slots: 0, sessions: ["a", "b"], maxActive: 2 },
+        });
+        const state = base();
+        for (let n = 11; n <= 20; n++) issue(state, n, LABELED);
+        // Session a has room for 4, session b never answered: 4 + 1.
+        state.capacity = { a: { n: 4, at: NOW.toISOString(), held: [] } };
+        const run = () => syncJobs(state, { config, now: NOW }).created;
+        expect(run()).toHaveLength(5);
+        expect(run()).toEqual([]);
+        // A report above twice maxActive counts as 4; b reporting 0 still counts one. Queued jobs stay.
+        state.capacity = {
+            a: { n: 9, at: NOW.toISOString(), held: [] },
+            b: { n: 0, at: NOW.toISOString(), held: [] },
+        };
+        expect(run()).toEqual([]);
+        state.capacity.b.n = 3;
+        expect(run()).toHaveLength(2);
+    });
+
     it("offers bugs, then infrastructure, each by priority and effort, and never an enhancement", () => {
         const state = base();
         issue(state, 40, ["enhancement", "priority:critical", "effort:low"]);

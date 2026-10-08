@@ -432,7 +432,8 @@ function dueInvites(state, queue, live, { config, now }) {
 export async function inviteStep(state, { now, acting, sessions, transport, offered, config }) {
     const lines = [];
     const queue = offered.filter(({ job }) => state.jobs?.[job]?.state === "queued");
-    if (!queue.length) return lines;
+    // A saturated shared resource holds every invitation to new work back (pressure.mjs).
+    if (!queue.length || state.pressure?.length) return lines;
     const live = sessions();
     state.inviteRooms ??= {};
     for (const id of Object.keys(state.inviteRooms)) {
@@ -495,6 +496,30 @@ function waitersLine(state, job) {
 }
 
 /**
+ * The status question's word on taking more jobs: while a shared resource is saturated
+ * (`state.pressure`, pressure.mjs), take none; otherwise as many as the session can work in
+ * parallel, its capacity answer setting the number. No fixed per-session allowance is named:
+ * `workers.maxActive` is only a runaway guard.
+ * @param {string[] | undefined} pressure the constraints holding new work back
+ * @returns {string} the sentences
+ */
+function roomText(pressure) {
+    const answer =
+        "Answer with capacity set, in those githerd_expect calls, to how many more jobs this session can take now";
+    if (pressure?.length)
+        return (
+            `The shared resources are saturated (${pressure.join("; ")}): take no new job now; githerd invites you ` +
+            `again as soon as they have room. ${answer} once they do, so githerd knows how many to offer. `
+        );
+    return (
+        "The shared resources (push queue, CI runners, test slots) have room, so this session may take as many jobs " +
+        `as it can work in parallel, each in its own background subagent or workflow. ${answer}; if something ` +
+        "specific stops you taking more, say what in reason. githerd invites a session with room to queued work " +
+        "even while it is busy. "
+    );
+}
+
+/**
  * The status question for the jobs one session holds: one line per job, and for a job others wait
  * on, the line naming them (`waitersLine`).
  * @param {any} state the daemon state
@@ -508,8 +533,7 @@ function statusText(state, jobs, minutes) {
         jobs.map((j) => `- ${j.id} (${j.target})\n${waitersLine(state, j)}`).join("") +
         "Answer by calling githerd_expect once per listed job, with job set to its id, reason set to one line on " +
         "where it stands. " +
-        "Can you take another job? Answer that with capacity set, in those githerd_expect calls, to how many further " +
-        "jobs this session can take now (0 if none); githerd invites a session with room to queued work even while it is busy. " +
+        roomText(state.pressure) +
         `${NOT_COUNTED}: count only jobs you are actively ` +
         "working when you answer capacity. " +
         `A listed job still unanswered when githerd asks again in ${minutes} minutes goes back to the queue. ` +

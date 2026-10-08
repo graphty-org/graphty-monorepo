@@ -15,7 +15,18 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
-1. (2026-10-07) **A bare `Input.Wrapper` is themed (aaf5ef737, compact-mantine, no door).**
+1. (2026-10-07) **Tier 2 re-walk DONE: all 12 pilots reach the answer (647ba88b2).** T4, T17, T18,
+   T20, T22, T24 x two datasets, `tier2/pilot/rewalk.sh`; each pilot.md has a "Re-walk" section with
+   a screenshot per fixed finding; no console error, failed request or false "still moving".
+   REGRESSION FOUND + FIXED (1c723b415, compact-mantine): 3ea9171e3 made every `.cm-tree-actions`
+   slot shrinkable, so a filter step's checkbox (`<span data-pinned><Checkbox>`, an input, not a
+   button) was cut (T17 A) or gone (T17 B: click timed out, panel scrolled, no way Back). Now only a
+   slot with pinned text and no button/input shrinks. `:has()` does NOT nest: a `:has(:not(:has()))`
+   selector is dropped whole, silently. Test: `Tree.browser.test.tsx` "keeps a pinned checkbox whole".
+   Build with `NODE_OPTIONS=--max-old-space-size=8192` first time (see Tried, "Builds and runs").
+   Open: answer key quotes old headers ("0 nodes, 3 edges"); an uncommitted element diff (types.ts,
+   doors.ts, GraphSession.ts) repairs syntax HEAD broke, owner unknown.
+2. (2026-10-07) **A bare `Input.Wrapper` is themed (aaf5ef737, compact-mantine, no door).**
    Mantine sizes an unthemed wrapper's description as its size minus 2px: 7px at `size="xs"` (the
    Data page's weight hint under "Higher means", the T20 pilot's "tiny text"). `InputWrapper.extend`
    now gives every wrapper `cm-field-label/description/error` (11/16 secondary ink; none for
@@ -24,7 +35,7 @@ acceptance test. "The studio worktree" is
    Proof: `css-inputs.browser.test.tsx` "Input.Wrapper" and `DataPage.real-element.test.tsx`
    "11px and at 4.5:1" (both fail before: 22px line height, 7px), `tmp/t2pilotfix-app-hint-contrast/s2/07.png`.
    real.mjs path: New from data... > choose a file... > `role=combobox:minutes` > `role=option:Weight`.
-2. (2026-10-07) **The Weight box says before a run whether the loaded weight is read
+3. (2026-10-07) **The Weight box says before a run whether the loaded weight is read
    (0e2379250 element, 295d601b9 app; no door).** Element: `planCommand` (planning.ts) fills
    `caveats.weight` / `weightSkipped` for `algo.run` with the run's own `resolveRunWeight`, reading
    `PlanningContext.loadedWeight` (internal, set from `data.loadedWeight()`); before, plan returned
@@ -36,13 +47,13 @@ acceptance test. "The studio worktree" is
    (two new; both fail before), `tmp/t2pilotfix-app-path-weight-truth/s1/02.png`, `05.png`.
    SEEN: Made with now shows the "not read" sentence twice (its Weight line, then the box's
    description); "Source: Chloe" sits tight under the Weight line (pre-existing spacing).
-3. (2026-10-07) **Enter in the Path popover moves on (4c8d9eb2a, app only, no door).**
+4. (2026-10-07) **Enter in the Path popover moves on (4c8d9eb2a, app only, no door).**
    `PathForm.tsx NodeField onEnterPicked`: after Enter picks a node, focus goes to the other end
    while its text is empty, else to Find path (refs on the two `SearchInput`s and the Button).
    A mouse pick in the list does not move focus (left as it was). Proof:
    `PathForm.real-element.test.tsx` "Enter on a typed name..." (fails before: 'AvaLee'),
    `tmp/t2pilotfix-app-path-enter-focus/s1/04-06.png` (florentine: Strozzi, Pazzi, Enter runs).
-4. (2026-10-07) **Frame selection frames a selected edge (c74a85615, element behavior + app, no door).**
+5. (2026-10-07) **Frame selection frames a selected edge (c74a85615, element behavior + app, no door).**
    Element `Graph.applyCameraView(id, { scope: "selection" })` now frames the selected nodes AND
    both ends of every selected edge (`selectionToFrame()`, shared with `zoomToSelection`); before,
    the scope resolver's "selection" is nodes only, so an edge-only selection framed an empty box.
@@ -52,7 +63,7 @@ acceptance test. "The studio worktree" is
    `tmp/t2pilotfix-app-frame-edge-selection/s1/03.png` (disabled), `05.png`, `06.png` (framed).
    SEEN, NOT FIXED: fitToGraph over two nodes measures centers, so the near end sits half under the
    canvas toolbar (06.png); same for two selected nodes.
-5. (2026-10-07) **Sources says what a load left out (f79110b10 app, 3ea9171e3 compact-mantine; no
+6. (2026-10-07) **Sources says what a load left out (f79110b10 app, 3ea9171e3 compact-mantine; no
    new door).** Reads `LoadedSource.leftOut` (element 0c12c233b, OWNER DOOR: hold + needs-decision):
    row quiet "17 edges, 1 row left out" (a zero kind is no longer counted). Selecting a source or
    table row opens inspected kind `source` (id = row id; `data-place/SourceValues.tsx`): Added
@@ -65,20 +76,18 @@ acceptance test. "The studio worktree" is
    CAVEAT: at 240px both cut ("passes.c... 17 edges, 1 row left..."). Proof:
    `DataPage.real-element.test.tsx` (3 new), `Tree.browser.test.tsx` "a long pinned text",
    `tmp/t2pilotfix-app-source-left-out/s3/04-06.png`, `s4/03.png`.
-6. (2026-10-07) **Selection summary words (84bf6a791, app only, no door).** Header is
+7. (2026-10-07) **Selection summary words (84bf6a791, app only, no door).** Header is
    `words.ts selectionWords`: only the nonzero halves + "selected" ("2 nodes selected", "13 edges
    selected"; was "2 nodes, 0 edges"). `NodeValues SeveralValues`: Nodes row only when nodes > 0;
    "Edges joining these nodes" (`inducedEdges`, was "Edges among them") only for 2+ nodes, so an
    edge-only selection and Select endpoints no longer read as extra selected edges. Proof:
    `Inspector.test.tsx` (two new tests fail before), `tmp/t2pilotfix-app-selection-summary-words/s1/05.png`, `07.png`.
-7. (2026-10-07) **Find checks a rule while typing, offers columns after "=" (app, no door).**
+8. (2026-10-07) **Find checks a rule while typing, offers columns after "=" (app, no door).**
    `FindBox.tsx ruleVerdict` asks `session.scope.count({ where })` 200 ms after typing stops and
    shows its refusal before Enter; a lone "=" is app text (element refuses it as E_BAD_COMMAND from
    `scope.count` but E_BAD_SELECTOR from `selection.apply`: unfiled inconsistency). Columns group
    from `data.attributes()` only where a column can start. Proof: `GraphPlace.test.tsx`.
-8. (2026-10-07) **Study tool clicks a text box by its placeholder (bbf1c4738, no door).** `find()`
-   in `real.mjs` falls back to `getByPlaceholder`; `--prove` covers it.
-9. (2026-10-07) **Study tool: overlays over the canvas are not motion (real.mjs, no door).**
+9. (2026-10-07) **Study tool (real.mjs, no door):** a click falls back to a text box's placeholder (bbf1c4738); overlays over the canvas are not motion.
    `canvasMoves` compares only cells where `elementFromPoint` hits the element; `REAL_PROVE_DIR`
    gives a self-test its own folder. Ceiling: a `pointer-events: none` overlay still counts.
 10. (2026-10-07) **Overview under a filter (app only, no door).** While any step is on,
@@ -103,7 +112,7 @@ acceptance test. "The studio worktree" is
    (ELEMENT GAP, unfiled: `LoadedSource` keeps neither input nor roles); Path popover 587e2930e
    (no Follow: Dijkstra always undirected); Filters 7742cd688 (read a step BEFORE undoing it).
 14. (2026-10-07) **Open defects found by the tier 2 preflight:** path row counts 61 (`summary.measured`,
-   `graph-place/rows.ts`), header calls a path "Measure"; picking From by keys leaves focus in From;
+   `graph-place/rows.ts`), header calls a path "Measure";
    Edit source... ADDS (41 -> 82); adding a file of all-new people defaults to "Leave out" (adds
    nothing); a reopened project's Direction row shows raw `"directed": f...`; Find framing leaves the
    graph off-canvas; element caps a load at one node + one edge table.
@@ -175,13 +184,9 @@ acceptance test. "The studio worktree" is
 - (2026-10-07) Element English still on screen (Analyze refusals `estimate.reason`,
   `MetricAvailability.reason`, layout descriptions, `run.label`, partition labels): fix = codes from
   the element, words in the app; a public element API change is an owner door.
-- (2026-10-07) **Direction row never quotes the file's statement (app words only, no door).**
-  `directionWords` gives "Undirected, from the file", not "..., from the file: directed 0": a reader
-  cannot read GML/DOT syntax. The element's `statedBy` stays (a fact; another consumer may show it).
-  Proof: `inspector/__tests__/directionWords.test.ts` (fails on the old text);
-  `tmp/t2pilotfix-app-direction-words/s1/04.png` (florentine.gml, tooltip "Undirected, from the
-  file"). Still cut to "Undirected, from the ..." at the default inspector width: the grid gives
-  "Direction" and the value half each; shorter words do not fix that.
+- (2026-10-07) **Direction row: "Undirected, from the file", never the file's syntax** (app, no
+  door; `directionWords.test.ts`). The element's `statedBy` stays a fact. Still cut at the default
+  inspector width.
 
 - (2026-10-06/07) No default layout seed in the element (owner): the app seeds (`LAYOUT_SEED`,
     `takesSeed()`). Grep every route of a value; any NEW site showing a run calls `runName`.
@@ -196,25 +201,18 @@ acceptance test. "The studio worktree" is
 - (2026-10-07) **Weight meaning in the app (no new API).** Data page "Higher means" ->
   `TableMapping.weightMeaning`; Analyze/Path one Weight select (loaded first); Overview "Loaded weight".
 
-- (2026-10-07) **A run's Values view is chosen from its shape (2df88ddef, no door).** `viewOf()`
-  in `RunValues.tsx`: groups -> sizes; highlight with `order` -> path; other highlight -> count;
-  number field -> histogram; else Made with only. Field types from `run.fields`. Path nodes =
-  `result.ranking("order")` finite, ascending. Algorithm key `shortest-path`.
+- (2026-10-07) **A run's Values view is chosen from its shape** (`viewOf()`, `RunValues.tsx`):
+  groups -> sizes; highlight + `order` -> path; highlight -> count; number -> histogram.
 
-- (2026-10-07) **Selected edges drawn from the mask, not a style layer** (selection is
-  deliberately not a layer, `config/GraphStyle.ts`). Since 288624ad1 a selected edge is a halo
-  band read from the same three settings as a node halo; the earlier 3:1 recolor was dropped
-  because it showed a color nobody configured and ignored opacity (T22 pilot: "dark olive").
+- (2026-10-07) **Selected edges drawn from the mask, not a style layer** (selection is not a layer);
+  since 288624ad1 a halo band from the node halo's settings, not a 3:1 recolor.
 
-- (2026-10-07) **Filter steps as one list verb, counts only in `plan` (8966b0888, owner door).**
-  `setSteps(list)` rather than add/edit/toggle/remove verbs (a form holds the whole list; the fact
-  names the one step changed). Per-step counts in `plan` only, so no consumer pays a pass per step
-  on every change. Steps live beside `filter`, not folded into it, so an unticked rule survives
-  undo and the project file. Rejected: live counts on `summary`; OR/NOT between steps (unasked).
-- (2026-10-07) **Edge-attribute filter (element, owner door).** `compileAttribute` (filter.ts):
-  a half speaks when its elements carry the path (`FilterValueSource.halvesOf`); tests stay lazy
-  per element; `nodes: "ends"` builds an end bitmap once. Rejected: a new leaf kind, a required
-  `on:`, default "ends". Proof: `VisibilityApi.test.ts`, `tmp/t2feat-el-edge-filter/probe.mjs`.
+- (2026-10-07) **Filter steps: one list verb `setSteps`, counts only in `plan`** (8966b0888, owner
+  door); steps beside `filter` so an unticked rule survives undo and the file. Rejected: live counts
+  on `summary`, OR/NOT between steps.
+
+- (2026-10-07) **Edge-attribute filter (element, owner door):** a half speaks when its elements carry
+  the path (`halvesOf`); `nodes: "ends"`. Rejected: a new leaf kind, a required `on:`.
 
 - (2026-10-07) **Runs read the loaded weight (element, owner door).** One resolver for every
   weighted algorithm; distance readers count hops on a strength. Proof:
@@ -256,11 +254,10 @@ acceptance test. "The studio worktree" is
 - (2026-10-07) **Study prep: what bit.** `project.open(file)` does NOT load into the element;
   knownFields leak between imports (fresh page per file). `design/ui/studio/tmp/` is gitignored:
   copy evidence under `rounds/`.
-- (2026-10-07) **Study tool habits.** `ambiguous` on a label plus its input is a tool defect. Select
-  two unlabeled nodes with Find `=id == 'A' || id == 'B'`. Copy `graphty/dist`, use `REAL_DIST`.
-  Data page: click a combobox by its shown value. Add a file to an open project: `--key Control+o
-  --upload`. Find box: `--click "Find" --type ...`. Directed sample with named edge ends:
-  `bus-stops.csv` (GML edges carry no names, so Find shows no edge hits there).
+- (2026-10-07) **Study tool habits.** Two unlabeled nodes: Find `=id == 'A' || id == 'B'`. Freeze
+  `graphty/dist` with `REAL_DIST`. Add a file to an open project: `--key Control+o --upload`.
+  Directed sample with named edge ends: `bus-stops.csv`.
+
 - (2026-10-07) **A list that closes on blur moved Find path from under the pointer** (first click
   lost): the list now floats (`analyze/path.css`). Also: `autoFocus` loses to Mantine's focus trap
   (use `data-autofocus`); a focused ToggleIconButton's tooltip takes the first Esc; keep a
@@ -280,6 +277,8 @@ acceptance test. "The studio worktree" is
   `details.position` is 0-based after "="; the reader's character is `position + 2`.
 
 - (2026-10-07) `--hover "<name>"` rests on the row's CENTER (often its count); `--hover-at` on a point.
+  Hovering a filter step by its checkbox name ("Apply step: ...") hits the checkbox, whose own
+  tooltip is none: hover the row's words ("weight is at least 4") to see the cut-name tooltip.
 - (2026-10-06 to 10-07) **Committing in the shared worktree (condensed).** Others stage and commit
   here continuously: commit from an empty `git diff --cached`, check `git show --stat HEAD` lists
   only my files. For a file others have dirty: a private index (`GIT_INDEX_FILE=<sp>/x.index git

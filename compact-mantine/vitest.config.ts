@@ -105,8 +105,9 @@ export default defineConfig({
                     setupFiles: ["./tests/setup.ts"],
                     include: ["tests/**/*.test.{ts,tsx}", "src/**/*.test.{ts,tsx}"],
                     exclude: [
-                        // Browser tests run in separate project
+                        // Browser tests run in separate projects
                         "tests/**/*.browser.test.{ts,tsx}",
+                        "tests/**/*.storybook.test.{ts,tsx}",
                         // Standard excludes
                         "**/node_modules/**",
                         "**/dist/**",
@@ -143,6 +144,24 @@ export default defineConfig({
                             mouseUp,
                             emulateReducedMotion,
                         },
+                    },
+                },
+            },
+            // Storybook project - every story rendered and its play function run, in Chromium
+            {
+                optimizeDeps: { include: ["react/jsx-dev-runtime"] },
+                test: {
+                    name: "storybook",
+                    setupFiles: ["./tests/setup.browser.ts"],
+                    include: ["tests/**/*.storybook.test.{ts,tsx}"],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        provider: playwright(),
+                        instances: [{ browser: "chromium" }],
+                        // addon-vitest's default story viewport (DEFAULT_VIEWPORT_DIMENSIONS).
+                        viewport: { width: 1200, height: 900 },
                     },
                 },
             },

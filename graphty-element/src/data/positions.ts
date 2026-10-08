@@ -124,6 +124,7 @@ export class ElementPositions {
     private rows = 0;
 
     private moves = 0;
+    private changeCount = 0;
 
     /**
      * Allocate the backing array, every row unplaced and unpinned.
@@ -153,17 +154,28 @@ export class ElementPositions {
      * every layout, drag and placement goes through, and by {@link ElementPositions.moved}, which a
      * writer that fills the array {@link ElementPositions.view} lends (a GPU readback, a restore)
      * calls once per batch. Seeding a new row and renumbering rows do not move it: those follow
-     * the graph, not the arrangement. The undo history compares it with the generation of its
-     * last capture to tell whether the lane has moved since (design/undo/undo-design.md 6.4).
+     * the graph, not the arrangement. The undo history reads {@link ElementPositions.changes}
+     * instead, which a write of the coordinates a row already holds leaves alone.
      * @returns the generation
      */
     get generation(): number {
         return this.moves;
     }
 
+    /**
+     * Like {@link ElementPositions.generation}, but a write that leaves a row's coordinates as they
+     * were does not count. The undo history compares it with the count at its last capture to tell
+     * whether the lane has moved since (design/undo/undo-design.md 6.4).
+     * @returns the count
+     */
+    get changes(): number {
+        return this.changeCount;
+    }
+
     /** Say that coordinates were written straight into the lent array. */
     moved(): void {
         this.moves++;
+        this.changeCount++;
     }
 
     /**
@@ -442,9 +454,20 @@ export class ElementPositions {
             );
         }
 
-        this.array[base] = x;
-        this.array[base + 1] = y;
-        this.array[base + 2] = z;
+        const { array } = this;
+        // Writing back what a row holds changes nothing: an engine that publishes every row after
+        // a refresh that stepped nothing would otherwise read to the undo history as a move.
+        if (
+            array[base] !== Math.fround(x) ||
+            array[base + 1] !== Math.fround(y) ||
+            array[base + 2] !== Math.fround(z)
+        ) {
+            this.changeCount++;
+        }
+
+        array[base] = x;
+        array[base + 1] = y;
+        array[base + 2] = z;
         this.moves++;
     }
 

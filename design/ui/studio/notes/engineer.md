@@ -11,6 +11,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **A saved note takes focus; delete note is a trash glyph (app only, no API).**
+  `Editor.onSaved(id)` -> `focusWhenDrawn(id)` (NotesPlace.tsx): Control+Enter focuses the new note
+  (index 0, newest first), so no "Add note N" tooltip opens over it. `GLYPHS.delete` = lucide
+  `Trash2`; `GLYPHS.remove` (Minus) stays for taking a value out of a list. The "tooltip drawn under
+  the key" was a misreading: the dark tooltip sits ABOVE the dark legend card (z 1200 at body vs the
+  overlays' 2) and covers its first digit, so ".03779" and an "N" at the card edge looked clipped.
+  No stacking change. Evidence `tmp/r1-dry2-notes-polish/` (T19A/05, 09, T19B/05, 09,
+  probe-before-crop vs probe-after-crop.png). Test: Notes.real-element (fails on the old code).
 - (2026-10-08) **Path form and Made with (app + compact-mantine, no element API).** A panel's
   Escape (Path, Analyze, Layout popovers) waits for inner controls: `isPanelEscape` (keys.ts) is
   false when `defaultPrevented` or the target has `data-expanded`, so one Escape closes only the
@@ -33,38 +41,21 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   tertiary == secondary (70% white, the AA floor), so the word "off" carries the state. Evidence
   `tmp/r1-dry2-filters/` (T17A/07-12, T17B/07-12). OPEN: once, T17B's "Attribute actions" click
   timed out with the button "visible, enabled and stable"; the rerun passed. Mechanism not found.
-- (2026-10-08) **Focus after an action goes to the inspector's title (app + element, no API
-  change).** A run or a find pick focuses the inspector title (`focusInspectorTitle`, id
-  `INSPECTOR_TITLE_ID` in `frame/focus.ts`, `tabIndex -1`, shared ring class `cm-focus-outside`),
-  never Degree or a "Nodes in order" row; Enter there opens nothing; n still opens a note.
-  "Back to <name>" already returned focus to Degree (Enter reopens the list); after a pointer
-  press Chrome shows no ring by design, Esc shows it. The canvas ring after a click on a line:
-  the element's pointerdown prevents default and focuses the canvas from script, which Chrome
-  marks focus-visible when a key was the last input; `focusVisible: false` is ignored by
-  Chrome 143. Fix: graphty-element's container sets `data-pointer-focus` on a press (cleared by a
-  key or focus leaving) and the shadow CSS hides the canvas ring then. Evidence
-  `tmp/r1-dry2-focus-after-actions/` (T18B/07, T19A/02-03, T19B/02-03, T12RA/07-09, T24A/02).
-- (2026-10-08) **Import page and Sources tell the truth (element + app + compact-mantine, team door).**
-  An edge table whose load leaves rows out wears a warning ("23 rows, 1 left out", mark named "1
-  row left out"), never the green check; the match report is one `sm` sentence; while the unmatched
-  rows show only "Show all rows" is offered; a Sources child opens what it names (element
-  `LoadedSource.tableRows` says which file held nodes or edges; the dock opens on it); leaving the
-  Data place closes a source, attribute or filter-step row (`DATA_PLACE_KINDS`, Frame); `<main>` has
-  no name. A replace under the seeded layout now draws as an open does (`Dispatcher.graphWritesQueued`).
-  compact-mantine `Anchor` honors `size`. Evidence `tmp/r1-dry2-import-page-sources/` (T4A/06-12,
-  T4B/04-13, T20A/05-06, T21A/06). OPEN: after Replace the legend loses "Size: PageRank" (T21A/06);
-  parallel-edges shortest path test fails on HEAD (not this work).
-- (2026-10-08) **Find confirms what it ran; selections list members (element + app, team door).**
-  After Enter a rule stays in the box unselected (caret at end) and the line under it reads the
-  live count ("3 edges selected", "Nothing matches this rule") while `selection.origin` is still
-  that rule. The list groups Nodes then Edges (keyboard order follows); a layout effect cuts its
-  height back to the last whole option row under 320 px (border counted). Inspector: "Selected
-  edges" lists each edge by its ends' names (`edgeName` reads `session.data.name`, so every edge
-  title names ends by name too) and, under a caption, each tested column's value, from the new
-  element fact `selection.originPaths` (a bare rule name published as `data.<name>`). Evidence
-  `tmp/r1-dry2-find-and-selection/` (T22A/03, T22B/03, T12RA/02, T12RB/02, T23B/03,
-  T12RA-long/02-03). OPEN: `edgePage({ scope: "selection" })` is empty for an edge-only selection
-  (the selection scope reads nodes only); changing it is behavior, an owner door.
+- (2026-10-08) **Focus after an action goes to the inspector's title (app + element).** A run or a
+  find pick focuses the title (`focusInspectorTitle`, `frame/focus.ts`, `tabIndex -1`, ring class
+  `cm-focus-outside`). The canvas ring after a click: the element's pointerdown focuses the canvas
+  from script, which Chrome marks focus-visible after a key; graphty-element's container now sets
+  `data-pointer-focus` on a press and hides the ring then. Evidence `tmp/r1-dry2-focus-after-actions/`.
+- (2026-10-08) **Import page and Sources tell the truth (element + app + compact-mantine).** A load
+  that leaves rows out wears a warning ("23 rows, 1 left out"), never the green check; a Sources
+  child opens what it names (element `LoadedSource.tableRows`); leaving Data closes its rows. A
+  replace under the seeded layout draws as an open does (`Dispatcher.graphWritesQueued`). Evidence
+  `tmp/r1-dry2-import-page-sources/`. OPEN: after Replace the legend loses "Size: PageRank" (T21A/06).
+- (2026-10-08) **Find confirms what it ran; selections list members (element + app).** After Enter
+  the rule stays in the box and the line under it reads the live count; "Selected edges" lists
+  each edge by its ends' names and each tested column's value (element `selection.originPaths`).
+  Evidence `tmp/r1-dry2-find-and-selection/`. OPEN: `edgePage({ scope: "selection" })` is empty
+  for an edge-only selection (owner door: behavior change).
 - (2026-10-08) **Neighborhood list (app only, no API change).** Heading and status line
   "Javert's 17 connections" at every hop count (`neighborhoodWords`, inspector/words.ts), named by
   `session.data.name()` (the old "#895, named by id" note was stale). Every hop count lists by
@@ -118,6 +109,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **A saved note takes focus, not "+".** Focus on "+" opened its tooltip over the
+  note just written (items 40, 44); the note itself reads whole and Tab/Arrow move on from it.
+  Rejected: suppressing the tooltip on "+" (a shared component's behavior, every icon button).
+- (2026-10-08) **Delete note gets its own glyph (`delete`, trash) rather than changing `remove`.**
+  `remove` (minus) also marks "take out of this list" in SetLine and LabelSection, where minus is right.
 - (2026-10-08) **A run's time is shown to the second.** Two path runs in one minute (T18B) must
   differ in their own record; minutes alone tie. Rejected: a relative "2 min ago" (goes stale on a
   saved project), a run counter (not a fact the reader can check).
@@ -180,41 +176,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-08) **View insets are margins for the next fit, never a reason to move the drawing.**
   The consumer that covered the canvas decides, by the shape it knows (`nodesInRect`), whether to
   ask for a fit. Rejected: re-frame when a node is under the bands (moved T18B), a second switch.
-- (2026-10-08) **Find moves the camera only to show a pick that is off screen.** Reason: turning to
-  every pick (`zoomToSelection`) swings the far side of the drawing off the canvas for good.
-
-- (2026-10-08) **Made with states the weight once, as what the run read** (`caveats.weight.assumed`,
-  not `data.loadedWeight()`, which is wrong after a Replace); a rerun with another weight starts
-  from Analyze.
-- (2026-10-08) **A visible label stays exactly "From"; only the accessible name grows** (the study
-  tool matches exact names first; "From node" would collide with "from PageRank").
-
-- (2026-10-08) **After a surface comes up, focus goes to the open place's rail button**, never a
-  tree row (type-to-find eats every single-key shortcut) or the find box (takes them as text).
-
-- (2026-10-08) **The app states its label look on every label line it adds** (body font, 72 on the
-  label canvas): the element's default Verdana is missing on Linux. One `session.transaction`, one
-  undo step. Rejected: an app-wide base layer, changing the element default.
-- (2026-10-08) **What a rule tested is an element fact, not parsed from the rule text.** The query
-  engine already keeps a rule's paths; `selection.originPaths` publishes them as attribute paths.
-  Rejected: the app matching column names in the typed text (a second parser), paths on the
-  change delta (a panel that did not make the call never sees it).
-- (2026-10-08) **Facts are rows, not chips** (a badge looks clickable); a header's right-click opens
-  its menu.
-
-- (2026-10-08) **A filter step row: sentence, then its outcome on a second line.** Replaces "only its
-  sentence and checkbox" (the outcome was hidden and readers could not tell on from off). A
-  second line, not the count slot: in 240 px the condition alone fills the row.
-- (2026-10-08) **Saving a step turns it on.** A save with no visible effect read as a failed edit
-  (dry run); the reader edited it to use it, and Undo restores the old rule and state.
-
-- (2026-10-08) **A stat's reading and a list row's second line wrap; never cut** (a tooltip is not
-  reading).
-- (2026-10-08) A canned outcome (project open) carries every field a live one does, or it vanishes
-  from `run.record` after a reopen. Watch the next field added to `RunOutcome`.
-- (2026-10-08) **A selected edge gets its own flat settings** (`edgeColor`, `edgeScale`,
-  `edgeOpacity`): no one value serves a ring and a band; flat because `setSelectionStyle` merges
-  one level deep.
+- (2026-10-08, condensed) **Standing app decisions from the dry runs:** find moves the camera only
+  to an off-screen pick (`zoomToSelection` swung the drawing away); Made with states the weight the
+  run read (`caveats.weight.assumed`, not `data.loadedWeight()`); visible labels stay exact ("From"),
+  only accessible names grow; after a surface comes up focus goes to the open place's rail button;
+  the app states its label look (body font) on every label line it adds, in one transaction; what
+  a rule tested is an element fact (`selection.originPaths`), never parsed from the text; facts are
+  rows, not chips; a filter step's outcome is a second line and saving a step turns it on; a stat's
+  reading wraps, never cut; a canned run outcome carries every field a live one does; a selected
+  edge has flat settings (`edgeColor`, `edgeScale`, `edgeOpacity`).
 - (2026-10-07, condensed) **Tier 2 element work (owner doors, hold + needs-decision):** edge pick
   5a2b3b605; filter steps `setSteps` with counts only in `plan` (8966b0888; rejected live counts,
   OR/NOT); stale runs ce34f31f3 (Replace reads `run.stale`, never reruns; Rerun passes
@@ -237,6 +207,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Did not work: reading "tooltip under the key" from a screenshot -- two dark
+  surfaces abutting look like clipping. Worked: a probe (`tmp/r1-dry2-notes-polish/probe.mjs`)
+  printing the tooltip's ancestor chain and z-index, plus a zoomed crop showing what covers what.
+  `elementFromPoint` is no evidence here: tooltips have `pointer-events: none`, so it returns the card.
+- (2026-10-08) Worked: `pilot/rewalk.sh` with `HERE=<my tmp>` and `REAL_DIST=graphty/dist` re-pilots
+  a task on a fresh build; step N lands in screenshot N+1 (01 is the start).
 - (2026-10-08) Did not work: rerunning a path with the same From and To to show two times -- it
   returns the same run (same time is then the truth). Use a different pair (T18B: Peruzzi, Ginori).
 - (2026-10-08) Did not work: a tree row's count slot for a filter outcome. The slot yields to the

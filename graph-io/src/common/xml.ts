@@ -133,10 +133,10 @@ export interface XmlRepairs {
 const BARE_AMPERSAND_LOOKAHEAD = 7;
 
 /** A numeric character reference at the start of a text: `&#123;` or `&#x1F;`. */
-const CHAR_REFERENCE = /^&#(?:[xX]([0-9a-fA-F]{1,6})|([0-9]{1,7}));/;
+const CHAR_REFERENCE = /^&#(?:[xX]([0-9a-fA-F]{1,6})|(\d{1,7}));/;
 
 /** A numeric character reference at the end of a text. */
-const TRAILING_CHAR_REFERENCE = /&#(?:[xX]([0-9a-fA-F]{1,6})|([0-9]{1,7}));$/;
+const TRAILING_CHAR_REFERENCE = /&#(?:[xX]([0-9a-fA-F]{1,6})|(\d{1,7}));$/;
 
 const NAMED_ENTITIES: Readonly<Record<string, string>> = {
     lt: "<",

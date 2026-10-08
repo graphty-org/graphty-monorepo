@@ -531,7 +531,7 @@ interface Cx2Document {
  * @returns the bits
  */
 function inexactBits(text: string, keys: readonly string[], depth = 1): number {
-    if (!/[0-9][.eE]/.test(text)) {
+    if (!/\d[.eE]/.test(text)) {
         return 0;
     }
     let bits = 0;

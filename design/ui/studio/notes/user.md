@@ -12,6 +12,13 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
+- 2026-10-08 -- Tier 2 starts: returning users (6 tier 1 graduates, 3 weekly analysts), 54 sessions
+  on build e2ccec0e9. My criteria review asked for 8 changes; the biggest: the expert walkthrough
+  and screenshot audit feed NO bar today, and the rounds cap (3) and stall rule contradict the
+  owner's "as many rounds as it takes; stop and tell me if a round makes no progress".
+- 2026-10-08 -- Returning users are measured only on first use of tier 2 features. Repeat cost
+  (doing the same thing a second time) and broken tier 1 habits are the returning-user signals;
+  I asked for both to be measured.
 - 2026-10-07 -- Round 2 closed: 52 of 54 tier 1 sessions passed, first-time personas 34 of 34, no
   false "done" in 56. A pass is weak (one model plays everyone); a failure, a script repro or a
   cause in the code is strong. No confirmed severity 4 remains; the worst is severity 3.
@@ -44,12 +51,8 @@ something, or change my mind. Summarize when it passes about 25 KB.
 - 2026-10-07 -- Baselines before fixes: axe-core and the words-at-rest count on the round 2 build,
   or they are lost again. The study tool must hear the highlighted option before screen-reader
   findings count.
-- 2026-10-06 -- Every count on screen is computed from live state or removed, and a count that
-  stands for members leads to the members by name.
 - 2026-10-06 -- Grade from what ended on screen, never from self-ratings. Task wording never
   reuses screen words at the target; every wording fix tested on two domains (owner, 2026-09-29).
-- 2026-10-06 -- No novice crutches: undo, working defaults, (i) on terms, tooltips, samples.
-  Graph logic goes in graphty-element; each fix names its package.
 
 ## Priorities and values
 
@@ -108,6 +111,23 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- 2026-10-08 (me, tier 2 criteria review) -- Asked for, most important first: (1) a bar 10 for
+  the per-round expert walkthrough and screenshot audit: 0 open confirmed severity 3+ visual or
+  pattern findings (truncation, text or key over a node, wrong component, one kind of control
+  behaving two ways, raw element strings), confirmed by a second expert or a script measure, and
+  the count not rising round over round; plus a script for clipped text (scrollWidth > clientWidth)
+  and raw strings on bar 8's screens. Reason: the owner said tier 1's study missed most of what a
+  real person saw on first use; my own re-pilot found "Node t..." truncation and raw file syntax
+  that no bar counted. (2) Rounds: no 3-round cap; a round with no gain on the core four stops and
+  reports to the owner (his launch words). (3) "Not scored" counts as not met. (4) A repeat-cost
+  measure: after success on T17/T18, a follow-up variant in the same session; steps on the repeat
+  vs the success path. (5) A first move to a history-named place that leads nowhere is a finding
+  (broken habit), confirmed at 2. (6) Bar 1 arithmetic for T4's 3-per-half spelled out; bar 5's
+  reference to an older build replaced by the mechanism. (7) Bar 4 adds the tie click, select
+  ends, and the load-time weight choice. (8) No door removed on fewer than 8 sessions across
+  rounds. Reason for all: a returning user's repeat work is judged by repeat cost and kept habits,
+  and every check the owner asked for must decide something.
+
 - 2026-10-07 (studio, round 2 decisions; I agree) -- Twelve changes for round 3, in the package
   that owns each cause: menu-dialog focus (compact-mantine Menu), key omits a fully covered layer
   (element legend), 2D Fit frames the graph (element camera), group layouts accept community
@@ -149,26 +169,12 @@ something, or change my mind. Summarize when it passes about 25 KB.
   text". Marking Degree is a discoverability patch on the wrong route; the route people take must
   arrive. Severity label (3 vs 4) matters less than its rank: it is round 2's first fix.
 
-- 2026-10-06 (me, critique of the frozen criteria, tasks, answer key and roster) -- What I asked
-  the studio to change before round 1, most important first:
-  (1) A build defect that a script reproduces on the build counts as confirmed at one participant.
-  The two-participant rule is for opinions and behavior, not for a control that does nothing.
-  (2) Size and color steps pass only if the participant says what a bigger dot or a color means,
-  read off the legend. Making big dots no one can read is not the core path.
-  (3) One T15 run on the user's own file (friends.csv), not only samples. The first session after
-  an evaluation is the user's own data.
-  (4) Bar 6 ("silent commit") counts only commits that should change the drawing; "picture matches
-  the screen" gets a checklist (same nodes, sizes, names, key with both channels).
-  (5) Answer key gaps: Florentine's name attribute and counts; T10 B's attribute `label` echoes
-  "Add label line", so T10 is reported per dataset.
-  (6) "Runs one analysis unprompted in T15" is unmeasurable (the prompt asks for it). Replace with
-  "picked a measure without help".
-  (7) Words-at-rest needs a counting rule; bar 3 adds nothing to bar 1; the screen-reader bar is
-  real only if Morgan sees the accessibility tree and nothing else; T8's "center" needs plainer
-  words and a defined reason.
-  Reason for all: every bar must be something a grader can score from the last screenshot and the
-  transcript without a judgment call, and must measure the first-time user's understanding, not
-  only their clicks.
+- 2026-10-06 (me, tier 1 criteria critique; summarized 2026-10-08) -- Asked: a scripted build
+  defect is confirmed at one participant; size/color steps pass only if the participant reads the
+  legend's meaning; one T15 run on friends.csv; bar 6 counts only commits that should change the
+  drawing; answer key gaps filled; "unprompted" replaced by "picked a measure without help";
+  a words-at-rest counting rule. Reason: every bar scorable from the last screenshot and transcript
+  with no judgment call, and measuring understanding, not only clicks.
 - 2026-10-06 (me) -- My scope widens from the weekly analyst alone to the first-time user plus the
   weekly analyst. Reason: the owner's tier 1 priority (2026-10-02). Elena and Alex fail in the same
   places on the same tasks (round 8), so one design serves both.

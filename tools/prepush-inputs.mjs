@@ -182,7 +182,7 @@ function pathRefs(root, roots) {
                 "-I",
                 "--untracked",
                 "-E",
-                "(\\.\\./)+[A-Za-z0-9_.@-]+|\\{workspaceRoot\\}/[A-Za-z0-9_.@-]+",
+                String.raw`(\.\./)+[A-Za-z0-9_.@-]+|\{workspaceRoot\}/[A-Za-z0-9_.@-]+`,
                 "--",
                 dir,
             ]);

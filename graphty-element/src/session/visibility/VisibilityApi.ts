@@ -513,6 +513,7 @@ function caveatsFor(filter: RuleTree | null, window: TimeWindow | null): Caveats
         exact: true,
         filterScope: filter !== null,
         method: "mask",
+        facts: [],
         notes: NO_NOTES,
         precision: "f64",
         seed: null,

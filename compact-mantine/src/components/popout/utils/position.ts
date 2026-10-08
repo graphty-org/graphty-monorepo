@@ -163,3 +163,54 @@ function calculateHorizontalAlignment(
         }
     }
 }
+
+/**
+ * How a fixed-position panel's `left` and `top` map onto the viewport: viewport x is
+ * `x + scaleX * left`, and the same for y.
+ */
+interface ContainingBlockFrame {
+    x: number;
+    y: number;
+    scaleX: number;
+    scaleY: number;
+}
+
+/**
+ * Measures the frame a fixed-position panel is actually placed in.
+ *
+ * `position: fixed` is measured from the viewport only until an ancestor has a transform (or a
+ * filter, a perspective, `contain: paint`, ...); that ancestor then becomes the containing block,
+ * and `left` and `top` are measured from its corner and scaled with it. Rather than list every
+ * property that does that, this reads the frame off two elements in that containing block: an
+ * empty marker at `left: 0; top: 0`, whose box is the frame's corner, and the panel, whose
+ * rendered width against its CSS width is the scale. Rotation and skew are not undone.
+ * @param origin - The marker at left 0, top 0 beside the panel, or null before it mounts
+ * @param panel - The rendered panel, or null before it mounts
+ * @returns The frame; the viewport's own (no offset, scale 1) where nothing can be measured
+ */
+export function measureContainingBlock(origin: HTMLElement | null, panel: HTMLElement | null): ContainingBlockFrame {
+    const corner = origin?.getBoundingClientRect();
+    const scale = measureScale(panel);
+    return { x: corner?.left ?? 0, y: corner?.top ?? 0, scaleX: scale.x, scaleY: scale.y };
+}
+
+/**
+ * How much a panel is scaled: its rendered size over its CSS size, on each axis.
+ * @param panel - The rendered panel, or null before it mounts
+ * @returns The scale, or 1 on both axes when the panel has no layout (a server render, jsdom)
+ */
+function measureScale(panel: HTMLElement | null): { x: number; y: number } {
+    // offsetWidth is 0 without layout, and checking it first skips getComputedStyle, which
+    // jsdom answers by matching every rule of every stylesheet on the page -- once per panel
+    // update, it made the jsdom tests of nested pop-outs half again as slow.
+    if (!panel || panel.offsetWidth === 0 || panel.offsetHeight === 0) {
+        return { x: 1, y: 1 };
+    }
+    const style = getComputedStyle(panel);
+    const rect = panel.getBoundingClientRect();
+    // The computed size is serialized to six significant digits, so the ratio is noisy in its
+    // sixth; four keep an untransformed panel at exactly 1, where it is not moved at all.
+    const ratio = (rendered: number, css: string): number =>
+        Math.round((rendered / Number.parseFloat(css)) * 1e4) / 1e4;
+    return { x: ratio(rect.width, style.width), y: ratio(rect.height, style.height) };
+}

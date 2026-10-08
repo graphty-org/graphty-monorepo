@@ -1,3 +1,27 @@
+## 0.1.24 (2026-10-08)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.9
+
+## 0.1.23 (2026-10-07)
+
+### 🚀 Features
+
+- **graph-samples:** export the dataset names without their metadata ([b8027edff](https://github.com/graphty-org/graphty-monorepo/commit/b8027edff))
+
+### 🩹 Fixes
+
+- **graph-samples:** build DATASET_NAMES from the lists DATASETS is built from ([b03a2599c](https://github.com/graphty-org/graphty-monorepo/commit/b03a2599c))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.22 (2026-10-07)
 
 ### 🧱 Updated Dependencies

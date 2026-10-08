@@ -1,8 +1,8 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
-import type { LayoutResult } from "../positions";
-import { RandomNumberGenerator } from "../utils/random";
-import { type CommonLayoutOptions, resolve, result } from "./common";
+import type { LayoutResult } from "../positions.js";
+import { RandomNumberGenerator } from "../utils/random.js";
+import { type CommonLayoutOptions, resolve, result } from "./common.js";
 
 /**
  * Uniform random rows in `[center, center + scale)` per component, drawn in node order from the layout package's

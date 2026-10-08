@@ -27,9 +27,7 @@ function labelled(name: string): GraphSnapshot {
 describe("W_COLUMN_NAME_CHANGED names only columns that are renamed on re-import", () => {
     for (const format of GRAPH_FORMATS as readonly FormatName[]) {
         for (const name of ["label", "title"]) {
-            // OBO reports its edge label as read back as "name", but writes it as a qualifier
-            // (issue #1396): an expected failure until that note is fixed
-            (format === "obo" ? it.fails : it)(`${format}, label columns named "${name}"`, async () => {
+            it(`${format}, label columns named "${name}"`, async () => {
                 const snapshot = labelled(name);
                 const notes = checkExport(snapshot, format).filter((n) => n.code === "W_COLUMN_NAME_CHANGED");
                 const back = (await importGraph(await exportGraphToBytes(snapshot, format), { format })).snapshot;
@@ -127,5 +125,26 @@ describe("GML and DOT label columns not named label (issue #1360)", () => {
         expect(back.nodes.require("label").value(0)).toBe("A");
         expect(back.nodes.require("label").meta.role).toBe("label");
         expect(back.nodes.require("label_2").value(0)).toBe("plain");
+    });
+});
+
+describe("OBO edge label notes (issue #1396)", () => {
+    it("reports the edge label as a qualifier without a slot, never as renamed; the node label reads back as name", async () => {
+        const snapshot = labelled("title");
+        const notes = checkExport(snapshot, "obo");
+        const of = (code: string): string[] => notes.filter((n) => n.code === code).map((n) => n.message);
+        expect(of("W_COLUMN_NAME_CHANGED")).toEqual([
+            'node column "title" (the labels) is written as the format\'s own label and reads back as "name"',
+        ]);
+        expect(of("W_ROLE_DROPPED")).toEqual([
+            'edge column "title" (label) is written as a qualifier; the format has no edge label slot',
+        ]);
+        expect(of("W_OBO_EDGE_COLUMN_AS_QUALIFIER")).toEqual([
+            'edge column "title" is written as the qualifier title and reads back inside the qualifiers column',
+        ]);
+        const back = (await importGraph(await exportGraphToBytes(snapshot, "obo"), { format: "obo" })).snapshot;
+        expect(back.nodes.require("name").value(0)).toBe("A");
+        expect(back.edges.has("name")).toBe(false);
+        expect(back.edges.has("qualifiers")).toBe(true);
     });
 });

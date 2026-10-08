@@ -178,15 +178,22 @@ export interface CaptureCapability {
 }
 
 // @public
+export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "input.empty" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
+
+// @public
 export interface Caveats {
     readonly componentScope?: "all" | "largest";
     readonly converged?: boolean;
     readonly direction: RunDirection;
     readonly exact: boolean;
+    readonly facts: readonly CodedFact<CaveatCode>[];
     readonly filterScope?: boolean;
     readonly iterations?: number;
     readonly method: string;
+    // @deprecated
     readonly notes: readonly string[];
+    readonly partialCause?: CodedFact<PartialCode>;
+    // @deprecated
     readonly partialReason?: string;
     readonly precision: Precision;
     readonly sampleSize?: number;
@@ -348,6 +355,7 @@ export type CostGateDecision = {
     readonly plainName: string;
     readonly sampleSize: number;
     readonly seeded: boolean;
+    readonly facts: readonly CodedFact<CaveatCode>[];
     readonly notes: readonly string[];
 } | {
     readonly kind: "refused";
@@ -420,7 +428,7 @@ export const DEFAULT_SELECTION_CAP = 5000;
 // @public
 export type DefaultableLimits = Omit<Limits, "graphMemoryBudgetBytes">;
 
-// @public
+// @public @deprecated
 export function defaultReading(result: RunResult, options: ReadingOptions): string;
 
 // @public
@@ -532,11 +540,14 @@ export type EncodingRefusalCode = "E_UNSUPPORTED" | "E_CAP_EXCEEDED" | (string &
 // @public
 export interface EncodingRun {
     readonly algorithm: AlgorithmKey;
+    readonly distinguishedBy: RunDistinction | null;
     readonly fields: readonly FieldDescriptor[];
     readonly id: RunId;
+    // @deprecated
     readonly label: string;
     readonly params: Readonly<Record<string, unknown>>;
     readonly shape: ResultShape;
+    readonly siblingsDifferBy: readonly string[] | null;
 }
 
 // @public
@@ -589,8 +600,10 @@ export type ExplainTarget = {
 export interface FieldBand {
     above?: number;
     atLeast?: number;
+    // @deprecated
     description: string;
     id: string;
+    // @deprecated
     plainName: string;
 }
 
@@ -620,6 +633,7 @@ export interface FieldDescriptor {
 export interface FieldInterpretation {
     bands: readonly FieldBand[];
     source: string;
+    // @deprecated
     summary: string;
 }
 
@@ -1451,9 +1465,14 @@ export interface LayerSpec {
 
 // @public
 export interface LayoutRecommendation {
+    readonly fact: CodedFact<LayoutRecommendationCode>;
     readonly layout: LayoutDescriptor;
+    // @deprecated
     readonly reason: string;
 }
+
+// @public
+export type LayoutRecommendationCode = "recommend.fixed" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable";
 
 // @public
 export interface LayoutRecommendationOptions {
@@ -1880,6 +1899,9 @@ export function parseScope(value: unknown): Scope;
 export function parseSetDefinition(value: unknown): SetDefinition;
 
 // @public
+export type PartialCode = "partial.iteration-cap" | "partial.time-box" | "partial.canceled" | "partial.stopped" | "partial.batch-incomplete";
+
+// @public
 export type Path = string;
 
 // @public
@@ -2151,6 +2173,9 @@ export interface RankingEntry {
     readonly rank: number;
     readonly value: number;
 }
+
+// @public
+export type ReadingCode = "reading.metric" | "reading.metric-empty" | "reading.groups" | "reading.groups-empty" | "reading.path" | "reading.path-none" | "reading.set" | "reading.pairs" | "reading.series" | "reading.coverage";
 
 // @public
 export interface ReadingOptions {
@@ -2522,12 +2547,14 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly cancellable: boolean;
     readonly caveats: Caveats;
     readonly determinate: boolean;
+    readonly distinguishedBy: RunDistinction | null;
     readonly durationMs: number | null;
     readonly engine: EngineVersions;
     readonly error?: GraphtyError | undefined;
     readonly fields: readonly FieldDescriptor[];
     readonly id: RunId;
     readonly journalId: JournalId | null;
+    // @deprecated
     readonly label: string;
     readonly params: Readonly<Record<string, unknown>>;
     readonly partial: boolean;
@@ -2538,6 +2565,7 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly result?: T | undefined;
     readonly scope: ResolvedScope;
     readonly shape: ResultShape;
+    readonly siblingsDifferBy: readonly string[] | null;
     readonly stale: StaleNote | null;
     readonly startedAt: string | null;
     readonly status: RunStatus;
@@ -2563,6 +2591,12 @@ export interface RunChange {
 
 // @public
 export type RunDirection = "directed" | "undirected" | "as-loaded";
+
+// @public
+export interface RunDistinction {
+    readonly option: string;
+    readonly value: unknown;
+}
 
 // @public
 export interface RunExecutionContext {
@@ -2599,6 +2633,7 @@ export interface RunOutcome<T = RunResult> {
     readonly caveats?: Partial<Caveats>;
     readonly fields?: readonly FieldDescriptor[];
     readonly partial?: boolean;
+    readonly partialCause?: CodedFact<PartialCode>;
     readonly partialReason?: string;
     readonly result: T;
     readonly summary?: ResultSummary;
@@ -2634,16 +2669,19 @@ export interface RunQueue {
 export interface RunRecord {
     readonly algorithm: AlgorithmKey;
     readonly caveats: Caveats;
+    readonly distinguishedBy: RunDistinction | null;
     readonly durationMs: number | null;
     readonly engine: EngineVersions;
     readonly fields: readonly FieldDescriptor[];
     readonly id: RunId;
+    // @deprecated
     readonly label: string;
     readonly params: Readonly<Record<string, unknown>>;
     readonly partial: boolean;
     readonly scope: RunScopeRecord;
     readonly seed: number | null;
     readonly shape: ResultShape;
+    readonly siblingsDifferBy: readonly string[] | null;
     readonly stale: StaleNote | null;
     readonly startedAt: string | null;
     readonly status: RunStatus;
@@ -2674,7 +2712,9 @@ export interface RunResult {
     };
     node(id: NodeId): Readonly<Record<string, unknown>> | undefined;
     ranking(field: string, limit?: number): readonly RankingEntry[];
+    // @deprecated
     reading(options?: ReadingOptions): string;
+    readingFact(): CodedFact<ReadingCode>;
     readonly runId: RunId;
     readonly shape: ResultShape;
     summary(): ResultSummary;
@@ -3120,7 +3160,7 @@ export interface SessionPositions extends ReadonlyElementPositions {
 // @public
 export interface SessionRunsOptions {
     readonly calibration?: () => MachineCalibration | undefined;
-    readonly defaultCaveats?: Caveats;
+    readonly defaultCaveats?: Caveats | Omit<Caveats, "facts">;
     readonly defaultScope?: Scope;
     readonly engine?: EngineVersions;
     readonly execute?: RunExecutor;
@@ -3440,6 +3480,7 @@ export interface StylesApi {
     get(id: LayerId): Layer | undefined;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
     legend(): readonly LegendBlock[];
+    legendOf(id: LayerId): readonly LegendBlock[];
     list(): readonly Layer[];
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
     proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;

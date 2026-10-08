@@ -592,6 +592,8 @@ export class DataManager implements Manager {
         nodes: number;
         edges: number;
     };
+    // @internal
+    get holdsNoRows(): boolean;
     init(): Promise<void>;
     get isLoading(): boolean;
     get lastImport(): LoadReport | null;
@@ -732,6 +734,7 @@ export class Edge {
     get drawnLine(): {
         name: string;
         length: number;
+        width: number;
         visibility: number;
         centre: Vector3;
     } | null;
@@ -1333,6 +1336,15 @@ export const EdgeStyle: z.ZodObject<{
 export type EdgeStyleConfig = z.infer<typeof EdgeStyle>;
 
 // @public
+export type ElementAtResult = {
+    readonly kind: "node";
+    readonly id: NodeId;
+} | {
+    readonly kind: "edge";
+    readonly id: EdgeId;
+};
+
+// @public
 export interface EncodingSuggestion {
     readonly as: "encoding";
     readonly channels: readonly Channel[];
@@ -1531,6 +1543,10 @@ export class Graph implements GraphContext {
     dispose(): void;
     // (undocumented)
     element: Element;
+    elementAt(point: {
+        x: number;
+        y: number;
+    }): ElementAtResult | null;
     enableAiControl(config: AiManagerConfig): Promise<void>;
     // (undocumented)
     enableDetailedProfiling?: boolean;
@@ -1854,7 +1870,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -1886,6 +1902,13 @@ export interface GraphSettledEvent {
 }
 
 // @public
+export interface GraphStartedEvent {
+    timestamp: number;
+    // (undocumented)
+    type: "graph-started";
+}
+
+// @public
 export class Graphty extends LitElement {
     constructor();
     get acceleration(): AccelerationPolicy;
@@ -1899,6 +1922,9 @@ export class Graphty extends LitElement {
     }>;
     addEdge(edge: AdHocData, options?: AddEdgesOptions & QueueableOptions): Promise<void>;
     addEdges(edges: AdHocData[], options?: AddEdgesOptions & QueueableOptions): Promise<void>;
+    addEventListener<K extends keyof GraphtyForwardedEventMap>(type: K, listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown, options?: boolean | AddEventListenerOptions): void;
+    addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | AddEventListenerOptions): void;
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
     addListener(type: EventType, callback: EventCallbackType): void;
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: AdHocData[], idPath?: string, options?: QueueableOptions): Promise<void>;
@@ -1946,6 +1972,10 @@ export class Graphty extends LitElement {
     set edgeSrcIdPath(value: string | undefined);
     get edgeWeightPath(): string | undefined;
     set edgeWeightPath(value: string | undefined);
+    elementAt(point: {
+        x: number;
+        y: number;
+    }): ElementAtResult | null;
     enableAiControl(config: AiManagerConfig): Promise<void>;
     get enableDetailedProfiling(): boolean | undefined;
     set enableDetailedProfiling(value: boolean | undefined);
@@ -2050,6 +2080,9 @@ export class Graphty extends LitElement {
     set positionScale(value: number | undefined);
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
+    removeEventListener<K extends keyof GraphtyForwardedEventMap>(type: K, listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
+    removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
+    removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
     removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void>;
     render(): Element;
     get renderer(): RendererRequest;
@@ -2159,6 +2192,11 @@ export class Graphty extends LitElement {
 
 // @public
 export const GRAPHTY_ERROR_CODES: readonly GraphtyErrorCode[];
+
+// @public
+export interface GraphtyCapabilitiesChangeDetail {
+    readonly capabilities: AccelerationCapabilities;
+}
 
 // @public
 export type GraphtyElementEventMap = {
@@ -2571,6 +2609,27 @@ export type GraphtyErrorTarget = {
 };
 
 // @public
+export type GraphtyForwardedEventMap = {
+    [K in Exclude<GraphEventType | AiEventType, InternalEventType>]: CustomEvent<EventOfType<K>>;
+};
+
+// @public
+export interface GraphtyHistoryChangeDetail {
+    readonly canRedo: boolean;
+    readonly canUndo: boolean;
+    readonly position: number;
+    readonly reason: SessionEventMap["history:changed"]["reason"];
+    readonly steps: number;
+    readonly version: number;
+}
+
+// @public
+export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields" | "cause">;
+
+// @public
+export type GraphtyRunChangeDetail = Pick<RunChange, "run" | "phase">;
+
+// @public
 export type GraphtyWarningCode =
 /** An object member this reader does not know: kept or ignored, as the document's rules say; the JSON pointer names it. */
 "W_UNKNOWN_MEMBER"
@@ -2605,6 +2664,13 @@ export { ImageData_2 as ImageData }
 
 // @public
 export const INFERNO_COLORS: readonly ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d"];
+
+// @public
+export interface InputEnabledChangedEvent {
+    enabled: boolean;
+    // (undocumented)
+    type: "input-enabled-changed";
+}
 
 // @public
 export class InputManager implements Manager {
@@ -2655,6 +2721,14 @@ export function isGraphtyErrorCode(value: unknown): value is GraphtyErrorCode;
 export function isViewMode(value: string): value is ViewMode;
 
 // @public
+export interface LayoutChangedEvent {
+    layoutType: string;
+    options: Record<string, unknown>;
+    // (undocumented)
+    type: "layout-changed";
+}
+
+// @public
 export abstract class LayoutEngine {
     // (undocumented)
     protected abstract addEdge(e: Edge): void;
@@ -2698,6 +2772,7 @@ export abstract class LayoutEngine {
     // @deprecated
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null;
     protected abstract pin(n: Node_2): void;
+    protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     readNodePosition(n: Node_2, out: {
         x: number;
@@ -3559,6 +3634,14 @@ export interface NoteTargetStatus {
 export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#000000", "#F0E442"];
 
 // @public
+export interface OperationCancelledEvent {
+    id: string;
+    reason: string;
+    // (undocumented)
+    type: "operation-cancelled";
+}
+
+// @public
 export class OperationQueueManager implements Manager {
     constructor(eventManager: EventManager, options?: {
         concurrency?: number;
@@ -4265,6 +4348,14 @@ export class StatsManager implements Manager {
     totalUpdates: number;
     updateCacheStats(hits: number, misses: number): void;
     updateCounts(nodeCount: number, edgeCount: number): void;
+}
+
+// @public
+export interface StatsUpdateEvent {
+    stats: ReturnType<StatsManager["getStats"]>;
+    totalUpdates: number;
+    // (undocumented)
+    type: "stats-update";
 }
 
 // @public

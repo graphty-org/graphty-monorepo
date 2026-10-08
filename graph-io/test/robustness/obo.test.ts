@@ -700,8 +700,10 @@ const GROWTH_LIMIT = 9;
 /**
  * How much more work importing doc(4n) does than importing doc(n), counted as the characters the
  * import examines (test/helpers/work-meter.ts). A count is the same on an idle and a busy
- * machine, so the ratio pins the complexity and nothing else: a value re-sliced per continuation
- * line or per qualifier block examines its length once per line or block.
+ * machine, so the ratio pins the complexity and nothing else: a value re-sliced, re-scanned or
+ * re-trimmed per continuation line or per qualifier block examines its length once per line or
+ * block. `flattens` also charges a value grown by `+=` its length each time it is read, and the
+ * meter throws if the import lets other code run inside the count.
  * @param doc - the document at a size
  * @param n - the smaller size
  * @returns work(4n) / work(n)
@@ -709,9 +711,12 @@ const GROWTH_LIMIT = 9;
 async function growth(doc: (n: number) => string, n: number): Promise<number> {
     const work = async (k: number): Promise<number> => {
         const text = doc(k);
-        return charactersExamined(async () => {
-            await load(text);
-        });
+        return charactersExamined(
+            async () => {
+                await load(text);
+            },
+            { flattens: true },
+        );
     };
     return (await work(4 * n)) / (await work(n));
 }

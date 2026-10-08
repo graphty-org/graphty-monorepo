@@ -1,3 +1,96 @@
+## 0.8.59 (2026-10-08)
+
+### 🚀 Features
+
+- **graphty-element:** run the LLM regression tests on Google, and always answer ([801e21a9d](https://github.com/graphty-org/graphty-monorepo/commit/801e21a9d))
+
+### 🩹 Fixes
+
+- **graphty-element:** run the LLM regression suite on Anthropic and fix what it found ([69d346ebd](https://github.com/graphty-org/graphty-monorepo/commit/69d346ebd))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.40
+- Updated compact-mantine to 0.9.12
+- Updated graphty-element to 3.20.0
+- Updated graph-samples to 0.1.24
+- Updated graph-format to 1.3.9
+- Updated graph-io to 0.3.31
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.58 (2026-10-08)
+
+### 🩹 Fixes
+
+- **graphty:** keep the run-name helpers private to runWords ([98e013c76](https://github.com/graphty-org/graphty-monorepo/commit/98e013c76))
+- **graphty-element:** let an edge measurement ask for edge width ([#708](https://github.com/graphty-org/graphty-monorepo/issues/708))
+- **graph-io:** import positions as f64 so exact values round-trip ([#963](https://github.com/graphty-org/graphty-monorepo/issues/963))
+- **graphty:** load eruda in Storybook only when asked for ([#204](https://github.com/graphty-org/graphty-monorepo/issues/204))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.39
+- Updated compact-mantine to 0.9.11
+- Updated graphty-element to 3.19.0
+- Updated graph-io to 0.3.30
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.57 (2026-10-08)
+
+### 🚀 Features
+
+- **graphty:** show/hide, delete, paint chip and match count on style layer rows ([#167](https://github.com/graphty-org/graphty-monorepo/issues/167))
+- **graphty:** word export losses in the Export dialog ([#876](https://github.com/graphty-org/graphty-monorepo/issues/876))
+
+### 🩹 Fixes
+
+- **graphty:** find nodes and edges in the command palette ([#173](https://github.com/graphty-org/graphty-monorepo/issues/173))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.38
+- Updated compact-mantine to 0.9.10
+- Updated graphty-element to 3.18.0
+- Updated graph-io to 0.3.29
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.56 (2026-10-07)
+
+### 🚀 Features
+
+- **graphty:** word history steps from their codes ([#869](https://github.com/graphty-org/graphty-monorepo/issues/869))
+- **graphty-element:** name a legend field's run result by catalog ids ([90d90bb46](https://github.com/graphty-org/graphty-monorepo/commit/90d90bb46))
+- **graphty-element:** neutral legend facts and per-layer style counts ([#867](https://github.com/graphty-org/graphty-monorepo/issues/867), [#790](https://github.com/graphty-org/graphty-monorepo/issues/790))
+
+### 🩹 Fixes
+
+- **graphty:** keep the legend's private helpers unexported ([3675c087b](https://github.com/graphty-org/graphty-monorepo/commit/3675c087b))
+- **graphty:** word the legend from neutral facts ([2b6592403](https://github.com/graphty-org/graphty-monorepo/commit/2b6592403))
+- **graphty:** mark the file summary row's props read-only ([fcbee650d](https://github.com/graphty-org/graphty-monorepo/commit/fcbee650d))
+- **graphty:** draw a one-value file summary as a field, not a compound ([#202](https://github.com/graphty-org/graphty-monorepo/issues/202))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.37
+- Updated compact-mantine to 0.9.9
+- Updated graphty-element to 3.17.0
+- Updated graph-samples to 0.1.23
+- Updated graph-format to 1.3.8
+- Updated graph-io to 0.3.28
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.55 (2026-10-07)
 
 ### 🚀 Features

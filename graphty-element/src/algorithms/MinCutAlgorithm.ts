@@ -12,6 +12,8 @@ import { z } from "zod/v4";
 import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat, type CaveatCode } from "../session/runs/caveatFacts";
+import type { CodedFact } from "../session/shared";
 import { Algorithm } from "./Algorithm";
 import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -195,7 +197,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
         let work: (dispatch: AcceleratedAlgorithms, s: GraphSnapshot) => Promise<MinCutResult>;
         let member: "kargerMinCut" | "stoerWagner" | "minSTCut";
         let method: string;
-        let autoEndNote: string | undefined;
+        let autoEndNote: CodedFact<CaveatCode> | undefined;
 
         if (useGlobalMinCut || (sourceOption === null && sinkOption === null)) {
             if (useKarger) {
@@ -218,9 +220,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
                     : requireNodeOption("min-cut", "sink", sinkOption, nodeIds);
             requireDistinctEnds("min-cut", source, sink);
             if (sourceOption === null || sinkOption === null) {
-                autoEndNote =
-                    `Only one end was set, so the other was chosen automatically (cut between ${String(source)} and ${String(sink)}); ` +
-                    "set both source and sink to cut between the nodes you mean.";
+                autoEndNote = caveat("min-cut.end-chosen", { source, sink });
             }
 
             work = (dispatch, s) => dispatch.minSTCut(s, s.ids.indexOf(source), s.ids.indexOf(sink));
@@ -273,10 +273,10 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
                 precision,
                 exact: method !== "karger",
                 iterations: method === "karger" ? kargerIterations : undefined,
-                notes: [
+                facts: [
                     method === "karger"
-                        ? "Karger's method is randomised: it finds the cheapest cut with high probability, not certainty."
-                        : `The cut separates ${String(firstSide)} nodes from ${String(nodeIds.length - firstSide)}.`,
+                        ? caveat("min-cut.karger")
+                        : caveat("min-cut.sides", { first: firstSide, second: nodeIds.length - firstSide }),
                     ...(autoEndNote === undefined ? [] : [autoEndNote]),
                 ],
             }),

@@ -156,6 +156,20 @@ published types. Every review workflow includes a developer-experience lens and 
 personas in `design/designloom/personas/`, alongside security, evolution and implementability. A
 spec whose simplest example needs internal knowledge fails review.
 
+### Non-breaking API changes need no owner approval
+
+The owner's rule (2026-10-08), for every session and agent: "if there are non-breaking changes to
+APIs, you can make them without getting my approval."
+
+- **Non-breaking** means additive: a new export, method, property, event, error code, attribute or
+  entry point, or a new optional parameter or option whose default keeps today's behavior. Choose
+  its name and shape yourself, state the choice in one line where the work is recorded (the issue,
+  the pull request), and build it. Do not label it `needs-decision` and do not ask.
+- **Breaking** changes are still one-way doors that need the owner: removing or renaming anything
+  public, changing what an existing API does or returns, changing a default, or anything that
+  publishes a major version.
+- When unsure whether a change breaks a consumer, it is breaking.
+
 ### Why
 
 The failure mode this prevents is silent and expensive: a capability lands "in the product"
@@ -327,6 +341,7 @@ The `tools/` directory contains build scripts:
 | `merge-coverage.sh` | Merges coverage from all packages, supports CI artifacts |
 | `run-tests.sh` | Runs a CI test shard locally with the exact command CI runs, read from `ci-test-matrix.mjs`: `--list`, `<shard>` or `all`. Shards run with coverage, so this also checks the thresholds. Build first |
 | `ci-test-matrix.mjs` | The CI test shards and their commands (ci.yml and `run-tests.sh` both read it) |
+| `test-slots.mjs` | The machine-wide limit on concurrent test runs: every package's vitest config takes a slot through it, and `node tools/test-slots.mjs <command>` holds one for a whole command (each pre-push shard). Off on GitHub Actions and with `GRAPHTY_TEST_SLOTS=0` |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast` |
 | `push-queue.sh` | Runs a command (normally `git push`) in the machine's push queue: three at once, first come first served, `PUSH_QUEUE_PRIORITY=critical` first; tickets in the main checkout's `tmp/push-queue/`. githerd's pushes use it too |
@@ -477,7 +492,7 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 - `storybook` - Component tests (4 CI shards)
 - `interactions` - Interaction tests
 - `xr` - WebXR: real VR and AR sessions on an emulated headset (IWER) and the XR UI; runs in pre-push and in the CI browser shards
-- `llm-regression` - LLM regression tests
+- `llm-regression` - LLM regression tests: real, paid calls to the provider `VITE_LLM_REGRESSION_PROVIDER` names (`google` by default, model `gemini-3.8-flash`; `openai`, `anthropic`), with its key in `VITE_GOOGLE_API_KEY` (or `VITE_OPENAI_API_KEY`, `VITE_ANTHROPIC_API_KEY`). Runs in the release train (release.yml) on Google with the `GOOGLE_API_KEY` repository secret, never on a pull request or in the merge queue
 
 ### Running Specific Test Projects
 
@@ -536,7 +551,7 @@ CI, and Mergify queues only ready pull requests.
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build, lint, sharded tests (13 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. On a push to master only the Build job runs; the summaries pass when it does |
+| `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build (the packages, then the Storybooks, Lint, Checks and Docs jobs beside the tests), sharded tests (16 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. The test jobs start as soon as the `Build` job has built and uploaded the packages. On a push to master only the build jobs (Build, Storybooks, Lint, Checks, Docs) run; the summaries pass when they do |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
 | `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), push to master (publishes a merged release pull request), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts and audit on the candidate, then opens the release pull request; on the merge, tags and publishes it with npm trusted publishing. Anything red holds the release and opens one "Release held: <what> failed on <sha>" issue |
 | `deploy-pages.yml` | After every green CI run (the build) on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
@@ -544,7 +559,7 @@ CI, and Mergify queues only ready pull requests.
 | `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- no release PR, nothing published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
 | `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
 | `hosts.yml` | PR touching `webgpu-graph-algorithms/` or `graph-format/`, nightly, dispatch, called by `release.yml`; never on a push to master | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows; a PR runs the 15-minute `windows-scan-questions` scope, advisory); a red run on the release candidate holds the release |
-| `master-guard.yml` | After CI (the build) or the nightly Hosts on master | CI red on master: freezes the Mergify queue (only `priority:critical` PRs merge), opens a revert of the commit when its parent was green, and a `priority:critical` issue; the next green master CI lifts the freeze. Hosts red: a `priority:critical` issue naming the merges since the lane's last green run; never a freeze (`tools/master-guard.mjs`) |
+| `master-guard.yml` | After CI (the build) or the nightly Hosts on master | CI red on master: freezes the Mergify queue (only `priority:critical` PRs merge), opens a revert of the commit when its parent was green, and a `priority:critical` issue; a failure that looks external (an outside service's 5xx or network error, a lost runner, the same job red on an earlier commit) gets neither freeze nor revert, a re-run, and the evidence in the issue. The next green master CI lifts the freeze and closes the guard's revert pull requests it shows are not needed. Hosts red: a `priority:critical` issue naming the merges since the lane's last green run; never a freeze (`tools/master-guard.mjs`) |
 | `githerd-watchdog.yml` | Twice an hour, after CI on master, dispatch | Alarms the owner by an issue comment when githerd's heartbeat issue (label `githerd-heartbeat`, written by githerd every 15 minutes) is over an hour old, stuck, fatal or missing (green until githerd first writes it), and when master CI has been red for over 2 hours. Works with the dev machine off (`tools/githerd-watchdog.mjs`) |
 
 ### Dead Links
@@ -613,6 +628,25 @@ version plan in a temporary release group for exactly this reason; the group is 
 package is on conventional commits again. Check any release change with
 `pnpm exec nx release --dry-run --skip-publish`.
 
+### A new package's first npm publish
+
+npm trusted publishing is configured per package on npmjs.com, and a new trusted-publisher
+configuration expires if no publish uses it within 2 days (https://docs.npmjs.com/trusted-publishers/).
+So the first publish of a new package is a manual owner step, done at one moment only:
+
+1. Wait until the first release containing the package reaches its publish step and fails with
+   "This command requires you to be logged in to https://registry.npmjs.org/ / You need to
+   authorize this machine using `npm adduser`". The "Release held: publish failed" issue then
+   says so as an owner item naming the package.
+2. Then, and not before, create the trusted publisher: the package's settings page on npmjs.com
+   (`https://www.npmjs.com/package/<name>/access`), Trusted Publisher, GitHub Actions, with
+   organization `graphty-org`, repository `graphty-monorepo`, workflow filename `release.yml`,
+   and no environment.
+3. Re-run the failed publish job at once: `gh run rerun <run id> --failed`.
+
+Never create the trusted publisher ahead of time: unused, it expires after 2 days and the publish
+fails the same way (this is how @graphty/cytoscape-extensions' first release failed on 2026-10-07).
+
 To hold one package back from npm, add it to `release-hold.json` at the repository root, with a
 reason and the date: `{ "hold": [{ "project": "graphty-element", "reason": "...", "since":
 "2026-10-03" }] }` (`project` is the nx project name, `pnpm exec nx show projects`). Every other
@@ -634,17 +668,18 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 22 test shards on a merge-queue run, a manual dispatch or the release train (a push
+The CI runs 25 test shards on a merge-queue run, a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
-full run is 13 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
+full run is 16 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
 layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
 graphty, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
 - `graph-format`
 - `graph-io`
-- `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
+- `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-node-device-errors`, `webgpu-graph-algorithms-node-no-subgroups`,
+  `webgpu-graph-algorithms-node-no-subgroups-device-errors` (the four node passes, run side by side), `webgpu-graph-algorithms-browser`
 - `graph-samples`
 - `cytoscape-extensions`, `cytoscape-extensions-cytoscape-versions` (the suite on the oldest and newest Cytoscape 3.x)
 - `algorithms-default`, `algorithms-browser`
@@ -824,6 +859,10 @@ Each package has its own CLAUDE.md with package-specific guidance:
 - Use `assert` instead of `expect` in layout tests
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
+- Every `vitest run` on this machine, gate shard or ad hoc, waits for one of the machine-wide test slots
+  (`tools/test-slots.mjs`; `GRAPHTY_TEST_SLOTS`, default one per 8 cores) and prints one line naming
+  the holders while it waits. A queued run is not hung: leave it. A run nested in one that holds a slot,
+  watch mode and GitHub Actions take none
 
 ### Storybook
 
@@ -888,9 +927,11 @@ that starts the same server from the owner's own shell, which is how the owner s
   `stale` (the branch moved; run it again) or `failed` with the step and the end of the log. It
   refuses a pull request from a fork. The gate is unchanged: it checks CI's own capture against
   what the owner approved, and any image CI draws differently comes back to the owner.
-- Do not end a response with `ACTION NEEDED:` to ask for a visual review. The review page opens on
-  the pull requests waiting for the owner, and `visual-review notify` (under servherd, beside the
-  review server) sends one batched push notification when they become ready.
+- Ask the owner, with a final `ACTION NEEDED:` line, for anything you are actually blocked on,
+  including a screenshot review that is holding up your work. Ask once per item: do not repeat the
+  same request in later messages. A review that is not blocking anything needs no request: the
+  review page opens on the pull requests waiting for the owner, and `visual-review notify` (under
+  servherd, beside the review server) sends one batched push notification when they become ready.
 - To iterate on a story's look before pushing, build its Storybook and capture only that story:
   `node visual-review/trusted/cli.mjs capture --project <p> --out tmp/<task>/<p> --stories <id
   prefix>`, then look at the PNG, or serve it with `--results tmp/<task>`. Such an ad hoc capture
@@ -998,7 +1039,7 @@ per typed entry point in its package.json `"exports"` (`index` for `.`), written
 @microsoft/api-extractor from the built `.d.ts` files. A pull request that changes the API shows the
 change as a diff of those files.
 
-**"Public API report (graphty-element)"** (ci.yml's Build job and `tools/prepush.sh`) fails when the
+**"Public API report (graphty-element)"** (ci.yml's Checks job and `tools/prepush.sh`) fails when the
 built API differs from the committed report. Build, then run `npm run api:report` in graphty-element
 and commit the report with the change. An agent whose pull request changes the report says so in
 the pull request description: which entry points, what was added, changed or removed, and whether

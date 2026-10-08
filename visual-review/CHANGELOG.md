@@ -1,3 +1,48 @@
+## 0.2.17 (2026-10-08)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.16 (2026-10-08)
+
+### 🩹 Fixes
+
+- **visual-review:** retry Finish's network steps after a transient failure ([f631fdb1d](https://github.com/graphty-org/graphty-monorepo/commit/f631fdb1d))
+- **visual-review:** read approvals from before passkeys off the list request ([34abb97b4](https://github.com/graphty-org/graphty-monorepo/commit/34abb97b4))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.15 (2026-10-08)
+
+### 🚀 Features
+
+- **visual-review:** safe filters, grouped review and pull request context in the review page ([fe6dd3bba](https://github.com/graphty-org/graphty-monorepo/commit/fe6dd3bba))
+
+### 🩹 Fixes
+
+- **visual-review:** reuse an earlier approval only where it cannot be planted ([73463ef6a](https://github.com/graphty-org/graphty-monorepo/commit/73463ef6a))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.14 (2026-10-07)
+
+### 🩹 Fixes
+
+- **visual-review:** treat a decision as published only while the branch holds it ([#1006](https://github.com/graphty-org/graphty-monorepo/issues/1006))
+- **visual-review:** suggest Finish only when every project is reviewed ([#888](https://github.com/graphty-org/graphty-monorepo/issues/888))
+
+### 🔥 Performance
+
+- **visual-review:** take the default branch tip from the last refresh ([a7bdfcbea](https://github.com/graphty-org/graphty-monorepo/commit/a7bdfcbea))
+- **visual-review:** read the branch tips once per refresh ([72b1eaefd](https://github.com/graphty-org/graphty-monorepo/commit/72b1eaefd))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.2.13 (2026-10-07)
 
 ### 🩹 Fixes

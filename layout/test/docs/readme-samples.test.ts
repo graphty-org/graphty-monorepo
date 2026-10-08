@@ -184,7 +184,7 @@ describe("README.md code samples", () => {
         const file = join(OUT, `readme-line-${String(b.line)}.ts`);
         writeFileSync(
             file,
-            withLogChecks(b.code.replaceAll('"@graphty/layout"', JSON.stringify(join(PKG, "src/index")))),
+            withLogChecks(b.code.replaceAll('"@graphty/layout"', JSON.stringify(join(PKG, "src/index.js")))),
         );
         return file;
     });

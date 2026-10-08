@@ -26,11 +26,14 @@
 
 import type { AlgorithmKey, FieldDescriptor, ResultShape, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { englishPartialReason } from "../english";
 import type { JournalId } from "../journal";
 import type { RunEntry } from "../project/state";
 import { bindResultPath, type ResultSummary, type RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
+import type { CodedFact } from "../shared";
 import { type StyleSuggestion, suggestStyles } from "../styles/derive";
+import { type PartialCode, partialSentence } from "./caveatFacts";
 import {
     type Caveats,
     type EngineVersions,
@@ -38,6 +41,7 @@ import {
     type Progress,
     type ResolvedScope,
     type Run,
+    type RunDistinction,
     type RunPhase,
     type RunRecord,
     type RunScopeFacts,
@@ -178,8 +182,14 @@ export interface RunOutcome<T = RunResult> {
     readonly summary?: ResultSummary;
     /** Whether the work stopped before it finished. Taken from the time box when absent. */
     readonly partial?: boolean;
-    /** Why it stopped early, in a sentence. */
+    /** Why it stopped early, in a sentence of the work's own. */
     readonly partialReason?: string;
+    /**
+     * Why it stopped early, as a code and its values; the run words `caveats.partialReason` from it
+     * when no sentence is given.
+     * @since 3.18.0
+     */
+    readonly partialCause?: CodedFact<PartialCode>;
 }
 
 /** The thing that does the work. */
@@ -245,6 +255,18 @@ export interface RunSurroundings {
      * @returns The label.
      */
     label(): string;
+    /**
+     * The one option an unnamed run's algorithm names its result by, once it leaves its default.
+     * Absent for work that is not an algorithm run, which has none.
+     * @returns The option and its value, or null.
+     */
+    distinguishedBy?(): RunDistinction | null;
+    /**
+     * What tells this run apart from the other listed runs of its algorithm that share its name.
+     * @returns The differing options, sorted, an empty list when only the scope differs, or null
+     *   while no other run shares the name. Absent for work that is not an algorithm run.
+     */
+    siblingsDifferBy?(): readonly string[] | null;
     /**
      * Where this run sits among the runs still waiting.
      * @returns The position counting from 0, or null when it is not waiting.
@@ -518,6 +540,8 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
     /** Why a cancel is being honoured, when the run publishes what it has instead of rejecting. */
     private cancelReason: string | null = null;
+    /** The reason the caller gave `cancel()`, when it gave one. */
+    private cancelGiven: string | undefined;
 
     /**
      * Build a run that has not been handed to the queue yet.
@@ -562,6 +586,22 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      */
     get label(): string {
         return this.surroundings.label();
+    }
+
+    /**
+     * The one option this run's name was suggested by, once it left its default.
+     * @returns The option and its value, or null.
+     */
+    get distinguishedBy(): RunDistinction | null {
+        return this.surroundings.distinguishedBy?.() ?? null;
+    }
+
+    /**
+     * What tells this run apart from listed runs of its algorithm sharing its name.
+     * @returns The differing options, an empty list for the scope alone, or null for no such run.
+     */
+    get siblingsDifferBy(): readonly string[] | null {
+        return this.surroundings.siblingsDifferBy?.() ?? null;
     }
 
     /**
@@ -783,6 +823,8 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         const record: RunRecord = {
             id: this.id,
             label: this.label,
+            distinguishedBy: this.distinguishedBy,
+            siblingsDifferBy: this.siblingsDifferBy,
             algorithm: this.algorithm,
             params: this.params,
             seed: this.seed,
@@ -868,6 +910,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         if (this.definition.publishOnCancel === true && this.statusValue === "running") {
             // The work publishes what it has; `succeed` reads this and records the cancel.
             this.cancelReason = message;
+            this.cancelGiven = reason;
             this.executionController?.abort(error);
 
             return;
@@ -1106,7 +1149,11 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         const timedOut = timeBox !== null && timeBox.aborted;
         // A result whose caveats say why it stopped early is partial whatever stopped it -- an
         // iteration cap as much as a time box -- so `partial` and the caveats never disagree.
-        const statesReason = outcome.partialReason !== undefined || outcome.caveats?.partialReason !== undefined;
+        const statesReason =
+            outcome.partialReason !== undefined ||
+            outcome.partialCause !== undefined ||
+            englishPartialReason(outcome.caveats ?? {}) !== undefined ||
+            outcome.caveats?.partialCause !== undefined;
         const partial = (outcome.partial ?? (timedOut || canceled)) || statesReason;
 
         this.resultValue = outcome.result;
@@ -1183,23 +1230,37 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             return Object.freeze(merged);
         }
 
-        const stated = outcome.partialReason ?? reported.partialReason ?? merged.partialReason;
-        const reason = stated ?? this.defaultPartialReason(timedOut);
-
-        return Object.freeze({ ...merged, partialReason: reason });
+        // The first of the outcome, what it reported and what the run started with that says why,
+        // so a cause and its sentence always come from the same place.
+        const said = [
+            { cause: outcome.partialCause, reason: outcome.partialReason },
+            { cause: reported.partialCause, reason: englishPartialReason(reported) },
+            { cause: merged.partialCause, reason: englishPartialReason(merged) },
+        ].find(({ cause, reason }) => cause !== undefined || reason !== undefined);
+        const cause = said === undefined ? this.defaultPartialCause(timedOut) : said.cause;
+        const reason = said?.reason ?? (cause === undefined ? undefined : partialSentence(cause));
+        return Object.freeze({
+            ...merged,
+            ...(cause === undefined ? {} : { partialCause: cause }),
+            ...(reason === undefined ? {} : { partialReason: reason }),
+        });
     }
 
     /**
-     * What to say about a run that stopped early and did not say why itself.
+     * Why a run stopped early that did not say why itself.
      * @param timedOut - Whether the time box is what stopped it.
-     * @returns The sentence.
+     * @returns The cause.
      */
-    private defaultPartialReason(timedOut: boolean): string {
+    private defaultPartialCause(timedOut: boolean): CodedFact<PartialCode> {
         if (timedOut) {
-            return `Stopped after the ${this.definition.timeBoxMs ?? 0} ms time box and published what was computed.`;
+            return { code: "partial.time-box", params: { ms: this.definition.timeBoxMs ?? 0 } };
         }
 
-        return this.cancelReason ?? "Stopped before every element was measured.";
+        if (this.cancelReason !== null) {
+            return { code: "partial.canceled", params: { reason: this.cancelGiven ?? null, runId: this.id } };
+        }
+
+        return { code: "partial.stopped", params: {} };
     }
 
     // -- progress -----------------------------------------------------------------------------
@@ -1348,6 +1409,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.settledFlag = false;
         this.committed = false;
         this.cancelReason = null;
+        this.cancelGiven = undefined;
         this.deferred = createDeferred<T>();
         this.statusValue = "queued";
         this.progressValue = QUEUED_PROGRESS;

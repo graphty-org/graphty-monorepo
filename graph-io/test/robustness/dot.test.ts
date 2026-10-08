@@ -259,13 +259,11 @@ describe("DOT robustness: values", () => {
         expect(ids(snapshot)).toEqual(["1.2", ".3"]);
     });
 
-    it("drops a pos beyond the f32 range of the position column with W_DOT_BAD_POS, never half a position", async () => {
-        for (const pos of ["1e39,1", "1e999,1"]) {
-            const { snapshot, report } = await dot(`digraph { a [pos="${pos}"]; b [pos="3,4"] }`);
-            expect(codes(report)).toEqual(["W_DOT_BAD_POS"]);
-            expect(issue(report, "W_DOT_BAD_POS").message).toContain("beyond the f32 range");
-            expect(column(snapshot, "nodes", "pos")).toEqual([undefined, [3, 4, 0]]);
-        }
+    it("drops a pos with a non-finite coordinate with W_DOT_BAD_POS, never half a position", async () => {
+        const { snapshot, report } = await dot('digraph { a [pos="1e999,1"]; b [pos="3,4"] }');
+        expect(codes(report)).toEqual(["W_DOT_BAD_POS"]);
+        expect(issue(report, "W_DOT_BAD_POS").message).toContain("not finite");
+        expect(column(snapshot, "nodes", "pos")).toEqual([undefined, [3, 4, 0]]);
     });
 
     it("drops a pos that is not a point with W_DOT_BAD_POS", async () => {
@@ -275,13 +273,12 @@ describe("DOT robustness: values", () => {
         expect(snapshot.nodes.names()).toEqual([]);
     });
 
-    it("warns once when a pos coordinate does not survive the f32 position column", async () => {
-        const { snapshot, report } = await dot('digraph { a [pos="123456789.123,1"]; b [pos="0.25,1"] }');
-        expect(codes(report)).toEqual(["W_PRECISION"]);
-        expect(issue(report, "W_PRECISION").element).toBe("a");
+    it("keeps a pos coordinate exactly, beyond f32 precision and range", async () => {
+        const { snapshot, report } = await dot('digraph { a [pos="123456789.123,1"]; b [pos="1e39,0.1"] }');
+        expect(codes(report)).toEqual([]);
         expect(column(snapshot, "nodes", "pos")).toEqual([
-            [123456792, 1, 0],
-            [0.25, 1, 0],
+            [123456789.123, 1, 0],
+            [1e39, 0.1, 0],
         ]);
     });
 

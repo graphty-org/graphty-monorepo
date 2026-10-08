@@ -1,3 +1,54 @@
+## 3.3.11 (2026-10-08)
+
+### 🩹 Fixes
+
+- **algorithms:** start free nodes unlabeled in semi-supervised label propagation ([#959](https://github.com/graphty-org/graphty-monorepo/issues/959))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.24
+- Updated graph-format to 1.3.9
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.3.10 (2026-10-08)
+
+### 🩹 Fixes
+
+- **algorithms:** compare the grsbm split gain with <= for clarity ([0a9b48620](https://github.com/graphty-org/graphty-monorepo/commit/0a9b48620))
+- **algorithms:** keep a grsbm split only when it raises the partition's modularity ([#960](https://github.com/graphty-org/graphty-monorepo/issues/960))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.3.9 (2026-10-08)
+
+### 🩹 Fixes
+
+- **algorithms:** queue each node at most once in PriorityDeltaPageRank ([a7ae60535](https://github.com/graphty-org/graphty-monorepo/commit/a7ae60535))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.3.8 (2026-10-07)
+
+### 🩹 Fixes
+
+- **algorithms:** keep direction-optimized BFS top-down on a tree ([#447](https://github.com/graphty-org/graphty-monorepo/issues/447))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.23
+- Updated graph-format to 1.3.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.3.7 (2026-10-07)
 
 ### 🩹 Fixes

@@ -410,29 +410,33 @@ describe("indexed.labelPropagation: the FLPA kernel on undirected snapshots", ()
     });
 
     it("draws a tie between a node's own label and one other label with equal odds (issue #562)", () => {
-        // a - b - d with a held at its label. If d is visited first it takes b's label, and b then
-        // draws between a's label and its own; if b goes first it draws between a's label and d's,
-        // and d follows b. A uniform draw leaves b outside a's community half the time either way.
-        // Listing the current label twice, as 2.x did, gives 7/12; keeping it on a tie gives 3/4.
+        // a - b - d - c with a and c held at labels 0 and 1; b and d start unlabeled (issue #959).
+        // If b is visited first it takes 0, d then draws between 0 and 1, and if d takes 1, b is
+        // requeued and draws between its own 0 and d's 1. If d goes first it takes 1 and b draws
+        // between 0 and 1 with no label of its own. So b ends apart from a with probability
+        // 1/2 * 1/2 * 1/2 + 1/2 * 1/2 = 3/8 under a uniform draw; keeping the current label on a tie
+        // gives 1/4, and listing it twice, as 2.x did, gives 1/3.
         const b = new GraphBuilder({ directed: false });
         b.addEdge("a", "b");
         b.addEdge("b", "d");
+        b.addEdge("d", "c");
         const s = b.freeze({ checksum: true });
         const a = s.ids.requireIndex("a");
         const mid = s.ids.requireIndex("b");
         const seeds = new Uint32Array(s.nodeCount).fill(INVALID_INDEX);
         seeds[a] = 0;
-        const runs = 4000;
-        let kept = 0;
+        seeds[s.ids.requireIndex("c")] = 1;
+        const runs = 20000;
+        let apart = 0;
         for (let randomSeed = 1; randomSeed <= runs; randomSeed++) {
             const r = labelPropagationSemiSupervised(s, seeds, { randomSeed });
             expect(r.converged).toBe(true);
             if (r.labels[mid] !== r.labels[a]) {
-                kept++;
+                apart++;
             }
         }
-        // Five standard deviations of a fair coin over 4,000 runs is 0.04.
-        expect(Math.abs(kept / runs - 0.5)).toBeLessThan(0.04);
+        // Five standard deviations of p = 3/8 over 20,000 runs is 0.017.
+        expect(Math.abs(apart / runs - 3 / 8)).toBeLessThan(0.017);
         s.validate({ checksum: true });
     });
 

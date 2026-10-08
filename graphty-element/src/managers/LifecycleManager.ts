@@ -1,3 +1,4 @@
+import type { GraphStartedEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
@@ -132,7 +133,7 @@ export class LifecycleManager implements Manager {
             // Emit graph started event
             this.eventManager.emitGraphEvent("graph-started", {
                 timestamp: Date.now(),
-            });
+            } satisfies Omit<GraphStartedEvent, "type">);
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
             this.eventManager.emitGraphError(null, err, "init", {

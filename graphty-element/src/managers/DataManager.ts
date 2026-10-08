@@ -229,6 +229,9 @@ export function laneStoreOf(manager: DataManager): LaneStore {
         get stale() {
             return manager.snapshotStale;
         },
+        get holdsNoRows() {
+            return manager.holdsNoRows;
+        },
         get inputs() {
             return inputCountersOf(manager);
         },
@@ -507,6 +510,15 @@ export class DataManager implements Manager {
      */
     get snapshotStale(): boolean {
         return this.store.stale;
+    }
+
+    /**
+     * Whether the graph holds no node rows, answered without freezing a snapshot.
+     * @returns True when it holds none.
+     * @internal
+     */
+    get holdsNoRows(): boolean {
+        return this.store.holdsNoRows;
     }
 
     /**
@@ -1324,8 +1336,9 @@ export class DataManager implements Manager {
     }
 
     /**
-     * Replace every node with these, as one step: a node the records name again keeps its row and
-     * its edges, and one they no longer name goes, with its edges. A set past the render ceiling
+     * Replace every node with these, as one step: a node the records name again keeps its row,
+     * its position and its edges and takes its new record, and one they no longer name goes, with
+     * its edges. A set past the render ceiling
      * is refused with `E_TOO_LARGE` and the step rolls back, so the graph keeps the nodes it had.
      * @param nodes - the nodes the graph should hold afterwards
      * @param idPath - JMESPath expression to extract the id; the configured node id path when unset
@@ -1333,7 +1346,8 @@ export class DataManager implements Manager {
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string): void {
         this.ingest.refuseNodeReplacement(nodes, idPath);
         const query = idPath ?? this.styles.config.data.knownFields.nodeIdPath;
-        const command = replaceNodesCommand([...this.nodes.keys()], nodes, query);
+        const held = new Map([...this.nodes].map(([id, node]) => [id, node.data]));
+        const command = replaceNodesCommand(held, nodes, query);
         if (this.dispatcher === null) {
             for (const step of command.steps) {
                 this.write((step as { mutation: DataMutation }).mutation);

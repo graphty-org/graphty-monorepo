@@ -540,7 +540,8 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
         // sparse sub-millisecond dispatches (finding G3-F1), not a slower kernel: the larger rungs of the same
         // ladder moved x1.00 .. x1.09 in the same run, and the two PageRank rows it was sent to check came in
         // faster than the baseline. The session is that run's own output, taken from its artifact; the baseline is
-        // the checked-in file it was compared against.
+        // the checked-in file it was compared against: only the sessions dated before the run, because a later
+        // session (the 2026-10-08 one uploads 1M/10M in 174 ms, not 258) moves the best-of baseline (issue #468).
         const T4 = "gpu-linux-t4";
         const quietT4 = report(
             [
@@ -549,13 +550,16 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
             ],
             T4,
         );
+        const runOut = readFileSync(resolve("test/fixtures/bench", `${T4}-run-35828560733.json`), "utf8");
+        const runDate = (JSON.parse(runOut) as { date: string }[])[0].date;
+        const baseline = (
+            JSON.parse(readFileSync(resolve("benchmarks/results", `${T4}.json`), "utf8")) as { date: string }[]
+        ).filter((session) => session.date < runDate);
+        expect(baseline.length, "the sessions the 2026-09-23 run was compared against").toBe(4);
         const r = run({
             "gpu-report.json": quietT4,
-            [`benchmarks/results/${T4}.json`]: readFileSync(resolve("benchmarks/results", `${T4}.json`), "utf8"),
-            [`benchmarks/out/${T4}.json`]: readFileSync(
-                resolve("test/fixtures/bench", `${T4}-run-35828560733.json`),
-                "utf8",
-            ),
+            [`benchmarks/results/${T4}.json`]: JSON.stringify(baseline),
+            [`benchmarks/out/${T4}.json`]: runOut,
         });
         expect(r.status).toBe(0);
         expect(r.out).not.toContain("REGRESSION");

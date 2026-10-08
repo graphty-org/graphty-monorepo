@@ -1,3 +1,136 @@
+## 3.20.0 (2026-10-08)
+
+### 🚀 Features
+
+- **graphty-element:** run the LLM regression tests on Google, and always answer ([801e21a9d](https://github.com/graphty-org/graphty-monorepo/commit/801e21a9d))
+
+### 🩹 Fixes
+
+- **graphty-element:** start label animations on the first frame at rest, not a 100 ms timer ([#1422](https://github.com/graphty-org/graphty-monorepo/issues/1422))
+- **graphty-element:** default edge.width encodings to the edge width range ([#1506](https://github.com/graphty-org/graphty-monorepo/issues/1506))
+- **graphty-element:** compact the edge-id index after removals ([#1411](https://github.com/graphty-org/graphty-monorepo/issues/1411))
+- **graphty-element:** run the LLM regression suite on Anthropic and fix what it found ([69d346ebd](https://github.com/graphty-org/graphty-monorepo/commit/69d346ebd))
+
+### 🔥 Performance
+
+- **graphty-element:** remove nodes from the d3 and ngraph layouts touching only their edges ([#1425](https://github.com/graphty-org/graphty-monorepo/issues/1425))
+- **graphty-element:** read a partial rank column through an optional chain ([#1042](https://github.com/graphty-org/graphty-monorepo/issues/1042))
+- **graphty-element:** build a run's result without an id map or a sort ([#1517](https://github.com/graphty-org/graphty-monorepo/issues/1517), [#1042](https://github.com/graphty-org/graphty-monorepo/issues/1042))
+- **graphty-element:** take a draft checkpoint without copying the draft ([#1316](https://github.com/graphty-org/graphty-monorepo/issues/1316))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.40
+- Updated @graphty/remote-logger to 2.0.11
+- Updated graph-samples to 0.1.24
+- Updated graph-format to 1.3.9
+- Updated algorithms to 3.3.11
+- Updated graph-io to 0.3.31
+- Updated layout to 2.2.12
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.19.0 (2026-10-08)
+
+### 🚀 Features
+
+- **graphty-element:** neutral facts beside the English in result APIs ([#866](https://github.com/graphty-org/graphty-monorepo/issues/866))
+
+### 🩹 Fixes
+
+- **graphty-element:** give each waiting freeze its own render id ([#1440](https://github.com/graphty-org/graphty-monorepo/issues/1440))
+- **graphty-element:** keep a node unplaced when undo restores it unplaced under ngraph and d3 ([#582](https://github.com/graphty-org/graphty-monorepo/issues/582))
+- **graphty-element:** let an edge measurement ask for edge width ([#708](https://github.com/graphty-org/graphty-monorepo/issues/708))
+- **graph-io:** import positions as f64 so exact values round-trip ([#963](https://github.com/graphty-org/graphty-monorepo/issues/963))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.39
+- Updated algorithms to 3.3.10
+- Updated graph-io to 0.3.30
+- Updated layout to 2.2.11
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.18.0 (2026-10-08)
+
+### 🚀 Features
+
+- **graphty-element:** type the forwarded unprefixed events through the element's own listeners ([#865](https://github.com/graphty-org/graphty-monorepo/issues/865))
+- **graphty-element:** name every graphty-* event detail and compile each listener against dist ([#865](https://github.com/graphty-org/graphty-monorepo/issues/865))
+- **graphty-element:** give style explain refusals and unbound layers a coded fact ([#1221](https://github.com/graphty-org/graphty-monorepo/issues/1221))
+- **graphty-element:** styles.legendOf(id) reads one layer's legend blocks ([ba854e769](https://github.com/graphty-org/graphty-monorepo/commit/ba854e769))
+- **graphty-element:** report export losses as coded facts ([#876](https://github.com/graphty-org/graphty-monorepo/issues/876))
+- **graphty-element:** elementAt reports the node under a point ([#798](https://github.com/graphty-org/graphty-monorepo/issues/798))
+
+### 🩹 Fixes
+
+- **graphty-element:** classify the element's typed event listener overloads as listen doors ([#865](https://github.com/graphty-org/graphty-monorepo/issues/865))
+- **graphty-element:** undo a freeze Babylon runs after a change withdrew it ([d336701ff](https://github.com/graphty-org/graphty-monorepo/commit/d336701ff))
+- **graphty-element:** report the configured graph direction as soon as data.directed is set ([#969](https://github.com/graphty-org/graphty-monorepo/issues/969))
+- **graphty-element:** record the camera resetCamera returns to when the final framing lands ([#416](https://github.com/graphty-org/graphty-monorepo/issues/416))
+- **graphty-element:** bound what a strict-state dispatch checks ([#584](https://github.com/graphty-org/graphty-monorepo/issues/584))
+- **graphty-element:** a run's fields name the run, not the $ placeholder ([#354](https://github.com/graphty-org/graphty-monorepo/pull/354))
+- **graphty-element:** stop XR controllers downloading their models ([#465](https://github.com/graphty-org/graphty-monorepo/pull/465))
+- **graphty-element:** key the large-graph story generator on the unordered pair ([#228](https://github.com/graphty-org/graphty-monorepo/pull/228))
+- **graphty-element:** give retained nodes their new record on nodeData ([#355](https://github.com/graphty-org/graphty-monorepo/issues/355))
+
+### 🔥 Performance
+
+- **graphty-element:** tear a graph down in linear time ([#1373](https://github.com/graphty-org/graphty-monorepo/issues/1373))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.38
+- Updated @graphty/remote-logger to 2.0.10
+- Updated algorithms to 3.3.9
+- Updated graph-io to 0.3.29
+- Updated layout to 2.2.10
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.17.0 (2026-10-07)
+
+### 🚀 Features
+
+- **graphty-element:** give every history step a coded fact ([#869](https://github.com/graphty-org/graphty-monorepo/issues/869))
+- **graphty-element:** name a legend field's run result by catalog ids ([90d90bb46](https://github.com/graphty-org/graphty-monorepo/commit/90d90bb46))
+- **graphty-element:** neutral legend facts and per-layer style counts ([#867](https://github.com/graphty-org/graphty-monorepo/issues/867), [#790](https://github.com/graphty-org/graphty-monorepo/issues/790))
+- **graphty-element:** add styles.agreement for several elements ([#810](https://github.com/graphty-org/graphty-monorepo/issues/810))
+- **graphty-element:** element.labelOf(id) returns a node's label as drawn ([#799](https://github.com/graphty-org/graphty-monorepo/issues/799))
+- **graphty-element:** report where a node is drawn on screen ([#797](https://github.com/graphty-org/graphty-monorepo/issues/797))
+- **graphty-element:** add session.journal and journal:appended ([#1230](https://github.com/graphty-org/graphty-monorepo/issues/1230), [#145](https://github.com/graphty-org/graphty-monorepo/issues/145))
+
+### 🩹 Fixes
+
+- **graphty-element:** twelve layout engines honor scalingFactor ([#1323](https://github.com/graphty-org/graphty-monorepo/pull/1323))
+- **graphty-element:** setNodes reads added nodes with the idPath it was given ([#1168](https://github.com/graphty-org/graphty-monorepo/pull/1168))
+- **graphty-element:** put every node on the plane when switching to 2D under any layout ([#1341](https://github.com/graphty-org/graphty-monorepo/issues/1341))
+- **graphty-element:** drop unnecessary type assertion and reformat for prettier 3.9.9 ([dd32105d6](https://github.com/graphty-org/graphty-monorepo/commit/dd32105d6))
+- **graphty-element:** a mid grey for the overflow group ([#505050](https://github.com/graphty-org/graphty-monorepo/issues/505050), [#686868](https://github.com/graphty-org/graphty-monorepo/issues/686868), [#230](https://github.com/graphty-org/graphty-monorepo/issues/230))
+- **graphty-element:** waitForStableFrame waits for a declutter switch to take effect ([c57e93c07](https://github.com/graphty-org/graphty-monorepo/commit/c57e93c07))
+- **graphty-element:** journal a transaction only when it records ([#145](https://github.com/graphty-org/graphty-monorepo/issues/145))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.37
+- Updated @graphty/remote-logger to 2.0.9
+- Updated graph-samples to 0.1.23
+- Updated graph-format to 1.3.8
+- Updated algorithms to 3.3.8
+- Updated graph-io to 0.3.28
+- Updated layout to 2.2.9
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.16.0 (2026-10-07)
 
 ### 🚀 Features

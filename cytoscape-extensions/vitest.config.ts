@@ -15,6 +15,8 @@ export default defineConfig({
         },
     },
     test: {
+        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
+        globalSetup: ["../tools/test-slots.mjs"],
         globals: true,
         environment: "node",
         include: ["test/**/*.test.ts"],

@@ -1,5 +1,5 @@
 import { useUncontrolled } from "@mantine/hooks";
-import React, { useId } from "react";
+import React, { useId, useLayoutEffect, useRef, useState } from "react";
 
 import { PANEL_GRID } from "../../constants/panel";
 import { useNumberFormatter } from "../../i18n";
@@ -326,7 +326,8 @@ export interface DataRowHeaderProps {
  * `aria-sort` is defined only on a column header inside a table or a grid, so
  * that is the one place a screen reader reads it out: wrap the caption and the
  * rows it heads in an element with `role="table"`, each row in a `role="row"`
- * of its own. Above a plain list the arrow stays a drawing, and a reader who
+ * of its own. The caption is a `columnheader` with `aria-sort` only when its
+ * parent is such a row (or a `<tr>`). Above a plain list the arrow stays a drawing, and a reader who
  * cannot see it learns the order changed only if you say so yourself -- with a
  * live region, or by moving focus to the reordered list.
  * @param props - Component props
@@ -414,12 +415,21 @@ export function DataRowHeader({
     //
     // The caption cannot supply the table itself: it heads rows it does not
     // render, and a table with a header row and no data rows would announce a
-    // structure that is not there. So aria-sort is written here and the JSDoc
-    // says plainly that it is read only once the consumer wraps the run.
-    const describesSort = sortable || sorted;
+    // structure that is not there. So it is a columnheader only where the
+    // consumer has wrapped it in a row, as the JSDoc asks. Above a plain list a
+    // columnheader would be an orphan, which ARIA forbids (axe:
+    // aria-required-parent), and aria-sort is not allowed on a plain <div>.
+    const self = useRef<HTMLDivElement>(null);
+    const [inRow, setInRow] = useState(false);
+    useLayoutEffect(() => {
+        const parent = self.current?.parentElement;
+        setInRow(parent?.getAttribute("role") === "row" || parent?.tagName === "TR");
+    }, []);
+    const describesSort = inRow && (sortable || sorted);
 
     return (
         <div
+            ref={self}
             data-testid="data-row-header"
             className="cm-data-row-header"
             data-sorted={sorted ? "" : undefined}

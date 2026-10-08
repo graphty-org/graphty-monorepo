@@ -13,7 +13,14 @@ import type { RunResult } from "../../../src/session/results/types";
 import type { Caveats } from "../../../src/session/runs/types";
 import { fixtureSession } from "../history/fixture-session";
 
-const CAVEATS: Caveats = { exact: true, direction: "undirected", precision: "f64", method: "degree", notes: [] };
+const CAVEATS: Caveats = {
+    exact: true,
+    direction: "undirected",
+    precision: "f64",
+    method: "degree",
+    facts: [],
+    notes: [],
+};
 
 /**
  * A per-element field descriptor.

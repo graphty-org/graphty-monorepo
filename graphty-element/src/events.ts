@@ -7,6 +7,7 @@ import type { NodeIdType } from "./config";
 import type { ImportReport } from "./data/report";
 import type { Edge } from "./Edge";
 import type { Graph } from "./Graph";
+import type { StatsManager } from "./managers/StatsManager";
 import type { Node } from "./Node";
 import type { StyleChange } from "./session/styles/StylesApi";
 import type { HistoryCause } from "./session/types";
@@ -52,7 +53,27 @@ export type GraphEvent =
     | DataLoadingCompleteEvent
     | ElementsRemovedEvent
     | StyleChangedEvent
-    | SelectionChangedEvent;
+    | SelectionChangedEvent
+    | GraphStartedEvent
+    | LayoutChangedEvent
+    | OperationCancelledEvent
+    | StatsUpdateEvent
+    | InputEnabledChangedEvent;
+
+/** A graph event type that stays inside the element: see {@link INTERNAL_EVENT_TYPES}. */
+export type InternalEventType = GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"];
+
+/**
+ * The unprefixed events `<graphty-element>` forwards to the DOM, by name: every graph and AI event
+ * except the element-internal ones, each a `CustomEvent` whose `detail` is the internal event.
+ *
+ * They are typed by the element's own `addEventListener` and `removeEventListener` rather than on
+ * the global `HTMLElementEventMap`: the names carry no prefix, so a global declaration would type
+ * `style-changed` on every element of the page, and `error` is already `ErrorEvent` there.
+ */
+export type GraphtyForwardedEventMap = {
+    [K in Exclude<GraphEventType | AiEventType, InternalEventType>]: CustomEvent<EventOfType<K>>;
+};
 
 /**
  * The graph event types that stay INSIDE the element: emitted on the internal graph observable so
@@ -70,10 +91,12 @@ export type GraphEvent =
  * To keep a new internal event off the DOM, add its type to this set. Nothing else changes: the
  * forwarder asks {@link isDomForwardableEvent}, which is the only place the decision is made.
  */
+// The literals stay in this initializer: scripts/dom-events.mjs reads them from here to leave these
+// events out of the custom elements manifest.
 export const INTERNAL_EVENT_TYPES: ReadonlySet<GraphEventType> = new Set<GraphEventType>([
     "snapshot-replaced",
     "snapshot-dropped",
-]);
+] satisfies InternalEventType[]);
 
 /**
  * Whether a graph event may leave the element as a DOM CustomEvent.
@@ -365,6 +388,50 @@ export interface ElementsRemovedEvent {
     edges: EdgeId[];
     /** What removed them; absent for a removal that does not yet come through the history. */
     cause?: HistoryCause;
+}
+
+/** Emitted once the render loop has started, after the element finished initializing. */
+export interface GraphStartedEvent {
+    type: "graph-started";
+    /** When the loop started, in milliseconds since the epoch. */
+    timestamp: number;
+}
+
+/** Emitted when a new layout engine has been built and is now the running layout. */
+export interface LayoutChangedEvent {
+    type: "layout-changed";
+    /** The layout type that is now running, as `setLayout` was given it. */
+    layoutType: string;
+    /** The options the layout was built with: the caller's, filled in with the layout's defaults. */
+    options: Record<string, unknown>;
+}
+
+/** Emitted when a queued operation is aborted before it finished. */
+export interface OperationCancelledEvent {
+    type: "operation-cancelled";
+    /** The operation's id, as `operation-start` carried it. */
+    id: string;
+    /**
+     * Why it was aborted, as the queue words it: `"Queue cleared"` when the whole queue was
+     * cleared, `"Manual cancellation"` when this one operation was cancelled.
+     */
+    reason: string;
+}
+
+/** Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns. */
+export interface StatsUpdateEvent {
+    type: "stats-update";
+    /** How many graph updates have run since the counters were last reset. */
+    totalUpdates: number;
+    /** The counters as they stand now. */
+    stats: ReturnType<StatsManager["getStats"]>;
+}
+
+/** Emitted when user input on the canvas is switched on or off, by `setInputEnabled`. */
+export interface InputEnabledChangedEvent {
+    type: "input-enabled-changed";
+    /** Whether the canvas now takes user input. */
+    enabled: boolean;
 }
 
 // Selection events

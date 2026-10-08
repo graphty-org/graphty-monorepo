@@ -33,6 +33,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
 /**
  * Babylon modules the element imports only for their side effects (see
@@ -235,6 +236,8 @@ function appendBenchRow(log: string): undefined {
 
 export default defineConfig({
     test: {
+        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
+        globalSetup: ["../tools/test-slots.mjs"],
         reporters: ["default", ...ciJunitReporter()],
         onConsoleLog: appendBenchRow,
         // Vitest 4 also copies each failure screenshot into an attachments directory, by default
@@ -245,7 +248,9 @@ export default defineConfig({
                 test: {
                     // Timing benchmarks, kept out of the coverage-collecting "default" project
                     // because instrumentation makes a stopwatch measure the instrumentation. Run
-                    // with: npx vitest run --project=bench.
+                    // with: npx vitest run --project=bench. They gate no push: CI runs them in
+                    // ci.yml's advisory "performance" job, because a stopwatch on a busy machine
+                    // measures the machine.
                     //
                     // What keeps them uninstrumented is that no coverage script names this
                     // project -- every one of them lists --project=default --project=mesh. A
@@ -482,8 +487,9 @@ export default defineConfig({
             {
                 // Timing benchmarks on a real graph in the browser, kept out of "browser" for the
                 // reason "bench" is kept out of "default": nothing here runs under coverage, which
-                // would time the instrumentation. CI runs it in the graphty-element-browser-1 job
-                // with: npx vitest run --project=browser-bench. Not "bench-browser": that is the
+                // would time the instrumentation. Like "bench", it gates no push: CI runs it in
+                // ci.yml's advisory "performance" job, and by hand with:
+                // npx vitest run --project=browser-bench. Not "bench-browser": that is the
                 // sets timing rows' project below, which never runs in CI.
                 optimizeDeps: { include: PREBUNDLED },
                 test: {
@@ -666,11 +672,12 @@ export default defineConfig({
             },
             // LLM Regression Tests - Tests real LLM API calls for tool calling verification.
             //
-            // This project runs in no gate and in no CI job -- `grep -n llm .github/workflows/*.yml`
-            // finds nothing -- and that is deliberate rather than an oversight: every case makes a
-            // paid API call, and its seven real test files sit inside describe.skipIf(skipIfNoApiKey()),
-            // so without keys even `npm run test:llm-regression` collects harness.test.ts and nothing
-            // else. Run it by hand, with keys, when the tool-calling surface changes.
+            // Every case makes a paid API call, so this project runs in no pull-request or merge-queue
+            // job. The release train runs it on every release candidate (release.yml's "LLM regression"
+            // job). VITE_LLM_REGRESSION_PROVIDER picks the provider (google by default, as the release job
+            // runs; openai and anthropic also work) and its key variable (VITE_GOOGLE_API_KEY, ...). Its seven real test
+            // files sit inside describe.skipIf(skipIfNoApiKey()), so without a key they skip; the release
+            // job checks the key is set first and fails if it is not.
             {
                 test: {
                     name: "llm-regression",
@@ -687,8 +694,8 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
-                    // LLM calls are slow - 60s timeout per test
-                    testTimeout: 60000,
+                    // Per provider, sized from measured call latency (test/helpers/llm-regression-env.ts)
+                    testTimeout: getLlmRegressionCaseTimeoutMs(),
                     hookTimeout: 30000,
                     // Run tests sequentially to avoid rate limits
                     pool: "forks",

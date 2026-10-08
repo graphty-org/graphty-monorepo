@@ -68,10 +68,11 @@ const twoPrs = (r, items) =>
     });
 
 // `host` localhost: WebAuthn needs a host name (an IP address is never a passkey's site).
-// `touch`: a touch screen (an iPad), where `pointer: coarse` matches.
+// `touch`: a touch screen (an iPad), where `pointer: coarse` matches. `clock`: the page's timers
+// and clocks are Playwright's, which a test can pause.
 async function open(
     options,
-    { viewport = { width: 1000, height: 800 }, review = true, host = "127.0.0.1", touch = false } = {},
+    { viewport = { width: 1000, height: 800 }, review = true, host = "127.0.0.1", touch = false, clock = false } = {},
 ) {
     const r = makeRepo();
     server = createServer();
@@ -112,6 +113,9 @@ async function open(
         dialogs.push(`browser dialog: ${d.message()}`);
         return d.dismiss();
     });
+    if (clock) {
+        await page.clock.install();
+    }
     await page.goto(`${origin}/#token=${TOKEN}`);
     if (review) {
         await page.getByRole("button", { name: "Review", exact: true }).first().click();
@@ -1595,11 +1599,16 @@ describe("review page: the decision bar", () => {
         await expect.poll(status).toBe("Accepted #3. Now #4, 4 of 6: badge--default (light), new.");
     });
 
+    // The page's clock stops once the item is ready, so the second press lands within the quarter
+    // second of the next image however long the press takes to arrive.
+    const stopClock = () => page.clock.pauseAt(Date.now() + 1000);
+
     it("keeps focus on a decision button it was on: Tab to Accept, Space twice", async () => {
-        await open((r) => ({ gh: onePr()(r) }));
+        await open((r) => ({ gh: onePr()(r) }), { clock: true });
         await page.locator("#review-undecided").click();
         await page.keyboard.press("k");
         await ready();
+        await stopClock();
         await page.locator("#accept").focus();
         await page.keyboard.press(" ");
         await expect.poll(position).toMatch(/^3 of /);
@@ -1614,10 +1623,11 @@ describe("review page: the decision bar", () => {
     });
 
     it("ignores the second tap of a double tap, which lands on the next item's Accept", async () => {
-        await open((r) => ({ gh: onePr()(r) }));
+        await open((r) => ({ gh: onePr()(r) }), { clock: true });
         await page.locator("#review-undecided").click();
         await page.keyboard.press("k");
         await ready();
+        await stopClock();
         await page.locator("#accept").click();
         await page.locator("#accept").click();
         await expect.poll(position).toMatch(/^3 of /);
@@ -1870,7 +1880,13 @@ describe("review page: the wait box", () => {
         }
         // The targets stay usable meanwhile.
         expect(await page.getByRole("button", { name: "Review", exact: true }).first().isEnabled()).toBe(true);
+        // After the release the server still fetches the branches and checks the baselines, and
+        // the page asks again only every 700 ms: wait for the answer that the refresh is over.
+        const over = page.waitForResponse(
+            async (res) => res.url().includes("/api/prs?") && !(await res.json()).refreshing,
+        );
         release();
+        await over;
         await expect.poll(status).toBe("");
     }, 30000);
 });
@@ -2429,6 +2445,39 @@ describe("review page: Finish", () => {
                 .getAttribute("aria-disabled"),
         ).toBe("true");
     }, 60000);
+
+    it("says a step is retrying after a network error", async () => {
+        let release;
+        const gate = new Promise((resolve) => (release = resolve));
+        let failed = false;
+        // The first commit status fails on DNS; the retry waits until the test releases it.
+        await open((r) => {
+            const gh = twoPrs(r);
+            return {
+                gh: async (args, input) => {
+                    if (args[1]?.includes("/statuses/")) {
+                        if (!failed) {
+                            failed = true;
+                            throw new Error("error connecting to api.github.com");
+                        }
+                        await gate;
+                    }
+                    return gh(args, input);
+                },
+            };
+        });
+        await page.locator(".component").first().waitFor();
+        confirmFinish = true;
+        await page.keyboard.press("Shift+A");
+        await expect.poll(progress).toBe("4 of 6 decided");
+        await page.getByRole("button", { name: /^Finish/ }).click();
+        const slow = { timeout: 30000 };
+        await expect.poll(() => box("net"), slow).toBe("Retrying after a network error, attempt 2 of 4");
+        expect(await page.locator("#wait #finish-panel li.now").textContent()).toBe("Posting the status: in progress");
+        release();
+        await expect.poll(() => page.locator(".finish-outcome").textContent(), slow).toMatch(/^Finished #123\./);
+        expect(await page.locator(".finish-outcome").textContent()).not.toContain("status not posted");
+    }, 60000);
 });
 
 // The passkeys file on the default branch, as merging a registration pull request leaves it.
@@ -2970,5 +3019,178 @@ describe("review page: the inbox", () => {
         expect(await page.locator('.tile[data-file="menu--open.png"] img').count()).toBe(0);
         expect(await page.locator("body").textContent()).not.toContain("damaged");
         expect(await status()).not.toContain("damaged");
+    });
+});
+
+describe("review page: safe filters and the pull request's context", () => {
+    // The fixture with slider--sizes changed exactly as button--primary.dark is: one cluster of two.
+    const similar = (r) => {
+        const items = capturedItems().map((i) =>
+            i.file === "slider--sizes.png"
+                ? { ...i, size: [320, 200], baselineSize: [320, 200], changedPixels: 900, bbox: [160, 80, 40, 40] }
+                : i,
+        );
+        const at = { commit: r.head, headSha: r.head };
+        return onePr({ results: { "visual-compact-mantine-1": { ...at, items }, "visual-graphty-element-1": at } })(r);
+    };
+
+    it("renders a hostile description and comments as inert text, and marks who is not the owner", async () => {
+        const hostile = '<script>window.pwned = 1</script><img src=x onerror="window.pwned = 2">';
+        await open((r) => {
+            const rest = onePr()(r);
+            return {
+                gh: async (args, input) => {
+                    const path = args[1];
+                    if (path === "repos/{owner}/{repo}/pulls/123") {
+                        return JSON.stringify({
+                            title: '<b onmouseover="window.pwned = 3">bold</b>',
+                            body: hostile,
+                            user: { login: "mallory" },
+                            created_at: "2026-10-07T00:00:00Z",
+                            base: { repo: { owner: { login: "org", type: "Organization" } } },
+                        });
+                    }
+                    if (path === "user") {
+                        return JSON.stringify({ login: "owner" });
+                    }
+                    if (path?.includes("issues/123/comments")) {
+                        return JSON.stringify([
+                            { user: { login: "owner" }, created_at: "2026-10-07T01:00:00Z", body: "intended" },
+                            { user: { login: "mallory" }, created_at: "2026-10-07T02:00:00Z", body: hostile },
+                        ]);
+                    }
+                    return rest(args, input);
+                },
+            };
+        });
+        await page.locator("#about-pr").click();
+        const dialog = page.locator("dialog.context");
+        await dialog.waitFor();
+        expect(await dialog.locator("#context-title").textContent()).toBe(
+            '#123 <b onmouseover="window.pwned = 3">bold</b>',
+        );
+        expect(await dialog.locator(".context-text").allTextContents()).toEqual([hostile, "intended", hostile]);
+        // Nothing in it became markup: no script, image, bold or link element, and nothing ran.
+        expect(await dialog.locator("script, img, b, a").count()).toBe(0);
+        await dialog.locator("#context-title").hover();
+        expect(await page.evaluate(() => globalThis.pwned)).toBeUndefined();
+        // The description's author and the second comment are not the owner; the first comment is.
+        expect(await dialog.getByText("not the repository owner").count()).toBe(2);
+        expect(await dialog.locator(".comments li").first().getByText("not the repository owner").count()).toBe(0);
+    });
+
+    it("shows similar changes as one cluster, decided at once, with outliers first", async () => {
+        await open((r) => ({ gh: similar(r) }));
+        const cluster = page.locator(".cluster");
+        await cluster.waitFor();
+        expect(await cluster.locator("h3").textContent()).toMatch(
+            /^2 similar changes in a medium area, middle center, 880 to 900 pixels each/,
+        );
+        // The representative is the member with the most changed pixels; the others sit under Show all.
+        expect(await cluster.locator(":scope > .modes .tile").getAttribute("data-file")).toBe("slider--sizes.png");
+        // Outliers (the new story, the removal) come before the cluster.
+        const order = await page.locator(".component, .cluster").evaluateAll((n) => n.map((x) => x.className));
+        expect(order.at(-1)).toBe("cluster");
+        // Spotlight all lights the representative as it lights any tile.
+        await page.locator("#spot-all").click();
+        await page.locator(".cluster").scrollIntoViewIfNeeded();
+        await expect
+            .poll(() => page.locator(".cluster > .modes .tile img").evaluate((n) => n.classList.contains("spot")))
+            .toBe(true);
+        await page.locator(".cluster").getByRole("button", { name: "Accept 2" }).click();
+        await expect.poll(() => page.locator(".cluster").count()).toBe(0);
+        expect(dialogs.at(-1)).toBe("Accept 2 items of this group of 2 without opening them?");
+        // Grouping off shows them one by one again.
+        await page.locator("#group-similar").click();
+        expect(await page.locator("#group-similar").getAttribute("aria-pressed")).toBe("false");
+    });
+
+    it("spotlights and zooms every tile from two switches, each remembered in this browser and off at first", async () => {
+        await open((r) => ({ gh: onePr()(r) }));
+        const tile = page.locator('.tile[data-file="button--primary.dark.png"] img');
+        await tile.waitFor({ state: "visible" });
+        const look = async () => [
+            await tile.evaluate((n) => n.classList.contains("spot")),
+            await tile.evaluate((n) => n.classList.contains("zoomed")),
+        ];
+        // The tile's picture drawn at one small size, so pictures of any size compare.
+        const pixels = () =>
+            tile.evaluate(async (img) => {
+                await img.decode();
+                const c = new globalThis.OffscreenCanvas(64, 40);
+                c.getContext("2d").drawImage(img, 0, 0, 64, 40);
+                return Array.from(c.getContext("2d").getImageData(0, 0, 64, 40).data);
+            });
+        const shown = async (spot, zoomed) => {
+            await expect.poll(look).toEqual([spot, zoomed]);
+            await expect.poll(() => tile.getAttribute("src")).toMatch(/^blob:/);
+            return pixels();
+        };
+        expect(await page.locator("#spot-all").getAttribute("aria-pressed")).toBe("false");
+        expect(await page.locator("#zoom-all").getAttribute("aria-pressed")).toBe("false");
+        const plain = await shown(false, false);
+        await page.locator("#spot-all").click();
+        const spotOnly = await shown(true, false);
+        await page.locator("#zoom-all").click();
+        const both = await shown(true, true);
+        await page.locator("#spot-all").click();
+        const zoomOnly = await shown(false, true);
+        // Spotlight dims the frame without moving it; zoom crops toward the change; each alone.
+        expect(spotOnly).not.toEqual(plain);
+        expect(zoomOnly).not.toEqual(plain);
+        expect(zoomOnly).not.toEqual(spotOnly);
+        expect(both).not.toEqual(zoomOnly);
+        expect(
+            await page.evaluate(() => JSON.parse(globalThis.localStorage.getItem("visual-review:options"))),
+        ).toMatchObject({ gridSpot: false, gridZoom: true });
+        await page.reload();
+        await tile.waitFor({ state: "visible" });
+        expect(await page.locator("#spot-all").getAttribute("aria-pressed")).toBe("false");
+        expect(await page.locator("#zoom-all").getAttribute("aria-pressed")).toBe("true");
+        expect(await look()).toEqual([false, true]);
+    });
+
+    it("loads spotlit tiles the server made, and makes the same tile itself when the server cannot", async () => {
+        await open((r) => ({ gh: onePr()(r) }));
+        const tile = page.locator('.tile[data-file="button--primary.dark.png"] img');
+        await tile.waitFor({ state: "visible" });
+        const lit = () => tile.evaluate((n) => n.classList.contains("spot") && n.classList.contains("zoomed"));
+        // The tile's picture at its own size, kept in the page under `name`: 400 x 250 RGBA is
+        // 400,000 numbers, about a second to carry out of the browser as JSON.
+        const pixels = (name) =>
+            tile.evaluate(async (img, key) => {
+                await img.decode();
+                const c = new globalThis.OffscreenCanvas(img.naturalWidth, img.naturalHeight);
+                c.getContext("2d").drawImage(img, 0, 0);
+                globalThis[key] = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+            }, name);
+        let refused = 0;
+        await page.route("**/api/spot/**", (route) => {
+            refused++;
+            return route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
+        });
+        await page.locator("#spot-all").click();
+        await page.locator("#zoom-all").click();
+        await expect.poll(lit).toBe(true);
+        expect(refused).toBeGreaterThan(0);
+        await pixels("own");
+        await page.unroute("**/api/spot/**");
+        // Off and on again: the tile asks the server again, which answers this time.
+        await page.locator("#zoom-all").click();
+        const answered = page.waitForResponse(
+            (res) => res.url().includes("/api/spot/123/compact-mantine/both/button--primary.dark.png") && res.ok(),
+        );
+        await page.locator("#zoom-all").click();
+        await answered;
+        await expect.poll(lit).toBe(true);
+        await pixels("served");
+        const [length, ownLength, mean] = await page.evaluate(() => {
+            const [own, served] = [globalThis.own, globalThis.served];
+            const sum = served.reduce((total, v, i) => total + Math.abs(v - own[i]), 0);
+            return [served.length, own.length, sum / own.length];
+        });
+        expect(length).toBe(ownLength);
+        // The same picture, scaled by another filter: on average within 1 of 255 per channel.
+        expect(mean).toBeLessThan(1);
     });
 });

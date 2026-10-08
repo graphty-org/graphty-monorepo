@@ -68,6 +68,12 @@ session's judgment, never inferred from paths. The owner steers with two labels:
 issue or pull request first in its kind, even an enhancement, `githerd:skip` takes it out. Both count only when the
 owner's account added them.
 
+An issue labelled `blocked`, `research`, `in-progress`, `tracking` or any `needs-*` label (among
+others) gets no job. `tracking` is for an issue that only tracks other issues and stays open, such
+as a checklist of stages each filed as its own issue: githerd never makes a job of it, whatever its
+type. An issue a session reported `deferred` is not offered again until it changes (a comment, an
+edit or a label).
+
 Workers start while a slot is free: 3 working sessions, one more for urgent work, at most 6 idle
 sessions waiting on checks, under the machine's load and memory limits and the configured worker
 hours a day (`workers` in the config; `githerd workers <n>` changes the slots at runtime). A worker

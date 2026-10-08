@@ -21,8 +21,11 @@ import { staleRevert } from "./master-fix.mjs";
 import { orderPosition } from "./owner.mjs";
 
 const DAY = 24 * 60 * 60 * 1000;
-/** Labels that keep an issue out of the queue, besides every `needs-*` label. */
-const NOT_READY = new Set(["blocked", "research", "in-progress"]);
+/**
+ * Labels that keep an issue out of the queue, besides every `needs-*` label. `tracking` marks an
+ * issue that only tracks other issues and stays open (#1183): it is never a job of its own.
+ */
+const NOT_READY = new Set(["blocked", "research", "in-progress", "tracking"]);
 /** Labels that mark a breaking change, held for the next major. */
 const BREAKING = new Set(["breaking", "breaking-change", "breaking-hold"]);
 /** The owner's override labels. */

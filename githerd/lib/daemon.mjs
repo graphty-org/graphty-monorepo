@@ -140,6 +140,7 @@ import {
     resumeAnswered,
     untrustedCriticals,
 } from "./owner.mjs";
+import { readPushes } from "./prepush.mjs";
 import { containerStart, identify, liveTickets } from "./proc.mjs";
 import {
     inferOwners,
@@ -1887,6 +1888,7 @@ export async function startDaemon({
                 log: jobLog,
                 commits,
                 at: iso,
+                pushes: readPushes(join(root, "tmp"), workspace.packages),
             }).catch((err) => ledger({ kind: "error", where: "flakes", error: err.message }));
             await recordStats(gh, t).catch((err) => ledger({ kind: "error", where: "stats", error: err.message }));
         }

@@ -1,3 +1,9 @@
+## 2.2.11 (2026-10-08)
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.3.10
+
 ## 2.2.10 (2026-10-08)
 
 ### 🩹 Fixes

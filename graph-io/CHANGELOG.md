@@ -1,3 +1,13 @@
+## 0.3.30 (2026-10-08)
+
+### 🩹 Fixes
+
+- **graph-io:** import positions as f64 so exact values round-trip ([#963](https://github.com/graphty-org/graphty-monorepo/issues/963))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.29 (2026-10-08)
 
 ### 🚀 Features

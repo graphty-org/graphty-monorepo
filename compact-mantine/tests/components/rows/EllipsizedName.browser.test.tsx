@@ -46,6 +46,19 @@ describe("a name that ellipsizes", () => {
         expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(LONG);
     });
 
+    it("shuts the tooltip when the row is pressed, though the pointer stays on it", async () => {
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <Tree label="Sources" items={[{ id: "a", name: LONG, actions: <span>77 rows, 77 nodes</span> }]} />
+            </div>,
+        );
+        const name = screen.getByText(LONG);
+        await userEvent.hover(name);
+        await screen.findByRole("tooltip", {}, { timeout: 3000 });
+        await userEvent.click(name);
+        await expect.poll(() => screen.queryByRole("tooltip"), { timeout: 3000 }).toBeNull();
+    });
+
     it("shows the whole name when the pointer rests on the rest of a Tree row, such as its count", async () => {
         await renderThemed(
             <div style={{ width: 240 }}>

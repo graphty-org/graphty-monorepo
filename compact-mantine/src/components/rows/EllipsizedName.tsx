@@ -65,9 +65,16 @@ export function EllipsizedName({ name, className, id, testId, self = false }: El
                 setCut(!onControl && !onOtherCut && span.scrollWidth > span.clientWidth);
             });
         };
+        // A press on the row is the reader acting on it: the name's tooltip shuts, so it does not
+        // stay over what the press opens (the row's children, a menu) while the pointer rests.
+        const shut = (): void => {
+            setCut(false);
+        };
         area.addEventListener("pointerover", measure);
+        area.addEventListener("pointerdown", shut);
         return () => {
             area.removeEventListener("pointerover", measure);
+            area.removeEventListener("pointerdown", shut);
         };
     }, [self]);
     return (

@@ -604,7 +604,10 @@ jobs:
                   # npm answers a retry inside its propagation window (up to about 7.5 minutes after it accepted
                   # an upload) with E409 "Cannot publish over previously staged version" (npm/cli#9889), which
                   # failed the 3.1.0 release although every version it refused was already published.
-                  pnpm exec nx release publish --projects="$PROJECTS" --nxBail=false ||
+                  #
+                  # The output is kept for the failed-publish report, which reads npm's login error from it.
+                  set -o pipefail
+                  pnpm exec nx release publish --projects="$PROJECTS" --nxBail=false 2>&1 | tee "$RUNNER_TEMP/publish.log" ||
                       echo "::warning::nx release publish reported a failure; the registry check below decides"
               env:
                   PROJECTS: ${{ steps.tags.outputs.projects }}
@@ -643,12 +646,39 @@ jobs:
               run: |
                   set -euo pipefail
                   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                  # A package with no npm trusted publisher fails with npm's login error: its first publish, or one
+                  # whose trusted-publisher configuration expired unused. Only the owner can fix that on npmjs.com,
+                  # so the issue says so instead of reading as a code defect. nx prints each task's output under
+                  # its "nx run <project>:nx-release-publish" line.
+                  login=()
+                  if [ -f "$RUNNER_TEMP/publish.log" ]; then
+                      mapfile -t login < <(sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/publish.log" | awk '
+                          match($0, /nx run [^ ]+:nx-release-publish/) { p = substr($0, RSTART + 7, RLENGTH - 26) }
+                          /requires you to be logged in to https:\/\/registry\.npmjs\.org/ && p != "" { print p; p = "" }' | sort -u)
+                  fi
+                  names=()
+                  for project in "${login[@]}"; do
+                      root=$(pnpm exec nx show project "$project" --json | jq -r .root)
+                      names+=("$(jq -r .name "${root}/package.json")")
+                  done
+                  title="Release held: publish failed on ${GITHUB_SHA:0:7}"
+                  [ "${#names[@]}" = 0 ] || title="${title}: owner must create the npm trusted publisher for ${names[*]}"
                   {
+                      if [ "${#names[@]}" -gt 0 ]; then
+                          echo "## OWNER ITEM: create the npm trusted publisher for ${names[*]}"
+                          echo
+                          echo "This is not a code defect: no pull request or agent can fix it. npm refused to publish ${names[*]} with \"This command requires you to be logged in to https://registry.npmjs.org/\". That is what npm trusted publishing (OIDC) answers when a package has no trusted-publisher configuration: its first publish, or a configuration that expired because no publish used it within 2 days of its creation (https://docs.npmjs.com/trusted-publishers/)."
+                          echo
+                          echo "1. On npmjs.com, for each package below, open its settings, Trusted Publisher, GitHub Actions, and enter: Organization or user \`${GITHUB_REPOSITORY%%/*}\`, Repository \`${GITHUB_REPOSITORY#*/}\`, Workflow filename \`release.yml\`, Environment left empty."
+                          for name in "${names[@]}"; do echo "   - ${name}: https://www.npmjs.com/package/${name}/access"; done
+                          echo "2. Re-run the failed publish at once: \`gh run rerun ${GITHUB_RUN_ID} --failed\`. The new configuration expires if no publish uses it within 2 days."
+                          echo
+                      fi
                       echo "The publish job failed on master ${GITHUB_SHA}: ${run_url}"
                       echo
                       echo "The release pull request merged, but its packages are not all tagged and on npm, so every later release train skips. Read the failed step in the run, fix the cause (an npm rejection, a missing \`release-builds-<sha>\` artifact of the train run, more than one version commit in the push), then re-run the failed jobs: \`gh run rerun ${GITHUB_RUN_ID} --failed\`. A publish that passes closes this issue. The builds the train kept expire 30 days after the train ran."
                   } > "$RUNNER_TEMP/body.md"
-                  open=$(tools/release-held.sh open "Release held: publish failed on ${GITHUB_SHA:0:7}" "$RUNNER_TEMP/body.md")
+                  open=$(tools/release-held.sh open "$title" "$RUNNER_TEMP/body.md")
                   echo "::error::publish failed on ${GITHUB_SHA}; issue ${open}"
 
             - name: Close the failed-publish issue

@@ -24,23 +24,31 @@ function webxr(): XRSystem | undefined {
 /**
  * Ask the browser whether it supports a mode, answering false when it refuses or takes longer
  * than {@link XR_PROBE_BOUND_MS} (a headless browser can leave the question unanswered).
+ *
+ * The browser's promise may never settle, and whatever its handlers hold lives as long as it
+ * does. They hold only `pending`, which lets go of the caller once the answer or the bound
+ * arrives, so an unanswered question never keeps a disposed graph alive.
  * @param xr - The browser's WebXR.
  * @param mode - The session mode.
  * @returns Whether the mode is supported.
  */
 function supports(xr: XRSystem, mode: XRSessionMode): Promise<boolean> {
     return new Promise((resolve) => {
+        const pending: { settle: ((supported: boolean) => void) | null } = { settle: null };
         const timer = setTimeout(() => {
-            resolve(false);
+            pending.settle?.(false);
         }, XR_PROBE_BOUND_MS);
+        pending.settle = (supported) => {
+            clearTimeout(timer);
+            pending.settle = null;
+            resolve(supported);
+        };
         xr.isSessionSupported(mode).then(
             (supported) => {
-                clearTimeout(timer);
-                resolve(supported);
+                pending.settle?.(supported);
             },
             () => {
-                clearTimeout(timer);
-                resolve(false);
+                pending.settle?.(false);
             },
         );
     });

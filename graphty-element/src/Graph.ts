@@ -1142,6 +1142,17 @@ export class Graph implements GraphContext {
         // rather than running against the store and session this is about to dispose.
         this.#teardown.abort(new DOMException("The graph was disposed.", "AbortError"));
 
+        // XR listens on the page's navigator.xr, which outlives this graph: a listener left there
+        // when the element leaves the page (which shuts the graph down without disposing it) keeps
+        // the whole graph, its scene and its data alive for the life of the page.
+        this.#unwatchXrButtons?.();
+        this.#unwatchXrButtons = null;
+        this.xrAvailability.dispose();
+        this.xrUIManager?.dispose();
+        this.xrUIManager = null;
+        this.xrSessionManager?.dispose();
+        this.xrSessionManager = null;
+
         // Stop any running camera animations
         try {
             const controller = this.camera.getActiveController();
@@ -6886,11 +6897,6 @@ export class Graph implements GraphContext {
         // Clean up AI manager if enabled
         this.disableAiControl();
 
-        // Clean up XR resources
-        this.#unwatchXrButtons?.();
-        this.xrAvailability.dispose();
-        this.xrUIManager?.dispose();
-        this.xrSessionManager?.dispose();
         this.shutdown();
     }
 }

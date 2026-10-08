@@ -1712,6 +1712,7 @@ describe("release.yml", () => {
     const t4 = job(release, "t4");
     const audit = job(release, "audit");
     const hosts = job(release, "hosts");
+    const llm = job(release, "llm");
     const coverage = job(release, "coverage");
     const held = job(release, "held");
     const train = job(release, "train");
@@ -1819,10 +1820,10 @@ describe("release.yml", () => {
         assert.match(audit, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(audit, /run: pnpm audit --prod --audit-level=high/);
         assert.doesNotMatch(audit, /continue-on-error/, "a high advisory holds the release");
-        assert.match(train, /needs: \[pick, ci, t4, hosts, audit\]/);
+        assert.match(train, /needs: \[pick, ci, t4, hosts, audit, llm\]/);
         assert.match(
             train,
-            /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' \}\}/,
+            /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' \}\}/,
         );
         // the release ships the builds of its own CI call, not a master run's
         assert.match(train, /pattern: "build-\{graph-format,[^"]*\}"\n\s+path: \$\{\{ runner.temp \}\}\/builds\n\n/);
@@ -1843,8 +1844,42 @@ describe("release.yml", () => {
         assert.match(cov, /git-commit: \$\{\{ inputs.ref \}\}\n\s+git-branch: master/);
     });
 
+    it("runs the LLM regression tests on the candidate with the Google secret, failing when it is missing", () => {
+        assert.match(llm, /needs: pick\n\s+if: \$\{\{ needs.pick.outputs.release == 'true' \}\}/);
+        assert.match(llm, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
+        assert.match(llm, /run: pnpm exec nx run graphty-element:build/);
+        assert.match(llm, /VITE_LLM_REGRESSION_PROVIDER: google\n/);
+        assert.match(llm, /VITE_GOOGLE_API_KEY: \$\{\{ secrets.GOOGLE_API_KEY \}\}/);
+        // the tests skip without a key; the job must fail instead, naming the secret, before vitest runs
+        const check = llm.indexOf('if [ -z "${VITE_GOOGLE_API_KEY}" ]; then');
+        assert.ok(check > 0, "checks the key is non-empty");
+        assert.match(
+            llm.slice(check),
+            /^\s+echo "owner_item=[^\n]*\n\s+echo "::error::the GOOGLE_API_KEY repository secret[^\n]*\n\s+exit 1\n/m,
+        );
+        assert.ok(check < llm.indexOf("npx vitest run --project llm-regression"), "before the tests run");
+        assert.doesNotMatch(llm, /continue-on-error/, "a failure holds the release");
+        // the job fails with vitest's own status, and a provider refusing the account marks an owner item
+        assert.match(llm, /status=\$\{PIPESTATUS\[0\]\}/);
+        assert.match(llm, /exit "\$status"\n/);
+        assert.match(llm, /grep -q '\\\[llm-regression\\\] provider refused the account'/);
+        assert.match(llm, /owner_item: \$\{\{ steps.llm.outputs.owner_item \}\}/);
+        const harness = readFileSync(
+            new URL("../graphty-element/test/helpers/llm-regression-harness.ts", import.meta.url),
+            "utf8",
+        );
+        assert.ok(
+            harness.includes('ACCOUNT_REFUSED_MARKER = "[llm-regression] provider refused the account"'),
+            "the marker the job reads is the one the harness prints",
+        );
+        // paid calls: never on a pull request, the merge queue or a master push
+        for (const file of ["ci.yml", "gpu.yml", "hosts.yml", "coverage.yml"]) {
+            assert.doesNotMatch(workflow(file), /llm-regression|ANTHROPIC_API_KEY|OPENAI_API_KEY|GOOGLE_API_KEY/, file);
+        }
+    });
+
     it("holds the whole release when anything fails: no pull request, no builds kept, nothing published, one issue", () => {
-        assert.match(held, /needs: \[pick, ci, t4, hosts, audit, train\]/);
+        assert.match(held, /needs: \[pick, ci, t4, hosts, audit, llm, train\]/);
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
         // the publish job finds only builds the train kept, and only the train keeps them
         assert.equal(release.match(/name: release-builds-/g).length, 2);
@@ -1863,6 +1898,14 @@ describe("release.yml", () => {
         ]) {
             assert.ok(held.includes(`"${name}=$${result}_RESULT"`), name);
         }
+        // the LLM lane is named an owner item when the provider refused the account
+        assert.ok(held.includes('"$llm_lane=$LLM_RESULT"'), "LLM regression");
+        assert.match(held, /\[ -z "\$LLM_OWNER_ITEM" \] \|\| llm_lane="LLM regression \(owner item: Google account\)"/);
+        assert.match(held, /LLM_OWNER_ITEM: \$\{\{ needs.llm.outputs.owner_item \}\}/);
+        assert.match(
+            held,
+            /if \[ -n "\$LLM_OWNER_ITEM" \]; then\n\s+echo\n\s+echo "The LLM regression job did not fail on code: [^\n]*it is an owner item/,
+        );
         assert.match(held, /title="Release held: \$\{what\} failed on \$\{SHA:0:7\}"/);
         assert.match(held, /open=\$\(tools\/release-held.sh open "\$title" "\$RUNNER_TEMP\/body.md"\)/);
         const helper = readFileSync(new URL("./release-held.sh", import.meta.url), "utf8");
@@ -1893,7 +1936,7 @@ describe("release.yml", () => {
                 `return ${condition.replace(/\balways\(\)/g, "true").replace(/!cancelled\(\)/g, "true")};`,
             )(
                 Object.fromEntries(
-                    ["pick", "ci", "t4", "hosts", "audit", "train"].map((j) => [
+                    ["pick", "ci", "t4", "hosts", "audit", "llm", "train"].map((j) => [
                         j,
                         { result: results[j] ?? "success", outputs: { release: j === "pick" ? release : undefined } },
                     ]),
@@ -1903,7 +1946,7 @@ describe("release.yml", () => {
         const NOT_SUCCESS = ["failure", "cancelled", "skipped", "abandoned", "timed_out", "a-result-not-yet-invented"];
 
         it("needs every job the train needs, and the train", () => {
-            assert.deepEqual(trainNeeds, ["pick", "ci", "t4", "hosts", "audit"]);
+            assert.deepEqual(trainNeeds, ["pick", "ci", "t4", "hosts", "audit", "llm"]);
             assert.match(held, new RegExp(`needs: \\[${[...trainNeeds, "train"].join(", ")}\\]`));
         });
 
@@ -1934,6 +1977,7 @@ describe("release.yml", () => {
                             t4: "skipped",
                             hosts: "skipped",
                             audit: "skipped",
+                            llm: "skipped",
                             train: "skipped",
                         },
                         "",
@@ -1951,6 +1995,7 @@ describe("release.yml", () => {
                         t4: "skipped",
                         hosts: "skipped",
                         audit: "skipped",
+                        llm: "skipped",
                         train: "skipped",
                     },
                     "",
@@ -1961,7 +2006,14 @@ describe("release.yml", () => {
 
         it("stays quiet when the train opened its pull request, or the pick found nothing to release", () => {
             assert.equal(runs({}), false);
-            const none = { ci: "skipped", t4: "skipped", hosts: "skipped", audit: "skipped", train: "skipped" };
+            const none = {
+                ci: "skipped",
+                t4: "skipped",
+                hosts: "skipped",
+                audit: "skipped",
+                llm: "skipped",
+                train: "skipped",
+            };
             assert.equal(runs(none, "false"), false);
         });
 
@@ -2005,6 +2057,8 @@ describe("release.yml", () => {
                         T4_RESULT: "success",
                         HOSTS_RESULT: "success",
                         AUDIT_RESULT: "success",
+                        LLM_RESULT: "success",
+                        LLM_OWNER_ITEM: "",
                         TRAIN_RESULT: "skipped",
                         ...env,
                     },
@@ -2057,10 +2111,30 @@ describe("release.yml", () => {
                     T4_RESULT: "skipped",
                     HOSTS_RESULT: "skipped",
                     AUDIT_RESULT: "skipped",
+                    LLM_RESULT: "skipped",
                 },
                 [],
             );
             assert.equal(title, "Release held: candidate pick failed on 44ab26d\n");
+        });
+
+        it("names a failed LLM lane, and an owner item as one", () => {
+            assert.equal(
+                issue({ LLM_RESULT: "failure" }, []).title,
+                "Release held: LLM regression failed on 44ab26d\n",
+            );
+            assert.equal(
+                issue({ LLM_RESULT: "cancelled" }, []).title,
+                "Release held: LLM regression failed on 44ab26d\n",
+            );
+            const { title, body } = issue(
+                { LLM_RESULT: "failure", LLM_OWNER_ITEM: "the provider refused the account (credit balance too low)" },
+                [],
+            );
+            assert.equal(title, "Release held: LLM regression (owner item: Google account) failed on 44ab26d\n");
+            assert.match(body, /LLM regression \(owner item: Google account\) failure/);
+            assert.match(body, /The LLM regression job did not fail on code: the provider refused the account/);
+            assert.doesNotMatch(body, /githubstatus/);
         });
 
         it("names a failed train, and holds the outage hint back when a job failed on its own", () => {

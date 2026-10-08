@@ -1,6 +1,6 @@
 // Tests of the no-test-timing lint rule: a valid and an invalid case per pattern.
 //
-//   node --test tools/eslint-rules/no-test-timing.test.mjs
+//   node tools/eslint-rules/no-test-timing.test.mjs
 import { describe, it } from "node:test";
 
 import { RuleTester } from "eslint";

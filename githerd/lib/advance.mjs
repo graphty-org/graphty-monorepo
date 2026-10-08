@@ -114,7 +114,7 @@ export function tickJobs(state, now, pauses) {
  */
 export function waitNews(state, job) {
     const w = job.waitingFor ?? {};
-    if (w.checks && !w.verify) return checksNews(state, job, w.checks);
+    if (w.checks && !w.verify) return checksNews(state, job, w);
     if (w.lane) return laneNews(state, job, w.lane);
     if (w.release) {
         const rel = state.master?.lastRelease;
@@ -156,21 +156,47 @@ function localNews(job, task, output) {
 const UNSETTLED = new Set(["PENDING", "MISSING", "CANCELLED", "EXPECTED"]);
 
 /**
- * The news of a wait on a pull request's required checks, or null while they run. The wait names
- * a head sha, or the pull request's number (`1451` or `#1451`), which sessions pass; a wait on the
- * number follows the pull request across pushes.
+/**
+ * The pull request number a checks wait names (`1451` or `#1451`, which sessions pass), or null
+ * when it names a head sha.
+ * @param {string} target the wait's target
+ * @returns {string | null} the number
+ */
+const waitNumber = (target) => (/^#?\d+$/.test(target) ? target.replace("#", "") : null);
+
+/**
+ * The polled open pull request a checks wait names: by number, or by head sha, which also matches
+ * the job's own pull request.
  * @param {any} state the daemon state
  * @param {any} job the waiting job
- * @param {string} target the head or the pull request the job waits on
+ * @param {string} target the wait's target
+ * @returns {[string, any] | undefined} the number and the record, or undefined when not polled
+ */
+function polledPr(state, job, target) {
+    const number = waitNumber(target);
+    return Object.entries(state.prs ?? {}).find(([n, p]) =>
+        number ? n === number : p.headSha === target || Number(n) === job.pr,
+    );
+}
+
+/**
+ * The news of a wait on a pull request's required checks, or null while they run. A wait on the
+ * number follows the pull request across pushes. A pull request the poll's open list does not hold
+ * is "not seen yet" (opened since, or past the list's end), not closed: only GitHub's own answer
+ * (`confirmClosedWaits`) ends the wait for that.
+ * @param {any} state the daemon state
+ * @param {any} job the waiting job
+ * @param {any} w its wait: `checks` the pull request's number or head, `closed` GitHub's answer
  * @returns {string | null} the news line, or null
  */
-function checksNews(state, job, target) {
-    const t = String(target);
-    const number = /^#?\d+$/.test(t) ? t.replace("#", "") : null;
-    const pr = Object.entries(state.prs ?? {}).find(([n, p]) =>
-        number ? n === number : p.headSha === t || Number(n) === job.pr,
-    );
-    if (!pr) return number ? `#${number} is no longer open` : `the pull request of ${t.slice(0, 9)} is no longer open`;
+function checksNews(state, job, w) {
+    const t = String(w.checks);
+    const number = waitNumber(t);
+    const pr = polledPr(state, job, t);
+    if (!pr) {
+        if (!w.closed) return null;
+        return number ? `#${number} is no longer open` : `the pull request of ${t.slice(0, 9)} is no longer open`;
+    }
     const [n, rec] = pr;
     if (!number && rec.headSha !== t) return `#${n}'s head moved to ${String(rec.headSha).slice(0, 9)}`;
     const states = Object.entries(rec.required ?? {});
@@ -178,6 +204,56 @@ function checksNews(state, job, target) {
     const results = states.map(([k, s]) => `${k} ${s}`).join(", ");
     const where = number ? "#" + n : t.slice(0, 9);
     return `checks on ${where} finished: ${results}`;
+}
+
+/**
+ * Asks GitHub, in one GraphQL query per poll, about the checks waits whose pull request the poll's
+ * open list does not hold, and marks `waitingFor.closed` on each GitHub says is closed or merged.
+ * A head commit counts as closed when every pull request it heads is. A failed query, an open
+ * answer or a target that is neither a number nor a full commit confirms nothing; the next poll
+ * asks again.
+ * @param {any} state the daemon state
+ * @param {{gitHub: any, repo: string}} facts the client and `owner/name`
+ * @returns {Promise<void>}
+ */
+export async function confirmClosedWaits(state, { gitHub, repo }) {
+    /** @type {any[]} */
+    const asks = [];
+    /** @type {string[]} */
+    const fields = [];
+    for (const job of Object.values(state.jobs ?? {})) {
+        const w = job.waitingFor;
+        if (job.state !== "waiting" || !w?.checks || w.verify || w.closed) continue;
+        const target = String(w.checks);
+        if (polledPr(state, job, target)) continue;
+        const key = `j${asks.length}`;
+        const number = waitNumber(target);
+        if (number) fields.push(`${key}: pullRequest(number: ${number}) { state }`);
+        else if (/^[0-9a-f]{40}$/.test(target)) {
+            fields.push(
+                `${key}: object(oid: "${target}") { ... on Commit { associatedPullRequests(first: 5) { nodes { state } } } }`,
+            );
+        } else continue;
+        asks.push(w);
+    }
+    if (!asks.length) return;
+    const [owner, name] = repo.split("/");
+    let data;
+    try {
+        data = await gitHub.graphql(
+            `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields.join(" ")} } }`,
+            { owner, name },
+        );
+    } catch {
+        return;
+    }
+    asks.forEach((w, i) => {
+        const got = data?.repository?.[`j${i}`];
+        const states = got?.associatedPullRequests
+            ? got.associatedPullRequests.nodes.map((/** @type {any} */ p) => p.state)
+            : [got?.state];
+        if (states.length && states.every((s) => s === "CLOSED" || s === "MERGED")) w.closed = true;
+    });
 }
 
 /**

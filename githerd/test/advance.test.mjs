@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { checkFaults, settleWaits, tickJobs } from "../lib/advance.mjs";
+import { checkFaults, confirmClosedWaits, settleWaits, tickJobs } from "../lib/advance.mjs";
 import { move, newJob, startPhase } from "../lib/board.mjs";
 
 const T0 = new Date("2026-10-04T12:00:00Z");
@@ -114,7 +114,7 @@ describe("settleWaits", () => {
         expect([checks, lane, onJob, gh].every((j) => j.state === "working")).toBe(true);
     });
 
-    it("holds a checks wait named by its pull request's number until that pull request's checks finish", () => {
+    it("holds a checks wait named by its pull request's number until that pull request's checks finish", async () => {
         // Sessions name the pull request (#1451), not a head sha: the wait must hold while CI runs.
         const byNumber = working("by-number");
         move(byNumber, "waiting", T0, { waitingFor: { checks: "1451" } });
@@ -139,7 +139,11 @@ describe("settleWaits", () => {
         const gone = working("gone");
         move(gone, "waiting", T0, { waitingFor: { checks: "#1500" } });
         state.jobs.gone = gone;
-        expect(settleWaits(state, at(4)).map((s) => s.job)).toEqual(["gone"]);
+        // Not in the poll is not closed (#1371): only GitHub's answer ends the wait.
+        expect(settleWaits(state, at(4))).toEqual([]);
+        const gitHub = { graphql: async () => ({ repository: { j0: { state: "CLOSED" } } }) };
+        await confirmClosedWaits(state, { gitHub, repo: "o/r" });
+        expect(settleWaits(state, at(5)).map((s) => s.job)).toEqual(["gone"]);
         expect(gone.news.at(-1).text).toBe("#1500 is no longer open");
     });
 
@@ -180,6 +184,74 @@ describe("settleWaits", () => {
         move(other, "cancelled", at(1));
         expect(settleWaits(state, at(2)).map((s) => s.line)).toEqual([{ kind: "job-unblocked", job: "issue-2" }]);
         expect(blocked).toMatchObject({ state: "queued" });
+    });
+});
+
+describe("a checks wait on a pull request the poll has not seen", () => {
+    it("is not seen yet until a poll shows it open, and ends only once GitHub says it closed", async () => {
+        const byNumber = working("by-number");
+        move(byNumber, "waiting", T0, { waitingFor: { checks: "1368" } });
+        const bySha = working("by-sha");
+        const SHA = "d".repeat(40);
+        move(bySha, "waiting", T0, { waitingFor: { checks: SHA } });
+        const state = stateOf(byNumber, bySha);
+        state.prs = { 7: { headSha: HEAD, required: { "All Checks Pass": "PENDING" } } };
+        /** @type {Record<string, string>} what GitHub answers: a pull request's state, a commit's */
+        const github = { 1368: "OPEN", [SHA]: "OPEN" };
+        /** @type {string[]} */
+        const queries = [];
+        const gitHub = {
+            graphql: async (/** @type {string} */ q) => {
+                queries.push(q);
+                return {
+                    repository: {
+                        ...(q.includes("pullRequest(number: 1368)") ? { j0: { state: github[1368] } } : {}),
+                        ...(q.includes(SHA)
+                            ? {
+                                  [q.includes("j1:") ? "j1" : "j0"]: {
+                                      associatedPullRequests: { nodes: [{ state: github[SHA] }] },
+                                  },
+                              }
+                            : {}),
+                    },
+                };
+            },
+        };
+        const poll = async () => {
+            await confirmClosedWaits(state, { gitHub, repo: "o/r" });
+            return settleWaits(state, at(queries.length + 1));
+        };
+        // Opened since the last poll: not in the open list, open on GitHub. No news, no requeue.
+        expect(await poll()).toEqual([]);
+        expect(queries).toHaveLength(1);
+        expect([byNumber.state, bySha.state]).toEqual(["waiting", "waiting"]);
+        // The poll sees both open with checks running: still waiting, and no fetch of its own.
+        state.prs[1368] = { headSha: "e".repeat(40), required: { "All Checks Pass": "PENDING" } };
+        state.prs[1370] = { headSha: SHA, required: { "All Checks Pass": "PENDING" } };
+        expect(await poll()).toEqual([]);
+        expect(queries).toHaveLength(1);
+        // Both close: gone from the open list, and GitHub confirms it. Now the news fires.
+        state.prs = {};
+        Object.assign(github, { 1368: "CLOSED", [SHA]: "MERGED" });
+        expect((await poll()).map((s) => s.line.news)).toEqual([
+            "#1368 is no longer open",
+            "the pull request of ddddddddd is no longer open",
+        ]);
+        expect([byNumber.state, bySha.state]).toEqual(["working", "working"]);
+    });
+
+    it("a failed query confirms nothing", async () => {
+        const job = working("job");
+        move(job, "waiting", T0, { waitingFor: { checks: "1368" } });
+        const state = stateOf(job);
+        const gitHub = {
+            graphql: async () => {
+                throw new Error("502");
+            },
+        };
+        await confirmClosedWaits(state, { gitHub, repo: "o/r" });
+        expect(settleWaits(state, at(1))).toEqual([]);
+        expect(job.state).toBe("waiting");
     });
 });
 

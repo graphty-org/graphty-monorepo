@@ -90,7 +90,7 @@ import { createGitHub, GitHubError, notSent } from "./github.mjs";
 import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
 import { pollIssues } from "./issues.mjs";
 import { syncJobs } from "./jobs.mjs";
-import { checkFaults, settleWaits, tickJobs, waitNews } from "./advance.mjs";
+import { checkFaults, confirmClosedWaits, settleWaits, tickJobs, waitNews } from "./advance.mjs";
 import {
     endIdleSessions,
     fillSlots,
@@ -1934,6 +1934,7 @@ export async function startDaemon({
         });
         await run("reports", () => settleReports(t));
         await run("stacks", () => stacks(nodes, branch));
+        await run("waits", () => confirmClosedWaits(state, { gitHub: gh, repo: config.repo }));
         if (state.trust.login) {
             await run("proposals", async () => {
                 const openPrs = new Set(nodes.map((/** @type {any} */ n) => n.number));

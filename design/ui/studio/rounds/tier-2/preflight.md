@@ -7,8 +7,7 @@ session's uncommitted graphty-element edits at build time: repairs in five sessi
 files (a misplaced comment, missing closing lines) that let the committed source build. The build
 includes them; the session files record the commit as "with uncommitted changes". The study tool
 served a copy of that same build (`REAL_DIST`), so every screenshot below is of these bytes. The tier 2 design is
-`next-steps/tier2-design.md`; the tasks are in `../../tasks.md` ("Tier 2 tasks") and the answers
-in `../../answers.md` ("Tier 2 answer key").
+`next-steps/tier2-design.md`; the tasks, answers, criteria and roster are in `../../tier2/`.
 
 Every path below is under `rounds/tier-2/preflight/` unless it says otherwise. Each check is a
 `tool/real.mjs` session: a task pilot (`T4A` ... `T21B`) or a check of one decision

@@ -1,0 +1,4 @@
+# bus-stops.csv opened from the start screen, as the participant last left it
+--click No thanks
+--click Open project or file...
+--upload bus-stops.csv

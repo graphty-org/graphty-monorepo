@@ -22,8 +22,8 @@ chain that links two people, the strong ties only, and the notes a reporter keep
 
 ## What she needs now
 
-1. The shortest chain of acquaintance between two people in her story, name by name, in order,
-   so she can check each link against her documents.
+1. The chain of acquaintance between two people in her story with the fewest people in between,
+   name by name and in order, so she can check each link against her documents.
 2. Notes on people as she reports ("spoke to him 12 May, denies board role"), kept with the map
    and still there when she comes back.
 3. A version of the map with only the strong ties, for the editor, and the full map back after.

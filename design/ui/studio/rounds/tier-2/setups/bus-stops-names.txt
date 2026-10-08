@@ -1,0 +1,10 @@
+# bus-stops.csv open with every name drawn (a label line on Everything bound to id)
+--click No thanks
+--click Open project or file...
+--upload bus-stops.csv
+--click Everything
+--click role=tab:Style
+--click Add label line
+--click role=option:id
+--click Show all labels
+--key Escape

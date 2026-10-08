@@ -22,6 +22,7 @@ import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
+import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -1393,6 +1394,8 @@ export class Node {
         // Labels that would overlap on screen are thinned out when `labels.declutter` is on; see
         // LabelDeclutter.
         LabelDeclutter.track(scene, this.context, this);
+        // Its animation starts on the next frame the layout is at rest, or when it settles.
+        oweLabelAnimations(scene);
         return new RichTextLabel(scene, labelOptions);
     }
 

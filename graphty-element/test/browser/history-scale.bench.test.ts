@@ -33,7 +33,7 @@
  *   loading the graph, drawn                            1,500 to 2,300 ms
  *   undoing the removal of 1,000 nodes                    110 to 240 ms
  *   undoing a drag, at rest                                40 to 60 ms
- *   undoing a replacing import                          1,400 to 2,300 ms
+ *   undoing a replacing import                          1,400 to 2,300 ms (median of three)
  *   a replacing import, tearing the graph down          1,200 to 2,400 ms
  *   restoreTo(null) over those steps                      210 to 260 ms
  *
@@ -208,20 +208,48 @@ describe("undo on a real graph at the largest graph it draws", () => {
         "undoing a replacing import costs about what the load it brings back cost",
         async () => {
             const session = graph.getSession();
-            const replacing = await time(async () => {
-                await session.data.import(
-                    { type: "json", config: { data: '{"nodes":[{"id":"r"}],"edges":[]}' } },
-                    { mode: "replace" },
+            // Timed against a load in the same window, as the teardown below is: three rounds,
+            // each a replacing import, the graph loaded again by a second one (timed), that load
+            // undone, and then the first import undone (timed), compared by their medians. One
+            // undo against the load in `beforeAll` measured how busy the machine was at two
+            // moments minutes apart, and failed under several pre-push gates at once (issue
+            // #1457). Each round ends where it started, at the same place in the history.
+            const undos: number[] = [];
+            const loads: number[] = [];
+            for (let round = 0; round < 3; round++) {
+                const replacing = await time(async () => {
+                    await session.data.import(
+                        { type: "json", config: { data: '{"nodes":[{"id":"r"}],"edges":[]}' } },
+                        { mode: "replace" },
+                    );
+                    await idle();
+                });
+                report("a replacing import, tearing the graph down", replacing);
+                loads.push(
+                    await time(async () => {
+                        await session.data.import({ type: "json", config: { data: json } }, { mode: "replace" });
+                        await operationQueueOf(graph).waitForCompletion();
+                    }),
                 );
                 await idle();
-            });
-            report("a replacing import, tearing the graph down", replacing);
-            const ms = await time(() => session.undo());
-            report("undoing a replacing import", ms);
-            assert.strictEqual(session.snapshot().nodeCount, NODES - 1000);
+                await session.undo();
+                assert.strictEqual(session.snapshot().nodeCount, 1);
+                await idle();
+                undos.push(await time(() => session.undo()));
+                assert.strictEqual(session.snapshot().nodeCount, NODES - 1000);
+                await idle();
+            }
+
+            report(
+                `undoing a replacing import, median of ${undos.map((ms) => ms.toFixed(0)).join(", ")}`,
+                median(undos),
+            );
+            report(
+                `loading the graph beside it, median of ${loads.map((ms) => ms.toFixed(0)).join(", ")}`,
+                median(loads),
+            );
             // Only the parse is saved; every render object is built again.
-            assert.isBelow(ms, 1.5 * loadMs);
-            await idle();
+            assert.isBelow(median(undos), 1.5 * median(loads));
         },
         TIMEOUT_MS,
     );

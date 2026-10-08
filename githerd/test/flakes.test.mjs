@@ -3,7 +3,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+
+import { isolateGit } from "../../tools/isolated-git-env.mjs";
 
 import { classify } from "../lib/classify.mjs";
 import {
@@ -211,6 +213,8 @@ const poll = (state, nodes, github, logs, commits = []) =>
 
 const writes = (/** @type {ReturnType<typeof fakeRepo>} */ repo) =>
     repo.gh.writes().map((c) => `${c.args[3]} ${c.args[4].slice(R.length)}`);
+
+beforeAll(() => isolateGit());
 
 describe("failingTests: occurrence extraction", () => {
     it("reads the failing test of a real CI log, with its package from the job's shard", () => {

@@ -10,11 +10,25 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-07 -- The tier 2 answer key is corrected for build ca8b3b916c22 only. The seven app
-  fixes it was meant to follow (report wording, left-out row kept in Sources, Enter moving From to
-  To, the path's weight truth, live rule check, selection summary words, Overview under a filter)
-  had NOT landed when it was edited. Once they land: re-walk T4, T17, T18, T20, T22 and replace
-  every "on build ca8b3b916c22" sentence in `tier2/answers.md`.
+- 2026-10-08 -- TIER 2 STUDY BUILD FROZEN: e2ccec0e9304, served from
+  `.study-builds/tier2-e2ccec0e9/` with `REAL_DIST` (first line of `tier2/criteria.md`). Every
+  task, both halves, walked on it (`tier2/pilot/final.md`): all 18 reach their end state, no
+  script error, miss or moving drawing. `tool/real.mjs --prove` on it: 3 of 4 runs passed every
+  check; one failed "a first save names the project" once (the Save as dialog never opened after
+  Escape closed Export); cause not found, so watch for it in a session's save before blaming the
+  participant.
+- 2026-10-08 -- The answer key is re-recorded on that build, every "on build ca8b3b916c22" note
+  checked; criteria change log lists each edit. No bar and no prompt changed; T20's avoided words
+  gained "set", "date", "time" (new controls "Not set", "Date or time").
+- 2026-10-08 -- What changed under the participants, and what to watch: a path opens on its
+  Values and its tree row says "4 hops" (no more 61/35/27/24 to misread); the Weight box shows
+  None when the loaded weight is not read; Higher means starts on a visible "Not set" (T20's trap
+  is now visible but still a trap: Not set means paths ignore the minutes); the left-out row stays
+  on the source after Load (T4's likeliest false-done is weaker). Watch T20 for participants who
+  leave "Not set" and still pass by the per-run route: graded SD, as before.
+- 2026-10-08 -- Watch items left on screen, not fixed (in the key): T21 lays the drawing out
+  again after Replace; Find frames the graph off the canvas; Hops 1 and Hops 2 lists differ; thin
+  gold bands on Les Miserables; legend layer names say "route".
 - 2026-10-07 -- TIER 2 IS READY FOR THE OWNER TO START: `tier2/criteria.md` (frozen), `tasks.md`,
   `answers.md`, `roster.md`. Nine tasks on two datasets each (T4, T17-T24); 54 sessions in round 1;
   core four T20, T21, T17, T18 at 4+4. Owner: no keyboard-only, screen-reader or touch sessions.
@@ -30,8 +44,8 @@ made and evidence comes in.
   record values, wording check over prompts AND histories, extend `bars.mjs` to tier 2 screens,
   write the bar 7 weight script and prove it on a planted wrong reading, run tier 1 paths too.
 - 2026-10-07 -- Known gaps the new tasks will meet (in the key, graded by end state): a selection
-  of several edges lists no members and cannot select their ends; clicking Everything replaces the
-  selection; the bus-stops edge inspector repeats "from"/"to" rows; Find frames off center.
+  of several edges lists no members and cannot select their ends; Find frames off center.
+  (2026-10-08: Everything keeps the selection, and the from/to rows are gone.)
 - 2026-10-07 -- Tier 1 report: bars 1-6 and 9 hold in round 3; 7 fails on missing data, 8 on one
   contrast color. A sev 4 needs a wrong conclusion a reader would act on, from what the
   participant could perceive. Never name the expected outcome to graders.
@@ -135,8 +149,7 @@ reasons, in short:
   autofocus removal (it created a severity 3); treating T11's 4.00 as below the floor.
 
 - 2026-10-07 (researcher, round 3 plan and preflight) -- Sized round 3 at 56: full size for the
-  tasks whose path changed most or whose round 2 numbers missed a target (T15 10, T10 8, T9 8, T11
-  5) and for the one task below its bar by the scores (T6 5, though the skeptics held its failure
+  tasks whose path changed most or whose round 2 numbers missed a target (T15 10, T10 8, T9 8, T11 5) and for the one task below its bar by the scores (T6 5, though the skeptics held its failure
   not shown); regression checks at 4 for T12 (2 and 2; 8 of 8 in round 2, one small fix) and T7 B;
   the rest at 1 to 3 so every tier 1 task is seen. Reasons: the full rule needs about 70; the
   round's questions (names checkbox, Size list, group layouts, reading mode) sit on T10, T9, T15,

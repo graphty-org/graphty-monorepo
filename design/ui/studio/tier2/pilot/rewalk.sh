@@ -37,7 +37,8 @@ T4A) walk T4A empty '--click "No thanks"' '--click "New from data..."' \
 T4B) walk T4B empty '--click "No thanks"' '--click "New from data..."' \
     '--click "choose a file..." --upload players.csv' '--click "Add a table"' \
     '--click "File..." --upload passes.csv' '--click "Show the 1 unmatched row"' \
-    '--click "Load"' '--click "Data"' '--hover "players.csv and passes.csv"' ;;
+    '--click "Load"' '--click "Data"' '--hover "players.csv and passes.csv"' \
+    '--click "players.csv and passes.csv"' ;;
 T17A) walk T17A setup:$SET/friends.txt '--click "Data"' '--click "weight"' '--click "Attribute actions"' \
     '--click "Filter to..."' '--click "Value" --type 4' '--click "Add step"' \
     '--hover "weight is at least 4"' '--click "Apply step: weight is at least 4"' ;;

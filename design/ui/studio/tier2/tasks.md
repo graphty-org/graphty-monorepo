@@ -28,7 +28,7 @@ changes:
   the open work as the participant's own ("is already open").
 - **No keyboard-only, screen-reader or touch sessions** (owner, 2026-10-07). Participants use the
   pointer and the keyboard as they like.
-- **Starts.** *Empty* = `--start <dir> empty`. *Setup* = `--start <dir> setup:<file>` with a file
+- **Starts.** _Empty_ = `--start <dir> empty`. _Setup_ = `--start <dir> setup:<file>` with a file
   from `../rounds/tier-2/setups/`, which the participant never sees. No task starts from a saved
   project file: reopening a saved project was measured in tier 1 (T14), and a setup reaches the
   same open work without depending on the project file format, which changes with the build.
@@ -53,17 +53,17 @@ changes:
 
 ## The tasks
 
-| Task | What it is about | A | B |
-|---|---|---|---|
-| T4 | Joining two tables | office: people.csv + messages.csv | football: players.csv + passes.csv |
-| T17 | Filtering | running club (friends.csv) | Les Miserables |
-| T18 | The shortest chain between two nodes | running club | Florentine families |
-| T19 | Notes | running club | Florentine families |
-| T20 | A weight set at load and used by every run | bus-stops.csv | trails.csv |
-| T21 | Rerunning on new data | friends.csv to friends-v2.csv | team.csv to team-v2.csv |
-| T22 | Marking everything that meets a condition (select where, rules) | bus-stops.csv | Les Miserables |
-| T23 | Neighborhood distance | running club | Florentine families |
-| T24 | One tie on the drawing (edge selection) | running club | bus-stops.csv |
+| Task | What it is about                                                | A                                 | B                                  |
+| ---- | --------------------------------------------------------------- | --------------------------------- | ---------------------------------- |
+| T4   | Joining two tables                                              | office: people.csv + messages.csv | football: players.csv + passes.csv |
+| T17  | Filtering                                                       | running club (friends.csv)        | Les Miserables                     |
+| T18  | The shortest chain between two nodes                            | running club                      | Florentine families                |
+| T19  | Notes                                                           | running club                      | Florentine families                |
+| T20  | A weight set at load and used by every run                      | bus-stops.csv                     | trails.csv                         |
+| T21  | Rerunning on new data                                           | friends.csv to friends-v2.csv     | team.csv to team-v2.csv            |
+| T22  | Marking everything that meets a condition (select where, rules) | bus-stops.csv                     | Les Miserables                     |
+| T23  | Neighborhood distance                                           | running club                      | Florentine families                |
+| T24  | One tie on the drawing (edge selection)                         | running club                      | bus-stops.csv                      |
 
 ### T4. Two spreadsheets as one network (two datasets)
 
@@ -147,7 +147,8 @@ changes:
   kilometers."
 - **Start:** empty. **Files:** A `bus-stops.csv`; B `trails.csv`.
 - **Suits:** students and analysts (Dev returning, Alex).
-- **Words avoided:** "weight", "higher", "means", "farther", "closer", "distance", "path". B says
+- **Words avoided:** "weight", "higher", "means", "farther", "closer", "distance", "path", "set" (the
+  "Not set" choice), "date", "time" (the "Date or time" role). B says
   "shortest walk", which shares "shortest" with the Path popover's title "Shortest path": kept,
   because "the shortest walk" is the hiker's own phrase and A measures the same step without it;
   a pass on B with a fail on A is reported as a wording echo, as tier 1's T10 B is.

@@ -1,0 +1,25 @@
+== T21A start setup:/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/tier-2/setups/friends-pagerank.txt
+commit 1202de900c16d4a8e475179740e8fc884f547723, build e2ccec0e9304 graphty@0.8.56
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/A/01.png
+exit 0
+== T21A step: --click "PageRank" --click "Values"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/A/02.png
+exit 0
+== T21A step: --click "Data"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/A/03.png
+exit 0
+== T21A step: --rclick "friends.csv"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/A/04.png
+exit 0
+== T21A step: --click "Replace with file..." --upload friends-v2.csv
+a file chooser is open (answer it with --upload <file>)
+chose the file friends-v2.csv
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/A/05.png
+exit 0
+== T21A step: --click "Load"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/A/06.png
+exit 0
+== T21A step: --click "Rerun"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/A/07.png
+exit 0
+session ended: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/A

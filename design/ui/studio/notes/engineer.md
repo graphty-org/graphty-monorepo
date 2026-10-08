@@ -15,6 +15,37 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+0. (2026-10-08) **Tier 2 pilot findings fixed; study build frozen e2ccec0e9304
+   (`.study-builds/tier2-e2ccec0e9/`, `REAL_DIST`).** Commits 58f02b5d0 (element), a2bbb2248
+   (compact-mantine), 32c645e6b (app). What and why:
+    - ELEMENT (owner door, `owner-decisions.md` 2026-10-08): `LoadedSource.leftOut.edges`
+      (`LeftOutEdge {source,target,values}`, first 100) so the left-out rows survive Load, save
+      and reopen; the app's "Show the left-out row" link (which reopened the Data page, only while
+      the app still held the file) is DELETED, the source inspector lists the rows. Second fix in
+      `ingest.ts endpointsFor`: declared ends (a draft's `from`/`to`) were never stored as
+      `loadEndpoints`, so `sealLoad` reported the configured `source`/`target` and `attributes()`
+      listed from/to as edge columns -- the bus-stops edge showed "from Station" under "From
+      Station". Tried an app filter on `roles` first: roles were empty because the report was
+      wrong, so the fix is the element's. Test `load-draft.test.ts` "reports the end columns...".
+    - APP: path run opens on Values (`Inspector.tsx`, `run.shape === "path"`, like a node's
+      alwaysOpenOn) and its kind word is "Path"; tree row count is `hops` ("4 hops", not
+      `summary.measured` = nodes + edges; "5 nodes, 4 edges" cut the row's name); legend drops a
+      highlight's fixed width ("24"); Values label "Path" (design: never "route").
+    - Weight box default DECIDED: show what the run will read. Loaded weight read -> "minutes
+      (farther, loaded)"; not read -> "None" with the plan's reason under it, the loaded entry
+      listed "(loaded, not read)" but disabled (choosing it runs exactly as None). Why: tier2-design
+      section 5 says the run reads the loaded weight by default and a distance reader counts hops
+      when the meaning is not farther; the box must name what happens, not what is loaded.
+    - Higher means gets a checked "Not set" segment (an unset SegmentedControl draws no choice, so
+      no state was visible); `setWeightMeaning(table, undefined)` unsets. Role word "Time" ->
+      "Date or time" (it is `edgeTimePath`, a timestamp; minutes read as it). Unmatched sentence:
+      "names a node missing from the node rows". Filter step editor header says On / Off
+      (`useVisibilityVersion` in Inspector).
+    - compact-mantine `EllipsizedName`: pointerdown shuts the cut-name tooltip (it covered the
+      child rows after a click).
+      OPEN, not fixed: T21 Replace relayouts every node (positions not kept: element capability);
+      `real.mjs --prove` failed once in 4 on the first save (cause not found).
+
 1. (2026-10-07) **Tier 2 re-walk DONE: all 12 pilots reach the answer (647ba88b2).** T4, T17, T18,
    T20, T22, T24 x two datasets, `tier2/pilot/rewalk.sh`; each pilot.md has a "Re-walk" section with
    a screenshot per fixed finding; no console error, failed request or false "still moving".
@@ -91,31 +122,31 @@ acceptance test. "The studio worktree" is
    `canvasMoves` compares only cells where `elementFromPoint` hits the element; `REAL_PROVE_DIR`
    gives a self-test its own folder. Ceiling: a `pointer-events: none` overlay still counts.
 10. (2026-10-07) **Overview under a filter (app only, no door).** While any step is on,
-   `GraphValues.tsx Overview` leads with "Nodes showing 19 of 20" and "Edges showing 12 of 41"
-   (`visibility.summary`), then "The counts below are for the whole graph."; no step, unchanged.
-   Two rows, not one "19 of 20 nodes, 12 edges" value: that cut to "12 ed..." in the inspector.
-   `useVisibilityVersion` moved to `data-place/useVisibilityVersion.ts` (fast-refresh warning).
-   Proof: `Inspector.test.tsx` ("leads the Overview..."), `tmp/t2pilotfix-app-overview-under-filter/10.png`.
+    `GraphValues.tsx Overview` leads with "Nodes showing 19 of 20" and "Edges showing 12 of 41"
+    (`visibility.summary`), then "The counts below are for the whole graph."; no step, unchanged.
+    Two rows, not one "19 of 20 nodes, 12 edges" value: that cut to "12 ed..." in the inspector.
+    `useVisibilityVersion` moved to `data-place/useVisibilityVersion.ts` (fast-refresh warning).
+    Proof: `Inspector.test.tsx` ("leads the Overview..."), `tmp/t2pilotfix-app-overview-under-filter/10.png`.
 11. (2026-10-07) **Find names an edge the way the inspector does (app, no door).** `FindBox hitName`
-   calls `inspector/words.ts edgeName` with the hit's end NAMES: "Market -> Library" on a directed
-   graph, "A -- B" otherwise (was a hardcoded "--"). OPEN: the inspector's `edgeName` callers pass
-   the record's source/target IDS, so on data whose ids differ from names the two still disagree.
-   Proof: `GraphPlace.test.tsx` "names an edge hit" (directed case fails before),
-   `tmp/t2pilotfix-app-edge-name-one-way/s1/05.png`, `06.png` (bus-stops).
+    calls `inspector/words.ts edgeName` with the hit's end NAMES: "Market -> Library" on a directed
+    graph, "A -- B" otherwise (was a hardcoded "--"). OPEN: the inspector's `edgeName` callers pass
+    the record's source/target IDS, so on data whose ids differ from names the two still disagree.
+    Proof: `GraphPlace.test.tsx` "names an edge hit" (directed case fails before),
+    `tmp/t2pilotfix-app-edge-name-one-way/s1/05.png`, `06.png` (bus-stops).
 12. (2026-10-07) **compact-mantine row fixes (no door).** Long stat values stay in the row
-   (a8dae1930, `.cm-data-row-body` grid; tooltip mounted only while cut); a cut row name's tooltip
-   opens from anywhere on its row (`EllipsizedName` measures on the row's `pointerover`).
-   Selected edge = halo band (288624ad1, `Edge.paintHalo`, knob `selectionStyle.opacity`).
+    (a8dae1930, `.cm-data-row-body` grid; tooltip mounted only while cut); a cut row name's tooltip
+    opens from anywhere on its row (`EllipsizedName` measures on the row's `pointerover`).
+    Selected edge = halo band (288624ad1, `Edge.paintHalo`, knob `selectionStyle.opacity`).
 13. (2026-10-07) **Tier 2 app features DONE (no door; proofs in each `*.real-element.test.tsx`):**
-   Replace with file + out-of-date runs ca8b3b916 (positions not kept); Neighborhood header
-   (ELEMENT GAP: neighborhood filter has no `direction`); Sources per load + Edit source 8569342f6
-   (ELEMENT GAP, unfiled: `LoadedSource` keeps neither input nor roles); Path popover 587e2930e
-   (no Follow: Dijkstra always undirected); Filters 7742cd688 (read a step BEFORE undoing it).
+    Replace with file + out-of-date runs ca8b3b916 (positions not kept); Neighborhood header
+    (ELEMENT GAP: neighborhood filter has no `direction`); Sources per load + Edit source 8569342f6
+    (ELEMENT GAP, unfiled: `LoadedSource` keeps neither input nor roles); Path popover 587e2930e
+    (no Follow: Dijkstra always undirected); Filters 7742cd688 (read a step BEFORE undoing it).
 14. (2026-10-07) **Open defects found by the tier 2 preflight:** path row counts 61 (`summary.measured`,
-   `graph-place/rows.ts`), header calls a path "Measure";
-   Edit source... ADDS (41 -> 82); adding a file of all-new people defaults to "Leave out" (adds
-   nothing); a reopened project's Direction row shows raw `"directed": f...`; Find framing leaves the
-   graph off-canvas; element caps a load at one node + one edge table.
+    `graph-place/rows.ts`), header calls a path "Measure";
+    Edit source... ADDS (41 -> 82); adding a file of all-new people defaults to "Leave out" (adds
+    nothing); a reopened project's Direction row shows raw `"directed": f...`; Find framing leaves the
+    graph off-canvas; element caps a load at one node + one edge table.
 
 ## Priorities and values
 
@@ -189,7 +220,7 @@ acceptance test. "The studio worktree" is
   inspector width.
 
 - (2026-10-06/07) No default layout seed in the element (owner): the app seeds (`LAYOUT_SEED`,
-    `takesSeed()`). Grep every route of a value; any NEW site showing a run calls `runName`.
+  `takesSeed()`). Grep every route of a value; any NEW site showing a run calls `runName`.
 
 - (2026-10-07) **Replace reads `run.stale`, never reruns (no door).** One `outOfDate` glyph, words
   in Tree's `label`; Rerun passes `stale.scopeSpec`; the weight meaning is re-applied in the page
@@ -244,7 +275,7 @@ acceptance test. "The studio worktree" is
 - (2026-10-07) Unmatched-rows verb agrees (f1f041a40). real.mjs: "New from data..." opens NO file
   chooser (the T4 path in `answers.md` assumes one); click "Add a table" > "File..." first.
 - (2026-10-07) compact-mantine browser suite is file-order dependent (color test leaves `(hover:
-  none)` on; not fixed).
+none)` on; not fixed).
 - (2026-10-07) A partial-hunk commit by another agent can leave HEAD broken (`isLoadedSource`
   cut off; fixed 0c12c233b). `api:report` reads `dist/` types: build the element first, stage
   only my hunks. Bars: 41 app words at rest (limit 50); axe 0 on 13 screens (`tool/bars.mjs`).

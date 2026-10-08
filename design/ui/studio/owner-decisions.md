@@ -4,6 +4,34 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- The left-out rows themselves: `LoadedSource.leftOut.edges` and `LeftOutEdge`
+
+**What.** One optional field on `LoadedSource.leftOut`: `edges?: readonly LeftOutEdge[]`, the
+first 100 edge rows the load left out, each as `{ source, target, values }` -- its two ends as the
+load read them, and its other values by column (the end columns left out when they are plain
+column names). `LeftOutEdge` is a new exported type of `./session`. Kept with the load, so it is
+saved in the project file and moves with undo and redo; a project saved before has no `edges`
+and still opens. Additive, not breaking.
+
+Also, a behavior fix with no API change: a draft load whose mapping names its end columns
+(`from`, `to`) now reports them as the load's endpoints (`LoadReport.endpoints`, `resolvedFrom:
+"declared"`), so `attributes()` no longer lists those columns as edge attributes, as it never
+listed `source` and `target`.
+
+**Why.** The tier 2 pilots found that after Load the count of left-out rows was kept but the rows
+were not: a reader who wanted to know which pass did not fit had to reopen the source file, which
+an application can do only while it still holds the file (never after a save and reopen). With
+the rows kept, the app lists "s04, s11, 3" under the source at any time. The end columns appeared
+twice in an edge's values ("From Station" and "from Station") because the report named the
+configured defaults instead of the columns the load read.
+
+**Alternatives.** Keep every left-out row (unbounded growth of the saved file for a file that
+mostly does not fit; 100 is enough to show and count). Keep the row as one record with its
+original keys (the app could not tell which values are the ends, and their order is not the
+file's). Leave the end columns as attributes and have the app hide columns whose role is source
+or target (it would hide the defect: the element's report was wrong, and every consumer reading
+`lastImport()` or `attributes()` would meet it).
+
 ## 2026-10-08 -- Export variants and the Graphty JSON format in the format catalog
 
 **What.** Four additions to the format catalog (the `./catalog` and `./extend` entry points):

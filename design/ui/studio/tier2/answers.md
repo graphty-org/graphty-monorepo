@@ -7,8 +7,10 @@ graded from the last screenshot, the downloads and the transcript, never from a 
 build defects confirmed by a scripted repro.
 
 **Screenshot paths** such as `preflight/T17A/09.png` or `T17A/09.png` are under
-`../rounds/tier-2/preflight/`. Paths starting `pilot/` are in this folder: the re-pilot of every
-task on build ca8b3b916c22 at commit 6eba30d4e.
+`../rounds/tier-2/preflight/` (build ca8b3b916c22, before the tier 2 fixes). Paths starting
+`final/` are in this folder (`final/T4/A/07.png` is `pilot/T4-final/A/07.png`): the walk of every success path on the
+study build e2ccec0e9304 (`criteria.md`, first line), with each session's steps in
+`pilot/<task>-final/<A|B>.steps.log`. Where the two differ, the final walk is the screen.
 
 **Where the values come from.** Every reference value was read from graphty-element on the served
 build `ca8b3b916c22 graphty@0.8.55` (https://dev.ato.ms:9366/?next, 2026-10-07), two ways: a probe
@@ -19,12 +21,12 @@ a pilot of every task through the app with `tool/real.mjs`, whose screenshots sh
 the screens' and agree with a count from the files (`preflight/reference/hand.py`). A ranking is
 the element's PageRank, which follows each tie from its first column to its second (a CSV opened
 "as the file says" is directed); NetworkX's undirected PageRank gives a different order, so never
-grade against a hand calculation.
+grade against a hand calculation. Every value was then read again on the study build e2ccec0e9304
+from the final walk's screens (`pilot/<task>-final/`), and agrees.
 
 **Every value and every "known on this build" note is re-recorded on the build a round studies**
-(criteria, preflight items 3 to 5). Fixes in flight when this key was written change some of them:
-the From field moving on to To, "Edit source..." adding a copy, and the path row's number. A note
-the round's build no longer shows is deleted before the round, not graded.
+(criteria, preflight items 3 to 5). This key is recorded on build e2ccec0e9304; a note that build
+no longer shows has been deleted, not left for graders.
 
 **Success paths** are `real.mjs` steps, walked once each on that build (pilots). Steps marked
 (click-at) use a point from the pilot's screenshot; a point is valid only for that build and that
@@ -52,19 +54,25 @@ seed, so the pilot of each round re-reads it.
 - **A (office): 12 people and 22 links arrived; messages.csv has 23 rows, and one of them (line 24,
   `p11,p13,6`: Kemi Bello emails p13 six times) names p13, who is not on the staff list.** The Data
   page says so before loading: "12 node rows and 23 edge rows read; the load makes 12 nodes and 22
-  edges." and "1 edge row names 1 node no node row holds. Show the 1 unmatched row", with "Leave
-  out" chosen (`preflight/T4A/05.png`). After Load: header "From 2 files", Overview Nodes 12, Edges
-  22, and a Sources row whose name is cut to "people.cs..." (people.csv and messages.csv), "12
-  nodes, 22 edges", with both tables under it (`T4A/06.png`, `07.png`). Choosing "Add" instead loads 13 nodes and 23 edges (p13 becomes a
+  edges." and "1 edge row names a node missing from the node rows. Show the 1 unmatched row", with
+  "Leave out" chosen; the link shows line 24, `p11, p13, 6` (`final/T4/A/07.png`). After Load:
+  header "From 2 files", Overview Nodes 12, Edges 22, and a Sources row whose name is cut to
+  "people.csv and mess..." (its tooltip: "people.csv and messages.csv"), "12 nodes, 22 edges, 1 row
+  left out", with both tables under it. Selecting it opens the source in the inspector: Added
+  Nodes 12, Edges 22, "1 edge row was left out: it names a node missing from the node rows.", and
+  the row itself, "p11, p13, 6" (`final/T4/A/11.png`). Choosing "Add" instead loads 13 nodes and 23 edges (p13 becomes a
   node with no name); either choice is correct if the participant says which row did not fit.
 - **B (football team): 10 players and 17 passes arrived; passes.csv has 18 rows, and one
   (line 17, `s04,s11,3`: Dina Moss passes 3 times to s11) names s11, who is not in players.csv.** Data
   page: "10 node rows and 18 edge rows read; the load makes 10 nodes and 17 edges", "1 edge row
-  names 1 node no node row holds" (`T4B/03.png`); after Load: "From 2 files", 10 nodes, 17 edges
-  (`T4B/04.png`). With "Add": 11 and 18.
+  names a node missing from the node rows", line 17, `s04, s11, 3` (`final/T4/B/07.png`); after
+  Load: "From 2 files", 10 nodes, 17 edges; the source's inspector lists "s04, s11, 3"
+  (`final/T4/B/11.png`). With "Add":
+  11 and 18.
 - **Success path:** `--click "No thanks"`; `--click "New from data..."`; `--click "choose a
 file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); `--click "File..."
---upload messages.csv`; read the report; `--click "Load"`; `--click "Data"` (Sources).
+--upload messages.csv`; read the report (`--click "Show the 1 unmatched row"` shows it); `--click
+"Load"`; `--click "Data"` (Sources); selecting the source shows the left-out row again.
 - **Other routes:** opening people.csv from "Open project or file..." loads it straight in (12
   nodes, no ties); then Control+O with messages.csv goes through the Data page as an addition
   (not piloted). Grade SD if the end state and the unmatched row are right.
@@ -72,11 +80,10 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   (or "one email row names someone not on the staff list"). **SD:** counts right but the unmatched
   row found only after a detour, or not named but counted ("22 of 23"). **F:** `false-done`
   ("everything arrived" with 22 of 23 links), `never-found` (only one file in), wrong counts.
-- **After Load the left-out row is recorded nowhere** on build ca8b3b916c22: the Sources row reads
-  "12 nodes, 22 edges" and selecting messages.csv under it shows nothing about the row
-  (`pilot/T4/A/10.png`). A participant who loads without reading the report can name the row
-  only by comparing 22 with the file's 23 rows: S if they do, `false-done` if they say everything
-  arrived.
+- **After Load the left-out row is still on screen:** the Sources row says "1 row left out" (its
+  quiet text is cut at the default panel width) and the source's inspector lists the row. A
+  participant who loads without reading the report and then finds it there is S; one who says
+  everything arrived is `false-done`.
 - **Note:** the people's names are an Attribute, not the label, by default; the drawing shows no
   names. Not part of the task; record any participant who stops to put names on.
 
@@ -85,12 +92,15 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
 - **A (running club): 19 of the 20 people are still in it, joined by 12 ties.** Theo is the one
   left out (none of his ties reaches 4). Screen: header chip "19 of 20 nodes"; the Filters row
   "weight is at least 4 20 to 19 nodes" with its checkbox ticked; the drawing shows 12 ties
-  (`preflight/T17A/09.png`). The edge count is not written anywhere on screen; 12 is for a
-  participant who counts the lines and is not required. **Back:** untick the step's checkbox
+  and the Overview leads with "Nodes showing 19 of 20" and "Edges showing 12 of 41", then "The
+  counts below are for the whole graph." (`final/T17/A/07.png`). The step's own editor (a click on
+  its row) says "On", and "Off" once unticked. **Back:** untick the step's checkbox
   ("Apply step: weight is at least 4"); the row reads "weight is at least 4 off" and the chip
-  goes (`T17A/12.png`). Undo or deleting the step is equally right.
+  goes (`final/T17/A/09.png`). Undo or deleting the step is equally right.
 - **B (Les Miserables): 26 of the 77 characters are still in it, joined by 51 ties.** Chip "26 of
-  77 nodes", row "shared_ch... 77 to 26 nodes" (`T17B/03.png`). Back as in A.
+  77 nodes", row "shared_ch... 77 to 26 nodes" (hovering it shows "shared_chapters is at least 5"),
+  Overview "Nodes showing 26 of 77", "Edges showing 51 of 254" (`final/T17/B/07.png`). Back as in
+  A.
 - **Success path (A):** `--click "Data"`; `--click "weight"` (the attribute row); `--click
 "Attribute actions"`; `--click "Filter to..."`; `--click "Value" --type 4`; `--click "Add step"`;
   read the chip; `--click "Apply step: weight is at least 4"`. On B the attribute is
@@ -103,55 +113,57 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   instead (selected dots highlighted but nothing left out: the chip never appears), or never
   brought back (`work-lost` if the step was deleted with no way back and the participant believed
   the club gone).
-- **Wrong reading on build ca8b3b916c22:** with the step on, the Overview still reads Nodes 20,
-  Edges 41 (B: 77, 254) and nothing there says these are the whole graph's counts
-  (`pilot/T17/07.png`). 20 (or 77) given as "still in it" is `read-wrong`; record it as a wrong
-  reading the build invited.
+- **Wrong reading:** under the "showing" rows the Overview still lists Nodes 20, Edges 41 (B: 77,
+  254), below the line that says they are the whole graph's. 20 (or 77) given as "still in it" is
+  `read-wrong`.
 
 ## T18. The fewest people in between
 
 - **A (running club): Chloe, Ava, Ivan, Kofi, Milo -- 4 introductions, 3 people in between. It is
-  the only chain of that length.** Screen: Path popover, then the run's Values: "Route 5 nodes, 4
-  edges", "Nodes in order" Chloe 1, Ava 2, Ivan 3, Kofi 4, Milo 5; Made with "Weight: not read --
-  weight has no meaning chosen, and a path needs a distance" (`preflight/T18A/04.png`). The tie
+  the only chain of that length.** Screen: the Path popover, whose Weight box reads "None" under "Not
+  read -- weight has no meaning chosen, and a path needs a distance" (`final/T18/A/02.png`); after
+  Find path the run opens on its Values: "Path 5 nodes, 4 edges", "Nodes in order" Chloe 1, Ava 2,
+  Ivan 3, Kofi 4, Milo 5; Made with "Weight: not read -- weight has no meaning chosen, and a path
+  needs a distance" (`final/T18/A/07.png`). The Graph tree row reads "Shortest path 4 hops". The tie
   numbers are runs together, not distances: a participant who sets them as a distance gets a
   different chain and is wrong for this task (`meaning-wrong`).
 - **B (Florentine families): Strozzi, Ridolfi, Medici, Salviati, Pazzi -- 4 marriages, 3
   families in between; the only chain of that length.** Values as in A; Made with "Weight: none
-  (each edge counts 1)" (`T18B/04.png`).
+  (each edge counts 1)" (`final/T18/B/07.png`).
 - **Success path (A):** `--key p` (or a node's menu "Path between...", or Analyze, "Shortest
   path"); `--type Chloe --click "Chloe"` (the option); `--click "To" --type Milo --click "Milo"`;
-  `--click "Find path"`; `--click "Values"`. The pick buttons beside From and To also take a click
+  `--click "Find path"` (the run opens on its Values). Typing a name and pressing Enter in From moves
+  on to To, and Enter in To moves on to Find path, as in B's walk. The pick buttons beside From and To also take a click
   on a node, but friends.csv and the Florentine sample draw no names by default, so a participant
   must name the people by typing or put names on first.
-- **Known on this build:** typing a name and pressing Enter in From does not move to To; a second
-  name typed lands in From ("No node named DepotHarbor", `T20A/10.png`). Record it as a wrong turn
-  caused by the build, not the participant. The Graph tree row reads "Shortest path 61" in A and
-  "Shortest path 35" in B (counts that are not the chain), and the legend reads "Shortest route
-  (edges) 24" in both: none of them is the answer (`pilot/T18/A/08.png`, `B/07.png`). In A
-  the popover's Weight box is preset to "weight (loaded)" while the run reports "Weight: not
-  read"; a participant who stops to set it to None took a detour the build caused.
+- **Known on this build:** the legend names the highlight "Shortest route (edges)" and "Shortest
+  route (nodes)" (the element's layer names). In the Weight list of A, "weight (loaded, not read)"
+  is listed but cannot be chosen.
 - **S:** names in order and the count (4 introductions, or 3 people between, or 5 people in the
   chain) read off the Values or the drawing with names on. **SD:** right chain after a detour, or
-  read from the highlighted drawing with names put on. **F:** a longer chain, a guess from the
-  drawing with no names on screen (`not-run`), or the tree row's number given as the count
-  (`read-wrong`: 61, 35 or 24).
+  read from the highlighted drawing with names put on. **F:** a longer chain, or a guess from the
+  drawing with no names on screen (`not-run`).
 
 ## T19. Reminders that stay with the work
 
 - **Success state (A): two notes in the Notes place, "Moving away in May; ask who takes over the
   Tuesday run" with the chip "Farah", and "Spring list, checked against the sign-up sheet" with
   the chip "Graph"; the project saved; after closing and reopening, both notes are listed again.**
-  (`preflight/T19A/06.png` before, `11.png` after reopening from Recent projects.) The inspector
+  (`final/T19/A/09.png` before, `14.png` after reopening from Recent projects.) The inspector
   header of Farah reads "1 note", and of the graph "1 note".
 - **B:** the same with "Check the 1434 return from exile" on "Medici" and "Marriages only; business
-  ties are a separate list" on "Graph" (`T19B/07.png`, `10.png`).
+  ties are a separate list" on "Graph" (`final/T19/B/09.png`, `14.png`); its project is saved as "Florentine families".
 - **Success path (A):** `--key /` `--type Farah` `--key Enter` (selects Farah); `--key n`; `--type
 "<text>"`; `--key Control+Enter`; `--key Escape --key Escape` (nothing selected: the next note is
   about the graph); `--key n`; type; `--key Control+Enter`; `--key Control+s`; `--click Save`;
-  `--reopen`; click the project in Recent projects (click-at its row: the sample of the same name
-  is also on the start screen, B); `--click "Notes"`. The menus' "Add note" (a node's canvas menu,
+  `--reopen`; click the project in Recent projects (`--click friends`; in B click-at 624,108, its
+  row: the sample of the same name is also on the start screen); `--click "Notes"`. The menus' "Add note" (a node's canvas menu,
   the inspector "...") and the Notes place "+" are the same command.
+- **The save:** Control+S on this build opens "Save friends as" and keeps the project in this
+  browser ("Saved friends in this browser."); Recent projects lists it after reopening
+  (`final/T19/A/12.png`). That save alone counts as kept. The start screen also says "This browser
+  can clear projects kept here. Save a local copy of any project you need to keep."; a participant
+  who saves a local copy as well took no detour.
 - **S:** both notes, each on the right target, there after reopening, and the participant shows
   the Notes place (or the inspector's "1 note" link). **SD:** one note on the wrong target fixed
   after a detour; or the reminders kept but found only after searching. **F:** `not-kept` (no save,
@@ -163,29 +175,28 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
 
 ## T20. A number that means "farther"
 
-- **A (bus stops): Depot, Market, Park, Clinic, Harbor -- 14 minutes.** Screen: Values "Route 5
-  nodes, 4 edges", "Total distance 14", Nodes in order; Made with "Weight: minutes (farther)"
-  (`preflight/T20A/16.png`); the graph's Overview "Loaded weight minutes (farther)" (`T20A/08.png`).
+- **A (bus stops): Depot, Market, Park, Clinic, Harbor -- 14 minutes.** Screen: after Find path the run opens on its
+  Values: "Path 5 nodes, 4 edges", "Total distance 14", Nodes in order; Made with "Weight: minutes
+  (farther)" (`final/T20/A/14.png`); the graph's Overview "Loaded weight minutes (farther)"
+  (`final/T20/A/08.png`).
   **The wrong answers:** read without the minutes, the program counts links and returns Depot,
   Station, Harbor (2 links, 29 minutes) or Depot, School, Harbor (2 links, 21 minutes); both are
   `weight-not-read`.
 - **B (hiking trails): Trailhead, Creek, Meadow, Ridge, Summit -- 7.5 km.** Values "Total distance
-  7.5", Made with "Weight: km (farther)" (`T20B/08.png`). Wrong: Trailhead, Pine Fork, Summit (2
+  7.5", Made with "Weight: km (farther)" (`final/T20/B/14.png`). Wrong: Trailhead, Pine Fork, Summit (2
   links, 9.0 km), `weight-not-read`.
 - **Success path (A), the load-time route:** `--click "No thanks"`; `--click "New from data..."`;
   `--click "choose a file..." --upload bus-stops.csv`; open the minutes column's role (click-at
-  728,205, the box showing "Attribute"); `--click "Weight"`; `--click "Farther"` (under "Higher
-  means"); `--click "Load"`; `--key p`; From Depot, To Harbor as in T18; `--click "Find path"`;
-  `--click "Values"`.
-- **Numbers that are not the answer:** after Find path the inspector opens on the run's Style
-  page, not Values, so neither 14 nor the stops are on screen until Values is opened; meanwhile
-  the Graph tree row reads "Shortest path 27" and the legend "Shortest route (edges) 24"
-  (`pilot/T20/14.png`). 27 or 24 given as the minutes is `read-wrong`.
-- **The "Time" role:** the minutes column's role list offers Time beside Weight. Chosen for
-  minutes, the file loads with "Weight: none (each edge counts 1)" on the Data page, and the path
-  run counts links: Values "Route 3 nodes, 2 edges", Depot, Station, Harbor, no total, Made with
-  "Weight: none (each edge counts 1)" (`T20A-time/06.png`, `13.png`, walked on build
-  ca8b3b916c22). It is `weight-not-read`.
+  728,205, the box showing "Attribute"); `--click "Weight"`; under "Higher means", which starts on
+  "Not set" with "paths ignore it; PageRank and communities read it as larger = closer" under it
+  (`final/T20/A/06.png`), `--click "Farther"`; `--click "Load"`; `--key p`; From Depot, To Harbor
+  as in T18; `--click "Find path"`.
+- **Numbers beside the route:** the Graph tree row reads "Shortest path 4 hops"; 4 given as the
+  minutes is `read-wrong`.
+- **The "Date or time" role:** the minutes column's role list offers "Date or time" beside
+  "Weight" (`final/T20/A/05.png`). Chosen for minutes, the file loads with no weight and the path
+  run counts links: Depot, Station, Harbor, no total, Made with "Weight: none (each edge counts 1)"
+  (walked as "Time" on build ca8b3b916c22, `preflight/T20A-time/13.png`). It is `weight-not-read`.
 - **The per-run route:** opened from "Open project or file..." the file loads straight in with no
   weight ("Weight: none" on the Data page; no "Loaded weight" in the Overview). The Path popover's
   Weight list then offers "minutes (farther)", which gives the right route and total
@@ -193,8 +204,8 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   asked that every calculation treat minutes as a length, and the next calculation would not.
 - **S:** the load-time route, the right stops in order and the total, and the participant points
   to "Loaded weight minutes (farther)" or Made with "Weight: minutes (farther)". **SD:** the
-  per-run route; or the load-time route found after a detour. **F:** `weight-not-read` (Time chosen
-  counts here); `read-wrong` (27 or 24); Closer chosen (paths then ignore the number: same wrong routes); a total added by hand from a wrong
+  per-run route; or the load-time route found after a detour. **F:** `weight-not-read` ("Date or time"
+  chosen counts here); `read-wrong` (4); Closer chosen (paths then ignore the number: same wrong routes); a total added by hand from a wrong
   route.
 
 ## T21. The list was updated
@@ -202,16 +213,19 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
 - **A (running club): first before, Farah (PageRank 0.0639); first now, Ava (0.0801).** The rest
   of the new top four: Farah 0.0656, Hana 0.0643, Ivan 0.0614. Still 20 people and 41 ties.
   Screens: Data page titled "Replace: friends-v2.csv", "Was 20 nodes, 41 edges; now 20, 41"
-  (`preflight/T21A/04.png`); after Load the PageRank row carries the out-of-date mark and its
-  inspector the bar "Data changed since this run" with "Rerun" (`T21A/07.png`); after Rerun the
-  Values' Top 10 starts "Ava 0.08012" and the key reads 0.02872 to 0.08012 (`T21A/09.png`).
+  (`final/T21/A/05.png`); after Load the PageRank row carries the out-of-date mark and its
+  inspector the bar "Data changed since this run" with "Rerun" (`final/T21/A/06.png`); after Rerun
+  the Values' Top 10 starts "Ava 0.08012" and the key reads 0.02872 to 0.08012
+  (`final/T21/A/07.png`). The Replace page's "Higher means" shows "Not set" chosen, as the file's
+  own weight has no meaning yet; nothing there needs choosing for this task.
 - **B (team): 14 people now (and 21 ties; were 12 and 16); first before, Hal (0.1293); first now,
   Di (0.1339), then Hal 0.1305, Ed 0.1245.** "Replace: team-v2.csv", "Was 12 nodes, 16 edges; now
-  14, 21" (`T21B/03.png`); after Rerun, Top 10 "Di 0.1339" (`T21B/06.png`).
+  14, 21" (`final/T21/B/05.png`); after Rerun, Top 10 "Di 0.1339" (`final/T21/B/07.png`).
 - **Success path (A):** `--click "Data"`; `--rclick "friends.csv"` (the Sources row; its "..."
-  menu works too); `--click "Replace with file..." --upload friends-v2.csv`; `--click "Load"`;
-  `--click "PageRank"` (the run row, now marked out of date); `--click "Rerun"`; `--click
-"Values"`. "First before" is read from the Values before the replacement (or from the setup's
+  menu works too); `--click "Replace with file..." --upload friends-v2.csv`; `--click "Load"`; `--click "Rerun"`
+  (the run's inspector stays open through the replacement when it was open before; otherwise
+  `--click "PageRank"`, the run row now marked out of date, comes first, and its absence or
+  presence is not a deviation). "First before" is read from the Values before the replacement (or from the setup's
   open run).
 - **Traps on this build:** after Load, the old colors stay on the drawing and the key keeps the old
   range (0.03779 to 0.06394) until Rerun: reading the top person then is `stale-read` (Farah, or
@@ -219,7 +233,9 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   (41 to 82, `check-notes-sources/05.png`): `added-not-replaced`. Control+O with friends-v2.csv
   goes to the same "Add to" page (not piloted). Opening friends-v2.csv as a new project and running PageRank again gives the right
   name but loses the earlier work: SD at best (`work-lost` if the participant claims the work was
-  kept).
+  kept). On B the PageRank row still says 12 until Rerun.
+- **Watch:** the replacement lays the drawing out again, so every node moves although the run, its
+  colors and its layers stay. Record any participant who reads the moved drawing as lost work.
 - **S:** replaced (counts as above), rerun, both names right (B: and 14 people). **SD:** right
   after a detour (an addition undone, a new project), or the rerun found only after a stale read
   that the participant caught. **F:** `stale-read`, `added-not-replaced` left in place, `false-done`.
@@ -227,26 +243,27 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
 ## T22. Make the ones that meet a condition stand out
 
 - **A (bus stops): 3 links take 10 minutes or more -- School to Harbor 12, Station to Harbor 14,
-  Depot to Station 15.** Screen: inspector header "0 nodes, 3 edges", Selection 3, the three lines
-  drawn dark on the full map of 10 stops (`T22A/03.png`; with names drawn, `T22A-names/02.png`).
-- **B (Les Miserables): 13 ties of 10 or more shared chapters.** Inspector "0 nodes, 13 edges",
-  Selection 13, all 77 characters still drawn (`T22B/02.png`).
-- **Success path (A):** `--key /`; `--type "=minutes >= \`10\`"` (a gray line under the box reads
-  "Rule: press Enter to select matches"); `--key Enter`; read the inspector header. B: `--type
+  Depot to Station 15.** Screen: inspector header "3 edges selected", Summary Edges 3, Selection 3,
+  the three lines drawn with a gold band on the full map of 10 stops (`final/T22/A/06.png`).
+- **B (Les Miserables): 13 ties of 10 or more shared chapters.** Inspector "13 edges selected",
+  Selection 13, all 77 characters still drawn (`final/T22/B/05.png`); on the dense drawing the 13
+  gold bands are thin, and several are hard to pick out in the middle.
+- **Success path (A):** `--key /`; `--type "=minutes >= \`10\`"`(a gray line under the box reads
+"Rule: press Enter to select matches");`--key Enter`; read the inspector header. B: `--type
   "=shared_chapters >= \`10\`"`. A bare number (`=minutes >= 10`) is refused with "Put numbers in
-  backticks: weight > `3`" under the box (`check-edge-find/09.png`): a correction after it is not a
-  detour, it is the path. On build ca8b3b916c22 the refusal comes only after Enter: while the bare
-  number (or a lone "=") is typed, the gray line still reads "Rule: press Enter to select matches"
-  (`pilot/T22/A/03.png`, `A/04.png`).
+backticks: weight > `3`" under the box as it is typed, before Enter (`final/T22/A/03.png`): a
+correction after it is not a detour, it is the path. A lone "=" lists the columns a rule can use
+(B: id, name as node columns, shared_chapters as an edge column) with "Type a rule after =, such
+as weight > `3`" (`final/T22/B/03.png`).
 - **Other routes, graded by the end state:** clicking each line with Shift held (A: 3 lines; not
   checked on this build); a color on Everything's edges that separates exactly the 10-or-more ties.
   A filter step ("minutes is at least 10") narrows the drawing to the slow links and their stops (not
   piloted) but hides the rest; turned off again it leaves nothing marked.
 - **Known on this build:** a selection of several edges lists no members: the inspector shows only
-  counts, and its menu offers no way to select their ends (`T22A/04.png`). Clicking Everything (to
-  put names on, say) keeps the selection: Selection still reads 3 and the lines stay marked
-  (`pilot/T22/A/07.png`). Nothing on screen lists the names a rule can use; record where the
-  participant went to find `minutes` or `shared_chapters`.
+  counts, and its menu offers no way to select their ends. Clicking Everything (to put names on,
+  say) keeps the selection: Selection still reads 3 and the lines stay marked. Record where the
+  participant went to find `minutes` or `shared_chapters` (the "=" list, the Data page, an edge's
+  values).
 - **S:** the matching ties marked, everything else still drawn and no filter step on, and the count
   (3; 13) read from the screen. **SD:** the same after a detour (a filter first, then off; a wrong
   comparison corrected; a refused rule retyped), or the count read by counting marked
@@ -263,13 +280,14 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   Jada, Kofi, Quinn, Ravi, Sana, Theo. Left out: Lena, Milo, Nora, Omar, Pia. Screen: the neighbor
   list's header with Hops 2 and Follow All reads "14 nodes within 2 hops of Ava" with the 14 names
   under it, Selection 15; after "Filter to neighbors" the header chip reads "15 of 20 nodes" and 15
-  dots are drawn (`T23A/05.png`).
+  dots are drawn (`final/T23/A/05.png`).
 - **B (Florentine families): 11 families besides the Medici** -- Acciaiuoli, Castellani, Strozzi,
   Barbadori, Ridolfi, Tornabuoni, Albizzi, Salviati, Pazzi, Guadagni, Ginori. Left out: Peruzzi,
   Lamberteschi, Bischeri, Pucci. Header "11 nodes within 2 hops of Medici", Selection 12; chip "12
-  of 15 nodes" (`T23B/05.png`). The Florentine graph is undirected, so the list has no Follow row.
+  of 15 nodes" (`final/T23/B/05.png`). The Florentine graph is undirected, so the list has no Follow row.
 - **Success path (A):** `--key /`; `--type Ava`; `--key Enter` (selects Ava); `--key g` (the list
-  opens at Hops 1, headed "Ava's 6 connections", `T23A/03.png`); `--click 2` (the Hops segment; the tool reports the name
+  opens at Hops 1, headed "Ava's 6 connections", `final/T23/A/03.png`; screenshot numbers depend on
+  how the steps are grouped, so match the screen, not the number); `--click 2` (the Hops segment; the tool reports the name
   as shared with the button "Dev 2" in A and takes the segment); `--click "Filter to neighbors"`.
   On B, type Medici. A node's canvas menu "Neighborhood" and the Degree row's route open the same
   list.
@@ -279,8 +297,9 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
 - **Other routes:** the Filters section's "+" with Keep "the neighbors of the selection" (not
   checked on this build); selecting the people one by one and counting. Graded by the end state.
 - **Known on this build:** after the find box selects Ava, the drawing is framed off center with
-  part of the graph off the canvas (`T23A/03.png`), as in T19; record any participant who reads it
-  as people missing.
+  part of the graph off the canvas, as in T19; record any participant who reads it as people
+  missing. At Hops 1 the list is a Neighbor / weight table sorted by weight; at Hops 2 it is a plain
+  list of names; record any participant who reads the change as another feature.
 - **S:** the count read from the screen and the drawing narrowed to exactly those people and the
   starting one (the chip). **SD:** right after a detour (Hops 1 first, a filter on an attribute
   undone), or counted by hand from the list. **F:** a wrong count, the drawing not narrowed, narrowed
@@ -289,23 +308,23 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
 ## T24. One tie on the drawing
 
 - **A (running club): Gus and Ivan ran together once (1).** Screen: a click on the line opens the
-  edge inspector titled "Gus -> Ivan" with From Gus, To Ivan, weight 1, and the line drawn dark
-  (`T24A/02.png`); its menu ("Edge actions") offers "Select endpoints" (`T24A/03.png`), after which
-  the inspector reads "2 nodes, 0 edges", Selection 2, and Gus and Ivan are ringed (`T24A/04.png`).
-- **B (bus stops): 4 minutes.** Inspector "Station -> Stadium", minutes 4 (`T24B/03.png`); after
-  Select endpoints, Station and Stadium ringed, "2 nodes, 0 edges" (`T24B/04.png`).
+  edge inspector titled "Gus -> Ivan" with From Gus, To Ivan, weight 1, and the line drawn with a
+  gold band (`final/T24/A/02.png`); its menu ("Edge actions") offers "Select endpoints"
+  (`final/T24/A/03.png`), after which the inspector reads "2 nodes selected", Summary Nodes 2,
+  "Edges joining these nodes 1", Selection 2, and Gus and Ivan are ringed (`final/T24/A/04.png`).
+- **B (bus stops): 4 minutes.** Inspector "Station -> Stadium", From Station, To Stadium,
+  minutes 4 (`final/T24/B/02.png`); after Select endpoints, Station and Stadium ringed, "2 nodes
+  selected" (`final/T24/B/04.png`).
 - **Success path (A):** `--click-at 755,586` (the middle of the Gus-Ivan line on the pilot's
   drawing; the tool prints `edge with id "13"`); read the inspector; `--click "Edge actions"`;
   `--click "Select endpoints"`. B: `--click-at 750,172` (the Station-Stadium line), then the same.
-  The setups end with the Everything inspector open; Escape does not close it, and the line click
-  does not need it closed.
-- **Other routes, graded by the end state:** typing Gus in the find box lists his ties as "Gus --
-  Ivan" among the results, which open the same inspector; selecting Gus and then Ivan with Shift
+  The setups end with the Everything inspector open; the line click does not need it closed (no
+  Escape first).
+- **Other routes, graded by the end state:** typing Gus in the find box lists his ties as "Gus ->
+  Ivan" among the results (B: "School -> Stadium", "Stadium -> Harbor", "Station -> Stadium",
+  `final/T24/B/05.png`), which open the same inspector; selecting Gus and then Ivan with Shift
   held (S if both and only both are selected).
-- **Known on this build:** on bus-stops.csv the inspector repeats the ends as two raw rows, "from
-  Station" and "to Stadium", under From and To (the file's own column names); record any
-  participant who reads them as something else. The title's arrow is the file's direction, not a
-  fact about the bus.
+- **Known on this build:** the title's arrow is the file's direction, not a fact about the bus.
 - **S:** the number (1; 4) read from the screen, and exactly the two ends selected at the end.
   **SD:** right after a detour (a missed click on the line, a wrong tie opened first), or the two
   selected one at a time after the ends command was not found. **F:** a wrong number (another tie

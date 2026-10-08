@@ -425,8 +425,9 @@ request becomes ready.
   start, set by the owner) gives visual reviews their own sound, so the owner can silence the
   general agent channel and keep this one. `claude-notify.sh` already prefers the environment
   value, so no script changes.
-- **Removing the duplicate source.** The project `CLAUDE.md` gains a rule: agents do not end with
-  `ACTION NEEDED:` for a visual review; the review server notifies.
+- **Removing the duplicate source.** The project `CLAUDE.md` gains a rule: an agent ends with
+  `ACTION NEEDED:` for a visual review only when that review is blocking its work, and asks only
+  once per item; a review that blocks nothing needs no request, because the review server notifies.
 
 ### Alternatives considered
 

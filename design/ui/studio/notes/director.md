@@ -5,15 +5,20 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-08 (dry run before tier 2 round 1 triaged).
+Last updated: 2026-10-08 (second dry run before tier 2 round 1 triaged).
 
 ## Top of mind
 
-- 2026-10-08: DRY RUN BEFORE ROUND 1 (`tier2/dry-run-r1-1.md`). Round 1 had started without one;
-  five sessions were stopped and discarded. 136 items triaged: 100 fixed before round 1, 24 left
-  for the sessions, 12 no change. Round 1 needs a NEW frozen build, a re-pilot of every task on
-  it and every "known on this build" key note re-recorded. Rule: no round starts until a dry run
-  on its exact build has been triaged and its fixes are built.
+- 2026-10-08: SECOND DRY RUN (`tier2/dry-run-r1-2.md`) on build 3dfe7daf9e45, after the first
+  dry run's 100 fixes: 98 items, 65 fixed, 19 left, 13 no change, 1 split. Fewer blockers, but
+  the first round of fixes left visible seams (focus on value rows, hidden row descriptions, a
+  green check over a left-out row, the key's "Shortest route"). Round 1 needs ANOTHER frozen build
+  and re-pilot. Rule holds: no round starts until a dry run on its exact build is triaged and
+  built; re-pilot after every fix batch, because fixes make defects too.
+- 2026-10-08: Two open questions dominate both dry runs and are NOT polish: names are not drawn by
+  default, and nodes overlap in the 3D drawing (size-aware spacing is deferred: layout `nodeSize`
+  "not used yet"). Both decide whether a reader can check a list against the drawing. Watch them
+  in round 1; bring the owner the evidence, not a guess.
 - 2026-10-08: The discarded sessions show the real T20 question: 4 of 5 opened with "Open project
   or file", found no place to set the weight's meaning after load, and went back to "New from
   data". Left for the sessions on purpose (dry-run items 58, 60, S10, S16).
@@ -30,11 +35,6 @@ Last updated: 2026-10-08 (dry run before tier 2 round 1 triaged).
 - 2026-10-08: Starts are ranked + colored + sized by PageRank (`*-ranked*.txt`, all 7 run clean on
   the study build); only T4 and T20 start empty (new files). No round cap; stall = no progress
   (< 3 more core-four successes of 32, no core sev 3-4 closed, no failing bar newly held).
-- 2026-10-07: TIER 2 PILOTS (T4, T17, T18, T20, T22, T24) all reached success; no blocker stops a
-  path. Fixing every app, element and tool defect they found before the owner runs the study.
-  Two doors at most: a per-load record of left-out unmatched rows on `data.sources()`, and a
-  find-box rule check that does not apply (only if no existing method answers it). The Path
-  popover's weight box reads the element's `plan({op:"algo.run"})` caveats, not an app rule.
 - 2026-10-07: TIER 2 DESIGN DECIDED: `next-steps/tier2-design.md`. In: filters (element-owned
   steps), Path popover, Notes place, Sources listing every load, weight meaning at load + every run
   on the loaded weight (REQUIRED, owner rule), neighborhood hops/Follow in the list header,
@@ -42,11 +42,8 @@ Last updated: 2026-10-08 (dry run before tier 2 round 1 triaged).
 - 2026-10-07: Tier 2 WAITS (with reasons in the doc): several node types / Links to (no task needs
   it; biggest format door -- owner design first), node weight (no reader), Select where dialog
   (Find "=" is the one home), multi-query path rows, Add as steps, selection bar, OR/NOT.
-- 2026-10-07: Tier 2 element doors (record + hold + needs-decision): filter steps `{id,on,rule}`
-  with per-step plan counts; edge-attribute leaf keeps ends (option, current default); weight
-  meaning in the load mapping + loaded-weight fact + catalog reads-meaning + uniform `weight`
-  option (PageRank default changes); `E_BAD_SELECTOR` details.reason; `data.sources()`; StaleNote
-  reason + content revision. Owner questions: similarity->distance conversion; bare numbers.
+- 2026-10-07: Tier 2 element doors are recorded in `owner-decisions.md` (filter steps, weight
+  meaning at load, `E_BAD_SELECTOR` reason, `data.sources()`, StaleNote reason).
 - 2026-10-07: Distance readers given a similarity/unset weight count hops and say so with a code;
   never read strength as distance. Similarity readers read unset as similarity (glossary 11).
 - 2026-10-07: Words: glossary wins over refined B. "Follow: Out | In | All" (path: Out | All, directed
@@ -212,19 +209,28 @@ Last updated: 2026-10-08 (dry run before tier 2 round 1 triaged).
   now so the study does not run on them; left-out rows gain `line` and `endColumns` (additive,
   team). Reason: the sessions must spend their time on what returning users need.
 
+- 2026-10-08 -- Second dry run triage (me, `tier2/dry-run-r1-2.md`). Fix now, in the owning
+  package: the shared row lets its count yield before the name (one compact-mantine fix for every
+  Sources and Filters row); a shared list consumes the Escape that closes it; a pointer-opened
+  menu highlights nothing; the run records which method it used and the catalog can spell
+  "Bellman-Ford" (element, additive); a left-out row says which end is missing (element,
+  additive); labels may draw on top (element option, neutral default off, the app sets it); the
+  path color must stand out from the default node color too (element default, owner list). App
+  decisions: saving a filter step turns it on; after an action fills the inspector, focus goes
+  to the inspector's title, not a value row; after a saved note, to that note; one neighborhood
+  heading, "<name>'s N connections", at every hop count (restores the tested words); a selection
+  of several edges lists them; the single main landmark loses its name. Leave: names by default,
+  3D overlap, where the filter action and the path form live, stale marks, the weight after load,
+  "Hops" as a word. Reason: each fixed item is a seam a participant would trip on; each left item
+  is the question its task asks.
+
 ## Tried: worked / did not work
 
-- 2026-09-27..10-02 -- Eight simulated rounds on mocks and a clickable skeleton. Places were right;
-  behavior after the click failed. Ease bar 5.5 never met. Round 5 re-measured round 4 because its
-  decisions were not drawn (preflight rule); round 6 ran on a check that read 0 pages (every check
-  fails on zero items; prove checks by planting a failure); owner caught overfitting from task
-  words (two-domain and wording rules).
-- 2026-09-30 -- My hybrid structure lost to the owner's refined B. Lesson: bring the owner's own
-  proposal to a working state before arguing for an alternative.
-- 2026-10-01 -- 23 browsers at once filled swap. Every browser goes through the 4-slot gate.
-- 2026-10-02 (round 8) -- Tiering worked: it concentrated failures in tier 1. A pre-run sample
-  contaminated every first-time task; removed.
-- 2026-10-03 -- Stopped mocking. The mock had become the main source of noise.
+- 2026-09-27..10-03 (summarized) -- Eight rounds on mocks: places right, behavior after the click
+  wrong; a check that read 0 pages passed (every check fails on zero items: plant a failure);
+  overfitting from task words (two-domain and wording rules); my hybrid lost to the owner's
+  refined B (bring the owner's proposal to working first); 23 browsers filled swap (4-slot gate);
+  a pre-run sample contaminated first-time tasks; stopped mocking because the mock was the noise.
 - 2026-10-06 (pilot) -- Piloting every task on the build before a round found four task-deciding
   defects for 16 sessions. Pilots that named a source file and line were the useful ones. Keep:
   pilot every round whose build changed (done before rounds 2 and 3; worked both times).
@@ -275,6 +281,13 @@ Last updated: 2026-10-08 (dry run before tier 2 round 1 triaged).
   every task on both datasets and triaging by "could a participant hit it" against "is it the
   question the study asks".
 
+- 2026-10-08 (second dry run) -- Worked: a second pilot pass on the fixed build found 65 new
+  defects, many made by the first fixes (focus moved onto value rows; a row description passed
+  but hidden by the shared row; the path color moved out of the ramp and onto the default blue).
+  Lesson: a fix batch is not done until a re-pilot on the built result shows it. Did not work:
+  checking the path color's distance against flat swatches only; shaded spheres at small size
+  read differently, so check on a screenshot of both a ranked and an unranked start.
+
 ## Thinking
 
 - **What tier 2 needs before its first round:** tasks and answers for filter, shortest chain,
@@ -293,7 +306,7 @@ Last updated: 2026-10-08 (dry run before tier 2 round 1 triaged).
 
 ## Sources
 
-- Tier 2 (2026-10-08): `tier2/dry-run-r1-1.md`, `tier2/criteria.md` (frozen), `tier2/tasks.md`, `tier2/roster.md` ("Where each
+- Tier 2 (2026-10-08): `tier2/dry-run-r1-1.md`, `tier2/dry-run-r1-2.md` (pilots in `tier2/rounds/r1d1/pilot/`), `tier2/criteria.md` (frozen), `tier2/tasks.md`, `tier2/roster.md` ("Where each
   session starts"), `rounds/tier-2/setups/*-ranked*.txt`; reviews in `notes/researcher.md`,
   `notes/user.md`, `notes/redteam.md`.
 - Studio: `criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `owner-decisions.md`,

@@ -52,3 +52,10 @@ session.on("style:changed", () => {
     console.log(painted["node.color"], matched);
 });
 ```
+
+## Showing a layer's paint
+
+`session.styles.legendOf(layer.id)` returns the legend blocks of that one layer, the same blocks
+`styles.legend()` draws, but for any layer, including the element's own base layers. A layer that
+sets a fixed color answers one block with one swatch, so a layer list can draw a color chip
+beside the count. A hidden layer paints nothing and answers no blocks.

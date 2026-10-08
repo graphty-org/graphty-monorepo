@@ -1,6 +1,6 @@
 /**
  * The G5 gate item of design 13 row P5 (P5-T5 Step 3; PD-14b): the spring-electrical preset settles within 1,000
- * steps on the 150-node / 249-edge "Performance/Large Graph" story graph to an edge-length distribution within 25%
+ * steps on the 150-node / 250-edge "Performance/Large Graph" story graph to an edge-length distribution within 25%
  * of ngraph.forcelayout's (ngraph run on the CPU here, with its defaults and its own placement of new bodies, until
  * its `step()` returns true or 1,000 steps). The preset settles by the SHARED rule of spec 7.17 (DEP-P5-A), and the
  * comparison is distributional: the q10 / q50 / q90 edge-length quantiles of the two final layouts agree within 25%
@@ -89,14 +89,14 @@ async function gpuLayout(ctx: GpuContext): Promise<GpuRun> {
 }
 
 describe("the story graph (test/helpers/story-graph.ts)", () => {
-    it("has 150 nodes and 249 unordered edges (seed 42 draws one reversed pair among 250 ordered keys)", () => {
-        expect(storyEdges()).toHaveLength(249);
+    it("has 150 nodes and 250 distinct unordered edges", () => {
+        expect(storyEdges()).toHaveLength(250);
         const s = storyGraph();
         expect(s.nodeCount).toBe(150);
-        expect(s.arcCount).toBe(498);
+        expect(s.arcCount).toBe(500);
         expect(s.directed).toBe(false);
         const keys = new Set(storyEdges().map(([a, b]) => (a < b ? `${a}-${b}` : `${b}-${a}`)));
-        expect(keys.size).toBe(249);
+        expect(keys.size).toBe(250);
         for (const [a, b] of storyEdges()) {
             expect(a).not.toBe(b);
         }

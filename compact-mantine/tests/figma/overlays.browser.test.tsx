@@ -504,11 +504,17 @@ describe.skipIf(!available)("8.3 tooltip", () => {
                 { scheme },
             );
             const trigger = getByRole("button");
-            // wait until floating-ui has placed it (it mounts at 0, 0 first)
+            // wait until floating-ui has placed it (it mounts at 0, 0 first) and has stopped
+            // moving it: run on its own, the first placement sat 1.27px left of center (left
+            // 37.30) and floating-ui re-centered it (38.56) a frame later, same width
             const bubble = await waitFor(() => {
                 const el = document.querySelector<HTMLElement>(".mantine-Tooltip-tooltip");
                 return el && box(el).top > 0 ? el : null;
             });
+            for (let last = ""; JSON.stringify(box(bubble)) !== last;) {
+                last = JSON.stringify(box(bubble));
+                await frames();
+            }
             const figma = await figmaElement(TIP, { index: 63 });
             expectMeasured(
                 bubble,
@@ -686,6 +692,19 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         expect(isVisible(two)).toBe(false);
         vi.advanceTimersByTime(1);
         await waitFor(() => isVisible(two));
+    });
+
+    it("a tooltip stays hidden until overlayBehavior has decided whether to hold it", async () => {
+        // The decision runs on the tooltip's mount animation. Its 1 ms can end a frame before
+        // animationstart is dispatched, so a tooltip must not depend on the animation to stay
+        // hidden: one whose mount was never seen (here, no animation at all) is not shown.
+        await renderFigma(
+            <div className="cm-tooltip" style={{ animation: "none" }}>
+                unseen
+            </div>,
+        );
+        await new Promise((r) => setTimeout(r, 50));
+        expect(computed(document.querySelector(".cm-tooltip") as HTMLElement).visibility).toBe("hidden");
     });
 
     it("Tab from a visible tooltip's trigger hands off at once (warm), as the pointer does", async () => {

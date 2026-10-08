@@ -273,6 +273,10 @@ describe("checkCapabilities (design 8.5)", () => {
         const notes = checkCapabilities(s, capabilities({ dtypes: ["string"] }), DEFAULTS);
         expect(codes(notes).sort()).toEqual([LOSS.GRAPH_ATTRIBUTES, LOSS.DYNAMIC_VALUES, LOSS.EXTENSION_TABLE].sort());
         expect(notes.find((x) => x.code === LOSS.DYNAMIC_VALUES)?.count).toBe(1);
+        expect(notes.find((x) => x.code === LOSS.GRAPH_ATTRIBUTES)?.columns).toEqual(["name"]);
+        // an export of the node table alone: the node table's dynamic values, nothing of the graph's
+        const nodesOnly = checkCapabilities(s, capabilities({ dtypes: ["string"] }), DEFAULTS, { tables: ["node"] });
+        expect(codes(nodesOnly)).toEqual([LOSS.DYNAMIC_VALUES]);
         const kept = checkCapabilities(s, ALL, DEFAULTS);
         expect(codes(kept)).toEqual([LOSS.EXTENSION_TABLE]);
         // graph columns are checked like the others when graph attributes are supported

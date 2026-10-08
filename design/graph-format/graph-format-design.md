@@ -3835,6 +3835,7 @@ export interface LossNote {
     readonly message: string;
     readonly column: string | null;
     readonly count: number | null;
+    readonly columns?: readonly string[];
 }
 export interface CommonExportOptions {
     sanitizeIds?: "error" | "mangle" | undefined;

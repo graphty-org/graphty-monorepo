@@ -3,9 +3,20 @@
  * light, in dark, in the AA mode, and inside a dark-scoped surface in the light app
  * (design/figma-spec.md 2, 3.3).
  */
-import { Box, Text } from "@mantine/core";
+import {
+    Box,
+    Button,
+    Checkbox,
+    createTheme,
+    DEFAULT_THEME,
+    MantineProvider,
+    mergeThemeOverrides,
+    Text,
+} from "@mantine/core";
+import { render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { createCompactTheme } from "../../src/theme";
 import { CM_COLORS, CM_HIGH_CONTRAST, type CmColorToken } from "../../src/theme/tokens";
 import { hex, part, renderThemed, resetHarness } from "../harness/measure";
 
@@ -94,5 +105,59 @@ describe("a dark-scoped surface in the light app", () => {
         expect(paint("bg-brand", dark)).toBe("#0c8ce9");
         expect(paint("text-secondary", dark)).toBe("#ffffffb2");
         expect(paint("bg", container)).toBe("#ffffff");
+    });
+});
+
+describe("the accent follows the theme's primaryColor", () => {
+    /**
+     * Render a filled Button (a themed component, which applies the theme's accent) under the
+     * compact theme with `primaryColor` set, or the compact theme alone.
+     * @param scheme - the color scheme
+     * @param primaryColor - the consumer's primaryColor, or none
+     * @returns the container
+     */
+    function renderAccent(scheme: "light" | "dark", primaryColor?: string): HTMLElement {
+        const theme = primaryColor
+            ? mergeThemeOverrides(createCompactTheme(), createTheme({ primaryColor }))
+            : createCompactTheme();
+        return render(
+            <MantineProvider theme={theme} forceColorScheme={scheme}>
+                <Button>Go</Button>
+                <Checkbox aria-label="On" defaultChecked />
+            </MantineProvider>,
+        ).container;
+    }
+
+    it.each(["light", "dark"] as const)("the default stays Figma's #0d99ff accent (%s)", (scheme) => {
+        const container = renderAccent(scheme);
+        const accent = ["bg-brand", "bg-brand-hover", "border-selected", "text-brand", "bg-selected"] as const;
+        expect(accent.map((name) => paint(name, container))).toEqual(
+            accent.map((name) => expected(CM_COLORS[name][scheme])),
+        );
+        expect(hex(getComputedStyle(part(container, "button")).backgroundColor)).toBe(
+            scheme === "light" ? "#0d99ff" : "#0c8ce9",
+        );
+    });
+
+    it("a custom primaryColor recolors the accent (light)", () => {
+        const container = renderAccent("light", "teal");
+        const { teal } = DEFAULT_THEME.colors;
+        expect(paint("bg-brand", container)).toBe(teal[6]);
+        expect(paint("bg-brand-hover", container)).toBe(teal[7]);
+        expect(paint("border-selected", container)).toBe(teal[6]);
+        expect(paint("text-brand", container)).toBe(teal[7]);
+        expect(paint("bg-selected", container)).toBe(teal[0]);
+        expect(hex(getComputedStyle(part(container, "button")).backgroundColor)).toBe(teal[6]);
+        expect(hex(getComputedStyle(part(container, "input[type=checkbox]")).backgroundColor)).toBe(teal[6]);
+    });
+
+    it("a custom primaryColor recolors the accent (dark)", () => {
+        const container = renderAccent("dark", "teal");
+        const { teal } = DEFAULT_THEME.colors;
+        expect(paint("bg-brand", container)).toBe(teal[8]);
+        expect(paint("bg-brand-hover", container)).toBe(teal[9]);
+        expect(paint("border-selected", container)).toBe(teal[8]);
+        expect(paint("text-brand", container)).toBe(teal[4]);
+        expect(hex(getComputedStyle(part(container, "button")).backgroundColor)).toBe(teal[8]);
     });
 });

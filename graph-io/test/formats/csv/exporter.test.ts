@@ -684,3 +684,35 @@ describe("csvExporter: header: false", () => {
         expect(codesOf(csvExporter.check(s, { table: "nodes", header: false }))).toContain(CSV_LOSS.HEADERLESS);
     });
 });
+
+describe("CSV export: the notes are about the table written", () => {
+    /** A graph with a loss in every table: a list node column, a list edge column, a graph attribute. */
+    function lossy(): GraphSnapshot {
+        const b = new GraphBuilder({ directed: false });
+        b.addNodeRecord("a", { tags: ["x", "y"], name: "A" });
+        b.addNodeRecord("b", { tags: ["z"], name: "B" });
+        b.addEdgeRecord("a", "b", { hops: [1, 2] });
+        b.addEdgeRecord("a", "a", { hops: [3] });
+        b.setGraphValue("title", "t");
+        b.setGraphValue("year", 2026);
+        return b.freeze();
+    }
+
+    it("the node table names node losses only: no edge column, graph attribute, direction or self-loop", () => {
+        const notes = csvExporter.check(lossy(), { table: "nodes" });
+
+        expect(notes.filter((n) => n.column === "hops" || n.columns !== undefined)).toEqual([]);
+        expect(notes.map((n) => n.code)).not.toContain(LOSS.GRAPH_ATTRIBUTES);
+        expect(notes.map((n) => n.code)).not.toContain(CSV_LOSS.DIRECTION_DROPPED);
+        expect(notes.map((n) => n.code)).not.toContain(LOSS.SELF_LOOPS);
+        expect(notes.some((n) => n.column === "tags")).toBe(true);
+    });
+
+    it("the edge table names the graph attributes and the node columns it leaves out, by name", () => {
+        const notes = csvExporter.check(lossy());
+
+        expect(notes.find((n) => n.code === LOSS.GRAPH_ATTRIBUTES)?.columns).toEqual(["title", "year"]);
+        expect(notes.find((n) => n.code === CSV_LOSS.NODE_TABLE)?.columns).toEqual(["tags", "name"]);
+        expect(notes.some((n) => n.column === "hops")).toBe(true);
+    });
+});

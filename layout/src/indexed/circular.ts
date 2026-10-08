@@ -1,8 +1,8 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
-import type { LayoutResult } from "../positions";
-import { np } from "../utils/numpy";
-import { type CommonLayoutOptions, resolve, result } from "./common";
+import type { LayoutResult } from "../positions.js";
+import { np } from "../utils/numpy.js";
+import { type CommonLayoutOptions, resolve, result } from "./common.js";
 
 /**
  * Circle (2D) or Fibonacci-sphere (3D) rows.

@@ -64,3 +64,19 @@ error, a failed request or "the drawing is still moving".
 
 Still so, as the answer key lists: the run opens on Values only after a click; the tree row reads
 "Shortest path 61" (A) and "35" (B); the legend "Shortest route (edges) 24".
+
+## Second re-walk, 2026-10-07 (after the next-steps fixes)
+
+Walked again with `tool/real.mjs` on a frozen copy of the served build (graphty 0.8.55, build
+75cbc3a9a0e9, at commit 089d6e542 plus the uncommitted fixes then in the worktree), with the same
+steps and setups as the first re-walk. Screenshots and the printed steps are in `rewalk-2/A/` and
+`rewalk-2/B/` (`steps.log`). No step printed a script error, a console error, a failed request or
+"the drawing is still moving".
+
+**Result: reached on both datasets**: Values "Route 5 nodes, 4 edges", Chloe, Ava, Ivan, Kofi,
+Milo (`rewalk-2/A/08.png`) and Strozzi, Ridolfi, Medici, Salviati, Pazzi (`rewalk-2/B/08.png`).
+Nothing on the task's path changed since the first re-walk: the popover still explains that the
+weight is not read (`rewalk-2/A/02.png`), Enter in From still moves on to To (`rewalk-2/B/05.png`),
+and the run still opens on Values only after a click. The Florentine Overview's direction row now
+has its label and ends in an ellipsis inside the panel ("Undirected, from the ...") instead of
+running past the edge (`rewalk-2/B/01.png`).

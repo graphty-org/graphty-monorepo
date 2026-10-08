@@ -84,6 +84,11 @@ A file is a path, or a name from `files/`:
 
 ## Saving and reopening a project
 
+The app saves a project one of two ways. Most saves go into the browser itself: Control+S opens
+the app's own "Save <name> as" dialog, Save keeps the project in this browser and Recent projects
+lists it after `--reopen`. Such a save opens no picker, so the tool prints only the screenshot and
+writes nothing to `saved/`. A save to a local file uses the browser's save picker, as below.
+
 Headless Chromium cancels the browser's own save and open pickers at once, so the tool answers them
 itself. The save picker takes the name it suggests and writes the project into the browser's
 private storage, with a real file handle that Recent projects keeps as Chromium would; every file

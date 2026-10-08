@@ -150,7 +150,7 @@ export class ElementPositions {
 
     /**
      * Moves whenever coordinates are written on purpose: by {@link ElementPositions.write}, which
-     * every layout, drag and placement goes through, and by {@link ElementPositions.moved}, which a
+     * every layout, drag and placement goes through, when it changes a row, and by {@link ElementPositions.moved}, which a
      * writer that fills the array {@link ElementPositions.view} lends (a GPU readback, a restore)
      * calls once per batch. Seeding a new row and renumbering rows do not move it: those follow
      * the graph, not the arrangement. The undo history compares it with the generation of its
@@ -442,9 +442,20 @@ export class ElementPositions {
             );
         }
 
-        this.array[base] = x;
-        this.array[base + 1] = y;
-        this.array[base + 2] = z;
+        const { array } = this;
+        // Writing back what a row holds moves nothing: an engine that publishes every row after a
+        // refresh that stepped nothing would otherwise read to the undo history as a move.
+        if (
+            array[base] === Math.fround(x) &&
+            array[base + 1] === Math.fround(y) &&
+            array[base + 2] === Math.fround(z)
+        ) {
+            return;
+        }
+
+        array[base] = x;
+        array[base + 1] = y;
+        array[base + 2] = z;
         this.moves++;
     }
 

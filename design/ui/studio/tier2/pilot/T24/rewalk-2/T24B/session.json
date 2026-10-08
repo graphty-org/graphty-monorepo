@@ -1,0 +1,23 @@
+{
+ "commit": "d5d7279792b64ed039cc075fbb83e2bfee20e2f9",
+ "uncommittedChanges": true,
+ "buildStamp": "75cbc3a9a0e9 graphty@0.8.55",
+ "url": "/?next",
+ "screenReaderMode": false,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "started": "2026-10-08T04:26:49.808Z",
+ "setup": [
+  "--click No thanks",
+  "--click Open project or file...",
+  "--upload bus-stops.csv",
+  "--click Everything",
+  "--click role=tab:Style",
+  "--click Add label line",
+  "--click role=option:id",
+  "--click Show all labels",
+  "--key Escape"
+ ]
+}

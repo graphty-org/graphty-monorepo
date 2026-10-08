@@ -74,3 +74,18 @@ Stadium ringed (`rewalk/B/02.png` to `04.png`). The pilot's click points still h
 | The tool missed the find box by its placeholder | `--click "Find nodes, edges, values"` works (`rewalk/B/05.png`) |
 
 The answer key's "2 nodes, 0 edges" wording is out of date: the header reads "2 nodes selected".
+
+## Second re-walk, 2026-10-07 (after the second round of fixes)
+
+Walked again the same way on a frozen copy of the rebuilt app (graphty 0.8.55, build 75cbc3a9a0e9),
+`../rewalk.sh T24A T24B` with `HERE` pointing at `rewalk-2/`. Screenshots are in `rewalk-2/T24A/`
+and `rewalk-2/T24B/`, the printed steps in `rewalk-2/T24A.log` and `rewalk-2/T24B.log`. No step
+printed a script error, a console error, a failed request or "the drawing is still moving".
+
+**Result: reached on both datasets, unchanged from the first re-walk.** A: the click lands on
+`edge with id "13"`, the inspector reads "Gus -> Ivan", weight 1, the line is a gold band; Select
+endpoints gives "2 nodes selected", Nodes 2, "Edges joining these nodes 1", Gus and Ivan ringed and
+nothing else (`02.png`, `04.png`). B: `edge with id "15"`, "Station -> Stadium", minutes 4 (the raw
+"from"/"to" rows still follow); Select endpoints rings Station and Stadium only (`02.png`,
+`04.png`). Typing "Stadium" in the find box lists the node and its three links, "School -> Stadium",
+"Stadium -> Harbor", "Station -> Stadium" (`05.png`).

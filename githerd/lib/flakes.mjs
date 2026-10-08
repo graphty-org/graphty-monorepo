@@ -29,6 +29,13 @@
  *   re-run once (that job only, write group `worker-writes`) before anything moves toward a revert,
  *   and the incident points at the issue. Never the GPU lane: its failures only record occurrences.
  *
+ * - **Only the current test.** A failure is evidence about the default branch's test only when the
+ *   failing commit's copy of the test file is the default branch's copy (the same git blob, read
+ *   from githerd's local clone, cached per commit and file; a commit it cannot read does not
+ *   count). When the default branch's copy changes, the test's earlier evidence stops counting and
+ *   its proofs are rebuilt from what still does. An issue whose every failure predates the current
+ *   copy is left open for a session to verify and close; the board says so.
+ *
  * Counts are runs, never time.
  */
 
@@ -82,12 +89,17 @@ const SECTION = /^==> (\S+)/;
  * @typedef {{id: string, package: string | null, file: string, name: string, line: string}} FailedTest
  * @typedef {{runId: number | null, attempt: number | null, job: string, jobId: number | string, sha: string,
  *   where: "master" | "pr" | "queue" | "push", pr: number | null, touched: boolean | null, lane?: string | null,
- *   branch?: string | null, line?: string, at: string}} Occurrence
+ *   branch?: string | null, line?: string, at: string, current?: boolean}} Occurrence a failure;
+ *   `current` false when the failing commit's copy of the test file is not the default branch's
  * @typedef {{kind: string, text: string}} Proof
  * @typedef {{id: string, package: string | null, file: string, name: string, occurrences: Occurrence[],
- *   proofs: Proof[], issue: number | null, reported: number, proofsReported: number}} Test
+ *   proofs: Proof[], issue: number | null, reported: number, proofsReported: number,
+ *   head?: string | null}} Test `head`: the default branch's blob of the file its evidence was judged against
  * @typedef {{tests: Record<string, Test>, jobs: Record<string, string>, ranges: Record<string, string[] | null>,
- *   wouldDo: Record<string, string>}} Store `state.flakes`
+ *   wouldDo: Record<string, string>, blobs?: Record<string, string | null>}} Store `state.flakes`; `blobs`
+ *   caches a test file's blob by `<commit> <path>`
+ * @typedef {(sha: string | null, path: string) => Promise<string | null>} BlobReader a file's git blob at
+ *   a commit, or on the default branch for null; null when it cannot be read
  * @typedef {{sha: string, job: string, where: string, runId?: number | null, lane?: string,
  *   contains?: number[]}} Pass a job that passed: `job` `*` is a whole master lane run
  */
@@ -321,6 +333,77 @@ function prove(t, kind, text) {
 const short = (/** @type {string} */ sha) => sha.slice(0, 9);
 
 /**
+ * The failures that are evidence about the default branch's test: not those on an older copy.
+ * @param {Test} t the test
+ * @returns {Occurrence[]} the occurrences that count
+ */
+const evidence = (t) => t.occurrences.filter((o) => o.current !== false);
+
+/**
+ * Marks each failure current or not (the failing commit's copy of the test file against the default
+ * branch's), once per failure while the default branch's copy holds. When that copy changed (or on
+ * the first judgement) every failure is judged again, and the proofs are dropped when any failure no
+ * longer counts, to be rebuilt from those that do.
+ * @param {Store} store the record
+ * @param {BlobReader} blob the blob reader
+ */
+async function judgeEvidence(store, blob) {
+    const cache = (store.blobs ??= {});
+    /** @type {Map<string, string | null>} */
+    const heads = new Map();
+    /** @type {Set<string>} */
+    const used = new Set();
+    for (const t of Object.values(store.tests)) {
+        if (!heads.has(t.file)) heads.set(t.file, await blob(null, t.file));
+        await judgeTest(t, heads.get(t.file) ?? null, cache, blob);
+        for (const o of t.occurrences) used.add(`${o.sha} ${t.file}`);
+    }
+    for (const key of Object.keys(cache)) if (!used.has(key)) delete cache[key];
+}
+
+/**
+ * Judges one test's failures against the default branch's blob of its file (`judgeEvidence`).
+ * @param {Test} t the test
+ * @param {string | null} head the default branch's blob, null when unreadable
+ * @param {Record<string, string | null>} cache blobs by `<commit> <path>`
+ * @param {BlobReader} blob the blob reader
+ */
+async function judgeTest(t, head, cache, blob) {
+    const moved = t.head !== head;
+    for (const o of t.occurrences) {
+        if (!moved && o.current !== undefined) continue;
+        const key = `${o.sha} ${t.file}`;
+        // ponytail: an unreadable commit is cached as null for good, so a fetch that failed once
+        // is never retried; key the cache on success only if transient failures matter.
+        if (!(key in cache)) cache[key] = await blob(o.sha, t.file);
+        o.current = head !== null && cache[key] === head;
+    }
+    if (!moved) return;
+    t.head = head;
+    if (t.occurrences.some((o) => !o.current)) Object.assign(t, { proofs: [], proofsReported: 0 });
+}
+
+/**
+ * A git blob reader over githerd's local clone: `git rev-parse <commit>:<path>`, fetching a commit
+ * the clone does not have first.
+ * @param {(args: string[]) => Promise<{code: number, stdout: string}>} runGit runs git in the clone
+ * @param {string} branch the default branch
+ * @returns {BlobReader} the reader
+ */
+export function gitBlobs(runGit, branch) {
+    return async (sha, path) => {
+        const rev = sha ?? `origin/${branch}`;
+        const read = () => runGit(["rev-parse", "--verify", "-q", `${rev}:${path}`]);
+        let r = await read();
+        if (r.code !== 0 && sha && (await runGit(["cat-file", "-e", `${sha}^{commit}`])).code !== 0) {
+            await runGit(["fetch", "-q", "--no-tags", "origin", sha]);
+            r = await read();
+        }
+        return r.code === 0 ? r.stdout.trim() : null;
+    };
+}
+
+/**
  * Records the failing tests of the local pre-push gates (prepush.mjs reads them from the push
  * queue's log), each push once, and answers the pushes that passed the gate as passes of their
  * commit (proof 1).
@@ -370,7 +453,7 @@ function notePushes(store, pushes, ws) {
  */
 function provePasses(store, passes, heads) {
     for (const t of Object.values(store.tests)) {
-        for (const o of t.occurrences) {
+        for (const o of evidence(t)) {
             for (const p of passes) {
                 const proof = passProof(o, p, heads);
                 if (proof) prove(t, proof.kind, proof.text);
@@ -416,7 +499,7 @@ function passProof(o, p, heads) {
 async function proveMaster(store, { lanes, commits, ws, files }) {
     const chain = commits.length ? firstParent(commits, commits[0].sha).map((c) => c.sha) : [];
     for (const t of Object.values(store.tests)) {
-        for (const o of t.occurrences) {
+        for (const o of evidence(t)) {
             const next = o.where === "master" && o.lane ? nextGreen(chain, lanes[o.lane]?.shas, o.sha) : null;
             if (next && touchesPackage(await files(o.sha, next), t.package, ws) === false) {
                 prove(
@@ -452,7 +535,13 @@ function nextGreen(chain, shas, sha) {
  */
 function provePrs(store) {
     for (const t of Object.values(store.tests)) {
-        const prs = [...new Set(t.occurrences.filter((o) => o.where === "pr" && o.touched === false).map((o) => o.pr))];
+        const prs = [
+            ...new Set(
+                evidence(t)
+                    .filter((o) => o.where === "pr" && o.touched === false)
+                    .map((o) => o.pr),
+            ),
+        ];
         const list = prs.map((n) => "#" + n).join(", ");
         if (prs.length >= 2) prove(t, "untouched-prs", `failed on ${list}, none of which touches ${t.package}`);
         const pushed = untouchedBranches(t);
@@ -473,7 +562,9 @@ function provePrs(store) {
  */
 const untouchedBranches = (t) => [
     ...new Set(
-        t.occurrences.filter((o) => o.where === "push" && o.touched === false && o.branch).map((o) => String(o.branch)),
+        evidence(t)
+            .filter((o) => o.where === "push" && o.touched === false && o.branch)
+            .map((o) => String(o.branch)),
     ),
 ];
 
@@ -485,9 +576,10 @@ const untouchedBranches = (t) => [
  * @returns {string} the label
  */
 function priorityFor(t) {
-    if (t.occurrences.some((o) => o.where === "master" || o.where === "queue")) return PRIORITIES[0];
-    const prs = new Set(t.occurrences.filter((o) => o.where === "pr").map((o) => o.pr)).size;
-    const branches = new Set(t.occurrences.filter((o) => o.where === "push").map((o) => o.branch)).size;
+    const occ = evidence(t);
+    if (occ.some((o) => o.where === "master" || o.where === "queue")) return PRIORITIES[0];
+    const prs = new Set(occ.filter((o) => o.where === "pr").map((o) => o.pr)).size;
+    const branches = new Set(occ.filter((o) => o.where === "push").map((o) => o.branch)).size;
     return prs >= 2 || branches >= 2 ? PRIORITIES[1] : PRIORITIES[2];
 }
 
@@ -532,10 +624,11 @@ function occurrenceLine(repo, t, o) {
  * @returns {string} the counts
  */
 function counts(t) {
-    const n = (/** @type {string} */ w) => t.occurrences.filter((o) => o.where === w).length;
-    const prs = new Set(t.occurrences.filter((o) => o.where === "pr").map((o) => o.pr)).size;
+    const occ = evidence(t);
+    const n = (/** @type {string} */ w) => occ.filter((o) => o.where === w).length;
+    const prs = new Set(occ.filter((o) => o.where === "pr").map((o) => o.pr)).size;
     const pushes = n("push") ? `, ${n("push")} in local pre-push gates` : "";
-    return `Failed in ${t.occurrences.length} runs: ${n("master")} on master, ${n("queue")} in merge batches, ${n("pr")} on ${prs} pull requests${pushes}.`;
+    return `Failed in ${occ.length} runs: ${n("master")} on master, ${n("queue")} in merge batches, ${n("pr")} on ${prs} pull requests${pushes}.`;
 }
 
 /**
@@ -586,7 +679,7 @@ export function createFlakeIssues({ github, repo, store, now = Date.now }) {
             ...t.proofs.map((p) => `- ${p.text}`),
             "",
             counts(t),
-            ...t.occurrences.map((o) => occurrenceLine(repo, t, o)),
+            ...evidence(t).map((o) => occurrenceLine(repo, t, o)),
             "",
             "githerd files and updates this issue. A known flaky test failing on a pull request is not the pull request's; it still needs a fix here.",
             "",
@@ -609,7 +702,7 @@ export function createFlakeIssues({ github, repo, store, now = Date.now }) {
      * @param {Test} t the test
      */
     async function update(t) {
-        const fresh = t.occurrences.slice(t.reported);
+        const fresh = t.occurrences.slice(t.reported).filter((o) => o.current !== false);
         const proofs = t.proofs.slice(t.proofsReported);
         const issue = /** @type {number} */ (t.issue);
         const path = `${r}issues/${issue}`;
@@ -856,7 +949,8 @@ function headFailures(store, node, required) {
  * the issue.
  * @param {any} state the daemon state
  * @returns {{test: string, runs: number, master: number, batch: number, pr: number, push: number,
- *   proofs: Proof[], issue: number | null}[]} one entry per test
+ *   proofs: Proof[], issue: number | null, predates: boolean}[]} one entry per test; `predates` when
+ *   its issue's every failure was on an older copy of the test file
  */
 export function flakeData(state) {
     return Object.values(/** @type {Store | undefined} */ (state?.flakes)?.tests ?? {}).map((t) => {
@@ -870,6 +964,7 @@ export function flakeData(state) {
             push: n("push"),
             proofs: t.proofs,
             issue: t.issue,
+            predates: t.issue !== null && t.occurrences.length > 0 && t.occurrences.every((o) => o.current === false),
         };
     });
 }
@@ -889,6 +984,8 @@ const pushCount = (t) => (t.push ? `, ${t.push} pre-push` : "");
 export function flakeLines(tests) {
     if (!tests.length) return ["FLAKY TESTS: none"];
     const issue = (/** @type {ReturnType<typeof flakeData>[number]} */ t) => {
+        if (t.issue && t.predates)
+            return `issue #${t.issue}; every failure predates the default branch's copy of the test file: verify the current test and close the issue if it holds`;
         if (t.issue) return `issue #${t.issue}`;
         return t.proofs.length ? "issue not filed yet" : "no proof yet";
     };
@@ -969,12 +1066,13 @@ export async function masterFlakeStep({ state, ws, github, repo, incident, lane,
  * classification (`rec.knownFlake`, the reason its job gets; classify.mjs class `intermittent`).
  * @param {{state: any, nodes: any[], ws: Workspace, config: {repo: string, requiredChecks: string[]},
  *   github: ReturnType<typeof import("./github.mjs").createGitHub>, log: (jobId: number) => Promise<string | null>,
- *   commits: any[], at: string, pushes?: Parameters<typeof notePushes>[1]}} ctx the daemon state (its
+ *   commits: any[], at: string, pushes?: Parameters<typeof notePushes>[1], blob?: BlobReader}} ctx the daemon state (its
  *   `prs` already this poll's), the GraphQL pull request nodes, the workspace, the config, the
  *   client, the job log reader, master's recent commits, the time, and the local pushes
- *   (prepush.mjs `readPushes`)
+ *   (prepush.mjs `readPushes`), and the blob reader (`gitBlobs`) that decides which failures were on
+ *   the default branch's copy of their test; without it every failure counts
  */
-export async function flakePoll({ state, nodes, ws, config, github, log, commits, at, pushes = [] }) {
+export async function flakePoll({ state, nodes, ws, config, github, log, commits, at, pushes = [], blob }) {
     const store = flakeStore(state);
     const repo = config.repo;
     const gateHeads = state.mergeGate?.heads ?? {};
@@ -992,6 +1090,7 @@ export async function flakePoll({ state, nodes, ws, config, github, log, commits
             (gateHeads[n]?.sha === sha ? (gateHeads[n].files ?? null) : null),
     });
     passes.push(...notePushes(store, pushes, ws));
+    if (blob) await judgeEvidence(store, blob);
     for (const [lane, rec] of Object.entries(state.master?.lanes ?? {})) {
         for (const [sha, out] of Object.entries(/** @type {any} */ (rec).shas ?? {})) {
             if (out === "green") passes.push({ sha, job: "*", lane, where: "master" });

@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -12,6 +13,7 @@ import {
     flakeLines,
     flakePoll,
     flakeStore,
+    gitBlobs,
     MARKER,
     masterFlakeStep,
     noteMasterLog,
@@ -21,6 +23,7 @@ import {
 import { createGitHub } from "../lib/github.mjs";
 import { createIncidentActions } from "../lib/incident-actions.mjs";
 import { prWork, readyIssues } from "../lib/queue.mjs";
+import { git } from "../../visual-review/test/helpers.mjs";
 import { createFakeGh, fixture, httpOutput } from "./helpers/fake-gh.mjs";
 
 const REPO = "graphty-org/graphty-monorepo";
@@ -763,5 +766,139 @@ describe("the local pre-push gate", () => {
             },
         ]);
         expect(repo.gh.writes()).toEqual([]);
+    });
+});
+
+describe("only failures on the default branch's copy of the test count", () => {
+    const FILE = "graphty-element/test/a.test.ts";
+    /**
+     * A blob reader: the default branch's copy, and each commit's.
+     * @param {string | null} head the default branch's blob
+     * @param {Record<string, string | null>} at each commit's blob
+     * @returns {{blob: import("../lib/flakes.mjs").BlobReader, reads: string[]}} the reader and its reads
+     */
+    const blobs = (head, at) => {
+        const reads = /** @type {string[]} */ ([]);
+        const blob = async (/** @type {string | null} */ s, /** @type {string} */ path) => {
+            reads.push(`${s ?? "head"} ${path}`);
+            return path === FILE ? (s === null ? head : (at[s] ?? null)) : null;
+        };
+        return { blob, reads };
+    };
+    const pollWith = (state, nodes, github, logs, blob) =>
+        flakePoll({
+            state,
+            nodes,
+            ws: WS,
+            config: { repo: REPO, requiredChecks: ["All Checks Pass"] },
+            github,
+            log: async (id) => logs[id] ?? null,
+            commits: [],
+            at: AT,
+            blob,
+        });
+    const threePrs = () => [
+        node(12, sha("a"), [check(JOB, "FAILURE", 501, 50)]),
+        node(13, sha("b"), [check(JOB, "FAILURE", 511, 51)]),
+        node(14, sha("c"), [check(JOB, "FAILURE", 521, 52)]),
+    ];
+    const jobs = {
+        50: [{ id: 501, run_attempt: 1 }],
+        51: [{ id: 511, run_attempt: 1 }],
+        52: [{ id: 521, run_attempt: 1 }],
+    };
+    const logs = { 501: vitestLog(), 511: vitestLog(), 521: vitestLog() };
+
+    it("files nothing for failures on commits cut before the default branch replaced the test", async () => {
+        const repo = fakeRepo({ jobs });
+        const { github } = client(repo);
+        const state = daemonState([12, 13, 14]);
+        const { blob, reads } = blobs("new", { [sha("a")]: "old", [sha("b")]: "old", [sha("c")]: "old" });
+        await pollWith(state, threePrs(), github, logs, blob);
+        await pollWith(state, threePrs(), github, logs, blob);
+        const t = flakeStore(state).tests[TEST];
+        expect(t.occurrences.map((o) => o.current)).toEqual([false, false, false]);
+        expect(t.proofs).toEqual([]);
+        expect(repo.s.issues).toEqual([]);
+        // Each commit's copy is read once; the default branch's once a poll.
+        expect(reads.filter((r) => r !== `head ${FILE}`)).toHaveLength(3);
+    });
+
+    it("counts failures on the default branch's copy, and drops their proofs once that copy changes", async () => {
+        const repo = fakeRepo({ jobs });
+        const { github } = client(repo);
+        const state = daemonState([12, 13, 14]);
+        const at = { [sha("a")]: "v1", [sha("b")]: "v1", [sha("c")]: "v1" };
+        await pollWith(state, threePrs(), github, logs, blobs("v1", at).blob);
+        const t = flakeStore(state).tests[TEST];
+        expect(t.proofs.map((p) => p.kind)).toEqual(["untouched-prs"]);
+        expect(t.issue).toBe(900);
+        const before = repo.gh.writes().length;
+        await pollWith(state, threePrs(), github, logs, blobs("v2", at).blob);
+        expect(t.head).toBe("v2");
+        expect(t.proofs).toEqual([]);
+        // Not closed, not commented: the board says its evidence predates the current test.
+        expect(repo.gh.writes()).toHaveLength(before);
+        expect(repo.s.issues[0].state).toBe("open");
+        expect(flakeData(state)[0].predates).toBe(true);
+        expect(flakeLines(flakeData(state))[1]).toMatch(
+            /issue #900; every failure predates the default branch's copy of the test file: verify/,
+        );
+    });
+
+    it("does not count a failure whose commit's copy cannot be read", async () => {
+        const repo = fakeRepo({ jobs });
+        const { github } = client(repo);
+        const state = daemonState([12, 13, 14]);
+        await pollWith(state, threePrs(), github, logs, blobs("v1", { [sha("a")]: "v1" }).blob);
+        expect(flakeStore(state).tests[TEST].occurrences.map((o) => o.current)).toEqual([true, false, false]);
+        expect(repo.s.issues).toEqual([]);
+    });
+
+    it("gitBlobs reads a file's blob at a commit, fetching a commit the clone lacks, and null when it cannot", async () => {
+        const tmp = mkdtempSync(join(tmpdir(), "githerd-blobs-"));
+        try {
+            const remote = join(tmp, "remote.git");
+            const [root, other] = [join(tmp, "root"), join(tmp, "other")];
+            git(tmp, "init", "-q", "--bare", "-b", "master", remote);
+            git(tmp, "init", "-q", "-b", "master", other);
+            git(other, "remote", "add", "origin", remote);
+            for (const [k, v] of [
+                ["user.name", "Test"],
+                ["user.email", "test@example.com"],
+                ["commit.gpgsign", "false"],
+            ])
+                git(other, "config", k, v);
+            const commit = (/** @type {string} */ file, /** @type {string} */ text) => {
+                writeFileSync(join(other, file), text);
+                git(other, "add", file);
+                git(other, "commit", "-q", "-m", file);
+                return git(other, "rev-parse", "HEAD");
+            };
+            const old = commit("t.test.ts", "wall clock\n");
+            const same = commit("other.txt", "x\n");
+            git(other, "push", "-q", "origin", "master");
+            git(tmp, "clone", "-q", remote, root);
+            git(other, "checkout", "-q", "-b", "side");
+            const unfetched = commit("other.txt", "y\n");
+            git(other, "push", "-q", "origin", "side");
+            git(other, "checkout", "-q", "master");
+            commit("t.test.ts", "work count\n");
+            git(other, "push", "-q", "origin", "master");
+            git(root, "fetch", "-q", "origin", "master");
+            const runGit = async (/** @type {string[]} */ args) => {
+                const r = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+                return { code: r.status ?? 1, stdout: r.stdout };
+            };
+            const blob = gitBlobs(runGit, "master");
+            const head = await blob(null, "t.test.ts");
+            expect(await blob(old, "t.test.ts")).toBe(await blob(same, "t.test.ts"));
+            expect(await blob(old, "t.test.ts")).not.toBe(head);
+            expect(await blob(unfetched, "t.test.ts")).toBe(await blob(old, "t.test.ts"));
+            expect(await blob(sha("f"), "t.test.ts")).toBeNull();
+            expect(await blob(old, "missing.ts")).toBeNull();
+        } finally {
+            rmSync(tmp, { recursive: true, force: true });
+        }
     });
 });

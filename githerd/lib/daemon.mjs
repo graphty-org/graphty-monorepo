@@ -115,7 +115,7 @@ import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, ta
 import { doneIo, pollVerifying, recheckRefused } from "./done.mjs";
 import { labelMasterFixes, linkMasterFix } from "./master-fix.mjs";
 import { balanceRefusal, classify, isNoLog, refusedOnly } from "./classify.mjs";
-import { flakePoll, masterFlakeStep, noteMasterLog, readWorkspace } from "./flakes.mjs";
+import { flakePoll, gitBlobs, masterFlakeStep, noteMasterLog, readWorkspace } from "./flakes.mjs";
 import { markShared } from "./shared.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
@@ -1889,6 +1889,7 @@ export async function startDaemon({
                 commits,
                 at: iso,
                 pushes: readPushes(join(root, "tmp"), workspace.packages),
+                blob: gitBlobs(runGit, branch),
             }).catch((err) => ledger({ kind: "error", where: "flakes", error: err.message }));
             await recordStats(gh, t).catch((err) => ledger({ kind: "error", where: "stats", error: err.message }));
         }

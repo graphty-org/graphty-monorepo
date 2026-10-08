@@ -370,8 +370,11 @@ export function notifyCommandProblem(command, env) {
  * @returns {string | null} the override's mode
  */
 function readOverride(dir) {
+    const file = join(dir, "override.json");
+    // Read on every write's mode check; with no override, a failed read's error costs more than the check.
+    if (!existsSync(file)) return null;
     try {
-        return JSON.parse(readFileSync(join(dir, "override.json"), "utf8")).mode ?? null;
+        return JSON.parse(readFileSync(file, "utf8")).mode ?? null;
     } catch {
         return null;
     }

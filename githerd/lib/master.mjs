@@ -468,32 +468,62 @@ export const SIGHTING_MEMORY = 100;
  *   oldest `updated_at` first
  */
 export function sightRuns(saved, runs, branch) {
+    // A key's runs are copied at its first sighting; a key with none is shared with `saved`.
     /** @type {SightingRecord} */
-    const record = {};
-    for (const [key, seen] of Object.entries(saved)) record[key] = { ...seen };
+    const record = { ...saved };
     /** @type {WorkflowRun[]} */
     const sightings = [];
+    /** Per key, the lowest run id the last poll remembered; read once per key, not once per run. */
+    const floors = new Map();
     for (const run of runs) {
         const key = `${run.workflow_id ?? run.name}@${run.head_branch ?? branch}`;
-        const seen = (record[key] ??= {});
-        const last = seen[run.id];
-        const known = Object.keys(saved[key] ?? {}).map(Number);
-        const floor = known.length > 0 ? Math.min(...known) : -Infinity;
-        const updated = run.updated_at ?? "";
-        if (last) {
-            if (run.run_attempt < last[0] || (run.run_attempt === last[0] && updated <= last[1])) continue;
-        } else if (run.id < floor) {
-            continue;
+        if (!floors.has(key)) {
+            floors.set(key, lowestId(saved[key]));
+            record[key] ??= {};
         }
-        seen[run.id] = [run.run_attempt, updated];
-        const newest = Object.keys(seen)
-            .map(Number)
-            .sort((a, b) => b - a);
-        for (const id of newest.slice(SIGHTING_MEMORY)) delete seen[id];
+        if (!isSighting(run, record[key][run.id], floors.get(key))) continue;
+        if (record[key] === saved[key]) record[key] = { ...saved[key] };
+        remember(record[key], run);
         sightings.push(run);
     }
     sightings.sort((a, b) => (a.updated_at ?? "").localeCompare(b.updated_at ?? "") || a.id - b.id);
     return { record, sightings };
+}
+
+/**
+ * The lowest run id of one key's record.
+ * @param {Record<string, [number, string]> | undefined} seen the key's runs
+ * @returns {number} the id, or -Infinity for no runs
+ */
+function lowestId(seen) {
+    const known = Object.keys(seen ?? {}).map(Number);
+    return known.length > 0 ? Math.min(...known) : -Infinity;
+}
+
+/**
+ * Whether one run in an answer is a sighting (`sightRuns`).
+ * @param {WorkflowRun} run the run
+ * @param {[number, string] | undefined} last its last sighting
+ * @param {number} floor the lowest run id its key remembered
+ * @returns {boolean} true for a sighting
+ */
+function isSighting(run, last, floor) {
+    const updated = run.updated_at ?? "";
+    if (!last) return run.id >= floor;
+    return run.run_attempt > last[0] || (run.run_attempt === last[0] && updated > last[1]);
+}
+
+/**
+ * Records a sighting in its key's runs, forgetting all but the newest `SIGHTING_MEMORY`.
+ * @param {Record<string, [number, string]>} seen the key's runs, mutated
+ * @param {WorkflowRun} run the run
+ */
+function remember(seen, run) {
+    seen[run.id] = [run.run_attempt, run.updated_at ?? ""];
+    const ids = Object.keys(seen);
+    if (ids.length <= SIGHTING_MEMORY) return;
+    const newest = ids.map(Number).sort((a, b) => b - a);
+    for (const id of newest.slice(SIGHTING_MEMORY)) delete seen[id];
 }
 
 /**

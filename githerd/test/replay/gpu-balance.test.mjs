@@ -31,9 +31,13 @@ const rows = (name) =>
         .filter(Boolean)
         .map((l) => JSON.parse(l));
 
-/** The record's attempts, and master's GPU runs: read once, not on every fake GitHub answer. */
-const ATTEMPTS = rows("attempts.jsonl");
+/** Master's GPU runs, and the record's attempts by run id: read once, not on every fake GitHub answer. */
 const GPU_RUNS = rows("runs-master.jsonl").filter((r) => r.name === "GPU");
+/** @type {Map<number, any[]>} */
+const ATTEMPTS = new Map();
+for (const a of rows("attempts.jsonl")) ATTEMPTS.set(a.id, [...(ATTEMPTS.get(a.id) ?? []), a]);
+/** The last answer of `gpuRuns`: a poll asks for the same time once per request it makes. */
+let lastRuns = { t: Number.NaN, runs: /** @type {any[]} */ ([]) };
 
 /**
  * Master's GPU runs as GitHub answered for them at `t`, newest first: each run's latest attempt
@@ -42,10 +46,19 @@ const GPU_RUNS = rows("runs-master.jsonl").filter((r) => r.name === "GPU");
  * @returns {any[]} the runs
  */
 function gpuRuns(t) {
-    const attempts = ATTEMPTS;
+    if (lastRuns.t !== t) lastRuns = { t, runs: answerRuns(t) };
+    return lastRuns.runs;
+}
+
+/**
+ * Builds the answer of `gpuRuns`.
+ * @param {number} t the time
+ * @returns {any[]} the runs
+ */
+function answerRuns(t) {
     return GPU_RUNS.filter((r) => Date.parse(r.created_at) <= t)
         .map((r) => {
-            const mine = attempts.filter((a) => a.id === r.id && Date.parse(a.run_started_at) <= t);
+            const mine = (ATTEMPTS.get(r.id) ?? []).filter((a) => Date.parse(a.run_started_at) <= t);
             const a = mine.at(-1) ?? { run_attempt: r.run_attempt, updated_at: r.updated_at, conclusion: r.conclusion };
             const done = Date.parse(a.updated_at) <= t;
             return {

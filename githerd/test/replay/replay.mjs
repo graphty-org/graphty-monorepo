@@ -50,7 +50,8 @@ export const BACKWARDS = {
 /**
  * @typedef {{n: number, start: number, end: number, conclusion: string}} Attempt
  * @typedef {{run: Record<string, any>, created: number, attempts: Attempt[]}} Timeline
- * @typedef {{status: number, etag?: string, body: any}} Answer
+ * @typedef {{status: number, etag?: string, body: any, text?: string}} Answer `text` is the body as
+ *   sent, kept with a cached answer
  */
 
 /**
@@ -147,6 +148,47 @@ export function createReplay() {
         logs: /** @type {Record<string, {matches?: string, errors?: string}>} */ (read("logs.json")),
     };
     const stale = record.master.find((t) => t.run.id === BACKWARDS.runId);
+    /**
+     * Every time at which some answer can change, ascending: a run's creation and its attempts'
+     * starts and ends, a failed job's end, a pull request's or issue's creation, closing and merge,
+     * a comment, and the edges of the backwards minutes. Between two of them every answer is the
+     * same, so a minute-by-minute poller is answered from `cache` instead of rebuilding the answer,
+     * its JSON and its SHA-256 each minute.
+     */
+    const changes = Float64Array.from(
+        [
+            ...[...record.master, ...record.pr].flatMap((t) => [
+                t.created,
+                ...t.attempts.flatMap((a) => [a.start, a.end]),
+            ]),
+            ...record.failedJobs.map((j) => Date.parse(j.ts)),
+            ...record.prs.flatMap((p) => [p.createdAt, p.closedAt, p.mergedAt].map((s) => Date.parse(s))),
+            ...record.issues.flatMap((i) =>
+                [i.createdAt, i.closedAt, ...i.comments.map((/** @type {any} */ c) => c.createdAt)].map((s) =>
+                    Date.parse(s),
+                ),
+            ),
+            ...BACKWARDS.minutes.flatMap((m) => [m, m + MINUTE]),
+        ].filter(Number.isFinite),
+    ).sort();
+    /** @type {Map<string, {status: number, body: any, text?: string, etag?: string}>} per path and epoch */
+    const cache = new Map();
+
+    /**
+     * How many change times are at or before `at`: two times with the same count get the same answers.
+     * @param {number} at the time
+     * @returns {number} the count
+     */
+    function epoch(at) {
+        let lo = 0;
+        let hi = changes.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >>> 1;
+            if (changes[mid] <= at) lo = mid + 1;
+            else hi = mid;
+        }
+        return lo;
+    }
     let clock = Date.parse("2026-09-02T00:00:00Z");
     /** 200 answers per hour window, for the rate headers. */
     const used = new Map();
@@ -317,11 +359,20 @@ export function createReplay() {
      * @returns {Answer} the answer
      */
     function conditional(path, etag, at) {
-        const a = answer(path, at);
-        if (a.status !== 200) return a;
-        const text = typeof a.body === "string" ? a.body : JSON.stringify(a.body);
-        const tag = `W/"${createHash("sha256").update(text).digest("hex")}"`;
-        return etag === tag ? { status: 304, etag: tag, body: undefined } : { ...a, etag: tag };
+        const key = `${epoch(at)} ${path}`;
+        let a = cache.get(key);
+        if (!a) {
+            a = answer(path, at);
+            if (a.status === 200) {
+                const text = typeof a.body === "string" ? a.body : JSON.stringify(a.body);
+                a = { ...a, text, etag: `W/"${createHash("sha256").update(text).digest("hex")}"` };
+            }
+            cache.set(key, a);
+        }
+        if (a.status !== 200) return { status: a.status, body: a.body };
+        return etag === a.etag
+            ? { status: 304, etag, body: undefined }
+            : { status: 200, etag: a.etag, body: a.body, text: a.text };
     }
 
     return {
@@ -366,7 +417,12 @@ export function createReplay() {
                 "X-RateLimit-Resource": "core",
             };
             if (a.etag) headers.ETag = a.etag;
-            return { status: a.status, headers, body: a.body };
+            // As GitHub labels it, so the fake need not parse each body to tell JSON from a log.
+            if (a.body !== undefined) {
+                headers["Content-Type"] =
+                    typeof a.body === "string" ? "text/plain; charset=utf-8" : "application/json; charset=utf-8";
+            }
+            return { status: a.status, headers, body: a.text ?? a.body };
         },
 
         /**
@@ -383,7 +439,7 @@ export function createReplay() {
             for (let at = typeof from === "string" ? Date.parse(from) : from; at < end; at += MINUTE) {
                 const a = conditional(path, etag, at);
                 etag = a.etag;
-                yield { at, ...a };
+                yield { at, status: a.status, etag: a.etag, body: a.body };
             }
         },
     };

@@ -658,7 +658,7 @@ function declaredNormalization(fields: readonly FieldDescriptor[], name: string)
 function deferRanks(table: ElementTable, field: string, percentile: boolean): void {
     const complete = (name: string): boolean => {
         const column = table.columns.get(name);
-        return column !== undefined && column.every((value) => value !== MISSING && value !== undefined);
+        return column?.every((value) => value !== MISSING && value !== undefined) ?? false;
     };
 
     if (!complete("rank") || (percentile && !complete("percentile"))) {

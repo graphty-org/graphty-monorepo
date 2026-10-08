@@ -26,8 +26,7 @@ import * as Slider from "../../stories/mantine/selection/Slider.stories";
  * - `color-contrast` under the default (exact Figma) token set: Figma's secondary and
  *   placeholder text fall short of AA by design, and `createCompactTheme({ highContrast: true })`
  *   is the AA set (stories/introduction/Accessibility.mdx, "Contrast: exact Figma, or AA"). The
- *   rule runs under that set, except on the three stories that draw a caption in Mantine's
- *   `dimmed` color, which the AA set does not raise yet (issue #1405).
+ *   rule runs under that set on every story.
  * - `scrollable-region-focusable` for Menu: a long menu scrolls, and its rows are out of the Tab
  *   order by design (WAI-ARIA menu pattern: one Tab stop, the arrow keys move between rows and
  *   scroll each into view). axe exempts a combobox's listbox for the same reason, not a menu.
@@ -37,9 +36,6 @@ setProjectAnnotations(preview);
 const MODULES = { DataRow, Menu, Modal, Pagination, Progress, QuickActions, Slider, SplitButton, Tabs, Toolbar };
 
 const OFF_FOR: Partial<Record<keyof typeof MODULES, string[]>> = { Menu: ["scrollable-region-focusable"] };
-
-/** Stories with a `c="dimmed"` caption, which fails AA contrast under either token set (#1405). */
-const DIMMED_CAPTIONS = new Set(["Menu/States", "DataRow/OpensWhatItNames", "Progress/States"]);
 
 afterEach(() => {
     document.body.innerHTML = "";
@@ -56,8 +52,8 @@ describe.each(Object.entries(MODULES))("%s stories have no axe violations", (nam
         const stories = composeStories(module, { initialGlobals: { theme, contrast, schemes: "single" } });
         const off = ["region", ...(OFF_FOR[name as keyof typeof MODULES] ?? [])];
 
-        it.each(Object.entries(stories))("%s", async (story, Story) => {
-            const contrastOff = contrast === "figma" || DIMMED_CAPTIONS.has(`${name}/${story}`);
+        it.each(Object.entries(stories))("%s", async (_story, Story) => {
+            const contrastOff = contrast === "figma";
             const canvasElement = document.createElement("div");
             document.body.appendChild(canvasElement);
             await Story.run({ canvasElement });

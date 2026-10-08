@@ -9,10 +9,10 @@ Build under test: commit b7590f8de, build stamp `b7590f8de22b graphty@0.8.53`, o
 **End state reached on both datasets in 5 steps**, by the answer key's route to every name: open
 the sample, Everything, Add label line, pick the name attribute, Show all labels.
 
-| Dataset | Statement before the switch | Statement after | Names drawn after |
-| --- | --- | --- | --- |
-| Les Miserables | "77 labels, 7 hidden" (`A/05.png`) | "77 labels" (`A/06.png`) | every dot; e.g. Gillenormand, Marguerite, Mother Innocent, Mlle Gillenormand, Pontmercy appear only after the switch |
-| College football | "115 labels, 14 hidden" (`B/05.png`) | "115 labels" (`B/06.png`) | every dot; e.g. SanDiegoState, Washington, OregonState, ColoradoState appear only after the switch |
+| Dataset          | Statement before the switch          | Statement after           | Names drawn after                                                                                                    |
+| ---------------- | ------------------------------------ | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Les Miserables   | "77 labels, 7 hidden" (`A/05.png`)   | "77 labels" (`A/06.png`)  | every dot; e.g. Gillenormand, Marguerite, Mother Innocent, Mlle Gillenormand, Pontmercy appear only after the switch |
+| College football | "115 labels, 14 hidden" (`B/05.png`) | "115 labels" (`B/06.png`) | every dot; e.g. SanDiegoState, Washington, OregonState, ColoradoState appear only after the switch                   |
 
 ## Steps
 
@@ -30,7 +30,7 @@ Les Miserables (`A/`):
 6. `--click "Show all labels"` -- the box is checked, the statement reads "77 labels", and the
    names that were hidden are drawn, overlapping their neighbors where dots are close (`06.png`).
    The tool printed `ambiguous: "Show all labels" matches 2 controls (input "on", label "Show all
-   labels"); took the first`; the first was the checkbox and the click worked.
+labels"); took the first`; the first was the checkbox and the click worked.
 
 College football (`B/`): the same steps with `"College football"` and `role=option:label`. The
 attribute list is id, label, value (`04.png`). After the pick: "115 labels, 14 hidden" (`05.png`).

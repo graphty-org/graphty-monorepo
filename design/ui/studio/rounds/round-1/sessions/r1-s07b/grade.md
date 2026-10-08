@@ -1,8 +1,7 @@
 # Grade: session r1-s07b -- Ruth, a whole first session on her own file (friends.csv)
 
 **Grade: SD** (success with difficulty). All five parts of the task were reached and stayed in
-place to the end. It is SD rather than S because Ruth needed a tooltip ("Size by attribute", step
-10) to find how to size the dots by a value.
+place to the end. It is SD rather than S because Ruth needed a tooltip ("Size by attribute", step 10) to find how to size the dots by a value.
 
 ## The five parts (5 of 5 reached)
 
@@ -40,15 +39,15 @@ place to the end. It is SD rather than S because Ruth needed a tooltip ("Size by
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | Adding "Size" creates a fixed size ("1") that changes nothing on the drawing. Sizing by a value sits behind an unlabeled chain-link icon whose purpose shows only on hover ("Size by attribute"). Also seen in r1-s06b. | step 9 `09.png`, step 10 (hover), step 11 `11.png` |
-| 2 | 2 | behavior | No Size line on the Style tab; Ruth had to guess it lives under the "+" beside Shape. Also seen in r1-s06b. | step 7 `07.png`, step 8 `08.png` |
-| 3 | 1 | behavior | Labels collide while the panel says "0 hidden to avoid overlap": Chloe's name sits over Farah's ball, and Eli and Dev crowd each other, on screen and in the exported image. All names remain readable, so the count is not wrong. Also seen in r1-s06b. | `14.png`, `17.png`, the download |
-| 4 | 1 | wording | Once bound, the Size line reads "1 to 3" and does not name the value it uses, while the Color line beside it says "Influence"; only the key on the canvas says what the sizes stand for. | `12.png`, `17.png` |
-| 5 | 1 | wording | The run is chosen as "PageRank" and then shown everywhere as "Influence"; Ruth assumed they were the same but would have to explain it to her editor. | step 5 `05.png` |
-| 6 | 1 | wording | The label picker offers "id", not "name"; it worked only because this file's ids are names. | step 13 `13.png` |
-| 7 | 1 | opinion | The method list is algorithm jargon (Betweenness, Eigenvector, Katz, HITS); only the "Start here" badge told her which to pick. | step 3 `03.png` |
-| 8 | 0 | opinion | The key and Top 10 show raw decimals (0.04382 to 0.06608) and nothing says what one unit means; she could not explain them to an editor. "Damping factor" on the run form also meant nothing to her. | `04.png`, `05.png`, `06.png` |
+| #   | Severity | Kind     | Problem                                                                                                                                                                                                                                                  | Evidence                                           |
+| --- | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| 1   | 2        | behavior | Adding "Size" creates a fixed size ("1") that changes nothing on the drawing. Sizing by a value sits behind an unlabeled chain-link icon whose purpose shows only on hover ("Size by attribute"). Also seen in r1-s06b.                                  | step 9 `09.png`, step 10 (hover), step 11 `11.png` |
+| 2   | 2        | behavior | No Size line on the Style tab; Ruth had to guess it lives under the "+" beside Shape. Also seen in r1-s06b.                                                                                                                                              | step 7 `07.png`, step 8 `08.png`                   |
+| 3   | 1        | behavior | Labels collide while the panel says "0 hidden to avoid overlap": Chloe's name sits over Farah's ball, and Eli and Dev crowd each other, on screen and in the exported image. All names remain readable, so the count is not wrong. Also seen in r1-s06b. | `14.png`, `17.png`, the download                   |
+| 4   | 1        | wording  | Once bound, the Size line reads "1 to 3" and does not name the value it uses, while the Color line beside it says "Influence"; only the key on the canvas says what the sizes stand for.                                                                 | `12.png`, `17.png`                                 |
+| 5   | 1        | wording  | The run is chosen as "PageRank" and then shown everywhere as "Influence"; Ruth assumed they were the same but would have to explain it to her editor.                                                                                                    | step 5 `05.png`                                    |
+| 6   | 1        | wording  | The label picker offers "id", not "name"; it worked only because this file's ids are names.                                                                                                                                                              | step 13 `13.png`                                   |
+| 7   | 1        | opinion  | The method list is algorithm jargon (Betweenness, Eigenvector, Katz, HITS); only the "Start here" badge told her which to pick.                                                                                                                          | step 3 `03.png`                                    |
+| 8   | 0        | opinion  | The key and Top 10 show raw decimals (0.04382 to 0.06608) and nothing says what one unit means; she could not explain them to an editor. "Damping factor" on the run form also meant nothing to her.                                                     | `04.png`, `05.png`, `06.png`                       |
 
 No build defect was found, so there is no repro directory for this session.

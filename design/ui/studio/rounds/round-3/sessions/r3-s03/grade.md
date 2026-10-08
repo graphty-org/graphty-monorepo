@@ -30,11 +30,11 @@ Build b7590f8de (graphty 0.8.53), viewport 1440 x 900, sighted mouse participant
    node (77); names drawn. "Show all labels" was used (12.png: "77 labels", box ticked).
 5. **Image downloaded, picture checklist passed.** `downloads/les-miserables_current-view.png`
    (1806 x 1720):
-   - same nodes and arrangement as 15.png: yes;
-   - sizes visibly different: yes;
-   - names drawn on screen drawn in the image: yes, every name (Show all labels on), though
-     several overlap in the dense middle (see problems);
-   - key names every channel in use: "Size: Betweenness" and "Color: Betweenness", both 0 to 1624.
+    - same nodes and arrangement as 15.png: yes;
+    - sizes visibly different: yes;
+    - names drawn on screen drawn in the image: yes, every name (Show all labels on), though
+      several overlap in the dense middle (see problems);
+    - key names every channel in use: "Size: Betweenness" and "Color: Betweenness", both 0 to 1624.
 
 ## Other measures
 
@@ -47,21 +47,21 @@ Build b7590f8de (graphty 0.8.53), viewport 1440 x 900, sighted mouse participant
   and Show all labels (11 to 12) each changed the canvas or the key.
 - **Counts that disagree with the drawing:** none seen.
 - **Tool prints:** step 15, `ambiguous: "Export" matches 2 controls (button "Export", dialog
-  "Export ...")`; the button was taken, which is what the participant meant. Not a wrong turn and
+"Export ...")`; the button was taken, which is what the participant meant. Not a wrong turn and
   not a tool fault.
 
 ## Problems
 
-| # | Sev | Kind | What | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | "Size" is reachable only through "+" beside Shape; there is no Size row until one is added. The participant found it by guessing size belongs to shape and called it the one real hesitation. | Step 6-7, 06.png, 07.png |
-| 2 | 2 | behavior | After the run, the automatic color ramp makes nearly every dot the same orange; only Valjean reads as dark. The participant could not tell who mattered until sizes were added. | Step 5, 05.png |
-| 3 | 2 | behavior | With every name shown, labels are tiny and pile up in the middle; Valjean's name, the most important character, collides with a neighbor's label at the top of his dot and is unreadable on screen and in the exported picture. Labels in the 2x export are also soft, as if drawn below the export's resolution. | Steps 12 and 15, 12.png, 15.png, the downloaded PNG around (940, 780) |
-| 4 | 2 | behavior | The on-screen key box sits over the top-left of the drawing and hides part of it (Blacheville's name is half under it). | Step 11, 11.png |
-| 5 | 1 | opinion | The key repeats itself: size and color both say Betweenness, and the color was applied without being asked for. | Step 9, 09.png |
-| 6 | 1 | opinion | PageRank's "Start here" tag made the participant second-guess the measure their course uses (Betweenness). | Step 3, 03.png |
-| 7 | 1 | wording | The Export dialog does not say the key is included; the participant inferred it from the small preview. | Step 14, 14.png |
-| 8 | 1 | wording | "Size 1 to 3" gives no unit or meaning; the participant left it alone not knowing what 1 and 3 are. | Step 9, 09.png |
+| #   | Sev | Kind     | What                                                                                                                                                                                                                                                                                                              | Evidence                                                              |
+| --- | --- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 1   | 2   | behavior | "Size" is reachable only through "+" beside Shape; there is no Size row until one is added. The participant found it by guessing size belongs to shape and called it the one real hesitation.                                                                                                                     | Step 6-7, 06.png, 07.png                                              |
+| 2   | 2   | behavior | After the run, the automatic color ramp makes nearly every dot the same orange; only Valjean reads as dark. The participant could not tell who mattered until sizes were added.                                                                                                                                   | Step 5, 05.png                                                        |
+| 3   | 2   | behavior | With every name shown, labels are tiny and pile up in the middle; Valjean's name, the most important character, collides with a neighbor's label at the top of his dot and is unreadable on screen and in the exported picture. Labels in the 2x export are also soft, as if drawn below the export's resolution. | Steps 12 and 15, 12.png, 15.png, the downloaded PNG around (940, 780) |
+| 4   | 2   | behavior | The on-screen key box sits over the top-left of the drawing and hides part of it (Blacheville's name is half under it).                                                                                                                                                                                           | Step 11, 11.png                                                       |
+| 5   | 1   | opinion  | The key repeats itself: size and color both say Betweenness, and the color was applied without being asked for.                                                                                                                                                                                                   | Step 9, 09.png                                                        |
+| 6   | 1   | opinion  | PageRank's "Start here" tag made the participant second-guess the measure their course uses (Betweenness).                                                                                                                                                                                                        | Step 3, 03.png                                                        |
+| 7   | 1   | wording  | The Export dialog does not say the key is included; the participant inferred it from the small preview.                                                                                                                                                                                                           | Step 14, 14.png                                                       |
+| 8   | 1   | wording  | "Size 1 to 3" gives no unit or meaning; the participant left it alone not knowing what 1 and 3 are.                                                                                                                                                                                                               | Step 9, 09.png                                                        |
 
 No build defect in the criteria's sense (a crash, a control that does nothing, a wrong count, a
 step that cannot be done by keyboard) was met, so no scripted repro was written for this session.

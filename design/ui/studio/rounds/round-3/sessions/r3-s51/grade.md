@@ -29,10 +29,10 @@ screen shows them").
 
 ## Counts
 
-| | This session | Success path (round 3) |
-|---|---|---|
-| Steps | 7 (steps 1-7) | 9 |
-| Wrong turns | 0 | -- |
+|             | This session  | Success path (round 3) |
+| ----------- | ------------- | ---------------------- |
+| Steps       | 7 (steps 1-7) | 9                      |
+| Wrong turns | 0             | --                     |
 
 - Step 1 sends "No thanks" and the sample click in one command; the card is not a path step.
 - She opened Analyze by clicking the flask (the outline hint points at it) instead of Shift+A, and
@@ -52,15 +52,15 @@ members are listed.
 
 Problems 1-6 match what the other participant on this task met (r3-s50), so they are confirmed.
 
-| # | Problem | Severity | Kind | Evidence |
-|---|---|---|---|---|
-| 1 | The Analyze popover opens on "Rank nodes and edges" with PageRank tagged "Start here"; nothing about groups is on the first screen. She found the grouping methods only by typing "group" in the filter, and says that without typing she would have been scrolling math terms. Confirmed. | 2 | behavior | step 2, 03.png; step 3, 04.png; debrief |
-| 2 | Clicking a group row opens its Style tab (a color field, "E69F00") instead of who is in it ("I asked who's in the group and it offers me a color picker"); the members are one tab over under Values, which she had to guess. Confirmed. | 2 | behavior | step 6, 07.png; step 7, 08.png |
-| 3 | Selecting Group 1 changes nothing on the drawing (no highlight of its 20 nodes) and no names are drawn, so the picture did not help her answer anything. Confirmed. | 2 | opinion | step 6, 06.png vs 07.png (identical canvas); debrief |
-| 4 | The Members list reads "First 10" with no visible way to see the other ten members of a group of 20, or to copy the list out to a spreadsheet. Confirmed. | 1 | behavior | step 7, 08.png; debrief |
-| 5 | Seven grouping methods with unexplained names; she took Louvain only for its "Start here" tag and asks which number goes in front of a VP if another method gives 5. "Resolution" on the form means nothing to her ("like screen resolution?"). Confirmed. | 1 | opinion | steps 3-4, 04.png, 05.png; debrief |
-| 6 | "Components 1" in the graph Overview, before any run, made her wonder whether that was the circle count -- two different words for group-like things. Confirmed. | 1 | wording | step 1, 02.png |
-| 7 | Small gray secondary text (method descriptions, "Under a second", "First 10") is hard to read without glasses. Seen in this participant only. | 1 | accessibility | 03.png, 05.png, 08.png; debrief |
+| #   | Problem                                                                                                                                                                                                                                                                                    | Severity | Kind          | Evidence                                             |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | ------------- | ---------------------------------------------------- |
+| 1   | The Analyze popover opens on "Rank nodes and edges" with PageRank tagged "Start here"; nothing about groups is on the first screen. She found the grouping methods only by typing "group" in the filter, and says that without typing she would have been scrolling math terms. Confirmed. | 2        | behavior      | step 2, 03.png; step 3, 04.png; debrief              |
+| 2   | Clicking a group row opens its Style tab (a color field, "E69F00") instead of who is in it ("I asked who's in the group and it offers me a color picker"); the members are one tab over under Values, which she had to guess. Confirmed.                                                   | 2        | behavior      | step 6, 07.png; step 7, 08.png                       |
+| 3   | Selecting Group 1 changes nothing on the drawing (no highlight of its 20 nodes) and no names are drawn, so the picture did not help her answer anything. Confirmed.                                                                                                                        | 2        | opinion       | step 6, 06.png vs 07.png (identical canvas); debrief |
+| 4   | The Members list reads "First 10" with no visible way to see the other ten members of a group of 20, or to copy the list out to a spreadsheet. Confirmed.                                                                                                                                  | 1        | behavior      | step 7, 08.png; debrief                              |
+| 5   | Seven grouping methods with unexplained names; she took Louvain only for its "Start here" tag and asks which number goes in front of a VP if another method gives 5. "Resolution" on the form means nothing to her ("like screen resolution?"). Confirmed.                                 | 1        | opinion       | steps 3-4, 04.png, 05.png; debrief                   |
+| 6   | "Components 1" in the graph Overview, before any run, made her wonder whether that was the circle count -- two different words for group-like things. Confirmed.                                                                                                                           | 1        | wording       | step 1, 02.png                                       |
+| 7   | Small gray secondary text (method descriptions, "Under a second", "First 10") is hard to read without glasses. Seen in this participant only.                                                                                                                                              | 1        | accessibility | 03.png, 05.png, 08.png; debrief                      |
 
 No build defect: every control she used did what it showed, and the counts on screen agree with
 each other and with the drawing (six key colors, six rows, sizes summing to 77). No repro was

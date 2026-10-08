@@ -67,7 +67,7 @@ be a number."
 ### 7. `--step --click "name"` -> 07.png
 
 Saw: names appeared next to the dots: Blacheville, Fameuil, Favourite, Zephine, Dahlia, Myriel,
-Napoleon, Old Man, Mlle Baptistine and so on. The label row now reads "Aa Above  Abc name" and,
+Napoleon, Old Man, Mlle Baptistine and so on. The label row now reads "Aa Above Abc name" and,
 in tiny gray text under it, "77 labels, 7 hidden to avoid overlap". The names are very small and
 in the crowded middle they pile on each other and are hard to read.
 
@@ -108,14 +108,14 @@ characters. For my figure that's good enough. I give up on the last 7."
 - **How hard (1-7, 7 = very hard):** 3. Getting names on was quick once I found it; the last bit
   (the hidden ones) I could not do at all.
 - **What confused me:**
-  - The Style tab I opened first (for the graph) had no labels at all. I only found "Label" after
-    clicking "Everything" on the left, which I guessed. Nothing told me that node settings live
-    under "Everything".
-  - "77 labels, 7 hidden to avoid overlap" is tiny gray text that tells me something is missing
-    but gives me no way to fix it -- not clickable, no tooltip, no "show all" option.
-  - "Aa Above" looked like it would be the label settings (size, show all) but only picks a
-    position.
-  - The names are very small; in the crowded center I can't read them.
-  - Scrolling the mouse wheel over the drawing did not zoom, so I couldn't even zoom in to see the
-    crowded names.
-  - The bottom toolbar is icons only; I never knew what any of them did, so I didn't try them.
+    - The Style tab I opened first (for the graph) had no labels at all. I only found "Label" after
+      clicking "Everything" on the left, which I guessed. Nothing told me that node settings live
+      under "Everything".
+    - "77 labels, 7 hidden to avoid overlap" is tiny gray text that tells me something is missing
+      but gives me no way to fix it -- not clickable, no tooltip, no "show all" option.
+    - "Aa Above" looked like it would be the label settings (size, show all) but only picks a
+      position.
+    - The names are very small; in the crowded center I can't read them.
+    - Scrolling the mouse wheel over the drawing did not zoom, so I couldn't even zoom in to see the
+      crowded names.
+    - The bottom toolbar is icons only; I never knew what any of them did, so I didn't try them.

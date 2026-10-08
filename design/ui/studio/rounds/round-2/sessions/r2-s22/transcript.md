@@ -391,18 +391,18 @@ What the program told me about him: degree 17. That is the only value I could re
   connections" and a list of named buttons in alphabetical order. That is exactly the shape I
   want: a count and a list I can walk.
 - **What confused me:**
-  - After opening the sample, focus sat on an unnamed "Canvas" and the app said "No nodes to
-    draw" then "Reading Les Miserables" -- and never said it had finished, nor how many characters
-    and ties it loaded. I had to guess when it was ready.
-  - My first full lap of Tab never reached a find box. Only after I pressed Control+F (which
-    announced nothing) did a second lap show "Graph", "Find" and a "Selection" tree. I do not know
-    whether Control+F opened that panel or whether I simply missed it; either way, nothing told me.
-  - In Find, typing "Javert" and pressing ArrowDown read no option and no match count. I pressed
-    Enter blind. It worked, but focus jumped to a group "Summary values" without saying whose
-    values. Nothing said "Javert selected" until I opened the connections region.
-  - "Degree 17" as a button is not something I would have guessed opens the neighbor list; I
-    pressed it because it was the only thing there. "Degree" also comes without a definition --
-    on a weighted graph I want to know whether that is a count of characters or a sum of chapters.
-  - The ties' weights (how many chapters each pair shares) were not spoken in the list, so "shares
-    chapters with" is answered as "who", not "how much".
-  - Tab wraps through "nothing (the page itself)" once per lap, a dead stop with no name.
+    - After opening the sample, focus sat on an unnamed "Canvas" and the app said "No nodes to
+      draw" then "Reading Les Miserables" -- and never said it had finished, nor how many characters
+      and ties it loaded. I had to guess when it was ready.
+    - My first full lap of Tab never reached a find box. Only after I pressed Control+F (which
+      announced nothing) did a second lap show "Graph", "Find" and a "Selection" tree. I do not know
+      whether Control+F opened that panel or whether I simply missed it; either way, nothing told me.
+    - In Find, typing "Javert" and pressing ArrowDown read no option and no match count. I pressed
+      Enter blind. It worked, but focus jumped to a group "Summary values" without saying whose
+      values. Nothing said "Javert selected" until I opened the connections region.
+    - "Degree 17" as a button is not something I would have guessed opens the neighbor list; I
+      pressed it because it was the only thing there. "Degree" also comes without a definition --
+      on a weighted graph I want to know whether that is a count of characters or a sum of chapters.
+    - The ties' weights (how many chapters each pair shares) were not spoken in the list, so "shares
+      chapters with" is answered as "who", not "how much".
+    - Tab wraps through "nothing (the page itself)" once per lap, a dead stop with no name.

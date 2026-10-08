@@ -10,10 +10,10 @@ then say the top three in order and what the order was based on. Walked on graph
 **The end state is reached on both datasets**, but not by the answer key's path: the keyboard
 step that picks PageRank from the filtered list does nothing, so the path needs a click.
 
-| Dataset | What the screen shows after the run | Screenshot |
-|---|---|---|
+| Dataset           | What the screen shows after the run                                      | Screenshot |
+| ----------------- | ------------------------------------------------------------------------ | ---------- |
 | A, Les Miserables | Top 10 of "Influence": Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577 | `A/09.png` |
-| B, friends.csv | Top 10 of "Influence": Farah 0.06608, Ava 0.06423, Hana 0.05883 | `B/05.png` |
+| B, friends.csv    | Top 10 of "Influence": Farah 0.06608, Ava 0.06423, Hana 0.05883          | `B/05.png` |
 
 Names, not ids, appear in both lists. No script error, console error or failed request was
 printed at any step of either session.

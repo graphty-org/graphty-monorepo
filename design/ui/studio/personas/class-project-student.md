@@ -4,7 +4,7 @@ Composite persona for the simulated user study. A first-time user of graph tools
 undergraduate in a humanities or social-science methods course who must turn a spreadsheet of
 relationships into a network picture and a short analysis for an assignment. Built from the
 public course materials and tutorials listed under Sources. No real person's identity is used.
-Details marked *(assumed)* have no source.
+Details marked _(assumed)_ have no source.
 
 This file strengthens the round 8 version (`study/personas/class-project-student.md` in the
 mock-study worktree) for the studio's round 1: same person, more evidence, a voice, and fuller
@@ -18,7 +18,7 @@ are asked to do and where they get stuck.
 
 ## Portrait
 
-Dev is 20, a third-year history student in a digital-methods course *(assumed)*. The assignment
+Dev is 20, a third-year history student in a digital-methods course _(assumed)_. The assignment
 gives the class spreadsheets of family members and their ties and asks who the central figures
 and connectors are. One instructor describes the same exercise: students worked from "three
 spreadsheets, which are the lists of the members" of three families, found that "it is difficult
@@ -27,7 +27,7 @@ who are the central figures, connectors, etc.", and were then shown a tool that 
 "quantitatively identify the important nodes in the network through the statistics obtained from
 centrality measures" (Digital Orientalist, read directly).
 
-It is the week before the deadline *(assumed)*. He has watched one tutorial video at 1.5x speed
+It is the week before the deadline _(assumed)_. He has watched one tutorial video at 1.5x speed
 and has the slides from the lab session. He is curious about the method and anxious about the
 grade, and he wants the figure to look like the ones in the slides.
 
@@ -126,4 +126,5 @@ first-screen wording and on labels over findings on his vocabulary.
 6. KB National Library of the Netherlands lab, "Working with Gephi - Link analysis part 3", https://lab.kb.nl/about-us/blog/working-gephi-link-analysis-part-3 (read directly)
 7. "Getting started with Gephi", Gephi manual for beginners, https://jveerbeek.gitlab.io/gephi/docs/getting_started.html (search summary only)
 </content>
+
 </invoke>

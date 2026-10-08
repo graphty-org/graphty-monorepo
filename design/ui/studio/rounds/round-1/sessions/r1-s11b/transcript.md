@@ -75,7 +75,7 @@ Tom: "id or name. I want the character's name, so name."
 `--step ... --click "name"`
 
 Saw: names appear above the dots across the whole drawing (Blacheville, Myriel, Napoleon, Old Man,
-Gervais...). The Label row now reads "Aa Above  Abc name" with a minus. Under it, in small grey
+Gervais...). The Label row now reads "Aa Above Abc name" with a minus. Under it, in small grey
 text: "77 labels, 7 hidden to avoid overlap". The middle of the drawing is a knot where names are
 crammed and some dots have none.
 
@@ -122,14 +122,14 @@ the other seven."
 - **How hard was it (1 = very easy, 7 = very hard)?** 3. Getting names on was quick once I clicked
   "Everything". Getting all of them on, I could not do.
 - **What confused me:**
-  - Style on the first screen only had background and "Method". I had to guess that "Everything"
-    on the left was what I should click to get at the dots.
-  - The plus next to Label is very small and faint; the row looks like a heading, not a button.
-  - The names are tiny, serif, and black on light grey. With my glasses up on my head I could not
-    read most of them, especially in the middle.
-  - "7 hidden to avoid overlap" is in tiny grey text, and it tells me there is a problem without
-    telling me what to do about it. I wanted a "show all" or "bigger names" or at least a hint
-    that zooming in would show them.
-  - Scrolling on the drawing did not zoom in, so I could not get closer to the crowded middle.
-  - The "Aa" and "Abc name" boxes looked like they would have text settings (size, show all) but
-    one was position and the other was the same list again
+    - Style on the first screen only had background and "Method". I had to guess that "Everything"
+      on the left was what I should click to get at the dots.
+    - The plus next to Label is very small and faint; the row looks like a heading, not a button.
+    - The names are tiny, serif, and black on light grey. With my glasses up on my head I could not
+      read most of them, especially in the middle.
+    - "7 hidden to avoid overlap" is in tiny grey text, and it tells me there is a problem without
+      telling me what to do about it. I wanted a "show all" or "bigger names" or at least a hint
+      that zooming in would show them.
+    - Scrolling on the drawing did not zoom in, so I could not get closer to the crowded middle.
+    - The "Aa" and "Abc name" boxes looked like they would have text settings (size, show all) but
+      one was position and the other was the same list again

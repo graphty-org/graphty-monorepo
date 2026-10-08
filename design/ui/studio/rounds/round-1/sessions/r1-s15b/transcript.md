@@ -64,10 +64,10 @@ All commands run from `design/ui/studio`, with `S=rounds/round-1/sessions/r1-s15
 - **How hard (1-7):** 3. Adding the names was quick once I found "Everything"; the last 14 were a
   dead end.
 - **What confused me:**
-  - The Style tab I saw first (on the whole graph) had only background and layout. I had to guess
-    that "Everything" on the left was where the dots' style lives.
-  - "14 hidden to avoid overlap" tells me something is missing but not which teams, and offers no
-    switch to show them anyway. For a fact-checked picture I need to know who is missing.
-  - The attribute list offered "id", "label" and "value" with no hint of what each holds; I guessed
-    "label".
-  - The mouse wheel did not zoom the drawing, so I could not try to make room for the hidden names.
+    - The Style tab I saw first (on the whole graph) had only background and layout. I had to guess
+      that "Everything" on the left was where the dots' style lives.
+    - "14 hidden to avoid overlap" tells me something is missing but not which teams, and offers no
+      switch to show them anyway. For a fact-checked picture I need to know who is missing.
+    - The attribute list offered "id", "label" and "value" with no hint of what each holds; I guessed
+      "label".
+    - The mouse wheel did not zoom the drawing, so I could not try to make room for the hidden names.

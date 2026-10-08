@@ -7,15 +7,15 @@ read who came out on top, then put names on the drawing.
 
 ## Recorded measures
 
-| Measure | Value |
-|---|---|
-| Usage card | Declined ("No thanks"); a one-line note "Usage data stays off. Change this in Settings > Privacy" replaced it (02.png) |
-| Data used | friends.csv, not a sample |
-| Steps from start to first drawing | 2 (No thanks; Open project or file... with the upload). 1 if the card is ignored |
-| Analysis run without being asked | Yes: PageRank, marked "Start here" in Analyze (04.png), run with its default damping 0.85 and Weight None (05-06.png). The run is now named "PageRank" everywhere: the key "Color: PageRank", the list row, the node's Results line |
-| Result read correctly | Yes. Top 10: Farah 0.06608, Ava 0.06423, Hana 0.05883 (09.png); range 0.04382 to 0.06608 in the key (06.png) and the value strip (09.png). All equal the reference values. Ava reads "0.06423, #2 of 20", degree 6 (07.png); Farah "0.06608, #1 of 20", degree 4 (10.png) |
-| Names on the drawing | Not by default. Reachable in 3 steps: Everything, the "+" beside Label ("Add label line"), "id" (11-13.png). Then "20 labels, 1 hidden" with a "Show all labels" box; ticking it reads "20 labels" and draws the hidden one, Chloe (14.png) |
-| Verdict a newcomer could reach | Probably "keep using it": the file drew at once, the overview (20 nodes, 41 edges, Directed, 1 component) is right, the ranking is easy to read and names can be added. The likely reason against is unchanged: the first drawing shows no names |
+| Measure                           | Value                                                                                                                                                                                                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Usage card                        | Declined ("No thanks"); a one-line note "Usage data stays off. Change this in Settings > Privacy" replaced it (02.png)                                                                                                                                                    |
+| Data used                         | friends.csv, not a sample                                                                                                                                                                                                                                                 |
+| Steps from start to first drawing | 2 (No thanks; Open project or file... with the upload). 1 if the card is ignored                                                                                                                                                                                          |
+| Analysis run without being asked  | Yes: PageRank, marked "Start here" in Analyze (04.png), run with its default damping 0.85 and Weight None (05-06.png). The run is now named "PageRank" everywhere: the key "Color: PageRank", the list row, the node's Results line                                       |
+| Result read correctly             | Yes. Top 10: Farah 0.06608, Ava 0.06423, Hana 0.05883 (09.png); range 0.04382 to 0.06608 in the key (06.png) and the value strip (09.png). All equal the reference values. Ava reads "0.06423, #2 of 20", degree 6 (07.png); Farah "0.06608, #1 of 20", degree 4 (10.png) |
+| Names on the drawing              | Not by default. Reachable in 3 steps: Everything, the "+" beside Label ("Add label line"), "id" (11-13.png). Then "20 labels, 1 hidden" with a "Show all labels" box; ticking it reads "20 labels" and draws the hidden one, Chloe (14.png)                               |
+| Verdict a newcomer could reach    | Probably "keep using it": the file drew at once, the overview (20 nodes, 41 edges, Directed, 1 component) is right, the ranking is easy to read and names can be added. The likely reason against is unchanged: the first drawing shows no names                          |
 
 ## Step by step
 

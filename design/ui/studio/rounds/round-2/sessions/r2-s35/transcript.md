@@ -134,8 +134,7 @@ Saw (12.png): "77 of 77 have a value, 0.003299 to 0.07543, median 0.01242"; Top 
 Fantine 0.02702, Enjolras 0.02188, Cosette 0.02061, MmeThenardier 0.0195; "Made with: PageRank,
 Ran Oct 7, Damping factor 0.85".
 
-Nadia: "There it is -- all 77 scores, Valjean on top, and it even says it was PageRank run on Oct
-7. That's what QA would want written down. Names are on the drawing. Done."
+Nadia: "There it is -- all 77 scores, Valjean on top, and it even says it was PageRank run on Oct 7. That's what QA would want written down. Names are on the drawing. Done."
 
 ## End
 

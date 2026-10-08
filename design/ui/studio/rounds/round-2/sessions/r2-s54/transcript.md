@@ -89,11 +89,11 @@ Command: `--end`
 - **How easy:** 6 out of 7. Seven clicks, about a minute. Samples were right there on the first
   screen with one-line descriptions, so I didn't have to hunt.
 - **Where I hesitated / what confused me:**
-  - The dots have no names. I had to click one to learn it was Medici. For my work a picture
-    without account numbers on it can't go in an alert file -- I'd need labels on by default or
-    an obvious way to switch them on.
-  - The overview numbers ("Density 0.1905", "Undirected, from the file: directed 0", "Edges per
-    n..." cut off) mean nothing to me. "directed 0" reads like a glitch.
-  - "Degree 6" -- I guessed it means 6 ties. Would rather it said so.
-  - None of the samples looks like money moving between accounts; Florentine marriages was the
-    closest to "who sits between groups". Can't yet tell if it would save me minutes per alert.
+    - The dots have no names. I had to click one to learn it was Medici. For my work a picture
+      without account numbers on it can't go in an alert file -- I'd need labels on by default or
+      an obvious way to switch them on.
+    - The overview numbers ("Density 0.1905", "Undirected, from the file: directed 0", "Edges per
+      n..." cut off) mean nothing to me. "directed 0" reads like a glitch.
+    - "Degree 6" -- I guessed it means 6 ties. Would rather it said so.
+    - None of the samples looks like money moving between accounts; Florentine marriages was the
+      closest to "who sits between groups". Can't yet tell if it would save me minutes per alert.

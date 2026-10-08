@@ -224,7 +224,6 @@ I read this file at the start of every session and update it as I decide and lea
   meaning); replace report (added, removed, changed counts); staleness reason (data replaced,
   filter changed) by data version, not by count.
 
-
 - 2026-10-07 Announcement words (round 3 proposal): load "<Name>: 77 nodes, 254 edges"; run
   "<Method> running" then "<Method> finished". Both from the element's load and run events; no
   English from the element. Watch for double speech with the existing "added, running".

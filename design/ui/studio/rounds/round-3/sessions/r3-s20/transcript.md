@@ -164,21 +164,21 @@ degree 17. Nothing else is stored for him in this sample.
   name and gave one option. The connections list is a named region whose name carries the count,
   and the names are real buttons.
 - **What confused or annoyed me:**
-  - After opening the sample, focus fell to "nothing (the page itself)". The button I pressed was
-    gone and nothing took its place. I had to read the page to learn where I was.
-  - The workspace has no headings. On the start page H worked; here it would give me nothing.
-  - Typing "Javert" in Find expanded the list but did not say how many matches there were. I had
-    to arrow down to find out.
-  - Choosing Javert moved focus to a group called "Summary values" without saying "Javert". I only
-    knew whose summary it was after reading around it.
-  - The "Degree 17" button does not say that it opens the list of connections. I pressed it on a
-    guess. A newer user would not.
-  - "Data" was not in the tab order next to "Graph". Probably a tab pair, but it was read as a
-    button, so I could not tell.
-  - The task says "shares chapters". Nothing I heard said what an edge means in this sample, or
-    whether it carries a count of chapters. I am assuming one edge is one or more shared chapters.
-  - I did not find out how to get back from the connections list to Javert's summary. I did not
-    need to here, but next time I will.
+    - After opening the sample, focus fell to "nothing (the page itself)". The button I pressed was
+      gone and nothing took its place. I had to read the page to learn where I was.
+    - The workspace has no headings. On the start page H worked; here it would give me nothing.
+    - Typing "Javert" in Find expanded the list but did not say how many matches there were. I had
+      to arrow down to find out.
+    - Choosing Javert moved focus to a group called "Summary values" without saying "Javert". I only
+      knew whose summary it was after reading around it.
+    - The "Degree 17" button does not say that it opens the list of connections. I pressed it on a
+      guess. A newer user would not.
+    - "Data" was not in the tab order next to "Graph". Probably a tab pair, but it was read as a
+      button, so I could not tell.
+    - The task says "shares chapters". Nothing I heard said what an edge means in this sample, or
+      whether it carries a count of chapters. I am assuming one edge is one or more shared chapters.
+    - I did not find out how to get back from the connections list to Javert's summary. I did not
+      need to here, but next time I will.
 - **Would I use this instead of my scripts?** For a manager's "who is connected to this one?" --
   possibly, it was quicker than writing the script. For anything I report, not until I know what
   the numbers mean and can export them.

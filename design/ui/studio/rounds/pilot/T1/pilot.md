@@ -14,13 +14,13 @@ privacy chip has no tooltip. The key should click the chip instead (see "Blocker
 
 ## Steps
 
-| # | Step | Printed | Screenshot | What the screen shows |
-|---|---|---|---|---|
-| 0 | `--start rounds/pilot/T1 empty` | the commit and build | `01.png` | Start screen: Start, Recent projects, four sample cards; header chip "Local only" (lock icon) and a gear. The usage card sits at the bottom: "Your data is yours, but please help us.", the owner's paragraph ("We will never see the data you analyze ..."), a closed "What is collected" disclosure, "Nothing is collected until you answer.", and "Share usage data" / "No thanks". |
-| 1 | `--click "What is collected"` | path only | `02.png` | The disclosure opens: a session replay with every node name, attribute value, label and file content masked; anonymous task events with timings; errors and performance; a feedback widget; "No file contents ever leave your computer." |
-| 2 | `--click "No thanks"` | path only | `03.png` | The card is gone. A line at the bottom reads "Usage data stays off. Change this in Settings > Privacy" (the second part a link). Header chip still "Local only". |
-| 3 | `--hover "Local only"` | `tooltip: null` | `04.png` | Only the chip's hover background. No tooltip, so nothing tells the participant what the chip is or where it leads. |
-| 4 (extra) | `--click "Local only"` | path only | `05.png` | Settings opens on Privacy: "Share usage data" switch (off), the owner's paragraph, "What is collected", and "Where your data goes" ("Usage data: off. Nothing is sent."). |
+| #         | Step                            | Printed              | Screenshot | What the screen shows                                                                                                                                                                                                                                                                                                                                                                  |
+| --------- | ------------------------------- | -------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0         | `--start rounds/pilot/T1 empty` | the commit and build | `01.png`   | Start screen: Start, Recent projects, four sample cards; header chip "Local only" (lock icon) and a gear. The usage card sits at the bottom: "Your data is yours, but please help us.", the owner's paragraph ("We will never see the data you analyze ..."), a closed "What is collected" disclosure, "Nothing is collected until you answer.", and "Share usage data" / "No thanks". |
+| 1         | `--click "What is collected"`   | path only            | `02.png`   | The disclosure opens: a session replay with every node name, attribute value, label and file content masked; anonymous task events with timings; errors and performance; a feedback widget; "No file contents ever leave your computer."                                                                                                                                               |
+| 2         | `--click "No thanks"`           | path only            | `03.png`   | The card is gone. A line at the bottom reads "Usage data stays off. Change this in Settings > Privacy" (the second part a link). Header chip still "Local only".                                                                                                                                                                                                                       |
+| 3         | `--hover "Local only"`          | `tooltip: null`      | `04.png`   | Only the chip's hover background. No tooltip, so nothing tells the participant what the chip is or where it leads.                                                                                                                                                                                                                                                                     |
+| 4 (extra) | `--click "Local only"`          | path only            | `05.png`   | Settings opens on Privacy: "Share usage data" switch (off), the owner's paragraph, "What is collected", and "Where your data goes" ("Usage data: off. Nothing is sent.").                                                                                                                                                                                                              |
 
 `--end` closed the session cleanly.
 
@@ -44,7 +44,7 @@ privacy chip has no tooltip. The key should click the chip instead (see "Blocker
   nothing. Participants must read the PNG, which is the intent, so this is not a defect, but the
   README sentence overstates it.
 - **The start waited about five minutes for a free browser slot** (`waiting for a free browser
-  slot ...`), because other sessions held all four. Expected behavior of the gate, worth knowing
+slot ...`), because other sessions held all four. Expected behavior of the gate, worth knowing
   for round timing.
 - **Task wording:** no problem found. The prompt uses none of the control's words ("usage",
   "collected", "privacy", "settings"), and every part of it is answerable from the screen.

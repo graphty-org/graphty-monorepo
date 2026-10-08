@@ -8,13 +8,13 @@ Graded from the last screenshot (33.png), the saved picture
 
 ## The five parts
 
-| Part | Reached | Evidence |
-|---|---|---|
-| 1. friends.csv drawn | yes | 03.png: 20 dots, 41 arrows; panel Nodes 20, Edges 41, Directed |
-| 2. A ranking run from Analyze, finished | yes | 06.png: "Influence 20" row, key "Color: Influence 0.04382 to 0.06608" (PageRank, the reference range) |
-| 3. Sizes bound to the result, visibly different; meaning said | yes | 25.png: Size line "1 to 3", key "Size: Influence"; Ava and Farah plainly largest. Sam: "Both the size and the color show the same thing: Influence, which is what the program calls PageRank ... Bigger and darker means more." Correct |
-| 4. Label line bound to the names on a row covering every node | yes | 29.png: label line "Abc id" on the Influence row (20 of 20 nodes carry a value), "20 labels, 0 hidden to avoid overlap"; names, not ids, are drawn (friends.csv keeps names in `id`) |
-| 5. Picture that passes the checklist | yes | `downloads/friends_current-view.png` (1806 x 1720): same nodes and arrangement as 33.png; sizes visibly different; all 20 names drawn; key names both channels in use, "Size: Influence" and "Color: Influence" |
+| Part                                                          | Reached | Evidence                                                                                                                                                                                                                                |
+| ------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. friends.csv drawn                                          | yes     | 03.png: 20 dots, 41 arrows; panel Nodes 20, Edges 41, Directed                                                                                                                                                                          |
+| 2. A ranking run from Analyze, finished                       | yes     | 06.png: "Influence 20" row, key "Color: Influence 0.04382 to 0.06608" (PageRank, the reference range)                                                                                                                                   |
+| 3. Sizes bound to the result, visibly different; meaning said | yes     | 25.png: Size line "1 to 3", key "Size: Influence"; Ava and Farah plainly largest. Sam: "Both the size and the color show the same thing: Influence, which is what the program calls PageRank ... Bigger and darker means more." Correct |
+| 4. Label line bound to the names on a row covering every node | yes     | 29.png: label line "Abc id" on the Influence row (20 of 20 nodes carry a value), "20 labels, 0 hidden to avoid overlap"; names, not ids, are drawn (friends.csv keeps names in `id`)                                                    |
+| 5. Picture that passes the checklist                          | yes     | `downloads/friends_current-view.png` (1806 x 1720): same nodes and arrangement as 33.png; sizes visibly different; all 20 names drawn; key names both channels in use, "Size: Influence" and "Color: Influence"                         |
 
 Top names Sam stated (Farah, Ava, then Hana, Ivan) were on screen first (10.png, the Top 10) and
 match the reference (Farah 0.06608, Ava 0.06423, Hana 0.05883).
@@ -43,14 +43,14 @@ some overlapping on the drawing.
 
 ## Problems
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 3 | build-defect | Choosing an item from a Style panel menu (Size from the Shape "+" menu; an attribute from "Size by attribute"; an attribute for the label line) drops focus to the page body; the next Tab lands on the main menu at the top left. A keyboard user must hunt back. Sam: "Twice in one task is my abandon line." | 18-19.png, 25-26.png; repro below |
-| 2 | 2 | behavior | Tab stops with no visible focus: one between the left list and the bottom bar (12.png), and further stops in the Style panel walk (16.png counted blind, 22.png); a thin blue line on the panel edge with no meaning to the user (20.png) | 12, 16, 20, 22.png |
-| 3 | 2 | behavior | The command list (Ctrl+K) knows Export and Analyze but returns "No results" for "size"; no styling command is reachable from it | 08.png |
-| 4 | 2 | behavior | Size sits under "Shape" and "size by a value" is an icon-only chain button whose name is seen only once focus reaches it | 15-18.png, 23.png |
-| 5 | 1 | opinion | In the PageRank form Sam could not tell whether Run had focus before pressing Enter (05.png shows a ring on Run, faint against the blue fill) | 05.png |
-| 6 | 1 | opinion | Some names overlap at the bottom of the picture (Chloe over Farah, Eli and Dev) while the line reads "0 hidden to avoid overlap" | 29.png, the saved PNG |
+| #   | Sev | Kind         | Problem                                                                                                                                                                                                                                                                                                         | Evidence                          |
+| --- | --- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| 1   | 3   | build-defect | Choosing an item from a Style panel menu (Size from the Shape "+" menu; an attribute from "Size by attribute"; an attribute for the label line) drops focus to the page body; the next Tab lands on the main menu at the top left. A keyboard user must hunt back. Sam: "Twice in one task is my abandon line." | 18-19.png, 25-26.png; repro below |
+| 2   | 2   | behavior     | Tab stops with no visible focus: one between the left list and the bottom bar (12.png), and further stops in the Style panel walk (16.png counted blind, 22.png); a thin blue line on the panel edge with no meaning to the user (20.png)                                                                       | 12, 16, 20, 22.png                |
+| 3   | 2   | behavior     | The command list (Ctrl+K) knows Export and Analyze but returns "No results" for "size"; no styling command is reachable from it                                                                                                                                                                                 | 08.png                            |
+| 4   | 2   | behavior     | Size sits under "Shape" and "size by a value" is an icon-only chain button whose name is seen only once focus reaches it                                                                                                                                                                                        | 15-18.png, 23.png                 |
+| 5   | 1   | opinion      | In the PageRank form Sam could not tell whether Run had focus before pressing Enter (05.png shows a ring on Run, faint against the blue fill)                                                                                                                                                                   | 05.png                            |
+| 6   | 1   | opinion      | Some names overlap at the bottom of the picture (Chloe over Farah, Eli and Dev) while the line reads "0 hidden to avoid overlap"                                                                                                                                                                                | 29.png, the saved PNG             |
 
 Problem 1 is already noted in the answer key's keyboard path ("focus falls to the body") and is a
 bar 8 failure ("focus never drops"); this session shows its cost to a keyboard user.

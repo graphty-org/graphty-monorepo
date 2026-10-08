@@ -551,9 +551,15 @@ function decodeQuotedName(where: Query, at: number, quoted: string): string {
         // Falls through to the one refusal below, so both failures read the same way.
     }
 
-    throw badSelector("bad-quoted-name", `A quoted attribute name follows JSON's rules for a string, and ${quoted} does not`, where, at, {
-        name: quoted,
-    });
+    throw badSelector(
+        "bad-quoted-name",
+        `A quoted attribute name follows JSON's rules for a string, and ${quoted} does not`,
+        where,
+        at,
+        {
+            name: quoted,
+        },
+    );
 }
 
 /**
@@ -576,7 +582,9 @@ function tokenize(where: Query): readonly Token[] {
 
         const unsupported = UNSUPPORTED_BY_CHARACTER[character];
         if (unsupported !== undefined) {
-            throw badSelector("unsupported-syntax", `A selector does not support ${unsupported}`, where, at, { construct: unsupported });
+            throw badSelector("unsupported-syntax", `A selector does not support ${unsupported}`, where, at, {
+                construct: unsupported,
+            });
         }
 
         if (character === "|" && where.charAt(at + 1) !== "|") {
@@ -586,9 +594,15 @@ function tokenize(where: Query): readonly Token[] {
         }
 
         if (character === "&" && where.charAt(at + 1) !== "&") {
-            throw badSelector("expression-reference-not-supported", "A selector does not support expression references", where, at, {
-                construct: "expression references",
-            });
+            throw badSelector(
+                "expression-reference-not-supported",
+                "A selector does not support expression references",
+                where,
+                at,
+                {
+                    construct: "expression references",
+                },
+            );
         }
 
         const operator = OPERATORS.find((candidate) => where.startsWith(candidate, at));
@@ -636,14 +650,26 @@ function tokenize(where: Query): readonly Token[] {
         }
 
         if (/[0-9-]/.test(character)) {
-            throw badSelector("number-needs-backticks", "A number in a selector goes between backticks, so write `5` rather than 5", where, at, {
-                character,
-            });
+            throw badSelector(
+                "number-needs-backticks",
+                "A number in a selector goes between backticks, so write `5` rather than 5",
+                where,
+                at,
+                {
+                    character,
+                },
+            );
         }
 
-        throw badSelector("bad-character", `${JSON.stringify(character)} is not something a selector can contain`, where, at, {
-            character,
-        });
+        throw badSelector(
+            "bad-character",
+            `${JSON.stringify(character)} is not something a selector can contain`,
+            where,
+            at,
+            {
+                character,
+            },
+        );
     }
 
     tokens.push({ kind: "end", text: "", at: where.length });

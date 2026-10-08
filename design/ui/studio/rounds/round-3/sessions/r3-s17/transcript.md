@@ -10,6 +10,7 @@ Start: empty. Build under study: commit f108a235091e, graphty@0.8.53.
 ## Steps
 
 ### 1. Start
+
 Command: `node tool/real.mjs --start rounds/round-3/sessions/r3-s17 empty` -> 01.png
 
 Saw: a dark start page. Left: "Open project or file...", "New from data...". Middle: "Recent
@@ -21,10 +22,12 @@ Ruth: "Good -- the football one is right there. First I'll say no to the usage d
 share anything from my work machine."
 
 ### 2. Decline usage data
+
 Command: `--step --click "No thanks"` -> 02.png
 Saw: the box closed (only a screenshot printed). Ruth: "Now the football sample."
 
 ### 3. Open the College football sample
+
 Command: `--step --click "College football"`
 -> 03.png
 Saw: the graph opened: blue balls joined by gray lines in a box shape, no names anywhere. Left:
@@ -37,6 +40,7 @@ Ruth: "115 teams, matches the sample card -- good. No names on the dots, like th
 dots sounds like a look-of-the-picture thing, so I'll try the 'Style' tab on the right."
 
 ### 4. Open the Style tab
+
 Command: `--step --click "Style"`
 -> 04.png
 Saw: Style tab for "Graph": Canvas background color F5F5F5, then "Method: Force - Recommended",
@@ -47,6 +51,7 @@ This panel is for the whole graph. On the left there's 'Everything' with a stack
 that's 'all the dots', and its style has the names. I'll click it."
 
 ### 5. Click "Everything" on the left
+
 Command: `--step --click "Everything"`
 -> 05.png
 Saw: right panel now "Everything", Style tab, Nodes/Edges toggle (Nodes on). Fill: Color 6366F1
@@ -57,6 +62,7 @@ Ruth: "There it is -- 'Label'. That's what a name on a dot would be called. It h
 think I add one. I'll press the plus beside Label."
 
 ### 6. Press the "+" beside Label
+
 Command: `--step --click-at 1420,362`
 -> 06.png (tool: button "Add label line")
 Saw: a pop-up "Label" with a "Find an attribute" box and a list "Attributes": id, label, value.
@@ -67,6 +73,7 @@ number or a code; 'label' sounds like the name; I don't know what 'value' is in 
 network. I'd want the team name, so 'label'."
 
 ### 7. Pick "label"
+
 Command: `--step --click "label"`
 -> 07.png
 Saw: team names appeared above the dots (Georgia, Florida, Arkansas, NewMexicoState, Arizona,
@@ -78,6 +85,7 @@ Ruth: "Names! But it tells me straight out 14 are hidden -- so not every team. I
 says so instead of quietly dropping them. They want every team, so I'll tick 'Show all labels'."
 
 ### 8. Tick "Show all labels"
+
 Command: `--step --click "Show all labels"`
 -> 08.png
 Saw: the checkbox is ticked and the gray text now reads "115 labels" (the "14 hidden" is gone).
@@ -90,6 +98,7 @@ on each other and hard to read. Before I call it done I'll zoom in on the crowde
 check the names are really there and readable."
 
 ### 9. Zoom in on the crowded lower middle
+
 Command: `--step --wheel 760,600,-600`
 -> 09.png
 Saw: the drawing grew only a little. The names grew with it but are still small serif text.
@@ -104,6 +113,7 @@ not a missing-name thing -- I could zoom in further or move dots if I needed a c
 the graphics desk. For this task I'm done."
 
 ### 10. End
+
 Command: `node tool/real.mjs --end rounds/round-3/sessions/r3-s17`
 
 ## Debrief (in character)
@@ -114,6 +124,7 @@ Command: `node tool/real.mjs --end rounds/round-3/sessions/r3-s17`
 **How easy or difficult, 1 (very difficult) to 7 (very easy):** 6.
 
 **What went well**
+
 - The football sample was right on the first page; opening it was one click.
 - Once I clicked "Everything" on the left, "Label" was a plainly named row with a plus. The
   attribute list was short (id, label, value), and "label" was a sensible guess for a name.
@@ -122,6 +133,7 @@ Command: `node tool/real.mjs --end rounds/round-3/sessions/r3-s17`
   with the count changing to "115 labels".
 
 **Where I hesitated or was confused**
+
 - The first place I looked, the "Style" tab of the Graph panel, was about the background and the
   arrangement method -- nothing about the dots' names. I had to guess that "Everything" on the
   left meant "all the dots" to reach the node style. Nothing on the Graph style tab pointed me

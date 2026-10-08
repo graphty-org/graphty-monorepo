@@ -32,13 +32,13 @@ There are no downloads; the task does not need any.
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | Choosing Group 1 in the list does not change the drawing (no highlight, outline or dimming), so the participant matched the group's color by eye to find it on the canvas. | step 7: `06.png` and `07.png` canvases are identical |
-| 2 | 1 | behavior | The group's Members list shows only the "First 10" of 20, with no visible way to see or copy all of them. Did not block this task (three names needed). | step 7 `07.png` |
-| 3 | 1 | behavior | Analyze opens on ranking measures; grouping methods are not visible until the list is scrolled or filtered. The participant found Louvain by typing "communit". | step 3 `03.png`, step 4 `04.png` |
-| 4 | 1 | wording | Toolbar icons carry no words; the participant chose the flask only because of the "Analyze (Shift+A)" hint. | step 2 `02.png` |
-| 5 | 0 | opinion | Groups are named "Group 1" to "Group 6"; the participant wanted names drawn from their members for a report. | step 6 `06.png` |
+| #   | Severity | Kind     | Problem                                                                                                                                                                    | Evidence                                             |
+| --- | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 1   | 2        | behavior | Choosing Group 1 in the list does not change the drawing (no highlight, outline or dimming), so the participant matched the group's color by eye to find it on the canvas. | step 7: `06.png` and `07.png` canvases are identical |
+| 2   | 1        | behavior | The group's Members list shows only the "First 10" of 20, with no visible way to see or copy all of them. Did not block this task (three names needed).                    | step 7 `07.png`                                      |
+| 3   | 1        | behavior | Analyze opens on ranking measures; grouping methods are not visible until the list is scrolled or filtered. The participant found Louvain by typing "communit".            | step 3 `03.png`, step 4 `04.png`                     |
+| 4   | 1        | wording  | Toolbar icons carry no words; the participant chose the flask only because of the "Analyze (Shift+A)" hint.                                                                | step 2 `02.png`                                      |
+| 5   | 0        | opinion  | Groups are named "Group 1" to "Group 6"; the participant wanted names drawn from their members for a report.                                                               | step 6 `06.png`                                      |
 
 No problem here is a build defect under the criteria (no crash, dead control, wrong count or
 keyboard block): the Group 1 click does select the group and fills the right panel; only the

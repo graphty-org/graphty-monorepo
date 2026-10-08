@@ -265,7 +265,10 @@ describe("metric results", () => {
             const none = new PageRankAlgorithm(graph, { weight: null });
             await none.run();
 
-            assert.deepStrictEqual(loaded.result?.summary().caveats.weight, { attribute: "value", meaning: "strength" });
+            assert.deepStrictEqual(loaded.result?.summary().caveats.weight, {
+                attribute: "value",
+                meaning: "strength",
+            });
             assert.isNull(none.result?.summary().caveats.weight);
         });
     });

@@ -111,17 +111,17 @@ largest is Group 1 with 20 characters. Three of them: Valjean, Fauchelevent, Mar
   "Start here" on Louvain meant I did not have to know what Louvain is. The left-panel table of
   groups with counts, sorted biggest first, answered two of the three questions in one look.
 - What confused me:
-  - Nothing on the main screen says "groups" -- I had to know the flask is "Analyze" (the bottom-left
-    hint saved me) and then guess a word to filter by. The unfiltered list opens on rankings
-    (Degree, Betweenness, Katz, HITS...), which is the jargon I skip.
-  - Clicking a group opened its paint color (Style tab), not who is in it. The members were one
-    more click away on "Values". I would expect the member list first.
-  - "First 10" with no visible way to see all 20; for a report I would need the full list, and an
-    export to Excel.
-  - No names on the dots, so the drawing itself tells me nothing; the color key floating over the
-    top-left of the drawing covers part of the network.
-  - Seven grouping methods with no hint why I would choose one over another; "Resolution" means
-    nothing to me. And would I get the same 6 groups if I ran it again? I did not check.
-  - Small grey description text throughout is hard for me to read.
+    - Nothing on the main screen says "groups" -- I had to know the flask is "Analyze" (the bottom-left
+      hint saved me) and then guess a word to filter by. The unfiltered list opens on rankings
+      (Degree, Betweenness, Katz, HITS...), which is the jargon I skip.
+    - Clicking a group opened its paint color (Style tab), not who is in it. The members were one
+      more click away on "Values". I would expect the member list first.
+    - "First 10" with no visible way to see all 20; for a report I would need the full list, and an
+      export to Excel.
+    - No names on the dots, so the drawing itself tells me nothing; the color key floating over the
+      top-left of the drawing covers part of the network.
+    - Seven grouping methods with no hint why I would choose one over another; "Resolution" means
+      nothing to me. And would I get the same 6 groups if I ran it again? I did not check.
+    - Small grey description text throughout is hard for me to read.
 - So what for my job: the grouping was quick and readable. Whether it means anything on my
   supplier data, where Tier 2 links are mostly missing, is another question.

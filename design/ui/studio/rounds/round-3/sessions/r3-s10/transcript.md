@@ -24,6 +24,7 @@ my data -- I don't want anyone collecting anything off my laptop, so 'No thanks'
 project or file...' is the obvious one, my file's in Downloads."
 
 ### Step 2
+
 `node tool/real.mjs --step $S --click "No thanks"`
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/sessions/r3-s10/02.png
 Saw: the banner is gone; the same Start / Recent / Samples page.
@@ -31,6 +32,7 @@ Saw: the banner is gone; the same Start / Recent / Samples page.
 Sam: "Now open my file."
 
 ### Step 3
+
 `node tool/real.mjs --step $S --click "Open project or file..." --upload $S/Downloads/friends.csv`
 a file chooser is open (answer it with --upload <file>)
 chose the file friends.csv
@@ -45,6 +47,7 @@ results here', and the flask at the bottom is probably Analyze. 'Which people ma
 that's centrality from class. Click the flask."
 
 ### Step 4
+
 `node tool/real.mjs --step $S --click-at 680,864`
 at 680,864: button "Analyze"
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/sessions/r3-s10/04.png
@@ -56,6 +59,7 @@ have. PageRank says 'Start here' and 'which nodes are connected to other well-co
 which sounds more like 'matters'. I'm not confident, so I'll do what it tells me: PageRank."
 
 ### Step 5
+
 `node tool/real.mjs --step $S --click "PageRank"`
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/sessions/r3-s10/05.png
 Saw: a PageRank box with "Damping factor 0.85", "Weight: None", "Advanced", "Under a second", Run.
@@ -64,6 +68,7 @@ Sam: "Damping factor -- no idea, leave it. Weight None, fine, my list doesn't ha
 anyway. Run."
 
 ### Step 6
+
 `node tool/real.mjs --step $S --click "Run"`
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/sessions/r3-s10/06.png
 Saw: all the balls turned orange to dark brown. Top left of the drawing a little key: "Color:
@@ -76,6 +81,7 @@ I wouldn't know what 0.066 means. Now 'make the dots bigger'. There's a PageRank
 maybe clicking it gives me options."
 
 ### Step 7
+
 `node tool/real.mjs --step $S --click "PageRank"`
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/sessions/r3-s10/07.png
 Saw: the right panel switched to "PageRank -- Measure from PageRank, Oct 7", Style tab with Nodes /
@@ -85,6 +91,7 @@ Sam (hesitates): "There's no 'Size' anywhere. Fill, Color, Shape, Effects, Label
 is kind of its shape? I'll try the plus next to Shape."
 
 ### Step 8
+
 `node tool/real.mjs --step $S --click-at 1419,234`
 at 1419,234: button "Add to Shape"
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/sessions/r3-s10/08.png
@@ -93,6 +100,7 @@ Saw: a small menu: Size, Shape.
 Sam: "Size! Good guess."
 
 ### Step 9
+
 `node tool/real.mjs --step $S --click "Size"`
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/sessions/r3-s10/09.png
 Saw: "Size by attribute" box: Fixed size; under PageRank: PageRank, PageRank rank, PageRank
@@ -102,6 +110,7 @@ Sam: "Size by PageRank, obviously. Not sure what rank or percentile would do dif
 PageRank."
 
 ### Step 10
+
 `node tool/real.mjs --step $S --click "PageRank#2"` (the first "PageRank" is the row in the left list)
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/sessions/r3-s10/10.png
 Saw: the balls now differ in size -- two big dark brown ones near the bottom, a few medium, most
@@ -113,6 +122,7 @@ Sam: "Nice, that's the bigger dots. Part three done: bigger and darker both mean
 so the same thing twice. Now names. 'Label' with a plus -- that must be it."
 
 ### Step 11
+
 `node tool/real.mjs --step $S --click-at 1419,332`
 at 1419,332: button "Add label line"
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/sessions/r3-s10/11.png
@@ -123,6 +133,7 @@ there isn't a name column. 'id' is the only thing that isn't a number... the ids
 names, Ava and Ben and so on. Try id; Ctrl+Z if it's wrong."
 
 ### Step 12
+
 `node tool/real.mjs --step $S --click "id"`
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/sessions/r3-s10/12.png
 Saw: names appear above every ball: Omar, Pia, Quinn, Ravi, Nora, Milo, Lena, Sana, Theo, Ava,
@@ -135,6 +146,7 @@ Ivan and Hana. The bottom-left cluster is a bit squashed (Eli and Dev overlap) b
 thing: a picture file. No Export button visible. The three lines top left are usually the menu."
 
 ### Step 13
+
 `node tool/real.mjs --step $S --click-at 24,20`
 at 24,20: button "Main menu"
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/sessions/r3-s10/13.png
@@ -144,6 +156,7 @@ Save local copy..., Export... (Ctrl+E), Rename, Settings..., Keyboard shortcuts,
 Sam: "Export... -- that's the picture."
 
 ### Step 14
+
 `node tool/real.mjs --step $S --click "Export..."`
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/sessions/r3-s10/14.png
 Saw: an Export dialog. Image (selected) / Data. "A picture of the drawing, 2x, PNG". Preset "To
@@ -155,6 +168,7 @@ Sam (squints): "The preview's tiny but there's the little key box in the corner,
 with the key. PNG is what I'd paste into Google Docs. Defaults look fine. Export."
 
 ### Step 15
+
 `node tool/real.mjs --step $S --click "Export"`
 ambiguous: "Export" matches 2 controls (button "Export", dialog "Export Image Data Image A picture of the"); took the first
 a file was saved: friends_current-view.png, 1806 x 1720 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/sessions/r3-s10/downloads/friends_current-view.png)
@@ -167,6 +181,7 @@ Sam: "Part five done: friends_current-view.png, with the key in the corner. That
 into the doc."
 
 ### End
+
 `node tool/real.mjs --end $S`
 session ended: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/sessions/r3-s10
 

@@ -18,11 +18,11 @@ No files were downloaded (the task asks for none).
 
 ## Counts
 
-| | This session | Reference |
-|---|---|---|
+|                                 | This session                                                                                                | Reference                                                      |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | Steps (real.mjs) to the success | 4 after the start to the drawing with the import sentence read (step 5, Load); 5 to Data > Sources (step 6) | 3 on round 2's build ("Open project or file...", upload, Data) |
-| Steps in all | 7 after the start (02.png to 08.png) | -- |
-| Wrong turns | 1 | -- |
+| Steps in all                    | 7 after the start (02.png to 08.png)                                                                        | --                                                             |
+| Wrong turns                     | 1                                                                                                           | --                                                             |
 
 The extra steps against the reference: dismissing the usage box (step 2, needed on either route)
 and the import page route itself (one more click, Load), which is an accepted route.
@@ -44,15 +44,15 @@ Omar has 4 ties matches "Degree 4" in 08.png.
 Severity 0-4 (Nielsen). One participant each; none is a build defect, so no scripted repro was
 needed.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | accessibility | The import page's key lines are set very small and in low-contrast gray: "Drop a file here, or choose a file...", "Choose a file first" beside the disabled Load, the "Each row is a node / an edge" switch, and the rows sentence. Tom (52, reading glasses) had to lean in. | Step 3, 03.png; step 4, 04.png |
-| 2 | 2 | wording | The import page speaks only in "node" and "edge" and heads the preview with "node (20) --friends (41)--> node", which Tom read as a formula. "Each row is a node / an edge" asks a question he could not have answered had it not been pre-chosen. | Step 4, 04.png |
-| 3 | 1 | wording | "Nothing was dropped" has to be worked out by comparing two numbers ("41 rows, 41 edges"); no line says that all rows were used and none skipped. | Step 6, 06.png; 04.png |
-| 4 | 1 | wording | "Direction: As the file says" implies the file states a direction; a plain two-column list loads as "Directed" with arrowheads, and Tom wondered whether friendships were made one-way. The count is the expected one; the doubt comes from the words. | Step 3, 03.png; step 5, 05.png |
-| 5 | 1 | behavior | Nodes carry no names and pointing at one shows nothing; the name appears only after a click selects it. | Steps 7-8, 07.png, 08.png |
-| 6 | 1 | wording | "Degree", "Density 0.1079" and "Components 1" are unexplained terms in the Overview and node Summary; Tom ignored them or guessed. | Step 5, 05.png; step 8, 08.png |
-| 7 | 0 | wording | The preview's "Line" column starts at 2 (the header is line 1), which made him double-take. | Step 4, 04.png |
+| #   | Sev | Kind          | Problem                                                                                                                                                                                                                                                                       | Evidence                       |
+| --- | --- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| 1   | 2   | accessibility | The import page's key lines are set very small and in low-contrast gray: "Drop a file here, or choose a file...", "Choose a file first" beside the disabled Load, the "Each row is a node / an edge" switch, and the rows sentence. Tom (52, reading glasses) had to lean in. | Step 3, 03.png; step 4, 04.png |
+| 2   | 2   | wording       | The import page speaks only in "node" and "edge" and heads the preview with "node (20) --friends (41)--> node", which Tom read as a formula. "Each row is a node / an edge" asks a question he could not have answered had it not been pre-chosen.                            | Step 4, 04.png                 |
+| 3   | 1   | wording       | "Nothing was dropped" has to be worked out by comparing two numbers ("41 rows, 41 edges"); no line says that all rows were used and none skipped.                                                                                                                             | Step 6, 06.png; 04.png         |
+| 4   | 1   | wording       | "Direction: As the file says" implies the file states a direction; a plain two-column list loads as "Directed" with arrowheads, and Tom wondered whether friendships were made one-way. The count is the expected one; the doubt comes from the words.                        | Step 3, 03.png; step 5, 05.png |
+| 5   | 1   | behavior      | Nodes carry no names and pointing at one shows nothing; the name appears only after a click selects it.                                                                                                                                                                       | Steps 7-8, 07.png, 08.png      |
+| 6   | 1   | wording       | "Degree", "Density 0.1079" and "Components 1" are unexplained terms in the Overview and node Summary; Tom ignored them or guessed.                                                                                                                                            | Step 5, 05.png; step 8, 08.png |
+| 7   | 0   | wording       | The preview's "Line" column starts at 2 (the header is line 1), which made him double-take.                                                                                                                                                                                   | Step 4, 04.png                 |
 
 What worked, for the record: "Files are read on this computer and never uploaded" and "Local only"
 answered his first question (01.png); the import page proposed source, target and weight roles

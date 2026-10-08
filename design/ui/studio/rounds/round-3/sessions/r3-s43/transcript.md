@@ -85,6 +85,7 @@ Did I finish? Yes, in 5 steps.
 Ease: 5 of 7.
 
 What confused me:
+
 - The Analyze list is a wall of technical names (Betweenness, Closeness, Eigenvector, Katz, HITS).
   Nothing said "who the club depends on" or "most connected" in plain words. I picked PageRank
   only because it was tagged "Start here"; I am not sure it is the right measure for "the whole

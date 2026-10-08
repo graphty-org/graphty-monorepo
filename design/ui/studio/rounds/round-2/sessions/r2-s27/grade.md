@@ -28,10 +28,10 @@ downloaded (the task asks for none).
 
 ## Counts
 
-| | This session | Reference |
-|---|---|---|
+|                  | This session                                                       | Reference                  |
+| ---------------- | ------------------------------------------------------------------ | -------------------------- |
 | Steps (real.mjs) | 12 to the success state (02.png-13.png), 15 in all after the start | about 9 steps, 11 commands |
-| Wrong turns | 1 | -- |
+| Wrong turns      | 1                                                                  | --                         |
 
 Wrong turns against the success path:
 
@@ -56,16 +56,16 @@ screen is accurate, not a claim.
 Severity 0-4 (Nielsen). No build defect was found, so no repro script was written; every item
 below is behavior, wording, opinion or accessibility.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | wording | The method picked is "Betweenness", but its result is "Bridges" everywhere after: the row, the key, the Style tab and the size picker. Ruth linked the two only from "Made with: Analysis Betweenness" at the bottom of the Values tab; a reader of the key alone sees "Bridges" and nothing else. Confirmed: r2-s06 problem 3 and the PageRank-to-"Influence" rename in r2-s05. | Steps 7-8, 16; 07.png, 08.png, 16.png |
-| 2 | 2 | wording | The key gives "0 to 1624" with no unit, and the fractional values in the Top 10 (470.6, 376.3) suggest split paths that nothing on screen explains. She said she could not print the number without knowing what it counts. | Steps 7, 13, 16; 07.png, 13.png, 16.png |
-| 3 | 2 | behavior | Size lives under "Shape", behind a "+", and binding it to data needs an unlabeled chain-link icon that made sense only after hovering ("Size by attribute"). Seen on this task in r2-s02, r2-s03, r2-s05 and r2-s10 as well. | Steps 8-11; 08.png-11.png |
-| 4 | 2 | behavior | Hovering a dot shows nothing: no tooltip, no name. She had to click the big dot to learn it was Valjean. | Steps 14-15; 14.png, 15.png |
-| 5 | 1 | behavior | Running a ranking colors the dots but leaves sizes alone; the task's "bigger dot" half had to be found separately. She said so but was not blocked. | Step 7; 07.png |
-| 6 | 1 | wording | Once bound, the Size box reads "1 to 3" with no word for what the numbers are (times the base size?). | Step 13; 13.png |
-| 7 | 1 | accessibility | The search box's visible text is "Find nodes, edges, values" (a placeholder) while its accessible name is "Find"; a voice-control or screen-reader user who says what they see does not reach it. | Steps 3-4; 03.png, 04.png |
-| 8 | 1 | opinion | The "Start here" badge on PageRank pulled at her though its description did not fit "depends on"; she thinks a less careful reader would take it. (Held one level down: opinion.) | Step 5; 05.png |
+| #   | Sev | Kind          | Problem                                                                                                                                                                                                                                                                                                                                                                          | Evidence                                |
+| --- | --- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 1   | 2   | wording       | The method picked is "Betweenness", but its result is "Bridges" everywhere after: the row, the key, the Style tab and the size picker. Ruth linked the two only from "Made with: Analysis Betweenness" at the bottom of the Values tab; a reader of the key alone sees "Bridges" and nothing else. Confirmed: r2-s06 problem 3 and the PageRank-to-"Influence" rename in r2-s05. | Steps 7-8, 16; 07.png, 08.png, 16.png   |
+| 2   | 2   | wording       | The key gives "0 to 1624" with no unit, and the fractional values in the Top 10 (470.6, 376.3) suggest split paths that nothing on screen explains. She said she could not print the number without knowing what it counts.                                                                                                                                                      | Steps 7, 13, 16; 07.png, 13.png, 16.png |
+| 3   | 2   | behavior      | Size lives under "Shape", behind a "+", and binding it to data needs an unlabeled chain-link icon that made sense only after hovering ("Size by attribute"). Seen on this task in r2-s02, r2-s03, r2-s05 and r2-s10 as well.                                                                                                                                                     | Steps 8-11; 08.png-11.png               |
+| 4   | 2   | behavior      | Hovering a dot shows nothing: no tooltip, no name. She had to click the big dot to learn it was Valjean.                                                                                                                                                                                                                                                                         | Steps 14-15; 14.png, 15.png             |
+| 5   | 1   | behavior      | Running a ranking colors the dots but leaves sizes alone; the task's "bigger dot" half had to be found separately. She said so but was not blocked.                                                                                                                                                                                                                              | Step 7; 07.png                          |
+| 6   | 1   | wording       | Once bound, the Size box reads "1 to 3" with no word for what the numbers are (times the base size?).                                                                                                                                                                                                                                                                            | Step 13; 13.png                         |
+| 7   | 1   | accessibility | The search box's visible text is "Find nodes, edges, values" (a placeholder) while its accessible name is "Find"; a voice-control or screen-reader user who says what they see does not reach it.                                                                                                                                                                                | Steps 3-4; 03.png, 04.png               |
+| 8   | 1   | opinion       | The "Start here" badge on PageRank pulled at her though its description did not fit "depends on"; she thinks a less careful reader would take it. (Held one level down: opinion.)                                                                                                                                                                                                | Step 5; 05.png                          |
 
 What worked, for the record: every analysis has a one-line description, and "between others"
 decided her choice; the result is dated ("Oct 6"); "77 of 77 have a value" and "#1 of 77" let her

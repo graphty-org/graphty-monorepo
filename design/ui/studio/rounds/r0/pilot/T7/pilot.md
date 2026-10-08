@@ -13,10 +13,10 @@ The sessions of this walk are `A2/`, `B2/` and `A2-keyboard/`. The folders `A/`,
 
 **The end state is reached on both datasets, by the answer key's path, by mouse and by keyboard.**
 
-| Dataset | What the screen shows after the run | Matches the key | Screenshot |
-|---|---|---|---|
-| A, Les Miserables | Top 10 of "Influence": Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577 | yes | `A2/08.png` |
-| B, friends.csv | Top 10 of "Influence": Farah 0.06608, Ava 0.06423, Hana 0.05883 | yes | `B2/06.png` |
+| Dataset           | What the screen shows after the run                                      | Matches the key | Screenshot  |
+| ----------------- | ------------------------------------------------------------------------ | --------------- | ----------- |
+| A, Les Miserables | Top 10 of "Influence": Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577 | yes             | `A2/08.png` |
+| B, friends.csv    | Top 10 of "Influence": Farah 0.06608, Ava 0.06423, Hana 0.05883          | yes             | `B2/06.png` |
 
 Names, not ids, appear in both lists. The measure is named on screen as "Influence" (the run row,
 the inspector title, the color key and "Made with: Analysis Influence"); the participant picked it

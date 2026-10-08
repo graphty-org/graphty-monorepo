@@ -16,26 +16,26 @@ walked.
 Every walked task reaches its end state on this build by the answer key's path. No defect stops
 any of them. The reference values in `answers.md` still hold where the screen shows them.
 
-| Task | End state | Evidence |
-|---|---|---|
-| T2 | Les Miserables drawn (77 nodes, 254 edges); the "Local only" tooltip reads "Nothing is sent. Opens Settings > Privacy" | T2/02, T2/03 |
-| T3 | friends.csv drawn, 20 nodes, 41 edges, Directed; Data > Sources: "Edge t... 41 rows, 41 edges", "Node ... 20 rows, 20 nodes" | T3/03, T3/04 |
-| T5 | The refusal: "club-members could not be opened: the file is incomplete or damaged near line 9, so nothing was read. Ask for the file again." | T5/03 |
-| T6 | Nodes 77, Edges 254, Components 1; Attributes: id, name (nodes), shared_chapters (edges) | T6/03 |
-| T7 A | Influence Top 10: Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577 | T7-A/06 |
-| T7 B | Influence Top 10 on friends.csv: Farah 0.06608, Ava 0.06423, Hana 0.05883 | T7-B/05 |
-| T8 | Communities: 6 groups, sizes 20, 17, 11, 11, 10, 8, modularity 0.5556; Group 1 members listed (first 10: MlleBaptistine, MmeMagloire, Valjean, ...) | T8/06, T8/07 |
-| T9 A | Size "1 to 3", legend "Size: Influence" above "Color: Influence", 0.003299 to 0.07543 | T9-A/11, T9-A/12 |
-| T9 B | The same on Florentine families, 0.03066 to 0.1458; Top 10 Medici, Guadagni, Strozzi | T9-B/11, T9-B/12 |
-| T10 A | Label line "Abc name" on Everything; "77 labels, 7 hidden to avoid overlap" | T10-A/05 |
-| T10 B | Label line "Abc label" on Everything; "115 labels, 14 hidden to avoid overlap" | T10-B/05 |
-| T11 | Spectral and then "Force, flat" each moved every node (T11/07, T11/09); "No crossings" refused and left the drawing as it was (T11/05) | T11/05 to T11/09 |
-| T12 A | Javert: Degree 17; "Javert's 17 connections", the 17 names in the answer key | T12-A/06, T12-A/07 |
-| T12 B | Medici: Degree 6; "Medici's 6 connections": Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni | T12-B/06, T12-B/07 |
-| T13 | `les-miserables_current-view.png` (same drawing, key "Color: Communities", six groups) and `les-miserables_nodes.csv` (77 rows, a group column with counts 20, 17, 11, 11, 10, 8) | T13/04, T13/07, `T13/downloads/` |
-| T14 | Saved as "Les Mis work" (`T14/saved/`), closed, reopened from Recent projects: Influence colors and names back, "77 labels, 7 hidden to avoid overlap" | T14/06 to T14/08 |
-| T15 A | Influence run, Size "1 to 3", names ("77 labels, 6 hidden to avoid overlap"), image with "Size: Influence" and "Color: Influence" keys | T15-A/14, T15-A/17, `T15-A/downloads/` |
-| T15 B | The same on friends.csv with names from `id` ("20 labels, 0 hidden to avoid overlap") | T15-B/15, T15-B/18, `T15-B/downloads/` |
+| Task  | End state                                                                                                                                                                         | Evidence                               |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| T2    | Les Miserables drawn (77 nodes, 254 edges); the "Local only" tooltip reads "Nothing is sent. Opens Settings > Privacy"                                                            | T2/02, T2/03                           |
+| T3    | friends.csv drawn, 20 nodes, 41 edges, Directed; Data > Sources: "Edge t... 41 rows, 41 edges", "Node ... 20 rows, 20 nodes"                                                      | T3/03, T3/04                           |
+| T5    | The refusal: "club-members could not be opened: the file is incomplete or damaged near line 9, so nothing was read. Ask for the file again."                                      | T5/03                                  |
+| T6    | Nodes 77, Edges 254, Components 1; Attributes: id, name (nodes), shared_chapters (edges)                                                                                          | T6/03                                  |
+| T7 A  | Influence Top 10: Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577                                                                                                               | T7-A/06                                |
+| T7 B  | Influence Top 10 on friends.csv: Farah 0.06608, Ava 0.06423, Hana 0.05883                                                                                                         | T7-B/05                                |
+| T8    | Communities: 6 groups, sizes 20, 17, 11, 11, 10, 8, modularity 0.5556; Group 1 members listed (first 10: MlleBaptistine, MmeMagloire, Valjean, ...)                               | T8/06, T8/07                           |
+| T9 A  | Size "1 to 3", legend "Size: Influence" above "Color: Influence", 0.003299 to 0.07543                                                                                             | T9-A/11, T9-A/12                       |
+| T9 B  | The same on Florentine families, 0.03066 to 0.1458; Top 10 Medici, Guadagni, Strozzi                                                                                              | T9-B/11, T9-B/12                       |
+| T10 A | Label line "Abc name" on Everything; "77 labels, 7 hidden to avoid overlap"                                                                                                       | T10-A/05                               |
+| T10 B | Label line "Abc label" on Everything; "115 labels, 14 hidden to avoid overlap"                                                                                                    | T10-B/05                               |
+| T11   | Spectral and then "Force, flat" each moved every node (T11/07, T11/09); "No crossings" refused and left the drawing as it was (T11/05)                                            | T11/05 to T11/09                       |
+| T12 A | Javert: Degree 17; "Javert's 17 connections", the 17 names in the answer key                                                                                                      | T12-A/06, T12-A/07                     |
+| T12 B | Medici: Degree 6; "Medici's 6 connections": Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni                                                                         | T12-B/06, T12-B/07                     |
+| T13   | `les-miserables_current-view.png` (same drawing, key "Color: Communities", six groups) and `les-miserables_nodes.csv` (77 rows, a group column with counts 20, 17, 11, 11, 10, 8) | T13/04, T13/07, `T13/downloads/`       |
+| T14   | Saved as "Les Mis work" (`T14/saved/`), closed, reopened from Recent projects: Influence colors and names back, "77 labels, 7 hidden to avoid overlap"                            | T14/06 to T14/08                       |
+| T15 A | Influence run, Size "1 to 3", names ("77 labels, 6 hidden to avoid overlap"), image with "Size: Influence" and "Color: Influence" keys                                            | T15-A/14, T15-A/17, `T15-A/downloads/` |
+| T15 B | The same on friends.csv with names from `id` ("20 labels, 0 hidden to avoid overlap")                                                                                             | T15-B/15, T15-B/18, `T15-B/downloads/` |
 
 Runs are still named by their result on this build ("Influence", "Communities"), so the paths'
 round 1 words apply: `--click "Influence"`, `role=option:Influence`.

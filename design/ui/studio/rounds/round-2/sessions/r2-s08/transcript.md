@@ -226,6 +226,7 @@ on PageRank meant I did not have to choose between words I don't know. Running i
 everything and put a key on the picture by itself. The export preview showed the key before I saved.
 
 **Where I hesitated or got confused:**
+
 - The flask list is a wall of words I don't know (Betweenness, Eigenvector, Katz, HITS). I only
   got through because of "Start here". I clicked "PageRank" and it then called the result
   "Influence" -- fine, but I'm not sure they are the same thing.

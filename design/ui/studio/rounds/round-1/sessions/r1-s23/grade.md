@@ -48,15 +48,15 @@ The task was finished, but it depended on a blind guess and on detours, which is
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 3 | accessibility | On the start page, the tab stops after "New from data..." (including every sample card) show no focus ring. A keyboard user cannot see which sample is focused and opens one blind. Fails WCAG 2.4.7 (focus visible). | `04.png`-`07.png`, `09.png` identical to the unfocused page; `10.png` |
-| 2 | 2 | behavior | After the graph opens, focus starts in the bottom toolbar, past the "Find nodes, edges, values" box, and the next Tab goes to the right panel, so Find is behind the user. | `11.png`, `12.png` |
-| 3 | 2 | behavior | No on-screen hint that `/` opens Find; Ctrl+F does nothing; Ctrl+K is shown only as a toolbar icon. The participant learned `/` only from the command palette. | `13.png`, `14.png` |
-| 4 | 2 | behavior | The command palette does not find nodes: typing a node's name gives "No results" with no pointer to Find. | `15.png` |
-| 5 | 1 | behavior | Closing the palette with Escape returns focus to the toolbar's command button, not to where the user was before opening it. | `16.png` |
-| 6 | 1 | behavior | Nothing says the Degree row can be opened; pressing Enter on it to list the connections was a guess (a lucky one). | `21.png`, `22.png` |
-| 7 | 1 | behavior | Names are not drawn on the dots after opening the sample, so the drawing gives a keyboard user nothing to aim for. | `10.png` |
+| #   | Severity | Kind          | Problem                                                                                                                                                                                                               | Evidence                                                              |
+| --- | -------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 1   | 3        | accessibility | On the start page, the tab stops after "New from data..." (including every sample card) show no focus ring. A keyboard user cannot see which sample is focused and opens one blind. Fails WCAG 2.4.7 (focus visible). | `04.png`-`07.png`, `09.png` identical to the unfocused page; `10.png` |
+| 2   | 2        | behavior      | After the graph opens, focus starts in the bottom toolbar, past the "Find nodes, edges, values" box, and the next Tab goes to the right panel, so Find is behind the user.                                            | `11.png`, `12.png`                                                    |
+| 3   | 2        | behavior      | No on-screen hint that `/` opens Find; Ctrl+F does nothing; Ctrl+K is shown only as a toolbar icon. The participant learned `/` only from the command palette.                                                        | `13.png`, `14.png`                                                    |
+| 4   | 2        | behavior      | The command palette does not find nodes: typing a node's name gives "No results" with no pointer to Find.                                                                                                             | `15.png`                                                              |
+| 5   | 1        | behavior      | Closing the palette with Escape returns focus to the toolbar's command button, not to where the user was before opening it.                                                                                           | `16.png`                                                              |
+| 6   | 1        | behavior      | Nothing says the Degree row can be opened; pressing Enter on it to list the connections was a guess (a lucky one).                                                                                                    | `21.png`, `22.png`                                                    |
+| 7   | 1        | behavior      | Names are not drawn on the dots after opening the sample, so the drawing gives a keyboard user nothing to aim for.                                                                                                    | `10.png`                                                              |
 
 Problem 1 is a single-participant finding seen directly in the screenshots; it was not reproduced
 as a scripted path on the current build, so it counts as confirmed only once another keyboard

@@ -181,6 +181,7 @@ clicked Run; the drawing changed by itself after the run; the attribute picker e
 and name cannot size a dot; "Made with: Betweenness" and the Top 10 table.
 
 **What confused me or slowed me down:**
+
 - I ran Betweenness and got a thing called "Bridges". I had to go to the Values tab to be sure it
   was betweenness. In a deck I'd call it betweenness; two names for one number makes me nervous.
 - Running the analysis colored the dots but did not size them. Since the obvious use of a ranking

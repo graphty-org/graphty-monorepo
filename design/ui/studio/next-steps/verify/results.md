@@ -16,24 +16,24 @@ Two defects were found and fixed before measuring:
 
 ## Summary
 
-| Check | Result | Evidence |
-|---|---|---|
-| Every unit's own tests (element node, element browser, compact-mantine, graphty) | pass | `logs/element-node.log`, `logs/element-browser.log`, `logs/compact-mantine.log`, `logs/graphty.log` |
-| `bars.mjs`, dark | pass, exit 0; axe 0 violations on all 13 screens | `logs/bars-dark.log` |
-| `bars.mjs`, light | pass, exit 0; axe 0 violations on all 13 screens | `logs/bars-light.log` |
-| App words at rest (bar 9, at most 50) | pass: 41 | `logs/bars-dark.log` |
-| `real.mjs --prove` | pass, no FAIL ("every check passed") | `logs/prove.log` |
-| Focus after a control goes away | pass on every named path (see below) | `logs/repro-r3-s*.log`, `logs/focus-drawing-dialog.log` |
-| Gray text contrast | pass (unit test and both bars runs) | `logs/compact-mantine.log`, bars logs |
-| Layout refusals in the app's words | pass | `logs/layout-refusal.log` |
-| Export warnings in the app's words | pass | `logs/export-data.log` |
-| Sharp names, real 4x | pass | `medici-crop.png` |
-| "Whole graph" keeps the angle | pass | `compare-current-whole.png`, `logs/repro-r3-s01.log` |
-| No selection ring in the picture | pass | `valjean-crop.png`, `logs/repro-r3-s02.log` |
-| The key never covers a node | pass | `logs/repro-r3-s27.log`, `compare-current-whole.png` |
-| 3D size order | pass: 0 of 190 pairs inverted at both angles and in 2D | `logs/trace-3d-size.log`, `friends-pagerank-3d-export.png` |
-| Force re-applied settles | element test pass; app at spring length 80: still a cloud | `logs/element-browser.log`, `force-spring-80.png` |
-| Sources row opens its table | pass | `logs/repro-r3-s53.log` |
+| Check                                                                            | Result                                                    | Evidence                                                                                            |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Every unit's own tests (element node, element browser, compact-mantine, graphty) | pass                                                      | `logs/element-node.log`, `logs/element-browser.log`, `logs/compact-mantine.log`, `logs/graphty.log` |
+| `bars.mjs`, dark                                                                 | pass, exit 0; axe 0 violations on all 13 screens          | `logs/bars-dark.log`                                                                                |
+| `bars.mjs`, light                                                                | pass, exit 0; axe 0 violations on all 13 screens          | `logs/bars-light.log`                                                                               |
+| App words at rest (bar 9, at most 50)                                            | pass: 41                                                  | `logs/bars-dark.log`                                                                                |
+| `real.mjs --prove`                                                               | pass, no FAIL ("every check passed")                      | `logs/prove.log`                                                                                    |
+| Focus after a control goes away                                                  | pass on every named path (see below)                      | `logs/repro-r3-s*.log`, `logs/focus-drawing-dialog.log`                                             |
+| Gray text contrast                                                               | pass (unit test and both bars runs)                       | `logs/compact-mantine.log`, bars logs                                                               |
+| Layout refusals in the app's words                                               | pass                                                      | `logs/layout-refusal.log`                                                                           |
+| Export warnings in the app's words                                               | pass                                                      | `logs/export-data.log`                                                                              |
+| Sharp names, real 4x                                                             | pass                                                      | `medici-crop.png`                                                                                   |
+| "Whole graph" keeps the angle                                                    | pass                                                      | `compare-current-whole.png`, `logs/repro-r3-s01.log`                                                |
+| No selection ring in the picture                                                 | pass                                                      | `valjean-crop.png`, `logs/repro-r3-s02.log`                                                         |
+| The key never covers a node                                                      | pass                                                      | `logs/repro-r3-s27.log`, `compare-current-whole.png`                                                |
+| 3D size order                                                                    | pass: 0 of 190 pairs inverted at both angles and in 2D    | `logs/trace-3d-size.log`, `friends-pagerank-3d-export.png`                                          |
+| Force re-applied settles                                                         | element test pass; app at spring length 80: still a cloud | `logs/element-browser.log`, `force-spring-80.png`                                                   |
+| Sources row opens its table                                                      | pass                                                      | `logs/repro-r3-s53.log`                                                                             |
 
 ## Notes per check
 

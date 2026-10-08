@@ -13,14 +13,14 @@ console errors or failed requests were printed at any step.
 
 ## The walk
 
-| Step | Command | Screenshot | What happened |
-| ---- | ------- | ---------- | ------------- |
-| 1 | `--start ... empty` | 01.png | The start screen: Open project or file..., New from data..., four samples, the usage-data card. |
-| 2 | `--click "Open project or file..." --upload friends.csv` | 02.png | Drawn at once: 20 spheres with arrows, no labels. Values > Overview: Nodes 20, Edges 41, Direction Directed, Components 1, Edges per node 3 to 6, mean 4.1. |
-| 3 | `--click "Data"` | 03.png | Data > Sources: `friends.csv 20 nodes, 41 edges`; `Node ... 20 rows, 20 nodes`; `Edge t... 41 rows, 41 edges`. Attributes: node `id`, edge `weight`. |
-| 4 | `--hover "Edge t"` | 04.png | Tooltip "Edge table", visible in the screenshot. |
-| 5 | `--hover "Node"` (ambiguous; took the "Node table" row) | 05.png | The tool printed `tooltip: "Edge table"`, but the screenshot shows the Node table row highlighted and no tooltip at all. |
-| 6 | `--hover "Node table"` | 06.png | `tooltip: null`; no tooltip on screen. |
+| Step | Command                                                  | Screenshot | What happened                                                                                                                                               |
+| ---- | -------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `--start ... empty`                                      | 01.png     | The start screen: Open project or file..., New from data..., four samples, the usage-data card.                                                             |
+| 2    | `--click "Open project or file..." --upload friends.csv` | 02.png     | Drawn at once: 20 spheres with arrows, no labels. Values > Overview: Nodes 20, Edges 41, Direction Directed, Components 1, Edges per node 3 to 6, mean 4.1. |
+| 3    | `--click "Data"`                                         | 03.png     | Data > Sources: `friends.csv 20 nodes, 41 edges`; `Node ... 20 rows, 20 nodes`; `Edge t... 41 rows, 41 edges`. Attributes: node `id`, edge `weight`.        |
+| 4    | `--hover "Edge t"`                                       | 04.png     | Tooltip "Edge table", visible in the screenshot.                                                                                                            |
+| 5    | `--hover "Node"` (ambiguous; took the "Node table" row)  | 05.png     | The tool printed `tooltip: "Edge table"`, but the screenshot shows the Node table row highlighted and no tooltip at all.                                    |
+| 6    | `--hover "Node table"`                                   | 06.png     | `tooltip: null`; no tooltip on screen.                                                                                                                      |
 
 ## Remaining blockers
 

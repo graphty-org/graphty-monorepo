@@ -78,7 +78,7 @@ Tool: `at 1115,486: option "label"`
 
 Saw: team names appear next to the dots: GeorgiaTech, Maryland, Florida, Tennessee, Arkansas,
 BoiseState, NewMexicoState, UCLA, Stanford, ArizonaState, and so on. They are small and some are
-hard to read where dots cluster. The panel row reads "Above  Abc label", and underneath, in small
+hard to read where dots cluster. The panel row reads "Above Abc label", and underneath, in small
 gray text: "115 labels, 14 hidden to avoid overlap".
 
 Think-aloud: "Yes, names. 'label' was right. But the note says 14 are hidden. The task was every

@@ -241,6 +241,7 @@ Command: `--end $S`
 ## Verdict (in character)
 
 **Finished?** Yes, all five parts of the task.
+
 - On screen: the sample opened in one click; 77 nodes and 254 edges, density 0.08681, max degree
   36 -- all match NetworkX.
 - Who matters most: Betweenness, exact and unnormalized (Valjean 1624, which is NetworkX's 0.5699
@@ -255,6 +256,7 @@ Command: `--end $S`
 nothing uploaded. Faster than Gephi for this, honestly.
 
 **What confused or bothered me:**
+
 1. "Bridges" is a new word for betweenness. The menu said Betweenness, the result came back as
    Bridges. I had to infer they are the same thing from the number.
 2. The only Advanced setting was "Sample size: 0". No word on what 0 means (exact?), whether it

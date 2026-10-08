@@ -16,12 +16,12 @@ failed request or "still moving" warning was printed.
 **The end state is reached on both paths.** A method other than Force was applied and every node
 moved.
 
-| Path | Steps after the start | Evidence |
-| --- | --- | --- |
-| Main (Spectral) | 4: No thanks + Les Miserables; Layout; Spectral; Apply | `main/02.png` Force drawing; `main/05.png` every node moved |
-| Main, second method (Circle) | 2 more: Layout; Circle + Apply | `main/07.png` every node moved again |
-| Groups (Rings by group) | 8: No thanks + Les Miserables; Shift+A; type Louvain; Louvain; Run; Layout; Rings by group; Apply | `groups/06.png` six colored groups (20, 17, 11, 11, 10, 8); `groups/09.png` each group on its own ring |
-| Groups (Columns by group) | 2 more: Layout + Columns by group; Apply | `groups/11.png` six colored columns, one per group |
+| Path                         | Steps after the start                                                                             | Evidence                                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Main (Spectral)              | 4: No thanks + Les Miserables; Layout; Spectral; Apply                                            | `main/02.png` Force drawing; `main/05.png` every node moved                                            |
+| Main, second method (Circle) | 2 more: Layout; Circle + Apply                                                                    | `main/07.png` every node moved again                                                                   |
+| Groups (Rings by group)      | 8: No thanks + Les Miserables; Shift+A; type Louvain; Louvain; Run; Layout; Rings by group; Apply | `groups/06.png` six colored groups (20, 17, 11, 11, 10, 8); `groups/09.png` each group on its own ring |
+| Groups (Columns by group)    | 2 more: Layout + Columns by group; Apply                                                          | `groups/11.png` six colored columns, one per group                                                     |
 
 The round 3 change landed: before any community run, Rings by group, Two columns and Columns by
 group are greyed with "Needs a node attribute to group by" (`main/03.png`, correct: the sample has

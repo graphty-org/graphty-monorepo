@@ -3,6 +3,7 @@
 Start: `node tool/real.mjs --start rounds/round-2/sessions/r2-s36 setup:rounds/round-2/setups/T14.txt`
 
 ## Step 0 -- 01.png (start)
+
 Seen: Les Miserables loaded, names drawn on the nodes, nodes colored orange by "Influence"
 (0.003299 to 0.07543 legend top-left). Left panel: Selection, Influence (77), Everything.
 Right panel: Everything > Style with a Label line "Above / name", "77 labels, 7 hidden to avoid
@@ -12,6 +13,7 @@ the Influence run (PageRank, I think) and the name labels. Now I need to save th
 name. No "Save" button visible; I'll try the hamburger menu top left.
 
 ## Step 1 -- 02.png
+
 Command: `--step --click-at 23,20` (main menu button)
 Seen: menu with Back to start, New project, Open project or file..., Open sample, Save (Ctrl+S),
 Save as... (Shift+Ctrl+S), Save local copy..., Export..., Rename (F2), Settings, Keyboard
@@ -21,6 +23,7 @@ slight hesitation over which one. The task says "under a name you choose", so Sa
 one that should ask me for a name. Trying that.
 
 ## Step 2 -- 03.png
+
 Command: `--step --click "Save as..."`
 Seen: dialog "Save Les Miserables as", one Name field prefilled "Les Miserables", Cancel / Save.
 Nothing says WHERE it goes (a file? the browser?). Mild worry, but "Local only" was in the top bar.
@@ -28,11 +31,13 @@ Thought: I'll name it like I would at work: "LesMis influence 2026-10-07". Click
 field, selecting all, typing my name.
 
 ## Step 3 -- 04.png
+
 Command: `--step --click "Name" --key Control+a --type "LesMis influence 2026-10-07"`
 Tool note: "Name" matched the input and its label; took the input (fine).
 Seen: field now reads "LesMis influence 2026-10-07". Clicking Save.
 
 ## Step 4 -- 05.png
+
 Command: `--step --click "Save"`
 Seen: top bar title changed to "LesMis influence 2026-10-07"; a toast "Saved LesMis influence
 2026-10-07 in this browser." Good -- it told me where: in this browser, not a server and not a
@@ -43,6 +48,7 @@ Next: put it away for the day. At the end of the day I just close the tab. Doing
 and open the app again tomorrow).
 
 ## Step 5 -- 06.png
+
 Command: `--step --reopen` (closed the tab, opened the app again: "tomorrow")
 Seen: a start screen. Start: Open project or file..., New from data..., "Files are read on this
 computer and never uploaded." Recent projects: "LesMis influence 2026-10-07 -- In this browser -
@@ -53,6 +59,7 @@ sample). The warning line confirms my worry: browser storage can be wiped. For r
 would also "Save local copy". Putting away done; now opening my project.
 
 ## Step 6 -- 07.png
+
 Command: `--step --click "LesMis influence 2026-10-07"`
 Seen: toast "Opened LesMis influence 2026-10-07". Title is my name. The drawing looks the same as
 yesterday: same shape (same positions as far as I can tell -- Myriel's fan at the bottom, Gribier
@@ -64,6 +71,7 @@ if that means something got lost. Next: click Everything to check the label sett
 still there and not just drawn.
 
 ## Step 7 -- 08.png
+
 Command: `--step --click "Everything"`
 Seen: Everything > Style, same as yesterday: Label "Above / name", "77 labels, 7 hidden to avoid
 overlap". Color 6366F1, Size 1, Icosphere -- unchanged. Labels survived as a setting, not just a
@@ -71,6 +79,7 @@ picture. Next: click the Influence row to check the scores themselves came back 
 gone from that row).
 
 ## Step 8 -- 09.png
+
 Command: `--step --click "Influence"`
 Seen: Influence panel: "Measure from Influence, Oct 7"; Style: Color = Influence; Label Show
 checked. The row now has an eye icon. Nothing says "PageRank" here -- I ran PageRank, and the app
@@ -78,6 +87,7 @@ calls it "Influence". I'd have to tell my director "Influence (PageRank)", so I 
 word PageRank somewhere. Next: the Values tab, to see the actual scores and who ranks top.
 
 ## Step 9 -- 10.png
+
 Command: `--step --click "role=tab:Values"`
 Seen: Values: a histogram, "77 of 77 have a value, 0.003299 to 0.07543, median 0.01242". Top 10:
 Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577, Marius 0.03089, Javert 0.0303, Thenardier
@@ -101,6 +111,7 @@ kept the settings PageRank ran with (damping 0.85, no weight).
 **How easy, 1 (very difficult) to 7 (very easy):** 6.
 
 **What took longest / what confused me:**
+
 - The menu has three saves -- Save, Save as..., Save local copy... -- and I had to stop and think
   which one lets me pick the name and where each one puts the file. Save as... worked, but the
   dialog itself does not say where the project will be kept; only the toast afterwards said "in

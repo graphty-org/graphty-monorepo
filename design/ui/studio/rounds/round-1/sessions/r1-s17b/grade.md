@@ -19,14 +19,14 @@ No files were downloaded, and none were expected.
 - **Steps:** 15 `real.mjs` steps (`02.png` to `16.png`). The success path is 6 steps. The
   session ended without success.
 - **Wrong turns: 6.**
-  1. Clicked Valjean in the middle of the drawing, taking him for the main character (`04.png`).
-  2. Node actions, then Neighborhood (`08.png`, `09.png`). This highlights the neighbors but
-     lists no names, the same dead end as the G shortcut.
-  3. Clicked "id Babet (1)", hoping it would open the rest of the list (`10.png`).
-  4. Opened the Data rail, then "Node table", which opened "Add to Les Miserables". She backed
-     out with Cancel, then Graph (`11.png` to `14.png`).
-  5. Clicked "Selection 18" on the left, which emptied the inspector (`15.png`).
-  6. Hovered a highlighted dot to see its name and got nothing (`16.png`).
+    1. Clicked Valjean in the middle of the drawing, taking him for the main character (`04.png`).
+    2. Node actions, then Neighborhood (`08.png`, `09.png`). This highlights the neighbors but
+       lists no names, the same dead end as the G shortcut.
+    3. Clicked "id Babet (1)", hoping it would open the rest of the list (`10.png`).
+    4. Opened the Data rail, then "Node table", which opened "Add to Les Miserables". She backed
+       out with Cancel, then Graph (`11.png` to `14.png`).
+    5. Clicked "Selection 18" on the left, which emptied the inspector (`15.png`).
+    6. Hovered a highlighted dot to see its name and got nothing (`16.png`).
 - **False "done":** none. She said she had "half" finished. Both of her claims are true:
   Javert has 17 connections, and Babet is one of them.
 - **Ease (from the transcript):** she gave 5 on a scale where 7 is hardest, which is about 3 on
@@ -42,17 +42,17 @@ No files were downloaded, and none were expected.
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 4 | behavior | "Degree 17" on a node's Values looks like a plain number. Nothing shows that clicking it opens the names of his 17 connections. Nothing even shows that "Degree" means connections ("maybe how important he is?", "I'd guess so but nothing says it"). She looked at the row and never clicked it, so the task could not be done. | `07.png`; transcript at 04 and 07 |
-| 2 | 3 | build-defect | When several nodes are selected, the Summary shows "id Babet (1)" and "name Babet (1)": one of the 18 names, with a count. She read it as the first entry of a list she could not open, and clicking it does nothing. | `09.png`, `10.png`; repro `05.png` |
-| 3 | 3 | build-defect | In the Data rail, clicking the "Node table" treeitem opens "Add to Les Miserables" (a file loader) instead of the table. She thought she had broken something. | `12.png`; repro `07.png` |
-| 4 | 3 | build-defect | Clicking the "Selection 18" row in the left panel empties the inspector: it shows the heading "Selection" with nothing under it, which is less than before the click. | `15.png`, `16.png`; repro `09.png` |
-| 5 | 2 | wording | After a neighborhood selection the header says "18 nodes, 0 edges", and the Summary under it says "Edges 0" and "Edges among them 61". Two edge counts for one selection, and she could not tell which was right. | `09.png`; repro `05.png` |
-| 6 | 2 | behavior | Neighborhood highlights the neighbors but lists none of them, and Node actions offers no way to list who they are. | `08.png`, `09.png` |
-| 7 | 2 | behavior | Hovering a node shows no name; the tool reported no tooltip. With no labels drawn, the picture cannot say who anyone is. | `16.png`; repro `10.png` (tooltip: null on Fantine) |
-| 8 | 2 | accessibility | Two reachable controls are both named "Neighborhood" (a button and the menu item). | transcript at 09 |
-| 9 | 1 | accessibility | The search box's accessible name is "Find", but the only visible label is its hint text "Find nodes, edges, values" (label in name). | `05.png` |
+| #   | Severity | Kind          | Problem                                                                                                                                                                                                                                                                                                                           | Evidence                                            |
+| --- | -------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 1   | 4        | behavior      | "Degree 17" on a node's Values looks like a plain number. Nothing shows that clicking it opens the names of his 17 connections. Nothing even shows that "Degree" means connections ("maybe how important he is?", "I'd guess so but nothing says it"). She looked at the row and never clicked it, so the task could not be done. | `07.png`; transcript at 04 and 07                   |
+| 2   | 3        | build-defect  | When several nodes are selected, the Summary shows "id Babet (1)" and "name Babet (1)": one of the 18 names, with a count. She read it as the first entry of a list she could not open, and clicking it does nothing.                                                                                                             | `09.png`, `10.png`; repro `05.png`                  |
+| 3   | 3        | build-defect  | In the Data rail, clicking the "Node table" treeitem opens "Add to Les Miserables" (a file loader) instead of the table. She thought she had broken something.                                                                                                                                                                    | `12.png`; repro `07.png`                            |
+| 4   | 3        | build-defect  | Clicking the "Selection 18" row in the left panel empties the inspector: it shows the heading "Selection" with nothing under it, which is less than before the click.                                                                                                                                                             | `15.png`, `16.png`; repro `09.png`                  |
+| 5   | 2        | wording       | After a neighborhood selection the header says "18 nodes, 0 edges", and the Summary under it says "Edges 0" and "Edges among them 61". Two edge counts for one selection, and she could not tell which was right.                                                                                                                 | `09.png`; repro `05.png`                            |
+| 6   | 2        | behavior      | Neighborhood highlights the neighbors but lists none of them, and Node actions offers no way to list who they are.                                                                                                                                                                                                                | `08.png`, `09.png`                                  |
+| 7   | 2        | behavior      | Hovering a node shows no name; the tool reported no tooltip. With no labels drawn, the picture cannot say who anyone is.                                                                                                                                                                                                          | `16.png`; repro `10.png` (tooltip: null on Fantine) |
+| 8   | 2        | accessibility | Two reachable controls are both named "Neighborhood" (a button and the menu item).                                                                                                                                                                                                                                                | transcript at 09                                    |
+| 9   | 1        | accessibility | The search box's accessible name is "Find", but the only visible label is its hint text "Find nodes, edges, values" (label in name).                                                                                                                                                                                              | `05.png`                                            |
 
 Severity 4 on problem 1 counts as one participant's behavior. It needs a second participant to be
 confirmed.

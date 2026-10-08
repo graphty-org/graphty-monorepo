@@ -13,18 +13,18 @@ apart than before.
 
 ## Walk
 
-| Shot | Step | What the screen showed |
-| --- | --- | --- |
-| 01 | start, empty | Start page, the usage card, four samples; Les Miserables first, "77 characters". |
-| 02 | No thanks; Les Miserables | The sample drawn with Force; Values panel: 77 nodes, 254 edges, 1 component. |
-| 03 | Layout | A popover over the toolbar: Method "Force - Recommended", Seed 1. |
-| 04 | Method | The method list: Force - Recommended, Force flat, Circle, Grid, Spiral, Spectral, No crossings, Random, Keep positions. |
-| 05 | Spectral | Positions changed at once. Most nodes are packed into a small knot at the bottom, partly under the Layout popover and the toolbar. |
-| 06 | Escape | The popover closes; the knot sits just above the toolbar, still partly hidden by it. |
-| 07 | Layout; Method; No crossings | Drawing unchanged. Under Method, in red: "No crossings could not lay out this graph, so the drawing is unchanged". Method shows Spectral again. |
-| 08 | Method; Circle | Every node moved, but into a filled disc, not a ring: node sizes vary with depth, so the 3D view places them on a sphere. |
-| 09-16 | hover each header and toolbar icon | Tooltips: Main menu, Undo Ctrl+Z, Nothing to redo, Analyze Shift+A, Layout, View, Legend L, Quick actions Ctrl+K. |
-| 17 | View | Fit 0, Frame selection (disabled), Front, Side, Top, Isometric, Switch between 2D and 3D 5. The sample opens in 3D. |
+| Shot  | Step                               | What the screen showed                                                                                                                          |
+| ----- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01    | start, empty                       | Start page, the usage card, four samples; Les Miserables first, "77 characters".                                                                |
+| 02    | No thanks; Les Miserables          | The sample drawn with Force; Values panel: 77 nodes, 254 edges, 1 component.                                                                    |
+| 03    | Layout                             | A popover over the toolbar: Method "Force - Recommended", Seed 1.                                                                               |
+| 04    | Method                             | The method list: Force - Recommended, Force flat, Circle, Grid, Spiral, Spectral, No crossings, Random, Keep positions.                         |
+| 05    | Spectral                           | Positions changed at once. Most nodes are packed into a small knot at the bottom, partly under the Layout popover and the toolbar.              |
+| 06    | Escape                             | The popover closes; the knot sits just above the toolbar, still partly hidden by it.                                                            |
+| 07    | Layout; Method; No crossings       | Drawing unchanged. Under Method, in red: "No crossings could not lay out this graph, so the drawing is unchanged". Method shows Spectral again. |
+| 08    | Method; Circle                     | Every node moved, but into a filled disc, not a ring: node sizes vary with depth, so the 3D view places them on a sphere.                       |
+| 09-16 | hover each header and toolbar icon | Tooltips: Main menu, Undo Ctrl+Z, Nothing to redo, Analyze Shift+A, Layout, View, Legend L, Quick actions Ctrl+K.                               |
+| 17    | View                               | Fit 0, Frame selection (disabled), Front, Side, Top, Isometric, Switch between 2D and 3D 5. The sample opens in 3D.                             |
 
 No script errors, console errors or failed requests were printed at any step.
 
@@ -44,7 +44,7 @@ No script errors, console errors or failed requests were printed at any step.
    3D. Not a blocker.
 4. **Tool, select by label prints "ambiguous".** `--click "Method"`, the documented way to open a
    select, printed `ambiguous: "Method" matches 2 controls (combobox ..., label "Method"); took the
-   first` every time. It opened the right list, so it is only noise, but a combobox and its own label
+first` every time. It opened the right list, so it is only noise, but a combobox and its own label
    should count as one control.
 
 Task wording: no problem. The prompt led straight to Layout; "clusters" did not pull toward

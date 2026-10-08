@@ -316,12 +316,7 @@ export interface WorkerCapability {
  * - `"probing"`: the element has not finished asking the browser yet.
  */
 export type XrUnavailableReason =
-    | "no-webxr"
-    | "insecure-context"
-    | "unsupported"
-    | "webgpu-renderer"
-    | "disabled"
-    | "probing";
+    "no-webxr" | "insecure-context" | "unsupported" | "webgpu-renderer" | "disabled" | "probing";
 
 /** Which immersive modes this host offers. */
 export interface XrCapability {

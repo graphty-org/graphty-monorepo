@@ -21,20 +21,20 @@ breaks in the path.
 
 ## Steps walked (A)
 
-| Step | Screenshot | What the screen shows |
-| --- | --- | --- |
-| start, empty | `01.png` | Start screen, samples list, usage-data consent card |
-| `--click "No thanks"` | `02.png` | Card replaced by "Usage data stays off" |
-| `--click "Les Miserables"` | `03.png` | 77 nodes, 254 edges drawn; Graph overview on the right |
-| `--key /` | `04.png` | Find box focused |
-| `--type Javert` | `05.png` | Elements: "Javert"; Values: "Select where name is Javert (1)" |
-| `--key ArrowDown` | `06.png` | Javert row highlighted |
-| `--key Enter` | `07.png` | Javert selected and ringed; Values shows id, name, Degree 17. The find box is cleared and focus moves to the Summary rows (ring around them) |
-| `--hover "Degree"` | `08.png` | Row highlights; `tooltip: null` |
-| `--click "Degree"` | `09.png` | End state: 17 names, the 18 nodes ringed, Selection 18 |
-| `--click "Valjean"` (in the list) | `10.png` | Valjean selected, Degree 36: a name in the list is a working link |
-| `--key Escape` | `11.png` | Selection cleared; Graph overview back |
-| `--key g` | `12.png` | Nothing selected, nothing happens (expected) |
+| Step                              | Screenshot | What the screen shows                                                                                                                        |
+| --------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| start, empty                      | `01.png`   | Start screen, samples list, usage-data consent card                                                                                          |
+| `--click "No thanks"`             | `02.png`   | Card replaced by "Usage data stays off"                                                                                                      |
+| `--click "Les Miserables"`        | `03.png`   | 77 nodes, 254 edges drawn; Graph overview on the right                                                                                       |
+| `--key /`                         | `04.png`   | Find box focused                                                                                                                             |
+| `--type Javert`                   | `05.png`   | Elements: "Javert"; Values: "Select where name is Javert (1)"                                                                                |
+| `--key ArrowDown`                 | `06.png`   | Javert row highlighted                                                                                                                       |
+| `--key Enter`                     | `07.png`   | Javert selected and ringed; Values shows id, name, Degree 17. The find box is cleared and focus moves to the Summary rows (ring around them) |
+| `--hover "Degree"`                | `08.png`   | Row highlights; `tooltip: null`                                                                                                              |
+| `--click "Degree"`                | `09.png`   | End state: 17 names, the 18 nodes ringed, Selection 18                                                                                       |
+| `--click "Valjean"` (in the list) | `10.png`   | Valjean selected, Degree 36: a name in the list is a working link                                                                            |
+| `--key Escape`                    | `11.png`   | Selection cleared; Graph overview back                                                                                                       |
+| `--key g`                         | `12.png`   | Nothing selected, nothing happens (expected)                                                                                                 |
 
 ## Steps walked (B)
 

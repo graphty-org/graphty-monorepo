@@ -4,6 +4,7 @@ Task as given: practice on the ready-made Les Miserables network; try a differen
 the dots so the clusters of characters are easier to tell apart, and say whether it helped.
 
 ## Step 1 -- start
+
 Command: `node tool/real.mjs --start rounds/round-3/sessions/r3-s33 empty` -> 01.png
 
 Saw: a dark start page. Start (Open project or file, New from data), Recent projects (empty), and
@@ -12,10 +13,12 @@ communities". At the bottom a box asking to share usage data. I am privacy-minde
 "No thanks" first, then open Les Miserables.
 
 ## Step 2 -- decline usage data
+
 Command: `--step ... --click "No thanks"` -> 02.png
 Now I click the Les Miserables sample.
 
 ## Step 3 -- open Les Miserables
+
 Command: `--step ... --click "Les Miserables"` -> 03.png
 
 Saw: the network drawn as blue dots and gray lines, no names on the dots. A left panel with a
@@ -26,12 +29,14 @@ At the bottom there is a small toolbar with four icons: a flask, a little chart-
 and a magnifier. The second icon might be the arrangement. I will hover it to see what it is.
 
 ## Step 4 -- hover the second toolbar icon
+
 Command: `--step ... --hover-at 728,864` -> 04.png
 Printed: button "Layout", tooltip "Layout".
 
 "Layout" -- I think that is the arrangement of the dots. I will click it.
 
 ## Step 5 -- open the Layout menu
+
 Command: `--step ... --click "Layout"` -> 05.png
 
 Saw: a menu. "Force" is ticked and marked "Recommended". Others: Circle, Grid, Spiral, Spectral,
@@ -47,6 +52,7 @@ what "Spectral" is. The plainest choice is "Circle", so I will try that first an
 groups separate.
 
 ## Step 6 -- pick Circle
+
 Command: `--step ... --click "Circle"` -> 06.png
 
 Saw: nothing moved yet; the menu turned into a small "Circle" panel: "Places every node on one
@@ -56,10 +62,12 @@ nodes were loaded" means it will not put friends next to each other -- that will
 clusters. I will go back (the little arrow next to "Circle") and read what Spectral says.
 
 ## Step 7 -- back to the list
+
 Command: `--step ... --click-at 555,632` (button "Back to layouts") -> 07.png
 Now Spectral, just to read what it is.
 
 ## Step 8 -- read Spectral
+
 Command: `--step ... --click "Spectral"` -> 08.png
 
 Saw: "Places nodes from the graph's own structure, so densely connected groups land near each
@@ -67,6 +75,7 @@ other without any grouping being named." "Draws flat." That is exactly what I as
 groups near each other. I will press Apply.
 
 ## Step 9 -- apply Spectral
+
 Command: `--step ... --click "Apply"` -> 09.png
 
 Saw: this is much worse. Almost every dot is crushed into one tiny clump in the upper left, and a
@@ -76,9 +85,11 @@ any groups at all now; I cannot even count the dots in the clump. The descriptio
 anything was off. I will undo (the curved arrow at the top) to get the old drawing back.
 
 ## Step 10 -- hover the curved arrow
+
 Command: `--step ... --hover-at 165,20` -> 10.png. Tooltip "Undo Ctrl+Z". Clicking it.
 
 ## Step 11 -- undo
+
 Command: `--step ... --click "Undo"` -> 11.png
 
 Saw: the old arrangement came back, but it is no longer framed: the drawing sits in the top half
@@ -91,6 +102,7 @@ toolbar (Shift+A) to add results here". Maybe Analyze can find the groups, and t
 group" will unlock. I will click the flask.
 
 ## Step 12 -- open Analyze
+
 Command: `--step ... --click-at 679,864` (button "Analyze") -> 12.png
 
 Saw: a long list with a "Filter analyses" box at the top. Under "Rank nodes and edges": Degree,
@@ -99,6 +111,7 @@ All-pairs distance... each with a one-line plain description, which I like. None
 "groups". Rather than scroll, I will type "group" into the filter box.
 
 ## Step 13 -- filter for "group"
+
 Command: `--step ... --type "group"` -> 13.png
 
 Saw: a "Find groups" section: Louvain ("Start here", "Which nodes form densely linked groups"),
@@ -107,12 +120,14 @@ clustering. Names I have never heard of, but "Start here" on Louvain is a helpfu
 take Louvain.
 
 ## Step 14 -- Louvain panel
+
 Command: `--step ... --click "Louvain"` -> 14.png
 
 Saw: a Louvain panel, "Resolution 1" (I do not know what that does; leaving it), Advanced, "Under
 a second", Run. Clicking Run.
 
 ## Step 15 -- run Louvain
+
 Command: `--step ... --click "Run"` -> 15.png
 
 Saw: the dots are now colored, and the left panel lists "Louvain 6" with Group 1 (20), Group 2
@@ -125,6 +140,7 @@ and cut off at the top.
 Now that there are groups, I will go back to Layout and see if "Rings by group" works.
 
 ## Step 16 -- Layout menu again
+
 Command: `--step ... --click "Layout"` -> 16.png
 
 Saw: "Rings by group" and "Columns by group" are now available -- running the groups unlocked
@@ -134,6 +150,7 @@ node attribute to group by". "Two columns" is still gray with another programmer
 group".
 
 ## Step 17 -- Rings by group panel
+
 Command: `--step ... --click "Rings by group"` -> 17.png
 
 Saw: "Places each group of nodes on its own ring, around a shared centre." Draws flat. "Group by:
@@ -141,6 +158,7 @@ Communities". Small hesitation: the left panel calls my groups "Louvain", here i
 "Communities" -- I assume they are the same thing, since I only made one set of groups. Apply.
 
 ## Step 18 -- apply Rings by group
+
 Command: `--step ... --click "Apply"` -> 18.png
 
 Saw: the whole canvas is now a big web of nested rings, one ring per color: pink in the very
@@ -155,12 +173,14 @@ I will try one more: "Columns by group", which might put each group in its own c
 side.
 
 ## Step 19 -- Columns by group panel
+
 Command: `--step ... --click "Layout" --click "Columns by group"` -> 19.png
 
 Saw: "Puts each group of nodes in its own column, in the order the groups are given." Group by
 Communities, Direction Vertical. Apply.
 
 ## Step 20 -- apply Columns by group
+
 Command: `--step ... --click "Apply"` -> 20.png
 
 Saw: now the six groups stand in six separate vertical columns, side by side: pink (8), gold (20,
@@ -176,6 +196,7 @@ other and similar in color, but being in separate columns makes up for that.
 I will stop here: I found an arrangement that separates the clusters.
 
 ## End
+
 Command: `node tool/real.mjs --end rounds/round-3/sessions/r3-s33`
 
 ## Debrief (in character, Ruth)
@@ -190,6 +211,7 @@ with a few flung far away, the opposite of what its description promised.
 runs, with an Apply button, and Undo worked. What cost me time was the detour.
 
 **What confused me:**
+
 1. "Rings by group -- needs a node attribute to group by" did not tell me how to get one. I
    guessed that the flask (Analyze) might make groups. Nothing in the Layout menu points there.
 2. Spectral promised "densely connected groups land near each other" and gave me one unreadable

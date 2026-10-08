@@ -60,7 +60,10 @@ function ShortcutsDialog(): React.JSX.Element {
             <div className="ws-dialog-columns">
                 <PageList
                     label="Shortcut groups"
-                    items={[{ id: "all", name: "All" }, ...[...groups.keys()].map((group) => ({ id: group, name: group }))]}
+                    items={[
+                        { id: "all", name: "All" },
+                        ...[...groups.keys()].map((group) => ({ id: group, name: group })),
+                    ]}
                     current={current}
                     onCurrentChange={setCurrent}
                 />

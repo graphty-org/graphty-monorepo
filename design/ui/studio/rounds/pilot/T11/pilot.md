@@ -20,18 +20,18 @@ control; it cannot test whether an alternative layout helps.
 
 ## Steps
 
-| Step | Command | Screenshot | What it shows |
-| ---- | ------- | ---------- | ------------- |
-| 1 | `--start ... empty` | 01.png | Start screen; Les Miserables listed under Samples with "77 characters" |
-| 2 | `--click "No thanks"` | 02.png | Usage-data notice dismissed |
-| 3 | `--click "Les Miserables"` | 03.png | The default "Force - Recommended" drawing: 77 nodes, 254 edges, visible groups (a tight top-left group, a fan of leaves at the bottom, a right-side group) |
-| 4 | `--click "Layout"` | 04.png | The Layout popover above the bottom toolbar: Method "Force - Recommended", Seed 1 |
-| 5 | `--click "Method"` | 05.png | Method list: Force - Recommended, Force flat, Circle, Grid, Spiral, Spectral, No crossings, Random, Keep positions |
-| 6 | `--click "Spectral"` | 06.png | Drawing collapses to a diagonal line: one node top right, the other 76 piled in the bottom-left corner, partly clipped at the canvas edge |
-| 7-8 | reopen Method (`--click-at 708,820`) | 07.png, 08.png | List reopened |
-| 9 | `--click "Force, flat"` | 09.png | A uniform disk of nodes with long crossing edges; no groups visible |
-| 10 | `--wait 10000` | 10.png | Identical to 09.png: this is the settled result, not a start frame |
-| 11 | `--key Escape --hover "Layout"` | 11.png | The Layout button's tooltip reads "Layout" |
+| Step | Command                              | Screenshot     | What it shows                                                                                                                                              |
+| ---- | ------------------------------------ | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `--start ... empty`                  | 01.png         | Start screen; Les Miserables listed under Samples with "77 characters"                                                                                     |
+| 2    | `--click "No thanks"`                | 02.png         | Usage-data notice dismissed                                                                                                                                |
+| 3    | `--click "Les Miserables"`           | 03.png         | The default "Force - Recommended" drawing: 77 nodes, 254 edges, visible groups (a tight top-left group, a fan of leaves at the bottom, a right-side group) |
+| 4    | `--click "Layout"`                   | 04.png         | The Layout popover above the bottom toolbar: Method "Force - Recommended", Seed 1                                                                          |
+| 5    | `--click "Method"`                   | 05.png         | Method list: Force - Recommended, Force flat, Circle, Grid, Spiral, Spectral, No crossings, Random, Keep positions                                         |
+| 6    | `--click "Spectral"`                 | 06.png         | Drawing collapses to a diagonal line: one node top right, the other 76 piled in the bottom-left corner, partly clipped at the canvas edge                  |
+| 7-8  | reopen Method (`--click-at 708,820`) | 07.png, 08.png | List reopened                                                                                                                                              |
+| 9    | `--click "Force, flat"`              | 09.png         | A uniform disk of nodes with long crossing edges; no groups visible                                                                                        |
+| 10   | `--wait 10000`                       | 10.png         | Identical to 09.png: this is the settled result, not a start frame                                                                                         |
+| 11   | `--key Escape --hover "Layout"`      | 11.png         | The Layout button's tooltip reads "Layout"                                                                                                                 |
 
 ## Blockers and findings
 
@@ -93,9 +93,9 @@ control; it cannot test whether an alternative layout helps.
 ## Study-tool notes
 
 - `--click "Method"` printed `ambiguous: "Method" matches 2 controls (combobox "Force -
-  Recommended", label "Method"); took the first` and worked.
+Recommended", label "Method"); took the first` and worked.
 - After a change the combobox is named by its current value only through the label; neither
   `--click "role=combobox:Spectral"` nor `--click "Spectral"` reopened it (step 7 printed `nothing on
-  screen is called "Spectral"`). `--click "Method"` or `--click-at` does. Not a defect, but worth a
+screen is called "Spectral"`). `--click "Method"` or `--click-at` does. Not a defect, but worth a
   line in the README for graders replaying participant steps.
 - No tool defects found.

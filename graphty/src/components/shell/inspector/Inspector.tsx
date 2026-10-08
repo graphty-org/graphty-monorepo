@@ -29,10 +29,7 @@ import React, { useCallback, useState } from "react";
 
 import { CANVAS_MENU_Z_INDEX, INSPECTOR_MAX_WIDTH, INSPECTOR_MIN_WIDTH } from "../constants";
 import type { InspectorProps } from "../types";
-import {
-    INSPECTOR_BORDER_WIDTH,
-    kindTakesPin,
-} from "./inspectorConstants";
+import { INSPECTOR_BORDER_WIDTH, kindTakesPin } from "./inspectorConstants";
 import { InspectorStateProvider } from "./inspectorContext";
 import { InspectorHeader } from "./InspectorHeader";
 import { useInspectorPin } from "./inspectorState";

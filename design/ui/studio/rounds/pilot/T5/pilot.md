@@ -19,12 +19,12 @@ participants run it.
 
 ## Steps
 
-| Step | Command | Screenshot | What the screen shows |
-| ---- | ------- | ---------- | --------------------- |
-| 1 | `--start rounds/pilot/T5 empty` | `01.png` | Start screen: Open project or file..., New from data..., four samples, the usage-data banner. |
-| 2 | `--click "Open project or file..." --upload club-members.graphml` | `02.png` | A workspace titled "club-members" opens: Graph rail, empty canvas with "No nodes to draw / Add data...", and the refusal toast above the bottom toolbar. No console errors printed. |
-| 3 | `--wait 10000 --expect "could not be opened" --expect "role=alert"` | `03.png` | The toast is gone. Both expects fail. Nothing on screen says the file failed: it looks like an empty project named club-members. |
-| 4 | `--click "Data"` | `04.png` | Data rail: "club-members", Sources (empty), Attributes. No record of the failed file anywhere. |
+| Step | Command                                                             | Screenshot | What the screen shows                                                                                                                                                               |
+| ---- | ------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `--start rounds/pilot/T5 empty`                                     | `01.png`   | Start screen: Open project or file..., New from data..., four samples, the usage-data banner.                                                                                       |
+| 2    | `--click "Open project or file..." --upload club-members.graphml`   | `02.png`   | A workspace titled "club-members" opens: Graph rail, empty canvas with "No nodes to draw / Add data...", and the refusal toast above the bottom toolbar. No console errors printed. |
+| 3    | `--wait 10000 --expect "could not be opened" --expect "role=alert"` | `03.png`   | The toast is gone. Both expects fail. Nothing on screen says the file failed: it looks like an empty project named club-members.                                                    |
+| 4    | `--click "Data"`                                                    | `04.png`   | Data rail: "club-members", Sources (empty), Attributes. No record of the failed file anywhere.                                                                                      |
 
 A second session (`announce/`) checked the announcement: right after the upload,
 `--expect "role=alert"` passes (`announce/02.png`). The toast message is rendered by

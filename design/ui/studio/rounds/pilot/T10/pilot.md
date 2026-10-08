@@ -21,17 +21,17 @@ the hidden count and saying why.
 
 ## Steps
 
-| Step | Command | Screenshot | What happened |
-| --- | --- | --- | --- |
-| 1 | `--start empty` | `A/01.png`, `B/01.png` | Start page with the usage card. |
-| 2 | `--click "No thanks"` | `A/02.png`, `B/02.png` | Card dismissed (not in the key's path; every empty start needs it). |
-| 3 | `--click "Les Miserables"` / `"College football"` | `A/03.png`, `B/03.png` | Sample drawn, no names on it, as the prompt says. Inspector opens on Values. |
-| 4 | `--click "Everything"` | `A/04.png`, `B/04.png` | Everything selected; the inspector switches to Style by itself. |
-| 5 | `--click "role=tab:Style"` | `A/05.png` | No change: Style was already on. The key's step is redundant but harmless. |
-| 6 | `--click "Add label line"` | `A/06.png`, `B/05.png` | Empty line "Pick an attribute" and an attribute list: `id`, `name` (A); `id`, `label`, `value` (B). |
-| 7 | `--click "name"` / `--click "label"` | `A/07.png`, `B/06.png` | Names drawn; count statement under the line; a legend card opens over the canvas. |
-| 8 | `--click "Show all labels"` | `A/10.png` | `nothing on screen is called "Show all labels"`. |
-| 9 | `--click "Aa"` | `A/11.png` | Opens only a label position picker (3 x 3 grid); no show-all option. |
+| Step | Command                                           | Screenshot             | What happened                                                                                       |
+| ---- | ------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------- |
+| 1    | `--start empty`                                   | `A/01.png`, `B/01.png` | Start page with the usage card.                                                                     |
+| 2    | `--click "No thanks"`                             | `A/02.png`, `B/02.png` | Card dismissed (not in the key's path; every empty start needs it).                                 |
+| 3    | `--click "Les Miserables"` / `"College football"` | `A/03.png`, `B/03.png` | Sample drawn, no names on it, as the prompt says. Inspector opens on Values.                        |
+| 4    | `--click "Everything"`                            | `A/04.png`, `B/04.png` | Everything selected; the inspector switches to Style by itself.                                     |
+| 5    | `--click "role=tab:Style"`                        | `A/05.png`             | No change: Style was already on. The key's step is redundant but harmless.                          |
+| 6    | `--click "Add label line"`                        | `A/06.png`, `B/05.png` | Empty line "Pick an attribute" and an attribute list: `id`, `name` (A); `id`, `label`, `value` (B). |
+| 7    | `--click "name"` / `--click "label"`              | `A/07.png`, `B/06.png` | Names drawn; count statement under the line; a legend card opens over the canvas.                   |
+| 8    | `--click "Show all labels"`                       | `A/10.png`             | `nothing on screen is called "Show all labels"`.                                                    |
+| 9    | `--click "Aa"`                                    | `A/11.png`             | Opens only a label position picker (3 x 3 grid); no show-all option.                                |
 
 ## Blockers
 
@@ -47,7 +47,7 @@ the hidden count and saying why.
 2. **App defect: the legend card lists every name as its own key row and covers the drawing.**
    After the label line is added, a card titled "Label: Everything" opens at the top left of the
    canvas and stays open when the pointer moves to empty canvas (`A/09.png`). It lists each node's
-   name twice ("Anzelma  Anzelma", "AlabamaBir...  AlabamaBirmingham"), then "65 more" / "103
+   name twice ("Anzelma Anzelma", "AlabamaBir... AlabamaBirmingham"), then "65 more" / "103
    more". It is a key for a channel that needs no key, and it sits over the left edge of the graph:
    in `B/06.png` the labels of the leftmost teams (x 480 to 550) are under it, and in `A/07.png`
    the labels near x 550, y 435 are cut off. For a task about seeing every name, the app itself

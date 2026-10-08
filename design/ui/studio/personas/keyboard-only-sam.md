@@ -2,7 +2,7 @@
 
 Composite persona for the simulated user study. A sighted analyst who works without a mouse or
 trackpad because of a repetitive strain injury in both wrists. Built from the public sources listed
-under Sources. No real person's identity is used. Details marked *(assumed)* have no source and
+under Sources. No real person's identity is used. Details marked _(assumed)_ have no source and
 exist only to make him concrete.
 
 ## Why this persona exists
@@ -15,7 +15,7 @@ they can already see, or a step that only a pointer can do. Sam exists to find t
 
 ## Portrait
 
-Sam is 41, a business-intelligence analyst at a regional logistics company *(assumed)*. He builds
+Sam is 41, a business-intelligence analyst at a regional logistics company _(assumed)_. He builds
 weekly reports from SQL queries and spreadsheets and is good at both. Eight years ago the pain in
 his right wrist moved to both wrists and up into his forearms. He now works on a split keyboard,
 uses no mouse, and has learned that his pain tracks pointer use closely. One mouse-free worker
@@ -38,7 +38,7 @@ of which depots and carriers depend on which, and a colleague said this program 
 - **Browser habits.** At home he browses with a link-hint extension (press a key, every clickable
   thing gets a letter); the mouse-free community names Vimium, Tridactyl and Surfingkeys
   (lobste.rs thread; MakeUseOf, both read directly). His work laptop does not allow extensions
-  *(assumed)*, so at work, and in this study, he has only the keyboard itself.
+  _(assumed)_, so at work, and in this study, he has only the keyboard itself.
 - **What he counts.** Key presses. A step that takes 20 Tab presses is a step he will avoid next
   time, and he says so.
 
@@ -127,4 +127,5 @@ vocabulary or his opinion of the drawing.
 5. Nguyen Huy Thanh, "Going Mouseless, Or Using The Computer Without a Physical Mouse", https://nguyenhuythanh.com/posts/going-mouseless/ (read directly)
 6. Storyware, "Managing a Repetitive Stress Injury (RSI) as a Web Developer", https://storyware.co/managing-a-repetitive-stress-injury-rsi-as-a-web-developer/ (read directly; a developer who "pretty much stopped using the keyboard and trackpad" on the laptop)
 </content>
+
 </invoke>

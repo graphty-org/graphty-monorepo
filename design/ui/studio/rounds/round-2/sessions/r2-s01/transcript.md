@@ -170,7 +170,7 @@ Command: `--step --key Enter` -> 21.png
 
 Sam: Names appeared on the drawing: Georgia Tech, Maryland, Florida, Arizona, and so on, small but
 readable. The picker closed and focus came back to a sensible place: a ring on an "Aa" button in
-the new Label row ("Aa  Above   Abc label   -"). Good focus handling. But there is a note under it:
+the new Label row ("Aa Above Abc label -"). Good focus handling. But there is a note under it:
 "115 labels, 14 hidden to avoid overlap". The task says every team's name, so 14 missing is not
 done. The "Aa" button with focus on it looks like text options; Enter to open it.
 

@@ -30,11 +30,11 @@ Build: 9d6598eea3e9, graphty@0.8.53 (session.json).
 - Success path: 6 steps. This session: 15 steps after the start (02.png to 16.png, one hover
   included), about 2.5x.
 - Wrong turns: 4.
-  1. Neighborhood (07.png) as the way to the names: it selects the six but lists no names. On
-     this build answers.md says it is not a success path.
-  2. Clicking the "Selection 7" row (08.png): the inspector empties to the word "Selection".
-  3. Data rail (09.png), hoping for a table of names.
-  4. Clicking the "name" attribute (10.png): it gives "Distinct values 15", not the values.
+    1. Neighborhood (07.png) as the way to the names: it selects the six but lists no names. On
+       this build answers.md says it is not a success path.
+    2. Clicking the "Selection 7" row (08.png): the inspector empties to the word "Selection".
+    3. Data rail (09.png), hoping for a table of names.
+    4. Clicking the "name" attribute (10.png): it gives "Distinct values 15", not the values.
 - He never clicked the Degree row in the Medici's summary (05.png), the one control that lists
   the names.
 
@@ -47,14 +47,14 @@ Build: 9d6598eea3e9, graphty@0.8.53 (session.json).
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|----------|------|---------|----------|
-| 1 | 3 | behavior | The list of who a node is tied to is reachable only by clicking the Degree value, and nothing on the node's summary says it can be clicked or what Degree counts. Tom read "Degree 6" as "probably six connections" and then looked for the names in four other places. | 05.png (Degree 6, never clicked); steps 7 to 10 |
-| 2 | 3 | build-defect | After Neighborhood selects 7 nodes, the summary reads "7 nodes, 0 edges", "Edges 0" beside "Edges among them 7", and shows id and name as "Acciaiuoli (1)" -- one value of seven, with a count of 1. | 07.png |
-| 3 | 3 | build-defect | Clicking the "Selection 7" row in the Graph tree empties the inspector to the single word "Selection", with no list of what is selected. | 08.png |
-| 4 | 2 | behavior | No names are drawn on the balls, so a reader cannot tell which family is which without clicking each one. | 03.png |
-| 5 | 2 | behavior | Clicking one ball replaces the 7-node neighborhood selection, so the reader cannot work through the six while they stay marked; Tom had to remember positions and said "if I misremembered a dot, I'd never know". | 11.png against 07.png |
-| 6 | 1 | behavior | The "name" attribute summary gives a count of distinct values (15) and no way to see the values themselves. | 10.png |
+| #   | Severity | Kind         | Problem                                                                                                                                                                                                                                                                 | Evidence                                        |
+| --- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| 1   | 3        | behavior     | The list of who a node is tied to is reachable only by clicking the Degree value, and nothing on the node's summary says it can be clicked or what Degree counts. Tom read "Degree 6" as "probably six connections" and then looked for the names in four other places. | 05.png (Degree 6, never clicked); steps 7 to 10 |
+| 2   | 3        | build-defect | After Neighborhood selects 7 nodes, the summary reads "7 nodes, 0 edges", "Edges 0" beside "Edges among them 7", and shows id and name as "Acciaiuoli (1)" -- one value of seven, with a count of 1.                                                                    | 07.png                                          |
+| 3   | 3        | build-defect | Clicking the "Selection 7" row in the Graph tree empties the inspector to the single word "Selection", with no list of what is selected.                                                                                                                                | 08.png                                          |
+| 4   | 2        | behavior     | No names are drawn on the balls, so a reader cannot tell which family is which without clicking each one.                                                                                                                                                               | 03.png                                          |
+| 5   | 2        | behavior     | Clicking one ball replaces the 7-node neighborhood selection, so the reader cannot work through the six while they stay marked; Tom had to remember positions and said "if I misremembered a dot, I'd never know".                                                      | 11.png against 07.png                           |
+| 6   | 1        | behavior     | The "name" attribute summary gives a count of distinct values (15) and no way to see the values themselves.                                                                                                                                                             | 10.png                                          |
 
 Not counted as an app defect: "NeighborhoodG". In the sibling session r1-s21b the screenshot shows
 the tooltip "Neighborhood" with the key "G" apart; the run-together text is the tool's text

@@ -35,10 +35,10 @@ Each part of the success definition holds:
 
 ## Counts
 
-| | This session | Success path (round 3) |
-|---|---|---|
+|                          | This session  | Success path (round 3)                                                           |
+| ------------------------ | ------------- | -------------------------------------------------------------------------------- |
 | Commands after the start | 6 (steps 1-6) | 6 (Control+s, type the name, Enter, Main menu, Back to start, click the project) |
-| Wrong turns | 0 | -- |
+| Wrong turns              | 0             | --                                                                               |
 
 - She saved through Main menu > "Save as..." (2 clicks) where the path uses Control+s (1 key), and
   closed the tab (1) where the path uses Main menu > Back to start (2). Both are accepted routes.
@@ -59,15 +59,15 @@ Severity 0-4 (Nielsen). Opinion-only findings are held one level down. Build def
 reproduced with the scripted path `rounds/round-3/repro/r3-s46/repro.sh` (output in `run/`): setup,
 Save as "Repro r3-s46", reopen, click the project. It gave the same result on the build.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | The save toast says only "Saved ... in this browser." The warning that the browser can clear projects kept there, and the advice to save a local copy, appears only on the start page after she had left. She wanted it at the moment of saving and would now also download a copy. | Step 3, 04.png; step 4, 05.png; debrief. |
-| 2 | 1 | behavior | The main menu has "Save", "Save as..." and "Save local copy..."; she could not tell which one keeps the work "on this computer" and hesitated before picking "Save as...". | Step 1, 02.png; transcript. |
-| 3 | 1 | build-defect | After the reopen the PageRank row in the outline shows no count; before the save it read "PageRank 77". A restored run has no summary (a graphty-element defect the answer key already records). She noticed it; it did not change her answer. Reproduced: repro run/03.png shows "PageRank 77", run/05.png shows "PageRank" with no count. | Step 3, 04.png against step 5, 06.png; repro run/03.png, run/05.png. |
-| 4 | 1 | behavior | After the reopen the inspector shows the Graph overview, not the Everything style she left open, so she clicked Everything to confirm her labels were still set. | Step 5, 06.png; step 6, 07.png. |
-| 5 | 1 | build-defect | In the Graph overview, the line "Undirected, from the file: "directed": f..." is cut off at the right edge of the panel, with no way to read the rest. Reproduced the same on every run. | Step 5, 06.png; repro run/05.png. |
-| 6 | 1 | wording | The header shows the project name "Characters ranked - Grace" while the outline header still says "Graph Les Miserables": two names for what she reads as one thing. | Step 3, 04.png; 06.png. |
-| 7 | 1 | behavior | Grader observation, not raised by the participant: Everything's Style tab shows a Fill color of 6366F1 (purple) while every node is drawn orange by the PageRank run above it. The panel and the drawing disagree with nothing on the panel saying the run overrides it. She read the panel as "fill color" and moved on. | Step 6, 07.png. |
+| #   | Sev | Kind         | Problem                                                                                                                                                                                                                                                                                                                                     | Evidence                                                             |
+| --- | --- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| 1   | 2   | behavior     | The save toast says only "Saved ... in this browser." The warning that the browser can clear projects kept there, and the advice to save a local copy, appears only on the start page after she had left. She wanted it at the moment of saving and would now also download a copy.                                                         | Step 3, 04.png; step 4, 05.png; debrief.                             |
+| 2   | 1   | behavior     | The main menu has "Save", "Save as..." and "Save local copy..."; she could not tell which one keeps the work "on this computer" and hesitated before picking "Save as...".                                                                                                                                                                  | Step 1, 02.png; transcript.                                          |
+| 3   | 1   | build-defect | After the reopen the PageRank row in the outline shows no count; before the save it read "PageRank 77". A restored run has no summary (a graphty-element defect the answer key already records). She noticed it; it did not change her answer. Reproduced: repro run/03.png shows "PageRank 77", run/05.png shows "PageRank" with no count. | Step 3, 04.png against step 5, 06.png; repro run/03.png, run/05.png. |
+| 4   | 1   | behavior     | After the reopen the inspector shows the Graph overview, not the Everything style she left open, so she clicked Everything to confirm her labels were still set.                                                                                                                                                                            | Step 5, 06.png; step 6, 07.png.                                      |
+| 5   | 1   | build-defect | In the Graph overview, the line "Undirected, from the file: "directed": f..." is cut off at the right edge of the panel, with no way to read the rest. Reproduced the same on every run.                                                                                                                                                    | Step 5, 06.png; repro run/05.png.                                    |
+| 6   | 1   | wording      | The header shows the project name "Characters ranked - Grace" while the outline header still says "Graph Les Miserables": two names for what she reads as one thing.                                                                                                                                                                        | Step 3, 04.png; 06.png.                                              |
+| 7   | 1   | behavior     | Grader observation, not raised by the participant: Everything's Style tab shows a Fill color of 6366F1 (purple) while every node is drawn orange by the PageRank run above it. The panel and the drawing disagree with nothing on the panel saying the run overrides it. She read the panel as "fill color" and moved on.                   | Step 6, 07.png.                                                      |
 
 **What worked:** the main menu reads like a File menu and she found "Save as..." at once. The save
 dialog preselects the old name so typing replaces it. The toast and the header confirm the new name.

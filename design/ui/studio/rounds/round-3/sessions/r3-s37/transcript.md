@@ -128,6 +128,7 @@ I have what I came for. Stopping."
 ## Debrief (in character)
 
 **Did I finish?** Yes.
+
 - Characters: 77 (start page said "77 characters"; Overview says Nodes 77; table says 77 nodes).
 - Connections: 254 (Overview Edges 254; edge table 254 rows).
 - Can everyone reach everyone: yes, I believe so -- "Components 1". I am fairly but not fully sure
@@ -142,6 +143,7 @@ I have what I came for. Stopping."
 The Data tab and its table were plain and familiar, like a spreadsheet.
 
 **What confused me:**
+
 - "Components 1" -- no explanation when I pointed at it. This was the one question I could not
   answer with full confidence.
 - "Undirected, from the file: directed 0" -- I do not know what "directed 0" means, its label is

@@ -9,17 +9,17 @@ answer key's round 2 path, 9 steps, with no detour.
 
 ## The walk
 
-| Shot | Step | What the screen shows |
-|---|---|---|
-| 01 | setup | Louvain run: six groups in the outline (20, 17, 11, 11, 10, 8), drawing colored, key "Color: Louvain" with Group 1 to Group 6 at the canvas's top left |
-| 02 | `--key Control+e` | Export dialog, Image row chosen; preview shows the drawing with its key |
-| 03 | `--click "role=button:Export"` | `les-miserables_current-view.png` saved (1806 x 1720); toast "Exported les-miserables_current-view.png" |
-| 04 | `--key Control+e --click "Data"` | Data row; format "Graphty JSON" (the whole project), JSON preview |
-| 05 | `--click "Format"` | Format list open (Graphty JSON checked, CSV among 18 formats). Tool printed `ambiguous` (see below) |
-| 06 | `--click "role=option:CSV"` | CSV, Table "Edges"; yellow box "CSV cannot hold everything"; preview `source,target,shared_chapters` |
-| 07 | `--click "Table"` | Table list: Edges, Nodes, Adjacency List. Tool printed `ambiguous` |
-| 08 | `--click "role=option:Nodes"` | "One row per node, with every computed value - CSV"; preview `id,name,results.louvain.group,results.louvain.groupSize` |
-| 09 | `--click "role=button:Export"` | `les-miserables_nodes.csv` saved (1,956 bytes); toast "Exported les-miserables_nodes.csv" |
+| Shot | Step                             | What the screen shows                                                                                                                                  |
+| ---- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 01   | setup                            | Louvain run: six groups in the outline (20, 17, 11, 11, 10, 8), drawing colored, key "Color: Louvain" with Group 1 to Group 6 at the canvas's top left |
+| 02   | `--key Control+e`                | Export dialog, Image row chosen; preview shows the drawing with its key                                                                                |
+| 03   | `--click "role=button:Export"`   | `les-miserables_current-view.png` saved (1806 x 1720); toast "Exported les-miserables_current-view.png"                                                |
+| 04   | `--key Control+e --click "Data"` | Data row; format "Graphty JSON" (the whole project), JSON preview                                                                                      |
+| 05   | `--click "Format"`               | Format list open (Graphty JSON checked, CSV among 18 formats). Tool printed `ambiguous` (see below)                                                    |
+| 06   | `--click "role=option:CSV"`      | CSV, Table "Edges"; yellow box "CSV cannot hold everything"; preview `source,target,shared_chapters`                                                   |
+| 07   | `--click "Table"`                | Table list: Edges, Nodes, Adjacency List. Tool printed `ambiguous`                                                                                     |
+| 08   | `--click "role=option:Nodes"`    | "One row per node, with every computed value - CSV"; preview `id,name,results.louvain.group,results.louvain.groupSize`                                 |
+| 09   | `--click "role=button:Export"`   | `les-miserables_nodes.csv` saved (1,956 bytes); toast "Exported les-miserables_nodes.csv"                                                              |
 
 No script errors, console errors or failed requests were printed at any step.
 

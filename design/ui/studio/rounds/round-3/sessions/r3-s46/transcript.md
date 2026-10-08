@@ -86,13 +86,13 @@ Command: `--end rounds/round-3/sessions/r3-s46`
   and the drawing itself were all there.
 - **Ease: 6 of 7.** File menu, Save as, type a name, Save: just like Excel. Coming back was one click.
 - **What confused or worried me:**
-  - The menu has three saves ("Save", "Save as...", "Save local copy..."). I did not know which one
-    keeps it "on this computer" until later.
-  - The save message said "Saved ... in this browser." Only the next day, on the start page, did small
-    gray text tell me "This browser can clear projects kept here. Save a local copy of any project you
-    need to keep." That warning belongs at the moment I save, not after. For donor work I would want
-    a real file I can see in a folder, and now I would go back and do "Save local copy..." too.
-  - The left panel still says "Graph Les Miserables" while the top says my project name; two names
-    for one thing.
-  - Small: the "77" count beside PageRank was gone after reopening, the right panel opened on a Graph
-    overview instead of where I left it, and a line about "directed" is cut off at the panel edge.
+    - The menu has three saves ("Save", "Save as...", "Save local copy..."). I did not know which one
+      keeps it "on this computer" until later.
+    - The save message said "Saved ... in this browser." Only the next day, on the start page, did small
+      gray text tell me "This browser can clear projects kept here. Save a local copy of any project you
+      need to keep." That warning belongs at the moment I save, not after. For donor work I would want
+      a real file I can see in a folder, and now I would go back and do "Save local copy..." too.
+    - The left panel still says "Graph Les Miserables" while the top says my project name; two names
+      for one thing.
+    - Small: the "77" count beside PageRank was gone after reopening, the right panel opened on a Graph
+      overview instead of where I left it, and a line about "directed" is cut off at the panel edge.

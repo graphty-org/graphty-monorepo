@@ -631,6 +631,7 @@ Morgan (on the last read): The Values tab has a top 10 as text: Valjean 1,624, M
 **Ease: 5 out of 7.** Shorter than I expected and every control I needed had a real name. It lost a point for focus dropping to the page twice, and another for leaving me to guess at the meaning of the numbers.
 
 **What worked:**
+
 - The start page has headings and says files are read on this computer and never uploaded.
 - Opening the sample announced "77 nodes, 254 edges" and the overview gave nodes, edges, direction, density and components as text without running anything.
 - Shift+A opened a filterable list of analyses with a one-line description each; typing "betw" found it.
@@ -638,6 +639,7 @@ Morgan (on the last read): The Values tab has a top 10 as text: Valjean 1,624, M
 - The legend on the drawing is text ("Size: Betweenness 0 1624"), and the Values tab has a top-10 list I can read.
 
 **What confused or bothered me:**
+
 - Focus went to "the page itself" after I declined usage data and again after opening the sample. Both times I had to find my way back from the top.
 - The usage-data confirmation arrived already filled in, so my screen reader may never have spoken it. Then a stray "Change this in Settings > Privacy" button turned up as the first Tab stop.
 - After the sample opened, the screen had no headings at all, only buttons, a tree and tabs. I found things by Tab and by reading regions.

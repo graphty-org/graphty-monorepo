@@ -186,17 +186,17 @@ score, light orange is near zero. So size and color both say the same number."
   what the sizes and colors mean, as long as Bridges really is Betweenness.
 - How hard (1 easy to 7 very hard): 4.
 - What confused me:
-  - I picked "Betweenness" and the result was called "Bridges". Nothing told me they're the same.
-    QA would ask me which measure I used and I'd have to guess the answer.
-  - Running it colored the dots but did not size them. The task was about size, so I had to find
-    that myself.
-  - Size was hidden under "Shape", behind a plus. I guessed.
-  - The arrow in the Size box opened an empty list. The thing that worked was the small chain
-    icon, which I only found by hovering it.
-  - The color scale barely changes: apart from the one big dot, they all looked the same orange.
-  - Hovering a dot shows no name, so I can't confirm which dot is Valjean from the drawing. I
-    trusted the Top 10 list instead.
-  - "PageRank: Start here" made me doubt my pick. If that's the recommended one, why?
+    - I picked "Betweenness" and the result was called "Bridges". Nothing told me they're the same.
+      QA would ask me which measure I used and I'd have to guess the answer.
+    - Running it colored the dots but did not size them. The task was about size, so I had to find
+      that myself.
+    - Size was hidden under "Shape", behind a plus. I guessed.
+    - The arrow in the Size box opened an empty list. The thing that worked was the small chain
+      icon, which I only found by hovering it.
+    - The color scale barely changes: apart from the one big dot, they all looked the same orange.
+    - Hovering a dot shows no name, so I can't confirm which dot is Valjean from the drawing. I
+      trusted the Top 10 list instead.
+    - "PageRank: Start here" made me doubt my pick. If that's the recommended one, why?
 - Minutes: about four or five from opening the sample. Fine for practice, too long for every
   alert. The Top 10 list is the bit I'd paste into a file; the picture alone would not satisfy QA
   without names on it.

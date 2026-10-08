@@ -2760,12 +2760,12 @@ focus: menuitem "Export... Ctrl+E"
 (a screenshot was kept for the graders)
 ```
 
-### Step: --key  
+### Step: --key
 
 Before: Space on Export.
 
 ```
-node design/ui/studio/tool/real.mjs --step design/ui/studio/rounds/round-2/sessions/r2-s07 --key  
+node design/ui/studio/tool/real.mjs --step design/ui/studio/rounds/round-2/sessions/r2-s07 --key
 focus: button "Main menu"
 (a screenshot was kept for the graders)
 ```
@@ -2802,6 +2802,7 @@ session ended
 **Rating: 2 out of 7** (very difficult).
 
 **What confused me or failed:**
+
 - No spoken "loaded", no node or edge count up front, and focus moved by itself to an unnamed "Canvas" that says nothing on arrows or Enter.
 - The Overview section exists ("Collapse Overview") but its content is not reachable by focus; the help dialog's shortcut text, likewise.
 - The graph tree had only "Selection" and "Everything" at first; "Everything" would not open. After running analyses it grew items, but Tab lands on their "Hide ..." buttons, not on the items.

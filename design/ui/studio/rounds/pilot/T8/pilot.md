@@ -23,19 +23,19 @@ So the grader values for this build are: 6 groups, largest 20, and any three of 
 
 ## Steps
 
-| # | Step | Screenshot | What happened |
-|---|------|------------|---------------|
-| 1 | `--start ... empty` | 01.png | Start page, usage card at the bottom. |
-| 2 | `--click "Les Miserables"` | 02.png | Sample opens: 77 nodes, 254 edges, 1 component. The usage card is gone, never answered. |
-| 3 | `--key Shift+A` | 03.png | Analyze popover opens, filter field focused. |
-| 4 | `--type Louvain` | 04.png | List filters to one entry, "Louvain - Start here" under "Find groups". |
-| 5 | `--key Enter` | 05.png | **Nothing happens.** Popover unchanged. |
-| 6 | `--key ArrowDown --key Enter` | 06.png | **Nothing happens.** Popover unchanged. |
-| 7 | `--click "Louvain"` | 07.png | Short form: Resolution 1, "Under a second", Run button. |
-| 8 | `--click "Run"` | 08.png | Row "Communities 6" with Groups 1-6 and sizes in the left list; drawing recolored by group; a legend "Color: Communities" appears. Inspector still shows the Graph. |
-| 9 | `--click "Communities"` | 09.png | Inspector: Summary (Groups 6, Modularity 0.5556), Sizes bar chart and list, Made with. |
-| 10 | `--click "Group 1"` | 10.png | Inspector: Size 20, Made by Communities, Members "First 10". Tool printed `ambiguous` (see below). |
-| 11-12 | `--wait 3000` twice, no input | 11.png, 12.png | The drawing changes in each (see below). |
+| #     | Step                          | Screenshot     | What happened                                                                                                                                                       |
+| ----- | ----------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | `--start ... empty`           | 01.png         | Start page, usage card at the bottom.                                                                                                                               |
+| 2     | `--click "Les Miserables"`    | 02.png         | Sample opens: 77 nodes, 254 edges, 1 component. The usage card is gone, never answered.                                                                             |
+| 3     | `--key Shift+A`               | 03.png         | Analyze popover opens, filter field focused.                                                                                                                        |
+| 4     | `--type Louvain`              | 04.png         | List filters to one entry, "Louvain - Start here" under "Find groups".                                                                                              |
+| 5     | `--key Enter`                 | 05.png         | **Nothing happens.** Popover unchanged.                                                                                                                             |
+| 6     | `--key ArrowDown --key Enter` | 06.png         | **Nothing happens.** Popover unchanged.                                                                                                                             |
+| 7     | `--click "Louvain"`           | 07.png         | Short form: Resolution 1, "Under a second", Run button.                                                                                                             |
+| 8     | `--click "Run"`               | 08.png         | Row "Communities 6" with Groups 1-6 and sizes in the left list; drawing recolored by group; a legend "Color: Communities" appears. Inspector still shows the Graph. |
+| 9     | `--click "Communities"`       | 09.png         | Inspector: Summary (Groups 6, Modularity 0.5556), Sizes bar chart and list, Made with.                                                                              |
+| 10    | `--click "Group 1"`           | 10.png         | Inspector: Size 20, Made by Communities, Members "First 10". Tool printed `ambiguous` (see below).                                                                  |
+| 11-12 | `--wait 3000` twice, no input | 11.png, 12.png | The drawing changes in each (see below).                                                                                                                            |
 
 No script errors, `console.error` lines or failed requests were printed at any step.
 
@@ -56,7 +56,7 @@ No script errors, `console.error` lines or failed requests were printed at any s
    tells graders to look for a "Louvain" run; the row, the Made with section and Group 1's
    "Made by" all say **Communities**, and the word Louvain appears only in the popover. Graders
    should accept a row named Communities. The opening step `--click "Open the Les Miserables
-   sample"` was not tried; `--click "Les Miserables"` worked.
+sample"` was not tried; `--click "Les Miserables"` worked.
 
 3. **Study-tool defect (or graphty-element defect) -- the drawing keeps moving with no input and
    the tool does not say so.** Each screenshot shows the same graph turned to a new angle: compare

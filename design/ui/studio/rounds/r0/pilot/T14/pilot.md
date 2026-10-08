@@ -17,18 +17,18 @@ Influence" as a match, so this does not block the task.
 
 ## What was walked
 
-| Step | Screenshot | What happened |
-| ---- | ---------- | ------------- |
-| setup start | `01.png` | The setup ran whole. Rows: Selection, Influence (77), Everything (selected; the inspector header now reads just "Everything"); orange nodes; key "Color: Influence 0.003299 - 0.07543"; names drawn; label line "Abc name", "77 labels, 7 hidden to avoid overlap". |
-| `--key Control+s` | `02.png` | "Save Les Miserables as" dialog, Name "Les Miserables" prefilled and selected, hint "Choose where the file goes next. Later saves write the same file." |
-| `--type "Les Mis day one"`, `--key Enter` | `03.png` | The save picker took the name; a 29,853-byte project file was written (`saved/Les Mis day one.graphty.json`). The header reads "Les Mis day one"; notice "Saved as Les Mis day one". |
-| click "Les Mis day one" (the project name) | `04.png` | The project menu: Rename, Open project or file..., Save, Export..., Save as..., Close project. |
-| click "Close project" | `05.png` | The start screen, no "discard changes" question. Recent projects lists "Les Mis day one", 77 nodes, Oct 6, 2026, 4:27 PM. |
-| click "Les Mis day one" | `06.png` | Reopened, notice "Opened Les Mis day one". Same drawing, same arrangement, orange colors, key and names. The Influence row shows its ramp but **no "77"**. The inspector shows the Graph overview (77 nodes, 254 edges). |
-| click "Influence" | `07.png` | The run's values are back: 77 of 77 have a value, 0.003299 to 0.07543, median 0.01242; Top 10 led by Valjean 0.07543, Myriel 0.04278; Made with: Influence, ran Oct 6, Damping Factor 0.85. |
-| click "Everything" | `08.png` | The label line is back: "Abc name", "77 labels, 7 hidden to avoid overlap". |
-| close the tab and open the app again (`--reopen`) | `09.png` | The start screen in a new tab; Recent projects still lists "Les Mis day one" (4:28 PM, the last time it was opened). |
-| click "Les Mis day one" | `10.png` | Same as `06.png`: everything back, the Influence row again without its count. |
+| Step                                              | Screenshot | What happened                                                                                                                                                                                                                                                       |
+| ------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| setup start                                       | `01.png`   | The setup ran whole. Rows: Selection, Influence (77), Everything (selected; the inspector header now reads just "Everything"); orange nodes; key "Color: Influence 0.003299 - 0.07543"; names drawn; label line "Abc name", "77 labels, 7 hidden to avoid overlap". |
+| `--key Control+s`                                 | `02.png`   | "Save Les Miserables as" dialog, Name "Les Miserables" prefilled and selected, hint "Choose where the file goes next. Later saves write the same file."                                                                                                             |
+| `--type "Les Mis day one"`, `--key Enter`         | `03.png`   | The save picker took the name; a 29,853-byte project file was written (`saved/Les Mis day one.graphty.json`). The header reads "Les Mis day one"; notice "Saved as Les Mis day one".                                                                                |
+| click "Les Mis day one" (the project name)        | `04.png`   | The project menu: Rename, Open project or file..., Save, Export..., Save as..., Close project.                                                                                                                                                                      |
+| click "Close project"                             | `05.png`   | The start screen, no "discard changes" question. Recent projects lists "Les Mis day one", 77 nodes, Oct 6, 2026, 4:27 PM.                                                                                                                                           |
+| click "Les Mis day one"                           | `06.png`   | Reopened, notice "Opened Les Mis day one". Same drawing, same arrangement, orange colors, key and names. The Influence row shows its ramp but **no "77"**. The inspector shows the Graph overview (77 nodes, 254 edges).                                            |
+| click "Influence"                                 | `07.png`   | The run's values are back: 77 of 77 have a value, 0.003299 to 0.07543, median 0.01242; Top 10 led by Valjean 0.07543, Myriel 0.04278; Made with: Influence, ran Oct 6, Damping Factor 0.85.                                                                         |
+| click "Everything"                                | `08.png`   | The label line is back: "Abc name", "77 labels, 7 hidden to avoid overlap".                                                                                                                                                                                         |
+| close the tab and open the app again (`--reopen`) | `09.png`   | The start screen in a new tab; Recent projects still lists "Les Mis day one" (4:28 PM, the last time it was opened).                                                                                                                                                |
+| click "Les Mis day one"                           | `10.png`   | Same as `06.png`: everything back, the Influence row again without its count.                                                                                                                                                                                       |
 
 The answer key's path (Control+s, type a name, Enter, project menu > Close project, the name under
 Recent projects) works as written, in 5 steps.
@@ -67,6 +67,6 @@ accepted path (`09.png`, `10.png`). Nothing needs changing.
 - The Everything row's Fill swatch is purple "#63..." (`01.png`, `09.png`) while every node is
   orange, because the Influence row paints over it.
 - The Graph overview's direction line is cut off at the panel edge: `Undirected, from the file:
-  "directed": f` (`06.png`, `10.png`).
+"directed": f` (`06.png`, `10.png`).
 - The reopened drawing matches the saved one to within a few pixels (for example "Old Man" at
   y 630 before, 633 after), so the layout seed holds across a save and reopen.

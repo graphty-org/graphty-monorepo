@@ -23,11 +23,11 @@ the same build. No files were saved, and none were needed. Not from the particip
 
 ## Counts
 
-| | This session | Reference |
-|---|---|---|
+|                                              | This session                                                  | Reference           |
+| -------------------------------------------- | ------------------------------------------------------------- | ------------------- |
 | Commands to the success state (sample drawn) | 3 (What is collected, No thanks, Florentine families), step 4 | 1 (open any sample) |
-| Commands in all | 9 | -- |
-| Wrong turns | 1 | 0 |
+| Commands in all                              | 9                                                             | --                  |
+| Wrong turns                                  | 1                                                             | 0                   |
 
 - **The wrong turn:** the hover over the middle dot at step 5 (05.png). She expected a name and
   nothing appeared. She clicked instead at step 6, which worked.
@@ -47,13 +47,13 @@ Severity 0-4 (Nielsen). Opinion-only findings are held one level down. The build
 reproduced by `rounds/round-3/repro/r3-s54/repro.sh` (output in `run/` and `run.log`), the same on
 every run.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | build-defect | The Overview's direction row shows only a value, "Undirected, from the file: directed 0", with no label. The text runs to the panel's right edge. She could not tell what "directed 0" counts ("Zero what? It reads like a typo"). Also seen in other round 3 sessions. | Step 4, 04.png. Repro: `run/03.png`, the same unlabeled row reaching the edge. |
-| 2 | 2 | behavior | The sample draws with no names on the dots, and hovering a dot shows nothing, so she could not tell which family was which until she clicked one. Her tutorial picture had labels. Also seen in another participant on the same sample (the Medici hover). | Steps 4-6: 04.png against 05.png, identical; the tool reports `node with id "Medici"`, `tooltip: null`. Repro: step 5, `run/05.png`, same result. |
-| 3 | 1 | build-defect | The row label "Edges per n..." is cut off, so its value "1 to 6, mean 2.667" has no readable name. Hovering the row shows nothing (the full name "Edges per node" exists only for assistive technology and on the inner text). | Step 4, 04.png. Repro: `run/03.png`; step 4 hover gives `tooltip: null`. |
-| 4 | 1 | behavior | The line "Change this in Settings > Privacy" goes away once a sample opens. She read it in time, but a reader who skipped it would have to search the menu. The route was easy to find anyway. | 03.png against 04.png; debrief. |
-| 5 | 1 | opinion | "A replay of each session" in "What is collected" put her off sharing. She wanted one sentence on what a replay shows. | Step 2, 02.png; debrief. |
+| #   | Sev | Kind         | Problem                                                                                                                                                                                                                                                                 | Evidence                                                                                                                                          |
+| --- | --- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 2   | build-defect | The Overview's direction row shows only a value, "Undirected, from the file: directed 0", with no label. The text runs to the panel's right edge. She could not tell what "directed 0" counts ("Zero what? It reads like a typo"). Also seen in other round 3 sessions. | Step 4, 04.png. Repro: `run/03.png`, the same unlabeled row reaching the edge.                                                                    |
+| 2   | 2   | behavior     | The sample draws with no names on the dots, and hovering a dot shows nothing, so she could not tell which family was which until she clicked one. Her tutorial picture had labels. Also seen in another participant on the same sample (the Medici hover).              | Steps 4-6: 04.png against 05.png, identical; the tool reports `node with id "Medici"`, `tooltip: null`. Repro: step 5, `run/05.png`, same result. |
+| 3   | 1   | build-defect | The row label "Edges per n..." is cut off, so its value "1 to 6, mean 2.667" has no readable name. Hovering the row shows nothing (the full name "Edges per node" exists only for assistive technology and on the inner text).                                          | Step 4, 04.png. Repro: `run/03.png`; step 4 hover gives `tooltip: null`.                                                                          |
+| 4   | 1   | behavior     | The line "Change this in Settings > Privacy" goes away once a sample opens. She read it in time, but a reader who skipped it would have to search the menu. The route was easy to find anyway.                                                                          | 03.png against 04.png; debrief.                                                                                                                   |
+| 5   | 1   | opinion      | "A replay of each session" in "What is collected" put her off sharing. She wanted one sentence on what a replay shows.                                                                                                                                                  | Step 2, 02.png; debrief.                                                                                                                          |
 
 **What worked:** samples on the first screen with one-line descriptions she could match to her
 own homework; one click drew the graph; the Overview's counts gave her the size at a glance;

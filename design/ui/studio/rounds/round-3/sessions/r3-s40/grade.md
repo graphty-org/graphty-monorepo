@@ -23,10 +23,10 @@ All four answers are right and each was read off the screen:
 
 ## Counts
 
-| | This session | Success path |
-|---|---|---|
-| Steps (real.mjs, after the start) | 3 (step 2 held two clicks) | 2-3 |
-| Wrong turns | 0 | -- |
+|                                   | This session               | Success path |
+| --------------------------------- | -------------------------- | ------------ |
+| Steps (real.mjs, after the start) | 3 (step 2 held two clicks) | 2-3          |
+| Wrong turns                       | 0                          | --           |
 
 - Step 2 (No thanks, open the sample) and step 3 (the Data rail) are the success path.
 - Step 4 (click `shared_chapters` to see its range) came after all four answers were on screen;
@@ -44,13 +44,13 @@ shared_chapters summary (04.png).
 Severity 0-4 (Nielsen). Opinion-only findings are held one level down. None is a build defect
 (no crash, dead control, wrong count or keyboard block), so no repro was scripted.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | wording | The Overview's degree row is cut to "Edges per ..." with no way to read the full label; he guessed "edges per node" and said he would not put the figure in a deck without the full name. Also met in other round 3 sessions: confirmed. | Step 2, 02.png. |
-| 2 | 2 | wording | "Undirected, from the file: directed 0" reads as a contradiction; he had to reread it to take it as "the file had no directed edges". The line also runs to the panel's right edge with no margin. Also met in other round 3 sessions: confirmed. | Step 2, 02.png. |
-| 3 | 1 | wording | Source names in the Data panel are truncated to "Node t..." and "Ed..." although the panel has room beside the counts. | Step 3, 03.png; 04.png. |
-| 4 | 1 | opinion | Nothing in the Graph view points to where the attribute list lives; he found it by guessing the Data rail icon "looked like a database". Held one level down. | Step 2-3, 02.png (Graph view lists only Selection and Everything). |
-| 5 | 1 | opinion | "Components 1" needs graph vocabulary to read as "everyone can reach everyone"; he knew it from NetworkX and expects a less experienced reader would not. Held one level down. | Step 2, 02.png; debrief. |
+| #   | Sev | Kind    | Problem                                                                                                                                                                                                                                           | Evidence                                                           |
+| --- | --- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| 1   | 2   | wording | The Overview's degree row is cut to "Edges per ..." with no way to read the full label; he guessed "edges per node" and said he would not put the figure in a deck without the full name. Also met in other round 3 sessions: confirmed.          | Step 2, 02.png.                                                    |
+| 2   | 2   | wording | "Undirected, from the file: directed 0" reads as a contradiction; he had to reread it to take it as "the file had no directed edges". The line also runs to the panel's right edge with no margin. Also met in other round 3 sessions: confirmed. | Step 2, 02.png.                                                    |
+| 3   | 1   | wording | Source names in the Data panel are truncated to "Node t..." and "Ed..." although the panel has room beside the counts.                                                                                                                            | Step 3, 03.png; 04.png.                                            |
+| 4   | 1   | opinion | Nothing in the Graph view points to where the attribute list lives; he found it by guessing the Data rail icon "looked like a database". Held one level down.                                                                                     | Step 2-3, 02.png (Graph view lists only Selection and Everything). |
+| 5   | 1   | opinion | "Components 1" needs graph vocabulary to read as "everyone can reach everyone"; he knew it from NetworkX and expects a less experienced reader would not. Held one level down.                                                                    | Step 2, 02.png; debrief.                                           |
 
 **What worked:** three of the four answers were on screen the moment the sample opened, with no
 click. The Data view showed the attributes with their types, and row counts equal to node and edge

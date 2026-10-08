@@ -26,14 +26,7 @@ import {
 import { CompoundSetLine, SetLine } from "./SetLine";
 import { focusLineNext, openListNext, useFocusLine } from "./useFocusLine";
 import { useStyleVersion } from "./useStyleVersion";
-import {
-    channelWord,
-    type CompoundLine,
-    compoundOf,
-    isLineChannel,
-    SECTIONS,
-    type StyleSection,
-} from "./words";
+import { channelWord, type CompoundLine, compoundOf, isLineChannel, SECTIONS, type StyleSection } from "./words";
 
 /** Props for StyleTab. */
 interface StyleTabProps {
@@ -413,13 +406,7 @@ function Section({
                     );
                 }
                 return line === undefined ? null : (
-                    <SetLine
-                        key={e.adds.channel}
-                        descriptor={e.adds}
-                        line={line}
-                        row={row}
-                        documentColors={colors}
-                    />
+                    <SetLine key={e.adds.channel} descriptor={e.adds} line={line} row={row} documentColors={colors} />
                 );
             })}
         </Stack>

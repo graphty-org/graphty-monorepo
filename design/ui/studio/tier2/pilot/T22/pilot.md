@@ -6,28 +6,28 @@ in `B/`. Both reached the end state the answer key describes.
 
 ## A: bus stops, links of 10 minutes or more
 
-| Shot | Step | What the screen shows |
-| ---- | ---- | --------------------- |
-| `A/01.png` | start (bus-stops.csv open) | 10 stops, 17 links, no names drawn, Graph overview in the inspector |
-| `A/02.png` | `--key /` | the find box takes focus |
-| `A/03.png` | `--type "=minutes >= 10"` | gray hint "Rule: press Enter to select matches" -- the bare number is not flagged yet |
-| `A/04.png` | `--key Enter` | red "Put numbers in backticks: weight > `3`" under the box; nothing selected |
-| `A/05.png` | `--key Control+a --type "=minutes >= \`10\`"` | gray "Rule: press Enter to select matches" |
-| `A/06.png` | `--key Enter` | inspector "0 nodes, 3 edges", Selection 3, three lines drawn dark and thicker, all 10 stops still drawn. Matches the key |
-| `A/07.png` | `--click "Everything"` | the Everything style page opens; Selection still reads 3 and the three lines stay marked |
+| Shot                   | Step                                             | What the screen shows                                                                                                              |
+| ---------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `A/01.png`             | start (bus-stops.csv open)                       | 10 stops, 17 links, no names drawn, Graph overview in the inspector                                                                |
+| `A/02.png`             | `--key /`                                        | the find box takes focus                                                                                                           |
+| `A/03.png`             | `--type "=minutes >= 10"`                        | gray hint "Rule: press Enter to select matches" -- the bare number is not flagged yet                                              |
+| `A/04.png`             | `--key Enter`                                    | red "Put numbers in backticks: weight > `3`" under the box; nothing selected                                                       |
+| `A/05.png`             | `--key Control+a --type "=minutes >= \`10\`"`    | gray "Rule: press Enter to select matches"                                                                                         |
+| `A/06.png`             | `--key Enter`                                    | inspector "0 nodes, 3 edges", Selection 3, three lines drawn dark and thicker, all 10 stops still drawn. Matches the key           |
+| `A/07.png`             | `--click "Everything"`                           | the Everything style page opens; Selection still reads 3 and the three lines stay marked                                           |
 | `A/08.png`, `A/09.png` | `--click "Selection"`, then the inspector's menu | Selection's Style page: Highlight color FFD700 at 40%, size 1.45. The menu point opened nothing (the click landed on the tab list) |
 
 Result: reached. Count 3 read from the inspector header and from the Selection row.
 
 ## B: Les Miserables, ties of 10 or more shared chapters
 
-| Shot | Step | What the screen shows |
-| ---- | ---- | --------------------- |
-| `B/01.png` | start (sample open) | 77 characters, 254 ties |
-| `B/02.png` | `--key / --type "=shared_chapters >= \`10\`"` | gray "Rule: press Enter to select matches" |
-| `B/03.png` | `--key Enter` | inspector "0 nodes, 13 edges", Selection 13, all 77 characters still drawn. Matches the key |
-| `B/04.png` | (focus still in the box) `--type "="` | a bare "=" also shows "Rule: press Enter to select matches"; no column names are offered |
-| `B/05.png` | `--key Escape --key Escape` | box cleared, selection kept (13) |
+| Shot       | Step                                          | What the screen shows                                                                       |
+| ---------- | --------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `B/01.png` | start (sample open)                           | 77 characters, 254 ties                                                                     |
+| `B/02.png` | `--key / --type "=shared_chapters >= \`10\`"` | gray "Rule: press Enter to select matches"                                                  |
+| `B/03.png` | `--key Enter`                                 | inspector "0 nodes, 13 edges", Selection 13, all 77 characters still drawn. Matches the key |
+| `B/04.png` | (focus still in the box) `--type "="`         | a bare "=" also shows "Rule: press Enter to select matches"; no column names are offered    |
+| `B/05.png` | `--key Escape --key Escape`                   | box cleared, selection kept (13)                                                            |
 
 Result: reached. Count 13 read from the inspector header.
 
@@ -80,13 +80,13 @@ error, a failed request or "the drawing is still moving".
 **Result: reached on both datasets**: A "3 edges selected", Summary Edges 3, the three slow links
 drawn with a gold band (`rewalk/A/06.png`); B "13 edges selected", Edges 13 (`rewalk/B/05.png`).
 
-| Earlier observation | Now |
-|---|---|
-| The hint approved a bare number until Enter | Typing `=minutes >= 10` shows "Put numbers in backticks: weight > `3`" at once, before Enter (`rewalk/A/03.png`) |
-| Nothing showed which names a rule can use | A lone "=" lists Columns: id, name (node columns), shared_chapters (edge column), and "Type a rule after =, such as weight > `3`" (`rewalk/B/03.png`) |
-| Marked lines drawn dark olive, not the gold the Selection style names | Drawn as a gold band over the line (`rewalk/A/06.png`, `rewalk/B/05.png`); on the dense B drawing the 13 ties are still thin |
-| "Edges among them 0" beside "Edges 13" | The Summary lists only Edges 13; the header reads "13 edges selected" |
-| The tool missed `--click "Find nodes, edges, values"` | It focuses the find box (`rewalk/A/02.png`) |
+| Earlier observation                                                   | Now                                                                                                                                                   |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The hint approved a bare number until Enter                           | Typing `=minutes >= 10` shows "Put numbers in backticks: weight > `3`" at once, before Enter (`rewalk/A/03.png`)                                      |
+| Nothing showed which names a rule can use                             | A lone "=" lists Columns: id, name (node columns), shared_chapters (edge column), and "Type a rule after =, such as weight > `3`" (`rewalk/B/03.png`) |
+| Marked lines drawn dark olive, not the gold the Selection style names | Drawn as a gold band over the line (`rewalk/A/06.png`, `rewalk/B/05.png`); on the dense B drawing the 13 ties are still thin                          |
+| "Edges among them 0" beside "Edges 13"                                | The Summary lists only Edges 13; the header reads "13 edges selected"                                                                                 |
+| The tool missed `--click "Find nodes, edges, values"`                 | It focuses the find box (`rewalk/A/02.png`)                                                                                                           |
 
 The answer key still quotes the old header ("0 nodes, 3 edges"); the screen now says "3 edges
 selected".
@@ -103,25 +103,25 @@ request or "the drawing is still moving".
 drawn with a gold band, all 10 stops still drawn (`A-2/06.png`). B: "13 edges selected", Edges 13,
 all 77 characters still drawn (`B-2/03.png`).
 
-| Shot | Step | What the screen shows |
-| ---- | ---- | --------------------- |
-| `A-2/03.png` | `--type "=minutes >= 10"` | red "Put numbers in backticks: weight > `3`" while typing, before Enter |
-| `A-2/04.png`, `A-2/05.png` | `--key Enter`, then the rule retyped with backticks | nothing selected on the bare number; the backticked rule is accepted |
-| `A-2/06.png` | `--key Enter` | "3 edges selected", Selection 3, gold band on the three links |
-| `A-2/07.png` | `--click "Everything"` | Everything's Style page opens; Selection still 3, the links stay marked |
-| `A-2/08.png` | `--click "Selection"` | Selection's Style page: Highlight FFD700 at 40%, size 1.45 |
-| `B-2/02.png`, `B-2/03.png` | `--key / --type "=shared_chapters >= \`10\`"`, `--key Enter` | "13 edges selected" |
-| `B-2/04.png` | `--type "="` | Columns: id, name (node columns), shared_chapters (edge column), and "Type a rule after =, such as weight > `3`"; the selection (13) is kept |
-| `B-2/05.png` | `--key Escape --key Escape` | box cleared, selection kept (13) |
+| Shot                       | Step                                                         | What the screen shows                                                                                                                        |
+| -------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `A-2/03.png`               | `--type "=minutes >= 10"`                                    | red "Put numbers in backticks: weight > `3`" while typing, before Enter                                                                      |
+| `A-2/04.png`, `A-2/05.png` | `--key Enter`, then the rule retyped with backticks          | nothing selected on the bare number; the backticked rule is accepted                                                                         |
+| `A-2/06.png`               | `--key Enter`                                                | "3 edges selected", Selection 3, gold band on the three links                                                                                |
+| `A-2/07.png`               | `--click "Everything"`                                       | Everything's Style page opens; Selection still 3, the links stay marked                                                                      |
+| `A-2/08.png`               | `--click "Selection"`                                        | Selection's Style page: Highlight FFD700 at 40%, size 1.45                                                                                   |
+| `B-2/02.png`, `B-2/03.png` | `--key / --type "=shared_chapters >= \`10\`"`, `--key Enter` | "13 edges selected"                                                                                                                          |
+| `B-2/04.png`               | `--type "="`                                                 | Columns: id, name (node columns), shared_chapters (edge column), and "Type a rule after =, such as weight > `3`"; the selection (13) is kept |
+| `B-2/05.png`               | `--key Escape --key Escape`                                  | box cleared, selection kept (13)                                                                                                             |
 
-| Original finding | Now |
-| ---------------- | --- |
-| 1. Clicking Everything was said to replace the selection | It does not: Selection still 3 (`A-2/07.png`). The answer key's warning and the "marking lost and redone" detour can be dropped |
-| 2. The hint approved a bare number until Enter | Fixed: the backticks complaint shows while typing (`A-2/03.png`) |
-| 3. Nothing showed which names a rule can use | Fixed: a lone "=" lists the columns with their kind (`B-2/04.png`) |
-| 4. Marked lines drawn dark olive, hard to see | Drawn as a gold band (`A-2/06.png`). On the dense B drawing the 13 ties are still thin gold lines, several hard to pick out in the middle (`B-2/03.png`) |
-| 5. "Edges among them 0" beside "Edges 13" | Fixed: the Summary lists only Edges 13 |
-| 6. Overview rows cut off at the panel edge | Still cut off, now with an ellipsis: "Undirected, from the ..." and "1 to 36, mean ..." (`B-2/01.png`) |
+| Original finding                                         | Now                                                                                                                                                      |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Clicking Everything was said to replace the selection | It does not: Selection still 3 (`A-2/07.png`). The answer key's warning and the "marking lost and redone" detour can be dropped                          |
+| 2. The hint approved a bare number until Enter           | Fixed: the backticks complaint shows while typing (`A-2/03.png`)                                                                                         |
+| 3. Nothing showed which names a rule can use             | Fixed: a lone "=" lists the columns with their kind (`B-2/04.png`)                                                                                       |
+| 4. Marked lines drawn dark olive, hard to see            | Drawn as a gold band (`A-2/06.png`). On the dense B drawing the 13 ties are still thin gold lines, several hard to pick out in the middle (`B-2/03.png`) |
+| 5. "Edges among them 0" beside "Edges 13"                | Fixed: the Summary lists only Edges 13                                                                                                                   |
+| 6. Overview rows cut off at the panel edge               | Still cut off, now with an ellipsis: "Undirected, from the ..." and "1 to 36, mean ..." (`B-2/01.png`)                                                   |
 
 Still open for the answer key: it quotes the old inspector header ("0 nodes, 3 edges"); the screen
 now says "3 edges selected" (and "13 edges selected" in B).

@@ -113,14 +113,14 @@ Command: `node tool/real.mjs --end $S`
 - Ease: 4 out of 7. Getting names on was quick once I found "Label", but finding it wasn't
   obvious, and the last bit I couldn't do at all.
 - What confused me:
-  - The first "Style" I clicked (with the whole graph picked) was about background, gravity and
-    spring length. Names were not there. I only found "Label" after clicking "Everything" on the
-    left, which I clicked on a hunch.
-  - The pick list said "Attributes: id, label, value". I guessed "label". Nothing told me which
-    one holds the team names.
-  - The names are very small print. I can't read most of them in the middle of the picture.
-  - "14 hidden to avoid overlap" is in small grey type. I only noticed it because it had a number
-    in it. It did not say how to show them.
-  - I zoomed the picture in to make room, and it said 16 hidden instead of 14. Bigger picture,
-    more names hidden -- that seems backwards. The names did not get bigger when I zoomed either.
-  - The "Aa" button I expected to be text size turned out to be "Label position".
+    - The first "Style" I clicked (with the whole graph picked) was about background, gravity and
+      spring length. Names were not there. I only found "Label" after clicking "Everything" on the
+      left, which I clicked on a hunch.
+    - The pick list said "Attributes: id, label, value". I guessed "label". Nothing told me which
+      one holds the team names.
+    - The names are very small print. I can't read most of them in the middle of the picture.
+    - "14 hidden to avoid overlap" is in small grey type. I only noticed it because it had a number
+      in it. It did not say how to show them.
+    - I zoomed the picture in to make room, and it said 16 hidden instead of 14. Bigger picture,
+      more names hidden -- that seems backwards. The names did not get bigger when I zoomed either.
+    - The "Aa" button I expected to be text size turned out to be "Label position".

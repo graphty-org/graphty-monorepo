@@ -218,6 +218,7 @@ How easy: 5 out of 7. It never broke and it never asked me anything I couldn't a
 leaving it alone, and it told me twice that nothing gets uploaded, which I look for.
 
 What confused me or slowed me down:
+
 - The list of analyses is a wall of names I don't know (Katz, HITS, Eigenvector). I only got
   through because one said "Start here".
 - There was no row called Size. I found it under Shape, by guessing.

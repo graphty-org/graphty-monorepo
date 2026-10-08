@@ -181,6 +181,7 @@ Command: `node tool/real.mjs --end rounds/round-3/sessions/r3-s39`
 **Ease: 4 out of 7.**
 
 What worked:
+
 - The start page has real headings, named buttons, and tells me my file stays on this computer before I ask.
 - The load announced the size once: "Les Miserables: 77 nodes, 254 edges".
 - The inspector's Overview gives nodes, edges, direction, density, components and degree range in text, without running anything. That is the summary-first I want.
@@ -188,6 +189,7 @@ What worked:
 - The table tabs work with arrow keys; "Columns: 3 of 3" tells me I'm seeing every column.
 
 What confused me or cost me:
+
 - **"Data" is a button I can hear and cannot reach.** Browse mode reads "Graph" and "Data" side by side; Tab skips from "Graph" to "Find", and Right Arrow on "Graph" does nothing. Neither button says whether it is pressed. I only got to the table through the shortcut list.
 - **The graph drawing is silent.** "Canvas, Graph drawing" is in the tab order, but arrow keys and Enter say nothing, and there is no hint on entry of what it does.
 - **Focus falls to nothing three times**: after opening the sample, after closing the shortcuts dialog, and after Shift+T opened the table. Each time I had to Tab in from the top -- thirteen presses to reach the table.

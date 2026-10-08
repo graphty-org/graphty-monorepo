@@ -118,15 +118,15 @@ here, I have my numbers."
 - **How hard (1-7, 7 = very hard):** 3. Loading was easy -- easier than Power BI or Gephi ever
   was. Checking it arrived was the hard part.
 - **What confused me:**
-  1. It never asked which column was "from" and which was "to", and never told me what it guessed.
-     It also decided the ties were "Directed" without saying why; for "who knows whom" that's
-     wrong for me.
-  2. "Nothing dropped" is something I had to work out by comparing "41 rows" with "41 edges" in
-     small grey text. One line like "41 of 41 rows loaded" would have answered it.
-  3. Clicking my edge table opened an "Add to friends / drop a file" screen instead of showing me
-     the rows. I could not find a table of my data anywhere.
-  4. No names on the dots; I had to click one to learn it was "Ava".
-  5. Labels cut off ("Node ...", "Edge t...") and tiny low-contrast text throughout the panels.
-  6. Words I don't use: nodes, edges, degree, density, components, icosphere.
+    1. It never asked which column was "from" and which was "to", and never told me what it guessed.
+       It also decided the ties were "Directed" without saying why; for "who knows whom" that's
+       wrong for me.
+    2. "Nothing dropped" is something I had to work out by comparing "41 rows" with "41 edges" in
+       small grey text. One line like "41 of 41 rows loaded" would have answered it.
+    3. Clicking my edge table opened an "Add to friends / drop a file" screen instead of showing me
+       the rows. I could not find a table of my data anywhere.
+    4. No names on the dots; I had to click one to learn it was "Ava".
+    5. Labels cut off ("Node ...", "Edge t...") and tiny low-contrast text throughout the panels.
+    6. Words I don't use: nodes, edges, degree, density, components, icosphere.
 - **What I liked:** "Files are read on this computer and never uploaded" on the front page -- that
   answers IT before they ask. And it opened the file and drew it in one step.

@@ -29,12 +29,12 @@ inference.
   canvas; hover "Components"; hover the Components row). Success path: open the sample, read the
   Overview, Data (plus dismissing the usage card).
 - **Wrong turns: 2.**
-  - Step 3: she clicked a node (Valjean) to find what is recorded per character. She learned
-    `id` and `name` there, but the node's panel mixes them with the calculated "Degree", so she
-    then had to go to Data anyway.
-  - Steps 7-8: two hovers looking for an explanation of "Components". Both returned no tooltip.
-  - Step 5 (shared_chapters) and step 6 (back to the Overview) were checks on the path, not wrong
-    turns.
+    - Step 3: she clicked a node (Valjean) to find what is recorded per character. She learned
+      `id` and `name` there, but the node's panel mixes them with the calculated "Degree", so she
+      then had to go to Data anyway.
+    - Steps 7-8: two hovers looking for an explanation of "Components". Both returned no tooltip.
+    - Step 5 (shared_chapters) and step 6 (back to the Overview) were checks on the path, not wrong
+      turns.
 - **False "done": none.** She said she was finished (end of step 8 and the debrief). Every answer
   she gave matches the screen, and she stated her doubt about "Components" honestly instead of
   claiming certainty. `truth_on_screen` does not apply.
@@ -44,13 +44,13 @@ inference.
 
 ## Problems
 
-| # | Severity | Kind | What | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | wording | "Components 1" is the only place the app answers "can everyone reach everyone", and it is a technical word with no plain wording and no tooltip. The participant answered by guessing the word's meaning (85 percent sure) and by looking at the drawing. | Steps 2, 7, 8 (03.png, 08.png, 09.png): both hovers print `tooltip: null`. Reproduced: repro step 4, `tooltip: null` on group "Components 1". |
-| 2 | 2 | build-defect | The direction row in the Overview shows only its value, "Undirected, from the file: directed 0", with no label. The value runs to the panel's right edge, and the participant could not tell what "directed 0" counts. | Step 2 (03.png) and 09.png. Reproduced: repro 03.png, the same row with no label. |
-| 3 | 1 | build-defect | Labels are cut off with no way to read them in full: "Edges per ..." in the Overview, and "Node t..." and "Ed..." for the two tables under Sources in the Data place. Hovering the cut label shows nothing. The participant guessed "edges per node" and "node table / edge table". | Steps 2 and 4 (03.png, 05.png). Reproduced: repro step 5, hover "Edges per" gives `tooltip: null` (the full text "Edges per node" exists only for assistive technology); repro 06.png shows "Node t..." and "Ed...". |
-| 4 | 2 | behavior | A node's Values list "Degree" directly under `id` and `name`, styled the same, with no sign that one is calculated and the others come from the file. The attribute page says "From the file", but the node's panel does not. The participant had to infer the difference by checking what was missing from the Data list. | Step 3 (04.png) against step 5 (06.png). |
-| 5 | 0 | opinion | `id` and `name` both read "Valjean", which made her wonder if she was missing something. This is how the dataset is, not the app. Held one level down as an opinion. | Step 3 (04.png). |
+| #   | Severity | Kind         | What                                                                                                                                                                                                                                                                                                                       | Evidence                                                                                                                                                                                                             |
+| --- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 2        | wording      | "Components 1" is the only place the app answers "can everyone reach everyone", and it is a technical word with no plain wording and no tooltip. The participant answered by guessing the word's meaning (85 percent sure) and by looking at the drawing.                                                                  | Steps 2, 7, 8 (03.png, 08.png, 09.png): both hovers print `tooltip: null`. Reproduced: repro step 4, `tooltip: null` on group "Components 1".                                                                        |
+| 2   | 2        | build-defect | The direction row in the Overview shows only its value, "Undirected, from the file: directed 0", with no label. The value runs to the panel's right edge, and the participant could not tell what "directed 0" counts.                                                                                                     | Step 2 (03.png) and 09.png. Reproduced: repro 03.png, the same row with no label.                                                                                                                                    |
+| 3   | 1        | build-defect | Labels are cut off with no way to read them in full: "Edges per ..." in the Overview, and "Node t..." and "Ed..." for the two tables under Sources in the Data place. Hovering the cut label shows nothing. The participant guessed "edges per node" and "node table / edge table".                                        | Steps 2 and 4 (03.png, 05.png). Reproduced: repro step 5, hover "Edges per" gives `tooltip: null` (the full text "Edges per node" exists only for assistive technology); repro 06.png shows "Node t..." and "Ed...". |
+| 4   | 2        | behavior     | A node's Values list "Degree" directly under `id` and `name`, styled the same, with no sign that one is calculated and the others come from the file. The attribute page says "From the file", but the node's panel does not. The participant had to infer the difference by checking what was missing from the Data list. | Step 3 (04.png) against step 5 (06.png).                                                                                                                                                                             |
+| 5   | 0        | opinion      | `id` and `name` both read "Valjean", which made her wonder if she was missing something. This is how the dataset is, not the app. Held one level down as an opinion.                                                                                                                                                       | Step 3 (04.png).                                                                                                                                                                                                     |
 
 ## Repro
 

@@ -21,20 +21,20 @@ participant could not run. The mean ease was 4.50 of 7 (core four 4.07).
 Since then the build gained the round 1 fixes and a larger merge of interface changes. What a
 participant meets differently, by task:
 
-| Change on the build | Tasks whose path or screen it changes |
-|---|---|
-| With one node selected, Neighborhood (key G, or the node's context menu) opens the list "Javert's 17 connections"; the floating selection bar is gone; the context menu opens by right-click, Shift+F10 or touch-and-hold | T12 |
-| The Degree row draws a chevron ("Degree 17 >"), a cue round 1's decisions held back | T12 |
-| The several-node Summary drops "Babet (1)" and "Edges 0"; the Selection row and the Data > Sources tables no longer dead-end | T12, T3, T6 |
-| The Size field has no empty "Open list" arrow; the Style tab's shape, binding and label lists open in titled pop-outs; focus moves to the new line after a Style pick | T9, T10, T15 |
-| The mouse wheel zooms the 3D view | T10, T12, T15 |
-| Layout opens a list of methods with descriptions; a method opens a form with Apply; methods that cannot draw this graph are greyed with their reason; "Force, flat" is folded into Force | T11 |
-| Export lists one row per file type (Image first, then Data) instead of tabs; Data opens on the whole-project format, and CSV opens on the Edges table | T13, T15 |
-| Save keeps the project in this browser; the first Save asks for a name; Save local copy... downloads the file; the main menu is the app's one menu and "Close project" is now "Back to start" | T14 |
-| Files open through one path (chosen or dropped) | T3, T5, T15 B, T16 |
-| A run row opens on its Style tab; the Top 10 is one click away on Values | T7, T8, T9, T15 |
-| A visible focus ring on every focusable control | every keyboard session |
-| Unchanged: runs are still named by their result ("Influence", "Communities"); the method-name change was not made | - |
+| Change on the build                                                                                                                                                                                                       | Tasks whose path or screen it changes |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| With one node selected, Neighborhood (key G, or the node's context menu) opens the list "Javert's 17 connections"; the floating selection bar is gone; the context menu opens by right-click, Shift+F10 or touch-and-hold | T12                                   |
+| The Degree row draws a chevron ("Degree 17 >"), a cue round 1's decisions held back                                                                                                                                       | T12                                   |
+| The several-node Summary drops "Babet (1)" and "Edges 0"; the Selection row and the Data > Sources tables no longer dead-end                                                                                              | T12, T3, T6                           |
+| The Size field has no empty "Open list" arrow; the Style tab's shape, binding and label lists open in titled pop-outs; focus moves to the new line after a Style pick                                                     | T9, T10, T15                          |
+| The mouse wheel zooms the 3D view                                                                                                                                                                                         | T10, T12, T15                         |
+| Layout opens a list of methods with descriptions; a method opens a form with Apply; methods that cannot draw this graph are greyed with their reason; "Force, flat" is folded into Force                                  | T11                                   |
+| Export lists one row per file type (Image first, then Data) instead of tabs; Data opens on the whole-project format, and CSV opens on the Edges table                                                                     | T13, T15                              |
+| Save keeps the project in this browser; the first Save asks for a name; Save local copy... downloads the file; the main menu is the app's one menu and "Close project" is now "Back to start"                             | T14                                   |
+| Files open through one path (chosen or dropped)                                                                                                                                                                           | T3, T5, T15 B, T16                    |
+| A run row opens on its Style tab; the Top 10 is one click away on Values                                                                                                                                                  | T7, T8, T9, T15                       |
+| A visible focus ring on every focusable control                                                                                                                                                                           | every keyboard session                |
+| Unchanged: runs are still named by their result ("Influence", "Communities"); the method-name change was not made                                                                                                         | -                                     |
 
 Every tier 1 task's path changed or was touched, so every tier 1 task runs in round 2.
 
@@ -55,12 +55,12 @@ Every tier 1 task's path changed or was touched, so every tier 1 task runs in ro
 
 ## Size: 56 sessions
 
-| Group | Tasks | Sessions | How bar 1 is scored |
-|---|---|---|---|
-| Core four, full size | T15 (6 Les Miserables + 4 own file), T10 (4 + 4), T12 (4 + 4), T9 (4 + 4) | 34 | As written: 80% per task (8 of 10 on T15, 7 of 8 on the others) and each dataset half at least 3 of 4 (5 of 6 on T15's Les Miserables half) |
-| Reduced, path changed | T14 3, T5 3, T11 3, T13 2, T6 2, T3 2, T7 (running club) 2, T8 2 | 19 | Passes only if every session is S or SD (3 of 3, 2 of 2), as in round 1. One F or G puts the task below its bar |
-| Reduced, one session | T2 1 | 1 | 1 of 1. T2 was never run; one session checks the first step and asks the usage-data question nobody else is asked |
-| Measured, not graded | T16 2 | 2 | Adds to round 1's thin baseline (one complete session) |
+| Group                 | Tasks                                                                     | Sessions | How bar 1 is scored                                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core four, full size  | T15 (6 Les Miserables + 4 own file), T10 (4 + 4), T12 (4 + 4), T9 (4 + 4) | 34       | As written: 80% per task (8 of 10 on T15, 7 of 8 on the others) and each dataset half at least 3 of 4 (5 of 6 on T15's Les Miserables half) |
+| Reduced, path changed | T14 3, T5 3, T11 3, T13 2, T6 2, T3 2, T7 (running club) 2, T8 2          | 19       | Passes only if every session is S or SD (3 of 3, 2 of 2), as in round 1. One F or G puts the task below its bar                             |
+| Reduced, one session  | T2 1                                                                      | 1        | 1 of 1. T2 was never run; one session checks the first step and asks the usage-data question nobody else is asked                           |
+| Measured, not graded  | T16 2                                                                     | 2        | Adds to round 1's thin baseline (one complete session)                                                                                      |
 
 Why the core four keep their full size: T12 is below its bar, T10 and T9 are open with sessions
 owed, and the four decide the stall rule; the per-half floor needs 4 per half to tolerate one
@@ -93,20 +93,20 @@ Persona files (the full path is in every session's record, because the session r
 finds the thinner round 8 files of the same names for Dev, Grace and Ruth, and no file at all for
 Sam):
 
-| Name | File |
-|---|---|
-| Elena | `P/explorer-elena.md` |
-| Tom | `P/recipe-recipient.md` |
-| Nadia | `P/alert-reviewer.md` |
-| Dev | `S/class-project-student.md` |
-| Grace | `S/nonprofit-operations-analyst.md` |
-| Ruth | `S/data-journalist.md` |
-| Alex | `P/analyst-alex.md` |
-| Jordan | `P/marketing-analyst.md` |
-| Dana | `P/supply-chain-analyst.md` |
-| Morgan | `P/screen-reader-analyst.md` |
-| Sam | `S/keyboard-only-sam.md` |
-| Mara | `P/gephi-holdout.md` |
+| Name   | File                                |
+| ------ | ----------------------------------- |
+| Elena  | `P/explorer-elena.md`               |
+| Tom    | `P/recipe-recipient.md`             |
+| Nadia  | `P/alert-reviewer.md`               |
+| Dev    | `S/class-project-student.md`        |
+| Grace  | `S/nonprofit-operations-analyst.md` |
+| Ruth   | `S/data-journalist.md`              |
+| Alex   | `P/analyst-alex.md`                 |
+| Jordan | `P/marketing-analyst.md`            |
+| Dana   | `P/supply-chain-analyst.md`         |
+| Morgan | `P/screen-reader-analyst.md`        |
+| Sam    | `S/keyboard-only-sam.md`            |
+| Mara   | `P/gephi-holdout.md`                |
 
 `P/` = `/home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/`;
 `S/` = `/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/`.
@@ -119,64 +119,64 @@ first. Each session folder is `rounds/round-2/sessions/<id>`. Start is the `real
 argument; `setup:` files are in `rounds/round-2/setups/` (copies of round 1's, which still run on
 this build); files are in `tool/files/`. There is no step cap.
 
-| Id | Task | Persona | Dataset | Start | Note |
-|---|---|---|---|---|---|
-| r2-s01 | T10 B | Sam | College football | `empty` | carried (r1-s16b); keys only |
-| r2-s02 | T15 A | Grace | Les Miserables | `empty` | |
-| r2-s03 | T15 A | Ruth | Les Miserables | `empty` | |
-| r2-s04 | T15 A | Tom | Les Miserables | `empty` | |
-| r2-s05 | T15 A | Nadia | Les Miserables | `empty` | |
-| r2-s06 | T15 A | Mara | Les Miserables | `empty` | |
-| r2-s07 | T15 A | Morgan | Les Miserables | `empty --sr` | screen reader |
-| r2-s08 | T15 B | Elena | friends.csv | `empty` | |
-| r2-s09 | T15 B | Dev | friends.csv | `empty` | |
-| r2-s10 | T15 B | Jordan | friends.csv | `empty` | carried (r1-s08b) |
-| r2-s11 | T15 B | Sam | friends.csv | `empty` | keys only |
-| r2-s12 | T10 A | Nadia | Les Miserables | `empty` | |
-| r2-s13 | T10 A | Grace | Les Miserables | `empty` | |
-| r2-s14 | T10 A | Ruth | Les Miserables | `empty` | |
-| r2-s15 | T10 A | Morgan | Les Miserables | `empty --sr` | screen reader |
-| r2-s16 | T10 B | Elena | College football | `empty` | |
-| r2-s17 | T10 B | Tom | College football | `empty` | |
-| r2-s18 | T10 B | Dev | College football | `empty` | |
-| r2-s19 | T12 A | Tom | Les Miserables | `empty` | |
-| r2-s20 | T12 A | Dev | Les Miserables | `empty` | |
-| r2-s21 | T12 A | Grace | Les Miserables | `empty` | |
-| r2-s22 | T12 A | Morgan | Les Miserables | `empty --sr` | screen reader |
-| r2-s23 | T12 B | Elena | Florentine families | `empty` | |
-| r2-s24 | T12 B | Nadia | Florentine families | `empty` | |
-| r2-s25 | T12 B | Ruth | Florentine families | `empty` | |
-| r2-s26 | T12 B | Sam | Florentine families | `empty` | keys only |
-| r2-s27 | T9 A | Ruth | Les Miserables | `empty` | carried (r1-s26b) |
-| r2-s28 | T9 A | Dev | Les Miserables | `empty` | |
-| r2-s29 | T9 A | Tom | Les Miserables | `empty` | |
-| r2-s30 | T9 A | Morgan | Les Miserables | `empty --sr` | screen reader |
-| r2-s31 | T9 B | Grace | Florentine families | `empty` | carried (r1-s27b) |
-| r2-s32 | T9 B | Elena | Florentine families | `empty` | |
-| r2-s33 | T9 B | Nadia | Florentine families | `empty` | |
-| r2-s34 | T9 B | Alex | Florentine families | `empty` | |
-| r2-s35 | T14 | Nadia | Les Miserables | `setup:T14.txt` | |
-| r2-s36 | T14 | Alex | Les Miserables | `setup:T14.txt` | |
-| r2-s37 | T14 | Morgan | Les Miserables | `setup:T14.txt --sr` | screen reader |
-| r2-s38 | T13 | Dana | Les Miserables | `setup:T13.txt` | carried (r1-s46b) |
-| r2-s39 | T13 | Ruth | Les Miserables | `setup:T13.txt` | |
-| r2-s40 | T11 | Elena | Les Miserables | `empty` | |
-| r2-s41 | T11 | Jordan | Les Miserables | `empty` | |
-| r2-s42 | T11 | Mara | Les Miserables | `empty` | |
-| r2-s43 | T5 | Tom | club-members.graphml | `empty` | carried (r1-s34b) |
-| r2-s44 | T5 | Ruth | club-members.graphml | `empty` | |
-| r2-s45 | T5 | Morgan | club-members.graphml | `empty --sr` | screen reader |
-| r2-s46 | T6 | Grace | Les Miserables | `empty` | |
-| r2-s47 | T6 | Morgan | Les Miserables | `empty --sr` | screen reader |
-| r2-s48 | T3 | Tom | friends.csv | `empty` | |
-| r2-s49 | T3 | Alex | friends.csv | `empty` | |
-| r2-s50 | T7 B | Dev | running club (friends.csv, set up) | `setup:T7-B.txt` | |
-| r2-s51 | T7 B | Dana | running club (friends.csv, set up) | `setup:T7-B.txt` | |
-| r2-s52 | T8 | Grace | Les Miserables | `empty` | |
-| r2-s53 | T8 | Dana | Les Miserables | `empty` | |
-| r2-s54 | T2 | Nadia | a sample of their choice | `empty` | |
-| r2-s55 | T16 | Elena | participant's choice | `empty` | carried (r1-s48b); measured |
-| r2-s56 | T16 | Dev | participant's choice | `empty` | measured |
+| Id     | Task  | Persona | Dataset                            | Start                | Note                         |
+| ------ | ----- | ------- | ---------------------------------- | -------------------- | ---------------------------- |
+| r2-s01 | T10 B | Sam     | College football                   | `empty`              | carried (r1-s16b); keys only |
+| r2-s02 | T15 A | Grace   | Les Miserables                     | `empty`              |                              |
+| r2-s03 | T15 A | Ruth    | Les Miserables                     | `empty`              |                              |
+| r2-s04 | T15 A | Tom     | Les Miserables                     | `empty`              |                              |
+| r2-s05 | T15 A | Nadia   | Les Miserables                     | `empty`              |                              |
+| r2-s06 | T15 A | Mara    | Les Miserables                     | `empty`              |                              |
+| r2-s07 | T15 A | Morgan  | Les Miserables                     | `empty --sr`         | screen reader                |
+| r2-s08 | T15 B | Elena   | friends.csv                        | `empty`              |                              |
+| r2-s09 | T15 B | Dev     | friends.csv                        | `empty`              |                              |
+| r2-s10 | T15 B | Jordan  | friends.csv                        | `empty`              | carried (r1-s08b)            |
+| r2-s11 | T15 B | Sam     | friends.csv                        | `empty`              | keys only                    |
+| r2-s12 | T10 A | Nadia   | Les Miserables                     | `empty`              |                              |
+| r2-s13 | T10 A | Grace   | Les Miserables                     | `empty`              |                              |
+| r2-s14 | T10 A | Ruth    | Les Miserables                     | `empty`              |                              |
+| r2-s15 | T10 A | Morgan  | Les Miserables                     | `empty --sr`         | screen reader                |
+| r2-s16 | T10 B | Elena   | College football                   | `empty`              |                              |
+| r2-s17 | T10 B | Tom     | College football                   | `empty`              |                              |
+| r2-s18 | T10 B | Dev     | College football                   | `empty`              |                              |
+| r2-s19 | T12 A | Tom     | Les Miserables                     | `empty`              |                              |
+| r2-s20 | T12 A | Dev     | Les Miserables                     | `empty`              |                              |
+| r2-s21 | T12 A | Grace   | Les Miserables                     | `empty`              |                              |
+| r2-s22 | T12 A | Morgan  | Les Miserables                     | `empty --sr`         | screen reader                |
+| r2-s23 | T12 B | Elena   | Florentine families                | `empty`              |                              |
+| r2-s24 | T12 B | Nadia   | Florentine families                | `empty`              |                              |
+| r2-s25 | T12 B | Ruth    | Florentine families                | `empty`              |                              |
+| r2-s26 | T12 B | Sam     | Florentine families                | `empty`              | keys only                    |
+| r2-s27 | T9 A  | Ruth    | Les Miserables                     | `empty`              | carried (r1-s26b)            |
+| r2-s28 | T9 A  | Dev     | Les Miserables                     | `empty`              |                              |
+| r2-s29 | T9 A  | Tom     | Les Miserables                     | `empty`              |                              |
+| r2-s30 | T9 A  | Morgan  | Les Miserables                     | `empty --sr`         | screen reader                |
+| r2-s31 | T9 B  | Grace   | Florentine families                | `empty`              | carried (r1-s27b)            |
+| r2-s32 | T9 B  | Elena   | Florentine families                | `empty`              |                              |
+| r2-s33 | T9 B  | Nadia   | Florentine families                | `empty`              |                              |
+| r2-s34 | T9 B  | Alex    | Florentine families                | `empty`              |                              |
+| r2-s35 | T14   | Nadia   | Les Miserables                     | `setup:T14.txt`      |                              |
+| r2-s36 | T14   | Alex    | Les Miserables                     | `setup:T14.txt`      |                              |
+| r2-s37 | T14   | Morgan  | Les Miserables                     | `setup:T14.txt --sr` | screen reader                |
+| r2-s38 | T13   | Dana    | Les Miserables                     | `setup:T13.txt`      | carried (r1-s46b)            |
+| r2-s39 | T13   | Ruth    | Les Miserables                     | `setup:T13.txt`      |                              |
+| r2-s40 | T11   | Elena   | Les Miserables                     | `empty`              |                              |
+| r2-s41 | T11   | Jordan  | Les Miserables                     | `empty`              |                              |
+| r2-s42 | T11   | Mara    | Les Miserables                     | `empty`              |                              |
+| r2-s43 | T5    | Tom     | club-members.graphml               | `empty`              | carried (r1-s34b)            |
+| r2-s44 | T5    | Ruth    | club-members.graphml               | `empty`              |                              |
+| r2-s45 | T5    | Morgan  | club-members.graphml               | `empty --sr`         | screen reader                |
+| r2-s46 | T6    | Grace   | Les Miserables                     | `empty`              |                              |
+| r2-s47 | T6    | Morgan  | Les Miserables                     | `empty --sr`         | screen reader                |
+| r2-s48 | T3    | Tom     | friends.csv                        | `empty`              |                              |
+| r2-s49 | T3    | Alex    | friends.csv                        | `empty`              |                              |
+| r2-s50 | T7 B  | Dev     | running club (friends.csv, set up) | `setup:T7-B.txt`     |                              |
+| r2-s51 | T7 B  | Dana    | running club (friends.csv, set up) | `setup:T7-B.txt`     |                              |
+| r2-s52 | T8    | Grace   | Les Miserables                     | `empty`              |                              |
+| r2-s53 | T8    | Dana    | Les Miserables                     | `empty`              |                              |
+| r2-s54 | T2    | Nadia   | a sample of their choice           | `empty`              |                              |
+| r2-s55 | T16   | Elena   | participant's choice               | `empty`              | carried (r1-s48b); measured  |
+| r2-s56 | T16   | Dev     | participant's choice               | `empty`              | measured                     |
 
 Sessions per persona: Elena 6, Tom 6, Nadia 6, Dev 6, Grace 6, Ruth 6, Morgan 7, Sam 3, Alex 3,
 Dana 3, Jordan 2, Mara 2.
@@ -195,14 +195,14 @@ Dana 3, Jordan 2, Mara 2.
    task's prompt from `tasks.md` (the A or B prompt for its dataset), the tool's participant
    instructions (`tool/README.md`, "A session", "Steps" and, for Morgan, "Screen-reader mode"), the
    session folder and its start, and these rules:
-   - after each step, say in one or two sentences what you see and what you will try next; say out
-     loud when each part of the task is done;
-   - stop when done, when giving up, or when repeating without progress; there is no step limit;
-   - end with "How easy or difficult was this, from 1 (very difficult) to 7 (very easy)?" and its
-     reason;
-   - always `--end` the session.
-   Nothing else: no `answers.md`, `criteria.md`, this plan, notes, digests, design documents,
-   source code, pilot folders or other sessions.
+    - after each step, say in one or two sentences what you see and what you will try next; say out
+      loud when each part of the task is done;
+    - stop when done, when giving up, or when repeating without progress; there is no step limit;
+    - end with "How easy or difficult was this, from 1 (very difficult) to 7 (very easy)?" and its
+      reason;
+    - always `--end` the session.
+      Nothing else: no `answers.md`, `criteria.md`, this plan, notes, digests, design documents,
+      source code, pilot folders or other sessions.
 4. **Sam** uses `--key`, `--type` and `--upload` only and sees every screenshot.
 5. **Morgan** starts with `--sr` and never opens a screenshot; the tool refuses any pointer step.
 6. **A runner never helps.** A participant's question is recorded and answered "do what you would

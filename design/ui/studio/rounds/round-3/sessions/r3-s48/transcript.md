@@ -78,7 +78,7 @@ Command: `--step $S --click "Nodes"`. 09.png: "One row per node, with every comp
 The yellow box is still there (eight bullets now). Preview: `id,name,results.louvain.group,
 results.louvain.groupSize`, then Napoleon,Napoleon,6,8 / Myriel,Myriel,6,8 / MlleBaptistine,Mlle
 Baptistine,1,20 ... Dev: "One row per character, with the group number. The group 6 = 8 people matches
-'Group 6  8' in the left list, so this is it. Column names are ugly ('results.louvain.groupSize') -- I'll
+'Group 6 8' in the left list, so this is it. Column names are ugly ('results.louvain.groupSize') -- I'll
 rename them in Excel. Still a bit nervous about the yellow 'cannot hold everything' box, but it's
 about colors and positions. Export."
 
@@ -100,19 +100,19 @@ Command: `--end $S`.
 - **How easy?** 5 out of 7. The picture was very easy: menu, Export..., Export, and the key was already
   in the file. The numbers took more thought.
 - **What confused me:**
-  - The Data tab starts on "Graphty JSON" and shows a wall of code. Nothing on that screen says "for
-    Excel, pick CSV"; I knew CSV from class, a classmate might not.
-  - The Format list is 18 names long and mostly jargon (NetworkX, Cytoscape.js, OBO Graphs, XGMML,
-    CX2). Three different CSVs (CSV, Gephi CSV, Neo4j CSV) and no hint which one is the plain
-    spreadsheet one; I guessed the plain "CSV".
-  - Picking CSV defaults to "Edges", one row per pair of characters -- not what "numbers for each
-    character" means. The only clue that the group numbers live in the Nodes table was the last bullet
-    of the yellow warning box, phrased as `table: "nodes"`.
-  - The yellow "CSV cannot hold everything" box looked like an error and made me wonder if my export
-    was broken. Its bullets use words like "dialect", "importer", "style.thickness"; most of it is
-    about things I would never expect in a spreadsheet anyway (colors, positions).
-  - Column names in the CSV are program names (`results.louvain.group`, `results.louvain.groupSize`),
-    not words I can put in a report table; I would rename them by hand. "Louvain" is never explained,
-    and the groups are numbers only.
-  - The image dialog was fine; the preview was small, so I only confirmed the key was in the file after
-    opening it.
+    - The Data tab starts on "Graphty JSON" and shows a wall of code. Nothing on that screen says "for
+      Excel, pick CSV"; I knew CSV from class, a classmate might not.
+    - The Format list is 18 names long and mostly jargon (NetworkX, Cytoscape.js, OBO Graphs, XGMML,
+      CX2). Three different CSVs (CSV, Gephi CSV, Neo4j CSV) and no hint which one is the plain
+      spreadsheet one; I guessed the plain "CSV".
+    - Picking CSV defaults to "Edges", one row per pair of characters -- not what "numbers for each
+      character" means. The only clue that the group numbers live in the Nodes table was the last bullet
+      of the yellow warning box, phrased as `table: "nodes"`.
+    - The yellow "CSV cannot hold everything" box looked like an error and made me wonder if my export
+      was broken. Its bullets use words like "dialect", "importer", "style.thickness"; most of it is
+      about things I would never expect in a spreadsheet anyway (colors, positions).
+    - Column names in the CSV are program names (`results.louvain.group`, `results.louvain.groupSize`),
+      not words I can put in a report table; I would rename them by hand. "Louvain" is never explained,
+      and the groups are numbers only.
+    - The image dialog was fine; the preview was small, so I only confirmed the key was in the file after
+      opening it.

@@ -8,17 +8,17 @@ the running club are in this folder (`01.png` to `09.png`); for Les Miserables i
 
 ## A: running club (setup `friends.txt`)
 
-| Step | Screenshot | What the screen showed |
-| --- | --- | --- |
-| start | 01 | friends.csv drawn, 20 nodes, 41 edges |
-| `--click "Data"` | 02 | Sources, Filters (empty, with "+"), Attributes: Nodes `id`, Edges `weight` |
-| `--click "weight"` | 03 | The tool reported two controls of that name (the tree row and its text) and took the tree row, which is the right one. Right panel: weight, Amount, From the file, range 1 to 5 |
-| `--click "Attribute actions"` | 04 | Menu: "Filter to...", "Show in table" |
-| `--click "Filter to..."` | 05 | New filter step: Keep "an attribute's value", Attribute "weight", Is "at least", Value empty, "Add step" disabled |
-| `--click "Value" --type 4` | 06 | Value 4, "Add step" enabled |
-| `--click "Add step"` | 07 | Header chip "19 of 20 nodes"; Filters row "weight is ... 20 to 19 nodes", ticked; drawing shows 12 ties (counted by eye) |
-| `--hover "weight is"` | 08 | No tooltip |
-| `--click "Apply step: weight is at least 4"` | 09 | Row reads "weight is at least 4  off"; chip gone; whole club drawn again |
+| Step                                         | Screenshot | What the screen showed                                                                                                                                                          |
+| -------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| start                                        | 01         | friends.csv drawn, 20 nodes, 41 edges                                                                                                                                           |
+| `--click "Data"`                             | 02         | Sources, Filters (empty, with "+"), Attributes: Nodes `id`, Edges `weight`                                                                                                      |
+| `--click "weight"`                           | 03         | The tool reported two controls of that name (the tree row and its text) and took the tree row, which is the right one. Right panel: weight, Amount, From the file, range 1 to 5 |
+| `--click "Attribute actions"`                | 04         | Menu: "Filter to...", "Show in table"                                                                                                                                           |
+| `--click "Filter to..."`                     | 05         | New filter step: Keep "an attribute's value", Attribute "weight", Is "at least", Value empty, "Add step" disabled                                                               |
+| `--click "Value" --type 4`                   | 06         | Value 4, "Add step" enabled                                                                                                                                                     |
+| `--click "Add step"`                         | 07         | Header chip "19 of 20 nodes"; Filters row "weight is ... 20 to 19 nodes", ticked; drawing shows 12 ties (counted by eye)                                                        |
+| `--hover "weight is"`                        | 08         | No tooltip                                                                                                                                                                      |
+| `--click "Apply step: weight is at least 4"` | 09         | Row reads "weight is at least 4 off"; chip gone; whole club drawn again                                                                                                         |
 
 ## B: Les Miserables (setup `lesmis.txt`)
 
@@ -60,11 +60,11 @@ error, a failed request or "the drawing is still moving".
 **Result: reached on both datasets**: chip "19 of 20 nodes" (A), "26 of 77 nodes" (B); the step's
 checkbox turns it off and the whole graph comes back (`rewalk/A/09.png`, `rewalk/B/09.png`).
 
-| Earlier observation | Now |
-|---|---|
+| Earlier observation                                         | Now                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | The Overview kept describing the whole graph under a filter | It leads with "Nodes showing 19 of 20", "Edges showing 12 of 41" and "The counts below are for the whole graph." (`rewalk/A/07.png`); B "26 of 77", "51 of 254" (`rewalk/B/07.png`). The edge count the answer key called unwritten is now on screen |
-| The cut filter condition had no tooltip | Hovering the row shows "weight is at least 4" (`rewalk/A/08.png`), "shared_chapters is at least 5" (`rewalk/B/08.png`) |
-| The Direction row overflowed into its label (B) | "Direction  Undirected, from the ..." stays in its row with its label (`rewalk/B/02.png`) |
+| The cut filter condition had no tooltip                     | Hovering the row shows "weight is at least 4" (`rewalk/A/08.png`), "shared_chapters is at least 5" (`rewalk/B/08.png`)                                                                                                                               |
+| The Direction row overflowed into its label (B)             | "Direction Undirected, from the ..." stays in its row with its label (`rewalk/B/02.png`)                                                                                                                                                             |
 
 **A regression the first re-walk found, fixed before this one.** The change that lets a Sources
 row's counts give way to its name also let a row's checkbox slot shrink, so the filter step's

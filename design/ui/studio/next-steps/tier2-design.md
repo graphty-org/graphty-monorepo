@@ -63,6 +63,7 @@ Waits, each with its reason:
 chip in the header, drawn only while at least one step is on, opens that section.
 
 **Interaction.**
+
 - "+" in the section header opens the step editor in the inspector. Its first field is **Keep**:
   "an attribute's value", "the largest component", or "the neighbors of the selection" (the last
   only with a selection). Then the attribute, the comparison and the value. Committing adds the
@@ -78,6 +79,7 @@ chip in the header, drawn only while at least one step is on, opens that section
   as everywhere else (it reverses the act), and the undo notice names the step.
 
 **Words.**
+
 - Step: "weight is at least 4". Outcome: "22 to 9 nodes".
 - Edge-attribute step, one line in the editor: "Keeps edges that pass and the nodes at their ends."
 - Checkbox accessible name: "Apply step: weight is at least 4".
@@ -86,6 +88,7 @@ chip in the header, drawn only while at least one step is on, opens that section
 - Status line on a change: "Filter on: 9 of 22 nodes, 14 edges".
 
 **graphty-element supplies.**
+
 - The edge-attribute defect fixed: an attribute leaf on an edge attribute speaks edges, and the
   step keeps the nodes at their ends. Grow an existing leaf (`range`, `categories`) before adding
   one. The choice "keep only the ends" versus "keep every node" is an option with the current
@@ -109,6 +112,7 @@ node's canvas menu, and the existing Analyze entry. The result is a run row in t
 today.
 
 **Interaction.**
+
 - **From** and **To** are pick fields. Each is a combobox over node names (type a name and pick
   from the list, as in Find), and pressing the field's pick button and then clicking a node on the
   canvas fills it. With one node selected, From is filled and focus is in To; with two, both are
@@ -120,6 +124,7 @@ today.
   total when a weight was read.
 
 **Words.**
+
 - Popover title "Shortest path"; button "Find path".
 - Row summary: "3 nodes, 2 edges". Inspector: "Ava, Kofi, Lee", then "2 hops", then "Total
   distance 5" only when a distance weight was read.
@@ -142,6 +147,7 @@ followed; "direction" is the graph's own property.
 **Where it lives.** A Notes place on the rail, below Data. Note counts on inspector headers.
 
 **Interaction.**
+
 - Doors: the N key, "+" in the Notes place header, and "Add note" on the node, edge,
   several-elements and graph menus. Every door writes about whatever the inspector shows; with
   nothing selected the note is about the graph.
@@ -193,6 +199,7 @@ Weight line per entry that reads a weight), the run's Made with (what it read), 
 inspector (the loaded weight).
 
 **Interaction.**
+
 - On the Data page, an edge table whose Weight role is set shows a segmented control
   **Higher means: Closer | Farther | Capacity**, starting unset (a weight picked automatically
   says "auto" and has no meaning until chosen; the glossary rejects guessing a role from a name).
@@ -209,6 +216,7 @@ inspector (the loaded weight).
 
 **What a run does with the loaded weight.** Every algorithm that has a weighted form reads the
 loaded weight by default. An algorithm reads weights in one sense:
+
 - similarity readers (PageRank, community detection, and the like) read a weight whose meaning is
   closer or unset;
 - distance readers (shortest path, weighted closeness and betweenness) read only a weight whose
@@ -219,6 +227,7 @@ loaded weight by default. An algorithm reads weights in one sense:
 An algorithm with no weighted form (degree, and others) reports that it read no weight.
 
 **Words.**
+
 - Data page: "Higher means" with Closer, Farther, Capacity; under it the glossary gloss of the
   chosen one ("larger = closer").
 - Weight line: "Weight: weight (closer)"; options "weight (closer, loaded)", "None", "emails".
@@ -227,6 +236,7 @@ An algorithm with no weighted form (degree, and others) reports that it read no 
 - Graph inspector: "Loaded weight: emails (closer)".
 
 **graphty-element supplies (public API).**
+
 - A weight meaning chosen at load: the edge table's mapping takes a meaning (`"strength"`,
   `"distance"`, `"capacity"`, or unset), kept with the graph and saved in the project file. The
   existing `WeightMeaning.meaning` (`"distance" | "strength"`) grows `"capacity"`; it is not
@@ -271,6 +281,7 @@ of the list (refined B) would add a step to the route that passed.
 **Where it lives.** A source row's menu, and run rows.
 
 **Interaction.**
+
 - "Replace with file..." opens the file picker, then the Data page titled "Replace: friends-v2.csv"
   with every role and the weight meaning carried over. When every column matches, focus lands on
   Load. It is offered on a source that is the graph's only source and has one table; that covers

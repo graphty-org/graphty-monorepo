@@ -154,6 +154,7 @@ screen.
 sizes was three clicks once I found it, but I found it on the second try.
 
 **What confused me / where I hesitated:**
+
 - Which analysis means "depends on". Betweenness ("sit on the most shortest paths between
   others") sounded closer to "depends on" than PageRank ("connected to other well-connected
   nodes"). I went with the "Start here" tag, not because I understood the difference. QA would

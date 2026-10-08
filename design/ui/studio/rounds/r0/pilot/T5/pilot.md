@@ -18,13 +18,13 @@ correct), and what to tell the coworker (send it again). The task can run as wri
 
 ## Steps
 
-| Step | Command | Screenshot | What the screen shows |
-| ---- | ------- | ---------- | --------------------- |
-| 1 | `--start ... empty` | `01.png` | Start screen: Open project or file..., New from data..., empty Recent projects, four samples, the usage-data card. |
-| 2 | `--click "Open project or file..." --upload club-members.graphml` | `02.png` | Still the start screen. The refusal above, with a close button, at the bottom of the window. No project opened, no console errors. |
-| 3 | `--expect "role=alert" --expect "incomplete or damaged near line 9" --expect "Ask for the file again"` | `03.png` | Unchanged; all three pass, so the refusal is in an alert and is announced assertively. |
-| 4 | `--wait 15000 --expect "Ask for the file again" --expect "role=alert"` | `04.png` | 15 seconds later the refusal is still there; both pass. |
-| 5 | `--reopen` | `05.png` | New tab: Recent projects is still empty, so the failed file left no empty project behind. |
+| Step | Command                                                                                                | Screenshot | What the screen shows                                                                                                              |
+| ---- | ------------------------------------------------------------------------------------------------------ | ---------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `--start ... empty`                                                                                    | `01.png`   | Start screen: Open project or file..., New from data..., empty Recent projects, four samples, the usage-data card.                 |
+| 2    | `--click "Open project or file..." --upload club-members.graphml`                                      | `02.png`   | Still the start screen. The refusal above, with a close button, at the bottom of the window. No project opened, no console errors. |
+| 3    | `--expect "role=alert" --expect "incomplete or damaged near line 9" --expect "Ask for the file again"` | `03.png`   | Unchanged; all three pass, so the refusal is in an alert and is announced assertively.                                             |
+| 4    | `--wait 15000 --expect "Ask for the file again" --expect "role=alert"`                                 | `04.png`   | 15 seconds later the refusal is still there; both pass.                                                                            |
+| 5    | `--reopen`                                                                                             | `05.png`   | New tab: Recent projects is still empty, so the failed file left no empty project behind.                                          |
 
 ## Blockers
 

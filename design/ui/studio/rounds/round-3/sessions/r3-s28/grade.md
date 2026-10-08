@@ -35,11 +35,11 @@ Every part of the success definition holds on screen:
 
 ## Counts
 
-| | This session | Reference |
-|---|---|---|
-| Steps to the end state | 9 (01.png-09.png) | 8 (round 3 path) |
-| Commands after the start, to the end state | 8 (No thanks and the sample as one command) | 10 |
-| Wrong turns | 0 | -- |
+|                                            | This session                                | Reference        |
+| ------------------------------------------ | ------------------------------------------- | ---------------- |
+| Steps to the end state                     | 9 (01.png-09.png)                           | 8 (round 3 path) |
+| Commands after the start, to the end state | 8 (No thanks and the sample as one command) | 10               |
+| Wrong turns                                | 0                                           | --               |
 
 - The extra step is the usage card's "No thanks", which the reference path does not count.
   Analyze was opened with the toolbar flask instead of Shift+A, which the hint on screen offers.
@@ -59,14 +59,14 @@ inspector of 11.png.
 Severity 0-4 (Nielsen). Opinion-only findings are held one level down. No build defect was found,
 so no repro script was needed.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | Hovering a dot shows nothing, not even its name. Dev could not say which family the biggest dot is until he clicked it. Naming who the network depends on is the point of sizing them. Confirmed: the same happened in r3-s02. | Step 10: 09.png and 10.png are identical; the tool reports the node "Medici" under the pointer. Debrief: "No names on the dots, and hovering a dot shows nothing." |
-| 2 | 2 | behavior | After Run, only color changes. Nothing on the result offers sizing, and Size is hidden behind the "+" on the Shape heading. Dev had to guess that size lives under Shape. | Steps 5-7, 05.png-07.png; debrief second confusion point. |
-| 3 | 1 | opinion | The "Start here" tag on PageRank pulls toward a measure that fits "depends on most" less well than Betweenness. Dev resisted it only because of his class tutorial. He said that a student without that tutorial might just take "Start here". | Step 3, 03.png; debrief first confusion point. |
-| 4 | 1 | wording | The Size line's "1 to 3" has no unit or meaning that Dev could explain. | 09.png, Size "1 to 3"; debrief third confusion point. |
-| 5 | 1 | wording | The size list offers Betweenness, "Betweenness rank" and "Betweenness percentile" with nothing saying how the picture would differ. Dev skipped the question by taking the plain one. | Step 8, 08.png. |
-| 6 | 1 | opinion | On the shaded 3D balls the middle oranges look alike, so the color key reads less well than the sizes. | 09.png, 11.png; debrief last point. |
+| #   | Sev | Kind     | Problem                                                                                                                                                                                                                                        | Evidence                                                                                                                                                           |
+| --- | --- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | 2   | behavior | Hovering a dot shows nothing, not even its name. Dev could not say which family the biggest dot is until he clicked it. Naming who the network depends on is the point of sizing them. Confirmed: the same happened in r3-s02.                 | Step 10: 09.png and 10.png are identical; the tool reports the node "Medici" under the pointer. Debrief: "No names on the dots, and hovering a dot shows nothing." |
+| 2   | 2   | behavior | After Run, only color changes. Nothing on the result offers sizing, and Size is hidden behind the "+" on the Shape heading. Dev had to guess that size lives under Shape.                                                                      | Steps 5-7, 05.png-07.png; debrief second confusion point.                                                                                                          |
+| 3   | 1   | opinion  | The "Start here" tag on PageRank pulls toward a measure that fits "depends on most" less well than Betweenness. Dev resisted it only because of his class tutorial. He said that a student without that tutorial might just take "Start here". | Step 3, 03.png; debrief first confusion point.                                                                                                                     |
+| 4   | 1   | wording  | The Size line's "1 to 3" has no unit or meaning that Dev could explain.                                                                                                                                                                        | 09.png, Size "1 to 3"; debrief third confusion point.                                                                                                              |
+| 5   | 1   | wording  | The size list offers Betweenness, "Betweenness rank" and "Betweenness percentile" with nothing saying how the picture would differ. Dev skipped the question by taking the plain one.                                                          | Step 8, 08.png.                                                                                                                                                    |
+| 6   | 1   | opinion  | On the shaded 3D balls the middle oranges look alike, so the color key reads less well than the sizes.                                                                                                                                         | 09.png, 11.png; debrief last point.                                                                                                                                |
 
 **What worked:** the flask hint on the empty outline led straight to Analyze. Betweenness has a
 plain one-line definition. Run colors the drawing and adds a key by itself. Size "+" opens its

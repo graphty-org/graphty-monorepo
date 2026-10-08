@@ -184,6 +184,7 @@ where the starting picture was one overlapping blob in the middle. But I still c
 **Ease: 3 out of 7** (somewhat difficult).
 
 **What confused me:**
+
 - The button is called "Layout". To me layout means page layout; I only clicked it because the
   icon had dots on it and nothing else fit.
 - The two options that sounded like what I wanted -- "Rings by group", "Columns by group" -- were

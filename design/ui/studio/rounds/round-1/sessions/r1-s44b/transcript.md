@@ -120,17 +120,17 @@ original one was the best of the three. I'm stopping here."
   tooltips that seemed to belong to the previous icon. Once the popover was open, switching was
   quick.
 - **What confused me:**
-  - The method names give no hint of what each is for. I don't know what "Recommended" force is
-    against "Force, flat", or whether either is like ForceAtlas 2. One line under each name would
-    have saved me two dead ends.
-  - "Force, flat" gave what looked like an evenly spread random disc, not a force layout. That made
-    me doubt the tool, not the data.
-  - Spectral piled the graph under the layout popover and the toolbar, so the result I asked for
-    was hidden by the control I used to ask for it.
-  - The Seed box appeared for force layouts and vanished for Spectral without saying why.
-  - Toolbar icons have no labels; hover tooltips appeared one icon late.
-  - Nothing suggested "to see the groups, color by community" -- which is what I would really do
-    in Gephi instead of changing the layout. The task asked for layouts, so I didn't go looking.
+    - The method names give no hint of what each is for. I don't know what "Recommended" force is
+      against "Force, flat", or whether either is like ForceAtlas 2. One line under each name would
+      have saved me two dead ends.
+    - "Force, flat" gave what looked like an evenly spread random disc, not a force layout. That made
+      me doubt the tool, not the data.
+    - Spectral piled the graph under the layout popover and the toolbar, so the result I asked for
+      was hidden by the control I used to ask for it.
+    - The Seed box appeared for force layouts and vanished for Spectral without saying why.
+    - Toolbar icons have no labels; hover tooltips appeared one icon late.
+    - Nothing suggested "to see the groups, color by community" -- which is what I would really do
+      in Gephi instead of changing the layout. The task asked for layouts, so I didn't go looking.
 - **Would I use it for this?** The default drawing was decent and the seed made it repeatable,
   which I like. But if my first try at changing the layout had happened in front of my manager, the
   flat force result would have embarrassed me.

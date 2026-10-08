@@ -9,6 +9,7 @@ sizes and the colors on the drawing now stand for."
 Tool: `S=design/ui/studio/rounds/round-3/sessions/r3-s29`; commands run from design/ui/studio as `node tool/real.mjs ...`.
 
 ## Step 1 -- start
+
 Command: `node tool/real.mjs --start $S empty` -> 01.png
 Saw: a dark start page. Left: "Open project or file...", "New from data...", "Files are read on
 this computer and never uploaded." Right: Samples -- Les Miserables, Zachary's karate club,
@@ -17,6 +18,7 @@ groups"). A usage-data box at the bottom. "Local only" with a lock in the top co
 answers my first question before I asked it.
 
 ## Step 2
+
 Thinking (Tom): "I'm not sharing usage data. No thanks. Then the Florentine families one -- that's
 what they told me to use."
 Command: `--step $S --click "No thanks" --click "Florentine families"`
@@ -31,6 +33,7 @@ at the bottom says Analyze is the flask in the toolbar. That bottom bar is the o
 looks like buttons, so I'll press the flask."
 
 ## Step 3
+
 Command: `--step $S --click-at 680,864` (the flask in the bottom toolbar)
 Saw (03.png): a list popped up over the drawing: "Filter analyses", heading "Rank nodes and
 edges", then Degree, Betweenness, Edge betweenness, Closeness, PageRank (with a blue "Start here"
@@ -42,6 +45,7 @@ others' -- maybe, but I'm not sure that's 'depends on'. One of them says 'Start 
 doubt I do what the sign says. PageRank."
 
 ## Step 4
+
 Command: `--step $S --click "PageRank"`
 Saw (04.png): the list turned into a small PageRank box: "Which nodes are connected to other
 well-connected nodes.", "Damping factor 0.85", "Weight: None", a collapsed "Advanced", "Under a
@@ -50,6 +54,7 @@ Tom: "Damping factor. Don't know, don't care -- I'm leaving the numbers she'd le
 Advanced. Run."
 
 ## Step 5
+
 Command: `--step $S --click "Run"`
 Saw (05.png): the dots went from blue to shades of orange-brown; one in the middle is nearly black.
 A box top-left says "Color: PageRank", 0.03066 [orange bar] 0.1458. The box sits on top of where
@@ -60,6 +65,7 @@ I was told bigger dots, not darker dots. And orange-to-brown, I can just about t
 There's a new line on the left that says PageRank. Maybe that's where I change what it does."
 
 ## Step 6
+
 Command: `--step $S --click "PageRank"` (the new row in the left panel)
 Saw (06.png): the PageRank row is highlighted with an eye icon. The right panel changed to
 "PageRank -- Measure from PageRank, Oct 7", tabs Style / Values, Nodes / Edges, and a list: Fill
@@ -69,11 +75,13 @@ Tom: "Here's where it decides how it looks. Color is PageRank -- that's the oran
 I'll press the plus next to Shape and see -- if it's wrong I'll back out."
 
 ## Step 7
+
 Command: `--step $S --click-at 1420,234` (the + beside Shape)
 Saw (07.png): a little menu under the Shape plus: "Size" (highlighted) and "Shape".
 Tom: "There it is. Size. Good guess."
 
 ## Step 8
+
 Command: `--step $S --click "Size"`
 Saw (08.png): a box "Size by attribute": a find box, "Fixed size", a heading "PageRank" with three
 choices -- PageRank, PageRank rank, PageRank percentile -- then greyed "Cannot be used: Holds
@@ -83,6 +91,7 @@ The color says plain 'PageRank', so I'll pick the same one, then size and color 
 thing."
 
 ## Step 9
+
 Command: `--step $S --click "PageRank#2"` first tried as plain name; see output
 Tool note: the plain name "PageRank" matched 5 controls and the tool took the first one, the
 PageRank row in the LEFT panel, not the option in the open box. That is a slip of the tool, not
@@ -94,11 +103,13 @@ Tom: "It closed and it just says 1. That's not what I picked. The little chain i
 lit up the same way as when the box opened -- I'll press it to get the list back."
 
 ## Step 10
+
 Command: `--step $S --click-at 1381,264` (the link icon beside Size)
 Saw (10.png): the same "Size by attribute" box again.
 Tom: "Right. PageRank, the plain one."
 
 ## Step 11
+
 Command: `--step $S --click-at 1195,416` (the "PageRank" option in the box)
 Saw (11.png): the dots are now different sizes. One in the middle is much bigger than the rest and
 nearly black; a few mid-sized ones; several small light-orange ones at the edges. The box top-left
@@ -110,6 +121,7 @@ telling me the same thing twice: big and dark means more PageRank. I'd still lik
 big one is. No names on anything. I'll point at it and see if it says."
 
 ## Step 12
+
 Command: `--step $S --hover-at 700,378` (the big dark dot)
 Saw (12.png): nothing changed on screen. No name, no popup on hover. (The tool reports the dot is
 the node "Medici", but nothing on screen said so -- Tom does not know that.)
@@ -117,6 +129,7 @@ Tom: "Nothing. It won't tell me who it is just by pointing. I'm not going diggin
 wasn't the job. The dots are sized, I'm stopping."
 
 ## End
+
 Command: `node tool/real.mjs --end $S`
 
 ## In character: debrief (Tom)
@@ -137,6 +150,7 @@ it colored the dots when I'd asked for sizes, and I had to go find size myself u
 which I only got because I guessed.
 
 **What confused me:**
+
 - After Run the dots went orange, not bigger. I had to find size myself. Nothing on that screen
   said "size".
 - Size was hiding under "Shape". No line called Size until I pressed the plus.

@@ -12,14 +12,14 @@ Load button exists only behind "New from data...", and on that route Load leaves
 
 ## The walk
 
-| Step | Command | Screenshot | What happened |
-| ---- | ------- | ---------- | ------------- |
-| 1 | `--start ... empty` | 01.png | The start screen: Open project or file..., New from data..., samples, and the usage-data consent card. |
-| 2 | `--click "Open project or file..."` | 02.png | A file chooser opens. |
-| 3 | `--upload friends.csv` | 03.png | The graph is drawn at once (20 spheres, arrows). Values > Overview: Nodes 20, Edges 41, Direction Directed, Components 1. No import page appears. |
-| 4 | `--click "Load"` (the answer key's third step) | 04.png | `nothing on screen is called "Load"`. |
-| 5 | `--click "Data"` | 05.png | Data > Sources: `friends.csv 20 nodes, 41 edges`; `Node ... 20 rows, 20 nodes`; `Edge t... 41 rows, 41 edges`. This is the only place on this route that shows nothing was dropped (41 rows in, 41 edges out). |
-| 6 | `--hover "Edge t"` | 06.png | `tooltip: null`: the truncated source names have no tooltip. |
+| Step | Command                                        | Screenshot | What happened                                                                                                                                                                                                  |
+| ---- | ---------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `--start ... empty`                            | 01.png     | The start screen: Open project or file..., New from data..., samples, and the usage-data consent card.                                                                                                         |
+| 2    | `--click "Open project or file..."`            | 02.png     | A file chooser opens.                                                                                                                                                                                          |
+| 3    | `--upload friends.csv`                         | 03.png     | The graph is drawn at once (20 spheres, arrows). Values > Overview: Nodes 20, Edges 41, Direction Directed, Components 1. No import page appears.                                                              |
+| 4    | `--click "Load"` (the answer key's third step) | 04.png     | `nothing on screen is called "Load"`.                                                                                                                                                                          |
+| 5    | `--click "Data"`                               | 05.png     | Data > Sources: `friends.csv 20 nodes, 41 edges`; `Node ... 20 rows, 20 nodes`; `Edge t... 41 rows, 41 edges`. This is the only place on this route that shows nothing was dropped (41 rows in, 41 edges out). |
+| 6    | `--hover "Edge t"`                             | 06.png     | `tooltip: null`: the truncated source names have no tooltip.                                                                                                                                                   |
 
 No script errors, console errors or failed requests were printed at any step.
 

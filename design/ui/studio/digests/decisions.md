@@ -28,6 +28,7 @@ All study participants in rounds 1-8 were SIMULATED personas, not real people. R
 Dates are when the owner said it; the source is `P/owner-feedback.md` unless noted.
 
 Structure and navigation
+
 - 2026-09-28: Figma supplies conventions for controls and gestures only (rows, popovers, menus, keys, selection driving the inspector). graphty's STRUCTURE comes from its own ontology (`conceptual-model.md`) and information architecture. Design for graphty where it differs (data, versions, results and runs, sets and paths, filters, recipes, comparison, notes). This outranks the "paved path" Figma rule. Make real use of the nav rail; design data management as one coherent area (in, versioned, refreshed, joined, filtered, exported, shared).
 - 2026-09-28: Export... belongs in the project-name menu (top left), as in Figma.
 - 2026-09-28: the "M" avatar is challenged (no accounts). Studio removed it; no avatar slot.
@@ -39,6 +40,7 @@ Structure and navigation
 - 2026-09-30: legend and camera controls should follow the toolbar pattern, not float on the canvas.
 
 Data
+
 - 2026-09-30: loading SEVERAL data sources and joining them on ANY key column (not only node id) is a PRIMARY task. Worked example: door-entries table (person_id, building_id, time) joined to people and buildings tables.
 - 2026-09-30: WEIGHT (node and edge) is a field defined when the data source is loaded. (Reverses six rounds of studio decisions; see section 4.)
 - 2026-09-30: a LABEL is a variable picked in styling, not a predefined field; several labels per node (above, below); "+ next to label should start empty" (binds nothing until a field is picked).
@@ -47,20 +49,24 @@ Data
 - 2026-10-01: before the next study -- a state matrix, a design that holds up with dozens of attributes per node/edge, and nested-JSON loading (paths through sub-objects and arrays). Delivered: `state-matrix.md` (343 routes, 0 failures at the time), routes `data-page/wide-hosts`, `data-page/json-tree`, `data-page/json-report`.
 
 Notes and authorship
+
 - 2026-09-28: each note records its author and time; a recipe records who saved it and when; both from the project's author setting as given (blank if unset); author shown only when a project holds more than one.
 - 2026-10-01: notes are part of graphty-element's PUBLIC API (`element-notes-api.md`). The author name comes only from Settings, is optional, and will usually be empty; the design must work well without it. Note metadata: time and target (node, edge, group, path, ...) required; everything else optional.
 - 2026-09-30 (owner question answered yes by studio): notes can be on edges.
 
 Output and formats
+
 - 2026-09-28: the findings report is ONE self-contained HTML file (figures embedded, text as real text, offline, prints to PDF); a native PDF may follow later.
 - 2026-09-28: graphty-element publishes SVG figure export now, PDF later; the Print look keeps a grayscale check (a check, not a grayscale file).
 - 2026-09-28: reader messages are published as { key, params, text } with keys `graphty.<area>.<message>`.
 - 2026-09-28: keyboard node walk is Shift+Arrow; plain arrows orbit (3D) / pan (2D).
 
 Privacy and telemetry
+
 - 2026-09-29: telemetry OFF until the user opts in at first use; graph content always masked. Collected when opted in: Sentry Session Replay with every node name, attribute value, label and file content masked; anonymous task events (file loaded, first graph drawn, measure run, result read, style added, export, undo) with timings; errors and performance; a feedback widget. No file contents leave the computer. Opt-in text is the owner's (content designer may tighten, must keep every commitment): "Your data is yours, but please help us. We will never see the data you analyze, but we would like to collect information about how you use the app so that we can improve the user experience. This data will only ever be used by the author of the application and his Claude Code sessions." Reason: Sentry on graphty.app will be the REAL user study, so the first shipped pass must be mostly right, with no trust-busting flaws on first use. Drawn as a non-blocking card at the foot of the start screen, equal-weight "Share usage data" / "No thanks" (`structure-b-refined.md` 11.2).
 
 Process rules from the owner
+
 - 2026-09-28: do not re-ask decided questions; check `P/owner-feedback.md` before writing any milestone question.
 - 2026-09-28: owner items outrank simulated findings; show before-and-after for each owner review item.
 - 2026-09-28: participant view must never trap the viewer (Esc and a faint corner control exit; test at touch width).
@@ -71,6 +77,7 @@ Process rules from the owner
 - 2026-10-02: prioritize the average first-time user (tier 1) before specialized features (section 1).
 
 Decided on the owner's behalf (reversible; `P/owner-feedback.md` 2026-09-28)
+
 - The project file saves the selection when it closes (optional additive field); reopen shows "Selection restored: 14 nodes".
 - No separate Note tool; Add note's entry points cover it (N key, selection bar, context menus). Test several-notes-in-a-row before proposing a tool again.
 - After undoing a filter step, a one-line notice names the step (undo "version B").
@@ -79,6 +86,7 @@ Decided on the owner's behalf (reversible; `P/owner-feedback.md` 2026-09-28)
 ## 3. Standing studio decisions (reversible; latest wins)
 
 Shared interaction rules (`structure-b-refined.md` 2.5 "One pattern per job", 17 "One home per feature"; `P/framework-changes.md` "After round 7")
+
 - One home per object/state; commands have DOORS (keys, Quick actions, menus, selection bar). A door is a command registered once (skeleton `AB.cmd`) with identical words everywhere; two entries that open the same dialog are fine, two controls that set the same state are a defect (R7).
 - Every count names its unit and, when a part, its whole ("1,204 of 9,113 edges"); never a bare number (R7). Every count or claim in a message is COMPUTED from the state it describes, or the message is removed (R8; fixed strings like "64 hidden" were the top trust-killer).
 - Empty selection = inspector shows the graph as its subject; the graph is never put INTO the selection. Esc closes the innermost open thing first, then clears selection (R7). Esc does one thing per press (R6). Focus never falls to the page body (R6). Focus never changes selection or paint.
@@ -144,6 +152,7 @@ Shared interaction rules (`structure-b-refined.md` 2.5 "One pattern per job", 17
 ## 6. Open questions still waiting on the owner
 
 One-way doors listed in `P/framework-changes.md` "Open decisions for the owner" (line ~3009) and not answered in `P/owner-feedback.md`:
+
 - Where graphty is hosted (hosting country); whether it can be self-hosted.
 - An organization-wide switch that turns the Assistant off (the studio closed it for now in R7 with "no separate switch; no provider chosen by default" -- reversible; the owner never answered).
 - Who answers IT/security reviewers about "Where your data goes", and the contact address.
@@ -152,7 +161,7 @@ One-way doors listed in `P/framework-changes.md` "Open decisions for the owner" 
 - Note edit history and an optional source field in the project file format.
 - Where a renamed category lives (on the attribute, or a label map in a style layer).
 - An asymmetric diverging palette for the Print look.
-Other owner-level items raised by the studio:
+  Other owner-level items raised by the studio:
 - Saved views that keep the look (not only the camera): held "until the owner rules on it" (decision log R7 rejected list).
 - Published names and keys: the Looks' names (Screen, Print, High contrast); moving the legend's out-of-scope message to `graphty.legend.notDrawn`; new published message keys (`framework-changes.md` ~3741, 4102).
 - graphty-element public contracts flagged as one-way doors: appending rows to a loaded source (R7, "a one-way door for the owner when built"); "Follow time order" path option; a "reliability" weight role in the glossary; the cost gate's default budget (whether costly runs are refused or "created unrun"; `framework-changes.md` ~1603).

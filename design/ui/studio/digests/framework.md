@@ -114,15 +114,15 @@ frozen at start.
 
 Ranked for the weekly analyst (Analyst Alex). Provisional targets "set by the first vote round":
 
-| # | Task | Success rate | Time from rest |
-|---|---|---|---|
-| 1 | Characterize the whole graph ("What have I got, and did it load right?") | 90% | 30 s |
-| 2 | Rank nodes by a centrality metric | 85% | 45 s |
-| 3 | Detect communities and characterize them | 80% | 90 s |
-| 4 | Find a node, inspect it, explore its neighborhood | 90% | 30 s |
-| 5 | Take a note | 85% | 30 s |
-| 6 | Filter to a subgraph, then characterize | 80% | 60 s |
-| 7 | Make the layout readable | 85% | 45 s |
+| #   | Task                                                                     | Success rate | Time from rest |
+| --- | ------------------------------------------------------------------------ | ------------ | -------------- |
+| 1   | Characterize the whole graph ("What have I got, and did it load right?") | 90%          | 30 s           |
+| 2   | Rank nodes by a centrality metric                                        | 85%          | 45 s           |
+| 3   | Detect communities and characterize them                                 | 80%          | 90 s           |
+| 4   | Find a node, inspect it, explore its neighborhood                        | 90%          | 30 s           |
+| 5   | Take a note                                                              | 85%          | 30 s           |
+| 6   | Filter to a subgraph, then characterize                                  | 80%          | 60 s           |
+| 7   | Make the layout readable                                                 | 85%          | 45 s           |
 
 Bookends: **Load a graph** (fields map with little effort; the import report is reached from
 task 1; Open starts a new project), **Start from a recipe**, **Export** (a figure carries its
@@ -145,13 +145,13 @@ good?" One sitting that may never repeat; small to medium graphs; sensemaking st
 Drawn from W01, W18, W14 (activation: "User runs at least one analysis") and W02; Explorer Elena
 ("No guidance on where to start").
 
-| Stage | Goal and doubt | Task | Served by | Trust question | Leaves behind |
-|---|---|---|---|---|---|
-| Arrive | "Where do I put this?" or "Can I try it on something first?" | load | start screen; a sample; the load step | Did it read my columns as I meant? | a data version and its import report |
-| Triage | "Is this the right file, did it load right?" | 1 | graph's Statistics under the overview recipe; the Last import row | Is a broken import visible before anything runs? | nothing |
-| Sample | "Do the rows mean what I think?" | 4 | inspector and table | Am I reading raw values or paint? | a selection |
-| Try a measure | "Which measure answers my question?" (pain: "Don't know what questions to ask of the data") | 2, 3 | the catalog by family; Quick actions' search by question word | Does this measure fit this graph? | a result |
-| Decide | "Go on, clean it, or find better data?" | 5 or load again | a note; the project's data | Will I remember why I stopped? | a note |
+| Stage         | Goal and doubt                                                                              | Task            | Served by                                                         | Trust question                                   | Leaves behind                        |
+| ------------- | ------------------------------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------ |
+| Arrive        | "Where do I put this?" or "Can I try it on something first?"                                | load            | start screen; a sample; the load step                             | Did it read my columns as I meant?               | a data version and its import report |
+| Triage        | "Is this the right file, did it load right?"                                                | 1               | graph's Statistics under the overview recipe; the Last import row | Is a broken import visible before anything runs? | nothing                              |
+| Sample        | "Do the rows mean what I think?"                                                            | 4               | inspector and table                                               | Am I reading raw values or paint?                | a selection                          |
+| Try a measure | "Which measure answers my question?" (pain: "Don't know what questions to ask of the data") | 2, 3            | the catalog by family; Quick actions' search by question word     | Does this measure fit this graph?                | a result                             |
+| Decide        | "Go on, clean it, or find better data?"                                                     | 5 or load again | a note; the project's data                                        | Will I remember why I stopped?                   | a note                               |
 
 **Flow 2, "Load, then characterize under the overview recipe"** (`fw/task-flows.md` 2). Rest is
 the graph's inspector with nothing selected and the rail on Graph. Desk count: a file is 3 steps
@@ -193,6 +193,7 @@ only from its own object. A thirteenth concept for tasks 1-4 must be named and j
 The word "recipe" waits behind Replace; the overview row reads "Overview: General".
 
 **The object map, the one list of types** (frozen; section 1.3):
+
 - Content (selected, can be a scope): Graph, Node, Edge, Set (fixed, rule, path; offered or
   kept), Path. A group and a found path are a set and a path in their offered state.
 - Definitions (edited from a row, never selected): Result, Style layer (kinds: ordinary,
@@ -244,6 +245,7 @@ rest: the import (Last import row in Statistics), the weight's meaning (Edges ro
 threshold, how a result read the edges.
 
 **The frame** (README "The frame at a glance"; interface-specification 1.1, 1.2):
+
 - **Rail** (~56 px): main menu, then Graph, Assistant, Results, Notes. **The rail opens on
   Graph** (IA 5).
 - **Left panel** (~240 px) under a persistent **left panel header**: project name, save state,
@@ -380,6 +382,7 @@ brought the rail back and shrank the toolbar. The framework supersedes it where 
 round-1 mocks with Karate Club: overall discoverability 3 of 5; she met all four W14 success
 criteria but with three wrong turns. Scores: load the sample 5; understand the tree 3; color a
 group 3; find a path 2; export a picture 4. Findings still worth testing against the real app:
+
 1. unlabeled toolbar icons with a 1 s tooltip delay were the steepest moment, where she might quit;
 2. the natural first click to recolor a group (the inherited swatch) did nothing;
 3. "Colour this node..." made a one-node set instead of coloring her group;
@@ -389,14 +392,14 @@ group 3; find a path 2; export a picture 4. Findings still worth testing against
 7. the legend was off by default after the first grouping;
 8. suggestion rows vanished after the first object;
 9. "Share" was the only route to image export;
-10-17 are minor: legend inclusion in export uncertain; two words for appearance; suggestion rows
-read as data; the eye read as "hide" but meant "stop painting"; unexplained resting words
-(Density, Mean links, Parts); an overwhelming Path flyout; three count formats; unclear export
-areas.
-"What to change first": let the toolbar speak (labels or no-delay tooltips); make the first click
-on a color do the obvious thing; put a result's reading on its surface; hover labels on nodes;
-legend switches on with the first grouping. Also: `ofx/round-2/critique-novice.md` and
-`ofx/round-2/walkthroughs.md` (a novice's first ten minutes on round 2).
+   10-17 are minor: legend inclusion in export uncertain; two words for appearance; suggestion rows
+   read as data; the eye read as "hide" but meant "stop painting"; unexplained resting words
+   (Density, Mean links, Parts); an overwhelming Path flyout; three count formats; unclear export
+   areas.
+   "What to change first": let the toolbar speak (labels or no-delay tooltips); make the first click
+   on a color do the obvious thing; put a result's reading on its surface; hover labels on nodes;
+   legend switches on with the first grouping. Also: `ofx/round-2/critique-novice.md` and
+   `ofx/round-2/walkthroughs.md` (a novice's first ten minutes on round 2).
 
 Note on fit with the framework: suggestion rows and a self-enabling legend would need checking
 against principle 5 (budget) and the no-first-run rule; toolbar labels map to the "Additional
@@ -452,6 +455,7 @@ framework rejects (section 0, item 3).
 ## 10. Candidate success criteria for a tier 1 study, assembled from the sources
 
 Not decided anywhere; offered so the studio can choose. Each names its origin.
+
 - Time to first visualization under 2 minutes, sample or own file (W14).
 - Activation: runs at least one analysis unprompted (W14; journey 1, Try a measure).
 - Can describe what they see, including size and whether it loaded right (W14; task 1 success).

@@ -15,9 +15,7 @@ describe("the start commands", () => {
         const store = createWorkspaceStore();
         store.set((state) => ({ project: { name: "Les Miserables", id: newProjectId(state) } }));
         const before = store.get().project?.id;
-        await createRegistry(REGISTRATIONS)
-            .built("data.new")
-            ?.run({ workspace: store, session: null, element: null });
+        await createRegistry(REGISTRATIONS).built("data.new")?.run({ workspace: store, session: null, element: null });
         const { project, page } = store.get();
         assert.equal(page, "data-page");
         assert.deepEqual(project?.name, "Untitled");

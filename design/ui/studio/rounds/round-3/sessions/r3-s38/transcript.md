@@ -37,8 +37,7 @@ Nadia: "Good -- it just tells me. 77 nodes, so 77 characters, matches the sample
 so 254 connections. 'Components 1' -- I think that means it's all one piece, so everyone can get
 to everyone. I'm fairly sure, but nobody explained 'components'; if QA asked me I'd want it said
 in plain words. The line 'Undirected, from the file: directed 0' I don't get -- directed zero?
-Is that a count of something? And 'Edges per ...' is cut off; I'm guessing edges per node, 1 to
-36. The drawing does look like one connected blob, nothing floating loose, so that backs up the
+Is that a count of something? And 'Edges per ...' is cut off; I'm guessing edges per node, 1 to 36. The drawing does look like one connected blob, nothing floating loose, so that backs up the
 '1'.
 
 Now what's recorded about each character. In my system I'd click the account. I'll click the

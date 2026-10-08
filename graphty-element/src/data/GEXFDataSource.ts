@@ -411,10 +411,10 @@ export class GEXFDataSource extends DataSource {
      * @returns the import
      */
     private read(text: string | Uint8Array, defaultDirected: boolean): Promise<ImportedGraph> {
-        return importDocument(
-            gexfImporter,
-            text,
-            { addMissingNodes: true, defaultDirected, errorLimit: this.config.errorLimit ?? 100 },
-        );
+        return importDocument(gexfImporter, text, {
+            addMissingNodes: true,
+            defaultDirected,
+            errorLimit: this.config.errorLimit ?? 100,
+        });
     }
 }

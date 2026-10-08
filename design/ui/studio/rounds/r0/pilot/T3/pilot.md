@@ -14,14 +14,14 @@ counts are right. No script errors, console errors or failed requests were print
 
 ## The walk
 
-| Step | Command | Screenshot | What happened |
-| ---- | ------- | ---------- | ------------- |
-| 1 | `--start ... empty` | 01.png | The start screen: Open project or file..., New from data..., four samples, the usage-data card. |
-| 2 | `--click "Open project or file..." --upload friends.csv` | 02.png | Drawn at once: 20 spheres with arrowheads, no labels. The inspector header now reads "Graph / From friends.csv". Values > Overview: Nodes 20, Edges 41, Direction Directed, Density 0.1079, Components 1, Edges per node 3 to 6, mean 4.1. |
-| 3 | `--click "Data"` | 03.png | Data > Sources: `friends.csv 20 nodes, 41 edges`; `Node ... 20 rows, 20 nodes`; `Edge t... 41 rows, 41 edges`. Attributes: node `id`, edge `weight`. |
-| 4 | `--hover "Node table"` | 04.png | Row highlighted; `tooltip: null`; no tooltip on screen. |
-| 5 | `--hover "Edge table"` | 05.png | Tooltip "Edge table" printed and visible under the row. |
-| 6 | `--hover "Node table"` | 06.png | The tool printed `tooltip: "Edge table"`; the screenshot shows the Node table row highlighted and no tooltip. |
+| Step | Command                                                  | Screenshot | What happened                                                                                                                                                                                                                              |
+| ---- | -------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1    | `--start ... empty`                                      | 01.png     | The start screen: Open project or file..., New from data..., four samples, the usage-data card.                                                                                                                                            |
+| 2    | `--click "Open project or file..." --upload friends.csv` | 02.png     | Drawn at once: 20 spheres with arrowheads, no labels. The inspector header now reads "Graph / From friends.csv". Values > Overview: Nodes 20, Edges 41, Direction Directed, Density 0.1079, Components 1, Edges per node 3 to 6, mean 4.1. |
+| 3    | `--click "Data"`                                         | 03.png     | Data > Sources: `friends.csv 20 nodes, 41 edges`; `Node ... 20 rows, 20 nodes`; `Edge t... 41 rows, 41 edges`. Attributes: node `id`, edge `weight`.                                                                                       |
+| 4    | `--hover "Node table"`                                   | 04.png     | Row highlighted; `tooltip: null`; no tooltip on screen.                                                                                                                                                                                    |
+| 5    | `--hover "Edge table"`                                   | 05.png     | Tooltip "Edge table" printed and visible under the row.                                                                                                                                                                                    |
+| 6    | `--hover "Node table"`                                   | 06.png     | The tool printed `tooltip: "Edge table"`; the screenshot shows the Node table row highlighted and no tooltip.                                                                                                                              |
 
 ## Remaining blockers
 

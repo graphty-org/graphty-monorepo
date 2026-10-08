@@ -60,10 +60,10 @@ Command: `node tool/real.mjs --end rounds/round-1/sessions/r1-s35b`
 - **How hard was it (1 = trivial, 7 = impossible)?** 1. One click to open, and the answer was on
   the screen right away.
 - **What confused me?**
-  - Nothing really blocked me. "Near line 9" is a technical detail I can't check myself, but it's
-    useful to pass along.
-  - Small wish: the message sits in a bar near the bottom of the page, away from where I clicked; on
-    a busy screen-share I might have missed it. A "copy message" button would make forwarding it
-    easier.
-  - I wasn't sure whether the message would disappear on its own; it didn't in ten seconds, which
-    was a relief.
+    - Nothing really blocked me. "Near line 9" is a technical detail I can't check myself, but it's
+      useful to pass along.
+    - Small wish: the message sits in a bar near the bottom of the page, away from where I clicked; on
+      a busy screen-share I might have missed it. A "copy message" button would make forwarding it
+      easier.
+    - I wasn't sure whether the message would disappear on its own; it didn't in ten seconds, which
+      was a relief.

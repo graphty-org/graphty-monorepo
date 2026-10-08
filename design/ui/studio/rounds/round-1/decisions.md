@@ -29,20 +29,20 @@ step. The app did not cause any of them.
 
 Severity uses the study scale (4 = blocks the task or the measurement, 1 = cosmetic).
 
-| # | Sev | Package | Change |
-|---|---|---|---|
-| 1 | 4 | study tool | Fix the session runner and the ease question |
-| 2 | 3 | study tool | Screen-reader mode in the study tool |
-| 3 | 3 | graphty app | The Neighborhood command opens the neighbor list |
-| 4 | 3 | graphty app | The several-node Summary drops "Babet (1)" and "Edges 0" |
-| 5 | 3 | graphty app | The Selection row and the Data > Sources tables stop dead-ending |
-| 6 | 3 | compact-mantine | A combo field with nothing to list draws no "Open list" arrow |
-| 7 | 3 | graphty-element and app | "No crossings" says why it did nothing |
-| 8 | 3 | graphty-element | The mouse wheel zooms the 3D view |
-| 9 | 3 | compact-mantine | A visible focus ring on every focusable control |
-| 10 | 3 | graphty app | Focus lands on the new line after a Style "+" pick |
-| 11 | 2 | graphty app | A run is named by its method everywhere |
-| 12 | 2 | tasks and answers | Answer key: the Neighborhood route and the method names |
+| #   | Sev | Package                 | Change                                                           |
+| --- | --- | ----------------------- | ---------------------------------------------------------------- |
+| 1   | 4   | study tool              | Fix the session runner and the ease question                     |
+| 2   | 3   | study tool              | Screen-reader mode in the study tool                             |
+| 3   | 3   | graphty app             | The Neighborhood command opens the neighbor list                 |
+| 4   | 3   | graphty app             | The several-node Summary drops "Babet (1)" and "Edges 0"         |
+| 5   | 3   | graphty app             | The Selection row and the Data > Sources tables stop dead-ending |
+| 6   | 3   | compact-mantine         | A combo field with nothing to list draws no "Open list" arrow    |
+| 7   | 3   | graphty-element and app | "No crossings" says why it did nothing                           |
+| 8   | 3   | graphty-element         | The mouse wheel zooms the 3D view                                |
+| 9   | 3   | compact-mantine         | A visible focus ring on every focusable control                  |
+| 10  | 3   | graphty app             | Focus lands on the new line after a Style "+" pick               |
+| 11  | 2   | graphty app             | A run is named by its method everywhere                          |
+| 12  | 2   | tasks and answers       | Answer key: the Neighborhood route and the method names          |
 
 ### 1. Fix the session runner and the ease question (study tool, severity 4)
 
@@ -188,26 +188,26 @@ Severity uses the study scale (4 = blocks the task or the measurement, 1 = cosme
 
 ## Rejected or deferred, with reasons
 
-| Proposal | Decision | Reason |
-|---|---|---|
-| A visible cue on the Degree row (chevron in `DataRow`, "17 connections", a verb) | Rejected for round 2 | Shipping it with change 3 changes two things at once, so round 2 could not tell which helped; the chevron also changes every clickable-row story. Revisit only if the routed build still fails the neighbors task. The keyboard and screen-reader route (G, the menu item) reaches the same list after change 3. |
-| The Summary lists member names when every value differs | Rejected | A second list of neighbors, against the 2026-10-03 decision to keep one surface for them. |
-| "18 different names" in place of "Babet (1)" | Rejected | Adds words, and it assumes the element's `distribution` lists every value, which nobody has checked. |
-| Move the commonest-value computation into graphty-element | Rejected | The app reads a fact the element already returns; it computes nothing. |
-| A new public refusal code for layouts | Rejected | The app knows which method it asked for, so a rejection is enough; no one-way door for the owner. |
-| Moving the notice slot, or pausing a notice while it holds focus | Rejected | New notice machinery for one case; change 7 moves this refusal next to its control. |
-| Fill the Size list with what can be bound | Rejected | A second way to bind beside the bind icon. Change 6 removes the empty arrow. |
-| Move Size, add a Size heading, or redesign the bind icon | Rejected | Severity 2 in 7 of 9 grades; three participants were led there by the tooltip. Fix the empty list only, so round 2 can tell what helped. |
-| "Show all labels" beside the hidden count | Deferred | A new control; wheel zoom (change 8) comes first. Build it only if round 2 still shows people stuck. |
-| A pointer from the graph's Style tab to node styling | Rejected | The 8 sessions are one model's shared first guess, and every one recovered in about one step. Figma's empty-selection panel is the same. |
-| Words on the bottom toolbar; a shorter tooltip delay | Rejected | Severity 1; the one expert who hovered found Layout. The owner ruled icons only. |
-| The legend covering a node on Florentine families | Deferred, trace first | Reproduced (severity 3) but it decides no task, and the two possible fixes (a fit inset, a placement option) are new element API. Trace who fits the view and whether the element already takes fit padding; if it does, the app passes it in round 3. Check at 1280 x 800 too. |
-| Hovering a dot shows no name (`tooltip: null`) | Deferred, trace | Severity 2 and under-measured, since simulated participants rarely hover. Trace the cause before round 3. |
-| "Undirected, from the file: directed 0" and a cut-off "Edges per n..." on the graph's Values | Deferred to the words-at-rest baseline | Severity 1; bar 9's count decides what at-rest text goes. |
-| Layout method descriptions; the Spectral clump | Deferred | One participant's anecdote; the untangle task passed 2 of 2. |
-| "Start here" on PageRank; raw decimals in the key | Rejected | Opinion level; PageRank is an accepted answer and no session failed because of the tag. |
-| Names drawn on dots by default | Rejected | Off is the intended default and the premise of the names task. |
-| Duplicate accessible names ("Export", "Graph", "Neighborhood") | Deferred to bar 8's script | They came from the study tool's "ambiguous" prints. The script decides; recheck "Graph" by role. |
+| Proposal                                                                                     | Decision                               | Reason                                                                                                                                                                                                                                                                                                           |
+| -------------------------------------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A visible cue on the Degree row (chevron in `DataRow`, "17 connections", a verb)             | Rejected for round 2                   | Shipping it with change 3 changes two things at once, so round 2 could not tell which helped; the chevron also changes every clickable-row story. Revisit only if the routed build still fails the neighbors task. The keyboard and screen-reader route (G, the menu item) reaches the same list after change 3. |
+| The Summary lists member names when every value differs                                      | Rejected                               | A second list of neighbors, against the 2026-10-03 decision to keep one surface for them.                                                                                                                                                                                                                        |
+| "18 different names" in place of "Babet (1)"                                                 | Rejected                               | Adds words, and it assumes the element's `distribution` lists every value, which nobody has checked.                                                                                                                                                                                                             |
+| Move the commonest-value computation into graphty-element                                    | Rejected                               | The app reads a fact the element already returns; it computes nothing.                                                                                                                                                                                                                                           |
+| A new public refusal code for layouts                                                        | Rejected                               | The app knows which method it asked for, so a rejection is enough; no one-way door for the owner.                                                                                                                                                                                                                |
+| Moving the notice slot, or pausing a notice while it holds focus                             | Rejected                               | New notice machinery for one case; change 7 moves this refusal next to its control.                                                                                                                                                                                                                              |
+| Fill the Size list with what can be bound                                                    | Rejected                               | A second way to bind beside the bind icon. Change 6 removes the empty arrow.                                                                                                                                                                                                                                     |
+| Move Size, add a Size heading, or redesign the bind icon                                     | Rejected                               | Severity 2 in 7 of 9 grades; three participants were led there by the tooltip. Fix the empty list only, so round 2 can tell what helped.                                                                                                                                                                         |
+| "Show all labels" beside the hidden count                                                    | Deferred                               | A new control; wheel zoom (change 8) comes first. Build it only if round 2 still shows people stuck.                                                                                                                                                                                                             |
+| A pointer from the graph's Style tab to node styling                                         | Rejected                               | The 8 sessions are one model's shared first guess, and every one recovered in about one step. Figma's empty-selection panel is the same.                                                                                                                                                                         |
+| Words on the bottom toolbar; a shorter tooltip delay                                         | Rejected                               | Severity 1; the one expert who hovered found Layout. The owner ruled icons only.                                                                                                                                                                                                                                 |
+| The legend covering a node on Florentine families                                            | Deferred, trace first                  | Reproduced (severity 3) but it decides no task, and the two possible fixes (a fit inset, a placement option) are new element API. Trace who fits the view and whether the element already takes fit padding; if it does, the app passes it in round 3. Check at 1280 x 800 too.                                  |
+| Hovering a dot shows no name (`tooltip: null`)                                               | Deferred, trace                        | Severity 2 and under-measured, since simulated participants rarely hover. Trace the cause before round 3.                                                                                                                                                                                                        |
+| "Undirected, from the file: directed 0" and a cut-off "Edges per n..." on the graph's Values | Deferred to the words-at-rest baseline | Severity 1; bar 9's count decides what at-rest text goes.                                                                                                                                                                                                                                                        |
+| Layout method descriptions; the Spectral clump                                               | Deferred                               | One participant's anecdote; the untangle task passed 2 of 2.                                                                                                                                                                                                                                                     |
+| "Start here" on PageRank; raw decimals in the key                                            | Rejected                               | Opinion level; PageRank is an accepted answer and no session failed because of the tag.                                                                                                                                                                                                                          |
+| Names drawn on dots by default                                                               | Rejected                               | Off is the intended default and the premise of the names task.                                                                                                                                                                                                                                                   |
+| Duplicate accessible names ("Export", "Graph", "Neighborhood")                               | Deferred to bar 8's script             | They came from the study tool's "ambiguous" prints. The script decides; recheck "Graph" by role.                                                                                                                                                                                                                 |
 
 ## Order of work
 

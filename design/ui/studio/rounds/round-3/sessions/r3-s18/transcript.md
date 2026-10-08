@@ -215,6 +215,7 @@ back to the new row). What cost me was distance: 53 key presses for what is two 
 ("show names", "show all of them"). About 30 of those were Tab walks across the screen.
 
 Key presses by part:
+
 - Open the College football sample: 8 (7 Tabs + Enter). Fine.
 - Find where names live: 23 (first went to the graph's Style tab, which only has canvas and
   layout settings, then walked back to "Everything").
@@ -223,6 +224,7 @@ Key presses by part:
 - Show the hidden 14: 4 (3 Tabs + Space).
 
 **What confused or slowed me:**
+
 - After the sample opened, focus fell to the page and my next Tab started at the main menu
   again. I had to walk the whole header and left panel a second time.
 - No shortcut for the right-hand panel or for Style. The toolbar prints "Analyze Shift+A", which

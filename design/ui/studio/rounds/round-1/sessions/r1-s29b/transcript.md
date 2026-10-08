@@ -159,18 +159,18 @@ means in English -- it's a score, higher is more."
 - Finished? Yes, I think so. The dots are sized and colored by the same thing.
 - How hard (1 = very easy, 7 = very hard): 4.
 - What confused me:
-  - The list of analyses was all names I don't know. I only got past it because one said "Start
-    here".
-  - I asked for PageRank and everything after that called it "Influence". I assumed it was the
-    same thing.
-  - Running it colored the dots but did not size them. The task said bigger, so I had to go
-    looking.
-  - Size is hidden under "Shape". I would not have guessed that if I hadn't tried the plus.
-  - The arrow on the Size box opened an empty list. That was a dead end; the chain-link icon was
-    the one that worked, and nothing tells you that.
-  - No names on the dots. The list on the right says Medici is top, but I can't show which dot is
-    the Medici without pointing.
-  - The legend box covers the top-left dot.
-  - What the number 0.1458 means in plain words: nothing on screen told me.
-  - Color and size now say the same thing twice. Fine by me, but I'd ask her whether that's what
-    she meant.
+    - The list of analyses was all names I don't know. I only got past it because one said "Start
+      here".
+    - I asked for PageRank and everything after that called it "Influence". I assumed it was the
+      same thing.
+    - Running it colored the dots but did not size them. The task said bigger, so I had to go
+      looking.
+    - Size is hidden under "Shape". I would not have guessed that if I hadn't tried the plus.
+    - The arrow on the Size box opened an empty list. That was a dead end; the chain-link icon was
+      the one that worked, and nothing tells you that.
+    - No names on the dots. The list on the right says Medici is top, but I can't show which dot is
+      the Medici without pointing.
+    - The legend box covers the top-left dot.
+    - What the number 0.1458 means in plain words: nothing on screen told me.
+    - Color and size now say the same thing twice. Fine by me, but I'd ask her whether that's what
+      she meant.

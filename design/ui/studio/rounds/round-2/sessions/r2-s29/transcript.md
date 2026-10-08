@@ -7,6 +7,7 @@ the dot. Then say what the sizes and the colors now stand for.
 Commands run from design/ui/studio with S=rounds/round-2/sessions/r2-s29.
 
 ## Step 1 -- start
+
 `node tool/real.mjs --start $S empty` -> 01.png
 
 What I see: a dark start page. "Open project or file", "New from data", and on the right "Samples" with
@@ -15,11 +16,13 @@ Les Miserables (77 characters) at the top. A box at the bottom asks about usage 
 no data of my own today anyway. I'll say no thanks to the usage data first, then open Les Miserables.
 
 ## Step 2 -- No thanks
+
 `node tool/real.mjs --step $S --click "No thanks"` -> 02.png
 
 The usage box should be gone. Next I click the Les Miserables sample, the biggest obvious thing for this task.
 
 ## Step 3 -- open the sample
+
 `node tool/real.mjs --step $S --click "Les Miserables"` -> 03.png
 
 What I see: a picture of blue dots and grey lines, all the same blue, all about the same size, no names on
@@ -29,6 +32,7 @@ of the picture. "The network depends on most" -- I suppose that's something it h
 the flask, since the page itself points me there.
 
 ## Step 4 -- the flask
+
 `node tool/real.mjs --step $S --click "Analyze"` -> 04.png
 
 What I see: a list headed "Rank nodes and edges": Degree, Betweenness, Edge betweenness, Closeness, PageRank,
@@ -39,6 +43,7 @@ here" -- PageRank. I'm not going to compare nine of these. I'll take the one the
 I can't tell, and "Start here" is what my eye goes to.)
 
 ## Step 5 -- PageRank
+
 `node tool/real.mjs --step $S --click "PageRank"` -> 05.png
 
 What I see: a small box "PageRank" asking "Damping factor 0.85" and "Weight: None", an "Advanced" fold, and
@@ -46,6 +51,7 @@ a blue "Run" button with "Under a second". I don't know what damping factor is a
 everything as it is and press Run -- it's the blue button.
 
 ## Step 6 -- Run
+
 `node tool/real.mjs --step $S --click "Run"` -> 06.png
 
 What I see: every dot went from blue to orange. A box top left says "Color: Influence" with a bar from
@@ -56,6 +62,7 @@ that's the same thing?). But I was asked for bigger dots, and nothing got bigger
 row on the left to see what it offers.
 
 ## Step 7 -- the Influence row
+
 `node tool/real.mjs --step $S --click "Influence"` -> 07.png
 
 What I see: the right side changed to "Influence", "Measure from Influence, Oct 6", a Style tab with Nodes /
@@ -64,11 +71,13 @@ Edges, then Fill (+), Color: Influence (-), Shape (+), Effects (+), Label (+), T
 "Shape". I'll press the + next to Shape.
 
 ## Step 8 -- + next to Shape
+
 `node tool/real.mjs --step $S --click-at 1419,234` -> 08.png ("Add to Shape")
 
 What I see: a little menu with "Size" and "Shape". There it is -- Size was hiding under Shape. I'll click Size.
 
 ## Step 9 -- Size
+
 `node tool/real.mjs --step $S --click "Size"` -> 09.png
 
 What I see: a new row "Size" with a box saying "1", a little chain-link symbol, and a minus. The dots didn't
@@ -78,6 +87,7 @@ try it -- hoping it hooks the size to Influence the way color is. (Hesitation: I
 means here; I'm a bit worried it links something to her file.)
 
 ## Step 10 -- the chain symbol
+
 `node tool/real.mjs --step $S --click-at 1380,264` -> 10.png ("Size by attribute")
 
 What I see: a box "Size by attribute" with a list: Influence, Influence rank, Influence percentile; and greyed
@@ -86,6 +96,7 @@ was. "Attribute" isn't my word, but "Influence" is right there and it's what the
 "Influence".
 
 ## Step 11 -- Influence for size
+
 `node tool/real.mjs --step $S --click "Influence#2"` -> 11.png
 
 What I see: now the dots are different sizes. One big dark-brown dot in the middle, a fairly big one at the
@@ -95,6 +106,7 @@ says "1 to 3". So the bigger-dots part is done. But nothing tells me who the big
 names. I'll click the big middle dot to see who it is.
 
 ## Step 12 -- the big dot
+
 `node tool/real.mjs --step $S --click-at 768,447` -> 12.png (node "Valjean")
 
 What I see: the big dot lit up yellow and the right side says "Valjean", Node, and under Results: "Influence
@@ -103,6 +115,7 @@ remember of the book, which makes me trust it a little. "#1 of 77" is the part I
 meeting. I think I'm done.
 
 ## End
+
 `node tool/real.mjs --end $S`
 
 ## In my own words, at the end
@@ -121,6 +134,7 @@ what a 0.07 is. I'd say "bigger and darker means more central, Valjean is top".
 **How easy: 4 out of 7.** The middle bit was fine once I found it, but two places I was guessing.
 
 **What confused me:**
+
 - The list behind the flask is nine names I don't know (Degree, Betweenness, Closeness, PageRank, Katz,
   HITS...). Nothing says "who the network depends on". I only picked PageRank because it had "Start here" on
   it. I honestly don't know whether Betweenness was the right one instead -- its grey line sounded closer.

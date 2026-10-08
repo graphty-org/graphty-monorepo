@@ -147,6 +147,7 @@ Command: `--end`
 ## In character, at the end
 
 **Did I finish?** Yes, all five parts:
+
 1. On screen: clicked Les Miserables under Samples.
 2. Who matters most: Analyze (the flask), PageRank (it said "Start here"), Run. The program calls the result "Influence".
 3. Bigger dots: clicked the Influence row, then + next to Shape, Size, the chain icon ("Size by attribute"), Influence.
@@ -160,6 +161,7 @@ Command: `--end`
 What made it easy: the hint at the bottom left pointing at the flask; "Start here" on PageRank so I didn't have to choose among words like Katz and HITS; the color came on by itself with a key; "Local only" and "nothing is uploaded" on the export; the export key is large and clear.
 
 What confused me or slowed me down:
+
 - Size is hidden under "Shape". I scanned the panel for the word "Size" and didn't find it; I guessed Shape and got lucky. A ball's size isn't its shape.
 - After adding Size it just showed "1" -- a fixed number -- and the way to tie it to Influence is a small chain icon with no words. I only found it by hovering. "Size by attribute" is computer talk.
 - The oranges are hard to tell apart for me (light orange to dark brown-orange). Size did the real work; color mostly just doubled it.

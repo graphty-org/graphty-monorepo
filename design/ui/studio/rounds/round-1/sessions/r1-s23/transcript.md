@@ -127,18 +127,18 @@ Tornabuoni.
   part was the problem: I opened the sample without seeing where I was.
 - **Total:** about 27 key actions; about a third were spent finding focus or on dead ends.
 - **What confused me:**
-  1. The sample cards on the start page (and the stops just after "New from data") show no focus
-     ring. I pressed Tab and Shift+Tab ten times without seeing focus and opened the sample by
-     pressing Enter blind.
-  2. After the graph opened, focus started in the bottom toolbar, past the find box, and the next
-     Tab jumped to the right panel, so the find box was behind me.
-  3. Nothing on screen says how to get to Find from the keyboard until you open the Ctrl+K
-     palette, and Ctrl+K itself is not shown anywhere I saw. Ctrl+F did nothing.
-  4. The palette search does not find nodes; typing a name there gives "No results" with no
-     pointer to Find.
-  5. After closing the palette, focus went to the toolbar's command button, not back where I
-     was.
-  6. Pressing Enter on the Degree row is what lists the connections. It worked, but I found it by
-     guessing; nothing told me the row could be opened.
+    1. The sample cards on the start page (and the stops just after "New from data") show no focus
+       ring. I pressed Tab and Shift+Tab ten times without seeing focus and opened the sample by
+       pressing Enter blind.
+    2. After the graph opened, focus started in the bottom toolbar, past the find box, and the next
+       Tab jumped to the right panel, so the find box was behind me.
+    3. Nothing on screen says how to get to Find from the keyboard until you open the Ctrl+K
+       palette, and Ctrl+K itself is not shown anywhere I saw. Ctrl+F did nothing.
+    4. The palette search does not find nodes; typing a name there gives "No results" with no
+       pointer to Find.
+    5. After closing the palette, focus went to the toolbar's command button, not back where I
+       was.
+    6. Pressing Enter on the Degree row is what lists the connections. It worked, but I found it by
+       guessing; nothing told me the row could be opened.
 - **What worked well:** '/' to Find with a clear ring, ArrowDown and Enter in the results, and
   the neighbor list with names and a count in one place.

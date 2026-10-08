@@ -96,6 +96,7 @@ want, but I can't click it and nothing tells me why.
 **21.png -- `--key Escape --click-at 753,252`.** I gave up on getting a list and started clicking
 the balls that had been yellow, one at a time, reading the name at the top of the right panel
 each time.
+
 - 21.png: **Salviati** (Degree 2)
 - 22.png, `--click-at 571,357`: **Acciaiuoli** (Degree 1)
 - 23.png, `--click-at 697,416`: **Tornabuoni** (Degree 3)

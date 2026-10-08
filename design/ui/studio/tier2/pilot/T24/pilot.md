@@ -65,13 +65,13 @@ and Ivan (`rewalk/A/02.png` to `04.png`); B "Station -> Stadium", minutes 4, the
 Stadium ringed (`rewalk/B/02.png` to `04.png`). The pilot's click points still hit the same lines
 (`edge with id "13"`, `"15"`).
 
-| Earlier observation | Now |
-|---|---|
-| "2 nodes, 0 edges" beside "Edges among them 1" | Header "2 nodes selected"; Summary Nodes 2, "Edges joining these nodes 1" (`rewalk/A/04.png`) |
-| Frame selection disabled with an edge selected | Enabled in the edge's menu, with its F shortcut (`rewalk/A/03.png`) |
-| Find results wrote "--" where the inspector wrote "->" | "School -> Stadium", "Stadium -> Harbor", "Station -> Stadium" (`rewalk/B/05.png`) |
-| The selected line was drawn dark | A gold band (`rewalk/A/02.png`) |
-| The tool missed the find box by its placeholder | `--click "Find nodes, edges, values"` works (`rewalk/B/05.png`) |
+| Earlier observation                                    | Now                                                                                           |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| "2 nodes, 0 edges" beside "Edges among them 1"         | Header "2 nodes selected"; Summary Nodes 2, "Edges joining these nodes 1" (`rewalk/A/04.png`) |
+| Frame selection disabled with an edge selected         | Enabled in the edge's menu, with its F shortcut (`rewalk/A/03.png`)                           |
+| Find results wrote "--" where the inspector wrote "->" | "School -> Stadium", "Stadium -> Harbor", "Station -> Stadium" (`rewalk/B/05.png`)            |
+| The selected line was drawn dark                       | A gold band (`rewalk/A/02.png`)                                                               |
+| The tool missed the find box by its placeholder        | `--click "Find nodes, edges, values"` works (`rewalk/B/05.png`)                               |
 
 The answer key's "2 nodes, 0 edges" wording is out of date: the header reads "2 nodes selected".
 

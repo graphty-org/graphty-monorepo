@@ -21,21 +21,21 @@ two problems below).
 
 ## Steps walked (A)
 
-| Step | Screenshot | What the screen shows |
-| --- | --- | --- |
-| start, empty | `01.png` | Start screen with the samples list and the usage-data consent card |
-| `--click "No thanks"` | `02.png` | Consent card gone |
-| `--click "Les Miserables"` | `03.png` | 77 nodes, 254 edges drawn; the Graph overview is on the right |
-| `--key /` | `04.png` | The find box has focus |
-| `--type Javert` | `05.png` | Under Elements: "Javert"; under Values: "Select where name is Javert (1)" |
-| `--key ArrowDown` | `06.png` | The Javert row is highlighted |
-| `--key Enter` | `07.png` | Javert selected and ringed; Values tab shows id, name, Degree 17. The find box keeps focus |
-| `--hover "Degree"` | `08.png` | No tooltip (`tooltip: null`) |
-| `--click "Degree"` | `09.png` | End state: the neighbor list, 17 names, Selection 18 |
-| `--click "Valjean"` (in the list) | `10.png` | Valjean selected, Degree 36. Clicking a name works |
-| `--key Escape` | `11.png` | Find box cleared; focus is still in it |
-| `--key /`, `--type Javert`, `--key ArrowDown`, `--key Enter`, `--key g` | `12.png` | The "g" went into the find box, which now lists Geborand, Gervais, ... The neighborhood command did not run |
-| `--key Escape`, `--key g` | `13.png`, `14.png` | Same: Escape clears the find box but leaves focus there, and "g" is typed again |
+| Step                                                                    | Screenshot         | What the screen shows                                                                                       |
+| ----------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| start, empty                                                            | `01.png`           | Start screen with the samples list and the usage-data consent card                                          |
+| `--click "No thanks"`                                                   | `02.png`           | Consent card gone                                                                                           |
+| `--click "Les Miserables"`                                              | `03.png`           | 77 nodes, 254 edges drawn; the Graph overview is on the right                                               |
+| `--key /`                                                               | `04.png`           | The find box has focus                                                                                      |
+| `--type Javert`                                                         | `05.png`           | Under Elements: "Javert"; under Values: "Select where name is Javert (1)"                                   |
+| `--key ArrowDown`                                                       | `06.png`           | The Javert row is highlighted                                                                               |
+| `--key Enter`                                                           | `07.png`           | Javert selected and ringed; Values tab shows id, name, Degree 17. The find box keeps focus                  |
+| `--hover "Degree"`                                                      | `08.png`           | No tooltip (`tooltip: null`)                                                                                |
+| `--click "Degree"`                                                      | `09.png`           | End state: the neighbor list, 17 names, Selection 18                                                        |
+| `--click "Valjean"` (in the list)                                       | `10.png`           | Valjean selected, Degree 36. Clicking a name works                                                          |
+| `--key Escape`                                                          | `11.png`           | Find box cleared; focus is still in it                                                                      |
+| `--key /`, `--type Javert`, `--key ArrowDown`, `--key Enter`, `--key g` | `12.png`           | The "g" went into the find box, which now lists Geborand, Gervais, ... The neighborhood command did not run |
+| `--key Escape`, `--key g`                                               | `13.png`, `14.png` | Same: Escape clears the find box but leaves focus there, and "g" is typed again                             |
 
 ## Steps walked (B)
 

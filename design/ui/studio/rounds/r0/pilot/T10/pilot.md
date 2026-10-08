@@ -20,16 +20,16 @@ names the selected row once ("Everything", `A/04.png`, `B/04.png`).
 
 ## Steps
 
-| Step | Command | Screenshot | What happened |
-| --- | --- | --- | --- |
-| 1 | `--start empty` | `A/01.png`, `B/01.png` | Start page with the usage card (the two are byte-identical). |
-| 2 | `--click "No thanks"` | `A/02.png`, `B/02.png` | Card gone; footer "Usage data stays off". Not in the key's path; every empty start needs it. |
-| 3 | `--click "Les Miserables"` / `"College football"` | `A/03.png`, `B/03.png` | Sample drawn with no names, as the prompt says. Inspector on Values: 77 / 254 and 115 / 613. |
-| 4 | `--click "Everything"` | `A/04.png`, `B/04.png` | Everything selected; the inspector switches to Style, Nodes, with a Label section and a "+". |
-| 5 | `--click "Add label line"` | `A/05.png`, `B/05.png` | Line "Pick an attribute" and a list: `id`, `name` (A); `id`, `label`, `value` (B). |
-| 6 | `--click "role=option:name"` / `"role=option:label"` | `A/06.png`, `B/06.png` | Names drawn above the dots; the count statement appears under the line. |
-| 7 | `--hover "77 labels"` (A only) | `A/07.png` | `tooltip: null`: the statement does not explain itself. |
-| 8 | `--wheel 750,450,-1500` | `A/08.png`, `B/07.png` | Byte-identical to the screenshot before: the drawing does not zoom. |
+| Step | Command                                              | Screenshot             | What happened                                                                                |
+| ---- | ---------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------- |
+| 1    | `--start empty`                                      | `A/01.png`, `B/01.png` | Start page with the usage card (the two are byte-identical).                                 |
+| 2    | `--click "No thanks"`                                | `A/02.png`, `B/02.png` | Card gone; footer "Usage data stays off". Not in the key's path; every empty start needs it. |
+| 3    | `--click "Les Miserables"` / `"College football"`    | `A/03.png`, `B/03.png` | Sample drawn with no names, as the prompt says. Inspector on Values: 77 / 254 and 115 / 613. |
+| 4    | `--click "Everything"`                               | `A/04.png`, `B/04.png` | Everything selected; the inspector switches to Style, Nodes, with a Label section and a "+". |
+| 5    | `--click "Add label line"`                           | `A/05.png`, `B/05.png` | Line "Pick an attribute" and a list: `id`, `name` (A); `id`, `label`, `value` (B).           |
+| 6    | `--click "role=option:name"` / `"role=option:label"` | `A/06.png`, `B/06.png` | Names drawn above the dots; the count statement appears under the line.                      |
+| 7    | `--hover "77 labels"` (A only)                       | `A/07.png`             | `tooltip: null`: the statement does not explain itself.                                      |
+| 8    | `--wheel 750,450,-1500`                              | `A/08.png`, `B/07.png` | Byte-identical to the screenshot before: the drawing does not zoom.                          |
 
 ## Blockers
 

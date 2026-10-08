@@ -230,6 +230,7 @@ Command: `node tool/real.mjs --end rounds/round-2/sessions/r2-s03`
 ## End -- in character
 
 **Did I finish?** Yes, all four parts:
+
 1. On screen: 77 nodes, 254 edges -- the 77 characters the sample card promised.
 2. Who matters: Degree ("How many edges each node has"), shown as "Connections", 1 to 36 for all 77.
 3. Bigger dots: Style > Shape > Size, then "Size by attribute" > Connections.
@@ -246,6 +247,7 @@ a fixed '1' until I found the small chain-link icon. Export sits only in the men
 screen says 'picture'."
 
 **What confused me:**
+
 - Size is not its own row; it hides behind the plus by "Shape". After adding it, the dots don't
   change until you find the chain-link "Size by attribute" icon. Making dots bigger "for the ones
   that matter" took three clicks of guessing.

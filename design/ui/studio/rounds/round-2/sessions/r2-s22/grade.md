@@ -20,11 +20,11 @@ the same build. No files were downloaded (the task asks for none).
 
 ## Counts
 
-| | This session | Reference |
-|---|---|---|
-| Steps (real.mjs) | 41 after the start | 6 (pointer path) |
-| Key presses | about 70 (64 keys plus the 6 letters of "Javert") | 27 (keyboard path) |
-| Wrong turns | 3 | -- |
+|                  | This session                                      | Reference          |
+| ---------------- | ------------------------------------------------- | ------------------ |
+| Steps (real.mjs) | 41 after the start                                | 6 (pointer path)   |
+| Key presses      | about 70 (64 keys plus the 6 letters of "Javert") | 27 (keyboard path) |
+| Wrong turns      | 3                                                 | --                 |
 
 Wrong turns:
 
@@ -49,15 +49,15 @@ Severity 0-4 (Nielsen). Build defects were reproduced by `rounds/round-2/repro/r
 (keys only, screen-reader mode, run twice: `run1/` with `run1.log`, `run2/` with `run2.log`); both
 runs behaved the same as the session.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 3 | build-defect | Opening a sample announces "No nodes to draw" and then "Reading Les Miserables", and never announces that the load finished or how much was read. Morgan had to guess when the graph was ready and still did not know its size. Bar 8 asks for one announcement when a load finishes. Also in r2-s07 and r2-s15. | Steps 10-11, 10.png, 11.png. Repro: `run*.log` step 02 shows the two live lines; step 03 (a 5 s wait) prints no further live line; `run*/03.png` shows the graph drawn. |
-| 2 | 2 | build-defect | After Enter on a find result, focus lands on a group named only "Summary values". It does not say whose values they are, and no live region says Javert was selected. Morgan first heard his name 9 steps later, in "Javert's 17 connections". | Step 28, 28.png. Repro: `run*.log` step 06, "focus: group "Summary values"", no live line. |
-| 3 | 2 | build-defect | The drawing takes focus after opening a sample and has no accessible name ("Canvas (no name)"). Also in r2-s01, r2-s07 and r2-s15. | Steps 10-11, 10.png. Repro: `run*.log` steps 02-03. |
-| 4 | 2 | behavior | Nothing tells a screen-reader user that a find box exists or that "/" reaches it. Morgan missed it on a full Tab lap and tried Control+F, which does nothing in the app. | Steps 12-25, 23.png, 24.png, 25.png. One participant; unconfirmed. |
-| 5 | 1 | wording | "Degree 17" is a button with no hint that it opens his connections; Morgan pressed it only because it was the only control in the Summary. She also asked whether "degree" counts characters or chapters on a weighted graph. Related to the "Degree" wording findings in r2-s21. | Steps 29, 36-37, 29.png, 37.png; debrief. |
-| 6 | 1 | accessibility | Typing in Find announces no count of matches; the list opens silently. | Step 26, 26.png; transcript ("no count of matches was spoken"). |
-| 7 | 0 | opinion | The connections list gives names only, not how many chapters each pair shares. The task does not ask for weights. | Step 42, 42.png; debrief. |
+| #   | Sev | Kind          | Problem                                                                                                                                                                                                                                                                                                          | Evidence                                                                                                                                                                |
+| --- | --- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 3   | build-defect  | Opening a sample announces "No nodes to draw" and then "Reading Les Miserables", and never announces that the load finished or how much was read. Morgan had to guess when the graph was ready and still did not know its size. Bar 8 asks for one announcement when a load finishes. Also in r2-s07 and r2-s15. | Steps 10-11, 10.png, 11.png. Repro: `run*.log` step 02 shows the two live lines; step 03 (a 5 s wait) prints no further live line; `run*/03.png` shows the graph drawn. |
+| 2   | 2   | build-defect  | After Enter on a find result, focus lands on a group named only "Summary values". It does not say whose values they are, and no live region says Javert was selected. Morgan first heard his name 9 steps later, in "Javert's 17 connections".                                                                   | Step 28, 28.png. Repro: `run*.log` step 06, "focus: group "Summary values"", no live line.                                                                              |
+| 3   | 2   | build-defect  | The drawing takes focus after opening a sample and has no accessible name ("Canvas (no name)"). Also in r2-s01, r2-s07 and r2-s15.                                                                                                                                                                               | Steps 10-11, 10.png. Repro: `run*.log` steps 02-03.                                                                                                                     |
+| 4   | 2   | behavior      | Nothing tells a screen-reader user that a find box exists or that "/" reaches it. Morgan missed it on a full Tab lap and tried Control+F, which does nothing in the app.                                                                                                                                         | Steps 12-25, 23.png, 24.png, 25.png. One participant; unconfirmed.                                                                                                      |
+| 5   | 1   | wording       | "Degree 17" is a button with no hint that it opens his connections; Morgan pressed it only because it was the only control in the Summary. She also asked whether "degree" counts characters or chapters on a weighted graph. Related to the "Degree" wording findings in r2-s21.                                | Steps 29, 36-37, 29.png, 37.png; debrief.                                                                                                                               |
+| 6   | 1   | accessibility | Typing in Find announces no count of matches; the list opens silently.                                                                                                                                                                                                                                           | Step 26, 26.png; transcript ("no count of matches was spoken").                                                                                                         |
+| 7   | 0   | opinion       | The connections list gives names only, not how many chapters each pair shares. The task does not ask for weights.                                                                                                                                                                                                | Step 42, 42.png; debrief.                                                                                                                                               |
 
 What worked, for the record: the start page's sample buttons have plain names; Enter on a find
 result moved focus into the node's Summary as designed; "Degree 17" followed by Enter moved focus

@@ -151,7 +151,7 @@ const XY = /^\d+,\d+$/;
 // Splits argv into [step, values] pairs; returns { steps } or { refused }
 function parseSteps(list) {
     const steps = [];
-    for (let i = 0; i < list.length; ) {
+    for (let i = 0; i < list.length;) {
         const a = list[i];
         const n = ARITY[a];
         if (n === undefined) return { refused: `unknown step "${a}"; steps: ${Object.keys(ARITY).join(", ")}` };

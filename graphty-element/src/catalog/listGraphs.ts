@@ -52,7 +52,10 @@ function listerFor(type: string): GraphLister | undefined {
     }
 
     const registered = registeredFormatById(type);
-    if (registered === undefined && !FORMAT_DESCRIPTORS.some((descriptor) => descriptor.id === type && descriptor.canImport)) {
+    if (
+        registered === undefined &&
+        !FORMAT_DESCRIPTORS.some((descriptor) => descriptor.id === type && descriptor.canImport)
+    ) {
         throw unknownFormat(type);
     }
 

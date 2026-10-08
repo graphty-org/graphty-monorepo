@@ -1287,9 +1287,7 @@ class Runs implements SessionRunsApi {
             return true;
         }
 
-        return (
-            this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest || this.dataMoved(run)
-        );
+        return this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest || this.dataMoved(run);
     }
 
     /**
@@ -1300,7 +1298,9 @@ class Runs implements SessionRunsApi {
     private dataMoved(run: ManagedRun): boolean {
         const recorded = run.dataDigest;
 
-        return recorded !== undefined && this.options.dataDigest !== undefined && this.options.dataDigest() !== recorded;
+        return (
+            recorded !== undefined && this.options.dataDigest !== undefined && this.options.dataDigest() !== recorded
+        );
     }
 
     /**

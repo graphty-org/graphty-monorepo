@@ -28,12 +28,12 @@ No files were saved, and the task needs none.
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | The drawing shows no names on the nodes after the upload, so Dev cannot tell who is who in his own friendship network. He judges success by the figure and the figure is anonymous. | step 3 `03.png`, step 4 `04.png` |
-| 2 | 2 | wording | In Data > Sources the two table names are cut off ("Node ...", "Edge t...") while the counts beside them are shown in full; the name of the table is the part the reader needs to tell the rows apart. | step 4 `04.png` |
-| 3 | 1 | opinion | The Overview gives counts but says nothing about whether every row arrived; Dev found the rows count only by going to look for proof in the Data place, which he did not know existed. | step 3 `03.png`, step 4 `04.png` |
-| 4 | 1 | opinion | "Direction: Directed" surprised him for a friendship list, which he thinks of as two-way. The file was read as directed with no question asked; correct for the data, but nothing on screen says how to change it. | step 3 `03.png` |
+| #   | Severity | Kind     | Problem                                                                                                                                                                                                            | Evidence                         |
+| --- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| 1   | 2        | behavior | The drawing shows no names on the nodes after the upload, so Dev cannot tell who is who in his own friendship network. He judges success by the figure and the figure is anonymous.                                | step 3 `03.png`, step 4 `04.png` |
+| 2   | 2        | wording  | In Data > Sources the two table names are cut off ("Node ...", "Edge t...") while the counts beside them are shown in full; the name of the table is the part the reader needs to tell the rows apart.             | step 4 `04.png`                  |
+| 3   | 1        | opinion  | The Overview gives counts but says nothing about whether every row arrived; Dev found the rows count only by going to look for proof in the Data place, which he did not know existed.                             | step 3 `03.png`, step 4 `04.png` |
+| 4   | 1        | opinion  | "Direction: Directed" surprised him for a friendship list, which he thinks of as two-way. The file was read as directed with no question asked; correct for the data, but nothing on screen says how to change it. | step 3 `03.png`                  |
 
 None of these is a build defect under the criteria (no crash, dead control, wrong count or
 keyboard block), so no scripted repro was needed. Problems 1 and 2 count toward confirmation as

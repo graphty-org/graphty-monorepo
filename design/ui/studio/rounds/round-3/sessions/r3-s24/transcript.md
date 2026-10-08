@@ -157,10 +157,11 @@ dozen words I don't know. Running it colored everything right away, with a littl
 corner, and Valjean's panel told me "#1 of 77", which is the kind of number I trust.
 
 **Where I hesitated / what confused me:**
+
 - The Analyze list is a wall of jargon (Betweenness, Katz, HITS, Eigenvector...). Without the
   "Start here" tag I'd have guessed or quit. I still don't know if PageRank is the right one for
   "depends on most" -- I just trusted the tag.
-- Running it made the dots *colored*, not *bigger*. I had to figure out on my own that clicking
+- Running it made the dots _colored_, not _bigger_. I had to figure out on my own that clicking
   the new "PageRank" row on the left opens its look on the right.
 - There was no "Size" in that panel. It was hidden under the plus next to "Shape". I only found
   it because Shape was the closest word.

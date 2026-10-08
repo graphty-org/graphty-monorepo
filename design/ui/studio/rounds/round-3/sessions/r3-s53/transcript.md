@@ -41,7 +41,7 @@ Hesitation: "Nodes"/"Edges" are not her words; she guessed from the picture.
 
 Command: `--step --click "From friends.csv"` -> 04.png
 
-Seen: the left panel switched to the Data tab: "friends", Sources: "friends.csv  41 rows, 41
+Seen: the left panel switched to the Data tab: "friends", Sources: "friends.csv 41 rows, 41
 edges"; Attributes: Nodes -> id, Edges -> weight. The drawing did not move.
 
 Elena: "Oh there it is. '41 rows, 41 edges' -- so every row in the sheet became a line. Good,
@@ -68,13 +68,13 @@ Command: `node tool/real.mjs --end rounds/round-3/sessions/r3-s53`
 - **Ease:** 6 out of 7. Dropping the file just worked -- no column picking, it drew right away,
   and the numbers were sitting on the right.
 - **What confused me:**
-  - The counts are called "Nodes" and "Edges". I worked out that nodes are the dots and edges
-    are the lines only by looking at the picture. I'd have said "people" and "connections".
-  - The "nothing was dropped" part was not on the first screen. The right side says Edges 41, but
-    I didn't know my sheet had 41 rows until I clicked the blue "From friends.csv" link -- which I
-    clicked hoping, not knowing -- and found "41 rows, 41 edges" on the Data side, in small grey
-    text. Clicking that file name did nothing, so there is no "all rows read, 0 skipped" sentence
-    anywhere; I'm trusting that 41 = 41 means everything.
-  - The lines have arrows and it says "Directed". Knowing someone goes both ways, so I don't know
-    what an arrow means here. I left it alone.
-  - "Density 0.1079" -- no idea if that's a lot.
+    - The counts are called "Nodes" and "Edges". I worked out that nodes are the dots and edges
+      are the lines only by looking at the picture. I'd have said "people" and "connections".
+    - The "nothing was dropped" part was not on the first screen. The right side says Edges 41, but
+      I didn't know my sheet had 41 rows until I clicked the blue "From friends.csv" link -- which I
+      clicked hoping, not knowing -- and found "41 rows, 41 edges" on the Data side, in small grey
+      text. Clicking that file name did nothing, so there is no "all rows read, 0 skipped" sentence
+      anywhere; I'm trusting that 41 = 41 means everything.
+    - The lines have arrows and it says "Directed". Knowing someone goes both ways, so I don't know
+      what an arrow means here. I left it alone.
+    - "Density 0.1079" -- no idea if that's a lot.

@@ -83,7 +83,7 @@ showed an example value.
 Saw: names appeared above the dots across the drawing: GeorgiaTech, Maryland, Virginia, Arkansas,
 Florida, NewMexicoState, Arizona, California, Stanford, and so on. They are very small, many
 overlap or sit on top of lines, and some are too small to read at all. Under the Label row: "Aa
-Above   Abc label" and the note "115 labels, 14 hidden to avoid overlap".
+Above Abc label" and the note "115 labels, 14 hidden to avoid overlap".
 
 Grace: "Names! Tiny, but they're there. But it says 14 are hidden. The job was every team. A board
 member would ask 'where's our team?' Can I show the hidden ones?"

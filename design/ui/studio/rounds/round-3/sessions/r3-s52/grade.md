@@ -34,11 +34,11 @@ the task itself.
 
 ## Counts
 
-| | This session | Success path (round 3) |
-|---|---|---|
-| Steps | 7 (steps 1-7); success at step 4 | 2 (pointer) / 18 keys (keyboard) |
-| Keys to the refusal | 5 (Tab x3, Enter, the file) | 18 |
-| Wrong turns | 1 | -- |
+|                     | This session                     | Success path (round 3)           |
+| ------------------- | -------------------------------- | -------------------------------- |
+| Steps               | 7 (steps 1-7); success at step 4 | 2 (pointer) / 18 keys (keyboard) |
+| Keys to the refusal | 5 (Tab x3, Enter, the file)      | 18                               |
+| Wrong turns         | 1                                | --                               |
 
 - He never dismissed the usage-data card; it does not trap focus, so Tab reached "Open project or
   file..." in 3 presses instead of the 11 + Enter + 5 of the rehearsed path. Fewer keys, not a
@@ -58,14 +58,14 @@ screen in 08.png and in the browse-mode read at step 5, and he stated it correct
 Only one participant has taken this task so far. Problems 1-3 are build defects confirmed by the
 scripted repro below; the rest are seen in this participant only.
 
-| # | Problem | Severity | Kind | Evidence |
-|---|---|---|---|---|
-| 1 | The refusal is announced twice, word for word, back to back, as two assertive alerts. At screen-reader speed that is a whole sentence repeated, and he wondered "whether two things failed". | 2 | build-defect | step 4 (transcript, two `live: alert (assertive)` lines); repro runs 1 and 2, step 04 |
-| 2 | When the file chooser closes on a refused file, focus falls to the page body: not back on "Open project or file...", not on the message. From there Shift+Tab lands nowhere and Tab restarts at "Main menu", the far end of the page from the message's "Dismiss" button. Already listed in the answer key as a known focus defect after a refused file. | 2 | build-defect | steps 4, 6, 7; 05.png, 07.png, 08.png (focus on "Main menu"); repro runs 1 and 2, steps 04-06 |
-| 3 | The refusal toast is drawn on top of the usage-data card and covers part of its text ("Nothing is collected until you ans we..." is cut off under it). Morgan cannot see it; a sighted user on this screen would. | 1 | build-defect | 05.png, 08.png; repro run1/04.png |
-| 4 | The message sits last in reading order, after the whole start page and the long usage-data paragraph and its two buttons, so a top-down read hears everything else first. | 2 | accessibility | step 5 (browse-mode read); debrief |
-| 5 | "Damaged near line 9" does not say what is wrong there or that the file ends early, so the coworker will ask "line 9 of what?" | 1 | wording | step 4; debrief |
-| 6 | The usage-data paragraph is long and mentions "his Claude Code sessions"; he skips it and will skip it every time it is there. | 1 | wording | step 1; 01.png; debrief |
+| #   | Problem                                                                                                                                                                                                                                                                                                                                                  | Severity | Kind          | Evidence                                                                                      |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------- | --------------------------------------------------------------------------------------------- |
+| 1   | The refusal is announced twice, word for word, back to back, as two assertive alerts. At screen-reader speed that is a whole sentence repeated, and he wondered "whether two things failed".                                                                                                                                                             | 2        | build-defect  | step 4 (transcript, two `live: alert (assertive)` lines); repro runs 1 and 2, step 04         |
+| 2   | When the file chooser closes on a refused file, focus falls to the page body: not back on "Open project or file...", not on the message. From there Shift+Tab lands nowhere and Tab restarts at "Main menu", the far end of the page from the message's "Dismiss" button. Already listed in the answer key as a known focus defect after a refused file. | 2        | build-defect  | steps 4, 6, 7; 05.png, 07.png, 08.png (focus on "Main menu"); repro runs 1 and 2, steps 04-06 |
+| 3   | The refusal toast is drawn on top of the usage-data card and covers part of its text ("Nothing is collected until you ans we..." is cut off under it). Morgan cannot see it; a sighted user on this screen would.                                                                                                                                        | 1        | build-defect  | 05.png, 08.png; repro run1/04.png                                                             |
+| 4   | The message sits last in reading order, after the whole start page and the long usage-data paragraph and its two buttons, so a top-down read hears everything else first.                                                                                                                                                                                | 2        | accessibility | step 5 (browse-mode read); debrief                                                            |
+| 5   | "Damaged near line 9" does not say what is wrong there or that the file ends early, so the coworker will ask "line 9 of what?"                                                                                                                                                                                                                           | 1        | wording       | step 4; debrief                                                                               |
+| 6   | The usage-data paragraph is long and mentions "his Claude Code sessions"; he skips it and will skip it every time it is there.                                                                                                                                                                                                                           | 1        | wording       | step 1; 01.png; debrief                                                                       |
 
 **Repro.** `rounds/round-3/repro/r3-s52/repro.sh` runs the same keyboard path twice in
 screen-reader mode (Tab x3, Enter, choose club-members.graphml, Shift+Tab, Tab) on commit

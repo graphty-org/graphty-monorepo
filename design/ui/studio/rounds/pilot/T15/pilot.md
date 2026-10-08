@@ -14,13 +14,13 @@ preflight item 8, the legend fix (graphty-element issue #133) has not landed in 
 must not be run with participants yet, or must be graded on steps 1-4 plus "an image was
 downloaded".
 
-| Part | Reached | Evidence |
-|---|---|---|
-| 1. Sample drawn | yes | 02.png: 77 nodes, 254 edges |
-| 2. Ranking run from Analyze, finished | yes, with a detour | 05.png (Enter did nothing), 06.png, 07.png |
-| 3. Sizes bound to the result, visibly different | yes | 13.png: Size "1 to 3", legend "Size: Influence" |
-| 4. Label line bound to `name` on Everything, names drawn | yes, but its count line is wrong | 17.png, 18.png |
-| 5. Image downloaded that passes the checklist | no | 19.png, downloaded PNG |
+| Part                                                     | Reached                          | Evidence                                        |
+| -------------------------------------------------------- | -------------------------------- | ----------------------------------------------- |
+| 1. Sample drawn                                          | yes                              | 02.png: 77 nodes, 254 edges                     |
+| 2. Ranking run from Analyze, finished                    | yes, with a detour               | 05.png (Enter did nothing), 06.png, 07.png      |
+| 3. Sizes bound to the result, visibly different          | yes                              | 13.png: Size "1 to 3", legend "Size: Influence" |
+| 4. Label line bound to `name` on Everything, names drawn | yes, but its count line is wrong | 17.png, 18.png                                  |
+| 5. Image downloaded that passes the checklist            | no                               | 19.png, downloaded PNG                          |
 
 ## The path as walked (20 steps to the download)
 

@@ -176,21 +176,10 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmM
     }));
 
     return (
-        <Modal
-            opened={opened}
-            onClose={onClose}
-            title="Run Algorithm"
-            size="md"
-            centered
-        >
+        <Modal opened={opened} onClose={onClose} title="Run Algorithm" size="md" centered>
             <Stack gap="lg">
                 {/* Category Selection */}
-                <Select
-                    label="Category"
-                    value={selectedCategory}
-                    onChange={handleCategoryChange}
-                    data={categoryData}
-                />
+                <Select label="Category" value={selectedCategory} onChange={handleCategoryChange} data={categoryData} />
 
                 {/* Algorithm Selection */}
                 <Select
@@ -218,10 +207,7 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmM
                 {/* Node Selection Options */}
                 {selectedAlgorithm?.sourceOption && (
                     <>
-                        <Divider
-                            label="Options"
-                            labelPosition="center"
-                        />
+                        <Divider label="Options" labelPosition="center" />
 
                         <Select
                             label={selectedAlgorithm.sourceOption.plainName}
@@ -251,12 +237,7 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmM
                 {algorithmOptions.length > 0 && (
                     <>
                         {/* Show divider only if not already shown by source node section */}
-                        {!selectedAlgorithm?.sourceOption && (
-                            <Divider
-                                label="Options"
-                                labelPosition="center"
-                            />
-                        )}
+                        {!selectedAlgorithm?.sourceOption && <Divider label="Options" labelPosition="center" />}
 
                         <OptionsForm
                             options={algorithmOptions}

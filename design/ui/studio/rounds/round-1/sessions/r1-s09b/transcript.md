@@ -99,15 +99,15 @@ biggest; Hana and Ivan next."
   (Ctrl+O, Shift+A, Ctrl+K, Ctrl+E) are printed where I could learn them. Size and labels cost
   most of my key presses.
 - **What confused or hurt:**
-  1. Focus thrown back to the top-left main menu after choosing from a menu in the Style panel
-     (after adding Size, and again after picking Size's attribute). Twice in one task is my
-     abandon line; I only kept going because Shift+Tab wrapped me back near the panel.
-  2. Tab stops with no visible focus: one between the left list and the bottom bar (the drawing,
-     I think), one in the Style panel, and a thin unexplained blue line on the panel edge.
-  3. No way to find "size" from Ctrl+K. It knows Export and Analyze but not styling.
-  4. "Size" is hidden under "Shape", and "size by a value" is an unlabeled chain icon whose name
-     I only saw once focus landed on it.
-  5. In the PageRank form I could not tell whether Run had focus before pressing Enter.
-  6. Minor: some names overlap at the bottom of the picture (Chloe and Farah, Eli and Dev).
+    1. Focus thrown back to the top-left main menu after choosing from a menu in the Style panel
+       (after adding Size, and again after picking Size's attribute). Twice in one task is my
+       abandon line; I only kept going because Shift+Tab wrapped me back near the panel.
+    2. Tab stops with no visible focus: one between the left list and the bottom bar (the drawing,
+       I think), one in the Style panel, and a thin unexplained blue line on the panel edge.
+    3. No way to find "size" from Ctrl+K. It knows Export and Analyze but not styling.
+    4. "Size" is hidden under "Shape", and "size by a value" is an unlabeled chain icon whose name
+       I only saw once focus landed on it.
+    5. In the PageRank form I could not tell whether Run had focus before pressing Enter.
+    6. Minor: some names overlap at the bottom of the picture (Chloe and Farah, Eli and Dev).
 - **Key presses, roughly:** on screen 2, analysis 4 plus typing, sizes about 25, names about 6,
   picture about 4 plus typing.

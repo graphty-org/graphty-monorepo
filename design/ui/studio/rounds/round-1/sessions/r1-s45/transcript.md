@@ -94,13 +94,13 @@ Command: `--end`.
   color key) and `downloads/les-miserables_nodes.csv` (77 characters, group and group size).
 - **How hard (1-7, 1 = very easy):** 2. About four clicks once I found Export under the menu.
 - **What confused me:**
-  - The yellow "CSV cannot hold everything" box. It reads like an error, it lists things I never
-    asked for, and words like "generic dialect", "importer" and "read back as directed" mean
-    nothing to me. I could not tell whether my numbers were safe until I read the preview under
-    it. A line saying what the file does hold would have been enough.
-  - The column headings in the CSV ("results.louvain.group", "results.louvain.groupSize") are not
-    words I can put in a report as they are; "Louvain" appears nowhere else I looked, while the
-    screen calls them "Communities" and "Group".
-  - Small thing: on the screen the key is a dark box, in the picture it is a white box. Fine, just
-    noticed it.
+    - The yellow "CSV cannot hold everything" box. It reads like an error, it lists things I never
+      asked for, and words like "generic dialect", "importer" and "read back as directed" mean
+      nothing to me. I could not tell whether my numbers were safe until I read the preview under
+      it. A line saying what the file does hold would have been enough.
+    - The column headings in the CSV ("results.louvain.group", "results.louvain.groupSize") are not
+      words I can put in a report as they are; "Louvain" appears nowhere else I looked, while the
+      screen calls them "Communities" and "Group".
+    - Small thing: on the screen the key is a dark box, in the picture it is a white box. Fine, just
+      noticed it.
 - **Export test:** passes. One picture with its key, plus a file I can open in Excel.

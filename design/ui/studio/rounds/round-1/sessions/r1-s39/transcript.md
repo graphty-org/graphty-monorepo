@@ -133,13 +133,13 @@ that the picture didn't change when I picked the group -- I had to trust that ye
 - Did I finish? Yes.
 - How hard (1 = very easy, 7 = very hard): 3. Once I found the beaker it was quick.
 - What confused me:
-  - The bottom icons have no words; I only found Analyze by hovering.
-  - The Analyze list opens on a wall of words I don't know (Betweenness, Katz, HITS). If I hadn't
-    thought to type "group" I'd have been scrolling through it. Louvain is not a word I would have
-    picked without the "Start here" tag.
-  - "Resolution" -- no idea what it does, so I left it alone.
-  - The dots never had names, so I couldn't read the characters off the picture; only the side
-    list told me who was in the group, and it showed "First 10" of 20.
-  - Clicking Group 1 didn't highlight its members on the picture; Valjean stayed selected instead.
-  - The bottom-left line "Analyze (Shift+A) to add results here" was on screen the whole time and I
-    never read it.
+    - The bottom icons have no words; I only found Analyze by hovering.
+    - The Analyze list opens on a wall of words I don't know (Betweenness, Katz, HITS). If I hadn't
+      thought to type "group" I'd have been scrolling through it. Louvain is not a word I would have
+      picked without the "Start here" tag.
+    - "Resolution" -- no idea what it does, so I left it alone.
+    - The dots never had names, so I couldn't read the characters off the picture; only the side
+      list told me who was in the group, and it showed "First 10" of 20.
+    - Clicking Group 1 didn't highlight its members on the picture; Valjean stayed selected instead.
+    - The bottom-left line "Analyze (Shift+A) to add results here" was on screen the whole time and I
+      never read it.

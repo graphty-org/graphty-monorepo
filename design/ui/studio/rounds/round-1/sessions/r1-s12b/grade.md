@@ -4,7 +4,7 @@
 screenshot and in the transcript:
 
 - A label line bound to `name` sits on the Everything row, so it covers all 77 nodes (`11.png`:
-  "Aa Above  Abc name").
+  "Aa Above Abc name").
 - Character names are drawn on the canvas (Blacheville, Fameuil, Myriel, Napoleon and others in
   `07.png` and `11.png`).
 - Dev read the count statement "77 labels, 7 hidden to avoid overlap" (step 7, `07.png`) and said
@@ -33,15 +33,15 @@ where there are none, and only found them by guessing "Everything".
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | build-defect | Turning the mouse wheel over the drawing does not zoom. The screenshots before and after are pixel-identical, at delta -500 and at -1500. graphty-element's 3D orbit camera handles pinch and keyboard zoom but has no mouse-wheel handler (`graphty-element/src/cameras/OrbitInputController.ts`; only the 2D controller listens for the wheel). Dev wanted to zoom in to read the crowded names and could not. | step 10, `10.png` vs `11.png`; repro below |
-| 2 | 2 | behavior | Node label settings are not on the graph's Style tab, which shows only the canvas background and the layout. Nothing points to "Everything" as the place for node settings; Dev found it by guessing. | step 4 `04.png`, step 5 `05.png` |
-| 3 | 2 | behavior | "77 labels, 7 hidden to avoid overlap" says names are missing but offers no way to see them: it is plain text, not a control, with no tooltip. Dev tried to click it. | step 9 `09.png`, `10.png` |
-| 4 | 1 | behavior | The "Aa" button next to the label line looks like the label's settings (size, show all) but only picks the label position. | step 8 `08.png` |
-| 5 | 1 | opinion | The names are drawn very small and pile up in the crowded center, so many cannot be read. | `07.png`, `11.png` |
-| 6 | 1 | opinion | The count statement is tiny gray text, easy to miss. | `07.png` |
-| 7 | 1 | opinion | The bottom toolbar is icons only; Dev never knew what they did and did not try them. | step 3 `03.png` |
+| #   | Severity | Kind         | Problem                                                                                                                                                                                                                                                                                                                                                                                                          | Evidence                                   |
+| --- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 1   | 2        | build-defect | Turning the mouse wheel over the drawing does not zoom. The screenshots before and after are pixel-identical, at delta -500 and at -1500. graphty-element's 3D orbit camera handles pinch and keyboard zoom but has no mouse-wheel handler (`graphty-element/src/cameras/OrbitInputController.ts`; only the 2D controller listens for the wheel). Dev wanted to zoom in to read the crowded names and could not. | step 10, `10.png` vs `11.png`; repro below |
+| 2   | 2        | behavior     | Node label settings are not on the graph's Style tab, which shows only the canvas background and the layout. Nothing points to "Everything" as the place for node settings; Dev found it by guessing.                                                                                                                                                                                                            | step 4 `04.png`, step 5 `05.png`           |
+| 3   | 2        | behavior     | "77 labels, 7 hidden to avoid overlap" says names are missing but offers no way to see them: it is plain text, not a control, with no tooltip. Dev tried to click it.                                                                                                                                                                                                                                            | step 9 `09.png`, `10.png`                  |
+| 4   | 1        | behavior     | The "Aa" button next to the label line looks like the label's settings (size, show all) but only picks the label position.                                                                                                                                                                                                                                                                                       | step 8 `08.png`                            |
+| 5   | 1        | opinion      | The names are drawn very small and pile up in the crowded center, so many cannot be read.                                                                                                                                                                                                                                                                                                                        | `07.png`, `11.png`                         |
+| 6   | 1        | opinion      | The count statement is tiny gray text, easy to miss.                                                                                                                                                                                                                                                                                                                                                             | `07.png`                                   |
+| 7   | 1        | opinion      | The bottom toolbar is icons only; Dev never knew what they did and did not try them.                                                                                                                                                                                                                                                                                                                             | step 3 `03.png`                            |
 
 ## Repro of problem 1
 

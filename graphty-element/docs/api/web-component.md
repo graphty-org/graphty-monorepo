@@ -129,9 +129,9 @@ The Web Component provides these methods for imperative control:
 
 ### Export
 
-| Method                          | Parameters                       | Returns                 | Description                                                                                               |
-| ------------------------------- | -------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| `exportGraph(format, options?)` | `FormatId`, `ExportGraphOptions` | `Promise<ExportResult>` | Write the graph in a format with `canExport: true`; the result holds the loss notes, `text()` and `bytes` |
+| Method                            | Parameters                                       | Returns                 | Description                                                                                                                         |
+| --------------------------------- | ------------------------------------------------ | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `exportGraph(format, options?)`   | `FormatId`, `ExportGraphOptions`                 | `Promise<ExportResult>` | Write the graph in a format with `canExport: true`; the result holds the loss notes, `text()` and `bytes`                           |
 | `downloadGraph(format, options?)` | `FormatId`, `ExportGraphOptions & { fileName? }` | `Promise<ExportResult>` | Export and download the file as `<project name><extension>`; `"graphty"` downloads a project copy and never changes `project.dirty` |
 
 ### Graph Access

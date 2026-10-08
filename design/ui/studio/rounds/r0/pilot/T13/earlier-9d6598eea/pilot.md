@@ -21,16 +21,16 @@ graphty@0.8.53, no uncommitted changes, opened at `/?next`, 1440 x 900 (from `se
 Setup file: `setup.txt` (the setup in `tasks.md`: No thanks, Les Miserables sample, Shift+A, type
 Louvain, click Louvain, Run). It ran whole.
 
-| Step | Command | Screenshot | What the screen shows |
-|---|---|---|---|
-| start | setup | `01.png` | 77 characters in 6 colors; a "Color: Communities" key on the canvas (Group 1 to Group 6); the Communities list 20, 17, 11, 11, 10, 8. Edges drawn without arrowheads; Overview says Undirected. |
-| 1 | `--key Control+e` | `02.png` | Export dialog on Image: PNG, 2x (1806 x 1720), Current view. The preview shows the key at the top left. No "legend is not in the image" notice any more. |
-| 2 | `--click role=tab:Image` | `03.png` | No change (Image already chosen). |
-| 3 | `--click role=button:Export` | `04.png` | Saved `downloads/les-miserables_current-view.png`, 1806 x 1720. Toast "Exported les-miserables_current-view.png". |
-| 4 | `--key Control+e` | `05.png` | Dialog reopens on Image. |
-| 5 | `--click role=tab:Data` | `06.png` | Data page: CSV, Nodes; preview `id,name,results.louvain.group,results.louvain.groupSize`, `Napoleon,Napoleon,6,8`, `MlleBaptistine,Mlle Baptistine,1,20`. |
-| 6 | `--click role=button:Export` | `07.png` | Saved `downloads/les-miserables_nodes.csv`, 1,956 bytes. Toast "Exported les-miserables_nodes.csv". |
-| idle | `--wait 3000` twice | `08.png`, `09.png` | Identical to `07.png`: the drawing did not move or turn. |
+| Step  | Command                      | Screenshot         | What the screen shows                                                                                                                                                                           |
+| ----- | ---------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| start | setup                        | `01.png`           | 77 characters in 6 colors; a "Color: Communities" key on the canvas (Group 1 to Group 6); the Communities list 20, 17, 11, 11, 10, 8. Edges drawn without arrowheads; Overview says Undirected. |
+| 1     | `--key Control+e`            | `02.png`           | Export dialog on Image: PNG, 2x (1806 x 1720), Current view. The preview shows the key at the top left. No "legend is not in the image" notice any more.                                        |
+| 2     | `--click role=tab:Image`     | `03.png`           | No change (Image already chosen).                                                                                                                                                               |
+| 3     | `--click role=button:Export` | `04.png`           | Saved `downloads/les-miserables_current-view.png`, 1806 x 1720. Toast "Exported les-miserables_current-view.png".                                                                               |
+| 4     | `--key Control+e`            | `05.png`           | Dialog reopens on Image.                                                                                                                                                                        |
+| 5     | `--click role=tab:Data`      | `06.png`           | Data page: CSV, Nodes; preview `id,name,results.louvain.group,results.louvain.groupSize`, `Napoleon,Napoleon,6,8`, `MlleBaptistine,Mlle Baptistine,1,20`.                                       |
+| 6     | `--click role=button:Export` | `07.png`           | Saved `downloads/les-miserables_nodes.csv`, 1,956 bytes. Toast "Exported les-miserables_nodes.csv".                                                                                             |
+| idle  | `--wait 3000` twice          | `08.png`, `09.png` | Identical to `07.png`: the drawing did not move or turn.                                                                                                                                        |
 
 ## The downloads against the picture checklist
 

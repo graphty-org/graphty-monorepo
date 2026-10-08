@@ -20,20 +20,20 @@ that says so is hidden behind the Layout popover until the popover closes.
 
 ## Steps
 
-| Step | Command | Screenshot | What it shows |
-| ---- | ------- | ---------- | ------------- |
-| 1 | `--start ... empty` | 01.png | Start screen; Les Miserables under Samples, "77 characters"; usage-data card |
-| 2 | `--click "No thanks"` | 02.png | Card gone; footer "Usage data stays off. Change this in Settings > Privacy" |
-| 3 | `--click "Les Miserables"` | 03.png | The default "Force - Recommended" drawing: a knot top left, a group to the right, a fan of leaves at the bottom |
-| 4 | `--click "Layout"` | 04.png | Layout popover above the bottom toolbar: Method "Force - Recommended", Seed 1 with a clear "x" |
-| 5 | `--click "Method"` | 05.png | Method list: Force - Recommended, Force flat, Circle, Grid, Spiral, Spectral, No crossings, Random, Keep positions |
-| 6 | `--click "Spectral"` | 06.png | Nearly every node in one clump at the bottom right, partly behind the toolbar; two nodes strung up a long line to the top edge, one off to the left. Seed field gone |
-| 7 | `--click "Method" --click "Force, flat"` | 07.png | An even disk of nodes filling the canvas, long crossing edges, no groups; Seed 1 |
-| 8 | `--click "Method" --click "No crossings"` | 08.png | Nothing changed: Method still "Force, flat". A close button ("x") pokes out to the right of the popover at about 852,811 |
-| 9 | `--wait 3000` | 09.png | Same drawing; the stray "x" is gone, so the hidden notice closed on its own |
-| 10 | `--click "Method" --click "No crossings" --key Escape` | 10.png | With the popover closed the notice reads "The layout could not be changed", with no reason |
-| 11 | `--click "Layout" --click "Method" --click "Circle"` | 11.png | Not a ring: nodes scattered through a disk with sizes varying by depth (the 3D view lays a circle out on a sphere); no groups |
-| 12 | `--click "Method" --click "Force - Recommended"` | 12.png | Exactly the drawing of 03.png: the default is reproducible with seed 1 |
+| Step | Command                                                | Screenshot | What it shows                                                                                                                                                        |
+| ---- | ------------------------------------------------------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `--start ... empty`                                    | 01.png     | Start screen; Les Miserables under Samples, "77 characters"; usage-data card                                                                                         |
+| 2    | `--click "No thanks"`                                  | 02.png     | Card gone; footer "Usage data stays off. Change this in Settings > Privacy"                                                                                          |
+| 3    | `--click "Les Miserables"`                             | 03.png     | The default "Force - Recommended" drawing: a knot top left, a group to the right, a fan of leaves at the bottom                                                      |
+| 4    | `--click "Layout"`                                     | 04.png     | Layout popover above the bottom toolbar: Method "Force - Recommended", Seed 1 with a clear "x"                                                                       |
+| 5    | `--click "Method"`                                     | 05.png     | Method list: Force - Recommended, Force flat, Circle, Grid, Spiral, Spectral, No crossings, Random, Keep positions                                                   |
+| 6    | `--click "Spectral"`                                   | 06.png     | Nearly every node in one clump at the bottom right, partly behind the toolbar; two nodes strung up a long line to the top edge, one off to the left. Seed field gone |
+| 7    | `--click "Method" --click "Force, flat"`               | 07.png     | An even disk of nodes filling the canvas, long crossing edges, no groups; Seed 1                                                                                     |
+| 8    | `--click "Method" --click "No crossings"`              | 08.png     | Nothing changed: Method still "Force, flat". A close button ("x") pokes out to the right of the popover at about 852,811                                             |
+| 9    | `--wait 3000`                                          | 09.png     | Same drawing; the stray "x" is gone, so the hidden notice closed on its own                                                                                          |
+| 10   | `--click "Method" --click "No crossings" --key Escape` | 10.png     | With the popover closed the notice reads "The layout could not be changed", with no reason                                                                           |
+| 11   | `--click "Layout" --click "Method" --click "Circle"`   | 11.png     | Not a ring: nodes scattered through a disk with sizes varying by depth (the 3D view lays a circle out on a sphere); no groups                                        |
+| 12   | `--click "Method" --click "Force - Recommended"`       | 12.png     | Exactly the drawing of 03.png: the default is reproducible with seed 1                                                                                               |
 
 ## Blockers and findings
 

@@ -44,16 +44,16 @@ No downloads were expected for this task and none were saved.
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 3 | build-defect | The Size field's "Open list" arrow opens an empty list. A control that does nothing; it sent her to a dead end. Already reproduced as a scripted path in `rounds/round-1/repro/r1-s27b/run.sh`, so confirmed. | step 12 `12.png` |
-| 2 | 2 | behavior | Sizing by a value is behind an unlabeled chain-link icon whose purpose shows only on hover ("Size by attribute"). | step 13 `13.png`, step 14 `14.png` |
-| 3 | 2 | behavior | No "Size" line on the Style tab; size is reached through "+" beside Shape. She had to guess the section. | step 9 `09.png`, step 10 `10.png` |
-| 4 | 2 | behavior | The Graph row's Style tab offers nothing about dots (background, layout Method, Seed), so the obvious first place for "bigger dots" is a dead end. | step 4 `04.png` |
-| 5 | 2 | behavior | Hovering a dot shows no name, so she could not check the biggest dots against the Top 10. | step 16 `16.png`, `17.png` |
-| 6 | 1 | wording | The run is picked as "PageRank" and then named "Influence"; she was unsure they were the same. | step 7 `07.png` |
-| 7 | 1 | wording | The Analyze list is jargon to a newcomer; she could not map "depends on most" to a method and relied on the "Start here" tag. | step 5 `05.png` |
-| 8 | 1 | opinion | Running PageRank colored the dots but did not size them, and the orange shades barely differ. | step 7 `07.png` |
-| 9 | 1 | wording | Three scales for one thing: key 0.003299 to 0.07543, Size line "1 to 3", and raw decimals with no words for what they mean. | `15.png`, `17.png` |
-| 10 | 1 | wording | "Size by attribute": "attribute" is not her word. | step 13 `13.png` |
-| 11 | 1 | behavior | The flask (Analyze) button in the toolbar has no visible label; she found it only through the outline's hint. | step 5 `05.png` |
+| #   | Severity | Kind         | Problem                                                                                                                                                                                                       | Evidence                           |
+| --- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| 1   | 3        | build-defect | The Size field's "Open list" arrow opens an empty list. A control that does nothing; it sent her to a dead end. Already reproduced as a scripted path in `rounds/round-1/repro/r1-s27b/run.sh`, so confirmed. | step 12 `12.png`                   |
+| 2   | 2        | behavior     | Sizing by a value is behind an unlabeled chain-link icon whose purpose shows only on hover ("Size by attribute").                                                                                             | step 13 `13.png`, step 14 `14.png` |
+| 3   | 2        | behavior     | No "Size" line on the Style tab; size is reached through "+" beside Shape. She had to guess the section.                                                                                                      | step 9 `09.png`, step 10 `10.png`  |
+| 4   | 2        | behavior     | The Graph row's Style tab offers nothing about dots (background, layout Method, Seed), so the obvious first place for "bigger dots" is a dead end.                                                            | step 4 `04.png`                    |
+| 5   | 2        | behavior     | Hovering a dot shows no name, so she could not check the biggest dots against the Top 10.                                                                                                                     | step 16 `16.png`, `17.png`         |
+| 6   | 1        | wording      | The run is picked as "PageRank" and then named "Influence"; she was unsure they were the same.                                                                                                                | step 7 `07.png`                    |
+| 7   | 1        | wording      | The Analyze list is jargon to a newcomer; she could not map "depends on most" to a method and relied on the "Start here" tag.                                                                                 | step 5 `05.png`                    |
+| 8   | 1        | opinion      | Running PageRank colored the dots but did not size them, and the orange shades barely differ.                                                                                                                 | step 7 `07.png`                    |
+| 9   | 1        | wording      | Three scales for one thing: key 0.003299 to 0.07543, Size line "1 to 3", and raw decimals with no words for what they mean.                                                                                   | `15.png`, `17.png`                 |
+| 10  | 1        | wording      | "Size by attribute": "attribute" is not her word.                                                                                                                                                             | step 13 `13.png`                   |
+| 11  | 1        | behavior     | The flask (Analyze) button in the toolbar has no visible label; she found it only through the outline's hint.                                                                                                 | step 5 `05.png`                    |

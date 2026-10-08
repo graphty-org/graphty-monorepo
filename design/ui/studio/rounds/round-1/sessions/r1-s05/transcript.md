@@ -178,14 +178,14 @@ Marius 376, Fantine 370."
   with key exported.
 - **How hard (1 = very easy, 7 = very hard)?** 2.
 - **What took longest / confused me:**
-  - I picked "Betweenness" and everything afterward called it "Bridges" -- the left list, the key,
-    the "Made with" line, the exported picture. Nowhere does it say Bridges = betweenness. That's
-    the label that goes in front of my director.
-  - Size isn't a heading of its own; I had to guess it's under "Shape" and then find the chain
-    icon ("Size by attribute") by hovering. Once I knew, it was quick.
-  - The orange-to-dark-brown color scale is hard to read except at the top end; almost everyone
-    looks the same orange. Size does the real work.
-  - Labels are tiny and Valjean's name sits on top of his own ball, hard to read in the picture.
+    - I picked "Betweenness" and everything afterward called it "Bridges" -- the left list, the key,
+      the "Made with" line, the exported picture. Nowhere does it say Bridges = betweenness. That's
+      the label that goes in front of my director.
+    - Size isn't a heading of its own; I had to guess it's under "Shape" and then find the chain
+      icon ("Size by attribute") by hovering. Once I knew, it was quick.
+    - The orange-to-dark-brown color scale is hard to read except at the top end; almost everyone
+      looks the same orange. Size does the real work.
+    - Labels are tiny and Valjean's name sits on top of his own ball, hard to read in the picture.
 - **What I liked:** "never uploaded" / "Local only" on the start page and in the export dialog;
   counts (77 / 254) shown immediately; "Under a second" before running; a top-10 table whose
   numbers match NetworkX; the result recolored the drawing by itself; it told me 7 labels were

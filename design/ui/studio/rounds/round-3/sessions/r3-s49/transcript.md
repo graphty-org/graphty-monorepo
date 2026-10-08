@@ -121,6 +121,7 @@ Exporting."
 ## Step 9 -- Export the nodes CSV
 
 Commands:
+
 - `--click "button=Export"` -> miss: `nothing on screen is called "button=Export"` (my own wrong
   name syntax in the tool, not the app).
 - `--click "role=button:Export"` -> 10.png; no file was saved and the screen did not change
@@ -147,6 +148,7 @@ my asking -- that's better than Gephi, where I screenshot and paste a legend sep
 half is where I slowed down.
 
 **What confused me or slowed me down:**
+
 - The Data section opens on "Graphty JSON", a project file. When I ask for "the numbers" I want a
   table, and a table is not the default.
 - Three CSV choices (CSV, Gephi CSV, Neo4j CSV) and none says which one is the per-character

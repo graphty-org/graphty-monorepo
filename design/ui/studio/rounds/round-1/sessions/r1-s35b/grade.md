@@ -35,12 +35,12 @@ how a session reaches the 40-minute limit without a step; the session itself too
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 1 | opinion | The refusal appears in a bar at the bottom center of the window, far from the control she clicked at the top left; she says she might miss it on a busy screen. She did not miss it here. (Held one level down as opinion.) | step 2 `02.png` |
-| 2 | 0 | wording | "near line 9" means nothing to her; she passed it on as a detail for the coworker. Not a barrier: the rest of the sentence carried the meaning. | step 2 `02.png` |
-| 3 | 0 | opinion | She wished for a "Copy message" control to forward the text. | end of session |
-| 4 | 0 | behavior | She could not tell whether the message would disappear on its own and waited to check; it stayed for at least 10 seconds. | step 3 `03.png` |
+| #   | Severity | Kind     | Problem                                                                                                                                                                                                                     | Evidence        |
+| --- | -------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| 1   | 1        | opinion  | The refusal appears in a bar at the bottom center of the window, far from the control she clicked at the top left; she says she might miss it on a busy screen. She did not miss it here. (Held one level down as opinion.) | step 2 `02.png` |
+| 2   | 0        | wording  | "near line 9" means nothing to her; she passed it on as a detail for the coworker. Not a barrier: the rest of the sentence carried the meaning.                                                                             | step 2 `02.png` |
+| 3   | 0        | opinion  | She wished for a "Copy message" control to forward the text.                                                                                                                                                                | end of session  |
+| 4   | 0        | behavior | She could not tell whether the message would disappear on its own and waited to check; it stayed for at least 10 seconds.                                                                                                   | step 3 `03.png` |
 
 No problem in this session is a build defect under the criteria (no crash, dead control, wrong
 count or keyboard block), so there is no repro directory for it. Whether the refusal is announced

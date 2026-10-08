@@ -116,13 +116,13 @@ Command: `--end rounds/round-1/sessions/r1-s47b`
 - **How hard was it (1-7, 7 hardest)?** 2. Menu, Save, type a name, done. Coming back, my file
   was right at the top under Recent projects.
 - **What confused me:**
-  - Yesterday "Influence" had a 77 next to it in the left list. After I opened it again the 77 was
-    gone and only the colored bar was there. I thought something had been lost until I clicked it
-    and saw 77 of 77. If I hadn't clicked, I'd have told the PI it was incomplete.
-  - When it reopened, the right side showed a different panel ("Graph, From Les Miserables"
-    with numbers) instead of what I was looking at. Not wrong, just not where I left it.
-  - "Influence" -- I'm told it is which characters matter most. Nothing on the screen said that
-    in plain words; I took it on trust.
-  - The grey line in the save box about choosing where the file goes -- I didn't read it, and
-    I couldn't tell you now where the file actually is on my computer. It found it again, so I
-    didn't need to know today.
+    - Yesterday "Influence" had a 77 next to it in the left list. After I opened it again the 77 was
+      gone and only the colored bar was there. I thought something had been lost until I clicked it
+      and saw 77 of 77. If I hadn't clicked, I'd have told the PI it was incomplete.
+    - When it reopened, the right side showed a different panel ("Graph, From Les Miserables"
+      with numbers) instead of what I was looking at. Not wrong, just not where I left it.
+    - "Influence" -- I'm told it is which characters matter most. Nothing on the screen said that
+      in plain words; I took it on trust.
+    - The grey line in the save box about choosing where the file goes -- I didn't read it, and
+      I couldn't tell you now where the file actually is on my computer. It found it again, so I
+      didn't need to know today.

@@ -79,12 +79,14 @@ Command: `--end rounds/round-3/sessions/r3-s52`
 **Ease: 6 out of 7.**
 
 What worked:
+
 - The start page has real headings and real buttons with names. Ctrl+O was spoken on the Open button, and the Tab order matched the reading order.
 - Before I even asked, it told me files are read on this computer and never uploaded. That is the first thing I need to know before loading anything from work.
 - The error is a sentence I can repeat to someone: which file, that nothing was read, roughly where (line 9) and what to do (ask for it again). No stack trace, no "error 0x...".
 - The message stayed on the page after it was announced, so I could go back and read it again.
 
 What bothered me:
+
 - The alert was spoken twice, word for word, back to back. At my speed that is a whole sentence wasted, and it makes me wonder whether two things failed.
 - When the file dialog closed, focus went nowhere -- not back to the Open button, not to the message. I had to go hunting.
 - The message sits at the very bottom of the page, after the long usage-data paragraph and its two buttons. Reading top-down I hear the whole start page again before I find it. Shift+Tab from the page did not take me there either; Tab took me back to the top.

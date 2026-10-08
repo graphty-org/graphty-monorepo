@@ -148,6 +148,7 @@ means, and I never saw a single real connection with both names and its number.
 How hard (1-7, 7 hardest): 3.
 
 What confused me:
+
 - No explanation for any number: hovering Components, Density or the direction line shows nothing.
   "Undirected, from the file: directed 0" is cut off and means nothing to me. "Edges per ..." is
   cut off too.

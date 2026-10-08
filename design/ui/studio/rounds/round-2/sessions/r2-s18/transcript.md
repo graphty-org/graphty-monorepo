@@ -3,6 +3,7 @@
 Task: "Get every team's name written next to its dot" on the College football sample.
 
 ## Step 1
+
 Command: `node tool/real.mjs --start rounds/round-2/sessions/r2-s18 empty` -> 01.png
 
 Saw: the start screen. "Start" with Open project or file / New from data, "Recent projects" (empty),
@@ -14,6 +15,7 @@ Dev: "Okay, reading everything... there's the College football sample, 115 teams
 The data box first -- I'll just say No thanks, then click College football."
 
 ## Step 2
+
 Command: `--step --click "No thanks" --click "College football"` -> 02.png
 
 Saw: the graph drawn -- a box of blue dots with gray lines, no names on any dot. Left: a "Graph College
@@ -26,6 +28,7 @@ at the bottom, I don't see that. There's a Style tab on the right -- labels are 
 so I'll try Style."
 
 ## Step 3
+
 Command: `--step --click "Style"` -> 03.png
 
 Saw: Style for the Graph shows only Canvas (Background F5F5F5) and the layout: Method "Force -
@@ -36,6 +39,7 @@ the dots themselves. On the left there's 'Everything', and I want names on every
 Everything." (first wrong try for labels)
 
 ## Step 4
+
 Command: `--step --click "Everything"` -> 04.png
 
 Saw: right panel now "Everything", Style tab, Nodes/Edges switch (Nodes on). Fill: Color 6366F1 100%.
@@ -45,6 +49,7 @@ Dev: "There it is -- 'Label'! Same word as the tutorial. It has a plus next to i
 label. Clicking the plus beside Label."
 
 ## Step 5
+
 Command: `--step --click-at 1420,362` (tool: button "Add label line") -> 05.png
 
 Saw: a "Label" popup: "Find an attribute", Attributes: id, label, value. Behind it a row "Pick an
@@ -55,11 +60,12 @@ the label column when labels don't show, so 'label' must be the names. Picking l
 hesitation: "id" could also be names, and "value" I have no idea.)
 
 ## Step 6
+
 Command: `--step --click "label"` -> 06.png
 
 Saw: names appeared next to the dots right away -- Florida, Georgia, GeorgiaTech, Maryland, Arkansas,
 NewMexicoState, Washington State, Arizona, California... They are small and some overlap in the dense
-middle. The Label row now reads "Aa  Above  Abc label  -" and under it, in small gray text: "115 labels,
+middle. The Label row now reads "Aa Above Abc label -" and under it, in small gray text: "115 labels,
 14 hidden to avoid overlap". The Nodes switch got a little dot.
 
 Dev: "Oh nice, that's it -- names! Wait... '14 hidden to avoid overlap'. The task says EVERY team's name.
@@ -67,6 +73,7 @@ So 14 teams don't have a name showing. Hmm. There's an 'Aa' next to it, maybe th
 Let me click Aa." (Labels part mostly done; now trying to get the last 14.)
 
 ## Step 7
+
 Command: `--step --click-at 1220,392` (tool: button "Label position") -> 07.png
 
 Saw: a "Label position" popup with a 3x3 grid of dots, top-middle selected. Only where the label sits.
@@ -75,6 +82,7 @@ Dev: "Oh, Aa is just where the name goes, above the dot. Not what I need. That's
 hidden ones. Let me close this and hover the '14 hidden' text -- maybe it explains how to show them."
 
 ## Step 8
+
 Command: `--step --key Escape --hover-at 1290,417` (tool: group "Label", tooltip "Label position") -> 08.png
 
 Saw: the popup closed. Hovering the "115 labels, 14 hidden to avoid overlap" line gave no explanation
@@ -85,6 +93,7 @@ overlap? Maybe if I zoom in, there's more room. Let me scroll to zoom in on the 
 crowded." (second try for the hidden 14)
 
 ## Step 9
+
 Command: `--step --wheel 740,470,-500` -> 09.png
 
 Saw: the drawing got a bit bigger, but the names stayed the same tiny size, and the line now says
@@ -96,6 +105,7 @@ want me to do -- is there a 'show all' somewhere? Last thing: the 'Abc label' bo
 part of the Label row I haven't touched. Clicking it to see if it has more options."
 
 ## Step 10
+
 Command: `--step --click-at 1347,392` (tool: button "Label, Above: label") -> 10.png
 
 Saw: the same attribute picker again, now with "In use: label" and Attributes: id, value. Nothing about
@@ -105,6 +115,7 @@ Dev: "Nope, that just picks which column. Okay, I'm stopping here. I'll close th
 the picture and it looks like the slides, but I couldn't get the last ones to show."
 
 ## Step 11
+
 Commands: `--step --key Escape` -> 11.png; `--end` (session ended)
 
 ## Wrap-up (in character)
@@ -117,6 +128,7 @@ has its name showing. I could not find a way to show the hidden ones.
 Losing it to the hidden ones knocked it down.
 
 **Where I hesitated / what confused me:**
+
 - I looked for "labels" first under the graph's Style tab, which is only background and layout. Labels
   live under "Everything" in the left list, which I only clicked because I wanted names on "every" dot.
   Nothing on the first screen pointed me there.

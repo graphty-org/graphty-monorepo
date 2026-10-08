@@ -92,16 +92,16 @@ to other well-connected people.
 - Did I finish? Yes, I think so. About six clicks.
 - How hard (1-7, 7 hardest): 3.
 - What confused me:
-  - The analysis list. I had to choose between Betweenness and PageRank for "how much the club
-    depends on them" and I couldn't tell which one actually means that. I went with "Start here"
-    because it was labeled, not because I understood it. If QA asked me why PageRank and not
-    Betweenness, I couldn't defend it.
-  - I clicked "PageRank" and the result is called "Influence" everywhere afterwards -- the legend,
-    the left row, and even "Made with: Analysis Influence". The word PageRank is gone. If I write
-    "PageRank" in my notes and someone opens this later, they won't find it.
-  - After Run, the drawing changed color but nothing told me where the ranked list was. The dots
-    have no names, so the picture alone was useless for the question. I only found the list
-    because the new "Influence" row was the obvious thing to click.
-  - "Damping factor" means nothing to me; I left it alone.
+    - The analysis list. I had to choose between Betweenness and PageRank for "how much the club
+      depends on them" and I couldn't tell which one actually means that. I went with "Start here"
+      because it was labeled, not because I understood it. If QA asked me why PageRank and not
+      Betweenness, I couldn't defend it.
+    - I clicked "PageRank" and the result is called "Influence" everywhere afterwards -- the legend,
+      the left row, and even "Made with: Analysis Influence". The word PageRank is gone. If I write
+      "PageRank" in my notes and someone opens this later, they won't find it.
+    - After Run, the drawing changed color but nothing told me where the ranked list was. The dots
+      have no names, so the picture alone was useless for the question. I only found the list
+      because the new "Influence" row was the obvious thing to click.
+    - "Damping factor" means nothing to me; I left it alone.
 - What worked: the "Top 10" list with names and numbers is exactly what goes into a file. The
   Overview numbers on the first screen were clear.

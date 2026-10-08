@@ -88,11 +88,11 @@ Session stopped here and was ended (`--end $S`).
   blind. Twice in a few minutes I could not see where focus was, and that is exactly what makes me
   avoid a tool.
 - **What confused me:**
-  - The sample entries on the start page take focus but show no ring. I had to guess my way to
-    College football by counting.
-  - The bottom toolbar is a single tab stop with arrow keys inside; nothing on screen said so.
-  - The Style tab for the whole graph has no labels or names option, so I didn't know where names
-    live.
-  - Walking back from the right panel toward the left list, focus disappeared again.
-  - Key presses: 16 to open the sample, 9 more on the graph screen without getting to the
-    names setting.
+    - The sample entries on the start page take focus but show no ring. I had to guess my way to
+      College football by counting.
+    - The bottom toolbar is a single tab stop with arrow keys inside; nothing on screen said so.
+    - The Style tab for the whole graph has no labels or names option, so I didn't know where names
+      live.
+    - Walking back from the right panel toward the left list, focus disappeared again.
+    - Key presses: 16 to open the sample, 9 more on the graph screen without getting to the
+      names setting.

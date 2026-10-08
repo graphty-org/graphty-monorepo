@@ -571,6 +571,7 @@ thing I want to stop doing.
 before I found the right place.
 
 **What worked**
+
 - The start page has real headings (Start, Recent projects, Samples), and it tells me files stay
   on this computer. That's the first thing I ask about a tool.
 - Opening the sample said "Les Miserables: 77 nodes, 254 edges" once. The Overview had node,
@@ -583,6 +584,7 @@ before I found the right place.
   Show all labels. Those counts are also written in the panel, so I can go back and read them.
 
 **What confused me or cost me time**
+
 - Nothing tells me where label settings live. The View menu has cameras, Legend and Table, but
   no names. The Style tab first showed me canvas settings (background and layout), because
   nothing was selected. I had to guess that I needed to select "Everything" in the tree before

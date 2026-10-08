@@ -95,6 +95,7 @@ I clicked it. I only got the list on my second try by clicking the word itself. 
 had failed too I'd have asked her for a spreadsheet.
 
 What confused me:
+
 - "Degree" -- a word I'd never use for "how many characters he's tied to". The answer was sitting
   there and I didn't recognize it.
 - The arrow next to Degree looked clickable; clicking it only shaded the row.

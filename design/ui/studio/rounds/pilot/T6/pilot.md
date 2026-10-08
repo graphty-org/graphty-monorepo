@@ -11,14 +11,14 @@ recorded about each character and each connection.
 
 Every answer is on screen after two clicks, with no detour.
 
-| Step | Command | Screenshot | What it shows |
-| ---- | ------- | ---------- | ------------- |
-| 1 | `--start empty` | `01.png` | Start page. The Les Miserables card says "77 characters". The usage-data card is at the bottom. |
-| 2 | `--click "Open the Les Miserables sample"` | `02.png` | Graph drawn. Values > Overview: Nodes 77, Edges 254, Components 1, Density 0.08681. |
-| 3 | `--hover "Edges per node"` | `03.png` | No tooltip on the cut-off label. |
-| 4 | `--click "Data"` | `04.png` | Attributes: Nodes `id`, `name`; Edges `shared_chapters`. Sources: 77 rows, 254 rows. |
-| 5 | `--hover "Undirected"` | `05.png` | No tooltip on the direction line. |
-| 6 | `--key Shift+T` | `06.png` | Table: columns `Id` and `name` (Napoleon, Myriel, Mlle Baptistine...). |
+| Step | Command                                    | Screenshot | What it shows                                                                                   |
+| ---- | ------------------------------------------ | ---------- | ----------------------------------------------------------------------------------------------- |
+| 1    | `--start empty`                            | `01.png`   | Start page. The Les Miserables card says "77 characters". The usage-data card is at the bottom. |
+| 2    | `--click "Open the Les Miserables sample"` | `02.png`   | Graph drawn. Values > Overview: Nodes 77, Edges 254, Components 1, Density 0.08681.             |
+| 3    | `--hover "Edges per node"`                 | `03.png`   | No tooltip on the cut-off label.                                                                |
+| 4    | `--click "Data"`                           | `04.png`   | Attributes: Nodes `id`, `name`; Edges `shared_chapters`. Sources: 77 rows, 254 rows.            |
+| 5    | `--hover "Undirected"`                     | `05.png`   | No tooltip on the direction line.                                                               |
+| 6    | `--key Shift+T`                            | `06.png`   | Table: columns `Id` and `name` (Napoleon, Myriel, Mlle Baptistine...).                          |
 
 The answers: 77 characters, 254 connections, 1 component (so every character can be reached),
 `name` (and `id`) recorded for characters, `shared_chapters` for connections. All four match the

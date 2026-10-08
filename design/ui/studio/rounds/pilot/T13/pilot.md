@@ -21,17 +21,17 @@ No script error, `console.error` or failed request was printed on any step.
 
 Setup file: `setup.txt` (the corrected one; the task's own setup failed, see blocker 3).
 
-| Step | Command | Screenshot | What the screen shows |
-|---|---|---|---|
-| start | setup (No thanks, Les Miserables sample, Shift+A, type Louvain, click Louvain, Run) | `01.png` | 77 characters colored in 6 groups; a "Color: Communities" key on the canvas (Group 1 to Group 6) and the Communities list (20, 17, 11, 11, 10, 8). No names drawn on the canvas. |
-| 1 | `--key Control+e` | `02.png` | Export dialog opens on Image: PNG, 2x (1806 x 1720), "Current view". Notice: "The legend is not in the image". |
-| 2 | `--click "Image"` | `03.png` | Prints `ambiguous` (a gridcell and the dialog); no change, Image already selected. |
-| 3 | `--click "Export"` | `04.png` | Prints `ambiguous` (button and dialog), took the button. Saved `downloads/les-miserables_current-view.png`, 1806 x 1720. Toast "Exported les-miserables_current-view.png". |
-| 4 | `--key Control+e` | `05.png` | Dialog reopens on Image. |
-| 5 | `--click "Data"` | `06.png` | Prints `ambiguous` (button "Data", gridcell "Data"), took the first: **the left rail's Data button behind the open dialog**. The left panel switched to the Data view; the dialog stayed on Image. |
-| 6 | `--click "role=gridcell:Data"` | `07.png` | Dialog's Data page: CSV, Nodes table, a "CSV cannot hold everything" warning, a preview with `id,name,results.louvain.group,results.louvain.groupSize`. |
-| 7 | `--click "role=button:Export"` | `08.png` | Saved `downloads/les-miserables_nodes.csv`, 1,956 bytes. Toast "Exported les-miserables_nodes.csv". |
-| 8, 9 | `--wait 3000` twice | `09.png`, `10.png` | No input; the drawing's orientation differs between the two (blocker 5). |
+| Step  | Command                                                                             | Screenshot         | What the screen shows                                                                                                                                                                              |
+| ----- | ----------------------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| start | setup (No thanks, Les Miserables sample, Shift+A, type Louvain, click Louvain, Run) | `01.png`           | 77 characters colored in 6 groups; a "Color: Communities" key on the canvas (Group 1 to Group 6) and the Communities list (20, 17, 11, 11, 10, 8). No names drawn on the canvas.                   |
+| 1     | `--key Control+e`                                                                   | `02.png`           | Export dialog opens on Image: PNG, 2x (1806 x 1720), "Current view". Notice: "The legend is not in the image".                                                                                     |
+| 2     | `--click "Image"`                                                                   | `03.png`           | Prints `ambiguous` (a gridcell and the dialog); no change, Image already selected.                                                                                                                 |
+| 3     | `--click "Export"`                                                                  | `04.png`           | Prints `ambiguous` (button and dialog), took the button. Saved `downloads/les-miserables_current-view.png`, 1806 x 1720. Toast "Exported les-miserables_current-view.png".                         |
+| 4     | `--key Control+e`                                                                   | `05.png`           | Dialog reopens on Image.                                                                                                                                                                           |
+| 5     | `--click "Data"`                                                                    | `06.png`           | Prints `ambiguous` (button "Data", gridcell "Data"), took the first: **the left rail's Data button behind the open dialog**. The left panel switched to the Data view; the dialog stayed on Image. |
+| 6     | `--click "role=gridcell:Data"`                                                      | `07.png`           | Dialog's Data page: CSV, Nodes table, a "CSV cannot hold everything" warning, a preview with `id,name,results.louvain.group,results.louvain.groupSize`.                                            |
+| 7     | `--click "role=button:Export"`                                                      | `08.png`           | Saved `downloads/les-miserables_nodes.csv`, 1,956 bytes. Toast "Exported les-miserables_nodes.csv".                                                                                                |
+| 8, 9  | `--wait 3000` twice                                                                 | `09.png`, `10.png` | No input; the drawing's orientation differs between the two (blocker 5).                                                                                                                           |
 
 ## The downloads against the picture checklist
 
@@ -69,7 +69,7 @@ number: 0 = 8, 1 = 20, 2 = 10, 3 = 11, 4 = 11, 5 = 17.
 
 3. **Task wording (setup) -- the setup in `tasks.md` cannot run.** `--key Enter` after typing
    "Louvain" in the Analyze search does nothing; the following `--click Run` fails with `SETUP
-   FAILED ... nothing on screen is called "Run"` (`first-attempt/setup.log`,
+FAILED ... nothing on screen is called "Run"` (`first-attempt/setup.log`,
    `first-attempt/01.png`). `--key ArrowDown --key Enter` does nothing either
    (`setup-probe/03.png`). `--click Louvain` opens the Louvain page with Run (`setup-probe/04.png`).
    Change the setup to: `--click No thanks`; `--click Open the Les Miserables sample`;
@@ -89,12 +89,12 @@ number: 0 = 8, 1 = 20, 2 = 10, 3 = 11, 4 = 11, 5 = 17.
    tool defect). Needs a look before any round grades the picture checklist.
 
 6. **Wrong answer key -- the success path's control names.**
-   - `--click "Data"` hits the left rail's Data button behind the modal export dialog (`06.png`);
-     the path needs `--click "role=gridcell:Data"`.
-   - `--click "Image"` and `--click "Export"` are ambiguous (they also match the dialog itself);
-     they happen to take the right control, but `role=gridcell:Image` and `role=button:Export`
-     are the safe names.
-   - Path count: the path is listed as 7 steps but has 6 commands.
+    - `--click "Data"` hits the left rail's Data button behind the modal export dialog (`06.png`);
+      the path needs `--click "role=gridcell:Data"`.
+    - `--click "Image"` and `--click "Export"` are ambiguous (they also match the dialog itself);
+      they happen to take the right control, but `role=gridcell:Image` and `role=button:Export`
+      are the safe names.
+    - Path count: the path is listed as 7 steps but has 6 commands.
 
 7. **App defect -- the export dialog does not block the page behind it.** Step 5 clicked the
    left rail's Data button while the export dialog was open, and the left panel changed

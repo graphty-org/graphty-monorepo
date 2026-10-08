@@ -11,16 +11,16 @@ task.
 
 ## Les Miserables (prompt A)
 
-| Step | Screenshot | What the screen shows |
-| --- | --- | --- |
-| Empty start | 01 | Start page, sample cards, usage card. |
-| `--click "No thanks"` | 02 | Usage card answered; "Change this in Settings > Privacy". |
-| `--click "Les Miserables"` | 03 | 77 nodes, 254 edges drawn; Overview on the right. |
-| `--key /` | 04 | Find box focused. |
-| `--type Javert` | 05 | Results: Elements "Javert"; Values "Select where name is Javert (1)". |
-| `--key ArrowDown` | 06 | "Javert" row highlighted. |
-| `--key Enter` | 07 | Javert selected (gold ring); Summary: id Javert, name Javert, Degree 17; focus on the Summary values. |
-| `--click "Degree"` | 08 | Panel "Javert -- Neighborhood", list "Javert's 17 connections"; Selection 18. |
+| Step                       | Screenshot | What the screen shows                                                                                 |
+| -------------------------- | ---------- | ----------------------------------------------------------------------------------------------------- |
+| Empty start                | 01         | Start page, sample cards, usage card.                                                                 |
+| `--click "No thanks"`      | 02         | Usage card answered; "Change this in Settings > Privacy".                                             |
+| `--click "Les Miserables"` | 03         | 77 nodes, 254 edges drawn; Overview on the right.                                                     |
+| `--key /`                  | 04         | Find box focused.                                                                                     |
+| `--type Javert`            | 05         | Results: Elements "Javert"; Values "Select where name is Javert (1)".                                 |
+| `--key ArrowDown`          | 06         | "Javert" row highlighted.                                                                             |
+| `--key Enter`              | 07         | Javert selected (gold ring); Summary: id Javert, name Javert, Degree 17; focus on the Summary values. |
+| `--click "Degree"`         | 08         | Panel "Javert -- Neighborhood", list "Javert's 17 connections"; Selection 18.                         |
 
 The 17 names in 08, top to bottom: Babet, Bamatabois, Claquesous, Cosette, Enjolras, Fantine,
 Fauchelevent, Gavroche, Gueulemer, MmeThenardier, Montparnasse, Simplice, Thenardier, Toussaint,
@@ -33,12 +33,12 @@ selection as expected.)
 
 ## Florentine families (prompt B)
 
-| Step | Screenshot | What the screen shows |
-| --- | --- | --- |
-| Empty start, "No thanks", "Florentine families" | 01, 02 | 15 nodes, 20 edges drawn. |
-| `--key /`, `--type Medici` | 03 | Results: Elements "Medici"; "Select where name is Medici (1)". |
-| `--key ArrowDown`, `--key Enter` | 04 | Medici selected; Summary: id, name, Degree 6. |
-| `--click "Degree"` | 05 | "Medici's 6 connections": Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni; Selection 7. |
+| Step                                            | Screenshot | What the screen shows                                                                                 |
+| ----------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------- |
+| Empty start, "No thanks", "Florentine families" | 01, 02     | 15 nodes, 20 edges drawn.                                                                             |
+| `--key /`, `--type Medici`                      | 03         | Results: Elements "Medici"; "Select where name is Medici (1)".                                        |
+| `--key ArrowDown`, `--key Enter`                | 04         | Medici selected; Summary: id, name, Degree 6.                                                         |
+| `--click "Degree"`                              | 05         | "Medici's 6 connections": Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni; Selection 7. |
 
 The six names match the answer key.
 

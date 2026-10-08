@@ -30,10 +30,10 @@ The round 3 scoring with the "Show all labels" switch on applies, and every part
 
 ## Counts
 
-| | This session | Success path |
-|---|---|---|
+|                          | This session                                                                                  | Success path                                                                                        |
+| ------------------------ | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | Commands after the start | 8 (No thanks, Les Miserables, Style, Everything, Add label line, name, Show all labels, zoom) | 6 (No thanks, then the round 3 route of 5: open, Everything, Add label line, name, Show all labels) |
-| Wrong turns | 1 | -- |
+| Wrong turns              | 1                                                                                             | --                                                                                                  |
 
 - **The wrong turn:** at step 4 she opened the Graph place's Style tab (04.png). It holds Canvas
   Background, Method, Shape, Spring length and Gravity, and nothing about names. She left it at
@@ -53,12 +53,12 @@ with no hidden part, and every dot had a name drawn.
 Severity 0-4 (Nielsen). Opinion-only findings are held one level down. No build defect was seen,
 so no repro was scripted.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | There are two "Style" tabs: one in the Graph place, with the background and layout, and one under "Everything", with the dots' look. A newcomer looking for "how the dots look" opens the first one. She only found the right one because "Everything" sounded like "all the dots". Seen in one participant here; confirm across sessions. | Step 4, 04.png; debrief point 1. |
-| 2 | 2 | behavior | The hidden count "77 labels, 7 hidden" is the only sign that names are missing, and it is small, gray text below the label line. She said that without reading it she "would have thought I was done when I wasn't". She did read it, so the claim held, but this is the setup for a false "done" in a less careful reader. | Step 7, 07.png; debrief point 3. |
-| 3 | 1 | opinion | With every name shown, the middle of the drawing is a tangle of tiny overlapping words that cannot be read without zooming a lot. Names grow with the drawing when zooming, so a small zoom does not help. She called it unusable on a slide. Held one level down. | Steps 8-9, 08.png, 09.png; debrief point 4. |
-| 4 | 1 | wording | "Label" with a bare "+" does not say it puts names on the dots. The list's search box says "Find an attribute", a word she does not use. Seeing "name" in the list resolved it. | Steps 5-6, 05.png, 06.png; debrief point 2. |
+| #   | Sev | Kind     | Problem                                                                                                                                                                                                                                                                                                                                    | Evidence                                    |
+| --- | --- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| 1   | 2   | behavior | There are two "Style" tabs: one in the Graph place, with the background and layout, and one under "Everything", with the dots' look. A newcomer looking for "how the dots look" opens the first one. She only found the right one because "Everything" sounded like "all the dots". Seen in one participant here; confirm across sessions. | Step 4, 04.png; debrief point 1.            |
+| 2   | 2   | behavior | The hidden count "77 labels, 7 hidden" is the only sign that names are missing, and it is small, gray text below the label line. She said that without reading it she "would have thought I was done when I wasn't". She did read it, so the claim held, but this is the setup for a false "done" in a less careful reader.                | Step 7, 07.png; debrief point 3.            |
+| 3   | 1   | opinion  | With every name shown, the middle of the drawing is a tangle of tiny overlapping words that cannot be read without zooming a lot. Names grow with the drawing when zooming, so a small zoom does not help. She called it unusable on a slide. Held one level down.                                                                         | Steps 8-9, 08.png, 09.png; debrief point 4. |
+| 4   | 1   | wording  | "Label" with a bare "+" does not say it puts names on the dots. The list's search box says "Find an attribute", a word she does not use. Seeing "name" in the list resolved it.                                                                                                                                                            | Steps 5-6, 05.png, 06.png; debrief point 2. |
 
 **What worked:** "Everything" in the outline opened the dots' Style tab in one click. Label "+"
 opened the attribute list at once, with only "id" and "name" in it. Names were drawn the moment

@@ -165,6 +165,7 @@ Command: `node $T/real.mjs --end $S`
 **Ease: 5 of 7.**
 
 **What confused me:**
+
 - The dots had no names until I went into a Style panel and found "Label", and there it was called "id", not "name". I only knew id was the name because I'd clicked Pia earlier.
 - The Analyze list is full of words I don't know (Betweenness, Eigenvector, Katz, HITS). Without the "Start here" tag I'd have closed it.
 - It says "PageRank" in the list but "Influence" everywhere after. I liked "Influence" better but I wasn't sure it was the same thing at first.

@@ -11,21 +11,21 @@ loads (`08.png`). Both match the answer key.
 
 ## Steps
 
-| # | Step | What the screen showed |
-|---|---|---|
-| 01 | start empty | Start screen with the usage-data card. |
-| 02 | `--click "No thanks"` | Card gone. |
-| 03 | `--click "New from data..."` | "Open as a new graph", "choose a file...", Load disabled. |
-| 04 | `--click "choose a file..." --upload bus-stops.csv` | Edges table, 17 rows; "Weight: none (each edge counts 1)"; minutes column role "Attribute". |
-| 05 | `--click-at 728,205` | Role list: From -> node, To -> node, Weight, Time, Edge id, Attribute. |
-| 06 | `--click "Weight"` | "Weight: minutes"; "Higher means Closer / Farther / Capacity" with none visibly picked; hint "paths ignore it; PageRank and communities read it as larger = closer". |
-| 07 | `--click "Farther"` | Farther selected; hint "smaller = closer". |
-| 08 | `--click "Load"` | 10 nodes, 17 edges, Directed; Overview "Loaded weight minutes (farther)". No node names drawn. |
-| 09 | `--key p` | Shortest path popover; Weight preset to "minutes (farther, loaded)". |
-| 10-11 | `--type Depot`, `--click "Depot"` | From = Depot. |
-| 12-13 | `--click "To" --type Harbor`, `--click "Harbor"` | To = Harbor. |
-| 14 | `--click "Find path"` | Route drawn in orange; inspector opens on the run's **Style** tab; tree row "Shortest path 27"; legend "Shortest route (edges) 24". |
-| 15 | `--click "Values"` | The answer (above). |
+| #     | Step                                                | What the screen showed                                                                                                                                               |
+| ----- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01    | start empty                                         | Start screen with the usage-data card.                                                                                                                               |
+| 02    | `--click "No thanks"`                               | Card gone.                                                                                                                                                           |
+| 03    | `--click "New from data..."`                        | "Open as a new graph", "choose a file...", Load disabled.                                                                                                            |
+| 04    | `--click "choose a file..." --upload bus-stops.csv` | Edges table, 17 rows; "Weight: none (each edge counts 1)"; minutes column role "Attribute".                                                                          |
+| 05    | `--click-at 728,205`                                | Role list: From -> node, To -> node, Weight, Time, Edge id, Attribute.                                                                                               |
+| 06    | `--click "Weight"`                                  | "Weight: minutes"; "Higher means Closer / Farther / Capacity" with none visibly picked; hint "paths ignore it; PageRank and communities read it as larger = closer". |
+| 07    | `--click "Farther"`                                 | Farther selected; hint "smaller = closer".                                                                                                                           |
+| 08    | `--click "Load"`                                    | 10 nodes, 17 edges, Directed; Overview "Loaded weight minutes (farther)". No node names drawn.                                                                       |
+| 09    | `--key p`                                           | Shortest path popover; Weight preset to "minutes (farther, loaded)".                                                                                                 |
+| 10-11 | `--type Depot`, `--click "Depot"`                   | From = Depot.                                                                                                                                                        |
+| 12-13 | `--click "To" --type Harbor`, `--click "Harbor"`    | To = Harbor.                                                                                                                                                         |
+| 14    | `--click "Find path"`                               | Route drawn in orange; inspector opens on the run's **Style** tab; tree row "Shortest path 27"; legend "Shortest route (edges) 24".                                  |
+| 15    | `--click "Values"`                                  | The answer (above).                                                                                                                                                  |
 
 ## Findings
 
@@ -61,8 +61,8 @@ with "Weight: minutes (farther)" (`rewalk/A/15.png`); B Total distance 7.5, Trai
 Meadow, Ridge, Summit, "Weight: km (farther)" (`rewalk/B/15.png`). B had not been walked before;
 the km column's role box sits at the same point as A's (728,205).
 
-| Earlier observation | Now |
-|---|---|
+| Earlier observation                                             | Now                                                                                                                                                                                                                         |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | The hint under "Higher means" was very small, low-contrast text | It is drawn at the fields' description size in the secondary ink: "paths ignore it; PageRank and communities read it as larger = closer" (`rewalk/A/06.png`), "smaller = closer" once Farther is picked (`rewalk/A/07.png`) |
 
 Still so: no "Higher means" choice looks picked before one is chosen; the tree row reads "Shortest

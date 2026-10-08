@@ -563,12 +563,7 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
 
             <LoadDataModal opened={loadOpen} initialMethod={loadMethod} onClose={closeLoadDialog} onLoad={onLoad} />
 
-            <Modal
-                opened={pendingDrop !== null}
-                onClose={cancelDrop}
-                title="Replace the current graph?"
-                centered
-            >
+            <Modal opened={pendingDrop !== null} onClose={cancelDrop} title="Replace the current graph?" centered>
                 <Text size="sm">
                     Replace the current graph with {pendingDrop?.name}? If the file cannot be read, the current graph
                     stays.

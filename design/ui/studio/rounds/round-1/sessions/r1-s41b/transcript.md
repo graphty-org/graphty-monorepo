@@ -75,8 +75,7 @@ Screenshot 06.png: the dots are colored right away. A legend "Color: Communities
 left of the canvas with Group 1 to Group 6. The left list now has "Communities 6" with each group
 and its count: Group 1 20, Group 2 17, Group 3 11, Group 4 11, Group 5 10, Group 6 8.
 
-Think-aloud: "There we go. Six groups, and it gives me the sizes in the list, sorted -- Group 1 is
-20. That's the number I need without counting dots. A legend on the canvas, too, so nobody asks
+Think-aloud: "There we go. Six groups, and it gives me the sizes in the list, sorted -- Group 1 is 20. That's the number I need without counting dots. A legend on the canvas, too, so nobody asks
 me what orange means. 'Group 1' is a terrible name for a slide, but fine. Now who's in it?"
 
 ### 7. Open the biggest group
@@ -103,17 +102,17 @@ had to trust the panel and match the yellow color by eye to find the group on th
   Fauchelevent and MlleBaptistine.
 - **How hard (1-7)?** 2. About a minute.
 - **What confused me:**
-  - Nothing on screen said "communities" or "clusters" until I opened the flask and typed. The
-    toolbar icons have no words; I picked the flask because of the "Analyze" hint at the bottom
-    left. The first list is all ranking measures, so grouping is not visible without scrolling or
-    filtering.
-  - The groups are called "Group 1" to "Group 6". Fine for this task, useless for a messaging
-    doc -- I'd want them named after something their members share, or at least by their biggest
-    member.
-  - Clicking Group 1 in the list did not light it up on the drawing that I could see; I matched
-    the color by eye.
-  - The members panel shows only the "First 10" of 20. For a shortlist I'd want all of them and a
-    way to copy or export them.
-  - Good: "Local only" and "never uploaded" answered my data question before I asked it; the run
-    time estimate ("Under a second") was right; the counts per group were listed, so I did not have
-    to count dots; the legend sits on the canvas.
+    - Nothing on screen said "communities" or "clusters" until I opened the flask and typed. The
+      toolbar icons have no words; I picked the flask because of the "Analyze" hint at the bottom
+      left. The first list is all ranking measures, so grouping is not visible without scrolling or
+      filtering.
+    - The groups are called "Group 1" to "Group 6". Fine for this task, useless for a messaging
+      doc -- I'd want them named after something their members share, or at least by their biggest
+      member.
+    - Clicking Group 1 in the list did not light it up on the drawing that I could see; I matched
+      the color by eye.
+    - The members panel shows only the "First 10" of 20. For a shortlist I'd want all of them and a
+      way to copy or export them.
+    - Good: "Local only" and "never uploaded" answered my data question before I asked it; the run
+      time estimate ("Under a second") was right; the counts per group were listed, so I did not have
+      to count dots; the legend sits on the canvas.

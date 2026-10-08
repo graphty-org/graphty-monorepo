@@ -34,21 +34,20 @@ Build b7590f8de (graphty 0.8.53), viewport 1440 x 900, screen-reader mode off. N
 
 ## Other measures
 
-- **Silent commits:** none. Picking `name` (06 to 07) drew names; ticking "Show all labels" (07 to
-  08) changed the statement and drew more names.
+- **Silent commits:** none. Picking `name` (06 to 07) drew names; ticking "Show all labels" (07 to 08) changed the statement and drew more names.
 - **Counts that disagree with the drawing:** none seen. "77 labels" equals the 77 nodes in Values
   (03.png).
 - **Usage card:** declined ("No thanks", step 2); no detour.
 
 ## Problems
 
-| # | Sev | Kind | What | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | With the sample open, nothing on screen says "label" or "name"; the right panel opens on the whole graph, whose Style tab has only canvas and layout settings. The participant reached the Label line only by guessing at "Everything", whose meaning they did not know, and said a failed second guess would have left them stuck. | Steps 3-5; 03.png, 04.png, 05.png; debrief |
-| 2 | 1 | behavior | In the crowded middle the names are tiny and drawn on top of one another; zooming in helped only a little, so the participant could not read them all, though every name was drawn. | Steps 8-9; 08.png, 09.png around (640-800, 340-460) |
-| 3 | 1 | wording | "Label" with only a "+" beside it did not say whether it turns names on or adds something extra; the participant guessed correctly. | Steps 5-6; 05.png, 06.png; debrief |
-| 4 | 1 | behavior | Names are hidden for overlap by default, so a first pick of `name` leaves 7 characters unnamed; the participant asked why. The statement made it visible, so no wrong belief resulted. | Step 7; 07.png ("77 labels, 7 hidden") |
-| 5 | 0 | wording | "Aa Above" beside the line was not understood (guessed as the name's position); not touched. | Step 7; 07.png; debrief |
+| #   | Sev | Kind     | What                                                                                                                                                                                                                                                                                                                                | Evidence                                            |
+| --- | --- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 1   | 2   | behavior | With the sample open, nothing on screen says "label" or "name"; the right panel opens on the whole graph, whose Style tab has only canvas and layout settings. The participant reached the Label line only by guessing at "Everything", whose meaning they did not know, and said a failed second guess would have left them stuck. | Steps 3-5; 03.png, 04.png, 05.png; debrief          |
+| 2   | 1   | behavior | In the crowded middle the names are tiny and drawn on top of one another; zooming in helped only a little, so the participant could not read them all, though every name was drawn.                                                                                                                                                 | Steps 8-9; 08.png, 09.png around (640-800, 340-460) |
+| 3   | 1   | wording  | "Label" with only a "+" beside it did not say whether it turns names on or adds something extra; the participant guessed correctly.                                                                                                                                                                                                 | Steps 5-6; 05.png, 06.png; debrief                  |
+| 4   | 1   | behavior | Names are hidden for overlap by default, so a first pick of `name` leaves 7 characters unnamed; the participant asked why. The statement made it visible, so no wrong belief resulted.                                                                                                                                              | Step 7; 07.png ("77 labels, 7 hidden")              |
+| 5   | 0   | wording  | "Aa Above" beside the line was not understood (guessed as the name's position); not touched.                                                                                                                                                                                                                                        | Step 7; 07.png; debrief                             |
 
 No build defect in the criteria's sense (a crash, a control that does nothing, a wrong count, a
 step that cannot be done by keyboard) was met, so no scripted repro was written.

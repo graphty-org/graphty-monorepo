@@ -8,13 +8,13 @@ Screenshots: `A/01.png` to `A/11.png` (office), `B/01.png` to `B/07.png` (footba
 
 Reached on both datasets. Every value in the answer key is on screen exactly as written.
 
-| | A: people.csv + messages.csv | B: players.csv + passes.csv |
-|---|---|---|
+|                    | A: people.csv + messages.csv                                                             | B: players.csv + passes.csv                                                              |
+| ------------------ | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | Report before Load | "12 node rows and 23 edge rows read; the load makes 12 nodes and 22 edges." (`A/06.png`) | "10 node rows and 18 edge rows read; the load makes 10 nodes and 17 edges." (`B/04.png`) |
-| Unmatched row | "Show the 1 unmatched row": line 24, p11 to p13, 6 (`A/07.png`) | line 17, s04 to s11, 3 (`B/05.png`) |
-| Choice shown | "Leave out" chosen, "Add" offered | the same |
-| After Load | "From 2 files", Nodes 12, Edges 22 (`A/08.png`) | "From 2 files", Nodes 10, Edges 17 (`B/06.png`) |
-| Sources (Data) | "people.cs... 12 nodes, 22 edges", people.csv and messages.csv under it (`A/09.png`) | "players.cs... 10 nodes, 17 edges", players.csv and passes.csv (`B/07.png`) |
+| Unmatched row      | "Show the 1 unmatched row": line 24, p11 to p13, 6 (`A/07.png`)                          | line 17, s04 to s11, 3 (`B/05.png`)                                                      |
+| Choice shown       | "Leave out" chosen, "Add" offered                                                        | the same                                                                                 |
+| After Load         | "From 2 files", Nodes 12, Edges 22 (`A/08.png`)                                          | "From 2 files", Nodes 10, Edges 17 (`B/06.png`)                                          |
+| Sources (Data)     | "people.cs... 12 nodes, 22 edges", people.csv and messages.csv under it (`A/09.png`)     | "players.cs... 10 nodes, 17 edges", players.csv and passes.csv (`B/07.png`)              |
 
 The files agree: people.csv line 12 is `p11,Kemi Bello,Operations` and no row holds p13;
 players.csv line 5 is `s04,Dina Moss,Defender` and no row holds s11.
@@ -79,11 +79,11 @@ rows read; the load makes 12 nodes and 22 edges", line 24 `p11, p13, 6` (`rewalk
 "10 node rows and 18 edge rows read; the load makes 10 nodes and 17 edges", line 17 `s04, s11, 3`
 (`rewalk/B/07.png`). After Load: "From 2 files", 12 / 22 and 10 / 17.
 
-| Earlier observation | Now |
-|---|---|
+| Earlier observation                              | Now                                                                                                                                                                                      |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | The left-out row was recorded nowhere after Load | Selecting the source opens it in the inspector: Added Nodes 12, Edges 22, "1 edge row was left out: it names 1 node no node row holds.", and "Show the left-out row" (`rewalk/A/11.png`) |
-| The cut source name had no tooltip | Hovering the row shows "people.csv and messages.csv" (`rewalk/A/10.png`); B "players.csv and passes.csv" (`rewalk/B/10.png`) |
-| "1 edge row name 1 node ..." | "1 edge row names 1 node no node row holds." (`rewalk/A/07.png`, `rewalk/B/07.png`) |
+| The cut source name had no tooltip               | Hovering the row shows "people.csv and messages.csv" (`rewalk/A/10.png`); B "players.csv and passes.csv" (`rewalk/B/10.png`)                                                             |
+| "1 edge row name 1 node ..."                     | "1 edge row names 1 node no node row holds." (`rewalk/A/07.png`, `rewalk/B/07.png`)                                                                                                      |
 
 Still so: the Sources row's quiet counts are cut to "12 no..." at this panel width, so "1 row left
 out" on the row itself is not readable without selecting it; the source's tooltip stays open over

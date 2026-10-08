@@ -42,10 +42,10 @@ Top 10, not from a sorted table.
 
 ## Counts
 
-| | This session | Success path |
-|---|---|---|
+|                          | This session  | Success path                                                                                                                        |
+| ------------------------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Commands after the start | 8 (steps 2-9) | 6 from the setup start (Analyze, pick, Run, select the run row, Values tab, read); the round 3 path counts 7 with the sample opened |
-| Wrong turns | 1 | -- |
+| Wrong turns              | 1             | --                                                                                                                                  |
 
 - **The wrong turn:** steps 5-6, the Data page and back to Graph. The detour was abandoned, so it
   counts as one wrong turn.
@@ -68,15 +68,15 @@ named.
 Severity 0-4 (Nielsen). Opinion-only findings are held one level down. Each is seen in this one
 participant; confirmation needs a second participant, because none is a build defect.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | After Run, the result appears only as a color ramp on unlabeled dots and a new outline row. Nothing says where the ranked list is. She went looking for a table and opened the Data page, the one wrong turn of the session. | Steps 4-6, 04.png, 05.png; transcript "Nothing said 'your ranking is over here'". |
-| 2 | 2 | behavior | The run row opens on its Style tab. The ranked values are on the second tab, Values. For a result she just asked for, she expected the numbers first, and found them only by trying the second tab. | Steps 7-8, 07.png, 08.png. |
-| 3 | 1 | behavior | The Data page's Attributes list shows only the file's columns (`id`, `weight`), not the Betweenness values just computed. She read it as "Betweenness isn't even listed", which made the detour feel like a dead end rather than the wrong place. | Step 5, 05.png. |
-| 4 | 1 | opinion | "Start here" on PageRank steers toward a measure that, on this file, gives a different top three (Farah, Ava, Hana) from the dependence measure she chose. She thought a less sure user would report a popularity order for a dependence question. PageRank is an accepted answer for this task, so this changes no grade. Held one level down as an opinion. | Step 2, 02.png; debrief. |
-| 5 | 1 | opinion | No names are drawn on the dots, so the drawing cannot be checked against the list until a name is clicked. | Steps 1-4, 01.png-04.png; step 9, 09.png. |
-| 6 | 1 | opinion | The Values tab shows only a Top 10 and offers no export of the full ranking beside it. Not needed for this task. | Step 8, 08.png; debrief. |
-| 7 | 1 | wording | Ava's card lists "Degree 6" under Results although no Degree run was made, and nothing says where that value comes from. | Step 9, 09.png. |
+| #   | Sev | Kind     | Problem                                                                                                                                                                                                                                                                                                                                                       | Evidence                                                                          |
+| --- | --- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| 1   | 2   | behavior | After Run, the result appears only as a color ramp on unlabeled dots and a new outline row. Nothing says where the ranked list is. She went looking for a table and opened the Data page, the one wrong turn of the session.                                                                                                                                  | Steps 4-6, 04.png, 05.png; transcript "Nothing said 'your ranking is over here'". |
+| 2   | 2   | behavior | The run row opens on its Style tab. The ranked values are on the second tab, Values. For a result she just asked for, she expected the numbers first, and found them only by trying the second tab.                                                                                                                                                           | Steps 7-8, 07.png, 08.png.                                                        |
+| 3   | 1   | behavior | The Data page's Attributes list shows only the file's columns (`id`, `weight`), not the Betweenness values just computed. She read it as "Betweenness isn't even listed", which made the detour feel like a dead end rather than the wrong place.                                                                                                             | Step 5, 05.png.                                                                   |
+| 4   | 1   | opinion  | "Start here" on PageRank steers toward a measure that, on this file, gives a different top three (Farah, Ava, Hana) from the dependence measure she chose. She thought a less sure user would report a popularity order for a dependence question. PageRank is an accepted answer for this task, so this changes no grade. Held one level down as an opinion. | Step 2, 02.png; debrief.                                                          |
+| 5   | 1   | opinion  | No names are drawn on the dots, so the drawing cannot be checked against the list until a name is clicked.                                                                                                                                                                                                                                                    | Steps 1-4, 01.png-04.png; step 9, 09.png.                                         |
+| 6   | 1   | opinion  | The Values tab shows only a Top 10 and offers no export of the full ranking beside it. Not needed for this task.                                                                                                                                                                                                                                              | Step 8, 08.png; debrief.                                                          |
+| 7   | 1   | wording  | Ava's card lists "Degree 6" under Results although no Degree run was made, and nothing says where that value comes from.                                                                                                                                                                                                                                      | Step 9, 09.png.                                                                   |
 
 **What worked:** the outline's empty-state hint pointed at Analyze. The Analyze list gives each
 measure a plain one-line description. The run form says "Under a second" before Run. The Top 10

@@ -100,17 +100,17 @@ the crowded parts -- but the task was names on every dot, and they're on."
 - **How easy, 1 (very difficult) to 7 (very easy):** 5. Six clicks, about as long as one easy
   alert. Once I was in the right panel it was quick.
 - **What confused me:**
-  - The first place I looked, the "Style" tab on the opening panel, was all background and
-    arrangement settings, nothing about the dots. I only found the dot settings by guessing that
-    "Everything" on the left meant every dot. Nothing on screen told me that's where the
-    look of the dots lives.
-  - "Label" with a plus sign: I didn't know whether plus meant "add a name" or "add another
-    thing"; it worked, but the tool called it "Add label line", which I would not have guessed.
-  - Picking between "id", "label" and "value" was a guess. None says "team name". I picked
-    "label" because it matched the word on the row. If "id" had been the name I'd have gotten it
-    wrong without knowing.
-  - After the names appeared, the small gray "115 labels, 14 hidden" was easy to miss. If I
-    hadn't read it I'd have thought I was done with 14 teams missing. Why would it hide any when I
-    asked for names?
-  - With all names shown, several overlap and the smallest are hard to read. For a screenshot in
-    a file, that's not something QA could read without zooming.
+    - The first place I looked, the "Style" tab on the opening panel, was all background and
+      arrangement settings, nothing about the dots. I only found the dot settings by guessing that
+      "Everything" on the left meant every dot. Nothing on screen told me that's where the
+      look of the dots lives.
+    - "Label" with a plus sign: I didn't know whether plus meant "add a name" or "add another
+      thing"; it worked, but the tool called it "Add label line", which I would not have guessed.
+    - Picking between "id", "label" and "value" was a guess. None says "team name". I picked
+      "label" because it matched the word on the row. If "id" had been the name I'd have gotten it
+      wrong without knowing.
+    - After the names appeared, the small gray "115 labels, 14 hidden" was easy to miss. If I
+      hadn't read it I'd have thought I was done with 14 teams missing. Why would it hide any when I
+      asked for names?
+    - With all names shown, several overlap and the smallest are hard to read. For a screenshot in
+      a file, that's not something QA could read without zooming.

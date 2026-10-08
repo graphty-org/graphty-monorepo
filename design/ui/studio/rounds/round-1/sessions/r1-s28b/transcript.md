@@ -99,15 +99,15 @@ it depends on a family, the bigger its dot -- then say what the sizes and colors
   then Guadagni, Albizzi, Salviati.
 - **How hard (1-7, 7 = hardest):** 3.
 - **What confused me:**
-  - I picked "Betweenness" but everything afterwards says "Bridges". I guessed they were the same,
-    but nothing said so.
-  - PageRank was labeled "Start here", which made me doubt my choice for a task about who the
-    network depends on.
-  - The graph-level Style tab had no size at all; I had to click the result in the left list first
-    to find the dot settings.
-  - Adding Size gave a plain "1", and its dropdown opened empty. The real control was an unlabeled
-    chain icon that I only found by hovering.
-  - The size range reads "1 to 3" without saying what the units are.
-  - The key box in the top-left corner covers a dot.
-  - No names on the drawing and no name on hover, so the figure alone does not say which dot is
-    Medici; I had to read it off the Top 10 list.
+    - I picked "Betweenness" but everything afterwards says "Bridges". I guessed they were the same,
+      but nothing said so.
+    - PageRank was labeled "Start here", which made me doubt my choice for a task about who the
+      network depends on.
+    - The graph-level Style tab had no size at all; I had to click the result in the left list first
+      to find the dot settings.
+    - Adding Size gave a plain "1", and its dropdown opened empty. The real control was an unlabeled
+      chain icon that I only found by hovering.
+    - The size range reads "1 to 3" without saying what the units are.
+    - The key box in the top-left corner covers a dot.
+    - No names on the drawing and no name on hover, so the figure alone does not say which dot is
+      Medici; I had to read it off the Top 10 list.

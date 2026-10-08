@@ -16,19 +16,19 @@ run until the tool can answer a save picker.
 
 ## What was walked
 
-| Step | Screenshot | What happened |
-| ---- | ---------- | ------------- |
-| setup start | `01.png` | `SETUP FAILED: nothing on screen is called "Run"`. The Analyze search had PageRank typed, but Enter did not open it, so no Run button existed. The later setup lines still ran: a label line bound to `name` was added on a second row also called "Everything". No PageRank result. |
-| Escape, Shift+A, type PageRank | `02.png` | The Analyze search shows one entry, "PageRank  Start here". |
-| Enter | `03.png` | Nothing happens: the entry does not open. |
-| click "PageRank" | `04.png` | The entry opens: Damping factor 0.85, "Under a second", Run. |
-| click "Run" | `05.png` | Done. A row "Influence" (77) appears, nodes turn orange, the key shows "Color: Influence 0.003299 - 0.07543"; the label line now reads "77 labels, 8 hidden to avoid overlap". **This is the intended starting state.** |
-| `--key Control+s` | `06.png` | "Save Les Miserables as" dialog, Name prefilled and selected, hint "Choose where the file goes next. Later saves write the same file." Correct. |
-| `--type "Les Mis pilot"`, `--key Enter` | `07.png` | The name is typed; the dialog stays open. No file chooser reported, no notice, no console error. |
-| click "Save" | `08.png` | Same: the dialog stays, the header still says "Les Miserables". **Blocked here.** |
-| Cancel; click the project name | `09.png` | The project menu: Rename, Open project or file..., Save, Export..., Save as..., Close project. No other way to keep the project (no download of a copy). |
-| click "Close project" | `10.png` | "Discard unsaved changes? Les Miserables has changes that are not saved. They are lost if you continue." Cancel / Discard. The guard works. |
-| Cancel; Shift+Ctrl+S; click "Save" | `11.png`, `12.png` | Save as... by its shortcut ends the same way: the dialog stays open. |
+| Step                                    | Screenshot         | What happened                                                                                                                                                                                                                                                                        |
+| --------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| setup start                             | `01.png`           | `SETUP FAILED: nothing on screen is called "Run"`. The Analyze search had PageRank typed, but Enter did not open it, so no Run button existed. The later setup lines still ran: a label line bound to `name` was added on a second row also called "Everything". No PageRank result. |
+| Escape, Shift+A, type PageRank          | `02.png`           | The Analyze search shows one entry, "PageRank Start here".                                                                                                                                                                                                                           |
+| Enter                                   | `03.png`           | Nothing happens: the entry does not open.                                                                                                                                                                                                                                            |
+| click "PageRank"                        | `04.png`           | The entry opens: Damping factor 0.85, "Under a second", Run.                                                                                                                                                                                                                         |
+| click "Run"                             | `05.png`           | Done. A row "Influence" (77) appears, nodes turn orange, the key shows "Color: Influence 0.003299 - 0.07543"; the label line now reads "77 labels, 8 hidden to avoid overlap". **This is the intended starting state.**                                                              |
+| `--key Control+s`                       | `06.png`           | "Save Les Miserables as" dialog, Name prefilled and selected, hint "Choose where the file goes next. Later saves write the same file." Correct.                                                                                                                                      |
+| `--type "Les Mis pilot"`, `--key Enter` | `07.png`           | The name is typed; the dialog stays open. No file chooser reported, no notice, no console error.                                                                                                                                                                                     |
+| click "Save"                            | `08.png`           | Same: the dialog stays, the header still says "Les Miserables". **Blocked here.**                                                                                                                                                                                                    |
+| Cancel; click the project name          | `09.png`           | The project menu: Rename, Open project or file..., Save, Export..., Save as..., Close project. No other way to keep the project (no download of a copy).                                                                                                                             |
+| click "Close project"                   | `10.png`           | "Discard unsaved changes? Les Miserables has changes that are not saved. They are lost if you continue." Cancel / Discard. The guard works.                                                                                                                                          |
+| Cancel; Shift+Ctrl+S; click "Save"      | `11.png`, `12.png` | Save as... by its shortcut ends the same way: the dialog stays open.                                                                                                                                                                                                                 |
 
 Screenshots are in this folder; `session.json` records the build and the setup as run.
 

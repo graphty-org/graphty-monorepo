@@ -89,7 +89,7 @@ node $T/real.mjs --step $S --click-at 1115,486     # option "label"
 Saw (06.png): names appeared next to the dots: GeorgiaTech, Maryland, Florida, Georgia,
 Tennessee, Arkansas, Virginia, Arizona, California, Stanford and so on. Small but readable for
 the bigger ones; many in the middle are tiny and pile on each other. The right panel now says
-"Aa Above   Abc label" and under it "115 labels, 14 hidden to avoid overlap". A small dot appeared
+"Aa Above Abc label" and under it "115 labels, 14 hidden to avoid overlap". A small dot appeared
 on the Nodes switch.
 
 Think-aloud: "Names are on. But it says 14 are hidden. The task said every team. If QA asked me,
@@ -138,13 +138,13 @@ node $T/real.mjs --end $S
 - How hard (1 = very easy, 7 = very hard): 3. Getting names on was quick once I clicked
   "Everything"; the last bit (the hidden 14) I could not do at all.
 - What confused me:
-  - The first Style tab (the graph's) has only background and arrangement. I had to guess that
-    "Everything" on the left is where the dots' look lives. "Everything" does not sound like a
-    place you go to style things.
-  - Three attribute choices, "id", "label" and "value", with no example values. I guessed "label"
-    held the team name. Picking "label" under a heading called "Label" read oddly.
-  - "14 hidden to avoid overlap" tells me something is missing but gives me no way to fix it: not
-    clickable, no tooltip, and the position button next to it only moves the name.
-  - Scrolling the mouse wheel over the drawing did nothing, so I could not zoom in to make room.
-  - Many names in the middle are tiny and sit on top of each other; for an alert file screenshot
-    I would not trust a reviewer to read them.
+    - The first Style tab (the graph's) has only background and arrangement. I had to guess that
+      "Everything" on the left is where the dots' look lives. "Everything" does not sound like a
+      place you go to style things.
+    - Three attribute choices, "id", "label" and "value", with no example values. I guessed "label"
+      held the team name. Picking "label" under a heading called "Label" read oddly.
+    - "14 hidden to avoid overlap" tells me something is missing but gives me no way to fix it: not
+      clickable, no tooltip, and the position button next to it only moves the name.
+    - Scrolling the mouse wheel over the drawing did nothing, so I could not zoom in to make room.
+    - Many names in the middle are tiny and sit on top of each other; for an alert file screenshot
+      I would not trust a reviewer to read them.

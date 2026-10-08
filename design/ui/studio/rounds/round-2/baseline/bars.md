@@ -22,21 +22,21 @@ above 42 under the same script (criteria, "How a fix is accepted", item 2).
 
 Tags `wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa`. Serious or critical / all violations per screen:
 
-| Screen | Serious or critical | All |
-|---|---|---|
-| Start screen with the usage card | 1 (color-contrast, 12 elements) | 1 |
-| Start screen | 1 (color-contrast, 11) | 1 |
-| Loaded Graph place | 0 | 0 |
-| Analyze open | 1 (color-contrast, 10) | 1 |
-| A finished run row | 0 | 0 |
-| Style tab with a label line | 1 (color-contrast, 1) | 1 |
-| Find box with results open | 1 (color-contrast, 1) | 1 |
-| A node's Values with its neighbors | 1 (color-contrast, 1) | 1 |
-| Export, Image | 1 (color-contrast, 4) | 1 |
-| Export, Data | 1 (color-contrast, 3) | 1 |
-| Data page | 0 | 0 |
-| Save as | 0 | 0 |
-| Refusal of a broken file | 1 (color-contrast, 11) | 1 |
+| Screen                             | Serious or critical             | All |
+| ---------------------------------- | ------------------------------- | --- |
+| Start screen with the usage card   | 1 (color-contrast, 12 elements) | 1   |
+| Start screen                       | 1 (color-contrast, 11)          | 1   |
+| Loaded Graph place                 | 0                               | 0   |
+| Analyze open                       | 1 (color-contrast, 10)          | 1   |
+| A finished run row                 | 0                               | 0   |
+| Style tab with a label line        | 1 (color-contrast, 1)           | 1   |
+| Find box with results open         | 1 (color-contrast, 1)           | 1   |
+| A node's Values with its neighbors | 1 (color-contrast, 1)           | 1   |
+| Export, Image                      | 1 (color-contrast, 4)           | 1   |
+| Export, Data                       | 1 (color-contrast, 3)           | 1   |
+| Data page                          | 0                               | 0   |
+| Save as                            | 0                               | 0   |
+| Refusal of a broken file           | 1 (color-contrast, 11)          | 1   |
 
 Every violation is the same pair of colors: dimmed text `#8c8c8c` on the dark panel `#2c2c2c`,
 4.15:1 where WCAG 1.4.3 asks 4.5:1, at 9 px and 11 px. `#8c8c8c` is shade 2 of

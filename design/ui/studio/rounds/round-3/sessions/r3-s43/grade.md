@@ -29,10 +29,10 @@ All three parts hold.
 
 ## Counts
 
-| | This session | Reference |
-|---|---|---|
-| Steps (after the start) | 5 | 6 from the setup start (the round 3 path of 7 minus opening the sample; typing the filter is optional, so 5 clicks) |
-| Wrong turns | 0 | -- |
+|                         | This session | Reference                                                                                                           |
+| ----------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Steps (after the start) | 5            | 6 from the setup start (the round 3 path of 7 minus opening the sample; typing the filter is optional, so 5 clicks) |
+| Wrong turns             | 0            | --                                                                                                                  |
 
 - She clicked "Analyze" instead of pressing Shift+A, and clicked PageRank in the list without
   typing a filter. Both are equivalent routes, not detours.
@@ -50,14 +50,14 @@ under the Values chart.
 Severity 0-4 (Nielsen). Opinion-only findings are held one level down. No build defect was found,
 so no scripted repro was needed.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | wording | The Analyze list names methods (Betweenness, Closeness, Eigenvector, Katz, HITS), each with a technical one-line description. Nothing matches her question "who the club depends on". She hesitated between PageRank and Betweenness and chose only by the "Start here" tag. She left unsure the measure fit the question. | Step 2, 02.png; debrief point 1. |
-| 2 | 2 | behavior | After Run, only the dot colors change. No ranked list or names appear where she is looking. She had to guess that the "PageRank 20" row, and then a tab inside it, held the order. | Step 4, 04.png; debrief point 2. |
-| 3 | 2 | behavior | Selecting a ranking run opens its Style tab (Fill, Color, Shape, Effects), not its Values with the Top 10. For a "who is on top" question, the answer is one more tab away. | Step 5, 05.png; debrief point 3. |
-| 4 | 1 | opinion | The Top 10 shows raw PageRank scores (0.06608) with no rank number or plain-words meaning. She said she could not explain them to a board. | Step 6, 06.png; debrief point 4. |
-| 5 | 1 | opinion | No names are drawn on the dots by default, so the drawing alone cannot answer "who". | Steps 1 and 4, 01.png, 04.png; transcript step 1. |
-| 6 | 1 | wording | "Damping factor" on the PageRank settings is unexplained jargon. She left it alone with no harm. | Step 3, 03.png; debrief point 5. |
+| #   | Sev | Kind     | Problem                                                                                                                                                                                                                                                                                                                    | Evidence                                          |
+| --- | --- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| 1   | 2   | wording  | The Analyze list names methods (Betweenness, Closeness, Eigenvector, Katz, HITS), each with a technical one-line description. Nothing matches her question "who the club depends on". She hesitated between PageRank and Betweenness and chose only by the "Start here" tag. She left unsure the measure fit the question. | Step 2, 02.png; debrief point 1.                  |
+| 2   | 2   | behavior | After Run, only the dot colors change. No ranked list or names appear where she is looking. She had to guess that the "PageRank 20" row, and then a tab inside it, held the order.                                                                                                                                         | Step 4, 04.png; debrief point 2.                  |
+| 3   | 2   | behavior | Selecting a ranking run opens its Style tab (Fill, Color, Shape, Effects), not its Values with the Top 10. For a "who is on top" question, the answer is one more tab away.                                                                                                                                                | Step 5, 05.png; debrief point 3.                  |
+| 4   | 1   | opinion  | The Top 10 shows raw PageRank scores (0.06608) with no rank number or plain-words meaning. She said she could not explain them to a board.                                                                                                                                                                                 | Step 6, 06.png; debrief point 4.                  |
+| 5   | 1   | opinion  | No names are drawn on the dots by default, so the drawing alone cannot answer "who".                                                                                                                                                                                                                                       | Steps 1 and 4, 01.png, 04.png; transcript step 1. |
+| 6   | 1   | wording  | "Damping factor" on the PageRank settings is unexplained jargon. She left it alone with no harm.                                                                                                                                                                                                                           | Step 3, 03.png; debrief point 5.                  |
 
 **What worked:** the start-screen hint "Analyze ... (Shift+A) to add results here" led her straight
 to Analyze. The "Start here" tag gave a newcomer a reasonable default. The run row and the color key

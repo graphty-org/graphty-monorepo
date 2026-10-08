@@ -8,23 +8,23 @@ path in the answer key with `real.mjs`, from an empty start. Les Miserables is i
 
 ## Les Miserables
 
-| Shot   | Step                                   | What the screen shows                                                                                                                                                                                  |
-| ------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 01.png | empty start                            | Start screen with the usage card; Les Miserables listed under Samples.                                                                                                                                 |
-| 02.png | "No thanks", then "Les Miserables"     | 77 dots, no names drawn, as the prompt says. Outline has Selection and Everything.                                                                                                                     |
-| 03.png | "Everything"                           | The inspector opens on Everything's Style tab (Nodes): Fill, Shape, Effects, Label (+), Tooltip (+).                                                                                                   |
-| 04.png | "Add label line"                       | A label line appears ("Pick an attribute") with an attribute picker open: id, name. id is highlighted first.                                                                                           |
-| 05.png | option "name"                          | Names drawn above the dots. The line reads "Aa Above / Abc name", and under it "77 labels, 7 hidden to avoid overlap", the answer key's exact words.                                                   |
+| Shot   | Step                               | What the screen shows                                                                                                                                |
+| ------ | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01.png | empty start                        | Start screen with the usage card; Les Miserables listed under Samples.                                                                               |
+| 02.png | "No thanks", then "Les Miserables" | 77 dots, no names drawn, as the prompt says. Outline has Selection and Everything.                                                                   |
+| 03.png | "Everything"                       | The inspector opens on Everything's Style tab (Nodes): Fill, Shape, Effects, Label (+), Tooltip (+).                                                 |
+| 04.png | "Add label line"                   | A label line appears ("Pick an attribute") with an attribute picker open: id, name. id is highlighted first.                                         |
+| 05.png | option "name"                      | Names drawn above the dots. The line reads "Aa Above / Abc name", and under it "77 labels, 7 hidden to avoid overlap", the answer key's exact words. |
 
 ## College football
 
-| Shot   | Step                                   | What the screen shows                                                                                                                                                                                  |
-| ------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 01.png | empty start                            | Same start screen.                                                                                                                                                                                     |
-| 02.png | "No thanks", then "College football"   | 115 dots, no names drawn.                                                                                                                                                                              |
-| 03.png | "Everything"                           | Same Style tab as above.                                                                                                                                                                               |
-| 04.png | "Add label line"                       | Picker offers id, label, value; id highlighted first.                                                                                                                                                  |
-| 05.png | option "label"                         | Team names drawn ("GeorgiaTech", "Maryland", "ArizonaState" ...). The line reads "Abc label" and "115 labels, 14 hidden to avoid overlap", the answer key's exact words.                                |
+| Shot   | Step                                 | What the screen shows                                                                                                                                                    |
+| ------ | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 01.png | empty start                          | Same start screen.                                                                                                                                                       |
+| 02.png | "No thanks", then "College football" | 115 dots, no names drawn.                                                                                                                                                |
+| 03.png | "Everything"                         | Same Style tab as above.                                                                                                                                                 |
+| 04.png | "Add label line"                     | Picker offers id, label, value; id highlighted first.                                                                                                                    |
+| 05.png | option "label"                       | Team names drawn ("GeorgiaTech", "Maryland", "ArizonaState" ...). The line reads "Abc label" and "115 labels, 14 hidden to avoid overlap", the answer key's exact words. |
 
 ## Observations (not blockers)
 

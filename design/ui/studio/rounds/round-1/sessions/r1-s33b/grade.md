@@ -27,24 +27,24 @@ grade does not rest on her rating. Her claim matches the screen, so it is not a 
   Everything). The answer was on screen after the 3rd path step (04.png); the rest was looking for
   a table of rows.
 - Wrong turns: 2.
-  - Step 5 (05.png): selected the Edge table row in Sources, expecting its rows; it opened an
-    "Add to friends" page. Undone by Cancel at step 6 (06.png).
-  - Step 8 (08.png): opened Everything hoping for a list of people; found style controls.
-    Abandoned.
+    - Step 5 (05.png): selected the Edge table row in Sources, expecting its rows; it opened an
+      "Add to friends" page. Undone by Cancel at step 6 (06.png).
+    - Step 8 (08.png): opened Everything hoping for a list of people; found style controls.
+      Abandoned.
 - Step 7 (07.png, clicking a node to learn its name) was a check, not a wrong turn.
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 3 | build-defect | Selecting a loaded table under Data > Sources (the "Edit source" door) opens "Add to friends" with an empty Tables list and a disabled Load ("Choose a file first"). The source the reader picked is not on the page, so there is nothing to edit and no rows to look at. The participant thought she had broken something. | Step 5, 05.png. Repro: `rounds/round-1/repro/r1-s33b/run.sh` |
-| 2 | 2 | behavior | There is no way to see the rows that were loaded. The participant looked in Sources (step 5) and in Everything (step 8) and found no table; "nothing dropped" had to be inferred from two numbers. | Steps 5 and 8, 05.png, 08.png; verdict point 3 |
-| 3 | 2 | wording | Table names in Sources are cut to "Node ..." and "Edge t..." at 1440 px wide, in small low-contrast grey; the row that answers the task is the hardest text to read. | Step 4, 04.png |
-| 4 | 2 | behavior | The file was drawn with no word about which column was taken as "from" and which as "to", or why the ties are Directed; for a "who knows whom" list the participant reads Directed as wrong. | Step 3, 03.png ("Direction Directed") |
-| 5 | 1 | opinion | No names on the dots after loading; the participant had to click a node to learn names came through. | Step 7, 07.png |
-| 6 | 1 | wording | Words outside a newcomer's vocabulary: nodes, edges, degree, density, components, Icosphere. | 03.png, 07.png, 08.png |
-| 7 | 1 | opinion | "Nothing dropped" is left to the reader to compute ("41 rows, 41 edges"); she asked for one line such as "41 of 41 rows loaded". | Step 4, 04.png |
-| 8 | 2 | accessibility | Two controls share the accessible name "Graph" at that moment; the tool had to take the first match. Bears on the duplicate-names part of the automated accessibility check. | Step 8, tool note in transcript |
+| #   | Severity | Kind          | Problem                                                                                                                                                                                                                                                                                                                     | Evidence                                                     |
+| --- | -------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| 1   | 3        | build-defect  | Selecting a loaded table under Data > Sources (the "Edit source" door) opens "Add to friends" with an empty Tables list and a disabled Load ("Choose a file first"). The source the reader picked is not on the page, so there is nothing to edit and no rows to look at. The participant thought she had broken something. | Step 5, 05.png. Repro: `rounds/round-1/repro/r1-s33b/run.sh` |
+| 2   | 2        | behavior      | There is no way to see the rows that were loaded. The participant looked in Sources (step 5) and in Everything (step 8) and found no table; "nothing dropped" had to be inferred from two numbers.                                                                                                                          | Steps 5 and 8, 05.png, 08.png; verdict point 3               |
+| 3   | 2        | wording       | Table names in Sources are cut to "Node ..." and "Edge t..." at 1440 px wide, in small low-contrast grey; the row that answers the task is the hardest text to read.                                                                                                                                                        | Step 4, 04.png                                               |
+| 4   | 2        | behavior      | The file was drawn with no word about which column was taken as "from" and which as "to", or why the ties are Directed; for a "who knows whom" list the participant reads Directed as wrong.                                                                                                                                | Step 3, 03.png ("Direction Directed")                        |
+| 5   | 1        | opinion       | No names on the dots after loading; the participant had to click a node to learn names came through.                                                                                                                                                                                                                        | Step 7, 07.png                                               |
+| 6   | 1        | wording       | Words outside a newcomer's vocabulary: nodes, edges, degree, density, components, Icosphere.                                                                                                                                                                                                                                | 03.png, 07.png, 08.png                                       |
+| 7   | 1        | opinion       | "Nothing dropped" is left to the reader to compute ("41 rows, 41 edges"); she asked for one line such as "41 of 41 rows loaded".                                                                                                                                                                                            | Step 4, 04.png                                               |
+| 8   | 2        | accessibility | Two controls share the accessible name "Graph" at that moment; the tool had to take the first match. Bears on the duplicate-names part of the automated accessibility check.                                                                                                                                                | Step 8, tool note in transcript                              |
 
 ## Notes
 

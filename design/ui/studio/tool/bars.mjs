@@ -233,8 +233,11 @@ const missed = log.filter((l) => l.startsWith("MISS"));
 await mkdir(out, { recursive: true });
 await writeFile(
     join(out, "bars.json"),
-    JSON.stringify({ build, scheme, measured: new Date().toISOString(), tags: TAGS, screens, wordsAtRest: rest }, null, 1) +
-        "\n",
+    JSON.stringify(
+        { build, scheme, measured: new Date().toISOString(), tags: TAGS, screens, wordsAtRest: rest },
+        null,
+        1,
+    ) + "\n",
 );
 console.log(`build ${build}, ${scheme} scheme`);
 console.log(log.join("\n"));

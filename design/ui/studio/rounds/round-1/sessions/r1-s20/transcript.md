@@ -129,14 +129,14 @@ its name. It's six dots, I can do six."
 Clicked the positions Tom remembered from the lit-up picture (07.png). The yellow rings had gone
 once he clicked something else, so he worked from memory.
 
-| Step | Command | Panel showed | Degree |
-|---|---|---|---|
-| 11 | `--step $S --click-at 753,251` -> 11.png | Salviati | 2 |
-| 12 | `--step $S --click-at 571,357` -> 12.png | Acciaiuoli | 1 |
-| 13 | `--step $S --click-at 697,416` -> 13.png | Tornabuoni | 3 |
-| 14 | `--step $S --click-at 584,549` -> 14.png | Ridolfi | 3 |
-| 15 | `--step $S --click-at 791,545` -> 15.png | Barbadori | 2 |
-| 16 | `--step $S --click-at 913,603` -> 16.png | Albizzi | 3 |
+| Step | Command                                  | Panel showed | Degree |
+| ---- | ---------------------------------------- | ------------ | ------ |
+| 11   | `--step $S --click-at 753,251` -> 11.png | Salviati     | 2      |
+| 12   | `--step $S --click-at 571,357` -> 12.png | Acciaiuoli   | 1      |
+| 13   | `--step $S --click-at 697,416` -> 13.png | Tornabuoni   | 3      |
+| 14   | `--step $S --click-at 584,549` -> 14.png | Ridolfi      | 3      |
+| 15   | `--step $S --click-at 791,545` -> 15.png | Barbadori    | 2      |
+| 16   | `--step $S --click-at 913,603` -> 16.png | Albizzi      | 3      |
 
 Think-aloud while doing it: "Salviati. Write that down. Acciaiuoli, that's the one from the list
 before. Tornabuoni. Ridolfi. Barbadori. Albizzi. That's six. Six, and it said 6 at the start, so
@@ -160,13 +160,13 @@ Albizzi. What the program knows about the Medici: their id and name (both "Medic
 - **How hard was it (1 = very easy, 7 = very hard)?** 5. "Finding the Medici was easy, the search
   box worked first time. Getting the names of who they married was the hard part."
 - **What confused you?**
-  - "None of the dots have names on them. It's a picture of families with no family names."
-  - "When I lit up the neighbors it told me there were seven, but it only showed one name,
-    'Acciaiuoli (1)'. I wanted the list."
-  - "'Edges 0' and right under it 'Edges among them 7'. Which is it?"
-  - "'Degree 6'. I guessed it means six marriages. Nothing said so."
-  - "I clicked 'Selection' expecting the list and the right side went blank."
-  - "Under Data, 'name' told me there are 15 different names but not what they are."
-  - "The moment I clicked one of the lit-up dots, all the others went back to blue, so I had to
-    remember where they were."
-  - "The tooltip said 'NeighborhoodG'. I don't know what the G is."
+    - "None of the dots have names on them. It's a picture of families with no family names."
+    - "When I lit up the neighbors it told me there were seven, but it only showed one name,
+      'Acciaiuoli (1)'. I wanted the list."
+    - "'Edges 0' and right under it 'Edges among them 7'. Which is it?"
+    - "'Degree 6'. I guessed it means six marriages. Nothing said so."
+    - "I clicked 'Selection' expecting the list and the right side went blank."
+    - "Under Data, 'name' told me there are 15 different names but not what they are."
+    - "The moment I clicked one of the lit-up dots, all the others went back to blue, so I had to
+      remember where they were."
+    - "The tooltip said 'NeighborhoodG'. I don't know what the G is."

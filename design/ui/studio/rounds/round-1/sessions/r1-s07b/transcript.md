@@ -91,11 +91,11 @@ are the biggest. The numbers run 0.044 to 0.066; I could not say what one unit m
   with its key.
 - **Difficulty:** 3 out of 7.
 - **What confused me:**
-  - The list of analyses is all jargon; only the "Start here" badge told me which to pick.
-  - I picked "PageRank" and everything after calls it "Influence". Is that the same thing?
-  - Size was hidden under "Shape", and adding it gave a fixed "1" -- I had to find the small
-    chain-link icon to tie it to Influence.
-  - For names I was offered "id", not "name". It worked because my ids are names.
-  - The numbers (0.04382 to 0.06608) mean nothing to me; I could not explain them to an editor.
-  - On the exported picture Chloe's label sits on Farah's ball, and Eli and Dev overlap, even
-    though the panel said nothing was hidden for overlap.
+    - The list of analyses is all jargon; only the "Start here" badge told me which to pick.
+    - I picked "PageRank" and everything after calls it "Influence". Is that the same thing?
+    - Size was hidden under "Shape", and adding it gave a fixed "1" -- I had to find the small
+      chain-link icon to tie it to Influence.
+    - For names I was offered "id", not "name". It worked because my ids are names.
+    - The numbers (0.04382 to 0.06608) mean nothing to me; I could not explain them to an editor.
+    - On the exported picture Chloe's label sits on Farah's ball, and Eli and Dev overlap, even
+      though the panel said nothing was hidden for overlap.

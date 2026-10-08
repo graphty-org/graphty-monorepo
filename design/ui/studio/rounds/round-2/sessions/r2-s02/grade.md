@@ -50,17 +50,17 @@ true. truth_on_screen does not apply.
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 3 | behavior | The names in the exported image are too small and soft to read at slide size. The most important name, Valjean, sits on top of his own large dot and can hardly be read. The task is met, but the persona's goal (a picture for a board slide) is not. | Step 16, downloads/les-miserables_current-view.png |
-| 2 | 2 | behavior | The Style tab has no control for name text size. The participant looked in the two places it might be ("Aa" and the "Abc name" box), found nothing and gave up on it. | Steps 17-18, 17.png, 18.png |
-| 3 | 2 | wording | The "Aa" button beside the Label line reads as a font or text-size control, but it opens Label position (a 3 x 3 grid). | Step 17, 17.png |
-| 4 | 2 | behavior | Color was bound to Influence automatically, but a new Size line starts as a fixed "1". Binding it to Influence needs the unlabeled chain icon, found only through its tooltip. | Steps 8-9, 08.png, 09.png |
-| 5 | 2 | behavior | The on-screen key box covers part of the drawing. It sits over a node's name (Blacheville) in the top-left corner. | Step 13, 13.png; still so in 16.png and 18.png |
-| 6 | 1 | opinion | The key's ranges are raw scores (0.003299 to 0.07543), which the participant could not explain to her readers. She would want low/high or ranks. | Steps 5 and 16, 05.png, downloaded image |
-| 7 | 1 | opinion | The orange-to-brown color ramp makes most dots look alike. Only the top few stand out. | Step 5, 05.png |
-| 8 | 1 | wording | The ranking methods have jargon names (Degree, Betweenness, PageRank). The participant chose between Degree and PageRank only by the "Start here" tag. | Step 3, 03.png |
-| 9 | 0 | opinion | The overview shows statistics she would not put on a slide (Density 0.08681, "Edges per ..."). | Step 2, 02.png |
+| #   | Severity | Kind     | Problem                                                                                                                                                                                                                                                | Evidence                                           |
+| --- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| 1   | 3        | behavior | The names in the exported image are too small and soft to read at slide size. The most important name, Valjean, sits on top of his own large dot and can hardly be read. The task is met, but the persona's goal (a picture for a board slide) is not. | Step 16, downloads/les-miserables_current-view.png |
+| 2   | 2        | behavior | The Style tab has no control for name text size. The participant looked in the two places it might be ("Aa" and the "Abc name" box), found nothing and gave up on it.                                                                                  | Steps 17-18, 17.png, 18.png                        |
+| 3   | 2        | wording  | The "Aa" button beside the Label line reads as a font or text-size control, but it opens Label position (a 3 x 3 grid).                                                                                                                                | Step 17, 17.png                                    |
+| 4   | 2        | behavior | Color was bound to Influence automatically, but a new Size line starts as a fixed "1". Binding it to Influence needs the unlabeled chain icon, found only through its tooltip.                                                                         | Steps 8-9, 08.png, 09.png                          |
+| 5   | 2        | behavior | The on-screen key box covers part of the drawing. It sits over a node's name (Blacheville) in the top-left corner.                                                                                                                                     | Step 13, 13.png; still so in 16.png and 18.png     |
+| 6   | 1        | opinion  | The key's ranges are raw scores (0.003299 to 0.07543), which the participant could not explain to her readers. She would want low/high or ranks.                                                                                                       | Steps 5 and 16, 05.png, downloaded image           |
+| 7   | 1        | opinion  | The orange-to-brown color ramp makes most dots look alike. Only the top few stand out.                                                                                                                                                                 | Step 5, 05.png                                     |
+| 8   | 1        | wording  | The ranking methods have jargon names (Degree, Betweenness, PageRank). The participant chose between Degree and PageRank only by the "Start here" tag.                                                                                                 | Step 3, 03.png                                     |
+| 9   | 0        | opinion  | The overview shows statistics she would not put on a slide (Density 0.08681, "Edges per ...").                                                                                                                                                         | Step 2, 02.png                                     |
 
 No build defect (crash, control that does nothing, wrong count, step not doable by keyboard) was
 seen, so no scripted repro was needed. Every count on screen matched the reference values.

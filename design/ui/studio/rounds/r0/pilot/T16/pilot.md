@@ -7,14 +7,14 @@ and look up who came out on top.
 
 ## Recorded measures
 
-| Measure | Value |
-|---|---|
-| Usage card | Declined ("No thanks"); a one-line note "Usage data stays off. Change this in Settings > Privacy" replaced it (02.png) |
-| Data used | friends.csv, not a sample |
-| Steps from start to first drawing | 2 (No thanks; Open project or file... with the upload). 1 if the card is ignored |
-| Analysis run without being asked | Yes: PageRank, marked "Start here" in Analyze (05.png), run with its default damping 0.85 (06-07.png). Shown on screen as "Influence" |
-| Result read correctly | Yes. Top 10: Farah 0.06608, Ava 0.06423, Hana 0.05883 (11.png); range 0.04382 to 0.06608 in the key (07.png). All equal the reference values. Ava's node reads "0.06423, #2 of 20" (08.png), Farah's "0.06608, #1 of 20" (14.png) |
-| Verdict a newcomer could reach | Probably "keep using it": the file drew at once, the overview (20 nodes, 41 edges, Directed, 1 component) is right, and the ranking is easy to read. The likely reason against: no one's name is drawn on the picture |
+| Measure                           | Value                                                                                                                                                                                                                             |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Usage card                        | Declined ("No thanks"); a one-line note "Usage data stays off. Change this in Settings > Privacy" replaced it (02.png)                                                                                                            |
+| Data used                         | friends.csv, not a sample                                                                                                                                                                                                         |
+| Steps from start to first drawing | 2 (No thanks; Open project or file... with the upload). 1 if the card is ignored                                                                                                                                                  |
+| Analysis run without being asked  | Yes: PageRank, marked "Start here" in Analyze (05.png), run with its default damping 0.85 (06-07.png). Shown on screen as "Influence"                                                                                             |
+| Result read correctly             | Yes. Top 10: Farah 0.06608, Ava 0.06423, Hana 0.05883 (11.png); range 0.04382 to 0.06608 in the key (07.png). All equal the reference values. Ava's node reads "0.06423, #2 of 20" (08.png), Farah's "0.06608, #1 of 20" (14.png) |
+| Verdict a newcomer could reach    | Probably "keep using it": the file drew at once, the overview (20 nodes, 41 edges, Directed, 1 component) is right, and the ranking is easy to read. The likely reason against: no one's name is drawn on the picture             |
 
 ## Step by step
 

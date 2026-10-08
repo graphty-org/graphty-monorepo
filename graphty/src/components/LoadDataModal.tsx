@@ -22,7 +22,6 @@ import {
 import { AlertCircle, Clipboard, FileText, Link, Upload } from "lucide-react";
 import { useCallback, useState } from "react";
 
-
 /** Which of the dialog's three inputs is showing: a file, a URL or pasted text. */
 export type InputMethod = "file" | "url" | "paste";
 /** "auto" lets graphty-element decide; anything else is a format id from its catalog. */

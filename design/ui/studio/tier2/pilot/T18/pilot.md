@@ -56,11 +56,11 @@ error, a failed request or "the drawing is still moving".
 **Result: reached on both datasets**: Values "Route 5 nodes, 4 edges", Chloe, Ava, Ivan, Kofi, Milo
 (`rewalk/A/08.png`) and Strozzi, Ridolfi, Medici, Salviati, Pazzi (`rewalk/B/08.png`).
 
-| Earlier observation | Now |
-|---|---|
+| Earlier observation                                                | Now                                                                                                                                                                                                          |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | The Weight box read "weight (loaded)" while the run ignored it (A) | The popover says "Not read -- weight has no meaning chosen, and a path needs a distance" above a box reading "weight (loaded, not read)" (`rewalk/A/02.png`), and Made with repeats both (`rewalk/A/08.png`) |
-| Enter in From left focus there ("StrozziPazzi") | Enter picks Strozzi and moves on to To; "Pazzi" lands in To (`rewalk/B/05.png`) |
-| A false "the drawing is still moving" while typing in To | Not printed at any step |
+| Enter in From left focus there ("StrozziPazzi")                    | Enter picks Strozzi and moves on to To; "Pazzi" lands in To (`rewalk/B/05.png`)                                                                                                                              |
+| A false "the drawing is still moving" while typing in To           | Not printed at any step                                                                                                                                                                                      |
 
 Still so, as the answer key lists: the run opens on Values only after a click; the tree row reads
 "Shortest path 61" (A) and "35" (B); the legend "Shortest route (edges) 24".

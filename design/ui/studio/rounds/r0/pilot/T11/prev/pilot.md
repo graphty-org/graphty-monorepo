@@ -19,21 +19,21 @@ does nothing, because the message that says so is hidden behind the Layout popov
 
 ## Steps
 
-| Step | Command | Screenshot | What it shows |
-| ---- | ------- | ---------- | ------------- |
-| 1 | `--start ... empty` | 01.png | Start screen; Les Miserables under Samples, "77 characters"; usage-data notice |
-| 2 | `--click "No thanks"` | 02.png | Notice dismissed |
-| 3 | `--click "Les Miserables"` | 03.png | The default "Force - Recommended" drawing; visible groups (top-left knot, right-hand group, a fan of leaves at the bottom) |
-| 4 | `--click "Layout"` | 04.png | Layout popover above the bottom toolbar: Method "Force - Recommended", Seed 1 |
-| 5 | `--click "Method"` | 05.png | Method list: Force - Recommended, Force flat, Circle, Grid, Spiral, Spectral, No crossings, Random, Keep positions |
-| 6 | `--click "Spectral"` | 06.png | Graph collapsed into an L: about 70 nodes in one clump top left, a short chain to the right, a long chain down to one node at the bottom canvas edge beside the toolbar. The Seed field is gone (Spectral takes none) |
-| 7 | `--click "Method"` | 07.png | List reopened, Spectral checked |
-| 8 | `--click "Force, flat"` | 08.png | A uniform disk of nodes, long crossing edges, no groups; Seed 1 |
-| 9 | `--wait 10000` | 09.png | Identical to 08.png: the settled result |
-| 10 | `--click "Method" --click "No crossings"` | 10.png | Nothing changed: Method still "Force, flat". A lone close button ("x") pokes out to the right of the popover at about 852,811 |
-| 11 | `--click "Method" --click "Force - Recommended"` | 11.png | Exactly the drawing of 03.png: the default is reproducible |
-| 12 | `--key Escape --hover "Layout"` | 12.png | The four-arrow toolbar icon's tooltip reads "Layout" |
-| 13-15 | `--click "Layout"`, `--click "Method"`, `--click "No crossings"` (one per step) | 13.png to 15.png | Same as step 10: method stays "Force - Recommended", the same "x" appears beside the popover |
+| Step  | Command                                                                         | Screenshot       | What it shows                                                                                                                                                                                                         |
+| ----- | ------------------------------------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | `--start ... empty`                                                             | 01.png           | Start screen; Les Miserables under Samples, "77 characters"; usage-data notice                                                                                                                                        |
+| 2     | `--click "No thanks"`                                                           | 02.png           | Notice dismissed                                                                                                                                                                                                      |
+| 3     | `--click "Les Miserables"`                                                      | 03.png           | The default "Force - Recommended" drawing; visible groups (top-left knot, right-hand group, a fan of leaves at the bottom)                                                                                            |
+| 4     | `--click "Layout"`                                                              | 04.png           | Layout popover above the bottom toolbar: Method "Force - Recommended", Seed 1                                                                                                                                         |
+| 5     | `--click "Method"`                                                              | 05.png           | Method list: Force - Recommended, Force flat, Circle, Grid, Spiral, Spectral, No crossings, Random, Keep positions                                                                                                    |
+| 6     | `--click "Spectral"`                                                            | 06.png           | Graph collapsed into an L: about 70 nodes in one clump top left, a short chain to the right, a long chain down to one node at the bottom canvas edge beside the toolbar. The Seed field is gone (Spectral takes none) |
+| 7     | `--click "Method"`                                                              | 07.png           | List reopened, Spectral checked                                                                                                                                                                                       |
+| 8     | `--click "Force, flat"`                                                         | 08.png           | A uniform disk of nodes, long crossing edges, no groups; Seed 1                                                                                                                                                       |
+| 9     | `--wait 10000`                                                                  | 09.png           | Identical to 08.png: the settled result                                                                                                                                                                               |
+| 10    | `--click "Method" --click "No crossings"`                                       | 10.png           | Nothing changed: Method still "Force, flat". A lone close button ("x") pokes out to the right of the popover at about 852,811                                                                                         |
+| 11    | `--click "Method" --click "Force - Recommended"`                                | 11.png           | Exactly the drawing of 03.png: the default is reproducible                                                                                                                                                            |
+| 12    | `--key Escape --hover "Layout"`                                                 | 12.png           | The four-arrow toolbar icon's tooltip reads "Layout"                                                                                                                                                                  |
+| 13-15 | `--click "Layout"`, `--click "Method"`, `--click "No crossings"` (one per step) | 13.png to 15.png | Same as step 10: method stays "Force - Recommended", the same "x" appears beside the popover                                                                                                                          |
 
 ## Blockers and findings
 

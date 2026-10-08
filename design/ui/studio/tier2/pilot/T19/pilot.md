@@ -8,23 +8,23 @@ after the tab was closed and the project reopened from Recent projects. No block
 
 ## The walk
 
-| Step | What was done | What the screen showed |
-| ---- | ------------- | ---------------------- |
-| 01 | Start | friends.csv drawn, 20 nodes, 41 edges. No node labels are drawn, so Farah cannot be found on the canvas by eye. |
-| 02 | `/`, type "Farah" | Find box lists one element, Farah. |
-| 03 | Enter | Farah selected (yellow ring), inspector "Farah, Node". The drawing is reframed so the top of the graph is off the canvas (the answer key's Watch item). |
-| 04 | `n` | Notes place opens with an empty editor headed "About Farah", Cancel and "Save note". |
-| 05 | Type the Farah text | Text in the editor. |
-| 06 | Ctrl+Enter | Note listed with the chip "Farah" and a time; inspector header now "Node 1 note". |
-| 07 | Escape, Escape | Nothing selected; inspector back to "Graph, From friends.csv". |
-| 08-09 | `n`, type the club text | Editor headed "About Graph". |
-| 10 | Ctrl+Enter | Two notes listed, the new one with the chip "Graph"; inspector "From friends.csv 1 note". |
-| 11 | Ctrl+S | Dialog "Save friends as", Name "friends", Cancel / Save. |
-| 12 | Save | Toast "Saved friends in this browser." |
-| 13 | Reopen tab | Start screen; Recent projects lists "friends, In this browser - 20 nodes - Oct 7, 2026, 5:17 PM", with the line "This browser can clear projects kept here. Save a local copy of any project you need to keep." |
-| 14 | Click "friends" | Toast "Opened friends"; inspector "1 note" on the graph. |
-| 15 | Click Notes | Both notes listed with their chips, Graph and Farah (matches the success state). |
-| 16 | Click the Farah chip | Farah selected, inspector "Node 1 note". |
+| Step  | What was done           | What the screen showed                                                                                                                                                                                          |
+| ----- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01    | Start                   | friends.csv drawn, 20 nodes, 41 edges. No node labels are drawn, so Farah cannot be found on the canvas by eye.                                                                                                 |
+| 02    | `/`, type "Farah"       | Find box lists one element, Farah.                                                                                                                                                                              |
+| 03    | Enter                   | Farah selected (yellow ring), inspector "Farah, Node". The drawing is reframed so the top of the graph is off the canvas (the answer key's Watch item).                                                         |
+| 04    | `n`                     | Notes place opens with an empty editor headed "About Farah", Cancel and "Save note".                                                                                                                            |
+| 05    | Type the Farah text     | Text in the editor.                                                                                                                                                                                             |
+| 06    | Ctrl+Enter              | Note listed with the chip "Farah" and a time; inspector header now "Node 1 note".                                                                                                                               |
+| 07    | Escape, Escape          | Nothing selected; inspector back to "Graph, From friends.csv".                                                                                                                                                  |
+| 08-09 | `n`, type the club text | Editor headed "About Graph".                                                                                                                                                                                    |
+| 10    | Ctrl+Enter              | Two notes listed, the new one with the chip "Graph"; inspector "From friends.csv 1 note".                                                                                                                       |
+| 11    | Ctrl+S                  | Dialog "Save friends as", Name "friends", Cancel / Save.                                                                                                                                                        |
+| 12    | Save                    | Toast "Saved friends in this browser."                                                                                                                                                                          |
+| 13    | Reopen tab              | Start screen; Recent projects lists "friends, In this browser - 20 nodes - Oct 7, 2026, 5:17 PM", with the line "This browser can clear projects kept here. Save a local copy of any project you need to keep." |
+| 14    | Click "friends"         | Toast "Opened friends"; inspector "1 note" on the graph.                                                                                                                                                        |
+| 15    | Click Notes             | Both notes listed with their chips, Graph and Farah (matches the success state).                                                                                                                                |
+| 16    | Click the Farah chip    | Farah selected, inspector "Node 1 note".                                                                                                                                                                        |
 
 ## Findings (none blocks the task)
 

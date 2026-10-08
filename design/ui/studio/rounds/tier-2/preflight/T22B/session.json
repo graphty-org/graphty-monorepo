@@ -1,16 +1,13 @@
 {
- "commit": "d041fe832270d5e33cdcd2c42baaaf09b5a0cb7c",
- "uncommittedChanges": true,
- "buildStamp": "ca8b3b916c22 graphty@0.8.55",
- "url": "/?next",
- "screenReaderMode": false,
- "viewport": {
-  "width": 1440,
-  "height": 900
- },
- "started": "2026-10-08T00:04:37.468Z",
- "setup": [
-  "--click No thanks",
-  "--click Open the Les Miserables sample"
- ]
+    "commit": "d041fe832270d5e33cdcd2c42baaaf09b5a0cb7c",
+    "uncommittedChanges": true,
+    "buildStamp": "ca8b3b916c22 graphty@0.8.55",
+    "url": "/?next",
+    "screenReaderMode": false,
+    "viewport": {
+        "width": 1440,
+        "height": 900
+    },
+    "started": "2026-10-08T00:04:37.468Z",
+    "setup": ["--click No thanks", "--click Open the Les Miserables sample"]
 }

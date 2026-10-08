@@ -102,20 +102,20 @@ Command: `node tool/real.mjs --end rounds/round-3/sessions/r3-s12`
   none hidden, which matches the 77 characters on the start page.
 - **How easy, 1 (very difficult) to 7 (very easy):** 5.
 - **What got in the way:**
-  - My first guess was the "Style" tab on the right while nothing was picked. It showed background
-    colour, "Method", "Spring length" and "Gravity" -- nothing about names. I only found "Label"
-    after clicking "Everything" on the left, and I clicked that on a hunch because the word
-    sounded like "all the dots". If that hunch had not worked I would have been at my second
-    failure.
-  - Two "Style" tabs that show different things depending on what is picked on the left. I did
-    not know the left side was choosing what the right side talks about.
-  - After I picked "name", it quietly left 7 names off ("77 labels, 7 hidden"). I only caught it
-    because I read counts. The note is small grey text; someone less fussy would have thought
-    they were done.
-  - "Attribute" and "Pick an attribute" -- not my words; luckily "name" was in the list.
-  - The names are very small, thin type. In the busy middle they sit on top of each other and I
-    could not read them. "Every name written" is true, but I could not hand this to the PI as a
-    figure where people read the names in the middle.
+    - My first guess was the "Style" tab on the right while nothing was picked. It showed background
+      colour, "Method", "Spring length" and "Gravity" -- nothing about names. I only found "Label"
+      after clicking "Everything" on the left, and I clicked that on a hunch because the word
+      sounded like "all the dots". If that hunch had not worked I would have been at my second
+      failure.
+    - Two "Style" tabs that show different things depending on what is picked on the left. I did
+      not know the left side was choosing what the right side talks about.
+    - After I picked "name", it quietly left 7 names off ("77 labels, 7 hidden"). I only caught it
+      because I read counts. The note is small grey text; someone less fussy would have thought
+      they were done.
+    - "Attribute" and "Pick an attribute" -- not my words; luckily "name" was in the list.
+    - The names are very small, thin type. In the busy middle they sit on top of each other and I
+      could not read them. "Every name written" is true, but I could not hand this to the PI as a
+      figure where people read the names in the middle.
 - **What went well:** it opened in the browser with no install or sign-in, the sample was right
   there with its count, and the names appeared the moment I picked "name" -- no Apply button, I
   could see it worked.

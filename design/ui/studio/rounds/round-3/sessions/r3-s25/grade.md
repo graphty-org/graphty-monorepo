@@ -34,11 +34,11 @@ found the path by clicking the PageRank row in the outline.
 
 ## Counts
 
-| | This session | Reference (round 3 path) |
-|---|---|---|
-| Commands after the start, to the success state | 10 step commands (11 actions) to step 11 | 8 steps, 10 commands |
-| Commands in the whole session | 11 step commands (12 actions) | -- |
-| Wrong turns | 1 | -- |
+|                                                | This session                             | Reference (round 3 path) |
+| ---------------------------------------------- | ---------------------------------------- | ------------------------ |
+| Commands after the start, to the success state | 10 step commands (11 actions) to step 11 | 8 steps, 10 commands     |
+| Commands in the whole session                  | 11 step commands (12 actions)            | --                       |
+| Wrong turns                                    | 1                                        | --                       |
 
 - **The wrong turn:** step 7, the graph-level Style tab (07.png). No size control there. She left
   it on the next step.
@@ -66,15 +66,15 @@ Severity 0-4 (Nielsen). Opinion-only findings are held one level down. Each is s
 participant. None is a build defect: each control did what it was built to do, so no repro script
 was written.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | After Run, the inspector stays on the graph (Values tab), not on the new PageRank row. The graph's own Style tab has no size control, and nothing points to the run row as the place to style the result. This caused the session's only wrong turn. | Steps 6-8: 06.png (right panel "Graph / From Les Miserables"), 07.png (graph Style: background and layout only), 08.png (the row's Style with Fill, Shape, Label). |
-| 2 | 2 | behavior | Hovering a dot shows nothing, not even its name. She could not say who the biggest, most important characters are, which is the point of sizing them. The "Tooltip +" line is the only way, and she chose not to set it up. | Step 12: 11.png against 12.png, identical; the tool reports the node "Valjean" under the pointer. Debrief: "I could not tell you their names from the screen." |
-| 3 | 2 | wording | The task's "depends on most" is closer to Betweenness's line ("sit on the most shortest paths between others") than to PageRank's. She took PageRank only because of the "Start here" tag and could not justify the choice ("the app said start here"). For an alert reviewer, that is an unexplained basis for a report. | Step 4, 04.png; debrief first confusion point. |
-| 4 | 1 | wording | Size sits under "Shape", behind a "+". She guessed "a dot's size is kind of its shape" and found it, but said "Size as its own row would have been obvious". | Steps 8-9, 08.png, 09.png. |
-| 5 | 1 | wording | The size list offers "PageRank", "PageRank rank" and "PageRank percentile" without saying whether rank 1 makes the largest or the smallest dot. She avoided "rank" for that reason. | Step 10, 10.png. |
-| 6 | 1 | wording | The key shows raw PageRank values (0.003299 to 0.07543) with no hint of what the numbers mean. She said she could not put them in an alert file without explaining them. | Step 11, 11.png; debrief. |
-| 7 | 0 | opinion | Size and color now encode the same measure. She was unsure whether she should leave the color or change it to mean something else. Held one level down as an opinion. | 11.png; debrief. |
+| #   | Sev | Kind     | Problem                                                                                                                                                                                                                                                                                                                   | Evidence                                                                                                                                                           |
+| --- | --- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | 2   | behavior | After Run, the inspector stays on the graph (Values tab), not on the new PageRank row. The graph's own Style tab has no size control, and nothing points to the run row as the place to style the result. This caused the session's only wrong turn.                                                                      | Steps 6-8: 06.png (right panel "Graph / From Les Miserables"), 07.png (graph Style: background and layout only), 08.png (the row's Style with Fill, Shape, Label). |
+| 2   | 2   | behavior | Hovering a dot shows nothing, not even its name. She could not say who the biggest, most important characters are, which is the point of sizing them. The "Tooltip +" line is the only way, and she chose not to set it up.                                                                                               | Step 12: 11.png against 12.png, identical; the tool reports the node "Valjean" under the pointer. Debrief: "I could not tell you their names from the screen."     |
+| 3   | 2   | wording  | The task's "depends on most" is closer to Betweenness's line ("sit on the most shortest paths between others") than to PageRank's. She took PageRank only because of the "Start here" tag and could not justify the choice ("the app said start here"). For an alert reviewer, that is an unexplained basis for a report. | Step 4, 04.png; debrief first confusion point.                                                                                                                     |
+| 4   | 1   | wording  | Size sits under "Shape", behind a "+". She guessed "a dot's size is kind of its shape" and found it, but said "Size as its own row would have been obvious".                                                                                                                                                              | Steps 8-9, 08.png, 09.png.                                                                                                                                         |
+| 5   | 1   | wording  | The size list offers "PageRank", "PageRank rank" and "PageRank percentile" without saying whether rank 1 makes the largest or the smallest dot. She avoided "rank" for that reason.                                                                                                                                       | Step 10, 10.png.                                                                                                                                                   |
+| 6   | 1   | wording  | The key shows raw PageRank values (0.003299 to 0.07543) with no hint of what the numbers mean. She said she could not put them in an alert file without explaining them.                                                                                                                                                  | Step 11, 11.png; debrief.                                                                                                                                          |
+| 7   | 0   | opinion  | Size and color now encode the same measure. She was unsure whether she should leave the color or change it to mean something else. Held one level down as an opinion.                                                                                                                                                     | 11.png; debrief.                                                                                                                                                   |
 
 **What worked:** the start-page hint "Analyze (flask icon) in the toolbar (Shift+A)" led her
 straight to Analyze. Each analysis has a one-line definition, and the "Start here" tag removed

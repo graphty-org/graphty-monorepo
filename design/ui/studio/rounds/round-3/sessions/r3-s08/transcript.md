@@ -181,6 +181,7 @@ say the same thing twice."
 **Rating:** 6 out of 7 (easy).
 
 **What confused me or slowed me down:**
+
 - Choosing the measure. The list had about ten words I don't know (Betweenness, Eigenvector, Katz,
   HITS). I only picked PageRank because it said "Start here". Degree ("how many edges each node
   has") I would actually have understood better for "who knows the most people"; I don't know if I

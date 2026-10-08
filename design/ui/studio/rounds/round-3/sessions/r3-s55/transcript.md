@@ -210,6 +210,7 @@ use it instead of asking for a PNG."
 it should.
 
 **What confused me:**
+
 - The balls had no names until I went into the styling page and added a "label" from something
   called "id". I had to remember that clicking Ava had said "id: Ava" to know id meant the name.
 - The flask opened a page of algorithm names (Katz, HITS, Eigenvector). I only picked Degree

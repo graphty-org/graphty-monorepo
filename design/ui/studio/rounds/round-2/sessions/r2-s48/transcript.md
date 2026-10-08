@@ -4,6 +4,7 @@ Participant: Tom, 52, lab manager, not a network person; reads glasses on, track
 Dataset: friends.csv (I opened it in Excel first: 41 rows of source,target,weight; 20 different names).
 
 ## Step 1 -- start
+
 Command: `node tool/real.mjs --start rounds/round-2/sessions/r2-s48 empty` -> 01.png
 
 Saw: a dark start page. "Open project or file...", "New from data...", "or drop a file anywhere in
@@ -14,10 +15,12 @@ is in the way; I'll say No thanks. Then I have a spreadsheet, not a project, so 
 sounds like mine more than "Open project".
 
 ## Step 2 -- dismiss usage box
+
 Command: `--step ... --click "No thanks"` -> 02.png
 Next: "New from data..." -- my file is a list from a spreadsheet, that sounds like it.
 
 ## Step 3 -- New from data
+
 Command: `--step ... --click "New from data..."` -> 03.png
 Saw: "Open as a new graph". A "Tables" column on the left with a +, "Drop a file here, or choose a
 file..." in small grey text, a "Direction: As the file says" dropdown, Cancel and a greyed Load
@@ -26,6 +29,7 @@ Tom: "Direction? I don't know what direction my file says. I'll leave it." Next:
 and pick friends.csv from Downloads.
 
 ## Step 4 -- choose friends.csv
+
 Command: `--step ... --click "choose a file..." --upload friends.csv` -> 04.png
 Saw: left list "Edges: friends.csv, 41 rows" with a green tick. A preview of my rows (Ava-Ben 3,
 Ava-Chloe 5 ...) with a "Line" column starting at 2. Above: "node (20) --friends (41)--> node",
@@ -40,6 +44,7 @@ picked one. The "Line" column starting at 2 threw me for a second until I rememb
 row. I'm not touching any dropdowns. Next: Load.
 
 ## Step 5 -- Load
+
 Command: `--step ... --click "Load"` -> 05.png
 Saw: the drawing -- 20 blue balls joined by grey lines with little arrowheads on a light panel. Title
 bar now says "friends". Right side: "Graph, From friends.csv", Overview: Nodes 20, Edges 41,
@@ -53,6 +58,7 @@ said 41 rows read and 41 edges made, which is what I'd want, but I'd like to see
 once. Next: the Data tab on the left, to see if it shows my rows and anything it skipped.
 
 ## Step 6 -- Data tab
+
 Command: `--step ... --click "Data"` -> 06.png
 Saw: "Sources: friends.csv -- 41 rows, 41 edges". "Attributes: Nodes -> id; Edges -> weight".
 Drawing and right panel unchanged.
@@ -62,12 +68,14 @@ is presumably the names. Last thing: I'd like to see one name, to know the balls
 Next: point at one ball.
 
 ## Step 7 -- point at a ball
+
 Command: `--step ... --hover-at 816,125` -> 07.png (tool: node with id "Omar"; tooltip: null)
 Saw: nothing changed on screen. No name popped up.
 Tom: "Nothing. I held the pointer on it and it doesn't tell me who it is." Next: click it once; that
 usually shows something.
 
 ## Step 8 -- click a ball
+
 Command: `--step ... --click-at 816,125` -> 08.png
 Saw: the ball got a yellow ring and turned brownish. Right panel now says "Omar, Node", Summary:
 id Omar, Degree 4.
@@ -88,6 +96,7 @@ and they matched my own count of the rows. It also said up front that the file s
 which is the first thing I'd have asked. Not a 7 because of the words and the small grey print."
 
 **What confused me:**
+
 - "node" and "edge" everywhere, and "node (20) --friends (41)--> node" on the load screen reads like
   a formula. I guessed node = person, edge = tie, but nothing said so.
 - "Each row is a node / an edge" and "Direction: As the file says" are questions I couldn't have

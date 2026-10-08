@@ -169,19 +169,19 @@ means, only that higher is more."
 - **How hard was it? 3 out of 7.** Easier than I expected. "Start here" on PageRank and the Top 10
   list carried me. The slow parts were finding Size and the chain icon.
 - **What confused me:**
-  1. **"Size" is hidden under "Shape".** I had to guess that the plus next to Shape held it. Size is
-     the first thing I'd look for under Style.
-  2. **The chain icon for "Size by attribute"** only made sense after I hovered it, and "attribute"
-     is a database word.
-  3. **The name changed from PageRank to Influence** between the menu and the result. I worked it
-     out, but for a second I wondered if I'd run something else.
-  4. **The color alone told me almost nothing.** After running the analysis, nearly every dot was
-     the same orange; only the Top 10 list (one click away) said who mattered.
-  5. **Labels are too small, and the most important name is missing.** Valjean's label is hidden
-     behind his own big ball, on screen and in the picture. "6 hidden to avoid overlap" doesn't say
-     which. In the exported picture the names are blurry.
-  6. **The key's numbers have no meaning to me.** "0.003299 -- 0.07543" with no "low/high" or
-     "less/more influential" wording.
-  7. **"Undirected, from the file: directed 0"** in the overview reads like a broken sentence.
-  8. **The Export button in the dialog has the same name as the menu item**, so the first try
-     (asking for the second "Export") did nothing; I had to aim at it.
+    1. **"Size" is hidden under "Shape".** I had to guess that the plus next to Shape held it. Size is
+       the first thing I'd look for under Style.
+    2. **The chain icon for "Size by attribute"** only made sense after I hovered it, and "attribute"
+       is a database word.
+    3. **The name changed from PageRank to Influence** between the menu and the result. I worked it
+       out, but for a second I wondered if I'd run something else.
+    4. **The color alone told me almost nothing.** After running the analysis, nearly every dot was
+       the same orange; only the Top 10 list (one click away) said who mattered.
+    5. **Labels are too small, and the most important name is missing.** Valjean's label is hidden
+       behind his own big ball, on screen and in the picture. "6 hidden to avoid overlap" doesn't say
+       which. In the exported picture the names are blurry.
+    6. **The key's numbers have no meaning to me.** "0.003299 -- 0.07543" with no "low/high" or
+       "less/more influential" wording.
+    7. **"Undirected, from the file: directed 0"** in the overview reads like a broken sentence.
+    8. **The Export button in the dialog has the same name as the menu item**, so the first try
+       (asking for the second "Export") did nothing; I had to aim at it.

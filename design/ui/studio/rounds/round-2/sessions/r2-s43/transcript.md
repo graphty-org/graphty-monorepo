@@ -52,6 +52,7 @@ attached it)?" Both ways of opening it refused it, so I am confident it is the f
 said nothing had been read, so I was not left with a half-loaded network I might trust by mistake.
 
 **What confused me:**
+
 - The two ways in gave two different messages for the same file. "Open project or file..." said
   "incomplete or damaged near line 9 ... Ask for the file again." "New from data..." said only
   "could not be read as GraphML. Check the file, or pick another format in File settings." The

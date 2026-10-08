@@ -3,7 +3,7 @@
 Composite persona for the simulated user study. A first-time user of graph tools: the one person
 at a small nonprofit who "does the data", asked to map the organization's relationships from a
 spreadsheet export. Built from the public sources listed under Sources. No real person's identity
-is used. Details marked *(assumed)* have no source.
+is used. Details marked _(assumed)_ have no source.
 
 This file strengthens the round 8 version (`study/personas/nonprofit-operations-analyst.md` in
 the mock-study worktree) for the studio's round 1: same person, more evidence, a voice, and fuller
@@ -18,7 +18,7 @@ relationship mapping from spreadsheets and donor databases, so she is built on t
 ## Portrait
 
 Grace is 34, the operations and data coordinator at a regional nonprofit of about 25 staff
-*(assumed)*. She was hired to run programs and became the data person because she was good with
+_(assumed)_. She was hired to run programs and became the data person because she was good with
 Excel: the sector calls such people "accidental techies", staff in other roles who support the
 technology because the organization cannot afford technology staff (search summary of NTEN and
 nonprofit-technology sources). The development director wants to know which board members and
@@ -39,7 +39,7 @@ one lunch hour to prove itself.
   NTEN and Idealware report, read directly). She has those skills; most of her colleagues do not.
 - **Has looked at Excel add-ins.** NodeXL is "intended for users with little or no programming
   experience" and "integrates into Microsoft Excel" (Wikipedia, read directly); she cannot install
-  add-ins on the office laptop *(assumed)*.
+  add-ins on the office laptop _(assumed)_.
 - **Has seen the two-file convention.** Network tools want "a node list with unique entities (ID
   and Label) and an edge list ... using Source and Target" (search summary of an Excel how-to);
   her export has neither header.
@@ -121,4 +121,5 @@ patience.
 6. The Bricks, "How to Make a Network Diagram in Excel", https://www.thebricks.com/resources/how-to-make-a-network-diagram-in-excel (search summary only)
 7. Flourish help center, "Network graph: an overview", https://helpcenter.flourish.studio/hc/en-us/articles/8761553784719-Network-graph-an-overview (search summary only: a "Links" sheet of two columns, an optional "Points" sheet; Excel or CSV upload)
 </content>
+
 </invoke>

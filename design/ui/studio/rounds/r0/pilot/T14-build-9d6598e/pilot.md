@@ -17,18 +17,18 @@ key should say how to grade that (see below).
 
 ## What was walked
 
-| Step | Screenshot | What happened |
-| ---- | ---------- | ------------- |
-| setup start | `01.png` | The setup ran whole. Rows: Selection, Influence (77), Everything; orange nodes; key "Color: Influence 0.003299 - 0.07543"; names drawn; the label line reads "77 labels, 7 hidden to avoid overlap". This is the intended starting state. |
-| `--key Control+s` | `02.png` | "Save Les Miserables as" dialog, Name prefilled and selected, hint "Choose where the file goes next. Later saves write the same file." |
-| `--type "Les Mis day one"`, `--key Enter` | `03.png` | The save picker took the name; a 29,853-byte project file was written (`saved/Les Mis day one.graphty.json`). The header now reads "Les Mis day one", and a notice says "Saved as Les Mis day one". |
-| click the project name | `04.png` | The project menu: Rename, Open project or file..., Save, Export..., Save as..., Close project. |
-| click "Close project" | `05.png` | The start screen, with no "discard changes" question (the work was saved). Recent projects lists "Les Mis day one", 77 nodes, Oct 6, 2026, 1:51 PM. |
-| click "Les Mis day one" | `06.png` | Reopened, notice "Opened Les Mis day one". Same drawing in the same arrangement, orange colors, key and names. The Influence row shows its color ramp but **no "77"**. The panel on the right shows the Graph overview (77 nodes, 254 edges). |
-| click "Influence" | `07.png` | The run's values are all there: 77 of 77 have a value, 0.003299 to 0.07543, Top 10 led by Valjean 0.07543, Myriel 0.04278; Made with: Influence, ran Oct 6, damping factor 0.85. |
-| click "Everything" | `08.png` | The label line is back: "Abc name", "77 labels, 7 hidden to avoid overlap". |
-| close the tab and open the app again (`--reopen`) | `09.png` | The start screen in a new tab; Recent projects still lists "Les Mis day one" (time now 1:52 PM, the last time it was opened). |
-| click "Les Mis day one" | `10.png` | Same as `06.png`: everything back, the Influence row again without its count. |
+| Step                                              | Screenshot | What happened                                                                                                                                                                                                                                 |
+| ------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| setup start                                       | `01.png`   | The setup ran whole. Rows: Selection, Influence (77), Everything; orange nodes; key "Color: Influence 0.003299 - 0.07543"; names drawn; the label line reads "77 labels, 7 hidden to avoid overlap". This is the intended starting state.     |
+| `--key Control+s`                                 | `02.png`   | "Save Les Miserables as" dialog, Name prefilled and selected, hint "Choose where the file goes next. Later saves write the same file."                                                                                                        |
+| `--type "Les Mis day one"`, `--key Enter`         | `03.png`   | The save picker took the name; a 29,853-byte project file was written (`saved/Les Mis day one.graphty.json`). The header now reads "Les Mis day one", and a notice says "Saved as Les Mis day one".                                           |
+| click the project name                            | `04.png`   | The project menu: Rename, Open project or file..., Save, Export..., Save as..., Close project.                                                                                                                                                |
+| click "Close project"                             | `05.png`   | The start screen, with no "discard changes" question (the work was saved). Recent projects lists "Les Mis day one", 77 nodes, Oct 6, 2026, 1:51 PM.                                                                                           |
+| click "Les Mis day one"                           | `06.png`   | Reopened, notice "Opened Les Mis day one". Same drawing in the same arrangement, orange colors, key and names. The Influence row shows its color ramp but **no "77"**. The panel on the right shows the Graph overview (77 nodes, 254 edges). |
+| click "Influence"                                 | `07.png`   | The run's values are all there: 77 of 77 have a value, 0.003299 to 0.07543, Top 10 led by Valjean 0.07543, Myriel 0.04278; Made with: Influence, ran Oct 6, damping factor 0.85.                                                              |
+| click "Everything"                                | `08.png`   | The label line is back: "Abc name", "77 labels, 7 hidden to avoid overlap".                                                                                                                                                                   |
+| close the tab and open the app again (`--reopen`) | `09.png`   | The start screen in a new tab; Recent projects still lists "Les Mis day one" (time now 1:52 PM, the last time it was opened).                                                                                                                 |
+| click "Les Mis day one"                           | `10.png`   | Same as `06.png`: everything back, the Influence row again without its count.                                                                                                                                                                 |
 
 The path in the answer key (5 steps: Control+s, type a name, Enter, project menu > Close project,
 click the name under Recent projects) works as written.
@@ -76,4 +76,4 @@ None block the end state. One defect is visible in it:
   is orange, because the Influence row paints over it. A reader may not see why the swatch and
   the drawing disagree.
 - The Graph overview's direction line is cut off at the panel edge: `Undirected, from the file:
-  "directed": f` (`06.png`, `10.png`).
+"directed": f` (`06.png`, `10.png`).

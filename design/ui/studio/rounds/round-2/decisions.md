@@ -16,20 +16,20 @@ lands.
 
 Severity uses the study scale (4 = blocks the task or the measurement, 1 = cosmetic).
 
-| # | Sev | Package | Change |
-|---|---|---|---|
-| 1 | 3 | compact-mantine | A dialog opened from a menu keeps focus |
-| 2 | 3 | graphty-element | The key leaves out a layer that is painted over on every node |
-| 3 | 3 | graphty-element | Fit in 2D frames the whole graph |
-| 4 | 3 | graphty-element and app | Group layouts offer community results |
-| 5 | 3 | graphty app | A finished load and a finished run are announced |
-| 6 | 3 | graphty-element | The drawing has a name and a visible focus ring |
-| 7 | 2 | graphty app | Size "+" opens its picker, as Label "+" does |
-| 8 | 2 | compact-mantine | A clickable row's trailing glyph is part of the row |
-| 9 | 2 | graphty app | A run is named by its method everywhere |
-| 10 | 2 | graphty app | "Show all labels" beside the hidden count |
-| 11 | 3 | study tool | Screen-reader mode hears the highlighted option; baselines before fixes |
-| 12 | 2 | tasks and answers | Answer key for the new routes; the names task keeps its prompt |
+| #   | Sev | Package                 | Change                                                                  |
+| --- | --- | ----------------------- | ----------------------------------------------------------------------- |
+| 1   | 3   | compact-mantine         | A dialog opened from a menu keeps focus                                 |
+| 2   | 3   | graphty-element         | The key leaves out a layer that is painted over on every node           |
+| 3   | 3   | graphty-element         | Fit in 2D frames the whole graph                                        |
+| 4   | 3   | graphty-element and app | Group layouts offer community results                                   |
+| 5   | 3   | graphty app             | A finished load and a finished run are announced                        |
+| 6   | 3   | graphty-element         | The drawing has a name and a visible focus ring                         |
+| 7   | 2   | graphty app             | Size "+" opens its picker, as Label "+" does                            |
+| 8   | 2   | compact-mantine         | A clickable row's trailing glyph is part of the row                     |
+| 9   | 2   | graphty app             | A run is named by its method everywhere                                 |
+| 10  | 2   | graphty app             | "Show all labels" beside the hidden count                               |
+| 11  | 3   | study tool              | Screen-reader mode hears the highlighted option; baselines before fixes |
+| 12  | 2   | tasks and answers       | Answer key for the new routes; the names task keeps its prompt          |
 
 ### 1. A dialog opened from a menu keeps focus (compact-mantine, severity 3)
 

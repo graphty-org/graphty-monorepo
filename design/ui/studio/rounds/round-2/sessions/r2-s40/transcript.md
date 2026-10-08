@@ -29,7 +29,7 @@ arranging. Let me hover it before clicking."
 
 Command: `--step ... --hover-at 728,864` -> 03.png
 
-Seen: tooltip "Layout". 
+Seen: tooltip "Layout".
 
 Elena: "Layout -- that's the arranging thing, I think. Clicking it."
 
@@ -241,6 +241,7 @@ default arrangement plus colors was the best picture I got.
 after that worked against me.
 
 **What confused me:**
+
 - "Rings by group", "Columns by group" and "Two columns" sound exactly like what I wanted, but stay
   greyed out with "Needs a node attribute to group by" -- even after I had made six groups with
   Louvain and they were listed in the left panel. Nothing tells me what a "node attribute" is or how

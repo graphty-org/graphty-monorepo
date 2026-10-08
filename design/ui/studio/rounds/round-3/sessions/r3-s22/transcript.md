@@ -135,6 +135,7 @@ a key, the find box worked the way a search box should (type, arrow, Enter), and
 Medici focus went to the details panel instead of being thrown away.
 
 **What cost me presses or confused me:**
+
 - After opening the sample, focus fell to the page. My next Tab started at the main menu at the
   very top and I walked seven stops back down to the find box. Putting focus in the find box (or
   printing a shortcut for it) would save that walk. I saw no shortcut hint on the find box.

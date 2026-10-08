@@ -144,7 +144,9 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         `attributes=${canonical(state.attributes, path)}`,
     ];
     if (options.snapshot !== undefined) {
-        parts.push(`rows=${rowsDigest(options.snapshot, path, options.arrangement === true ? NO_COLUMNS : LANE_COLUMNS)}`);
+        parts.push(
+            `rows=${rowsDigest(options.snapshot, path, options.arrangement === true ? NO_COLUMNS : LANE_COLUMNS)}`,
+        );
     }
 
     return stableDigest(parts.join("\n"));

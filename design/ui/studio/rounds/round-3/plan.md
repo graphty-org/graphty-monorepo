@@ -26,20 +26,20 @@ failed on one screen-reader session that could not export. Bars 8 and 9 were not
 
 Every change below is built and was checked on the served build (`preflight.md`, item 10).
 
-| Change on the build | Tasks whose path or screen it changes |
-|---|---|
-| A dialog opened from a menu keeps focus (Main menu > Export...) | T15 and T13 (export), T14 (main menu); every keyboard session |
-| The key leaves out a color layer painted over on every node (a ranking run, then a community run, shows only the community colors) | any task where two runs stack: T16, T9, T15, T8 |
-| Fit in 2D frames the whole graph | T10 (the 2D route to hidden names), T11 |
-| Group layouts accept a community result after a community run ("Group by: Communities" preselected) | T11 |
-| A finished load ("Les Miserables: 77 nodes, 254 edges") and a finished run ("PageRank finished") are announced | every screen-reader session |
-| The drawing is named "Graph drawing", shows a focus ring, and no longer takes focus on load | every keyboard session |
-| Size "+" opens its from-data list at once ("Fixed size" first) | T9, T15 |
-| The chevron on "Degree 17 >" is part of the row | T12 |
-| A run is named by its method everywhere ("PageRank", "Louvain") | T7, T8, T9, T13, T14, T15, T16 |
-| A "Show all labels" checkbox beside "77 labels, 7 hidden" | T10, T15, T14, T16 |
-| The study tool's screen-reader mode hears the highlighted option, reads a region (`--read`) and marks a region that arrived already filled as unconfirmed | every screen-reader session, T6 most |
-| Answer key re-walked for the new routes | grading of every task |
+| Change on the build                                                                                                                                       | Tasks whose path or screen it changes                         |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| A dialog opened from a menu keeps focus (Main menu > Export...)                                                                                           | T15 and T13 (export), T14 (main menu); every keyboard session |
+| The key leaves out a color layer painted over on every node (a ranking run, then a community run, shows only the community colors)                        | any task where two runs stack: T16, T9, T15, T8               |
+| Fit in 2D frames the whole graph                                                                                                                          | T10 (the 2D route to hidden names), T11                       |
+| Group layouts accept a community result after a community run ("Group by: Communities" preselected)                                                       | T11                                                           |
+| A finished load ("Les Miserables: 77 nodes, 254 edges") and a finished run ("PageRank finished") are announced                                            | every screen-reader session                                   |
+| The drawing is named "Graph drawing", shows a focus ring, and no longer takes focus on load                                                               | every keyboard session                                        |
+| Size "+" opens its from-data list at once ("Fixed size" first)                                                                                            | T9, T15                                                       |
+| The chevron on "Degree 17 >" is part of the row                                                                                                           | T12                                                           |
+| A run is named by its method everywhere ("PageRank", "Louvain")                                                                                           | T7, T8, T9, T13, T14, T15, T16                                |
+| A "Show all labels" checkbox beside "77 labels, 7 hidden"                                                                                                 | T10, T15, T14, T16                                            |
+| The study tool's screen-reader mode hears the highlighted option, reads a region (`--read`) and marks a region that arrived already filled as unconfirmed | every screen-reader session, T6 most                          |
+| Answer key re-walked for the new routes                                                                                                                   | grading of every task                                         |
 
 Untouched paths: T2, T3 and T5 (only their spoken announcements changed).
 
@@ -68,13 +68,13 @@ Untouched paths: T2, T3 and T5 (only their spoken announcements changed).
 
 ## Size: 56 sessions
 
-| Group | Tasks | Sessions | How bar 1 is scored |
-|---|---|---|---|
-| Full size | T15 (6 Les Miserables + 4 own file), T10 (4 + 4), T9 (4 + 4), T11 5, T6 5 | 36 | As written: 80% per task (8 of 10, 7 of 8, 4 of 5) and each dataset half at least 3 of 4 (5 of 6 on T15's Les Miserables half) |
-| Regression check at 4 | T12 (2 Les Miserables + 2 Florentine families), T7 (running club) 4 | 8 | T7 as written (4 of 4 needed for 80%: 4 of 5 is not reachable at 4, so 4 of 4). T12 passes only if every session succeeds, 2 of 2 per half |
-| Reduced, touched | T14 3, T13 2, T8 2 | 7 | Every session S or SD (3 of 3, 2 of 2), as in rounds 1 and 2 |
-| Reduced, untouched | T5 1, T3 1, T2 1 | 3 | 1 of 1. Run so every tier 1 task is seen; T5 is the screen-reader participant's (bar 7, the assertive refusal) |
-| Measured, not graded | T16 2 | 2 | Adds to the first-look baseline (round 1: 1 complete, round 2: 2) |
+| Group                 | Tasks                                                                     | Sessions | How bar 1 is scored                                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Full size             | T15 (6 Les Miserables + 4 own file), T10 (4 + 4), T9 (4 + 4), T11 5, T6 5 | 36       | As written: 80% per task (8 of 10, 7 of 8, 4 of 5) and each dataset half at least 3 of 4 (5 of 6 on T15's Les Miserables half)             |
+| Regression check at 4 | T12 (2 Les Miserables + 2 Florentine families), T7 (running club) 4       | 8        | T7 as written (4 of 4 needed for 80%: 4 of 5 is not reachable at 4, so 4 of 4). T12 passes only if every session succeeds, 2 of 2 per half |
+| Reduced, touched      | T14 3, T13 2, T8 2                                                        | 7        | Every session S or SD (3 of 3, 2 of 2), as in rounds 1 and 2                                                                               |
+| Reduced, untouched    | T5 1, T3 1, T2 1                                                          | 3        | 1 of 1. Run so every tier 1 task is seen; T5 is the screen-reader participant's (bar 7, the assertive refusal)                             |
+| Measured, not graded  | T16 2                                                                     | 2        | Adds to the first-look baseline (round 1: 1 complete, round 2: 2)                                                                          |
 
 Why this shape: the full rule (every task below its bar at full size, every touched task at 4 or
 more) needs about 70 sessions against the cap of 56. The sessions go first to the tasks whose path
@@ -101,20 +101,20 @@ Others: Alex 3, Jordan 2, Dana 2, Mara 2.
 Persona files (the full path goes in every session record; the session runner otherwise finds the
 thinner round 8 files of the same names for Dev, Grace and Ruth, and no file for Sam):
 
-| Name | File |
-|---|---|
-| Elena | `P/explorer-elena.md` |
-| Tom | `P/recipe-recipient.md` |
-| Nadia | `P/alert-reviewer.md` |
-| Dev | `S/class-project-student.md` |
-| Grace | `S/nonprofit-operations-analyst.md` |
-| Ruth | `S/data-journalist.md` |
-| Alex | `P/analyst-alex.md` |
-| Jordan | `P/marketing-analyst.md` |
-| Dana | `P/supply-chain-analyst.md` |
-| Morgan | `P/screen-reader-analyst.md` |
-| Sam | `S/keyboard-only-sam.md` |
-| Mara | `P/gephi-holdout.md` |
+| Name   | File                                |
+| ------ | ----------------------------------- |
+| Elena  | `P/explorer-elena.md`               |
+| Tom    | `P/recipe-recipient.md`             |
+| Nadia  | `P/alert-reviewer.md`               |
+| Dev    | `S/class-project-student.md`        |
+| Grace  | `S/nonprofit-operations-analyst.md` |
+| Ruth   | `S/data-journalist.md`              |
+| Alex   | `P/analyst-alex.md`                 |
+| Jordan | `P/marketing-analyst.md`            |
+| Dana   | `P/supply-chain-analyst.md`         |
+| Morgan | `P/screen-reader-analyst.md`        |
+| Sam    | `S/keyboard-only-sam.md`            |
+| Mara   | `P/gephi-holdout.md`                |
 
 `P/` = `/home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/personas/`;
 `S/` = `/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/personas/`.
@@ -127,64 +127,64 @@ folder is `rounds/round-3/sessions/<id>`. Start is the `real.mjs --start` argume
 are in `rounds/round-3/setups/` (round 2's, re-run whole on this build); files are in
 `tool/files/`. There is no step cap.
 
-| Id | Task | Persona | Dataset | Start | Note |
-|---|---|---|---|---|---|
-| r3-s01 | T15 A | Morgan | Les Miserables | `empty --sr` | screen reader; repeats round 2's r2-s07 |
-| r3-s02 | T15 A | Elena | Les Miserables | `empty` | |
-| r3-s03 | T15 A | Dev | Les Miserables | `empty` | |
-| r3-s04 | T15 A | Grace | Les Miserables | `empty` | |
-| r3-s05 | T15 A | Mara | Les Miserables | `empty` | |
-| r3-s06 | T15 A | Alex | Les Miserables | `empty` | |
-| r3-s07 | T15 B | Tom | friends.csv | `empty` | |
-| r3-s08 | T15 B | Nadia | friends.csv | `empty` | |
-| r3-s09 | T15 B | Ruth | friends.csv | `empty` | |
-| r3-s10 | T15 B | Sam | friends.csv | `empty` | keys only |
-| r3-s11 | T10 A | Elena | Les Miserables | `empty` | |
-| r3-s12 | T10 A | Tom | Les Miserables | `empty` | |
-| r3-s13 | T10 A | Dev | Les Miserables | `empty` | |
-| r3-s14 | T10 A | Morgan | Les Miserables | `empty --sr` | screen reader |
-| r3-s15 | T10 B | Nadia | College football | `empty` | |
-| r3-s16 | T10 B | Grace | College football | `empty` | |
-| r3-s17 | T10 B | Ruth | College football | `empty` | |
-| r3-s18 | T10 B | Sam | College football | `empty` | keys only |
-| r3-s19 | T12 A | Ruth | Les Miserables | `empty` | |
-| r3-s20 | T12 A | Morgan | Les Miserables | `empty --sr` | screen reader |
-| r3-s21 | T12 B | Grace | Florentine families | `empty` | |
-| r3-s22 | T12 B | Sam | Florentine families | `empty` | keys only |
-| r3-s23 | T9 A | Grace | Les Miserables | `empty` | |
-| r3-s24 | T9 A | Elena | Les Miserables | `empty` | |
-| r3-s25 | T9 A | Nadia | Les Miserables | `empty` | |
-| r3-s26 | T9 A | Morgan | Les Miserables | `empty --sr` | screen reader |
-| r3-s27 | T9 B | Ruth | Florentine families | `empty` | |
-| r3-s28 | T9 B | Dev | Florentine families | `empty` | |
-| r3-s29 | T9 B | Tom | Florentine families | `empty` | |
-| r3-s30 | T9 B | Jordan | Florentine families | `empty` | |
-| r3-s31 | T11 | Nadia | Les Miserables | `empty` | |
-| r3-s32 | T11 | Dev | Les Miserables | `empty` | |
-| r3-s33 | T11 | Ruth | Les Miserables | `empty` | |
-| r3-s34 | T11 | Dana | Les Miserables | `empty` | |
-| r3-s35 | T11 | Mara | Les Miserables | `empty` | |
-| r3-s36 | T6 | Elena | Les Miserables | `empty` | |
-| r3-s37 | T6 | Tom | Les Miserables | `empty` | |
-| r3-s38 | T6 | Nadia | Les Miserables | `empty` | |
-| r3-s39 | T6 | Morgan | Les Miserables | `empty --sr` | screen reader |
-| r3-s40 | T6 | Alex | Les Miserables | `empty` | |
-| r3-s41 | T7 B | Elena | running club (friends.csv, set up) | `setup:T7-B.txt` | |
-| r3-s42 | T7 B | Tom | running club (friends.csv, set up) | `setup:T7-B.txt` | |
-| r3-s43 | T7 B | Grace | running club (friends.csv, set up) | `setup:T7-B.txt` | |
-| r3-s44 | T7 B | Jordan | running club (friends.csv, set up) | `setup:T7-B.txt` | |
-| r3-s45 | T14 | Ruth | Les Miserables | `setup:T14.txt` | |
-| r3-s46 | T14 | Grace | Les Miserables | `setup:T14.txt` | |
-| r3-s47 | T14 | Morgan | Les Miserables | `setup:T14.txt --sr` | screen reader |
-| r3-s48 | T13 | Dev | Les Miserables | `setup:T13.txt` | |
-| r3-s49 | T13 | Alex | Les Miserables | `setup:T13.txt` | |
-| r3-s50 | T8 | Nadia | Les Miserables | `empty` | |
-| r3-s51 | T8 | Dana | Les Miserables | `empty` | |
-| r3-s52 | T5 | Morgan | club-members.graphml | `empty --sr` | screen reader |
-| r3-s53 | T3 | Elena | friends.csv | `empty` | |
-| r3-s54 | T2 | Dev | a sample of their choice | `empty` | |
-| r3-s55 | T16 | Tom | participant's choice | `empty` | measured |
-| r3-s56 | T16 | Ruth | participant's choice | `empty` | measured |
+| Id     | Task  | Persona | Dataset                            | Start                | Note                                    |
+| ------ | ----- | ------- | ---------------------------------- | -------------------- | --------------------------------------- |
+| r3-s01 | T15 A | Morgan  | Les Miserables                     | `empty --sr`         | screen reader; repeats round 2's r2-s07 |
+| r3-s02 | T15 A | Elena   | Les Miserables                     | `empty`              |                                         |
+| r3-s03 | T15 A | Dev     | Les Miserables                     | `empty`              |                                         |
+| r3-s04 | T15 A | Grace   | Les Miserables                     | `empty`              |                                         |
+| r3-s05 | T15 A | Mara    | Les Miserables                     | `empty`              |                                         |
+| r3-s06 | T15 A | Alex    | Les Miserables                     | `empty`              |                                         |
+| r3-s07 | T15 B | Tom     | friends.csv                        | `empty`              |                                         |
+| r3-s08 | T15 B | Nadia   | friends.csv                        | `empty`              |                                         |
+| r3-s09 | T15 B | Ruth    | friends.csv                        | `empty`              |                                         |
+| r3-s10 | T15 B | Sam     | friends.csv                        | `empty`              | keys only                               |
+| r3-s11 | T10 A | Elena   | Les Miserables                     | `empty`              |                                         |
+| r3-s12 | T10 A | Tom     | Les Miserables                     | `empty`              |                                         |
+| r3-s13 | T10 A | Dev     | Les Miserables                     | `empty`              |                                         |
+| r3-s14 | T10 A | Morgan  | Les Miserables                     | `empty --sr`         | screen reader                           |
+| r3-s15 | T10 B | Nadia   | College football                   | `empty`              |                                         |
+| r3-s16 | T10 B | Grace   | College football                   | `empty`              |                                         |
+| r3-s17 | T10 B | Ruth    | College football                   | `empty`              |                                         |
+| r3-s18 | T10 B | Sam     | College football                   | `empty`              | keys only                               |
+| r3-s19 | T12 A | Ruth    | Les Miserables                     | `empty`              |                                         |
+| r3-s20 | T12 A | Morgan  | Les Miserables                     | `empty --sr`         | screen reader                           |
+| r3-s21 | T12 B | Grace   | Florentine families                | `empty`              |                                         |
+| r3-s22 | T12 B | Sam     | Florentine families                | `empty`              | keys only                               |
+| r3-s23 | T9 A  | Grace   | Les Miserables                     | `empty`              |                                         |
+| r3-s24 | T9 A  | Elena   | Les Miserables                     | `empty`              |                                         |
+| r3-s25 | T9 A  | Nadia   | Les Miserables                     | `empty`              |                                         |
+| r3-s26 | T9 A  | Morgan  | Les Miserables                     | `empty --sr`         | screen reader                           |
+| r3-s27 | T9 B  | Ruth    | Florentine families                | `empty`              |                                         |
+| r3-s28 | T9 B  | Dev     | Florentine families                | `empty`              |                                         |
+| r3-s29 | T9 B  | Tom     | Florentine families                | `empty`              |                                         |
+| r3-s30 | T9 B  | Jordan  | Florentine families                | `empty`              |                                         |
+| r3-s31 | T11   | Nadia   | Les Miserables                     | `empty`              |                                         |
+| r3-s32 | T11   | Dev     | Les Miserables                     | `empty`              |                                         |
+| r3-s33 | T11   | Ruth    | Les Miserables                     | `empty`              |                                         |
+| r3-s34 | T11   | Dana    | Les Miserables                     | `empty`              |                                         |
+| r3-s35 | T11   | Mara    | Les Miserables                     | `empty`              |                                         |
+| r3-s36 | T6    | Elena   | Les Miserables                     | `empty`              |                                         |
+| r3-s37 | T6    | Tom     | Les Miserables                     | `empty`              |                                         |
+| r3-s38 | T6    | Nadia   | Les Miserables                     | `empty`              |                                         |
+| r3-s39 | T6    | Morgan  | Les Miserables                     | `empty --sr`         | screen reader                           |
+| r3-s40 | T6    | Alex    | Les Miserables                     | `empty`              |                                         |
+| r3-s41 | T7 B  | Elena   | running club (friends.csv, set up) | `setup:T7-B.txt`     |                                         |
+| r3-s42 | T7 B  | Tom     | running club (friends.csv, set up) | `setup:T7-B.txt`     |                                         |
+| r3-s43 | T7 B  | Grace   | running club (friends.csv, set up) | `setup:T7-B.txt`     |                                         |
+| r3-s44 | T7 B  | Jordan  | running club (friends.csv, set up) | `setup:T7-B.txt`     |                                         |
+| r3-s45 | T14   | Ruth    | Les Miserables                     | `setup:T14.txt`      |                                         |
+| r3-s46 | T14   | Grace   | Les Miserables                     | `setup:T14.txt`      |                                         |
+| r3-s47 | T14   | Morgan  | Les Miserables                     | `setup:T14.txt --sr` | screen reader                           |
+| r3-s48 | T13   | Dev     | Les Miserables                     | `setup:T13.txt`      |                                         |
+| r3-s49 | T13   | Alex    | Les Miserables                     | `setup:T13.txt`      |                                         |
+| r3-s50 | T8    | Nadia   | Les Miserables                     | `empty`              |                                         |
+| r3-s51 | T8    | Dana    | Les Miserables                     | `empty`              |                                         |
+| r3-s52 | T5    | Morgan  | club-members.graphml               | `empty --sr`         | screen reader                           |
+| r3-s53 | T3    | Elena   | friends.csv                        | `empty`              |                                         |
+| r3-s54 | T2    | Dev     | a sample of their choice           | `empty`              |                                         |
+| r3-s55 | T16   | Tom     | participant's choice               | `empty`              | measured                                |
+| r3-s56 | T16   | Ruth    | participant's choice               | `empty`              | measured                                |
 
 Sessions per persona: Elena 6, Tom 6, Nadia 6, Dev 6, Grace 6, Ruth 7, Morgan 7, Sam 3, Alex 3,
 Jordan 2, Dana 2, Mara 2.
@@ -193,8 +193,8 @@ Jordan 2, Dana 2, Mara 2.
 
 1. **Before the first session:** the frozen copy of the build,
    `design/ui/studio/tmp/researcher/r3/dist-b7590f8de/index.html`, carries `b7590f8de22b
-   graphty@0.8.53`; `git -C <worktree> diff --stat b7590f8de -- graphty graphty-element
-   compact-mantine` is empty; the frozen files match the SHA-256 list in `preflight.md`.
+graphty@0.8.53`; `git -C <worktree> diff --stat b7590f8de -- graphty graphty-element
+compact-mantine` is empty; the frozen files match the SHA-256 list in `preflight.md`.
 2. **Every session serves the frozen copy:** `REAL_DIST=/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tmp/researcher/r3/dist-b7590f8de`
    in the environment of every `real.mjs` command, so a rebuild of `graphty/dist` during the round
    cannot change the app under a running session. A fix that lands during the round is studied in
@@ -206,14 +206,14 @@ Jordan 2, Dana 2, Mara 2.
    task's prompt from `tasks.md` (the A or B prompt for its dataset), the tool's participant
    instructions (`tool/README.md`, "A session", "Steps" and, for Morgan, "Screen-reader mode",
    which now includes `--read`), the session folder and its start, and these rules:
-   - after each step, say in one or two sentences what you see and what you will try next; say out
-     loud when each part of the task is done;
-   - stop when done, when giving up, or when repeating without progress; there is no step limit;
-   - end with "How easy or difficult was this, from 1 (very difficult) to 7 (very easy)?" and its
-     reason;
-   - always `--end` the session.
-   Nothing else: no `answers.md`, `criteria.md`, this plan, notes, digests, design documents,
-   source code, pilot or preflight folders, or other sessions.
+    - after each step, say in one or two sentences what you see and what you will try next; say out
+      loud when each part of the task is done;
+    - stop when done, when giving up, or when repeating without progress; there is no step limit;
+    - end with "How easy or difficult was this, from 1 (very difficult) to 7 (very easy)?" and its
+      reason;
+    - always `--end` the session.
+      Nothing else: no `answers.md`, `criteria.md`, this plan, notes, digests, design documents,
+      source code, pilot or preflight folders, or other sessions.
 5. **Sam** uses `--key`, `--type` and `--upload` only and sees every screenshot.
 6. **Morgan** starts with `--sr` and never opens a screenshot; the tool refuses any pointer step.
 7. **A runner never helps.** A participant's question is recorded and answered "do what you would

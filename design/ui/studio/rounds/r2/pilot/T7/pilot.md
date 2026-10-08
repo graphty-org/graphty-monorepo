@@ -12,10 +12,10 @@ was changed.
 left-panel row, the color key, the inspector title, the "from" line and "Made with: Analysis" all
 say "PageRank", so the measure can be named straight off the result screen.
 
-| Dataset | What the screen shows after the run | Screenshot |
-|---|---|---|
+| Dataset           | What the screen shows after the run                                                           | Screenshot |
+| ----------------- | --------------------------------------------------------------------------------------------- | ---------- |
 | A, Les Miserables | Top 10 of PageRank: Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577; key 0.003299 - 0.07543 | `A/08.png` |
-| B, friends.csv | Top 10 of PageRank: Farah 0.06608, Ava 0.06423, Hana 0.05883; key 0.04382 - 0.06608 | `B/05.png` |
+| B, friends.csv    | Top 10 of PageRank: Farah 0.06608, Ava 0.06423, Hana 0.05883; key 0.04382 - 0.06608           | `B/05.png` |
 
 Both match the reference values in `answers.md`, and both lists show names, not ids. No script
 error, console error or failed request was printed in either session; every step exited 0.

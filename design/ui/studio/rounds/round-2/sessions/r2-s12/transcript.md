@@ -131,8 +131,7 @@ big zoom to see if I can get it to zero."
 Command: `--step --wheel 700,420,-5000`
 
 Saw (13.png): zoomed in a bit more; the bottom of the drawing is now cut off. The line is back to
-"77 labels, 7 hidden to avoid overlap" -- more zoom, and the hidden count went back UP from 5 to
-7. Still unnamed dots: right of Bamatabois (about 965,391), left of Mme Magloire (660,630), the
+"77 labels, 7 hidden to avoid overlap" -- more zoom, and the hidden count went back UP from 5 to 7. Still unnamed dots: right of Bamatabois (about 965,391), left of Mme Magloire (660,630), the
 one beside Labarre ("Mme..." cut off), and several in the dense middle are stacked unreadably.
 
 Nadia: "Now it says 7 again. I zoomed in and it got worse? I don't get the rule. I've done what
@@ -151,6 +150,7 @@ force them on. Zooming brought two back, then zooming further brought the count 
 under a minute. Losing time after that, hunting for the hidden 7, is what costs.
 
 **What confused me:**
+
 - The first Style tab (the graph's) was all background and layout, nothing about names. I had to
   guess that "Everything" on the left was where the dots' own settings live.
 - "77 labels, 7 hidden to avoid overlap" tells me something is missing but gives me nothing to

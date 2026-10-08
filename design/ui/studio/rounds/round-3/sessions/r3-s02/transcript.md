@@ -197,6 +197,7 @@ Command: `node tool/real.mjs --end rounds/round-3/sessions/r3-s02`
 ## Wrap-up (in character)
 
 **Did I finish?** Yes, all five parts:
+
 1. On screen -- clicked "Les Miserables" under Samples. Instant.
 2. Worked out who matters most -- flask button at the bottom, picked PageRank because it said
    "Start here", pressed Run. Valjean came out "#1 of 77".
@@ -216,6 +217,7 @@ size as "how much they matter in the story", which might not be exactly what the
 **How easy, 1 (very difficult) to 7 (very easy): 5.**
 
 **What confused me:**
+
 - The list behind the flask is a wall of words I don't know (Betweenness, Eigenvector, Katz,
   HITS). The "Start here" tag on PageRank is the only reason I didn't close it.
 - After Run, everything turned the same-ish orange; I couldn't see who was important until I

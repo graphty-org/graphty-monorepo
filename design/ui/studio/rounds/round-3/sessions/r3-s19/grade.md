@@ -29,11 +29,11 @@ Each part of success A holds on screen:
 
 ## Counts
 
-| | This session | Reference |
-|---|---|---|
-| Steps (real.mjs, after the start) | 6 (steps 2-7) | 6 on the documented path (open the sample, `/`, type, Down, Enter, Degree) |
-| Steps that moved toward the answer | 4 (steps 2, 4, 5, 6) | -- |
-| Wrong turns | 0 | -- |
+|                                    | This session         | Reference                                                                  |
+| ---------------------------------- | -------------------- | -------------------------------------------------------------------------- |
+| Steps (real.mjs, after the start)  | 6 (steps 2-7)        | 6 on the documented path (open the sample, `/`, type, Down, Enter, Degree) |
+| Steps that moved toward the answer | 4 (steps 2, 4, 5, 6) | --                                                                         |
+| Wrong turns                        | 0                    | --                                                                         |
 
 - Step 2 combined two actions: decline the usage card, and open the sample.
 - Step 3 was a tool no-op (see "Void" above). It is not a wrong turn.
@@ -54,14 +54,14 @@ Her claim that the program knows "an id, a name and a Degree of 17" matches 05.p
 Severity 0-4 (Nielsen). Opinion-only findings are held one level down. No build defect was found,
 so no repro script was needed.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | wording | "Degree 17" in a node's Summary does not say what it counts. She called it "a math word": "17 of what?" She found the list only because the row had an arrow. A reader who does not click arrows stops at the number. Confirmed: session r3-s02 met the same thing ("Degree 36 ... 36 of what?"). | Step 5, 05.png. |
-| 2 | 1 | wording | The neighbor list heading says "connections", and nothing near it says what a connection is in this data (here, sharing a chapter). To be sure, she went to the Data view and read the edge attribute `shared_chapters`. | Steps 6-7, 06.png, 07.png. |
-| 3 | 1 | opinion | The neighbor list gives no per-tie value. She could not tell whether Javert shares one chapter with Woman2 or ten with Valjean, which she wanted before quoting it. (Held one level down: the task asks only who and how many.) | Step 6, 06.png. |
-| 4 | 1 | wording | "Selection 18" on the left and "17 connections" on the right. Nothing says that the 18 includes Javert himself. She guessed correctly. | Step 6, 06.png. |
-| 5 | 1 | accessibility | The search box's accessible name is "Find", while its visible text is the placeholder "Find nodes, edges, values" (`graphty/src/workspace/graph-place/FindBox.tsx`, line 130). A voice-control user who says the visible words does not reach the box. Seen once, through the tool. Not a build defect under the criteria (the box works by click and by `/`). | Step 3 (tool: `nothing on screen is called "Find nodes, edges, values"`), 03.png; step 4 (tool: `combobox "Find"`). |
-| 6 | 1 | opinion | The drawing shows no names, so the only way to find a character is the search box. She found it at once, so this cost nothing here. | Step 2, 02.png. |
+| #   | Sev | Kind          | Problem                                                                                                                                                                                                                                                                                                                                                        | Evidence                                                                                                            |
+| --- | --- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 1   | 2   | wording       | "Degree 17" in a node's Summary does not say what it counts. She called it "a math word": "17 of what?" She found the list only because the row had an arrow. A reader who does not click arrows stops at the number. Confirmed: session r3-s02 met the same thing ("Degree 36 ... 36 of what?").                                                              | Step 5, 05.png.                                                                                                     |
+| 2   | 1   | wording       | The neighbor list heading says "connections", and nothing near it says what a connection is in this data (here, sharing a chapter). To be sure, she went to the Data view and read the edge attribute `shared_chapters`.                                                                                                                                       | Steps 6-7, 06.png, 07.png.                                                                                          |
+| 3   | 1   | opinion       | The neighbor list gives no per-tie value. She could not tell whether Javert shares one chapter with Woman2 or ten with Valjean, which she wanted before quoting it. (Held one level down: the task asks only who and how many.)                                                                                                                                | Step 6, 06.png.                                                                                                     |
+| 4   | 1   | wording       | "Selection 18" on the left and "17 connections" on the right. Nothing says that the 18 includes Javert himself. She guessed correctly.                                                                                                                                                                                                                         | Step 6, 06.png.                                                                                                     |
+| 5   | 1   | accessibility | The search box's accessible name is "Find", while its visible text is the placeholder "Find nodes, edges, values" (`graphty/src/workspace/graph-place/FindBox.tsx`, line 130). A voice-control user who says the visible words does not reach the box. Seen once, through the tool. Not a build defect under the criteria (the box works by click and by `/`). | Step 3 (tool: `nothing on screen is called "Find nodes, edges, values"`), 03.png; step 4 (tool: `combobox "Find"`). |
+| 6   | 1   | opinion       | The drawing shows no names, so the only way to find a character is the search box. She found it at once, so this cost nothing here.                                                                                                                                                                                                                            | Step 2, 02.png.                                                                                                     |
 
 What worked: the sample was first on the start page. The search box found him with one match and
 offered the node itself as the first result. Selecting him put "Degree 17 >" in plain view. One

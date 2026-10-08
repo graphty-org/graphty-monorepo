@@ -2,8 +2,7 @@
 
 **Grade: S** (success). Dev opened Les Miserables, found and selected Javert, read a fact about
 him (Degree 17), and reached the on-screen list "Javert's 17 connections" through the Degree row,
-which is the documented success path. He named all 17 neighbors from that list and gave the count
-17. No detour, no help, no wrong turn.
+which is the documented success path. He named all 17 neighbors from that list and gave the count 17. No detour, no help, no wrong turn.
 
 Build seen: `4a7a1a7fbdba graphty@0.8.53` (session.json), at 1440 x 900, no uncommitted changes.
 No files were downloaded (none needed for this task).
@@ -40,13 +39,13 @@ No files were downloaded (none needed for this task).
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 1 | accessibility | The search box's accessible name is "Find" while the text a sighted user sees is "Find nodes, edges, values"; a voice-control user speaking the visible words does not reach it (WCAG 2.5.3, if the placeholder is taken as its visible label). Also seen in r2-s03, so confirmed at two participants. | Step 3, `03.png` (no control found by the visible text); step 4 reports combobox "Find" |
-| 2 | 1 | behavior | No names are drawn on the dots by default, so Javert cannot be found by looking; the participant had to use search. Did not cost him the task. | Step 2, `02.png` |
-| 3 | 1 | wording | Selection says 18 while the heading says "Javert's 17 connections"; nothing says the 18 includes Javert himself, and he briefly wondered which number was right. | Step 6, `06.png` |
-| 4 | 1 | wording | "Degree" on the Summary has no explanation that it means "how many characters he is tied to"; he guessed from a tutorial, and only the small chevron told him the names were behind it. | Step 5, `05.png` |
-| 5 | 0 | opinion | The node Summary (id, name, Degree) felt thin for "what the program knows about him"; he was unsure whether more lived elsewhere (the Data view) and did not check. | Step 5, `05.png`; debrief |
+| #   | Severity | Kind          | Problem                                                                                                                                                                                                                                                                                                | Evidence                                                                                |
+| --- | -------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| 1   | 1        | accessibility | The search box's accessible name is "Find" while the text a sighted user sees is "Find nodes, edges, values"; a voice-control user speaking the visible words does not reach it (WCAG 2.5.3, if the placeholder is taken as its visible label). Also seen in r2-s03, so confirmed at two participants. | Step 3, `03.png` (no control found by the visible text); step 4 reports combobox "Find" |
+| 2   | 1        | behavior      | No names are drawn on the dots by default, so Javert cannot be found by looking; the participant had to use search. Did not cost him the task.                                                                                                                                                         | Step 2, `02.png`                                                                        |
+| 3   | 1        | wording       | Selection says 18 while the heading says "Javert's 17 connections"; nothing says the 18 includes Javert himself, and he briefly wondered which number was right.                                                                                                                                       | Step 6, `06.png`                                                                        |
+| 4   | 1        | wording       | "Degree" on the Summary has no explanation that it means "how many characters he is tied to"; he guessed from a tutorial, and only the small chevron told him the names were behind it.                                                                                                                | Step 5, `05.png`                                                                        |
+| 5   | 0        | opinion       | The node Summary (id, name, Degree) felt thin for "what the program knows about him"; he was unsure whether more lived elsewhere (the Data view) and did not check.                                                                                                                                    | Step 5, `05.png`; debrief                                                               |
 
 None of these is a build defect under the criteria (no crash, no dead control, no wrong count; the
 18 is a correct count of the selection), so no scripted reproduction was needed. Problems 2 to 5

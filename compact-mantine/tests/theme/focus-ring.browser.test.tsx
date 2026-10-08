@@ -131,11 +131,14 @@ describe.each(["light", "dark"] as const)("keyboard focus draws the 1px ring (%s
 });
 
 describe("a pointer click on a button draws no ring (fields ring on any focus)", () => {
-    it.each(CONTROLS.filter(([n]) => /^(Button|ActionIcon|CloseButton|UnstyledButton)/.test(n)))("%s", async (_name, ui) => {
-        const { container } = await renderThemed(ui);
-        const button = container.querySelector("button");
-        expect(button).not.toBeNull();
-        await userEvent.click(button as HTMLElement);
-        expect(ring(button as Element)).toBeNull();
-    });
+    it.each(CONTROLS.filter(([n]) => /^(Button|ActionIcon|CloseButton|UnstyledButton)/.test(n)))(
+        "%s",
+        async (_name, ui) => {
+            const { container } = await renderThemed(ui);
+            const button = container.querySelector("button");
+            expect(button).not.toBeNull();
+            await userEvent.click(button as HTMLElement);
+            expect(ring(button as Element)).toBeNull();
+        },
+    );
 });

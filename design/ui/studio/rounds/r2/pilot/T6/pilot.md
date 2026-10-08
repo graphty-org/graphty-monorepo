@@ -10,12 +10,12 @@ commit b7590f8de, at `/?next`, with `tool/real.mjs`. No code was changed.
 **The end state is reached in three steps, on the answer key's path.** Every answer is on screen
 by `03.png`, and all four match the key.
 
-| Question | What the screen shows | Screenshot |
-|---|---|---|
-| How many characters | Values > Overview: Nodes 77 | `02.png` |
-| How many connections | Values > Overview: Edges 254 | `02.png` |
-| Can every character reach every other | Values > Overview: Components 1 | `02.png` |
-| Facts per character and per connection | Data > Attributes: Nodes `id`, `name`; Edges `shared_chapters` | `03.png` |
+| Question                               | What the screen shows                                          | Screenshot |
+| -------------------------------------- | -------------------------------------------------------------- | ---------- |
+| How many characters                    | Values > Overview: Nodes 77                                    | `02.png`   |
+| How many connections                   | Values > Overview: Edges 254                                   | `02.png`   |
+| Can every character reach every other  | Values > Overview: Components 1                                | `02.png`   |
+| Facts per character and per connection | Data > Attributes: Nodes `id`, `name`; Edges `shared_chapters` | `03.png`   |
 
 No script error, console error or failed request was printed.
 

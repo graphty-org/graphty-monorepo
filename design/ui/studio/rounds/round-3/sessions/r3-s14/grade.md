@@ -41,11 +41,11 @@ hidden", which many screen readers do not speak (problem 9). No undo was used.
 
 ## Counts
 
-| | This session | Reference |
-|---|---|---|
-| Commands (real.mjs, after the start) | 31 (9 of them reads) | 5 on the success path |
-| Keys pressed | 66, plus "names" and "label" typed | 53 keys on Les Miserables, round 3 walk |
-| Wrong turns | 3 | -- |
+|                                      | This session                       | Reference                               |
+| ------------------------------------ | ---------------------------------- | --------------------------------------- |
+| Commands (real.mjs, after the start) | 31 (9 of them reads)               | 5 on the success path                   |
+| Keys pressed                         | 66, plus "names" and "label" typed | 53 keys on Les Miserables, round 3 walk |
+| Wrong turns                          | 3                                  | --                                      |
 
 - **Wrong turn 1, View menu (steps 8-11, 09.png-11.png):** looked for names under View. It holds
   cameras, Legend and Table only. Escape returned focus to View.
@@ -78,19 +78,19 @@ were reproduced by `rounds/round-3/repro/r3-s14/repro.sh`, which replays the ses
 screen-reader mode; its output is in `run/` and `run.log` beside it. The re-run gave the same
 result as the session at every point listed.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 3 | build-defect | Opening a sample with Enter drops focus to the page body. She had to Tab again from the top of the page to find the graph. Also met in r3-s01, so confirmed. | Step 4, 04.png, "focus: nothing (the page itself)". Repro step 03, `run/03.png`, same focus line. |
-| 2 | 2 | build-defect | Quick actions announces nothing when a search has no match. "No results" exists only as page text, found by reading the dialog. | Steps 13-14, 13.png, 14.png. Repro steps 05-06. |
-| 3 | 2 | build-defect | Quick actions lists "Add label line" as disabled with no reason, while the View menu gives one for its disabled "Frame selection" ("Select a node first"). Nothing tells the user to choose a row first. | Step 16, 16.png. Repro step 08. |
-| 4 | 2 | behavior | With nothing chosen, the Style tab shows only canvas settings (background, layout), and nothing points to choosing "Everything" to style the dots. Cost one wrong turn. Seen in one participant. | Steps 19-21, 20.png, 21.png. |
-| 5 | 2 | build-defect | Choosing "Everything" in the outline is silent: no announcement that the inspector now styles all nodes. She found out only by Tabbing to the inspector. A silent row choice was also met in r3-s01 (the Betweenness row), so confirmed. | Steps 22-24, 22.png-24.png. Repro steps 11-12, no live text. |
-| 6 | 2 | accessibility | The inspector's sections (Fill, Shape, Effects, Label, Tooltip) are plain text, not headings, so a screen-reader user cannot jump to Label and Tabs through ten controls. | Steps 25-26, 25.png, 26.png; the read shows no heading roles. |
-| 7 | 2 | wording | The statement "77 labels, 7 hidden" does not say why seven are hidden or which ones. She could not explain it and turned the switch on only because the task said "every name". Also raised in r3-s01, so confirmed. | Steps 29-30, 30.png; debrief. |
-| 8 | 1 | build-defect | The canvas Style tab reads Gravity as "-1.2000000476837158", a float32 value shown unrounded. | Step 20, 20.png. Repro step 10. |
-| 9 | 1 | build-defect | The label-count live region appears already holding "0 labels, 0 hidden" before the real count, so many screen readers would not speak the first value. | Step 29, transcript marks it "unconfirmed". Repro step 14. |
-| 10 | 1 | accessibility | Disabled controls stay in the Tab order: "Redo" on the toolbar, and "Label" and "Add label line" once a label line exists. Each costs a Tab and reads as a dead control. | Steps 6, 30, 06.png, 30.png. Repro steps 03 and 16. |
-| 11 | 1 | wording | Quick actions has no match for "names", the user's word for labels. Held one level down as one participant's word choice. | Steps 13-14, 14.png. |
+| #   | Sev | Kind          | Problem                                                                                                                                                                                                                                  | Evidence                                                                                          |
+| --- | --- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 1   | 3   | build-defect  | Opening a sample with Enter drops focus to the page body. She had to Tab again from the top of the page to find the graph. Also met in r3-s01, so confirmed.                                                                             | Step 4, 04.png, "focus: nothing (the page itself)". Repro step 03, `run/03.png`, same focus line. |
+| 2   | 2   | build-defect  | Quick actions announces nothing when a search has no match. "No results" exists only as page text, found by reading the dialog.                                                                                                          | Steps 13-14, 13.png, 14.png. Repro steps 05-06.                                                   |
+| 3   | 2   | build-defect  | Quick actions lists "Add label line" as disabled with no reason, while the View menu gives one for its disabled "Frame selection" ("Select a node first"). Nothing tells the user to choose a row first.                                 | Step 16, 16.png. Repro step 08.                                                                   |
+| 4   | 2   | behavior      | With nothing chosen, the Style tab shows only canvas settings (background, layout), and nothing points to choosing "Everything" to style the dots. Cost one wrong turn. Seen in one participant.                                         | Steps 19-21, 20.png, 21.png.                                                                      |
+| 5   | 2   | build-defect  | Choosing "Everything" in the outline is silent: no announcement that the inspector now styles all nodes. She found out only by Tabbing to the inspector. A silent row choice was also met in r3-s01 (the Betweenness row), so confirmed. | Steps 22-24, 22.png-24.png. Repro steps 11-12, no live text.                                      |
+| 6   | 2   | accessibility | The inspector's sections (Fill, Shape, Effects, Label, Tooltip) are plain text, not headings, so a screen-reader user cannot jump to Label and Tabs through ten controls.                                                                | Steps 25-26, 25.png, 26.png; the read shows no heading roles.                                     |
+| 7   | 2   | wording       | The statement "77 labels, 7 hidden" does not say why seven are hidden or which ones. She could not explain it and turned the switch on only because the task said "every name". Also raised in r3-s01, so confirmed.                     | Steps 29-30, 30.png; debrief.                                                                     |
+| 8   | 1   | build-defect  | The canvas Style tab reads Gravity as "-1.2000000476837158", a float32 value shown unrounded.                                                                                                                                            | Step 20, 20.png. Repro step 10.                                                                   |
+| 9   | 1   | build-defect  | The label-count live region appears already holding "0 labels, 0 hidden" before the real count, so many screen readers would not speak the first value.                                                                                  | Step 29, transcript marks it "unconfirmed". Repro step 14.                                        |
+| 10  | 1   | accessibility | Disabled controls stay in the Tab order: "Redo" on the toolbar, and "Label" and "Add label line" once a label line exists. Each costs a Tab and reads as a dead control.                                                                 | Steps 6, 30, 06.png, 30.png. Repro steps 03 and 16.                                               |
+| 11  | 1   | wording       | Quick actions has no match for "names", the user's word for labels. Held one level down as one participant's word choice.                                                                                                                | Steps 13-14, 14.png.                                                                              |
 
 **What worked:** the start page has real headings and says files stay on this computer. Opening the
 sample announced "Les Miserables: 77 nodes, 254 edges" once, and the Overview gives counts,

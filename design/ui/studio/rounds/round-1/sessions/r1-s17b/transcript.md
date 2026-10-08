@@ -97,13 +97,13 @@ After 12.png (the table click that opened "Add to Les Miserables") answers got s
 - **How hard (1-7, 7 hardest):** 5. Finding Javert with the search was easy. Getting a plain
   list of who he's connected to was impossible for me.
 - **What confused me:**
-  - "Degree 17" -- nothing tells me that means 17 connected characters; I guessed.
-  - "18 nodes, 0 edges" next to "Edges among them 61" -- two different edge counts for the same
-    selection.
-  - "Babet (1)" as the id and name of 18 people -- looks like the first name of a list I can't
-    open.
-  - Clicking "Node table" in Data opened an "Add to Les Miserables" file screen instead of the
-    table.
-  - Clicking "Selection 18" emptied the right panel instead of listing the 18.
-  - No names on the dots and no name when I hover one, so the picture can't tell me who they are.
-  - The search box's own label is just its grey hint text.
+    - "Degree 17" -- nothing tells me that means 17 connected characters; I guessed.
+    - "18 nodes, 0 edges" next to "Edges among them 61" -- two different edge counts for the same
+      selection.
+    - "Babet (1)" as the id and name of 18 people -- looks like the first name of a list I can't
+      open.
+    - Clicking "Node table" in Data opened an "Add to Les Miserables" file screen instead of the
+      table.
+    - Clicking "Selection 18" emptied the right panel instead of listing the 18.
+    - No names on the dots and no name when I hover one, so the picture can't tell me who they are.
+    - The search box's own label is just its grey hint text.

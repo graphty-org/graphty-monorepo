@@ -8,28 +8,28 @@ answer key's success path. No code was changed.
 
 ## A: running club (`A/`, setup `friends.txt`)
 
-| Shot | Step | What the screen shows |
-|---|---|---|
-| 01 | setup | friends.csv open: 20 nodes, 41 edges, Directed, no names drawn. |
-| 02 | `--key /` `--type Ava` | Find box reads "Ava"; one result under Elements, "Ava". |
-| 03 | `--key Enter` | Ava selected (Selection 1); inspector "Ava, Node", Degree 6. The view is reframed on Ava, and the top of the drawing goes past the top edge of the canvas (the known framing issue). |
-| 04 | `--key g` | Inspector "Ava, Neighborhood": Hops 1, Follow All, header "Ava's 6 connections", a Neighbor / weight table (Chloe 5, Ben 3, Dev 2, Ivan 1, Sana 1, Theo 1); Selection 7. |
-| 05 | `--click 2` | The tool printed `ambiguous: "2" matches 2 controls (input "2", button "Dev 2"); took the first`, and that first one is the Hops segment, as the answer key says. Hops 2: "14 nodes within 2 hops of Ava" with Ben, Chloe, Dev, Eli, Farah, Gus, Hana, Ivan, Jada, Kofi, Quinn, Ravi, Sana, Theo; Selection 15. |
-| 06 | `--click "Filter to neighbors"` | The header chip reads "15 of 20 nodes"; 15 dots drawn (counted), all ringed; the list is unchanged. |
+| Shot | Step                            | What the screen shows                                                                                                                                                                                                                                                                                           |
+| ---- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01   | setup                           | friends.csv open: 20 nodes, 41 edges, Directed, no names drawn.                                                                                                                                                                                                                                                 |
+| 02   | `--key /` `--type Ava`          | Find box reads "Ava"; one result under Elements, "Ava".                                                                                                                                                                                                                                                         |
+| 03   | `--key Enter`                   | Ava selected (Selection 1); inspector "Ava, Node", Degree 6. The view is reframed on Ava, and the top of the drawing goes past the top edge of the canvas (the known framing issue).                                                                                                                            |
+| 04   | `--key g`                       | Inspector "Ava, Neighborhood": Hops 1, Follow All, header "Ava's 6 connections", a Neighbor / weight table (Chloe 5, Ben 3, Dev 2, Ivan 1, Sana 1, Theo 1); Selection 7.                                                                                                                                        |
+| 05   | `--click 2`                     | The tool printed `ambiguous: "2" matches 2 controls (input "2", button "Dev 2"); took the first`, and that first one is the Hops segment, as the answer key says. Hops 2: "14 nodes within 2 hops of Ava" with Ben, Chloe, Dev, Eli, Farah, Gus, Hana, Ivan, Jada, Kofi, Quinn, Ravi, Sana, Theo; Selection 15. |
+| 06   | `--click "Filter to neighbors"` | The header chip reads "15 of 20 nodes"; 15 dots drawn (counted), all ringed; the list is unchanged.                                                                                                                                                                                                             |
 
 All of it matches the answer key: the count is 14, and the drawing is narrowed to Ava and those
 14 people.
 
 ## B: Florentine families (`B/`, setup `florentine.txt`)
 
-| Shot | Step | What the screen shows |
-|---|---|---|
-| 01 | setup | Florentine families: 15 nodes, 20 edges, "Undirected, from the file: directed 0". |
-| 02 | `--key /` `--type Medici` | Results: Elements "Medici", and under Values "Select where name is Medici (1)". |
-| 03 | `--key Enter` | Medici selected (Selection 1), Degree 6. The view is reframed on Medici, and the lowest node now sits partly under the bottom toolbar (about 737,843). |
-| 04 | `--key g` | Hops 1, no Follow row (undirected), header "Medici's 6 connections" listing Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni (no weight column); Selection 7. |
-| 05 | `--click 2` | No ambiguity here. "11 nodes within 2 hops of Medici": Acciaiuoli, Castellani, Strozzi, Barbadori, Ridolfi, Tornabuoni, Albizzi, Salviati, Pazzi, Guadagni, Ginori; Selection 12. |
-| 06 | `--click "Filter to neighbors"` | Chip "12 of 15 nodes"; 12 dots drawn (counted). |
+| Shot | Step                            | What the screen shows                                                                                                                                                             |
+| ---- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01   | setup                           | Florentine families: 15 nodes, 20 edges, "Undirected, from the file: directed 0".                                                                                                 |
+| 02   | `--key /` `--type Medici`       | Results: Elements "Medici", and under Values "Select where name is Medici (1)".                                                                                                   |
+| 03   | `--key Enter`                   | Medici selected (Selection 1), Degree 6. The view is reframed on Medici, and the lowest node now sits partly under the bottom toolbar (about 737,843).                            |
+| 04   | `--key g`                       | Hops 1, no Follow row (undirected), header "Medici's 6 connections" listing Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni (no weight column); Selection 7.        |
+| 05   | `--click 2`                     | No ambiguity here. "11 nodes within 2 hops of Medici": Acciaiuoli, Castellani, Strozzi, Barbadori, Ridolfi, Tornabuoni, Albizzi, Salviati, Pazzi, Guadagni, Ginori; Selection 12. |
+| 06   | `--click "Filter to neighbors"` | Chip "12 of 15 nodes"; 12 dots drawn (counted).                                                                                                                                   |
 
 All of it matches the answer key.
 

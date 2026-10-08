@@ -6,6 +6,7 @@ connections, whether every character can be reached from every other, and what f
 about each character and each connection.
 
 ## Step 1 -- start
+
 Command: `node tool/real.mjs --start rounds/round-3/sessions/r3-s40 empty`
 Screenshot: 01.png
 
@@ -17,6 +18,7 @@ Next: decline the usage data ("No thanks") -- I do not opt in to tracking on a w
 open the Les Miserables sample.
 
 ## Step 2 -- decline usage data, open the sample
+
 Command: `node tool/real.mjs --step $S --click "No thanks" --click "Les Miserables"`
 Screenshot: 02.png
 
@@ -32,6 +34,7 @@ Next: the fourth question, what is recorded about each character and each connec
 "Data" icon on the far left; I will try that, it sounds like a table.
 
 ## Step 3 -- Data view
+
 Command: `node tool/real.mjs --step $S --click "Data"`
 Screenshot: 03.png
 
@@ -45,6 +48,7 @@ Next: I want to see what shared_chapters actually holds (range of values) before
 as an edge weight. I will click it.
 
 ## Step 4 -- the edge attribute
+
 Command: `node tool/real.mjs --step $S --click "shared_chapters"`
 Screenshot: 04.png
 
@@ -55,11 +59,13 @@ I did not open id or name; they are text and obviously the character's identifie
 Decision: I have all four answers. Stopping here.
 
 ## Step 5 -- end
+
 Command: `node tool/real.mjs --end $S`
 
 ## Wrap-up (in character)
 
 **Did I finish?** Yes.
+
 - Characters: 77 (Nodes 77; the sample card also said "77 characters").
 - Connections: 254 (Edges 254), undirected.
 - Can everyone reach everyone? Yes -- Components 1, one connected piece.
@@ -71,6 +77,7 @@ component number were on screen the moment the graph loaded, which is exactly wh
 and the import check (77 rows = 77 nodes, 254 rows = 254 edges) was right there in Data.
 
 **What took longest / confused me:**
+
 - "Undirected, from the file: directed 0" -- I had to reread it. I think it means "the file had no
   directed edges", but it reads like a contradiction at first glance.
 - "Edges per ..." is truncated in the Overview; I am guessing it means edges per node (degree).

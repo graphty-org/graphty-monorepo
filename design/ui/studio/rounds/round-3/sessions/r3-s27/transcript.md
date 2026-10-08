@@ -9,6 +9,7 @@ colors on the drawing now stand for."
 Start: empty.
 
 ## Step 0 -- start
+
 Command: `node tool/real.mjs --start <session> empty`
 Saw (01.png): a start page. Start: "Open project or file...", "New from data...". Recent projects
 empty. Samples list on the right including "Florentine families -- 15 families -- Marriages between
@@ -16,6 +17,7 @@ the leading families of Renaissance Florence. Good for finding who brokers betwe
 at the bottom asks to share usage data. The lock and "Local only" up top reassure me.
 
 ## Step 1
+
 Ruth: "I'm not sharing anything about my usage -- No thanks. Then I'll open the Florentine
 families sample, which is exactly what they told me to use."
 Command: `--step --click "No thanks" --click "Florentine families"`
@@ -27,6 +29,7 @@ Hesitation: no family names on the dots bothers me -- I can't tell who is who. B
 me where analysis lives.
 
 ## Step 2
+
 Ruth: "The hint says the flask in the toolbar is where you analyze. 'Which families the network
 depends on most' sounds like an analysis, so I'll click the flask."
 Command: `--step --click-at 679,864`
@@ -39,12 +42,14 @@ everyone else -- take them out and the chains break. That is Betweenness, and th
 description said "good for finding who brokers between groups".
 
 ## Step 3
+
 Ruth: "Betweenness -- the ones sitting in the middle of the chains. That's what 'depends on' means."
 Command: `--step --click "Betweenness"`
 Saw (04.png): a small card "Betweenness -- Which nodes sit on the most shortest paths between
 others", a collapsed "Advanced", "Under a second", and a blue Run button.
 
 ## Step 4
+
 Ruth: "Under a second, fine. I'll leave Advanced alone and press Run."
 Command: `--step --click "Run"`
 Saw (05.png): all dots turned shades of orange to dark brown. A key top-left: "Color: Betweenness
@@ -54,6 +59,7 @@ the task asks me to change. The key box also covers the top-left dot I saw befor
 Hesitation: the colors are done for me, but nothing about size. Where do I tell it "bigger"?
 
 ## Step 5
+
 Ruth: "The new 'Betweenness' row on the left is the result. I'll click it and see if it offers to
 use it for size."
 Command: `--step --click "Betweenness"`
@@ -64,11 +70,13 @@ Hesitation: size isn't listed. Of these, "Shape" is the closest guess -- a dot's
 its shape, I suppose. "Effects" might also be it but sounds like glow.
 
 ## Step 6
+
 Ruth: "No 'Size'. I'll try the plus next to Shape and hope size lives there."
 Command: `--step --click-at 1419,234`
 Saw (07.png): a small menu with "Size" and "Shape". Good guess.
 
 ## Step 7
+
 Ruth: "There it is -- Size."
 Command: `--step --click "Size"`
 Saw (08.png): a box "Size by attribute": a find box, "Fixed size", then under "Betweenness":
@@ -77,6 +85,7 @@ Saw (08.png): a box "Size by attribute": a find box, "Fixed size", then under "B
 Hesitation: rank vs plain value -- I want the plain number so it matches the color key (0 to 47.5).
 
 ## Step 8
+
 Ruth: "Plain Betweenness, same as the color, so the two agree."
 Command: `--step --click "Betweenness#2"` (the first is the left-panel row behind)
 Actual command run: `--step --click "Betweenness"` -- the tool said "ambiguous: matches 5 controls
@@ -86,12 +95,14 @@ Saw (09.png): the list box closed. A new row "Size [1] (link icon) -" now sits u
 are unchanged in size.
 
 ## Step 9
+
 Ruth: "The little chain-link button beside the size box is what opened that 'Size by attribute'
 list, I think. I'll click it and pick Betweenness again."
 Command: `--step --click-at 1380,264`
 Saw (10.png): the same "Size by attribute" list reopened.
 
 ## Step 10
+
 Ruth: "Betweenness, the plain one."
 Command: `--step --click "role=option:Betweenness"`
 Saw (11.png): now the dots differ in size. One big dark dot in the middle, two more fairly big
@@ -102,6 +113,7 @@ Hesitation: I still don't know WHICH family is the big dot. No names on the draw
 does 47.5 count -- 47.5 of what? I'd have to explain that to an editor.
 
 ## Step 11
+
 Ruth: "Who is the big one? I'll hover over it and see if it tells me."
 Command: `--step --hover-at 700,378`
 Saw (12.png): nothing appeared on hover -- no tooltip, no name. (The tool privately reports the
@@ -109,6 +121,7 @@ dot's id; Ruth sees nothing on screen.)
 Hesitation: mildly annoying; I expected a name on hover.
 
 ## Step 12
+
 Ruth: "Hovering does nothing. I'll click the big dot."
 Command: `--step --click-at 700,378`
 Saw (13.png): the big dot got a yellow ring, and the right panel says "Medici -- Node", Summary:
@@ -121,6 +134,7 @@ shortest chains between other families go through this one". There was no unit o
 next to the number itself.
 
 ## Step 13
+
 Ruth: "Let me check the second-biggest dot, so I can rank at least the top two."
 Command: `--step --click-at 825,365`
 Saw (14.png): "Guadagni -- Betweenness 23.17, #2 of 15, Degree 4". Medici went back to its dark
@@ -129,6 +143,7 @@ read its color against the key while it's picked -- minor.
 I'm done: the drawing shows what I was asked for.
 
 ## End
+
 Command: `--end`
 
 ## Debrief (in character)
@@ -147,6 +162,7 @@ with a key. Getting the sizes took a guess: nothing says "Size" until you open t
 "Shape".
 
 **What confused or slowed me:**
+
 - "Size" is hidden under "Shape". I only found it by trying the closest-sounding plus button.
 - "PageRank -- Start here" pulled me away from what "depends on" means; I had to choose between
   PageRank and Betweenness on my own reading of one-line descriptions.

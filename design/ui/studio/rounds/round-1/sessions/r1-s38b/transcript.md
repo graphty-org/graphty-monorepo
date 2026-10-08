@@ -90,18 +90,18 @@ between other people in the club.
 - **Did I finish?** Yes, in four steps after the file was open.
 - **Difficulty:** 2 out of 7.
 - **What confused me:**
-  - The list I picked from says "Betweenness", but everything after it says "Bridges": the
-    legend, the row in the left list and "Made with". Nothing on the result names the method
-    I chose or says what the number means (raw or normalized, what the units are). I would not
-    trust myself to explain 51.27 to a VP from this screen.
-  - The "Start here" badge on PageRank pushes the popularity measure for a question about who
-    the club depends on. A less sure person would have taken it and reported a different top
-    three.
-  - The Values histogram shows twenty equal bars, which looks broken. I expected it to show
-    that Ava and Ivan stand far above everyone else.
-  - The map gives no names. The dark nodes are the answer, but I couldn't tell who they were
-    until I opened the side panel.
-  - The Analyze list uses algorithm names, not task words. The one-line descriptions saved it.
+    - The list I picked from says "Betweenness", but everything after it says "Bridges": the
+      legend, the row in the left list and "Made with". Nothing on the result names the method
+      I chose or says what the number means (raw or normalized, what the units are). I would not
+      trust myself to explain 51.27 to a VP from this screen.
+    - The "Start here" badge on PageRank pushes the popularity measure for a question about who
+      the club depends on. A less sure person would have taken it and reported a different top
+      three.
+    - The Values histogram shows twenty equal bars, which looks broken. I expected it to show
+      that Ava and Ivan stand far above everyone else.
+    - The map gives no names. The dark nodes are the answer, but I couldn't tell who they were
+      until I opened the side panel.
+    - The Analyze list uses algorithm names, not task words. The one-line descriptions saved it.
 - **What worked:** "Under a second" before running, the instant result, a Top 10 with names and
   numbers, and "Local only" in the header.
 - **What I'd try next:** get that Top 10 out as a CSV for the brief. I didn't see an export on

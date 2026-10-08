@@ -113,6 +113,7 @@ plain-language one-liners, it told me "Under a second" before I ran it, and the 
 with: Betweenness" is exactly the traceable list I want. It lost points on finding the list.
 
 **What confused me / where I hesitated:**
+
 - After Run, all I got was a color ramp on unlabeled dots. Nothing said "your ranking is over here".
   I had to guess: I tried the "Data" tab first, expecting a table, and got sources and attribute
   names instead -- and Betweenness wasn't even listed among the node attributes I'd just computed.

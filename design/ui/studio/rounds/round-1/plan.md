@@ -70,11 +70,11 @@ The questions this round answers first:
 
 ## Size: 56 sessions
 
-| Group | Tasks | Sessions | How bar 1 is scored |
-|---|---|---|---|
-| Core four, full size | T15 (6 + 4), T10 (4 + 4), T12 (4 + 4), T9 (4 + 4) | 34 | As written: 80% per task (8 of 10 on T15), and each dataset half at least 3 of 4 |
-| Reduced | T3, T5, T7 (running club), T8: 3 each; T6, T11, T13, T14: 2 each | 20 | Passes only if every session is S or SD (3 of 3, 2 of 2). One F or G puts the task below its bar; round 2 re-runs it at the full size in `criteria.md` |
-| Measured, not graded | T16 | 2 | A first baseline only; thin |
+| Group                | Tasks                                                            | Sessions | How bar 1 is scored                                                                                                                                    |
+| -------------------- | ---------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Core four, full size | T15 (6 + 4), T10 (4 + 4), T12 (4 + 4), T9 (4 + 4)                | 34       | As written: 80% per task (8 of 10 on T15), and each dataset half at least 3 of 4                                                                       |
+| Reduced              | T3, T5, T7 (running club), T8: 3 each; T6, T11, T13, T14: 2 each | 20       | Passes only if every session is S or SD (3 of 3, 2 of 2). One F or G puts the task below its bar; round 2 re-runs it at the full size in `criteria.md` |
+| Measured, not graded | T16                                                              | 2        | A first baseline only; thin                                                                                                                            |
 
 Not run: T1 and T4 (never in tier 1 rounds); T2 (one click; every empty start records the steps to
 the first drawing and the usage card, and T16 measures the unprompted first step, so T2's "change
@@ -101,81 +101,81 @@ At most 4 sessions at once. Each session folder is `rounds/round-1/sessions/<id>
 (lower case). Start is the `real.mjs --start` argument; files are in `tool/files/`; the limit is
 the step limit.
 
-| Id | Task | Persona | Dataset | Start | Files | Limit |
-|---|---|---|---|---|---|---|
-| r1-s01 | T15A | Elena | Les Miserables | `empty` | - | 60 |
-| r1-s02 | T15A | Tom | Les Miserables | `empty` | - | 60 |
-| r1-s03 | T15A | Nadia | Les Miserables | `empty` | - | 60 |
-| r1-s04 | T15A | Dev | Les Miserables | `empty` | - | 60 |
-| r1-s05 | T15A | Alex | Les Miserables | `empty` | - | 60 |
-| r1-s06 | T15B | Grace | friends.csv (own file) | `empty` | friends.csv | 60 |
-| r1-s07 | T15B | Ruth | friends.csv (own file) | `empty` | friends.csv | 60 |
-| r1-s08 | T15B | Jordan | friends.csv (own file) | `empty` | friends.csv | 60 |
-| r1-s09 | T15B | Sam | friends.csv (own file) | `empty` | friends.csv | 60 |
-| r1-s10 | T10A | Elena | Les Miserables | `empty` | - | 40 |
-| r1-s11 | T10A | Tom | Les Miserables | `empty` | - | 40 |
-| r1-s12 | T10A | Dev | Les Miserables | `empty` | - | 40 |
-| r1-s13 | T10B | Nadia | College football | `empty` | - | 40 |
-| r1-s14 | T10B | Grace | College football | `empty` | - | 40 |
-| r1-s15 | T10B | Ruth | College football | `empty` | - | 40 |
-| r1-s16 | T10B | Sam | College football | `empty` | - | 40 |
-| r1-s17 | T12A | Elena | Les Miserables | `empty` | - | 40 |
-| r1-s18 | T12A | Nadia | Les Miserables | `empty` | - | 40 |
-| r1-s19 | T12A | Ruth | Les Miserables | `empty` | - | 40 |
-| r1-s20 | T12B | Tom | Florentine families | `empty` | - | 40 |
-| r1-s21 | T12B | Dev | Florentine families | `empty` | - | 40 |
-| r1-s22 | T12B | Grace | Florentine families | `empty` | - | 40 |
-| r1-s23 | T12B | Sam | Florentine families | `empty` | - | 40 |
-| r1-s24 | T9A | Elena | Les Miserables | `empty` | - | 40 |
-| r1-s25 | T9A | Nadia | Les Miserables | `empty` | - | 40 |
-| r1-s26 | T9A | Ruth | Les Miserables | `empty` | - | 40 |
-| r1-s27 | T9B | Grace | Florentine families | `empty` | - | 40 |
-| r1-s28 | T9B | Dev | Florentine families | `empty` | - | 40 |
-| r1-s29 | T9B | Tom | Florentine families | `empty` | - | 40 |
-| r1-s30 | T9B | Mara | Florentine families | `empty` | - | 40 |
-| r1-s31 | T3 | Dev | friends.csv | `empty` | friends.csv | 40 |
-| r1-s32 | T3 | Ruth | friends.csv | `empty` | friends.csv | 40 |
-| r1-s33 | T3 | Dana | friends.csv | `empty` | friends.csv | 40 |
-| r1-s34 | T5 | Tom | club-members.graphml | `empty` | club-members.graphml | 40 |
-| r1-s35 | T5 | Elena | club-members.graphml | `empty` | club-members.graphml | 40 |
-| r1-s36 | T7B | Grace | friends.csv (setup) | `setup:rounds/round-1/setups/T7-B.txt` | - | 40 |
-| r1-s37 | T7B | Nadia | friends.csv (setup) | `setup:rounds/round-1/setups/T7-B.txt` | - | 40 |
-| r1-s38 | T7B | Jordan | friends.csv (setup) | `setup:rounds/round-1/setups/T7-B.txt` | - | 40 |
-| r1-s39 | T8 | Elena | Les Miserables | `empty` | - | 40 |
-| r1-s40 | T8 | Dev | Les Miserables | `empty` | - | 40 |
-| r1-s41 | T8 | Jordan | Les Miserables | `empty` | - | 40 |
-| r1-s42 | T6 | Ruth | Les Miserables | `empty` | - | 40 |
-| r1-s43 | T11 | Tom | Les Miserables | `empty` | - | 40 |
-| r1-s44 | T11 | Alex | Les Miserables | `empty` | - | 40 |
-| r1-s45 | T13 | Nadia | Les Miserables (setup) | `setup:rounds/round-1/setups/T13.txt` | - | 40 |
-| r1-s46 | T13 | Dana | Les Miserables (setup) | `setup:rounds/round-1/setups/T13.txt` | - | 40 |
-| r1-s47 | T14 | Tom | Les Miserables (setup) | `setup:rounds/round-1/setups/T14.txt` | - | 40 |
-| r1-s48 | T16 | Elena | participant's choice | `empty` | friends.csv | 40 |
-| r1-s49 | T16 | Grace | participant's choice | `empty` | friends.csv | 40 |
-| r1-s50 | T15A | Morgan | Les Miserables | `empty` | - | 60 |
-| r1-s51 | T10A | Morgan | Les Miserables | `empty` | - | 40 |
-| r1-s52 | T12A | Morgan | Les Miserables | `empty` | - | 40 |
-| r1-s53 | T9A | Morgan | Les Miserables | `empty` | - | 40 |
-| r1-s54 | T5 | Morgan | club-members.graphml | `empty` | club-members.graphml | 40 |
-| r1-s55 | T6 | Morgan | Les Miserables | `empty` | - | 40 |
-| r1-s56 | T14 | Morgan | Les Miserables (setup) | `setup:rounds/round-1/setups/T14.txt` | - | 40 |
+| Id     | Task | Persona | Dataset                | Start                                  | Files                | Limit |
+| ------ | ---- | ------- | ---------------------- | -------------------------------------- | -------------------- | ----- |
+| r1-s01 | T15A | Elena   | Les Miserables         | `empty`                                | -                    | 60    |
+| r1-s02 | T15A | Tom     | Les Miserables         | `empty`                                | -                    | 60    |
+| r1-s03 | T15A | Nadia   | Les Miserables         | `empty`                                | -                    | 60    |
+| r1-s04 | T15A | Dev     | Les Miserables         | `empty`                                | -                    | 60    |
+| r1-s05 | T15A | Alex    | Les Miserables         | `empty`                                | -                    | 60    |
+| r1-s06 | T15B | Grace   | friends.csv (own file) | `empty`                                | friends.csv          | 60    |
+| r1-s07 | T15B | Ruth    | friends.csv (own file) | `empty`                                | friends.csv          | 60    |
+| r1-s08 | T15B | Jordan  | friends.csv (own file) | `empty`                                | friends.csv          | 60    |
+| r1-s09 | T15B | Sam     | friends.csv (own file) | `empty`                                | friends.csv          | 60    |
+| r1-s10 | T10A | Elena   | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s11 | T10A | Tom     | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s12 | T10A | Dev     | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s13 | T10B | Nadia   | College football       | `empty`                                | -                    | 40    |
+| r1-s14 | T10B | Grace   | College football       | `empty`                                | -                    | 40    |
+| r1-s15 | T10B | Ruth    | College football       | `empty`                                | -                    | 40    |
+| r1-s16 | T10B | Sam     | College football       | `empty`                                | -                    | 40    |
+| r1-s17 | T12A | Elena   | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s18 | T12A | Nadia   | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s19 | T12A | Ruth    | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s20 | T12B | Tom     | Florentine families    | `empty`                                | -                    | 40    |
+| r1-s21 | T12B | Dev     | Florentine families    | `empty`                                | -                    | 40    |
+| r1-s22 | T12B | Grace   | Florentine families    | `empty`                                | -                    | 40    |
+| r1-s23 | T12B | Sam     | Florentine families    | `empty`                                | -                    | 40    |
+| r1-s24 | T9A  | Elena   | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s25 | T9A  | Nadia   | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s26 | T9A  | Ruth    | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s27 | T9B  | Grace   | Florentine families    | `empty`                                | -                    | 40    |
+| r1-s28 | T9B  | Dev     | Florentine families    | `empty`                                | -                    | 40    |
+| r1-s29 | T9B  | Tom     | Florentine families    | `empty`                                | -                    | 40    |
+| r1-s30 | T9B  | Mara    | Florentine families    | `empty`                                | -                    | 40    |
+| r1-s31 | T3   | Dev     | friends.csv            | `empty`                                | friends.csv          | 40    |
+| r1-s32 | T3   | Ruth    | friends.csv            | `empty`                                | friends.csv          | 40    |
+| r1-s33 | T3   | Dana    | friends.csv            | `empty`                                | friends.csv          | 40    |
+| r1-s34 | T5   | Tom     | club-members.graphml   | `empty`                                | club-members.graphml | 40    |
+| r1-s35 | T5   | Elena   | club-members.graphml   | `empty`                                | club-members.graphml | 40    |
+| r1-s36 | T7B  | Grace   | friends.csv (setup)    | `setup:rounds/round-1/setups/T7-B.txt` | -                    | 40    |
+| r1-s37 | T7B  | Nadia   | friends.csv (setup)    | `setup:rounds/round-1/setups/T7-B.txt` | -                    | 40    |
+| r1-s38 | T7B  | Jordan  | friends.csv (setup)    | `setup:rounds/round-1/setups/T7-B.txt` | -                    | 40    |
+| r1-s39 | T8   | Elena   | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s40 | T8   | Dev     | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s41 | T8   | Jordan  | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s42 | T6   | Ruth    | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s43 | T11  | Tom     | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s44 | T11  | Alex    | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s45 | T13  | Nadia   | Les Miserables (setup) | `setup:rounds/round-1/setups/T13.txt`  | -                    | 40    |
+| r1-s46 | T13  | Dana    | Les Miserables (setup) | `setup:rounds/round-1/setups/T13.txt`  | -                    | 40    |
+| r1-s47 | T14  | Tom     | Les Miserables (setup) | `setup:rounds/round-1/setups/T14.txt`  | -                    | 40    |
+| r1-s48 | T16  | Elena   | participant's choice   | `empty`                                | friends.csv          | 40    |
+| r1-s49 | T16  | Grace   | participant's choice   | `empty`                                | friends.csv          | 40    |
+| r1-s50 | T15A | Morgan  | Les Miserables         | `empty`                                | -                    | 60    |
+| r1-s51 | T10A | Morgan  | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s52 | T12A | Morgan  | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s53 | T9A  | Morgan  | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s54 | T5   | Morgan  | club-members.graphml   | `empty`                                | club-members.graphml | 40    |
+| r1-s55 | T6   | Morgan  | Les Miserables         | `empty`                                | -                    | 40    |
+| r1-s56 | T14  | Morgan  | Les Miserables (setup) | `setup:rounds/round-1/setups/T14.txt`  | -                    | 40    |
 
 ## How a session runs
 
 1. **Before the first session of a batch:** confirm the frozen files' SHA-256 (`preflight.md`)
    and the commit (`git -C <worktree> rev-parse HEAD` is 9d6598eea, or `git diff --stat 9d6598eea
-   -- graphty graphty-element` is empty; otherwise re-record the reference values first).
+-- graphty graphty-element` is empty; otherwise re-record the reference values first).
 2. **One fresh agent per session.** It gets exactly: its persona file (`roster.md`), the task's
    prompt from `tasks.md` word for word (the A or B prompt for its dataset), the tool's participant
    instructions (`tool/README.md`, sections "A session" and "Steps"), the session folder and start
    command, and these rules:
-   - think aloud at every step; say out loud when each part of the task is done;
-   - stop when done, when giving up, or at the step limit;
-   - end with "How easy or difficult was this, from 1 (very difficult) to 7 (very easy)?" and its
-     reason;
-   - always `--end` the session.
-   Nothing else: no `answers.md`, `criteria.md`, this plan, notes, digests, design documents,
-   source code, pilot folders or other sessions.
+    - think aloud at every step; say out loud when each part of the task is done;
+    - stop when done, when giving up, or at the step limit;
+    - end with "How easy or difficult was this, from 1 (very difficult) to 7 (very easy)?" and its
+      reason;
+    - always `--end` the session.
+      Nothing else: no `answers.md`, `criteria.md`, this plan, notes, digests, design documents,
+      source code, pilot folders or other sessions.
 3. **Sam** uses `--key` and `--type` only, and sees every screenshot.
 4. **Morgan** runs only in the tool's screen-reader mode, once it exists and its proof passes:
    no screenshots, no pointer steps, only focus and live-region text. A Morgan session run any
@@ -219,4 +219,5 @@ usage card, app words). Reduced tasks are reported with their n ("3 of 3", never
 - T7 on Les Miserables and T2 only if a fix touches them.
 - T16 to 5 first-time sessions if the round-1 pair disagree.
 </content>
+
 </invoke>

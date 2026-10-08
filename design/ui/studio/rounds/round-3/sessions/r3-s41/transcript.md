@@ -106,14 +106,14 @@ Command: `--end`
   people" (scores about 0.066, 0.064 and 0.059).
 - **Ease: 5 of 7.** Getting to the list took about six clicks and only one wrong turn.
 - **What confused me:**
-  - The Analyze list is a wall of words I don't know (Betweenness, Eigenvector, Katz, HITS). I
-    picked PageRank only because it said "Start here". I'm honestly not sure it's the one that
-    means "the club depends on them" -- one of the others might have been closer, but I couldn't
-    tell from the grey lines and I wasn't going to try them all.
-  - After it ran, the drawing just turned shades of orange with a scale of 0.04 to 0.07. I couldn't
-    tell who was first from the colors. No names on the dots either.
-  - Clicking the PageRank row on the left took me to color and shape settings, not the ranking.
-    The list was on the second tab, "Values" -- I found it because "values" sounded like numbers.
-  - The scores have no unit or meaning I can say out loud. "0.066 -- is that a lot?" Farah and Ava
-    look basically tied.
-  - Damping factor sitting right there before Run made me nervous; I left it alone.
+    - The Analyze list is a wall of words I don't know (Betweenness, Eigenvector, Katz, HITS). I
+      picked PageRank only because it said "Start here". I'm honestly not sure it's the one that
+      means "the club depends on them" -- one of the others might have been closer, but I couldn't
+      tell from the grey lines and I wasn't going to try them all.
+    - After it ran, the drawing just turned shades of orange with a scale of 0.04 to 0.07. I couldn't
+      tell who was first from the colors. No names on the dots either.
+    - Clicking the PageRank row on the left took me to color and shape settings, not the ranking.
+      The list was on the second tab, "Values" -- I found it because "values" sounded like numbers.
+    - The scores have no unit or meaning I can say out loud. "0.066 -- is that a lot?" Farah and Ava
+      look basically tied.
+    - Damping factor sitting right there before Run made me nervous; I left it alone.

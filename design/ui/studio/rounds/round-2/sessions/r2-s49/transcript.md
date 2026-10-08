@@ -44,7 +44,7 @@ is a link -- maybe that's the import details. Next: click it.
 
 Command: `--step ... --click "From friends.csv"` -> 04.png
 
-Saw: the left panel switched to Data. Sources: "friends.csv  41 rows, 41 edges". Attributes:
+Saw: the left panel switched to Data. Sources: "friends.csv 41 rows, 41 edges". Attributes:
 Nodes -> id (text), Edges -> weight (number).
 
 Alex: "41 rows in, 41 edges out. That's the line I wanted -- nothing dropped. And it picked up
@@ -86,6 +86,7 @@ question, and the counts were on screen without asking. The "never uploaded" lin
 Open answered my first question before I had to ask it.
 
 **What slowed or confused me:**
+
 - The "41 rows, 41 edges" line -- the one that actually proves nothing was dropped -- is behind a
   small "From friends.csv" link; the first screen only had the totals, so I had to infer
   "nothing dropped" until I clicked.

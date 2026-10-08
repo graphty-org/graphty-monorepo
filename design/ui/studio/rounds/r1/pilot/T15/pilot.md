@@ -21,13 +21,13 @@ picking PageRank (`friends/06.png`); the dots are in the same places in `03.png`
 **The end state is reached on both versions: all five parts hold at once in the final screenshot,
 and none was undone by a later step.** The path is 18 steps after the start on both versions.
 
-| Part | A (Les Miserables) | B (friends.csv) |
-|---|---|---|
-| 1. Data drawn | `03.png`: 77 nodes, 254 edges, one component | `03.png`: 20 nodes, 41 edges, one component, Directed |
-| 2. Ranking run, finished | `07.png`: row "Influence 77", legend "Color: Influence"; `08.png` Top 10 Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577 (matches the reference values) | `07.png`: "Influence 20"; `08.png` Top 10 Farah 0.06608, Ava 0.06423, Hana 0.05883 (matches) |
-| 3. Sizes bound to the result | `13.png`: Size line "1 to 3"; dots visibly differ; legend gains "Size: Influence" above "Color: Influence" | `13.png`: the same |
-| 4. Names on every node | `16.png`: label line on Everything bound to `name`; "77 labels, 6 hidden to avoid overlap" | `16.png`: bound to `id` (the names); "20 labels, 0 hidden to avoid overlap" |
-| 5. Image with its key | `19.png`: notice "Exported les-miserables_current-view.png" | `19.png`: notice "Exported friends_current-view.png" |
+| Part                         | A (Les Miserables)                                                                                                                                        | B (friends.csv)                                                                              |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 1. Data drawn                | `03.png`: 77 nodes, 254 edges, one component                                                                                                              | `03.png`: 20 nodes, 41 edges, one component, Directed                                        |
+| 2. Ranking run, finished     | `07.png`: row "Influence 77", legend "Color: Influence"; `08.png` Top 10 Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577 (matches the reference values) | `07.png`: "Influence 20"; `08.png` Top 10 Farah 0.06608, Ava 0.06423, Hana 0.05883 (matches) |
+| 3. Sizes bound to the result | `13.png`: Size line "1 to 3"; dots visibly differ; legend gains "Size: Influence" above "Color: Influence"                                                | `13.png`: the same                                                                           |
+| 4. Names on every node       | `16.png`: label line on Everything bound to `name`; "77 labels, 6 hidden to avoid overlap"                                                                | `16.png`: bound to `id` (the names); "20 labels, 0 hidden to avoid overlap"                  |
+| 5. Image with its key        | `19.png`: notice "Exported les-miserables_current-view.png"                                                                                               | `19.png`: notice "Exported friends_current-view.png"                                         |
 
 Meaning: in both versions the on-screen legend reads "Size: Influence" and "Color: Influence", so
 "bigger and darker means more Influence" can be read from the screen.
@@ -66,7 +66,7 @@ this task (commit 452285142) and is unchanged on this build.
 
 4. **The Les Miserables Overview shows raw file syntax and loses its row name.** `les-miserables/03.png`:
    the direction row reads "Undirected, from the file: directed 0", clipped at the panel's right
-   edge, with no "Direction" label; `friends/03.png` shows the intended "Direction  Directed".
+   edge, with no "Direction" label; `friends/03.png` shows the intended "Direction Directed".
 5. **The Size line does not name what it is bound to.** After binding, the Color line reads
    "Influence" but the Size line reads only "1 to 3" (`13.png` in both). Only the canvas legend
    names the size's attribute, so a participant checking the panel cannot confirm the size step
@@ -91,7 +91,7 @@ this task (commit 452285142) and is unchanged on this build.
     no-op. The note about `role=gridcell:Image` until a fix lands is out of date: `role=tab:Image`
     resolves.
 11. T15's path ("about 18") is written for A only. B's first step is `--click "Open project or
-    file" --upload friends.csv` (one step), and its label step picks `id`, not `name`. With those,
+file" --upload friends.csv` (one step), and its label step picks `id`, not `name`. With those,
     both versions take 18 steps after the start.
 12. The reference values in `answers.md` (both datasets' Influence top 3 and range, "77 labels, 6
     hidden" once sized, "20 labels, 0 hidden") all match this build.

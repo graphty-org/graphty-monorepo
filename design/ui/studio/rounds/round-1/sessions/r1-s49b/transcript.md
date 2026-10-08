@@ -172,13 +172,13 @@ looking at?"
   small for a slide and one is hidden. The two blue groups look alike.
 - **How hard (1-7, 7 = very hard):** 3.
 - **What confused me:**
-  - No names on the first drawing. I had to find Style, then Label, then +, then "id".
-  - The analysis list is mostly jargon (Betweenness, Katz, HITS, Eigenvector). There is no
-    "most connected" entry. "Degree" is only explained in small print, and "Start here" points
-    at PageRank, which isn't what I'd want.
-  - "Top 10" listed only two people.
-  - The Style panel showed a purple Color while the balls were orange.
-  - After grouping, the legend still showed "Color: Connections", so I wasn't sure what the
-    colors meant.
-  - Group 2 (light blue) and Group 4 (dark blue) are too alike to explain to a board.
-  - "Directed" for friendships, and "Density", "Components" in the overview, meant nothing to me.
+    - No names on the first drawing. I had to find Style, then Label, then +, then "id".
+    - The analysis list is mostly jargon (Betweenness, Katz, HITS, Eigenvector). There is no
+      "most connected" entry. "Degree" is only explained in small print, and "Start here" points
+      at PageRank, which isn't what I'd want.
+    - "Top 10" listed only two people.
+    - The Style panel showed a purple Color while the balls were orange.
+    - After grouping, the legend still showed "Color: Connections", so I wasn't sure what the
+      colors meant.
+    - Group 2 (light blue) and Group 4 (dark blue) are too alike to explain to a board.
+    - "Directed" for friendships, and "Density", "Components" in the overview, meant nothing to me.

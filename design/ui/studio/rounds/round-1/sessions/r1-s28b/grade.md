@@ -27,10 +27,10 @@ No files were downloaded, and none were expected. The usage card was declined ("
 - **Steps:** 15 `real.mjs` steps (`01.png` to `15.png`); the success path is about 9. Step 15
   (a hover after the sizes were bound) is outside the path.
 - **Wrong turns: 2.**
-  1. Clicked Style with the whole graph selected, looking for size; that tab has background and
-     layout only (`06.png`). Corrected by selecting the Bridges row (`07.png`).
-  2. Opened the Size line's dropdown ("Open list"), which opened empty (`11.png`). Recovered by
-     hovering the unlabeled chain icon to read its tooltip, "Size by attribute" (`12.png`).
+    1. Clicked Style with the whole graph selected, looking for size; that tab has background and
+       layout only (`06.png`). Corrected by selecting the Bridges row (`07.png`).
+    2. Opened the Size line's dropdown ("Open list"), which opened empty (`11.png`). Recovered by
+       hovering the unlabeled chain icon to read its tooltip, "Size by attribute" (`12.png`).
 - **Hesitations:** choosing Betweenness over PageRank, which carries a "Start here" tag
   (`03.png`); not sure at first that "Bridges" was the Betweenness result (`05.png`).
 - **False "done":** none. "Did I finish? Yes" is true: the sizes are bound and the legend shows
@@ -51,15 +51,15 @@ No files were downloaded, and none were expected. The usage card was declined ("
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 3 | build-defect | Adding Size gives a plain number box "1" whose dropdown ("Open list") opens empty. The control that binds size to a result is an unlabeled chain-link icon beside it, found only by hovering for its tooltip. A first-time user reads the empty list as broken. | `10.png`, `11.png`, `12.png`; repro `10.png` |
-| 2 | 2 | behavior | Style with the whole graph selected offers no node size; size lives only on a row's Style tab, and nothing points there. | `06.png`, then `07.png`, `08.png` |
-| 3 | 2 | build-defect | After the run, the legend box in the top-left corner covers a node: 15 dots before (`02.png`), 14 visible after. | `05.png`, `15.png`; repro `05.png`, `12.png` |
-| 4 | 2 | wording | The method picked is "Betweenness", but its result is called "Bridges" everywhere afterwards (left list, legend, inspector) with nothing tying the two names together. | `03.png`, `05.png`, `07.png` |
-| 5 | 2 | behavior | Hovering a dot shows no name and no labels are drawn, so the figure alone cannot say which dot is Medici. Also seen in session r1-s17b (Les Miserables), so confirmed across two participants. | `15.png`; repro `13.png` (tooltip: null on Medici) |
-| 6 | 1 | opinion | PageRank carries a "Start here" tag in the ranking list, which made Dev doubt the right choice (Betweenness) for a "depends on" question. | `03.png` |
-| 7 | 1 | wording | The bound size reads "1 to 3" with no unit or meaning; Dev could not tell what 1 and 3 measure. | `14.png`, `15.png` |
+| #   | Severity | Kind         | Problem                                                                                                                                                                                                                                                         | Evidence                                           |
+| --- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| 1   | 3        | build-defect | Adding Size gives a plain number box "1" whose dropdown ("Open list") opens empty. The control that binds size to a result is an unlabeled chain-link icon beside it, found only by hovering for its tooltip. A first-time user reads the empty list as broken. | `10.png`, `11.png`, `12.png`; repro `10.png`       |
+| 2   | 2        | behavior     | Style with the whole graph selected offers no node size; size lives only on a row's Style tab, and nothing points there.                                                                                                                                        | `06.png`, then `07.png`, `08.png`                  |
+| 3   | 2        | build-defect | After the run, the legend box in the top-left corner covers a node: 15 dots before (`02.png`), 14 visible after.                                                                                                                                                | `05.png`, `15.png`; repro `05.png`, `12.png`       |
+| 4   | 2        | wording      | The method picked is "Betweenness", but its result is called "Bridges" everywhere afterwards (left list, legend, inspector) with nothing tying the two names together.                                                                                          | `03.png`, `05.png`, `07.png`                       |
+| 5   | 2        | behavior     | Hovering a dot shows no name and no labels are drawn, so the figure alone cannot say which dot is Medici. Also seen in session r1-s17b (Les Miserables), so confirmed across two participants.                                                                  | `15.png`; repro `13.png` (tooltip: null on Medici) |
+| 6   | 1        | opinion      | PageRank carries a "Start here" tag in the ranking list, which made Dev doubt the right choice (Betweenness) for a "depends on" question.                                                                                                                       | `03.png`                                           |
+| 7   | 1        | wording      | The bound size reads "1 to 3" with no unit or meaning; Dev could not tell what 1 and 3 measure.                                                                                                                                                                 | `14.png`, `15.png`                                 |
 
 ## Scripted repro
 

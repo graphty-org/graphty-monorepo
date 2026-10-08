@@ -1,24 +1,24 @@
 {
- "commit": "4522851420998602a015e60ae2cbf339049a2c97",
- "uncommittedChanges": false,
- "buildStamp": "452285142099 graphty@0.8.53",
- "url": "/?next",
- "viewport": {
-  "width": 1440,
-  "height": 900
- },
- "started": "2026-10-07T00:30:57.399Z",
- "setup": [
-  "--click No thanks",
-  "--click Open the Les Miserables sample",
-  "--click Everything",
-  "--click role=tab:Style",
-  "--click Add label line",
-  "--click role=option:name",
-  "--key Escape",
-  "--key Shift+A",
-  "--type PageRank",
-  "--click PageRank",
-  "--click Run"
- ]
+    "commit": "4522851420998602a015e60ae2cbf339049a2c97",
+    "uncommittedChanges": false,
+    "buildStamp": "452285142099 graphty@0.8.53",
+    "url": "/?next",
+    "viewport": {
+        "width": 1440,
+        "height": 900
+    },
+    "started": "2026-10-07T00:30:57.399Z",
+    "setup": [
+        "--click No thanks",
+        "--click Open the Les Miserables sample",
+        "--click Everything",
+        "--click role=tab:Style",
+        "--click Add label line",
+        "--click role=option:name",
+        "--key Escape",
+        "--key Shift+A",
+        "--type PageRank",
+        "--click PageRank",
+        "--click Run"
+    ]
 }

@@ -164,10 +164,7 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
             networkSrc[k] = src[row];
             networkDst[k] = dst[row];
             const pair = networkSrc[k] * n + networkDst[k];
-            const capacity =
-                weights === null
-                    ? (capacityColumn?.data[row] ?? 1)
-                    : weights[graph.edgeToArc[row]];
+            const capacity = weights === null ? (capacityColumn?.data[row] ?? 1) : weights[graph.edgeToArc[row]];
             pairCapacity.set(pair, (pairCapacity.get(pair) ?? 0) + capacity);
             if (!firstOfPair.has(pair)) {
                 firstOfPair.set(pair, k);

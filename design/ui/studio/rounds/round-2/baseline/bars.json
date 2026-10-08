@@ -1,424 +1,409 @@
 {
- "build": "4a7a1a7fbdba graphty@0.8.53",
- "measured": "2026-10-07T08:36:46.171Z",
- "tags": [
-  "wcag2a",
-  "wcag2aa",
-  "wcag21aa",
-  "wcag22aa"
- ],
- "screens": {
-  "start screen with the usage card": [
-   {
-    "id": "color-contrast",
-    "impact": "serious",
-    "help": "Elements must meet minimum color contrast ratio thresholds",
-    "nodes": [
-     {
-      "target": ".ws-start-line:nth-child(4)",
-      "html": "<p class=\"mantine-focus-never cm-text ws-start-line m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: ",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-line:nth-child(5)",
-      "html": "<p class=\"mantine-focus-never cm-text ws-start-line m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: ",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "section[aria-label=\"Recent projects\"] > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "button[aria-label=\"Open the Les Miserables sample\"] > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
-      "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "button[aria-label=\"Open the Les Miserables sample\"] > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample:nth-child(3) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
-      "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample:nth-child(3) > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample:nth-child(4) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
-      "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample:nth-child(4) > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample:nth-child(5) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
-      "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample:nth-child(5) > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".m_6d731127 > p:nth-child(4)",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     }
-    ]
-   }
-  ],
-  "start screen": [
-   {
-    "id": "color-contrast",
-    "impact": "serious",
-    "help": "Elements must meet minimum color contrast ratio thresholds",
-    "nodes": [
-     {
-      "target": ".ws-start-line:nth-child(4)",
-      "html": "<p class=\"mantine-focus-never cm-text ws-start-line m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: ",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-line:nth-child(5)",
-      "html": "<p class=\"mantine-focus-never cm-text ws-start-line m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: ",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "section[aria-label=\"Recent projects\"] > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "button[aria-label=\"Open the Les Miserables sample\"] > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
-      "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "button[aria-label=\"Open the Les Miserables sample\"] > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample.m_87cf2631.mantine-UnstyledButton-root:nth-child(3) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
-      "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample.m_87cf2631.mantine-UnstyledButton-root:nth-child(3) > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample.m_87cf2631.mantine-UnstyledButton-root:nth-child(4) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
-      "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample.m_87cf2631.mantine-UnstyledButton-root:nth-child(4) > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample.m_87cf2631.mantine-UnstyledButton-root:nth-child(5) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
-      "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample.m_87cf2631.mantine-UnstyledButton-root:nth-child(5) > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     }
-    ]
-   }
-  ],
-  "loaded Graph place": [],
-  "Analyze open": [
-   {
-    "id": "color-contrast",
-    "impact": "serious",
-    "help": "Elements must meet minimum color contrast ratio thresholds",
-    "nodes": [
-     {
-      "target": "div[aria-label=\"Rank nodes and edges\"] > .ws-analyze-heading[data-size=\"xs\"]",
-      "html": "<p class=\"mantine-focus-never cm-text ws-analyze-heading m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "#_r_bg_-0 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "#_r_bg_-1 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "#_r_bg_-2 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "#_r_bg_-3 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "#_r_bg_-4 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "#_r_bg_-5 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "#_r_bg_-6 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "#_r_bg_-7 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "#_r_bg_-8 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     }
-    ]
-   }
-  ],
-  "a finished run row": [],
-  "Style tab with a label line": [
-   {
-    "id": "color-contrast",
-    "impact": "serious",
-    "help": "Elements must meet minimum color contrast ratio thresholds",
-    "nodes": [
-     {
-      "target": "p[aria-live=\"polite\"]",
-      "html": "<p class=\"mantine-focus-never ...\" data-size=\"xs\" aria-live=\"polite\" style=\"--text-fz: var(--man...\">",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     }
-    ]
-   }
-  ],
-  "find box with results open": [
-   {
-    "id": "color-contrast",
-    "impact": "serious",
-    "help": "Elements must meet minimum color contrast ratio thresholds",
-    "nodes": [
-     {
-      "target": "p[aria-live=\"polite\"]",
-      "html": "<p class=\"mantine-focus-never ...\" data-size=\"xs\" aria-live=\"polite\" style=\"--text-fz: var(--man...\">",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     }
-    ]
-   }
-  ],
-  "a node's Values with its neighbors": [
-   {
-    "id": "color-contrast",
-    "impact": "serious",
-    "help": "Elements must meet minimum color contrast ratio thresholds",
-    "nodes": [
-     {
-      "target": ".m_4081bf90.mantine-Group-root:nth-child(2) > p[data-size=\"xs\"]",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     }
-    ]
-   }
-  ],
-  "Export Image": [
-   {
-    "id": "color-contrast",
-    "impact": "serious",
-    "help": "Elements must meet minimum color contrast ratio thresholds",
-    "nodes": [
-     {
-      "target": ".m_4081bf90.mantine-Group-root:nth-child(2) > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-export-main > div:nth-child(1) > p:nth-child(2)",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"sm\" style=\"--text-fz: var(--mantine-font-size-sm); --text-lh: var(--mantine-line-height-sm); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-export-preview > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"sm\" style=\"--text-fz: var(--mantine-font-size-sm); --text-lh: var(--mantine-line-height-sm); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.89 (foreground color: #8c8c8c, background color: #444444, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-export-note",
-      "html": "<p class=\"mantine-focus-never cm-text ws-export-note m_b6d8b162 mantine-Text-root\" data-size=\"sm\" style=\"--text-fz: var(--mantine-font-size-sm); --text-lh: var(--mantine-line-height-sm); --cm-text-fw:",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
-     }
-    ]
-   }
-  ],
-  "Export Data": [
-   {
-    "id": "color-contrast",
-    "impact": "serious",
-    "help": "Elements must meet minimum color contrast ratio thresholds",
-    "nodes": [
-     {
-      "target": ".m_4081bf90.mantine-Group-root:nth-child(2) > p[data-size=\"xs\"]",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-export-main > div:nth-child(1) > p:nth-child(2)",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"sm\" style=\"--text-fz: var(--mantine-font-size-sm); --text-lh: var(--mantine-line-height-sm); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-export-note",
-      "html": "<p class=\"mantine-focus-never cm-text ws-export-note m_b6d8b162 mantine-Text-root\" data-size=\"sm\" style=\"--text-fz: var(--mantine-font-size-sm); --text-lh: var(--mantine-line-height-sm); --cm-text-fw:",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
-     }
-    ]
-   }
-  ],
-  "Data page": [],
-  "Save as": [],
-  "refusal of a broken file": [
-   {
-    "id": "color-contrast",
-    "impact": "serious",
-    "help": "Elements must meet minimum color contrast ratio thresholds",
-    "nodes": [
-     {
-      "target": ".ws-start-line:nth-child(4)",
-      "html": "<p class=\"mantine-focus-never cm-text ws-start-line m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: ",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-line:nth-child(5)",
-      "html": "<p class=\"mantine-focus-never cm-text ws-start-line m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: ",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "section[aria-label=\"Recent projects\"] > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "button[aria-label=\"Open the Les Miserables sample\"] > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
-      "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": "button[aria-label=\"Open the Les Miserables sample\"] > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample:nth-child(3) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
-      "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample:nth-child(3) > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample:nth-child(4) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
-      "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample:nth-child(4) > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample:nth-child(5) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
-      "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     },
-     {
-      "target": ".ws-start-sample:nth-child(5) > p",
-      "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
-      "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
-     }
-    ]
-   }
-  ]
- },
- "wordsAtRest": {
-  "words": [
-   "Les",
-   "Miserables",
-   "Local",
-   "only",
-   "Graph",
-   "Data",
-   "Graph",
-   "Les",
-   "Miserables",
-   "Selection",
-   "Everything",
-   "Analyze",
-   "in",
-   "the",
-   "toolbar",
-   "Shift+A",
-   "to",
-   "add",
-   "results",
-   "here",
-   "Graph",
-   "From",
-   "Les",
-   "Miserables",
-   "Style",
-   "Values",
-   "Overview",
-   "Nodes",
-   "Edges",
-   "Direction",
-   "Undirected",
-   "from",
-   "the",
-   "file",
-   "directed",
-   "Density",
-   "Components",
-   "Edges",
-   "per",
-   "node",
-   "to",
-   "mean"
-  ],
-  "left": [
-   "3D",
-   "77",
-   "254",
-   "0",
-   "0.08681",
-   "1",
-   "1",
-   "36",
-   "6.597"
-  ]
- }
+    "build": "4a7a1a7fbdba graphty@0.8.53",
+    "measured": "2026-10-07T08:36:46.171Z",
+    "tags": ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"],
+    "screens": {
+        "start screen with the usage card": [
+            {
+                "id": "color-contrast",
+                "impact": "serious",
+                "help": "Elements must meet minimum color contrast ratio thresholds",
+                "nodes": [
+                    {
+                        "target": ".ws-start-line:nth-child(4)",
+                        "html": "<p class=\"mantine-focus-never cm-text ws-start-line m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: ",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-line:nth-child(5)",
+                        "html": "<p class=\"mantine-focus-never cm-text ws-start-line m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: ",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "section[aria-label=\"Recent projects\"] > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "button[aria-label=\"Open the Les Miserables sample\"] > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
+                        "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "button[aria-label=\"Open the Les Miserables sample\"] > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample:nth-child(3) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
+                        "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample:nth-child(3) > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample:nth-child(4) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
+                        "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample:nth-child(4) > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample:nth-child(5) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
+                        "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample:nth-child(5) > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".m_6d731127 > p:nth-child(4)",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    }
+                ]
+            }
+        ],
+        "start screen": [
+            {
+                "id": "color-contrast",
+                "impact": "serious",
+                "help": "Elements must meet minimum color contrast ratio thresholds",
+                "nodes": [
+                    {
+                        "target": ".ws-start-line:nth-child(4)",
+                        "html": "<p class=\"mantine-focus-never cm-text ws-start-line m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: ",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-line:nth-child(5)",
+                        "html": "<p class=\"mantine-focus-never cm-text ws-start-line m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: ",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "section[aria-label=\"Recent projects\"] > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "button[aria-label=\"Open the Les Miserables sample\"] > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
+                        "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "button[aria-label=\"Open the Les Miserables sample\"] > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample.m_87cf2631.mantine-UnstyledButton-root:nth-child(3) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
+                        "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample.m_87cf2631.mantine-UnstyledButton-root:nth-child(3) > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample.m_87cf2631.mantine-UnstyledButton-root:nth-child(4) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
+                        "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample.m_87cf2631.mantine-UnstyledButton-root:nth-child(4) > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample.m_87cf2631.mantine-UnstyledButton-root:nth-child(5) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
+                        "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample.m_87cf2631.mantine-UnstyledButton-root:nth-child(5) > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    }
+                ]
+            }
+        ],
+        "loaded Graph place": [],
+        "Analyze open": [
+            {
+                "id": "color-contrast",
+                "impact": "serious",
+                "help": "Elements must meet minimum color contrast ratio thresholds",
+                "nodes": [
+                    {
+                        "target": "div[aria-label=\"Rank nodes and edges\"] > .ws-analyze-heading[data-size=\"xs\"]",
+                        "html": "<p class=\"mantine-focus-never cm-text ws-analyze-heading m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "#_r_bg_-0 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "#_r_bg_-1 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "#_r_bg_-2 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "#_r_bg_-3 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "#_r_bg_-4 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "#_r_bg_-5 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "#_r_bg_-6 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "#_r_bg_-7 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "#_r_bg_-8 > .m_4081bf90.mantine-Group-root > .m_6d731127.mantine-Stack-root > p[data-size=\"xs\"]",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    }
+                ]
+            }
+        ],
+        "a finished run row": [],
+        "Style tab with a label line": [
+            {
+                "id": "color-contrast",
+                "impact": "serious",
+                "help": "Elements must meet minimum color contrast ratio thresholds",
+                "nodes": [
+                    {
+                        "target": "p[aria-live=\"polite\"]",
+                        "html": "<p class=\"mantine-focus-never ...\" data-size=\"xs\" aria-live=\"polite\" style=\"--text-fz: var(--man...\">",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    }
+                ]
+            }
+        ],
+        "find box with results open": [
+            {
+                "id": "color-contrast",
+                "impact": "serious",
+                "help": "Elements must meet minimum color contrast ratio thresholds",
+                "nodes": [
+                    {
+                        "target": "p[aria-live=\"polite\"]",
+                        "html": "<p class=\"mantine-focus-never ...\" data-size=\"xs\" aria-live=\"polite\" style=\"--text-fz: var(--man...\">",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    }
+                ]
+            }
+        ],
+        "a node's Values with its neighbors": [
+            {
+                "id": "color-contrast",
+                "impact": "serious",
+                "help": "Elements must meet minimum color contrast ratio thresholds",
+                "nodes": [
+                    {
+                        "target": ".m_4081bf90.mantine-Group-root:nth-child(2) > p[data-size=\"xs\"]",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    }
+                ]
+            }
+        ],
+        "Export Image": [
+            {
+                "id": "color-contrast",
+                "impact": "serious",
+                "help": "Elements must meet minimum color contrast ratio thresholds",
+                "nodes": [
+                    {
+                        "target": ".m_4081bf90.mantine-Group-root:nth-child(2) > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-export-main > div:nth-child(1) > p:nth-child(2)",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"sm\" style=\"--text-fz: var(--mantine-font-size-sm); --text-lh: var(--mantine-line-height-sm); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-export-preview > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"sm\" style=\"--text-fz: var(--mantine-font-size-sm); --text-lh: var(--mantine-line-height-sm); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.89 (foreground color: #8c8c8c, background color: #444444, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-export-note",
+                        "html": "<p class=\"mantine-focus-never cm-text ws-export-note m_b6d8b162 mantine-Text-root\" data-size=\"sm\" style=\"--text-fz: var(--mantine-font-size-sm); --text-lh: var(--mantine-line-height-sm); --cm-text-fw:",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    }
+                ]
+            }
+        ],
+        "Export Data": [
+            {
+                "id": "color-contrast",
+                "impact": "serious",
+                "help": "Elements must meet minimum color contrast ratio thresholds",
+                "nodes": [
+                    {
+                        "target": ".m_4081bf90.mantine-Group-root:nth-child(2) > p[data-size=\"xs\"]",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-export-main > div:nth-child(1) > p:nth-child(2)",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"sm\" style=\"--text-fz: var(--mantine-font-size-sm); --text-lh: var(--mantine-line-height-sm); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-export-note",
+                        "html": "<p class=\"mantine-focus-never cm-text ws-export-note m_b6d8b162 mantine-Text-root\" data-size=\"sm\" style=\"--text-fz: var(--mantine-font-size-sm); --text-lh: var(--mantine-line-height-sm); --cm-text-fw:",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    }
+                ]
+            }
+        ],
+        "Data page": [],
+        "Save as": [],
+        "refusal of a broken file": [
+            {
+                "id": "color-contrast",
+                "impact": "serious",
+                "help": "Elements must meet minimum color contrast ratio thresholds",
+                "nodes": [
+                    {
+                        "target": ".ws-start-line:nth-child(4)",
+                        "html": "<p class=\"mantine-focus-never cm-text ws-start-line m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: ",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-line:nth-child(5)",
+                        "html": "<p class=\"mantine-focus-never cm-text ws-start-line m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: ",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "section[aria-label=\"Recent projects\"] > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "button[aria-label=\"Open the Les Miserables sample\"] > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
+                        "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": "button[aria-label=\"Open the Les Miserables sample\"] > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample:nth-child(3) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
+                        "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample:nth-child(3) > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample:nth-child(4) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
+                        "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample:nth-child(4) > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample:nth-child(5) > .ws-start-sample-name > .cm-text.m_b6d8b162.mantine-Text-root:nth-child(2)",
+                        "html": "<span class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-t",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    },
+                    {
+                        "target": ".ws-start-sample:nth-child(5) > p",
+                        "html": "<p class=\"mantine-focus-never cm-text m_b6d8b162 mantine-Text-root\" data-size=\"xs\" style=\"--text-fz: var(--mantine-font-size-xs); --text-lh: var(--mantine-line-height-xs); --cm-text-fw: 450; --cm-text",
+                        "why": "Fix any of the following:\n  Element has insufficient color contrast of 4.15 (foreground color: #8c8c8c, background color: #2c2c2c, font size: 6.8pt (9px), font weight: normal). Expected contrast ratio of 4.5:1"
+                    }
+                ]
+            }
+        ]
+    },
+    "wordsAtRest": {
+        "words": [
+            "Les",
+            "Miserables",
+            "Local",
+            "only",
+            "Graph",
+            "Data",
+            "Graph",
+            "Les",
+            "Miserables",
+            "Selection",
+            "Everything",
+            "Analyze",
+            "in",
+            "the",
+            "toolbar",
+            "Shift+A",
+            "to",
+            "add",
+            "results",
+            "here",
+            "Graph",
+            "From",
+            "Les",
+            "Miserables",
+            "Style",
+            "Values",
+            "Overview",
+            "Nodes",
+            "Edges",
+            "Direction",
+            "Undirected",
+            "from",
+            "the",
+            "file",
+            "directed",
+            "Density",
+            "Components",
+            "Edges",
+            "per",
+            "node",
+            "to",
+            "mean"
+        ],
+        "left": ["3D", "77", "254", "0", "0.08681", "1", "1", "36", "6.597"]
+    }
 }

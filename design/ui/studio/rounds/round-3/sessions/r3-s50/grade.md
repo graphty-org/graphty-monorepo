@@ -29,10 +29,10 @@ outline rows carry the same numbers, which the definition accepts ("as the scree
 
 ## Counts
 
-| | This session | Success path (round 3) |
-|---|---|---|
-| Steps | 7 after the start (steps 2-8) | 9 |
-| Wrong turns | 0 | -- |
+|             | This session                  | Success path (round 3) |
+| ----------- | ----------------------------- | ---------------------- |
+| Steps       | 7 after the start (steps 2-8) | 9                      |
+| Wrong turns | 0                             | --                     |
 
 - Step 2 sends "No thanks" and the sample click in one command; the card is not a path step.
 - She opened Analyze by clicking the flask (the hint in the outline points at it) instead of
@@ -49,14 +49,14 @@ largest 20, Valjean, Fauchelevent, Bamatabois) match 08.png.
 
 ## Problems
 
-| # | Problem | Severity | Kind | Evidence |
-|---|---|---|---|---|
-| 1 | The Analyze popover opens on "Rank nodes and edges" with PageRank tagged "Start here"; nothing about groups is on the first screen. She found the grouping methods only by typing "group" in the filter, and says a person who does not type would scroll or take PageRank. | 2 | behavior | step 3, 03.png; debrief |
-| 2 | Clicking a group row opens its Style tab (a color field, "E69F00") instead of who is in it. She feared she might change the color by accident; the members are one tab over under Values. | 2 | behavior | step 7, 07.png; step 8, 08.png |
-| 3 | Selecting Group 1 changes nothing on the drawing (no highlight of its 20 nodes), and no names are drawn, so she cannot tell which yellow node is Valjean. For a case file she wants the picture with names on it. | 2 | opinion | step 7, 06.png vs 07.png (identical canvas); debrief |
-| 4 | The Members list reads "First 10" with no visible way to see the other ten members of a group of 20. | 1 | behavior | step 8, 08.png; debrief |
-| 5 | Seven grouping methods with unexplained names; she chose Louvain only for its "Start here" tag and could not say why the answer is six or whether another method would differ. "Resolution 1" on the form means nothing to her. | 1 | opinion | steps 4-5, 04.png, 05.png; debrief |
-| 6 | "Components 1" in the graph Overview, before any run, made her wonder briefly whether that was the circle count. | 1 | wording | step 2, 02.png |
+| #   | Problem                                                                                                                                                                                                                                                                     | Severity | Kind     | Evidence                                             |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- | ---------------------------------------------------- |
+| 1   | The Analyze popover opens on "Rank nodes and edges" with PageRank tagged "Start here"; nothing about groups is on the first screen. She found the grouping methods only by typing "group" in the filter, and says a person who does not type would scroll or take PageRank. | 2        | behavior | step 3, 03.png; debrief                              |
+| 2   | Clicking a group row opens its Style tab (a color field, "E69F00") instead of who is in it. She feared she might change the color by accident; the members are one tab over under Values.                                                                                   | 2        | behavior | step 7, 07.png; step 8, 08.png                       |
+| 3   | Selecting Group 1 changes nothing on the drawing (no highlight of its 20 nodes), and no names are drawn, so she cannot tell which yellow node is Valjean. For a case file she wants the picture with names on it.                                                           | 2        | opinion  | step 7, 06.png vs 07.png (identical canvas); debrief |
+| 4   | The Members list reads "First 10" with no visible way to see the other ten members of a group of 20.                                                                                                                                                                        | 1        | behavior | step 8, 08.png; debrief                              |
+| 5   | Seven grouping methods with unexplained names; she chose Louvain only for its "Start here" tag and could not say why the answer is six or whether another method would differ. "Resolution 1" on the form means nothing to her.                                             | 1        | opinion  | steps 4-5, 04.png, 05.png; debrief                   |
+| 6   | "Components 1" in the graph Overview, before any run, made her wonder briefly whether that was the circle count.                                                                                                                                                            | 1        | wording  | step 2, 02.png                                       |
 
 No build defect: every control she used did what it showed, and the counts on screen agree with
 each other and with the drawing (six key colors, six rows, sizes summing to 77). No repro was

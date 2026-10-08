@@ -11,10 +11,10 @@ e82708488eea, commit e82708488, at `/?next`, with `tool/real.mjs`. No code was c
 filtered analysis list opens the PageRank card, and Enter on the card runs it, so dataset B was
 walked with no click before the result row.
 
-| Dataset | What the screen shows after the run | Screenshot |
-|---|---|---|
+| Dataset           | What the screen shows after the run                                      | Screenshot |
+| ----------------- | ------------------------------------------------------------------------ | ---------- |
 | A, Les Miserables | Top 10 of "Influence": Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577 | `A/08.png` |
-| B, friends.csv | Top 10 of "Influence": Farah 0.06608, Ava 0.06423, Hana 0.05883 | `B/04.png` |
+| B, friends.csv    | Top 10 of "Influence": Farah 0.06608, Ava 0.06423, Hana 0.05883          | `B/04.png` |
 
 Both match the reference values in `answers.md` (PageRank, "Influence"), and both lists show
 names, not ids. No script error, console error or failed request was printed in either session.

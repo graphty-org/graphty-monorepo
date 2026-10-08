@@ -52,7 +52,7 @@ Build seen: `4a7a1a7fbdba graphty@0.8.53` (session.json), at 1440 x 900, no unco
   dot unchanged. She did not take it for done; binding by attribute (`11.png`) changed the drawing.
 - **Counts against the drawing:** none disagree.
 - **Tool prints:** the last step printed `ambiguous: "Export" matches 2 controls ... took the
-  first`; the first was the dialog's Export button, the file was saved, and a person would have
+first`; the first was the dialog's Export button, the file was saved, and a person would have
   pressed the same button. Not a tool fault; the session is not void. session.log is empty.
 - **Build-decided:** no. **Void:** no.
 
@@ -60,19 +60,19 @@ Build seen: `4a7a1a7fbdba graphty@0.8.53` (session.json), at 1440 x 900, no unco
 
 "Confirmed" means the same finding was also seen in session r2-s03 (Ruth, same task).
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | Size has no row of its own; it is reached only through "+" beside Shape, and she found it by guessing ("Size is closest to Shape, I guess"). Confirmed. | Step 6-7, `06.png` (rows Fill, Color, Shape, Effects, Label, Tooltip; no "Size"), `07.png` |
-| 2 | 2 | behavior | Adding Size gives a fixed "1" and no visible change; binding it to a value needs a small chain-link icon she understood only from its tooltip. "A new user could easily stop at '1'." Confirmed. | Steps 8-10, `08.png` (dots unchanged), `09.png` (tooltip "Size by attribute"), `10.png` |
-| 3 | 2 | behavior | Names are tiny and soft on screen and in the exported PNG; the crowded middle overlaps, and the most important name (Valjean) is printed across its own big dot. Confirmed. | Step 13 `13.png`, step 16 `16.png`, `downloads/les-miserables_current-view.png` |
-| 4 | 2 | wording | The key's numbers (0.003299 to 0.07543) mean nothing to a reader of her document; she could not say in words what a score of 0.07543 is, and planned to write a guess ("relative influence, larger = more central"). | Debrief; key in `16.png` and the downloaded PNG |
-| 5 | 2 | behavior | The Analyze list is nine method names she does not use; she chose PageRank only because of the "Start here" tag, and Degree ("how many edges each node has") seemed just as right. | Step 3, `03.png` |
-| 6 | 1 | wording | The run is called "PageRank" in the Analyze list and "Influence" everywhere afterward; for a moment she was not sure the Influence row was the run she had just made. | Steps 4-6, `04.png`, `05.png`, `06.png` |
-| 7 | 1 | wording | PageRank's form asks for "Damping factor 0.85" and "Weight" with no plain explanation; she left them alone without knowing what they do. | Step 4, `04.png` |
-| 8 | 1 | opinion | The orange color ramp's shades are hard to tell apart; size, not color, made the picture readable. Confirmed. | Step 5, `05.png` |
-| 9 | 1 | opinion | "77 labels, 6 hidden to avoid overlap" does not say which six, and the exported picture gives no sign that names are missing. Confirmed. | Step 13, `13.png`; debrief |
-| 10 | 1 | behavior | On screen the key box sits over the drawing and covers names near its edge (Blacheville, top left); the exported file has no such overlap. Seen by the grader, not remarked on by Nadia. Confirmed (r2-s03 problem 5). | `16.png` against the downloaded PNG |
-| 11 | 1 | opinion | Nothing told her whether coloring and sizing changed the data or only the view; she assumed only the view. | Debrief |
+| #   | Severity | Kind     | Problem                                                                                                                                                                                                                | Evidence                                                                                   |
+| --- | -------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 1   | 2        | behavior | Size has no row of its own; it is reached only through "+" beside Shape, and she found it by guessing ("Size is closest to Shape, I guess"). Confirmed.                                                                | Step 6-7, `06.png` (rows Fill, Color, Shape, Effects, Label, Tooltip; no "Size"), `07.png` |
+| 2   | 2        | behavior | Adding Size gives a fixed "1" and no visible change; binding it to a value needs a small chain-link icon she understood only from its tooltip. "A new user could easily stop at '1'." Confirmed.                       | Steps 8-10, `08.png` (dots unchanged), `09.png` (tooltip "Size by attribute"), `10.png`    |
+| 3   | 2        | behavior | Names are tiny and soft on screen and in the exported PNG; the crowded middle overlaps, and the most important name (Valjean) is printed across its own big dot. Confirmed.                                            | Step 13 `13.png`, step 16 `16.png`, `downloads/les-miserables_current-view.png`            |
+| 4   | 2        | wording  | The key's numbers (0.003299 to 0.07543) mean nothing to a reader of her document; she could not say in words what a score of 0.07543 is, and planned to write a guess ("relative influence, larger = more central").   | Debrief; key in `16.png` and the downloaded PNG                                            |
+| 5   | 2        | behavior | The Analyze list is nine method names she does not use; she chose PageRank only because of the "Start here" tag, and Degree ("how many edges each node has") seemed just as right.                                     | Step 3, `03.png`                                                                           |
+| 6   | 1        | wording  | The run is called "PageRank" in the Analyze list and "Influence" everywhere afterward; for a moment she was not sure the Influence row was the run she had just made.                                                  | Steps 4-6, `04.png`, `05.png`, `06.png`                                                    |
+| 7   | 1        | wording  | PageRank's form asks for "Damping factor 0.85" and "Weight" with no plain explanation; she left them alone without knowing what they do.                                                                               | Step 4, `04.png`                                                                           |
+| 8   | 1        | opinion  | The orange color ramp's shades are hard to tell apart; size, not color, made the picture readable. Confirmed.                                                                                                          | Step 5, `05.png`                                                                           |
+| 9   | 1        | opinion  | "77 labels, 6 hidden to avoid overlap" does not say which six, and the exported picture gives no sign that names are missing. Confirmed.                                                                               | Step 13, `13.png`; debrief                                                                 |
+| 10  | 1        | behavior | On screen the key box sits over the drawing and covers names near its edge (Blacheville, top left); the exported file has no such overlap. Seen by the grader, not remarked on by Nadia. Confirmed (r2-s03 problem 5). | `16.png` against the downloaded PNG                                                        |
+| 11  | 1        | opinion  | Nothing told her whether coloring and sizing changed the data or only the view; she assumed only the view.                                                                                                             | Debrief                                                                                    |
 
 No problem in this session is a build defect under the criteria (no crash, no control that does
 nothing, no wrong count, keyboard not in scope for this participant), so none needed a scripted

@@ -11,24 +11,24 @@ than the round 2 route (no "Size by attribute" click).
 
 ## The walk (same commands on A and B except where noted)
 
-| Step | Command | Screen | What it showed |
-|---|---|---|---|
-| card | `--click "No thanks"` | 02 | Card gone; "Usage data stays off. Change this in Settings > Privacy" |
-| 1 open | A `--click "Open the Les Miserables sample"`; B `--click "Open project or file" --upload friends.csv` | 03 | A: 77 nodes, 254 edges. B: 20 nodes, 41 edges, Directed |
-| 2 rank | `--key Shift+A --type PageRank` | 04 | One match, "PageRank -- Start here" |
-| | `--click PageRank` | 05 | Form with Run |
-| | `--click Run` | 06 | Outline row "PageRank 77" (B: 20); drawing colored; key "Color: PageRank" 0.003299 to 0.07543 (B: 0.04382 to 0.06608) |
-| 3 sizes | `--click PageRank` (the run row) | 07 | Inspector opens on Style; Color line already "PageRank" |
-| | `--click "Add to Shape"` | 08 | Menu: Size, Shape |
-| | `--click Size` | 09 | "Size by attribute" list opens at once: Fixed size; PageRank, PageRank rank, PageRank percentile; id and name greyed ("Cannot be used: Holds groups, not amounts") |
-| | `--click "role=option:PageRank"` | 10 | Size reads "1 to 3"; key gains "Size: PageRank" with the same range; dots visibly differ |
-| 4 names | `--click Everything` | 11 | Everything's Style tab |
-| | `--click "Add label line"` | 12 | "Label" list: A id, name, PageRank columns; B id, PageRank columns |
-| | A `--click "role=option:name"`; B `--click "role=option:id"` | 13 | Names drawn. A: "77 labels, 6 hidden" with an unchecked "Show all labels". B: "20 labels, 0 hidden" |
-| | A `--click "Show all labels"` | A/14 | Statement "77 labels"; every name drawn |
-| | B `--click PageRank --click "role=tab:Values"` | B/14 | Top 10 Farah 0.06608, Ava 0.06423, Hana 0.05883 (matches the answer key) |
-| 5 image | `--key Control+e` | 15 | Export dialog, Image chosen, preview with the key |
-| | `--click "role=button:Export"` | 16 | Toast "Exported les-miserables_current-view.png" (B: friends_current-view.png); 1806 x 1720 each, in `downloads/` |
+| Step    | Command                                                                                               | Screen | What it showed                                                                                                                                                     |
+| ------- | ----------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| card    | `--click "No thanks"`                                                                                 | 02     | Card gone; "Usage data stays off. Change this in Settings > Privacy"                                                                                               |
+| 1 open  | A `--click "Open the Les Miserables sample"`; B `--click "Open project or file" --upload friends.csv` | 03     | A: 77 nodes, 254 edges. B: 20 nodes, 41 edges, Directed                                                                                                            |
+| 2 rank  | `--key Shift+A --type PageRank`                                                                       | 04     | One match, "PageRank -- Start here"                                                                                                                                |
+|         | `--click PageRank`                                                                                    | 05     | Form with Run                                                                                                                                                      |
+|         | `--click Run`                                                                                         | 06     | Outline row "PageRank 77" (B: 20); drawing colored; key "Color: PageRank" 0.003299 to 0.07543 (B: 0.04382 to 0.06608)                                              |
+| 3 sizes | `--click PageRank` (the run row)                                                                      | 07     | Inspector opens on Style; Color line already "PageRank"                                                                                                            |
+|         | `--click "Add to Shape"`                                                                              | 08     | Menu: Size, Shape                                                                                                                                                  |
+|         | `--click Size`                                                                                        | 09     | "Size by attribute" list opens at once: Fixed size; PageRank, PageRank rank, PageRank percentile; id and name greyed ("Cannot be used: Holds groups, not amounts") |
+|         | `--click "role=option:PageRank"`                                                                      | 10     | Size reads "1 to 3"; key gains "Size: PageRank" with the same range; dots visibly differ                                                                           |
+| 4 names | `--click Everything`                                                                                  | 11     | Everything's Style tab                                                                                                                                             |
+|         | `--click "Add label line"`                                                                            | 12     | "Label" list: A id, name, PageRank columns; B id, PageRank columns                                                                                                 |
+|         | A `--click "role=option:name"`; B `--click "role=option:id"`                                          | 13     | Names drawn. A: "77 labels, 6 hidden" with an unchecked "Show all labels". B: "20 labels, 0 hidden"                                                                |
+|         | A `--click "Show all labels"`                                                                         | A/14   | Statement "77 labels"; every name drawn                                                                                                                            |
+|         | B `--click PageRank --click "role=tab:Values"`                                                        | B/14   | Top 10 Farah 0.06608, Ava 0.06423, Hana 0.05883 (matches the answer key)                                                                                           |
+| 5 image | `--key Control+e`                                                                                     | 15     | Export dialog, Image chosen, preview with the key                                                                                                                  |
+|         | `--click "role=button:Export"`                                                                        | 16     | Toast "Exported les-miserables_current-view.png" (B: friends_current-view.png); 1806 x 1720 each, in `downloads/`                                                  |
 
 Steps: 15 tool commands on A (including the optional "Show all labels"), 13 on B to the image.
 

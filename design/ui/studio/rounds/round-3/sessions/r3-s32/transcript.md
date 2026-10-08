@@ -224,6 +224,7 @@ essay figure I would probably go back to the first (Force) drawing with the colo
 **How easy was it, 1 (very difficult) to 7 (very easy):** 4.
 
 **What confused me:**
+
 - The layout I was taught (ForceAtlas 2) is not named; I had to guess "Force" is the same, and it was
   already the one in use, so "a different way" meant picking from words like Spectral that mean
   nothing to me.

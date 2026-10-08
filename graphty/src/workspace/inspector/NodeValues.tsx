@@ -450,9 +450,7 @@ export function SeveralValues({ version }: Readonly<{ version: number }>): React
             {statistics.edges > 0 && <DataRow stat name="Edges" value={statistics.edges} />}
             {/* Edges that join two selected nodes, selected or not: only meaningful for two or more
                 nodes, and named so it is not read as more selected edges. */}
-            {statistics.nodes >= 2 && (
-                <DataRow stat name="Edges joining these nodes" value={statistics.inducedEdges} />
-            )}
+            {statistics.nodes >= 2 && <DataRow stat name="Edges joining these nodes" value={statistics.inducedEdges} />}
             {statistics.attributes.map((attribute) => {
                 const value = attributeSummary(attribute);
                 return value === undefined ? null : (

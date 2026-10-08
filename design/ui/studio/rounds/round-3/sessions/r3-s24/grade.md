@@ -30,10 +30,10 @@ half) holds in full:
 
 ## Counts
 
-| | This session | Reference |
-|---|---|---|
-| Steps (real.mjs, after the start) | 11 | 8 on the round 3 success path |
-| Wrong turns | 0 | -- |
+|                                   | This session | Reference                     |
+| --------------------------------- | ------------ | ----------------------------- |
+| Steps (real.mjs, after the start) | 11           | 8 on the round 3 success path |
+| Wrong turns                       | 0            | --                            |
 
 - The three extra steps are exploration, not attempts at the task: step 3 selected Valjean to see
   who he was, step 4 hovered the flask for its tooltip, step 12 selected Myriel to check the second
@@ -52,15 +52,15 @@ not applicable.
 Severity 0-4 (Nielsen). Opinion-only findings are held one level down. No build defect was met on
 this route, so no scripted repro was needed.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | "Size" has no line of its own in the Style tab; it sits under "Add to Shape". She looked for the word, did not find it, and guessed "Shape" as the closest. Confirmed: also seen in r3-s02. | Step 8, 08.png; step 9, 09.png. |
-| 2 | 1 | behavior | Running PageRank colors the nodes but does not size them; she had to find on her own that the new outline row opens its look on the right. | Step 7, 07.png ("it colored them, it didn't make them bigger"). |
-| 3 | 1 | behavior | A selected node's yellow ring hides its fill, so she could not see Valjean's shade while he was selected (11.png shows him olive, not the darkest brown the key gives 0.07543). Confirmed with r3-s02, where the same ring reached the exported picture. | Steps 3 and 11, 03.png, 11.png; corrected only when the selection moved at step 12, 12.png. |
-| 4 | 1 | opinion | The Analyze list reads as a wall of method names (Betweenness, Katz, HITS, Eigenvector); she did not know which one means "the network depends on" and trusted the "Start here" tag. | Step 5, 05.png. |
-| 5 | 1 | wording | The size list offers "PageRank", "PageRank rank" and "PageRank percentile" with no hint of how they differ. | Step 10, 10.png. |
-| 6 | 1 | opinion | The key's raw range (0.003299 to 0.07543) means nothing to her ("Is 0.07 a lot?"); she read importance only through "#1 of 77" in the node panel. | Steps 7 and 11, 07.png, 11.png. |
-| 7 | 0 | opinion | "Damping factor" on the PageRank form made her nervous though she left it alone. | Step 6, 06.png. |
+| #   | Sev | Kind     | Problem                                                                                                                                                                                                                                                  | Evidence                                                                                    |
+| --- | --- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 1   | 2   | behavior | "Size" has no line of its own in the Style tab; it sits under "Add to Shape". She looked for the word, did not find it, and guessed "Shape" as the closest. Confirmed: also seen in r3-s02.                                                              | Step 8, 08.png; step 9, 09.png.                                                             |
+| 2   | 1   | behavior | Running PageRank colors the nodes but does not size them; she had to find on her own that the new outline row opens its look on the right.                                                                                                               | Step 7, 07.png ("it colored them, it didn't make them bigger").                             |
+| 3   | 1   | behavior | A selected node's yellow ring hides its fill, so she could not see Valjean's shade while he was selected (11.png shows him olive, not the darkest brown the key gives 0.07543). Confirmed with r3-s02, where the same ring reached the exported picture. | Steps 3 and 11, 03.png, 11.png; corrected only when the selection moved at step 12, 12.png. |
+| 4   | 1   | opinion  | The Analyze list reads as a wall of method names (Betweenness, Katz, HITS, Eigenvector); she did not know which one means "the network depends on" and trusted the "Start here" tag.                                                                     | Step 5, 05.png.                                                                             |
+| 5   | 1   | wording  | The size list offers "PageRank", "PageRank rank" and "PageRank percentile" with no hint of how they differ.                                                                                                                                              | Step 10, 10.png.                                                                            |
+| 6   | 1   | opinion  | The key's raw range (0.003299 to 0.07543) means nothing to her ("Is 0.07 a lot?"); she read importance only through "#1 of 77" in the node panel.                                                                                                        | Steps 7 and 11, 07.png, 11.png.                                                             |
+| 7   | 0   | opinion  | "Damping factor" on the PageRank form made her nervous though she left it alone.                                                                                                                                                                         | Step 6, 06.png.                                                                             |
 
 What worked: the sample was one click from the start page; the flask's tooltip said "Analyze";
 "Start here" on PageRank made the choice; clicking the run row opened its Style tab; the Size "+"

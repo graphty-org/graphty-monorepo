@@ -37,23 +37,23 @@ Risks).
 
 ### The fifteen tasks and their bars (DESIGN section 1 table; round 8 results)
 
-| Task | What the user does | Round 8 (on the mock) |
-| --- | --- | --- |
-| T1 | First launch and the usage-data question | 100% |
-| T2 | Pick a sample and say what it is | 100% |
-| T3 | Bring in your own graph file and check it all arrived | 100%, graded only up to Load |
-| T4 | Two spreadsheets (nodes, edges) as one network | 100%, graded only up to Load |
-| T5 | A file that will not read | 100%, on a refusal with line numbers the element cannot yet produce |
-| T6 | Read what loaded: size, ties, reachability, recorded facts | 100% |
-| T7 | Run an analysis that ranks nodes; read the top three | 100% |
-| T8 | Run an analysis that finds groups; read them | 100% |
-| T9 | Color or size by a value or a result | not measured (mock never applied it) |
-| T10 | Labels from an attribute | 42% FAIL |
-| T11 | A readable layout | 100% |
-| T12 | Find a node by name, read about it, see its neighbors | 0% FAIL |
-| T13 | Save a picture with its key, and the numbers for a spreadsheet | 100% |
-| T14 | Save the project under your own name and reopen it | 100% |
-| T15 | One whole first session, T2-T13 chained | 0% FAIL (the names/labels step in 19 of 21, plus mock defects) |
+| Task | What the user does                                             | Round 8 (on the mock)                                               |
+| ---- | -------------------------------------------------------------- | ------------------------------------------------------------------- |
+| T1   | First launch and the usage-data question                       | 100%                                                                |
+| T2   | Pick a sample and say what it is                               | 100%                                                                |
+| T3   | Bring in your own graph file and check it all arrived          | 100%, graded only up to Load                                        |
+| T4   | Two spreadsheets (nodes, edges) as one network                 | 100%, graded only up to Load                                        |
+| T5   | A file that will not read                                      | 100%, on a refusal with line numbers the element cannot yet produce |
+| T6   | Read what loaded: size, ties, reachability, recorded facts     | 100%                                                                |
+| T7   | Run an analysis that ranks nodes; read the top three           | 100%                                                                |
+| T8   | Run an analysis that finds groups; read them                   | 100%                                                                |
+| T9   | Color or size by a value or a result                           | not measured (mock never applied it)                                |
+| T10  | Labels from an attribute                                       | 42% FAIL                                                            |
+| T11  | A readable layout                                              | 100%                                                                |
+| T12  | Find a node by name, read about it, see its neighbors          | 0% FAIL                                                             |
+| T13  | Save a picture with its key, and the numbers for a spreadsheet | 100%                                                                |
+| T14  | Save the project under your own name and reopen it             | 100%                                                                |
+| T15  | One whole first session, T2-T13 chained                        | 0% FAIL (the names/labels step in 19 of 21, plus mock defects)      |
 
 Key caveats (DESIGN section 1 and "Adversarial review changes"): the round 8 fixes (Label "+",
 neighbor list, find box) are UNTESTED on working wiring and are "the first things the next round

@@ -23,10 +23,10 @@ Success B holds on the last screen:
 
 ## Counts
 
-| | This session | Reference |
-|---|---|---|
+|                  | This session                                            | Reference             |
+| ---------------- | ------------------------------------------------------- | --------------------- |
 | Steps (real.mjs) | 5 after the start (4 that reached the app, 1 tool miss) | 6 (keyboard-led path) |
-| Wrong turns | 0 | -- |
+| Wrong turns      | 0                                                       | --                    |
 
 The hesitation between the two search rows (step 4) ended in the right row and cost no step.
 
@@ -42,14 +42,14 @@ the criteria (no crash, no dead control, no wrong count: Selection 7 correctly c
 six), so no scripted reproduction was made and `rounds/round-2/repro/r2-s24/` was not needed.
 "Confirmed" means seen in two or more participants.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | Two numbers for one answer: "Selection 7" on the left beside "Medici's 6 connections" on the right, with nothing saying the 7 includes the Medici. Nadia worked it out but said QA would ask which number is right; a reviewer who copies the selection count writes 7. Confirmed: the same 18-vs-17 split in r2-s19 and r2-s20. | Step 6, 06.png. |
-| 2 | 2 | wording | "Degree 6" is jargon: Nadia guessed it meant six links and only knew once the list said "6 connections". Nothing says a connection in this sample is a marriage. Confirmed: r2-s19 and r2-s20 report the same for "Degree 17". | Step 5, 05.png; step 6, 06.png. |
-| 3 | 1 | behavior | Clicking a details row ("Degree 6") changes the selection on the canvas (1 to 7) without saying so. Nadia asked whether she had changed something or only viewed it. One participant; unconfirmed. | Step 6, 05.png vs 06.png (Selection 1 to 7). |
-| 4 | 1 | behavior | The find box offers two rows for one name, "Medici" under Elements and "Select where name is Medici (1)" under Values, with nothing saying how they differ. She guessed the first, which was right. One participant; unconfirmed. | Step 4, 04.png. |
-| 5 | 1 | behavior | No names are drawn on the dots by default, so the picture alone cannot find the Medici or show who they married; search and the list did all the work. Confirmed: r2-s19 and r2-s20. | Steps 2-6, 02.png, 06.png. |
-| 6 | 1 | accessibility | The find box's visible text is "Find nodes, edges, values" but no control carries that name, so a voice-control user who speaks the visible words does not reach it (WCAG 2.5.3, taking the placeholder as its visible label). Confirmed: r2-s03 and r2-s20. | Step 3 (tool: nothing called that). |
+| #   | Sev | Kind          | Problem                                                                                                                                                                                                                                                                                                                          | Evidence                                     |
+| --- | --- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| 1   | 2   | behavior      | Two numbers for one answer: "Selection 7" on the left beside "Medici's 6 connections" on the right, with nothing saying the 7 includes the Medici. Nadia worked it out but said QA would ask which number is right; a reviewer who copies the selection count writes 7. Confirmed: the same 18-vs-17 split in r2-s19 and r2-s20. | Step 6, 06.png.                              |
+| 2   | 2   | wording       | "Degree 6" is jargon: Nadia guessed it meant six links and only knew once the list said "6 connections". Nothing says a connection in this sample is a marriage. Confirmed: r2-s19 and r2-s20 report the same for "Degree 17".                                                                                                   | Step 5, 05.png; step 6, 06.png.              |
+| 3   | 1   | behavior      | Clicking a details row ("Degree 6") changes the selection on the canvas (1 to 7) without saying so. Nadia asked whether she had changed something or only viewed it. One participant; unconfirmed.                                                                                                                               | Step 6, 05.png vs 06.png (Selection 1 to 7). |
+| 4   | 1   | behavior      | The find box offers two rows for one name, "Medici" under Elements and "Select where name is Medici (1)" under Values, with nothing saying how they differ. She guessed the first, which was right. One participant; unconfirmed.                                                                                                | Step 4, 04.png.                              |
+| 5   | 1   | behavior      | No names are drawn on the dots by default, so the picture alone cannot find the Medici or show who they married; search and the list did all the work. Confirmed: r2-s19 and r2-s20.                                                                                                                                             | Steps 2-6, 02.png, 06.png.                   |
+| 6   | 1   | accessibility | The find box's visible text is "Find nodes, edges, values" but no control carries that name, so a voice-control user who speaks the visible words does not reach it (WCAG 2.5.3, taking the placeholder as its visible label). Confirmed: r2-s03 and r2-s20.                                                                     | Step 3 (tool: nothing called that).          |
 
 What worked, for the record: the find box was the first place Nadia looked and found the Medici at
 once; the selected dot turned gold; the Degree row opened an alphabetical, complete list headed

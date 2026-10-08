@@ -58,7 +58,7 @@ Thinking: "I want the character's name. 'name'."
 ### 7. `--click-at 1117,486` (option "name") -> 07.png
 
 Saw: small names appeared above most dots (Blacheville, Fameuil, Myriel, Napoleon, Old Man...).
-The Label row now reads "Aa Above   Abc name", and under it in small grey text: "77 labels, 7
+The Label row now reads "Aa Above Abc name", and under it in small grey text: "77 labels, 7
 hidden to avoid overlap". The names are very small; in the crowded middle many are unreadable.
 
 Thinking: "There they are! But it says seven are hidden, and the task says every name. Maybe if I
@@ -113,14 +113,14 @@ Session ended.
 - **Did I finish?** Mostly, not fully. 70 of the 77 names are on the drawing; the program itself
   says 7 are hidden, and I found no way to show them.
 - **How hard (1 = easy, 7 = very hard):** 4. Adding names took one good guess ("Everything") and
-  two clicks. Getting *every* name was where I got stuck.
+  two clicks. Getting _every_ name was where I got stuck.
 - **What confused me:**
-  - The first Style tab (for "Graph") had nothing about dots; the dot settings live under
-    "Everything", which I would not have connected to "style the dots" if I hadn't guessed.
-  - "id" vs "name" in the list -- I picked "name" because it was the word I wanted, but I didn't
-    know what "id" was.
-  - "7 hidden to avoid overlap" -- which seven? Can I turn that off? It reads like a decision the
-    program made for me with no way to undo it.
-  - The names are tiny and the middle is a smudge of text; at a meeting nobody could read them.
-  - Scrolling on the picture did nothing, so I couldn't get closer to read or to reveal hidden ones.
-  - The bottom toolbar icons have no words, so I didn't try them.
+    - The first Style tab (for "Graph") had nothing about dots; the dot settings live under
+      "Everything", which I would not have connected to "style the dots" if I hadn't guessed.
+    - "id" vs "name" in the list -- I picked "name" because it was the word I wanted, but I didn't
+      know what "id" was.
+    - "7 hidden to avoid overlap" -- which seven? Can I turn that off? It reads like a decision the
+      program made for me with no way to undo it.
+    - The names are tiny and the middle is a smudge of text; at a meeting nobody could read them.
+    - Scrolling on the picture did nothing, so I couldn't get closer to read or to reveal hidden ones.
+    - The bottom toolbar icons have no words, so I didn't try them.

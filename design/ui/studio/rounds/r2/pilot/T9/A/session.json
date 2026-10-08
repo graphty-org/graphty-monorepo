@@ -1,13 +1,13 @@
 {
- "commit": "b7590f8de22bbcd5b98a78e983ab1213258fd581",
- "uncommittedChanges": false,
- "buildStamp": "b7590f8de22b graphty@0.8.53",
- "url": "/?next",
- "screenReaderMode": false,
- "viewport": {
-  "width": 1440,
-  "height": 900
- },
- "started": "2026-10-07T09:51:01.749Z",
- "setup": []
+    "commit": "b7590f8de22bbcd5b98a78e983ab1213258fd581",
+    "uncommittedChanges": false,
+    "buildStamp": "b7590f8de22b graphty@0.8.53",
+    "url": "/?next",
+    "screenReaderMode": false,
+    "viewport": {
+        "width": 1440,
+        "height": 900
+    },
+    "started": "2026-10-07T09:51:01.749Z",
+    "setup": []
 }

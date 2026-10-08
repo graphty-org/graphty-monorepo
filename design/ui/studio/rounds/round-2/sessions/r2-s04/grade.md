@@ -55,18 +55,18 @@ Build seen: `4a7a1a7fbdba graphty@0.8.53` (session.json), at 1440 x 900, no unco
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | Names in the exported PNG are soft and smudged; in the dense middle they cannot be read, including Valjean, the most important node. Fit for screen, not for a slide. | Step 16, `downloads/les-miserables_current-view.png`; on screen `13.png`, `16.png` |
-| 2 | 2 | behavior | Size has no row of its own; it is reached only through "+" beside Shape, and he found it by guessing ("a ball's size isn't its shape"). | Steps 6-7, `06.png` (rows Fill, Color, Shape, Effects, Label, Tooltip; no "Size"), `07.png` |
-| 3 | 2 | behavior | Adding Size gives a fixed "1" and no visible change; binding it to a value needs a small chain-link icon with no words, learned only from its tooltip. | Steps 8-10, `08.png`, `09.png` (tooltip "Size by attribute"), `10.png` |
-| 4 | 1 | opinion | The key's numbers (0.003299 to 0.07543) mean nothing to a reader; he could not say them aloud in a meeting. A rank or low/high would be sayable. | Steps 5 and 16, `05.png`, `16.png`, exported PNG |
-| 5 | 1 | opinion | The orange ramp's shades are hard to tell apart for a reader with red-green color weakness; size did the real work. | Step 5, `05.png` |
-| 6 | 1 | behavior | On screen the key box sits over the drawing and covers names near its top edge (Blacheville); the exported file does not have this overlap. | `16.png` against the downloaded PNG |
-| 7 | 1 | behavior | Export is reached only through the main menu (or Control+E); nothing on the working screen says "picture" or "export". | Steps 13-14, `13.png`, `14.png` |
-| 8 | 1 | behavior | Names on screen are very small in a thin serif font and collide in the dense middle. | Step 13, `13.png` |
-| 9 | 1 | opinion | It is not clear that the "Influence" row in the outline is where its styling lives; he clicked it hoping, and found Size and Label there by luck. | Step 6, `06.png` |
-| 10 | 0 | opinion | Nothing says why PageRank is the suggested start over Degree, the one measure he understood, so he could not justify the choice. | Step 3, `03.png` |
+| #   | Severity | Kind     | Problem                                                                                                                                                               | Evidence                                                                                    |
+| --- | -------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 1   | 2        | behavior | Names in the exported PNG are soft and smudged; in the dense middle they cannot be read, including Valjean, the most important node. Fit for screen, not for a slide. | Step 16, `downloads/les-miserables_current-view.png`; on screen `13.png`, `16.png`          |
+| 2   | 2        | behavior | Size has no row of its own; it is reached only through "+" beside Shape, and he found it by guessing ("a ball's size isn't its shape").                               | Steps 6-7, `06.png` (rows Fill, Color, Shape, Effects, Label, Tooltip; no "Size"), `07.png` |
+| 3   | 2        | behavior | Adding Size gives a fixed "1" and no visible change; binding it to a value needs a small chain-link icon with no words, learned only from its tooltip.                | Steps 8-10, `08.png`, `09.png` (tooltip "Size by attribute"), `10.png`                      |
+| 4   | 1        | opinion  | The key's numbers (0.003299 to 0.07543) mean nothing to a reader; he could not say them aloud in a meeting. A rank or low/high would be sayable.                      | Steps 5 and 16, `05.png`, `16.png`, exported PNG                                            |
+| 5   | 1        | opinion  | The orange ramp's shades are hard to tell apart for a reader with red-green color weakness; size did the real work.                                                   | Step 5, `05.png`                                                                            |
+| 6   | 1        | behavior | On screen the key box sits over the drawing and covers names near its top edge (Blacheville); the exported file does not have this overlap.                           | `16.png` against the downloaded PNG                                                         |
+| 7   | 1        | behavior | Export is reached only through the main menu (or Control+E); nothing on the working screen says "picture" or "export".                                                | Steps 13-14, `13.png`, `14.png`                                                             |
+| 8   | 1        | behavior | Names on screen are very small in a thin serif font and collide in the dense middle.                                                                                  | Step 13, `13.png`                                                                           |
+| 9   | 1        | opinion  | It is not clear that the "Influence" row in the outline is where its styling lives; he clicked it hoping, and found Size and Label there by luck.                     | Step 6, `06.png`                                                                            |
+| 10  | 0        | opinion  | Nothing says why PageRank is the suggested start over Degree, the one measure he understood, so he could not justify the choice.                                      | Step 3, `03.png`                                                                            |
 
 No problem in this session is a build defect under the criteria (no crash, no control that does
 nothing, no wrong count, keyboard not in scope for this participant), so none needed a scripted

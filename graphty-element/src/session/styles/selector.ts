@@ -194,7 +194,9 @@ function assertSelector(selector: Selector): void {
     }
 
     if (typeof given !== "object" || given === null || !("match" in given)) {
-        throw badShape("not-a-selector", `A selector is an object with a "match" of ${SELECTOR_KINDS.join(", ")}.`, { selector: given });
+        throw badShape("not-a-selector", `A selector is an object with a "match" of ${SELECTOR_KINDS.join(", ")}.`, {
+            selector: given,
+        });
     }
 
     // Kept as a plain string beside the switch so the refusal below can name a kind the union
@@ -241,7 +243,9 @@ function assertSelector(selector: Selector): void {
             }
 
             if (!Number.isInteger(selector.n) || selector.n < 0) {
-                throw badShape("top-n-not-whole", 'A "top" selector\'s n is a whole number of elements.', { n: selector.n });
+                throw badShape("top-n-not-whole", 'A "top" selector\'s n is a whole number of elements.', {
+                    n: selector.n,
+                });
             }
 
             return;
@@ -261,7 +265,10 @@ function assertSelector(selector: Selector): void {
 
             return;
         default:
-            throw badShape("unknown-kind", `"${String(kind)}" is not a selector kind.`, { match: kind, kinds: SELECTOR_KINDS });
+            throw badShape("unknown-kind", `"${String(kind)}" is not a selector kind.`, {
+                match: kind,
+                kinds: SELECTOR_KINDS,
+            });
     }
 }
 

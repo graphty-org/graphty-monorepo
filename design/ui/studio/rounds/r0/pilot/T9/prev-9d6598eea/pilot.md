@@ -17,19 +17,19 @@ the only Analyze result. Walked from the empty app it takes 9 steps.
 
 ## Path (Les Miserables; Florentine is the same)
 
-| # | Step | Screenshot | What happens |
-|---|---|---|---|
-| 1 | `--start empty` | A/01.png | Start page, four samples listed on the right |
-| 2 | `--click "No thanks" --click "Les Miserables"` | A/02.png | Sample opens: 77 nodes, 254 edges, all blue, no arrowheads |
-| 3 | `--key Shift+A --type PageRank` | A/03.png | Analyze popover, one result "PageRank -- Start here" |
-| 4 | `--key Enter` | A/04.png | PageRank form (damping 0.85) with Run |
-| 5 | `--click "Run"` | A/05.png | Row "Influence" (77) appears; dots turn orange; legend "Color: Influence 0.003299 .. 0.07543" |
-| 6 | `--click "Influence" --click "role=tab:Style"` | A/06.png | The row's Style tab: Color = Influence with an orange swatch; Shape + |
-| 7 | `--click "Add to Shape"` | A/07.png | Menu: Size, Shape |
-| 8 | `--click "Size"` | A/08.png | Size line, fixed value 1, with a link icon; the legend is unchanged |
-| 9 | `--hover "Size by attribute"`, `--click "Size by attribute"` | A/09.png, A/10.png | Tooltip "Size by attribute"; picker: Influence, Influence rank, Influence percentile; id and name disabled ("Cannot be used: Holds groups, not amounts") |
-| 10 | `--click "role=option:Influence"` | A/11.png | Size reads "1 to 3"; dots differ in size; legend gains "Size: Influence" |
-| 11 | `--click "role=tab:Values"`, `--wait 3000` | A/12.png, A/13.png | Top 10: Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577; drawing unchanged after the wait |
+| #   | Step                                                         | Screenshot         | What happens                                                                                                                                             |
+| --- | ------------------------------------------------------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `--start empty`                                              | A/01.png           | Start page, four samples listed on the right                                                                                                             |
+| 2   | `--click "No thanks" --click "Les Miserables"`               | A/02.png           | Sample opens: 77 nodes, 254 edges, all blue, no arrowheads                                                                                               |
+| 3   | `--key Shift+A --type PageRank`                              | A/03.png           | Analyze popover, one result "PageRank -- Start here"                                                                                                     |
+| 4   | `--key Enter`                                                | A/04.png           | PageRank form (damping 0.85) with Run                                                                                                                    |
+| 5   | `--click "Run"`                                              | A/05.png           | Row "Influence" (77) appears; dots turn orange; legend "Color: Influence 0.003299 .. 0.07543"                                                            |
+| 6   | `--click "Influence" --click "role=tab:Style"`               | A/06.png           | The row's Style tab: Color = Influence with an orange swatch; Shape +                                                                                    |
+| 7   | `--click "Add to Shape"`                                     | A/07.png           | Menu: Size, Shape                                                                                                                                        |
+| 8   | `--click "Size"`                                             | A/08.png           | Size line, fixed value 1, with a link icon; the legend is unchanged                                                                                      |
+| 9   | `--hover "Size by attribute"`, `--click "Size by attribute"` | A/09.png, A/10.png | Tooltip "Size by attribute"; picker: Influence, Influence rank, Influence percentile; id and name disabled ("Cannot be used: Holds groups, not amounts") |
+| 10  | `--click "role=option:Influence"`                            | A/11.png           | Size reads "1 to 3"; dots differ in size; legend gains "Size: Influence"                                                                                 |
+| 11  | `--click "role=tab:Values"`, `--wait 3000`                   | A/12.png, A/13.png | Top 10: Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577; drawing unchanged after the wait                                                              |
 
 Florentine families: B/02 (open), B/03 (Analyze + Enter), B/04 (Run), B/05 (row, Style, Add to
 Shape, Size), B/06 (Size by attribute, Influence), B/07 and B/08 (Values, wait). Range 0.03066 to

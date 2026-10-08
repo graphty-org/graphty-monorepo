@@ -80,6 +80,7 @@ Command: `node tool/real.mjs --end rounds/round-2/sessions/r2-s44`
 **Ease: 6 of 7.** One click and one file, and the first message answered the three things I needed: it failed, nothing half-loaded, and roughly where ("near line 9"). It stayed on screen until I closed it, so I could copy it down. It is one point off 7 because of the second door.
 
 **What confused me:**
+
 - The two ways in tell different stories. "Open project or file..." said "incomplete or damaged near line 9 ... Ask for the file again." "New from data..." said only "could not be read as GraphML. Check the file, or pick another format in File settings." -- no line, and a hint that a different format might fix it. For a cut-off file that hint is wrong, and someone less stubborn could waste time trying formats.
 - "Incomplete or damaged" -- which? It matters for what I tell the sender: "it got cut off in the email" and "it is malformed" are different requests. I could not tell from the screen which it was.
 - File settings offers an "Error limit" for bad rows. It is not clear whether that would let this file through. I chose not to try, because a network built from a partial file is a network I cannot defend to an editor.

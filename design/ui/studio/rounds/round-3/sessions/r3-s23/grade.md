@@ -31,11 +31,11 @@ session has no downloads folder. Not graded from the participant's rating (5 of 
 
 ## Counts
 
-| | This session | Reference (round 3 path) |
-|---|---|---|
-| Commands (real.mjs, after the start) | 9, of which 1 dismissed the usage card | 10 |
-| Steps on the success path | 8 | 8 |
-| Wrong turns | 0 | -- |
+|                                      | This session                           | Reference (round 3 path) |
+| ------------------------------------ | -------------------------------------- | ------------------------ |
+| Commands (real.mjs, after the start) | 9, of which 1 dismissed the usage card | 10                       |
+| Steps on the success path            | 8                                      | 8                        |
+| Wrong turns                          | 0                                      | --                       |
 
 She opened Analyze with the flask instead of Shift+A and clicked PageRank in the list instead of
 typing its name, so ranking took 3 commands instead of the path's 4. Every command after the usage
@@ -52,11 +52,11 @@ the screen.
 Severity 0-4 (Nielsen). Opinion-only findings are held one level down. No build defect was seen,
 so no scripted repro was made.
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | No "Size" line is visible in the row's Style tab. Size sits behind the + beside "Shape", and she found it only by guessing that size belongs to shape. | Step 7 (07.png, "No 'Size' anywhere"), step 8 (08.png, menu "Size, Shape"). |
-| 2 | 2 | wording | The Analyze list gives no plain-language route from "who does the network depend on most" to a measure. She hesitated between Betweenness and PageRank and chose PageRank only because of the "Start here" badge, and left unsure that it was the right one. | Step 4 (04.png); debrief. |
-| 3 | 2 | wording | The key shows only raw scores (0.003299 to 0.07543). She could not say what the numbers mean beyond "higher is more central". | 06.png, 10.png; debrief. |
-| 4 | 1 | wording | The size list offers "PageRank", "PageRank rank" and "PageRank percentile" with nothing saying how they differ. She hesitated before picking the plain score. | Step 9 (09.png). |
-| 5 | 1 | opinion | The ranking colored the dots but did not size them. She expected the run to make important dots bigger and had to look for size herself. Held one level down as opinion; the path expects the user to add the size. | Step 6 (06.png); debrief. |
-| 6 | 0 | opinion | Nothing on the drawing names the biggest dot. Labels are outside this task. | 10.png; debrief. |
+| #   | Sev | Kind     | Problem                                                                                                                                                                                                                                                      | Evidence                                                                    |
+| --- | --- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| 1   | 2   | behavior | No "Size" line is visible in the row's Style tab. Size sits behind the + beside "Shape", and she found it only by guessing that size belongs to shape.                                                                                                       | Step 7 (07.png, "No 'Size' anywhere"), step 8 (08.png, menu "Size, Shape"). |
+| 2   | 2   | wording  | The Analyze list gives no plain-language route from "who does the network depend on most" to a measure. She hesitated between Betweenness and PageRank and chose PageRank only because of the "Start here" badge, and left unsure that it was the right one. | Step 4 (04.png); debrief.                                                   |
+| 3   | 2   | wording  | The key shows only raw scores (0.003299 to 0.07543). She could not say what the numbers mean beyond "higher is more central".                                                                                                                                | 06.png, 10.png; debrief.                                                    |
+| 4   | 1   | wording  | The size list offers "PageRank", "PageRank rank" and "PageRank percentile" with nothing saying how they differ. She hesitated before picking the plain score.                                                                                                | Step 9 (09.png).                                                            |
+| 5   | 1   | opinion  | The ranking colored the dots but did not size them. She expected the run to make important dots bigger and had to look for size herself. Held one level down as opinion; the path expects the user to add the size.                                          | Step 6 (06.png); debrief.                                                   |
+| 6   | 0   | opinion  | Nothing on the drawing names the biggest dot. Labels are outside this task.                                                                                                                                                                                  | 10.png; debrief.                                                            |

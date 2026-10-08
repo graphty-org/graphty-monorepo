@@ -68,9 +68,9 @@ Start: empty app. All commands were run from `design/ui/studio` with
     "Neighborhood G". No list appears.
 
 16-18. Hovered the bottom toolbar buttons. The tool reported a button's name and its tooltip,
-    but the tooltip printed was the one from the previous hover: "Analyze" had "Analyze Shift+A",
-    "Legend" had "Analyze Shift+A", and "Quick actions" had "Legend L". A tooltip that lags one
-    step is misleading.
+but the tooltip printed was the one from the previous hover: "Analyze" had "Analyze Shift+A",
+"Legend" had "Analyze Shift+A", and "Quick actions" had "Legend L". A tooltip that lags one
+step is misleading.
 
 19. `--step $S --click-at 838,864 --type "label"` (Quick actions) -> 19.png. A command palette
     shows "Add label line" in gray.
@@ -91,7 +91,7 @@ Start: empty app. All commands were run from `design/ui/studio` with
     Ruth: "Finally names. But they're tiny, and 7 are hidden. Are any of the hidden ones mine?"
 
 25-26. Turned the mouse wheel over the yellow cluster, once and then four more times -> 25.png,
-    26.png. The view did not zoom at all.
+26.png. The view did not zoom at all.
 
 27. `--step $S --click-at 709,864` (the four-arrows button, which Ruth expected to mean move or
     zoom) -> 27.png. It is "Layout": a popup with Method "Force - Recommended" and Seed 1. That is
@@ -116,13 +116,13 @@ the lower left, she could barely read ("Bossuet"? she was unsure). The count of 
   unsure of one or two.
 - **How hard was it (1-7)?** 6.
 - **What confused me:**
-  - After I selected Javert's neighbors, the panel showed only "Babet (1)". There was no list of
-    the 18 names anywhere, and clicking or hovering it did nothing.
-  - "Edges 0" and "Edges among them 61" side by side. I could not tell which to believe.
-  - "Node table" in the Data tab opened an "add a file" screen instead of showing the table.
-  - Clicking "Selection" in the left list threw my selection away.
-  - In Quick actions, "Add label line" was grayed out with no reason given. The working Label
-    control was hidden under "Everything", which I opened only because I was out of ideas.
-  - Labels came out tiny, with "7 hidden to avoid overlap", and the scroll wheel would not zoom
-    in so I could read them.
-  - Hovering a dot showed nothing, so I could not check who a single dot was.
+    - After I selected Javert's neighbors, the panel showed only "Babet (1)". There was no list of
+      the 18 names anywhere, and clicking or hovering it did nothing.
+    - "Edges 0" and "Edges among them 61" side by side. I could not tell which to believe.
+    - "Node table" in the Data tab opened an "add a file" screen instead of showing the table.
+    - Clicking "Selection" in the left list threw my selection away.
+    - In Quick actions, "Add label line" was grayed out with no reason given. The working Label
+      control was hidden under "Everything", which I opened only because I was out of ideas.
+    - Labels came out tiny, with "7 hidden to avoid overlap", and the scroll wheel would not zoom
+      in so I could read them.
+    - Hovering a dot showed nothing, so I could not check who a single dot was.

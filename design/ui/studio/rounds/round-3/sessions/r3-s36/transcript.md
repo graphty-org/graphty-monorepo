@@ -101,6 +101,7 @@ Command: `node tool/real.mjs --end rounds/round-3/sessions/r3-s36`
 ## Wrap-up (in character)
 
 **Did I finish?** Yes. My answers:
+
 - 77 characters (the sample list said so before I even opened it; the Overview says Nodes 77).
 - 254 connections (Edges 254).
 - Everyone can reach everyone: "Components 1" -- I read that as "all one connected piece", and
@@ -113,6 +114,7 @@ were sitting right there; the Data panel's "Attributes" list answered "what's re
 more click. Seven clicks total including a miss.
 
 **What confused me / where I hesitated:**
+
 - "Components 1" is a math word. To answer "can everyone reach everyone?" I had to guess. Hovering
   it showed nothing. Something like "all connected" or "1 group" would have been plain.
 - "Undirected, from the file: directed 0" -- I couldn't tell what this line meant. Undirected

@@ -30,21 +30,21 @@ The participant's "Done" matches the screen, so it is not a false "done".
   The run row ("Communities") was never selected; Summary and Sizes were read from the left panel's
   tree instead, which carries the same numbers. Within 2x the path.
 - Wrong turns: 1.
-  - Step 4 (04.png): clicked Valjean on the canvas hoping for groups; it showed one node's values.
-    Abandoned.
+    - Step 4 (04.png): clicked Valjean on the canvas hoping for groups; it showed one node's values.
+      Abandoned.
 - Step 5 (hover to learn what the unlabeled toolbar icons do) was a search, not a wrong turn.
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | Selecting a group in the left panel changes nothing on the canvas: its members are not highlighted, the rest are not dimmed, and the earlier selection (Valjean, "Selection 1") stays. The reader has to trust the legend color to know which dots are the group. | Step 10; 09.png and 10.png show the same canvas |
-| 2 | 2 | behavior | The Analyze list opens on "Rank nodes and edges" (Degree, Betweenness, Katz, HITS...); the grouping methods are below the fold. The participant found them only by typing "group" into the filter. | Step 6, 06.png; step 7, 07.png |
-| 3 | 2 | behavior | The bottom toolbar's icons carry no words; Analyze was found only by hovering for its tooltip. The left panel's hint "Analyze (Shift+A) to add results here" was on screen and not read. | Steps 3 and 5, 03.png, 05.png, 06.png |
-| 4 | 1 | behavior | The group's Members list shows "First 10" of 20 with no visible way to see the rest. Enough for this task, not for a reader who wants the whole circle. | Step 10, 10.png |
-| 5 | 1 | opinion | No names on the dots, so characters cannot be read off the picture; only the side panel names them. | 03.png through 10.png |
-| 6 | 1 | wording | Words outside a newcomer's vocabulary: Louvain, Resolution, Degree, Density, Components; "Start here" was the only reason Louvain was picked, and Resolution was left alone because nothing says what it does. | 03.png, 04.png, 07.png, 08.png |
-| 7 | 1 | behavior | The participant read the small pink group hanging off the bottom as "the less important characters". Nothing on screen says what a group's position means, and nothing corrects the guess. It did not enter the answer. | Step 9 think-aloud, 09.png |
+| #   | Severity | Kind     | Problem                                                                                                                                                                                                                                                           | Evidence                                        |
+| --- | -------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| 1   | 2        | behavior | Selecting a group in the left panel changes nothing on the canvas: its members are not highlighted, the rest are not dimmed, and the earlier selection (Valjean, "Selection 1") stays. The reader has to trust the legend color to know which dots are the group. | Step 10; 09.png and 10.png show the same canvas |
+| 2   | 2        | behavior | The Analyze list opens on "Rank nodes and edges" (Degree, Betweenness, Katz, HITS...); the grouping methods are below the fold. The participant found them only by typing "group" into the filter.                                                                | Step 6, 06.png; step 7, 07.png                  |
+| 3   | 2        | behavior | The bottom toolbar's icons carry no words; Analyze was found only by hovering for its tooltip. The left panel's hint "Analyze (Shift+A) to add results here" was on screen and not read.                                                                          | Steps 3 and 5, 03.png, 05.png, 06.png           |
+| 4   | 1        | behavior | The group's Members list shows "First 10" of 20 with no visible way to see the rest. Enough for this task, not for a reader who wants the whole circle.                                                                                                           | Step 10, 10.png                                 |
+| 5   | 1        | opinion  | No names on the dots, so characters cannot be read off the picture; only the side panel names them.                                                                                                                                                               | 03.png through 10.png                           |
+| 6   | 1        | wording  | Words outside a newcomer's vocabulary: Louvain, Resolution, Degree, Density, Components; "Start here" was the only reason Louvain was picked, and Resolution was left alone because nothing says what it does.                                                    | 03.png, 04.png, 07.png, 08.png                  |
+| 7   | 1        | behavior | The participant read the small pink group hanging off the bottom as "the less important characters". Nothing on screen says what a group's position means, and nothing corrects the guess. It did not enter the answer.                                           | Step 9 think-aloud, 09.png                      |
 
 ## Notes
 

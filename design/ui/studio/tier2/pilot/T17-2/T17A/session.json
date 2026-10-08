@@ -1,17 +1,13 @@
 {
- "commit": "089d6e542bf331482d3b756a99d96e70344cda74",
- "uncommittedChanges": true,
- "buildStamp": "75cbc3a9a0e9 graphty@0.8.55",
- "url": "/?next",
- "screenReaderMode": false,
- "viewport": {
-  "width": 1440,
-  "height": 900
- },
- "started": "2026-10-08T04:20:42.422Z",
- "setup": [
-  "--click No thanks",
-  "--click Open project or file...",
-  "--upload friends.csv"
- ]
+    "commit": "089d6e542bf331482d3b756a99d96e70344cda74",
+    "uncommittedChanges": true,
+    "buildStamp": "75cbc3a9a0e9 graphty@0.8.55",
+    "url": "/?next",
+    "screenReaderMode": false,
+    "viewport": {
+        "width": 1440,
+        "height": 900
+    },
+    "started": "2026-10-08T04:20:42.422Z",
+    "setup": ["--click No thanks", "--click Open project or file...", "--upload friends.csv"]
 }

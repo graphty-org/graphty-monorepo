@@ -123,15 +123,15 @@ Command: `node tool/real.mjs --end $S`
   nothing hidden after I ticked "Show all labels".
 - **Ease: 6 out of 7.** Five clicks after opening the sample.
 - **Where I hesitated / what confused me:**
-  - Nothing on the first screen of the drawing says "labels". I tried the right panel's "Style"
-    tab first, and it showed background and layout settings for the whole graph, which wasn't it.
-    I only found "Label" after clicking "Everything" on the left. I didn't know what "Everything"
-    meant -- I clicked it as a guess. If that second guess had failed I'd have been stuck.
-  - The "Label" heading had just a plus beside it. It worked, but I wasn't sure the plus meant
-    "turn names on" rather than "add something extra".
-  - After I picked "name", it said "77 labels, 7 hidden" -- I'm glad it told me, because I would
-    have thought I was finished. Why would some be hidden by default? "Show all labels" fixed it.
-  - In the crowded middle the names are tiny and pile on each other; for a class figure I'd want
-    them readable, and zooming only helped a little.
-  - "Aa Above" next to the label -- I guess it means the name sits above the dot, but I didn't
-    touch it.
+    - Nothing on the first screen of the drawing says "labels". I tried the right panel's "Style"
+      tab first, and it showed background and layout settings for the whole graph, which wasn't it.
+      I only found "Label" after clicking "Everything" on the left. I didn't know what "Everything"
+      meant -- I clicked it as a guess. If that second guess had failed I'd have been stuck.
+    - The "Label" heading had just a plus beside it. It worked, but I wasn't sure the plus meant
+      "turn names on" rather than "add something extra".
+    - After I picked "name", it said "77 labels, 7 hidden" -- I'm glad it told me, because I would
+      have thought I was finished. Why would some be hidden by default? "Show all labels" fixed it.
+    - In the crowded middle the names are tiny and pile on each other; for a class figure I'd want
+      them readable, and zooming only helped a little.
+    - "Aa Above" next to the label -- I guess it means the name sits above the dot, but I didn't
+      touch it.

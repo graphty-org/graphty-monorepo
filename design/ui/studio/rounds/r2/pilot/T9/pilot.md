@@ -15,19 +15,19 @@ works as written on this build, in 8 steps from the empty app.
 
 ## Path walked (Les Miserables)
 
-| # | Step | Screenshot | What happens |
-|---|---|---|---|
-| 1 | `--start empty` | A/01.png | Start page, usage card, four samples |
-| 2 | `--click "No thanks" --click "Les Miserables"` | A/02.png | 77 nodes, 254 edges, all blue |
-| 3 | `--key Shift+A --type PageRank` | A/03.png | Analyze popover, one entry "PageRank -- Start here", "Which nodes are connected to other well-connected nodes." |
-| 4 | `--key Enter` | A/04.png | The PageRank form opens (damping 0.85, Run) |
-| 5 | `--click "Run"` | A/05.png | Row "PageRank 77" in the outline; dots orange; legend "Color: PageRank 0.003299 .. 0.07543" |
-| 6 | `--click "PageRank"` | A/06.png | The run row opens on its Style tab: Color = PageRank (orange swatch), Shape + |
-| 7 | `--click "Add to Shape"` | A/07.png | Menu: Size, Shape |
-| 8 | `--click "Size"` | A/08.png | The "Size by attribute" list opens at once: Fixed size; PageRank, PageRank rank, PageRank percentile; id and name disabled ("Holds groups, not amounts") |
-| 9 | `--click "role=option:PageRank"` | A/09.png | Size reads "1 to 3"; Valjean's dot at the center is clearly the largest; legend gains "Size: PageRank 0.003299 .. 0.07543" |
-| 10 | `--click "role=tab:Values"` | A/10.png | Top 10: Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577; "Made with -- Analysis: PageRank" |
-| 11 | `--wait 3000` | A/11.png | Identical to A/10: the drawing no longer turns on its own |
+| #   | Step                                           | Screenshot | What happens                                                                                                                                             |
+| --- | ---------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `--start empty`                                | A/01.png   | Start page, usage card, four samples                                                                                                                     |
+| 2   | `--click "No thanks" --click "Les Miserables"` | A/02.png   | 77 nodes, 254 edges, all blue                                                                                                                            |
+| 3   | `--key Shift+A --type PageRank`                | A/03.png   | Analyze popover, one entry "PageRank -- Start here", "Which nodes are connected to other well-connected nodes."                                          |
+| 4   | `--key Enter`                                  | A/04.png   | The PageRank form opens (damping 0.85, Run)                                                                                                              |
+| 5   | `--click "Run"`                                | A/05.png   | Row "PageRank 77" in the outline; dots orange; legend "Color: PageRank 0.003299 .. 0.07543"                                                              |
+| 6   | `--click "PageRank"`                           | A/06.png   | The run row opens on its Style tab: Color = PageRank (orange swatch), Shape +                                                                            |
+| 7   | `--click "Add to Shape"`                       | A/07.png   | Menu: Size, Shape                                                                                                                                        |
+| 8   | `--click "Size"`                               | A/08.png   | The "Size by attribute" list opens at once: Fixed size; PageRank, PageRank rank, PageRank percentile; id and name disabled ("Holds groups, not amounts") |
+| 9   | `--click "role=option:PageRank"`               | A/09.png   | Size reads "1 to 3"; Valjean's dot at the center is clearly the largest; legend gains "Size: PageRank 0.003299 .. 0.07543"                               |
+| 10  | `--click "role=tab:Values"`                    | A/10.png   | Top 10: Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577; "Made with -- Analysis: PageRank"                                                             |
+| 11  | `--wait 3000`                                  | A/11.png   | Identical to A/10: the drawing no longer turns on its own                                                                                                |
 
 Florentine families (B/) follows the same path. Medici becomes the largest and darkest dot; the
 Top 10 reads Medici 0.1458, Guadagni 0.0984, Strozzi 0.0881 (B/09.png).

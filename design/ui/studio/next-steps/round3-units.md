@@ -26,21 +26,21 @@ a real 4x, then the "Whole graph" angle, then leaving out the selection, then th
 3D size fix waits for its trace. Everything else runs in parallel. A last unit rebuilds and
 re-measures the whole build before the tier 2 study.
 
-| Unit | Package | Public API | Waits for |
-|---|---|---|---|
-| Focus after a control removes itself or closes | graphty (maybe graphty-element) | no | -- |
-| Gray helper text contrast, dark and light | compact-mantine | no | -- |
-| Layout refusals as codes, words in the app | graphty-element + graphty | yes | -- |
-| Export warnings in the app's words | graphty | no | -- |
-| Exported names at the target resolution, a real 4x | graphty-element | no | -- |
-| "Whole graph" export keeps the on-screen angle | graphty-element + graphty | yes | sharp names |
-| No selection ring in the exported picture | graphty-element + graphty | yes | Whole graph angle |
-| The key never covers a node | graphty-element + graphty | yes | no selection ring |
-| Trace the 3D size misreading | graphty-element (trace only) | no | -- |
-| Fix the 3D size misreading at its cause | graphty-element (+ graphty) | yes, if a mode is added | the trace |
-| Force re-applied freezes as a cloud | graphty-element (or layout) | no | -- |
-| The Sources file row opens its table | graphty | no | -- |
-| Re-measure the build for the tier 2 study | studio | no | all of the above |
+| Unit                                               | Package                         | Public API              | Waits for         |
+| -------------------------------------------------- | ------------------------------- | ----------------------- | ----------------- |
+| Focus after a control removes itself or closes     | graphty (maybe graphty-element) | no                      | --                |
+| Gray helper text contrast, dark and light          | compact-mantine                 | no                      | --                |
+| Layout refusals as codes, words in the app         | graphty-element + graphty       | yes                     | --                |
+| Export warnings in the app's words                 | graphty                         | no                      | --                |
+| Exported names at the target resolution, a real 4x | graphty-element                 | no                      | --                |
+| "Whole graph" export keeps the on-screen angle     | graphty-element + graphty       | yes                     | sharp names       |
+| No selection ring in the exported picture          | graphty-element + graphty       | yes                     | Whole graph angle |
+| The key never covers a node                        | graphty-element + graphty       | yes                     | no selection ring |
+| Trace the 3D size misreading                       | graphty-element (trace only)    | no                      | --                |
+| Fix the 3D size misreading at its cause            | graphty-element (+ graphty)     | yes, if a mode is added | the trace         |
+| Force re-applied freezes as a cloud                | graphty-element (or layout)     | no                      | --                |
+| The Sources file row opens its table               | graphty                         | no                      | --                |
+| Re-measure the build for the tier 2 study          | studio                          | no                      | all of the above  |
 
 ## Focus after a control removes itself or closes
 

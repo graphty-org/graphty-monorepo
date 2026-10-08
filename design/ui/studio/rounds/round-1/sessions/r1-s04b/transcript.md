@@ -31,8 +31,8 @@ Session: design/ui/studio/rounds/round-1/sessions/r1-s04b (screens 01-17, export
 - What do the sizes and colors stand for? Both stand for "Bridges": how many shortest routes between other characters run through that character, 0 to 1624. Big and dark brown means a key connector (Valjean, Myriel, Fantine); small and light orange means barely a connector.
 - Difficulty: 3 of 7.
 - What confused me:
-  - I asked for Betweenness and got "Bridges". I had to guess they are the same thing.
-  - Size is hidden behind the plus beside "Shape", and the chain-link icon gave me no word saying "size by a measure".
-  - The key says "Bridges" with no explanation of what a bridge is; I would need one sentence for my essay.
-  - Several names in the middle overlap and are unreadable in the exported picture.
-  - Clicking Export by name the second time did nothing and said nothing.
+    - I asked for Betweenness and got "Bridges". I had to guess they are the same thing.
+    - Size is hidden behind the plus beside "Shape", and the chain-link icon gave me no word saying "size by a measure".
+    - The key says "Bridges" with no explanation of what a bridge is; I would need one sentence for my essay.
+    - Several names in the middle overlap and are unreadable in the exported picture.
+    - Clicking Export by name the second time did nothing and said nothing.

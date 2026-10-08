@@ -3,11 +3,13 @@
 Commands are run from design/ui/studio with T=tool, S=rounds/round-2/sessions/r2-s10.
 
 ## Step 1
+
 Command: `node tool/real.mjs --start $S empty`
 Saw (01.png): a dark start page. Left: "Open project or file...", "New from data...", "or drop a file anywhere". Middle: Recent projects (empty). Right: four samples. A usage-data consent box at the bottom.
 Jordan: OK, there's a cookie-style question first. I'll say no thanks, then open my friends.csv with "Open project or file...".
 
 ## Step 2
+
 Jordan: Dismiss the usage-data box with No thanks.
 
 Command: `node tool/real.mjs --step $S --click No\ thanks`
@@ -17,6 +19,7 @@ Command: `node tool/real.mjs --step $S --click No\ thanks`
 ```
 
 ## Step 3
+
 Jordan: Banner gone. Opening my CSV via Open project or file...
 
 Command: `node tool/real.mjs --step $S --click Open\ project\ or\ file... --upload friends.csv`
@@ -31,6 +34,7 @@ Saw (03.png): the network is drawn right away -- 20 blue dots, 41 arrows, no nam
 Jordan: Part 1 DONE -- it's on screen, and quickly. The numbers match what I'd expect (20 people). Now "who matters most": the hint points to the flask button in the bottom toolbar, so I'll try that.
 
 ## Step 4
+
 Jordan: Click the flask (Analyze) button in the bottom toolbar.
 
 Command: `node tool/real.mjs --step $S --click-at 680\,864`
@@ -44,6 +48,7 @@ Saw (04.png): a menu "Rank nodes and edges": Degree, Betweenness, Edge betweenne
 Jordan: Good list, plain-English descriptions. I'd normally reach for degree or betweenness, but it literally says "Start here" on PageRank and "matters most" is what PageRank is for. Picking PageRank.
 
 ## Step 5
+
 Jordan: Pick PageRank.
 
 Command: `node tool/real.mjs --step $S --click PageRank`
@@ -56,6 +61,7 @@ Saw (05.png): PageRank settings: Damping factor 0.85, Weight None, Advanced, "Un
 Jordan: Defaults are fine; I don't know what the weight column in my friend's sheet means so I'll leave it at None. Run.
 
 ## Step 6
+
 Jordan: Run PageRank with defaults.
 
 Command: `node tool/real.mjs --step $S --click Run`
@@ -68,6 +74,7 @@ Saw (06.png): dots are now orange to dark brown. A key top-left of the drawing: 
 Jordan: Part 2 DONE -- it worked out an "Influence" score (PageRank, renamed) and colored everyone; darker brown = more influence. The range is narrow (0.044 to 0.066), so the colors barely differ -- in a greyscale printout this would be mush. Sizes are all the same still. I'll click the Influence row to see if it offers "size by".
 
 ## Step 7
+
 Jordan: Click the Influence row in the left panel.
 
 Command: `node tool/real.mjs --step $S --click Influence`
@@ -80,6 +87,7 @@ Saw (07.png): right panel now "Influence", Style tab, Nodes: Fill (+), Color = I
 Jordan: No "Size" row. Size is probably part of "Shape" -- I'll press the + beside Shape. (Hesitated: I scanned the list twice looking for the word "size".)
 
 ## Step 8
+
 Jordan: Press + next to Shape, hoping size lives there.
 
 Command: `node tool/real.mjs --step $S --click-at 1419\,234`
@@ -93,6 +101,7 @@ Saw (08.png): a small menu: Size, Shape.
 Jordan: There it is. Size.
 
 ## Step 9
+
 Jordan: Pick Size.
 
 Command: `node tool/real.mjs --step $S --click Size`
@@ -105,6 +114,7 @@ Saw (09.png): a new row "Size [1] (chain-link icon) (-)". Dots unchanged.
 Jordan: A plain number box would make everyone the same size -- not what I want. The chain-link icon beside it probably means "link to a value". Hovering it to check.
 
 ## Step 10
+
 Jordan: Hover the chain-link icon beside Size.
 
 Command: `node tool/real.mjs --step $S --hover-at 1381\,264`
@@ -119,6 +129,7 @@ Saw: tooltip "Size by attribute".
 Jordan: Yes, that's it. Clicking it.
 
 ## Step 11
+
 Jordan: Click Size by attribute.
 
 Command: `node tool/real.mjs --step $S --click Size\ by\ attribute`
@@ -131,6 +142,7 @@ Saw (11.png): popover "Size by attribute": Influence, Influence rank, Influence 
 Jordan: Influence it is. (Percentile might spread sizes better given the tight range, but I'll start with the real score.)
 
 ## Step 12
+
 Jordan: Choose Influence.
 
 Command: `node tool/real.mjs --step $S --click Influence#2`
@@ -143,6 +155,7 @@ Saw (12.png): dots now vary in size; two big dark ones near the bottom middle. S
 Jordan: Part 3 DONE -- bigger dot = more influence, and darker brown = more influence too (same score twice, which is fine for a greyscale printout). Now names. There's a "Label +" row right there; pressing it.
 
 ## Step 13
+
 Jordan: Press + next to Label.
 
 Command: `node tool/real.mjs --step $S --click-at 1419\,332`
@@ -156,6 +169,7 @@ Saw (13.png): a "Label" picker: Attributes -> id; Influence -> Influence, Influe
 Jordan: The spreadsheet only had source/target, so the names must be "id". Picking id.
 
 ## Step 14
+
 Jordan: Choose id for the label.
 
 Command: `node tool/real.mjs --step $S --click id`
@@ -168,6 +182,7 @@ Saw (14.png): names on every dot (Omar, Pia, Quinn, Ravi, Sana, Theo, Ava, Gus, 
 Jordan: Part 4 DONE -- everyone's name is on. The text is small and "Chloe" sits on top of Farah's dot at the bottom, but readable enough. Ava and Farah are my top two. Last part: a picture with the key. I'll look in the main menu (three lines, top-left) for export.
 
 ## Step 15
+
 Jordan: Open the main menu (top-left three lines) looking for export.
 
 Command: `node tool/real.mjs --step $S --click-at 23\,20`
@@ -181,6 +196,7 @@ Saw (15.png): menu: Back to start, New project, Open project or file, Open sampl
 Jordan: "Export..." -- that's the one.
 
 ## Step 16
+
 Jordan: Choose Export...
 
 Command: `node tool/real.mjs --step $S --click Export...`
@@ -193,6 +209,7 @@ Saw (16.png): Export dialog. Image: "To share -- PNG, 2x", View: Current view, S
 Jordan: The preview seems to include the key (tiny box top-left). PNG at 2x is what I'd paste into a deck. Export.
 
 ## Step 17
+
 Jordan: Press Export.
 
 Command: `node tool/real.mjs --step $S --click Export`
@@ -207,11 +224,13 @@ Saw (17.png): toast "Exported friends_current-view.png". The saved file (downloa
 Jordan: Part 5 DONE -- a PNG with its key, ready to paste. Ending here.
 
 ## End
+
 Command: `node tool/real.mjs --end $S`
 
 ## In character, at the end (Jordan)
 
 **Did I finish?** Yes, all five parts, in 16 steps with no dead ends:
+
 1. On screen: Open project or file -> friends.csv; drawn at once (20 people, 41 links).
 2. Who matters most: flask button -> PageRank (marked "Start here") -> Run. The app calls the result "Influence".
 3. Bigger dots: Style -> + beside Shape -> Size -> chain-link "Size by attribute" -> Influence. Sizes 1 to 3.
@@ -223,6 +242,7 @@ Command: `node tool/real.mjs --end $S`
 **Rating: 6 out of 7 (easy).**
 
 **What confused me or slowed me down:**
+
 - Size is hidden under "Shape". I scanned the Style list twice looking for the word "Size" before guessing that the + beside Shape would have it.
 - After adding Size I got a plain number box ("1"); I had to spot and hover the small chain-link icon to learn it means "Size by attribute". A first-timer could easily type a number there and make everyone the same size.
 - The name "Influence" vs. "PageRank": I picked PageRank and the app relabeled it "Influence" everywhere, including the key. Fine for my VP, but if someone asks "influence how?" the picture does not say it is PageRank.

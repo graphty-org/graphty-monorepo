@@ -229,20 +229,20 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 ## Thinking
 
 - **The open tier 1 IA questions, in order of risk on the core path:**
-  1. Does Open project or file... behave as its one-intake label promises? If a saved project
-     re-imports as data, T14 (save and reopen) has a door that lies.
-  2. Do the two homes-that-were-wrong now work on real wiring: names on every node (Label "+"),
-     and a node's neighbors by name? These were the tier 1 failures.
-  3. Is "Values" findable as the place a node's data lives, and does selecting a node land
-     there? Do first-time users go to the Data rail place instead?
-  4. Does a first-time user tell the Data place (rail), the Data page (full page) and the Values
-     tab apart? Three surfaces for "data" is a known collision risk.
-  5. Can a first-time user find a run by name (find box has no Rows group yet)?
-  6. Is Analyze's search box enough, or do the headings still cost wrong turns on the real
-     popover? Candidate: compare headings by what a run adds vs by question vs no headings
-     (alphabetical with search), on two domains.
-  7. Export of the numbers: does a first-time user find Export > Data, and does the table's
-     own door land in the same dialog?
+    1. Does Open project or file... behave as its one-intake label promises? If a saved project
+       re-imports as data, T14 (save and reopen) has a door that lies.
+    2. Do the two homes-that-were-wrong now work on real wiring: names on every node (Label "+"),
+       and a node's neighbors by name? These were the tier 1 failures.
+    3. Is "Values" findable as the place a node's data lives, and does selecting a node land
+       there? Do first-time users go to the Data rail place instead?
+    4. Does a first-time user tell the Data place (rail), the Data page (full page) and the Values
+       tab apart? Three surfaces for "data" is a known collision risk.
+    5. Can a first-time user find a run by name (find box has no Rows group yet)?
+    6. Is Analyze's search box enough, or do the headings still cost wrong turns on the real
+       popover? Candidate: compare headings by what a run adds vs by question vs no headings
+       (alphabetical with search), on two domains.
+    7. Export of the numbers: does a first-time user find Export > Data, and does the table's
+       own door land in the same dialog?
 - **Things I saw in a smoke render of the real build (2026-10-06, unverified with users):**
   the nothing-selected inspector opens on Values with an Overview; long labels truncate
   ("Edges per ...", "Undirected, from the file: the GML def..."); the Legend toolbar button is on

@@ -3,7 +3,7 @@
 Composite persona for the simulated user study. A first-time user of graph tools: a reporter who
 has built a spreadsheet of people, companies and the ties between them for a story, and needs to
 see who connects to whom. Built from the public sources listed under Sources. No real person's
-identity is used. Details marked *(assumed)* have no source and exist only to make her concrete.
+identity is used. Details marked _(assumed)_ have no source and exist only to make her concrete.
 
 This file strengthens the round 8 version (`study/personas/data-journalist.md` in the mock-study
 worktree) for the studio's round 1: same person, more evidence, a voice, and fuller rules for
@@ -17,7 +17,7 @@ but no other persona is a reporter.
 
 ## Portrait
 
-Ruth is 46, a reporter on a regional paper's investigations desk *(assumed)*. Her current story
+Ruth is 46, a reporter on a regional paper's investigations desk _(assumed)_. Her current story
 is about who sits on which company boards and which of those companies won public contracts. She
 has kept a sheet of names, companies and the tie between them for weeks. Guides for journalists
 describe the method she is after: network tools reveal "who is connected to whom" and "how are
@@ -70,8 +70,8 @@ material). She is that reporter.
 ## Frustrations, with evidence
 
 - **A tool that hides its steps.** Every claim in a story must be checkable; a number she cannot
-  explain to an editor is a number she cannot print *(assumed from the role; consistent with the
-  "how are they connected" framing above)*.
+  explain to an editor is a number she cannot print _(assumed from the role; consistent with the
+  "how are they connected" framing above)_.
 - **Results that depend on when you computed them.** A lab learning Gephi found by "trial and
   error" that a statistic run after a filter answered a different question from the one run
   before it (KB National Library lab blog, read directly). For a reporter that is a correction
@@ -138,4 +138,5 @@ and export over findings on her words.
 6. GIJN, "My Favorite Tools 2020" and resource pages naming Kumu, Flourish and NodeXL, https://gijn.org/stories/my-favorite-tools-2020-top-investigative-journalists-tell-us-what-theyre-using/ (search summary only)
 7. Neo4j, "ICIJ" customer story, https://neo4j.com/customer-stories/icij/ (vendor; search summary only)
 </content>
+
 </invoke>

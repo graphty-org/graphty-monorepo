@@ -161,27 +161,27 @@ before is as new to you as it was the first day."
 54 sessions (`criteria.md`, "Round plan"). Tier 1 graduates are listed first in each row. No
 persona takes both halves of one task, and each persona takes 6 sessions.
 
-| Task | n | Participants |
-|---|---|---|
-| T20 weight at load, bus stops (A) | 4 | Dev, Elena; Alex, Dana |
-| T20 weight at load, trails (B) | 4 | Grace, Nadia, Tom; Jordan |
-| T21 rerun, running club (A) | 4 | Grace, Tom; Alex, Jordan |
-| T21 rerun, team (B) | 4 | Dev, Ruth, Nadia; Dana |
-| T17 filtering, running club (A) | 4 | Ruth, Elena, Nadia; Jordan |
-| T17 filtering, Les Miserables (B) | 4 | Grace, Dev, Tom; Alex |
-| T18 shortest chain, running club (A) | 4 | Ruth, Grace, Elena; Dana |
-| T18 shortest chain, Florentine (B) | 4 | Nadia, Dev, Tom; Alex |
-| T4 two tables, office (A) | 3 | Grace, Elena; Dana |
-| T4 two tables, football (B) | 3 | Tom, Ruth; Alex |
-| T19 notes, running club (A) | 2 | Tom; Jordan |
-| T19 notes, Florentine (B) | 2 | Dev, Elena |
-| T22 stand out by a condition, bus stops (A) | 2 | Nadia; Jordan |
-| T22 stand out by a condition, Les Miserables (B) | 2 | Ruth; Dana |
-| T23 a step or two away, running club (A) | 2 | Elena; Jordan |
-| T23 a step or two away, Florentine (B) | 2 | Grace, Nadia |
-| T24 one tie, running club (A) | 2 | Ruth; Dana |
-| T24 one tie, bus stops (B) | 2 | Dev; Alex |
-| **Total** | **54** | tier 1 graduates 36 (67%) |
+| Task                                             | n      | Participants               |
+| ------------------------------------------------ | ------ | -------------------------- |
+| T20 weight at load, bus stops (A)                | 4      | Dev, Elena; Alex, Dana     |
+| T20 weight at load, trails (B)                   | 4      | Grace, Nadia, Tom; Jordan  |
+| T21 rerun, running club (A)                      | 4      | Grace, Tom; Alex, Jordan   |
+| T21 rerun, team (B)                              | 4      | Dev, Ruth, Nadia; Dana     |
+| T17 filtering, running club (A)                  | 4      | Ruth, Elena, Nadia; Jordan |
+| T17 filtering, Les Miserables (B)                | 4      | Grace, Dev, Tom; Alex      |
+| T18 shortest chain, running club (A)             | 4      | Ruth, Grace, Elena; Dana   |
+| T18 shortest chain, Florentine (B)               | 4      | Nadia, Dev, Tom; Alex      |
+| T4 two tables, office (A)                        | 3      | Grace, Elena; Dana         |
+| T4 two tables, football (B)                      | 3      | Tom, Ruth; Alex            |
+| T19 notes, running club (A)                      | 2      | Tom; Jordan                |
+| T19 notes, Florentine (B)                        | 2      | Dev, Elena                 |
+| T22 stand out by a condition, bus stops (A)      | 2      | Nadia; Jordan              |
+| T22 stand out by a condition, Les Miserables (B) | 2      | Ruth; Dana                 |
+| T23 a step or two away, running club (A)         | 2      | Elena; Jordan              |
+| T23 a step or two away, Florentine (B)           | 2      | Grace, Nadia               |
+| T24 one tie, running club (A)                    | 2      | Ruth; Dana                 |
+| T24 one tie, bus stops (B)                       | 2      | Dev; Alex                  |
+| **Total**                                        | **54** | tier 1 graduates 36 (67%)  |
 
 Sessions per persona: Grace 6, Ruth 6, Dev 6, Elena 6, Nadia 6, Tom 6, Alex 6, Jordan 6, Dana 6.
 

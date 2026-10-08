@@ -36,12 +36,12 @@ Build b7590f8de (graphty 0.8.53), viewport 1440 x 900, sighted mouse participant
    nothing was hidden).
 5. **Image downloaded, picture checklist passed.** `downloads/friends_current-view.png`
    (1806 x 1720):
-   - same nodes and arrangement as 15.png: yes;
-   - sizes visibly different: yes;
-   - names drawn on screen drawn in the image: yes, all 20, though "Chloe" sits on Farah's dot
-     and Eli and Dev overlap (see problems);
-   - key names every channel in use: "Size: PageRank" and "Color: PageRank", both 0.04382 to
-     0.06608.
+    - same nodes and arrangement as 15.png: yes;
+    - sizes visibly different: yes;
+    - names drawn on screen drawn in the image: yes, all 20, though "Chloe" sits on Farah's dot
+      and Eli and Dev overlap (see problems);
+    - key names every channel in use: "Size: PageRank" and "Color: PageRank", both 0.04382 to
+      0.06608.
 
 ## Other measures
 
@@ -61,16 +61,16 @@ Build b7590f8de (graphty 0.8.53), viewport 1440 x 900, sighted mouse participant
 
 ## Problems
 
-| # | Sev | Kind | What | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | Labels pile up where dots sit close: "Chloe" is drawn on top of Farah's big dot and half hidden, Eli and Dev overlap, on screen and in the exported picture. Farah, the top PageRank person, is partly behind Chloe's dot. The participant said someone will ask "who's under Farah". The label count says 0 hidden, which is true of the overlap rule but gives no hint of the collision. Rests on this participant; check the other two T15 B sessions. | Steps 12, 15; 12.png, 15.png; downloaded PNG around (840, 1380) |
-| 2 | 2 | behavior | "Size" is reachable only through "+" beside Shape; there is no Size row. The participant found it by guessing that size belongs to shape. Also seen in the T15 A sessions, so confirmed. | Steps 7-8; 07.png, 08.png |
-| 3 | 2 | behavior | The automatic orange-to-brown color ramp is hard to tell apart; the participant could pick out about three dark dots and said size, not color, told him who mattered. Also seen in the T15 A sessions, so confirmed. | Step 6; 06.png |
-| 4 | 2 | wording | The label picker lists only "id" under Attributes; the participant expected "name" and picked "id" hoping it was not a number. On this file the column is named id in the data, so the word is the data's, but the picker gives no sample value to show what the attribute holds. | Steps 11-12; 11.png |
-| 5 | 1 | behavior | The Export dialog's preview is too small to read the key; the participant believed the key was included only after opening the file. Also seen in the T15 A sessions, so confirmed. | Step 14; 14.png |
-| 6 | 1 | opinion | The key gives raw PageRank scores (0.04382 to 0.06608); the participant could not explain to anyone what 0.06 means. | Steps 10, 15; 10.png, downloaded PNG |
-| 7 | 1 | opinion | Analyze's list is jargon (Katz, HITS, Eigenvector, Damping factor); the "Start here" tag carried the choice. | Steps 4-5; 04.png, 05.png |
-| 8 | 1 | opinion | Three saves in the main menu (Save, Save as..., Save local copy...); the participant did not know which, if any, keeps the work for next week, and saved none. | Step 13; 13.png |
+| #   | Sev | Kind     | What                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Evidence                                                        |
+| --- | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 1   | 2   | behavior | Labels pile up where dots sit close: "Chloe" is drawn on top of Farah's big dot and half hidden, Eli and Dev overlap, on screen and in the exported picture. Farah, the top PageRank person, is partly behind Chloe's dot. The participant said someone will ask "who's under Farah". The label count says 0 hidden, which is true of the overlap rule but gives no hint of the collision. Rests on this participant; check the other two T15 B sessions. | Steps 12, 15; 12.png, 15.png; downloaded PNG around (840, 1380) |
+| 2   | 2   | behavior | "Size" is reachable only through "+" beside Shape; there is no Size row. The participant found it by guessing that size belongs to shape. Also seen in the T15 A sessions, so confirmed.                                                                                                                                                                                                                                                                  | Steps 7-8; 07.png, 08.png                                       |
+| 3   | 2   | behavior | The automatic orange-to-brown color ramp is hard to tell apart; the participant could pick out about three dark dots and said size, not color, told him who mattered. Also seen in the T15 A sessions, so confirmed.                                                                                                                                                                                                                                      | Step 6; 06.png                                                  |
+| 4   | 2   | wording  | The label picker lists only "id" under Attributes; the participant expected "name" and picked "id" hoping it was not a number. On this file the column is named id in the data, so the word is the data's, but the picker gives no sample value to show what the attribute holds.                                                                                                                                                                         | Steps 11-12; 11.png                                             |
+| 5   | 1   | behavior | The Export dialog's preview is too small to read the key; the participant believed the key was included only after opening the file. Also seen in the T15 A sessions, so confirmed.                                                                                                                                                                                                                                                                       | Step 14; 14.png                                                 |
+| 6   | 1   | opinion  | The key gives raw PageRank scores (0.04382 to 0.06608); the participant could not explain to anyone what 0.06 means.                                                                                                                                                                                                                                                                                                                                      | Steps 10, 15; 10.png, downloaded PNG                            |
+| 7   | 1   | opinion  | Analyze's list is jargon (Katz, HITS, Eigenvector, Damping factor); the "Start here" tag carried the choice.                                                                                                                                                                                                                                                                                                                                              | Steps 4-5; 04.png, 05.png                                       |
+| 8   | 1   | opinion  | Three saves in the main menu (Save, Save as..., Save local copy...); the participant did not know which, if any, keeps the work for next week, and saved none.                                                                                                                                                                                                                                                                                            | Step 13; 13.png                                                 |
 
 No build defect in the criteria's sense (a crash, a control that does nothing, a wrong count, a
 step that cannot be done by keyboard) was met, so no scripted repro was written for this session.

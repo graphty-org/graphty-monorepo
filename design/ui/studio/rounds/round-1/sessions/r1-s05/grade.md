@@ -31,11 +31,11 @@ The session ran on build `9d6598eea3e9 graphty@0.8.53` at 1440 x 900.
 5. **Image downloaded and passes the picture checklist.** The file is
    `downloads/les-miserables_current-view.png` (1806 x 1720), and `17.png` shows the toast
    "Exported les-miserables_current-view.png". The image passes every item on the checklist:
-   - it has the same nodes in the same arrangement as `18.png`;
-   - the sizes are visibly different (Valjean is much the largest, then Myriel and Fantine);
-   - the names drawn on screen are also drawn in the image (small and soft, and overlapping
-     around Valjean);
-   - the key names both channels in use: "Size: Bridges" and "Color: Bridges", each 0 to 1624.
+    - it has the same nodes in the same arrangement as `18.png`;
+    - the sizes are visibly different (Valjean is much the largest, then Myriel and Fantine);
+    - the names drawn on screen are also drawn in the image (small and soft, and overlapping
+      around Valjean);
+    - the key names both channels in use: "Size: Bridges" and "Color: Bridges", each 0 to 1624.
 
 ## Measures
 
@@ -55,14 +55,14 @@ The session ran on build `9d6598eea3e9 graphty@0.8.53` at 1440 x 900.
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | wording | Alex picks "Betweenness", and from then on every place that names the result says "Bridges": the left list, the key, the "Made with" line and the exported picture. Nothing tells him they are the same thing, and hovering "Bridges" shows no tooltip. Alex's slide key will say "Bridges" with no explanation. | step 5 `05.png`, step 6 `06.png`, step 18 `18.png`, the download |
-| 2 | 2 | behavior | The Style tab has no Size heading. Size is reached through "+" beside Shape, and Alex had to guess that. | step 7 `07.png`, step 8 `08.png` |
-| 3 | 2 | behavior | Adding Size gives a fixed size ("1"). Sizing by a value sits behind a chain-link icon with no visible label; its meaning, "Size by attribute", appears only on hover. | step 9 `09.png`, steps 10-11 |
-| 4 | 2 | behavior | The labels are tiny. Valjean's name sits on top of his own large dot, and names overlap around him, both on screen and in the exported picture. | step 14 `14.png`, the download |
-| 5 | 1 | opinion | Almost every dot is the same orange on the color scale; only the top end (Valjean) stands out. The size channel carries the information. | step 5 `05.png`, `18.png` |
-| 6 | 1 | opinion | With size and color both bound to Bridges, the key shows the same measure twice. Alex called this redundant but acceptable. | step 12 `12.png` |
+| #   | Severity | Kind     | Problem                                                                                                                                                                                                                                                                                                          | Evidence                                                         |
+| --- | -------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 1   | 2        | wording  | Alex picks "Betweenness", and from then on every place that names the result says "Bridges": the left list, the key, the "Made with" line and the exported picture. Nothing tells him they are the same thing, and hovering "Bridges" shows no tooltip. Alex's slide key will say "Bridges" with no explanation. | step 5 `05.png`, step 6 `06.png`, step 18 `18.png`, the download |
+| 2   | 2        | behavior | The Style tab has no Size heading. Size is reached through "+" beside Shape, and Alex had to guess that.                                                                                                                                                                                                         | step 7 `07.png`, step 8 `08.png`                                 |
+| 3   | 2        | behavior | Adding Size gives a fixed size ("1"). Sizing by a value sits behind a chain-link icon with no visible label; its meaning, "Size by attribute", appears only on hover.                                                                                                                                            | step 9 `09.png`, steps 10-11                                     |
+| 4   | 2        | behavior | The labels are tiny. Valjean's name sits on top of his own large dot, and names overlap around him, both on screen and in the exported picture.                                                                                                                                                                  | step 14 `14.png`, the download                                   |
+| 5   | 1        | opinion  | Almost every dot is the same orange on the color scale; only the top end (Valjean) stands out. The size channel carries the information.                                                                                                                                                                         | step 5 `05.png`, `18.png`                                        |
+| 6   | 1        | opinion  | With size and color both bound to Bridges, the key shows the same measure twice. Alex called this redundant but acceptable.                                                                                                                                                                                      | step 12 `12.png`                                                 |
 
 None of these problems is a build defect under the criteria: there was no crash, no control that
 did nothing, no wrong count and nothing that could not be done by keyboard. Problems 1 to 4 repeat

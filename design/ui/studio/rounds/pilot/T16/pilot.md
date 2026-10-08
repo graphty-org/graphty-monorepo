@@ -12,20 +12,20 @@ blanks are now filled.
 
 ## The path walked
 
-| Step | Command | Screenshot | What the screen shows |
-|---|---|---|---|
-| start | `--start ... empty` | 01.png | Start page: Open, New from data, four samples, usage card |
-| 1 | `--click "No thanks"` | 02.png | Card gone |
-| 2 | `--click "Open project or file..." --upload friends.csv` | 03.png | **First drawing.** 20 blue spheres, arrows, no names. Overview: 20 nodes, 41 edges, Directed, 1 component, 3 to 6 edges per node |
-| 3 | `--click-at 640,578` | 04.png | Node "Ava" selected; right panel: id Ava, Degree 6 |
-| 4 | `--key Escape --click "Analyze"` | 05.png | Analyze list; PageRank tagged "Start here" |
-| 5 | `--click "PageRank"` | 06.png | PageRank form: damping factor 0.85, Run |
-| 6 | `--click "Run"` | 07.png | Nodes recolored orange; key "Color: Influence 0.04382 to 0.06608"; left list gains "Influence 20" |
-| 7 | `--click "Influence"` | 08.png | Right panel: Top 10 with names -- Farah 0.06608, Ava 0.06423, Hana 0.05883, Ivan 0.05575, Gus 0.0547 ... |
-| 8 | `--click "Everything" --click "Style"` | 09.png | Style tab of the base layer; Label has a "+" |
-| 9 | `--click-at 1419,356` ("Add label line") | 10.png | Attribute picker: `id`, Influence, Influence rank, Influence percentile |
-| 10 | `--click-at 1106,454` (option `id`) | 11.png | Names drawn; "20 labels, 1 hidden to avoid overlap" |
-| 11 | `--hover-at 734,743` | 12.png | The unlabeled dark node is Farah; no tooltip |
+| Step  | Command                                                  | Screenshot | What the screen shows                                                                                                            |
+| ----- | -------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| start | `--start ... empty`                                      | 01.png     | Start page: Open, New from data, four samples, usage card                                                                        |
+| 1     | `--click "No thanks"`                                    | 02.png     | Card gone                                                                                                                        |
+| 2     | `--click "Open project or file..." --upload friends.csv` | 03.png     | **First drawing.** 20 blue spheres, arrows, no names. Overview: 20 nodes, 41 edges, Directed, 1 component, 3 to 6 edges per node |
+| 3     | `--click-at 640,578`                                     | 04.png     | Node "Ava" selected; right panel: id Ava, Degree 6                                                                               |
+| 4     | `--key Escape --click "Analyze"`                         | 05.png     | Analyze list; PageRank tagged "Start here"                                                                                       |
+| 5     | `--click "PageRank"`                                     | 06.png     | PageRank form: damping factor 0.85, Run                                                                                          |
+| 6     | `--click "Run"`                                          | 07.png     | Nodes recolored orange; key "Color: Influence 0.04382 to 0.06608"; left list gains "Influence 20"                                |
+| 7     | `--click "Influence"`                                    | 08.png     | Right panel: Top 10 with names -- Farah 0.06608, Ava 0.06423, Hana 0.05883, Ivan 0.05575, Gus 0.0547 ...                         |
+| 8     | `--click "Everything" --click "Style"`                   | 09.png     | Style tab of the base layer; Label has a "+"                                                                                     |
+| 9     | `--click-at 1419,356` ("Add label line")                 | 10.png     | Attribute picker: `id`, Influence, Influence rank, Influence percentile                                                          |
+| 10    | `--click-at 1106,454` (option `id`)                      | 11.png     | Names drawn; "20 labels, 1 hidden to avoid overlap"                                                                              |
+| 11    | `--hover-at 734,743`                                     | 12.png     | The unlabeled dark node is Farah; no tooltip                                                                                     |
 
 Measures for the record: steps to the first drawing = 2 (3 counting the start). Analysis run
 unasked: in this pilot, yes (PageRank). Data used: `friends.csv`.
@@ -38,12 +38,12 @@ unasked: in this pilot, yes (PageRank). Data used: `friends.csv`.
 (08.png) match a directed, **unweighted** PageRank exactly (reference computed by
 `design/ui/studio/tmp/pilot-T16/pr.py`):
 
-| Variant | Top 5 |
-|---|---|
-| directed, unweighted (= the app) | Farah .06608, Ava .06423, Hana .05883, Ivan .05575, Gus .0547 |
-| directed, weighted | Farah .06394, Hana .05941, Milo .05648, Chloe .0555, Gus .0535 |
-| undirected, unweighted | Ava .06924, Ivan .05873, Farah .04957, Omar .04945, Nora .04944 |
-| undirected, weighted | Chloe .06202, Pia .05911, Milo .05832, Ava .05831, Farah .05425 |
+| Variant                          | Top 5                                                           |
+| -------------------------------- | --------------------------------------------------------------- |
+| directed, unweighted (= the app) | Farah .06608, Ava .06423, Hana .05883, Ivan .05575, Gus .0547   |
+| directed, weighted               | Farah .06394, Hana .05941, Milo .05648, Chloe .0555, Gus .0535  |
+| undirected, unweighted           | Ava .06924, Ivan .05873, Farah .04957, Omar .04945, Nora .04944 |
+| undirected, weighted             | Chloe .06202, Pia .05911, Milo .05832, Ava .05831, Farah .05425 |
 
 The PageRank form (06.png) offers no weight choice and nothing on screen says the weight was
 ignored. Either the key is wrong (record the unweighted values) or graphty-element should use a

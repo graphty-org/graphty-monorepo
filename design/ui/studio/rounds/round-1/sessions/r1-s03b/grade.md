@@ -46,24 +46,24 @@ several minutes for a free browser slot). r1-s03 is not graded; this session sta
 - **Usage card:** declined with "No thanks" at step 2, no detour, no stated belief about what is
   sent.
 - **Tool prints:** step 17 printed `ambiguous: "Export" matches 2 controls (button, dialog); took
-  the first`. The first match was the button, which is what she meant; the export ran. Not a tool
+the first`. The first match was the button, which is what she meant; the export ran. Not a tool
   fault.
 - **Build-decided:** no. **Void:** no.
 
 ## Problems
 
-| # | Severity | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 2 | behavior | Labels are very small on screen and soft in the 2x export; Valjean's name, the picture's main point, sits on the rim of his own large dot and is crossed by his edges, so it is the hardest name to read. Nadia believed it was hidden under the dot. In the export the label is present but barely legible. | step 14 `14.png`, step 17 `17.png`, the download (around Valjean) |
-| 2 | 2 | behavior | No "Size" line on the Style tab; size is reached through "+" beside Shape. She had to guess the section. | step 7 `07.png`, step 8 `08.png` |
-| 3 | 2 | behavior | Adding Size gives a fixed size ("1"); sizing by a value is behind an unlabeled link icon whose purpose shows only on hover ("Size by attribute"). This is what made the session SD. | step 9 `09.png`, step 10 `10.png`, step 11 `11.png` |
-| 4 | 1 | wording | The run is picked as "PageRank" and then named "Influence"; she was unsure they were the same until the key said so. | step 5 `05.png` |
-| 5 | 1 | wording | "Size by attribute": "attribute" is not her word; she clicked it only because of the tooltip. | step 10 `10.png` |
-| 6 | 1 | opinion | The key gives raw decimals (0.003299 to 0.07543) with no words for what Influence means; a reader of her alert file would not know either. | `12.png`, the download |
-| 7 | 1 | behavior | The export dialog's preview is too small to check that the key will be in the file. | step 16 `16.png` |
-| 8 | 1 | behavior | The key box on the canvas covers the top of the drawing (Blacheville and Listolier's labels sit under it). | `14.png`, `17.png` |
-| 9 | 0 | opinion | Before sizing, the orange shades of the Influence colors barely differ, so color alone told her little. | step 5 `05.png` |
-| 10 | 0 | behavior | The Export dialog and its Export button share the accessible name "Export" (the tool reported the match as ambiguous). Harmless here; listed for the accessibility check. | step 17 |
+| #   | Severity | Kind     | Problem                                                                                                                                                                                                                                                                                                      | Evidence                                                          |
+| --- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| 1   | 2        | behavior | Labels are very small on screen and soft in the 2x export; Valjean's name, the picture's main point, sits on the rim of his own large dot and is crossed by his edges, so it is the hardest name to read. Nadia believed it was hidden under the dot. In the export the label is present but barely legible. | step 14 `14.png`, step 17 `17.png`, the download (around Valjean) |
+| 2   | 2        | behavior | No "Size" line on the Style tab; size is reached through "+" beside Shape. She had to guess the section.                                                                                                                                                                                                     | step 7 `07.png`, step 8 `08.png`                                  |
+| 3   | 2        | behavior | Adding Size gives a fixed size ("1"); sizing by a value is behind an unlabeled link icon whose purpose shows only on hover ("Size by attribute"). This is what made the session SD.                                                                                                                          | step 9 `09.png`, step 10 `10.png`, step 11 `11.png`               |
+| 4   | 1        | wording  | The run is picked as "PageRank" and then named "Influence"; she was unsure they were the same until the key said so.                                                                                                                                                                                         | step 5 `05.png`                                                   |
+| 5   | 1        | wording  | "Size by attribute": "attribute" is not her word; she clicked it only because of the tooltip.                                                                                                                                                                                                                | step 10 `10.png`                                                  |
+| 6   | 1        | opinion  | The key gives raw decimals (0.003299 to 0.07543) with no words for what Influence means; a reader of her alert file would not know either.                                                                                                                                                                   | `12.png`, the download                                            |
+| 7   | 1        | behavior | The export dialog's preview is too small to check that the key will be in the file.                                                                                                                                                                                                                          | step 16 `16.png`                                                  |
+| 8   | 1        | behavior | The key box on the canvas covers the top of the drawing (Blacheville and Listolier's labels sit under it).                                                                                                                                                                                                   | `14.png`, `17.png`                                                |
+| 9   | 0        | opinion  | Before sizing, the orange shades of the Influence colors barely differ, so color alone told her little.                                                                                                                                                                                                      | step 5 `05.png`                                                   |
+| 10  | 0        | behavior | The Export dialog and its Export button share the accessible name "Export" (the tool reported the match as ambiguous). Harmless here; listed for the accessibility check.                                                                                                                                    | step 17                                                           |
 
 No problem in this session is a build defect under the criteria (no crash, dead control, wrong
 count or keyboard block), so there is no repro directory for it. The label legibility problem

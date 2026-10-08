@@ -156,6 +156,7 @@ at all -- the most important character is the one name I can't read.
 ## Debrief (in character)
 
 **Did I finish?** Yes, all five parts:
+
 1. On screen -- clicked the Les Miserables sample on the start page.
 2. Who matters most -- Analyze (flask) -> Betweenness -> Run.
 3. Bigger dots -- clicked the Betweenness row, then "+" by Shape -> Size -> Betweenness.
@@ -171,6 +172,7 @@ Gavroche come next. Light orange, small dots barely connect anyone.
 (Analyze/Betweenness, Size, Label, Export). Nothing failed and I never went backward.
 
 **What confused me or slowed me down:**
+
 - "Size" is hidden under the "+" next to "Shape". I only found it because I guessed size belongs
   to shape; there's no Size row until you add one. This was my one real hesitation.
 - After Run, coloring alone barely shows anything: nearly every dot is the same orange and only

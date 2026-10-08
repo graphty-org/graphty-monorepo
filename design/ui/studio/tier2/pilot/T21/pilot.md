@@ -9,15 +9,15 @@ errors or failed requests were reported on any step.
 
 ## A: running club (setup `friends-pagerank.txt`)
 
-| Step | Screenshot | What the screen showed |
-| --- | --- | --- |
-| start | 01 | friends.csv drawn and colored by PageRank; key 0.03779 to 0.06394; row "PageRank 20" |
-| `--click "PageRank" --click "Values"` | 02 | Top 10 starts Farah 0.06394, Hana 0.05941, Milo 0.05648 (first before: Farah) |
-| `--click "Data"` | 03 | Sources: "friends.csv 41 rows, 41 edges"; Filters; Attributes |
-| `--rclick "friends.csv"` | 04 | Menu: "Edit source...", "Replace with file..." (the first item is highlighted) |
-| `--click "Replace with file..." --upload friends-v2.csv` | 05 | "Replace: friends-v2.csv", "Was 20 nodes, 41 edges; now 20, 41"; 41 edge rows, weight column read as Weight |
-| `--click "Load"` | 06 | Back on Graph, header "friends-v2.csv"; PageRank row shows the out-of-date icon; the open PageRank inspector shows "Data changed since this run" with "Rerun"; colors, key and Top 10 still the old run's (Farah first) |
-| `--click "Rerun"` | 07 | Key 0.02872 to 0.08012; Top 10 Ava 0.08012, Farah 0.06556, Hana 0.06428, Ivan 0.06141 (first now: Ava) |
+| Step                                                     | Screenshot | What the screen showed                                                                                                                                                                                                  |
+| -------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| start                                                    | 01         | friends.csv drawn and colored by PageRank; key 0.03779 to 0.06394; row "PageRank 20"                                                                                                                                    |
+| `--click "PageRank" --click "Values"`                    | 02         | Top 10 starts Farah 0.06394, Hana 0.05941, Milo 0.05648 (first before: Farah)                                                                                                                                           |
+| `--click "Data"`                                         | 03         | Sources: "friends.csv 41 rows, 41 edges"; Filters; Attributes                                                                                                                                                           |
+| `--rclick "friends.csv"`                                 | 04         | Menu: "Edit source...", "Replace with file..." (the first item is highlighted)                                                                                                                                          |
+| `--click "Replace with file..." --upload friends-v2.csv` | 05         | "Replace: friends-v2.csv", "Was 20 nodes, 41 edges; now 20, 41"; 41 edge rows, weight column read as Weight                                                                                                             |
+| `--click "Load"`                                         | 06         | Back on Graph, header "friends-v2.csv"; PageRank row shows the out-of-date icon; the open PageRank inspector shows "Data changed since this run" with "Rerun"; colors, key and Top 10 still the old run's (Farah first) |
+| `--click "Rerun"`                                        | 07         | Key 0.02872 to 0.08012; Top 10 Ava 0.08012, Farah 0.06556, Hana 0.06428, Ivan 0.06141 (first now: Ava)                                                                                                                  |
 
 ## B: team (setup `team-pagerank.txt`)
 

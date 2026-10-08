@@ -8,9 +8,17 @@ import { RunAlgorithmModal } from "../RunAlgorithmModal";
 import { RunLayoutsModal } from "../RunLayoutsModal";
 
 const dialogs: [string, () => JSX.Element, RegExp][] = [
-    ["RunLayoutsModal", () => <RunLayoutsModal opened onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />, /Apply Layout/],
+    [
+        "RunLayoutsModal",
+        () => <RunLayoutsModal opened onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />,
+        /Apply Layout/,
+    ],
     ["LoadDataModal", () => <LoadDataModal opened onClose={vi.fn()} onLoad={vi.fn()} />, /^Load/],
-    ["RunAlgorithmModal", () => <RunAlgorithmModal opened onClose={vi.fn()} graphtyRef={{ current: null }} />, /Run Algorithm/],
+    [
+        "RunAlgorithmModal",
+        () => <RunAlgorithmModal opened onClose={vi.fn()} graphtyRef={{ current: null }} />,
+        /Run Algorithm/,
+    ],
     ["FeedbackModal", () => <FeedbackModal opened onClose={vi.fn()} />, /Send Feedback/],
 ];
 

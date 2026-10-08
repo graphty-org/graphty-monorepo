@@ -28,10 +28,10 @@ Success B holds on the last screen:
 
 ## Counts
 
-| | This session | Reference |
-|---|---|---|
+|                  | This session                                           | Reference           |
+| ---------------- | ------------------------------------------------------ | ------------------- |
 | Steps (real.mjs) | 8 after the start: 7 that reached the app, 1 tool miss | 6 (the Degree path) |
-| Wrong turns | 1 | -- |
+| Wrong turns      | 1                                                      | --                  |
 
 The wrong turn is step 7, the click on the chevron that opened nothing; step 8 (the hover) is the
 recovery from it. Leaving out the usage card and the tool miss, the session took 6 app actions
@@ -56,14 +56,14 @@ chevron (1410,236) lands on group "Summary values" and no list opens (`run1/06.p
 `run2/06.png`, `--expect-not "Medici's 6 connections"` held); a click on the button "Degree 6"
 opens "Medici's 6 connections" (`run1/07.png`, `run2/07.png`, `--expect` held).
 
-| # | Sev | Kind | Problem | Evidence |
-|---|---|---|---|---|
-| 1 | 3 | build-defect | The chevron drawn at the right end of the "Degree 6 >" row is outside the row's button. A click on it lands on the surrounding "Summary values" group, which only shades the row and opens nothing. The chevron is the one cue that the row leads to "who", so the control a reader is most likely to click is the one that does nothing. Confirmed (reproduced; also r2-s19, r2-s21, r2-s23). | Step 7, 07.png (tool: "at 1410,236: group Summary values"). Repro above. |
-| 2 | 2 | behavior | Nothing says the Degree row opens the list of neighbors: the row has no tooltip on hover (tool: "tooltip: null") and no words beyond "Degree 6 >". Ruth found it only by persisting. Confirmed (r2-s19, r2-s21). | Step 8, 08.png. |
-| 3 | 2 | wording | The list says "connections", not what a connection is in this file; Ruth would have to tell her editor that a connection here means a marriage. Confirmed (r2-s24 reports the same for "Degree 6"). | Step 9, 09.png. |
-| 4 | 1 | behavior | No names are drawn on the dots by default, so the picture alone cannot tell which ringed dot is which family; search and the list did all the work. Confirmed (r2-s19, r2-s20, r2-s24). | Steps 3-9, 03.png, 09.png. |
-| 5 | 1 | accessibility | The find box's visible text is "Find nodes, edges, values" but no control carries that name (its name is "Find"), so a voice-control user who speaks the visible words does not reach it (WCAG 2.5.3, taking the placeholder as its visible label). Confirmed (r2-s03, r2-s20, r2-s24). | Step 4 (tool: nothing called that), step 5 (tool: combobox "Find"). |
-| 6 | 1 | wording | "Undirected, from the file: directed 0" took Ruth a second reading; she read it correctly. One participant; unconfirmed. Opinion, held one level down. | Step 3, 03.png. |
+| #   | Sev | Kind          | Problem                                                                                                                                                                                                                                                                                                                                                                                        | Evidence                                                                 |
+| --- | --- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 1   | 3   | build-defect  | The chevron drawn at the right end of the "Degree 6 >" row is outside the row's button. A click on it lands on the surrounding "Summary values" group, which only shades the row and opens nothing. The chevron is the one cue that the row leads to "who", so the control a reader is most likely to click is the one that does nothing. Confirmed (reproduced; also r2-s19, r2-s21, r2-s23). | Step 7, 07.png (tool: "at 1410,236: group Summary values"). Repro above. |
+| 2   | 2   | behavior      | Nothing says the Degree row opens the list of neighbors: the row has no tooltip on hover (tool: "tooltip: null") and no words beyond "Degree 6 >". Ruth found it only by persisting. Confirmed (r2-s19, r2-s21).                                                                                                                                                                               | Step 8, 08.png.                                                          |
+| 3   | 2   | wording       | The list says "connections", not what a connection is in this file; Ruth would have to tell her editor that a connection here means a marriage. Confirmed (r2-s24 reports the same for "Degree 6").                                                                                                                                                                                            | Step 9, 09.png.                                                          |
+| 4   | 1   | behavior      | No names are drawn on the dots by default, so the picture alone cannot tell which ringed dot is which family; search and the list did all the work. Confirmed (r2-s19, r2-s20, r2-s24).                                                                                                                                                                                                        | Steps 3-9, 03.png, 09.png.                                               |
+| 5   | 1   | accessibility | The find box's visible text is "Find nodes, edges, values" but no control carries that name (its name is "Find"), so a voice-control user who speaks the visible words does not reach it (WCAG 2.5.3, taking the placeholder as its visible label). Confirmed (r2-s03, r2-s20, r2-s24).                                                                                                        | Step 4 (tool: nothing called that), step 5 (tool: combobox "Find").      |
+| 6   | 1   | wording       | "Undirected, from the file: directed 0" took Ruth a second reading; she read it correctly. One participant; unconfirmed. Opinion, held one level down.                                                                                                                                                                                                                                         | Step 3, 03.png.                                                          |
 
 What worked, for the record: the find box found exactly one Medici at once; the selected dot
 ringed in the drawing; the Degree row opened an alphabetical, complete list headed with the

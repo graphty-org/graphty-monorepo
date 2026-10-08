@@ -72,21 +72,25 @@ while [ "${p:-0}" -gt 1 ] && [ -r "/proc/$p/stat" ]; do
     fi
     p=${f[1]}
 done
-# The gate's report, for githerd's pre-push statistics (githerd/lib/prepush.mjs): git runs the
-# pre-push hook with its output on stderr, so stderr is copied into tmp/push-gate-logs/<ticket>.log
-# on its way to the terminal (stdout passes untouched). The log line then carries the queue times,
-# the gate's [FAIL] and FAIL lines, and the top-level directories the push changes against its merge
-# base with origin/master (Markdown left out). Recording never fails or slows the push: each part
-# that fails is left out of the line. Logs older than 14 days are removed.
+# The gate's report, for githerd's pre-push statistics (githerd/lib/prepush.mjs): the command's
+# stdout and stderr (the gate prints on both) are each copied into tmp/push-gate-logs/<ticket>.log on
+# their way to where they went before; `wait` lets both copies finish before the log is read. The
+# log line then carries the queue times, the gate's [FAIL] and FAIL lines -- with the FAIL lines of
+# each failed shard's own log (tmp/prepush-tests/<shard>.log), whose printed tail can miss them --
+# and the top-level directories the push changes against its merge base with origin/master
+# (Markdown left out). Recording never fails or slows the push: each part that fails is left out of
+# the line. Logs older than 14 days are removed.
 gate_log="$(dirname "$dir")/push-gate-logs/$(basename "$ticket").log"
 mkdir -p "$(dirname "$gate_log")" 2>/dev/null && find "$(dirname "$gate_log")" -name '*.log' -mtime +14 -delete 2>/dev/null
-exec 3>&1
-"$@" 2>&1 1>&3 3>&- | tee -a "$gate_log" >&2 2>/dev/null
-rc=${PIPESTATUS[0]}
+"$@" > >(tee -a "$gate_log" 2>/dev/null) 2> >(tee -a "$gate_log" >&2 2>/dev/null)
+rc=$?
 finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-exec 3>&-
-gate=$(sed 's/\x1b\[[0-9;]*m//g' "$gate_log" 2>/dev/null | grep -aE '\[FAIL\]|^ *FAIL |All pre-push checks passed|\[(remote )?rejected\]' | head -200 \
-    | jq -Rsc 'split("\n") | map(select(length > 0))' 2>/dev/null)
+wait
+gate=$(sed 's/\x1b\[[0-9;]*m//g' "$gate_log" 2>/dev/null | grep -aE '\[FAIL\]|^ *FAIL |All pre-push checks passed|\[(remote )?rejected\]' \
+    | awk '{ print } /\[FAIL\] [^ ]+ \(exit .*; the end of .*:$/ {
+        f = $0; sub(/.*; the end of /, "", f); sub(/:$/, "", f)
+        while ((getline l < f) > 0) { gsub(/\033\[[0-9;]*m/, "", l); if (l ~ /^ *FAIL /) print l }
+        close(f) }' 2>/dev/null | head -200 | jq -Rsc 'split("\n") | map(select(length > 0))' 2>/dev/null)
 changed=
 if [ -n "$sha" ] && base=$(git merge-base origin/master "$sha" 2>/dev/null); then
     changed=$(git diff --name-only "$base" "$sha" 2>/dev/null | awk -F/ '!/\.md$/ { print (NF > 1 ? $1 "/" : $0) }' | sort -u \

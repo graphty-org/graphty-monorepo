@@ -5,17 +5,17 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-08 (second dry run before tier 2 round 1 triaged).
+Last updated: 2026-10-08 (third dry run before tier 2 round 1 triaged).
 
 ## Top of mind
 
-- 2026-10-08: SECOND DRY RUN (`tier2/dry-run-r1-2.md`) on build 3dfe7daf9e45, after the first
-  dry run's 100 fixes: 98 items, 65 fixed, 19 left, 13 no change, 1 split. Fewer blockers, but
-  the first round of fixes left visible seams (focus on value rows, hidden row descriptions, a
-  green check over a left-out row, the key's "Shortest route"). Round 1 needs ANOTHER frozen build
-  and re-pilot. Rule holds: no round starts until a dry run on its exact build is triaged and
-  built; re-pilot after every fix batch, because fixes make defects too.
-- 2026-10-08: Two open questions dominate both dry runs and are NOT polish: names are not drawn by
+- 2026-10-08: THIRD DRY RUN (`tier2/dry-run-r1-3.md`) on the frozen build 909b19b57: 96 items,
+  46 fix, 26 left, 24 no change. Fewer blockers again, but three would have shaped sessions: a
+  menu's Escape clearing the selection, a find list hiding 11 of 17 ties, a tooltip over the T21
+  note after Load. Two came from the second run's own fixes. Round 1 needs ANOTHER frozen build and
+  re-pilot; no round starts until a dry run on its exact build finds no (a) item a participant
+  would hit on a task path.
+- 2026-10-08: Two open questions dominate all three dry runs and are NOT polish: names are not drawn by
   default, and nodes overlap in the 3D drawing (size-aware spacing is deferred: layout `nodeSize`
   "not used yet"). Both decide whether a reader can check a list against the drawing. Watch them
   in round 1; bring the owner the evidence, not a guess.
@@ -112,66 +112,17 @@ Last updated: 2026-10-08 (second dry run before tier 2 round 1 triaged).
 
 ## Decisions and reasons
 
-- 2026-09-26..30 -- Owner: Figma is the paved path for chrome, structure from graphty's own
-  ontology; refined structure B (one tree of paint rows, runs as rows, inspector with Style and
-  Values, built-in Everything and Selection); a run paints as soon as it finishes; weight defined
-  at load and used by every run (the build does not yet -- a tier 2 gap).
-- 2026-10-02 -- Owner: tasks tiered; tier 1 first; >= 60% of sessions to tier 1.
-- 2026-10-03 -- Owner: stop mocking, build tier 1 as the real app and study that; graphty-element
-  is neutral about presentation. Tier 1 merged as #942 (2026-10-06).
-- 2026-10-06 -- Criteria for the real-app study (me): the 9 bars in `criteria.md`, frozen after
-  four critiques. Ease a target, not a gate. Build-decided sessions count; tool faults void.
-  Per-dataset floors; one-participant confirmation for scripted build defects; screen-reader mode;
-  a second keyboard-only persona; words-at-rest gate. Rejected: 85% first-time gate, core-set bar.
-- 2026-10-06 -- Pilot triage (me, `rounds/pilot/triage.md`): fixed the camera spin, the image key
-  (#133), failed-open state, "New from data" drawing nothing, arrowheads on undirected graphs, CSV
-  group numbers, Spectral, truncated GraphML, Analyze keyboard pick, Export dialog modality, the
-  duplicate Everything row, focus stuck in find, legend lines that lied; seed out of the element
-  (owner rule). Deferred: show-all labels, "Influence" naming, weight, 3D perspective.
-- 2026-10-06 -- Round 2 changes (me, `rounds/round-1/decisions.md`): the study runner; screen-reader
-  mode; Neighborhood opens the neighbor list; Summary and Selection dead ends; no empty "Open list"
-  arrow; layout refusal under Method; wheel zoom; default focus ring; focus to the new style line.
-  Rejected: a Degree-row cue (two variables at once), Summary listing names, Show all labels.
-- 2026-10-07 -- Round 3 changes (me, `rounds/round-2/decisions.md`): menu-to-dialog focus in
-  compact-mantine; legend drops covered layers; 2D Fit; `optionsFor` partition values (app deletes
-  its own `groupings()`); load/run announcements; canvas named from `aria-label`; Size "+" opens
-  its list; row glyph in the row; runs named by method; "Show all labels" writing the element's
-  existing declutter flag. Rejected: `returnFocus={false}` on MainMenu (breaks Escape), a new
-  groupings API, app filtering run fields, key placement (new API; later).
-- 2026-10-07 -- Reversed my 2026-10-06 "no Show all labels": round 2 answered the question it
-  waited on. Round 3 confirmed the reversal (names task 0 of 8 S -> 7 of 8 S).
-- 2026-10-07 -- Round 3 closes the studio (me): stop rule "round 3 finished"; no round 4. Reason:
-  the two failing bars are a color fix and one void session, and every remaining question needs
-  real people. Evidence: `rounds/round-3/scores.md`, `insights.md`.
-- 2026-10-07 -- Accept the skeptics' regrades for round 3 (me): bar 3 holds (3D size misdrawing is
-  severity 3: 2.8% gap no reader ranks by eye, ranking task answered right by all, graders
-  primed); bar 5 holds (label count true); bar 6 holds (Whole graph picture complete and truthful;
-  r3-s01 regraded SD). Report both the scored and the checked status.
-- 2026-10-07 -- Recommend withdrawing the element's "legend drops covered blocks" in favor of
-  master's `legend.painted-over` fact (#1364) plus an app filter (me). Reason: the fact now exists
-  on master, filtering on a neutral fact is consuming, not computing, and it avoids changing what
-  an existing method returns. Alternative kept open for the owner: keep the drop.
-- 2026-10-07 -- Round 3 problems are not fixed on the studio branch (me): the round was the last,
-  and each needs a trace or an owner decision first. They lead the next-steps list.
-
-- 2026-10-07 -- Round 3 fixes as units (me, `next-steps/round3-units.md`). Selection in export:
-  element option, app leaves it out by default, no dialog choice (one session does not justify a
-  control). Whole graph angle: an option on `fitToGraph`, not a change to its numbers (its file
-  promises no saved picture moves). Key: view insets every fit honors, and a capture reserves its
-  own drawn key's box. 3D size: trace first (world sizes, 2D vs two 3D angles); camera push-back,
-  hiding sizes in 3D, or an app warning are rejected as symptom fixes. Sources row: a childless
-  source opens the one table it produced. Reason: each fix in its owning package, one door each.
-
-- 2026-10-07 -- Tier 2 design (me, `next-steps/tier2-design.md`), from five designers' proposals and
-  a code read. Filter steps are ELEMENT state (an unticked step must survive in the project file;
-  app-held steps would be app-owned graph state). No step reorder: steps AND together, so order
-  changes nothing. Standard undo for steps, not "undo unticks" (one undo rule; the sev-4 claim was
-  not verified). Neighborhood controls in the list header, not a popover in front (keeps the 8/8
-  route). Several node types deferred: T4 is one node + one edge table, already loadable. Select
-  where dialog deferred: Find "=" is the one home. Replace offered only on a single-source,
-  single-table graph (per-source replace needs row provenance; known ceiling). No auto rerun,
-  no "Rerun all". Weight words from glossary 11 (similarity/distance/capacity/unknown); the
-  element keeps its published `"strength"` spelling and grows `"capacity"`.
+- 2026-09-26..10-07 (summarized; full text in git history of this file) -- Owner: Figma is the
+  paved path for chrome; refined structure B; a run paints as soon as it finishes; tiers, tier 1
+  first; build the real app and study it; element neutral about presentation. Me: real-app criteria
+  (9 bars, ease a target not a gate, build-decided sessions count, tool faults void); pilot triage
+  and round 2-3 changes, each fix in its owning package; reversed "no Show all labels" after round 2
+  (names task 0/8 -> 7/8); round 3 closed tier 1; skeptics' regrades accepted; recommend master's
+  `legend.painted-over` over the element dropping covered blocks; round 3 units in
+  `next-steps/round3-units.md`; tier 2 design in `next-steps/tier2-design.md` (filter steps are
+  element state, no step reorder, standard undo, neighborhood controls in the list header, several
+  node types and Select where deferred, Replace only on a single-source graph, no auto rerun,
+  glossary 11 weight words, element keeps `"strength"` and grows `"capacity"`).
 
 - 2026-10-07 -- Tier 2 pilot fixes (me). Shared row truncation (Filters condition, Sources name)
   is one compact-mantine fix in `EllipsizedName`, not two app tooltips: both rows already use it,
@@ -223,6 +174,30 @@ Last updated: 2026-10-08 (second dry run before tier 2 round 1 triaged).
   3D overlap, where the filter action and the path form live, stale marks, the weight after load,
   "Hops" as a word. Reason: each fixed item is a seam a participant would trip on; each left item
   is the question its task asks.
+
+- 2026-10-08 -- Third dry run triage (me, `tier2/dry-run-r1-3.md`, pilots in
+  `tier2/rounds/r1d2/pilot/`), on the frozen build 909b19b57: 96 items, 46 fix, 26 sessions, 24 no
+  change. Fix now: Sources counts as a visible second line (the existing `descriptionVisible`, not a
+  new truncation rule); left-out rows wrap and wear the warning mark after Load too; the tree offers
+  its child band off (Figma keeps it; in this app selecting a parent never selects children) and
+  the app turns it off; the shared menu consumes the Escape that closes it and never highlights a
+  disabled item; type-ahead takes letters and digits only ("/" reaches Find); the chosen side of a
+  two-way choice is readable; a tooltip opens only after the pointer moves onto its target (a
+  target that slides under a resting pointer after Load covered the T21 note in every session);
+  the import page's sentences at the 11 px body size, the weight line below the roles; "Save and
+  turn on" on an off step; chip tooltip says what shows and that a click opens the Filters; a
+  neighbors step leads with its hop count; one kind for a path run in tree and inspector (fixes the
+  icon and the unmarked row together); one "Weight" name in the path form; the inspector title
+  keeps focus but loses the box that read as an editable name; the neighborhood view focuses the
+  checked Hops choice, not a row; "Ava's 14 connections within 2 hops" past one hop (one hop keeps
+  the tested words); every actions button gets a tooltip; the find list shows its counts and its
+  scrollbar and never leaves a heading alone at its edge; the Graph title tooltip only when cut;
+  the Selection row shows the edge band settings it draws with; one label style in the Style tab;
+  trace why the edge band still covers a name with `onTop` built; study tool records the build's
+  commit and finds relative setup paths. Leave: names by default, 3D overlap, where the path form
+  lives and whether it keeps the last pair, stale marks, weight meaning after load, a saved-state
+  mark, the Recent row, units on a total, where the graph overview is reached. Reason: each fixed
+  item is a seam a participant trips on; each left item is the question its task asks.
 
 ## Tried: worked / did not work
 
@@ -288,6 +263,13 @@ Last updated: 2026-10-08 (second dry run before tier 2 round 1 triaged).
   checking the path color's distance against flat swatches only; shaded spheres at small size
   read differently, so check on a screenshot of both a ranked and an unranked start.
 
+- 2026-10-08 (third dry run) -- Worked: reading the code behind each pilot finding before
+  classing it. Three "new features" were already there (`descriptionVisible` for the Sources
+  counts, the element's selection `edgeColor` for the Style tab, `onTop` for labels), and two
+  defects shared one root cause (a path run's kind differs between tree and inspector: wrong icon
+  and unmarked row). Did not work: the second run's "end the find list on a whole row" fix; it
+  hid the cut instead of showing it. A fix for a cut must show that more exists, not hide the cut.
+
 ## Thinking
 
 - **What tier 2 needs before its first round:** tasks and answers for filter, shortest chain,
@@ -306,7 +288,7 @@ Last updated: 2026-10-08 (second dry run before tier 2 round 1 triaged).
 
 ## Sources
 
-- Tier 2 (2026-10-08): `tier2/dry-run-r1-1.md`, `tier2/dry-run-r1-2.md` (pilots in `tier2/rounds/r1d1/pilot/`), `tier2/criteria.md` (frozen), `tier2/tasks.md`, `tier2/roster.md` ("Where each
+- Tier 2 (2026-10-08): `tier2/dry-run-r1-1.md`, `tier2/dry-run-r1-2.md` (pilots in `tier2/rounds/r1d1/pilot/`), `tier2/dry-run-r1-3.md` (pilots in `tier2/rounds/r1d2/pilot/`), `tier2/criteria.md` (frozen), `tier2/tasks.md`, `tier2/roster.md` ("Where each
   session starts"), `rounds/tier-2/setups/*-ranked*.txt`; reviews in `notes/researcher.md`,
   `notes/user.md`, `notes/redteam.md`.
 - Studio: `criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `owner-decisions.md`,

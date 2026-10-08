@@ -468,9 +468,17 @@ element.run("pagerank", {}, { style: { size: true } });
 element.run("pagerank", {}, { style: { size: [1, 5] } });
 ```
 
-`style: true` (the default) paints the colour alone and `style: false` paints nothing. `size` is
-ignored for a result that is not a node measurement -- a community has no amount to size by. The
-size layer paints only the nodes the run measured and is removed with the run.
+`style: true` (the default) paints the colour alone and `style: false` paints nothing. For an
+edge measurement, such as max flow or edge betweenness, `size` draws edge width instead: `size:
+true` runs from the default edge width to twice it, and `[min, max]` is in edge width units.
+
+```typescript
+// Colour AND widen each edge by the flow it carries.
+element.run("max-flow", { source: "a", sink: "z" }, { style: { size: true } });
+```
+
+`size` is ignored for a result that is not a measurement -- a community has no amount to size by.
+The size layer paints only the elements the run measured and is removed with the run.
 
 ### Running algorithms when the data loads
 

@@ -8,7 +8,7 @@
     "type": "module",
     "scripts": {
         "dev": "vite --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
-        "build": "tsc && vite build",
+        "build": "tsc && NODE_OPTIONS=--max-old-space-size=8192 vite build",
         "preview": "vite preview --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "test": "vitest",
         "test:run": "vitest run",

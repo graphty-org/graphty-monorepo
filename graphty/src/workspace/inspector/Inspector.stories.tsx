@@ -164,7 +164,7 @@ export const SeveralElementsSummary: Story = {
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await element.session.selection.apply({ nodes: ["n1", "n4", "n9"] });
-        await inspector(canvasElement).findByRole("group", { name: "Edges among them" });
+        await inspector(canvasElement).findByRole("group", { name: "Edges joining these nodes" });
         await element.waitForStableFrame();
     },
 };

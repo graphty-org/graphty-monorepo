@@ -199,10 +199,36 @@ describe("the inspector", () => {
             await on.selection.apply({ nodes: ["n0", "n1", "n2"] });
         });
 
-        const among = await screen.findByRole("group", { name: "Edges among them" });
+        const among = await screen.findByRole("group", { name: "Edges joining these nodes" });
         assert.include(among.textContent, "2");
         assert.isNull(screen.queryByRole("group", { name: "Edges" }));
         assert.isNull(screen.queryByText(/\(1\)/));
+    });
+
+    it("shows no joining-edges row for an edge-only selection, and says what is selected in the header", async () => {
+        const { session: on } = await renderInspector();
+        const edges = on.data.edges().slice(0, 3).map((edge) => edge.id);
+        await act(async () => {
+            await on.selection.apply({ edges });
+        });
+
+        assert.include((await screen.findByRole("group", { name: "Edges" })).textContent, "3");
+        assert.isNotNull(screen.getByText("3 edges selected"));
+        assert.isNull(screen.queryByRole("group", { name: /^Edges (among|joining)/ }));
+        assert.isNull(screen.queryByRole("group", { name: "Nodes" }));
+    });
+
+    it("words two joined nodes' summary so it does not contradict the header's edge count", async () => {
+        const { session: on } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n0", "n6"] });
+        });
+
+        const joining = await screen.findByRole("group", { name: "Edges joining these nodes" });
+        assert.include(joining.textContent, "1");
+        assert.isNotNull(screen.getByText("2 nodes selected"));
+        assert.isNull(screen.queryByText(/0 edges/));
+        assert.isNull(screen.queryByRole("group", { name: "Edges" }));
     });
 
     it("shows isolated nodes, self-loops and repeated edges from the element's statistics", async () => {
@@ -294,7 +320,7 @@ describe("the inspector", () => {
         await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
         const nodes = await screen.findByRole("group", { name: "Nodes" });
         assert.include(nodes.textContent, "3");
-        assert.isNotNull(screen.getByRole("group", { name: "Edges among them" }));
+        assert.isNotNull(screen.getByRole("group", { name: "Edges joining these nodes" }));
     });
 
     it("names a selected edge by its ends, and Select endpoints selects those two nodes", async () => {

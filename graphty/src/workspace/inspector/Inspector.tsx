@@ -24,7 +24,7 @@ import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValue
 import { type Draft, rowKindOf, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
-import { count, edgeName, groupName, KIND_WORDS, runDate } from "./words";
+import { count, edgeName, groupName, KIND_WORDS, runDate, selectionWords } from "./words";
 
 /** A kind's two tab bodies, or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
@@ -284,8 +284,7 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             };
         }
         case "several": {
-            const { nodes, edges } = session.selection;
-            return { name: `${String(nodes.length)} nodes, ${String(edges.length)} edges` };
+            return { name: selectionWords(session.selection.nodes.length, session.selection.edges.length) };
         }
         case "measure-row":
         case "run-row": {

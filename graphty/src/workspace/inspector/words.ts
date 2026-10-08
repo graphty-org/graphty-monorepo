@@ -144,6 +144,17 @@ export function count(count: number, noun: string): string {
 }
 
 /**
+ * A selection's size, leaving out a zero half ("2 nodes selected", "3 nodes, 1 edge selected").
+ * @param nodes - how many nodes are selected.
+ * @param edges - how many edges are selected.
+ * @returns the words.
+ */
+export function selectionWords(nodes: number, edges: number): string {
+    const parts = [nodes > 0 ? count(nodes, "node") : "", edges > 0 ? count(edges, "edge") : ""];
+    return `${parts.filter(Boolean).join(", ")} selected`;
+}
+
+/**
  * A route's size ("3 nodes, 2 edges").
  * @param nodes - how many nodes are on it.
  * @param edges - how many edges are on it.

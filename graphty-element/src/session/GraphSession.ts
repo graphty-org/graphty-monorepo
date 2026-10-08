@@ -1878,7 +1878,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         get positions() {
             return store.store.positions;
         },
-        holdsNoRows: () => (store.store instanceof GraphStore ? store.store.holdsNoRows : true),
+        // A store of the element's own answers from its snapshot: an edge's endpoint left behind
+        // by its edge is a row with no record, and a capture that took it for empty lost the row.
+        holdsNoRows: () =>
+            store.store instanceof GraphStore ? store.store.holdsNoRows : store.store.getSnapshot().nodeCount === 0,
         get stale() {
             return (store.store as { readonly stale?: boolean }).stale === true;
         },

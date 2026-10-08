@@ -471,7 +471,7 @@ describe("check() notes", () => {
         const b = new GraphBuilder({ directed: true });
         b.declareNodeColumn({
             name: "position",
-            dtype: "f32",
+            dtype: "f64",
             components: 3,
             role: "position",
             extra: { sourceDims: 2 },
@@ -491,11 +491,7 @@ describe("check() notes", () => {
             { data: { id: "c" }, position: { x: 1, y: -1 } },
         ]);
         const back = await imported(JSON.stringify({ elements: doc }));
-        expect(Array.from(back.nodes.byRole("position")?.value(0) as ArrayLike<number>)).toEqual([
-            Math.fround(0.1),
-            2,
-            0,
-        ]);
+        expect(Array.from(back.nodes.byRole("position")?.value(0) as ArrayLike<number>)).toEqual([0.1, 2, 0]);
         const plain = jsonExporter.check(s);
         expect(codes(plain)).toEqual([JSON_LOSS.POSITIONS_DROPPED]);
         expect((await exported(s)).nodes).toEqual([

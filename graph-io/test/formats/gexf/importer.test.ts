@@ -330,7 +330,7 @@ describe("gexfImporter: a 1.3 dynamic document", () => {
             start: "f64",
             end: "f64",
             color: "f32",
-            position: "f32",
+            position: "f64",
             size: "f32",
             shape: "dict",
             timestamps: "list",

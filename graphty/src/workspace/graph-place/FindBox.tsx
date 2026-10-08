@@ -55,7 +55,6 @@ function ruleRefusalWords(session: GraphSession, error: unknown): string | null 
 /** How long typing pauses before the element checks a typed rule. */
 const CHECK_DELAY_MS = 200;
 
-
 /**
  * What the element says of a typed rule, without selecting anything: it counts the rule's
  * matches, which reads the rule exactly as `selection.apply` does.
@@ -267,7 +266,12 @@ export function FindBox(): React.JSX.Element {
         await session.selection.apply(hit.target);
         // The inspector shows what is selected once no row is open.
         store.set({ inspected: null });
-        await element?.zoomToSelection();
+        // The camera turns only to bring a pick that is off screen into view: turning to every pick
+        // swings the rest of the drawing out of the canvas, and it stays out.
+        const ids = hit.kind === "edge" ? [hit.ends.source.id, hit.ends.target.id] : [hit.id];
+        if (!ids.every((id) => element?.nodeScreenPosition(id)?.visible === true)) {
+            await element?.zoomToSelection();
+        }
     };
 
     const runTyped = async (current: GraphSession, typed: string, box: HTMLInputElement): Promise<void> => {

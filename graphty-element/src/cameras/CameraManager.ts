@@ -13,6 +13,8 @@ export interface CameraController {
      * their projection to match the new aspect ratio.
      */
     onResize?(): void;
+    /** Take new insets without moving what is drawn; absent, the insets are assigned. */
+    setViewInsets?(insets: ViewInsets): void;
 }
 
 interface InputHandler {
@@ -107,13 +109,16 @@ export class CameraManager {
 
     /**
      * Give every camera the margins of the canvas something else covers. Each fit from now on
-     * keeps the graph out of them; the 3D camera re-centers on what is left straight away.
+     * keeps the graph out of them; nothing drawn moves until then.
      * @param insets - CSS pixels per side.
      */
     public setViewInsets(insets: ViewInsets): void {
         for (const controller of this.controllers.values()) {
-            controller.viewInsets = insets;
-            controller.onResize?.();
+            if (controller.setViewInsets) {
+                controller.setViewInsets(insets);
+            } else {
+                controller.viewInsets = insets;
+            }
         }
     }
 

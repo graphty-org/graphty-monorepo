@@ -15,6 +15,17 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+0. (2026-10-08) **The drawing stays put (element + app, team door).** Three pilot defects, two
+   mechanisms. (a) A run grew the legend card; the app reported a bigger top inset and the element
+   re-framed (`viewInsets` setter called `zoomToFit` under `autoFrame`) and the orbit camera
+   re-centered on the new free area: every node moved and shrank. Now insets never move the
+   camera (`OrbitCameraController.setViewInsets` shifts the pivot by the change in lens shift),
+   and the app's legend calls `zoomToFit()` only when `element.nodesInRect(cardBox)` is not empty
+   (new additive element API). (b) Find's pick called `zoomToSelection`, which TURNS the camera to
+   look at the node (pivotRotation x 0.26): the top of the drawing left the canvas and stayed out.
+   Now the camera turns only for a pick that is off screen (`nodeScreenPosition().visible`). (c) The
+   "empty canvas below the Save dialog" was (b): after the turn, the drawing ended at y 490 and the
+   dialog covered it. Evidence `tmp/r1-dry1-view-stays-put/` (T18B/03-04, T20B/04-05, T19A/02-04).
 - (2026-10-08) **Find rules and edge names (element + app + compact-mantine, team door).**
   `FindOptions.edgeNameJoiner` (element, optional, default unchanged) finds an edge by its name,
   ranked with node names, `match.path` "ends"; the app passes `edgeJoiner(session)` (words.ts), the
@@ -25,7 +36,7 @@ acceptance test. "The studio worktree" is
   Evidence `tmp/r1-dry1-find-rules-polish/` (T22A/02, 03, 05, 06; T22B/02, 04; T24B/02-05).
   OPEN: inspector names an edge's ends by id, Find by name (#895); Columns after "=" omit run
   results (PageRank not offered on Les Miserables).
-0. (2026-10-08) **Path form names and Made with rows (app + element, team door).** From/To boxes
+1. (2026-10-08) **Path form names and Made with rows (app + element, team door).** From/To boxes
    are named "From node"/"To node" (visible "From"/"To" kept), hints differ ("Where the path
    starts/ends"); a click pick moves on like Enter; the first option is active (Enter's pick).
    Popover fold "Advanced", panel fold "Advanced run settings" (`OptionsForm.advancedLabel`);
@@ -34,21 +45,21 @@ acceptance test. "The studio worktree" is
    is one row of what the run read, no select. Element `WeightMeaning.assumed` (team decision):
    "weight, meaning not set, read as closer". Header "Path ran Oct 8" when the row is named after
    its analysis. Evidence `tmp/r1-dry1-path-form-made-with/` (A/02, 03, 08, 11, 13, 15; B/10).
-1. (2026-10-08) **Focus lands on a control (app).** Find path -> the route's first node in Values;
+2. (2026-10-08) **Focus lands on a control (app).** Find path -> the route's first node in Values;
    find pick -> Degree; Degree -> first neighbor, else Hops; saved note -> "+"; project open and
    leaving Data -> the place's rail button (`focusCurrentPlace`). Evidence
    `tmp/r1-dry1-focus-placement/`.
-2. (2026-10-08) **Inspector polish (app + compact-mantine).** Kind and origin as stat rows,
+3. (2026-10-08) **Inspector polish (app + compact-mantine).** Kind and origin as stat rows,
    Results its own section, one neighbor heading form (`neighborhoodWords`), empty number box with
    words (`StyleNumberInput.emptyText`), header right-click opens its menu, label lines carry a
    72px `labelStyle` in one undo step. OPEN: label size is world-space; a screen-fixed size needs an
    element option. Evidence `tmp/r1-dry1-inspector-polish/`.
-3. (2026-10-08) **Filter rows keep their sentence (app).** Outcome as the row description; Save
+4. (2026-10-08) **Filter rows keep their sentence (app).** Outcome as the row description; Save
    step disabled until changed; neighbor filter `aria-pressed`. Evidence `tmp/r1-dry1-filters-polish/`.
-4. (2026-10-08) **Import page in reader words (app + compact-mantine).** `modelWords()`, roles
+5. (2026-10-08) **Import page in reader words (app + compact-mantine).** `modelWords()`, roles
    "From"/"To", `meaningGloss`, role box `aria-label`. Open: hint 11px vs labels 9px. Evidence
    `tmp/r1-dry1-import-*`.
-5. (2026-10-08) Earlier, in place: SegmentedControl `flex-basis: auto`; find hints are
+6. (2026-10-08) Earlier, in place: SegmentedControl `flex-basis: auto`; find hints are
    `Input.Description`; stat readings and PageList descriptions wrap; a reopened run keeps its
    summary (`projectFile.ts`); highlight `#332288` and the selected-edge band (owner doors);
    histogram bands. OPEN: T21 Replace relayouts every node; neighborhood filter has no
@@ -104,6 +115,16 @@ acceptance test. "The studio worktree" is
   equivalent; Esc closes the innermost thing first; focus never falls to the page body.
 
 ## Decisions and reasons
+
+- (2026-10-08) **View insets are margins for the next fit, never a reason to move the drawing.**
+  The consumer that laid something over the canvas decides whether it hides a node, by the shape
+  it knows (`nodesInRect`), and asks for the fit. Reason: insets are bands across the canvas; a
+  corner card covers far less than its band, so "a node under the bands" re-framed the T18B
+  drawing although the card hid nothing. Not breaking: `viewInsets` is new on this branch (master
+  has none). Rejected: re-frame when a node is under the bands (tried, moved T18B), a second
+  switch beside `autoFrame`.
+- (2026-10-08) **Find moves the camera only to show a pick that is off screen.** Reason: turning to
+  every pick (`zoomToSelection`) swings the far side of the drawing off the canvas for good.
 
 - (2026-10-08) **Made with states facts as rows, and the weight once, as what the run read.**
   The weight select left Made with: a rerun with another weight starts from Analyze. Reason: the
@@ -176,6 +197,18 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-06 to 10-08, condensed) Small facts: `--hover` rests on a row's center; a mesh toggled
+  outside an update pass needs `meshesShownOrHidden()`, an edge rebuilt outside a style pass
+  `forceEdgeWalk()`; a layer `set` channel can add a legend block (`keyBlocks` decides).
+- (2026-10-08) Worked: a probe script (`tmp/r1-dry1-view-stays-put/probe.mjs`, own static server,
+  run through `with-browser.sh`) logging `getCameraState()`, canvas rect and `viewInsets` around
+  each step. It named all three mechanisms in two runs: canvas size never changed; insets went
+  top 80 -> 180 with cameraDistance 66.6 -> 77.6; Find left the camera position and rotated the
+  pivot. Did not work: re-framing only when a node lies under the new bands (T18B still moved:
+  its band reached Strozzi beside, not under, the card). A real-element app test of the legend
+  could not measure it: the element is 0 px wide in that harness; a stand-in element in
+  `CanvasOverlays.test.tsx` (spies on `nodesInRect`/`zoomToFit`) does.
+
 - (2026-10-08) Worked: a find option the caller fills with its own words (`edgeNameJoiner`) keeps
   the arrow spelling in the app and the matching in the element. Did not hold: the toolbar real
   test "frames a selected edge's two ends" fails on this branch with or without the find change:
@@ -184,9 +217,6 @@ acceptance test. "The studio worktree" is
   passes alone and failed only inside the full real-element run (its 1 s `waitFor` on "Writing the
   preview..." expired while 20 files drew at once).
 
-- (2026-10-08) The study tool's `combobox ""` in an ambiguity line is its own description
-  (aria-label or innerText or value), not the accessible name: the From box WAS named "From" by
-  its label. The real defects were the shared placeholder and the shared "From" with the table.
 
 - (2026-10-08) Did not work: landing focus on the left panel's tree after open -- Tree typeahead
   claims every one-character key, so the study's single-key shortcuts typed nothing. Worked: a
@@ -203,12 +233,6 @@ acceptance test. "The studio worktree" is
 - (2026-10-08) A Mantine tooltip in a full browser-project run: `findByRole("tooltip")` missed one
   that was in the page with its text (testing-library judged it inaccessible); alone it passed.
   `findByText(...)` then `closest('[role="tooltip"]')` holds in both.
-- (2026-10-08) A world-space label size is never legible everywhere (72 is the compromise; the
-  fix is a screen-space size in the element).
-- (2026-10-08) Adding a `set` channel to a layer can add a legend block: the element lists every
-  literal set; the app's `keyBlocks` decides what is keyed (now skips `*.labelStyle`).
-- (2026-10-08) Unrelated and not mine: toolbar real-element "frames a selected edge's two ends"
-  fails (camera x 13.46 vs 14.07) with another agent's frame/toolbar edits in the tree.
 
 - (2026-10-08) While other agents edit the same worktree, stage only your hunks by writing the
   index blob from HEAD plus your own edits (`git hash-object -w` + `update-index --cacheinfo`);
@@ -254,13 +278,9 @@ acceptance test. "The studio worktree" is
   (`contrastOnPage`). Prove a tool fix with a copy of `real.mjs` with the fix undone;
   concurrent `--prove` runs need `REAL_PROVE_DIR`. "New from data..." opens no file chooser: click
   "Add a table" > "File..." first.
-- (2026-10-07) compact-mantine browser suite is file-order dependent (color test leaves `(hover:
-none)` on; not fixed).
 - (2026-10-07) A partial-hunk commit by another agent can leave HEAD broken (`isLoadedSource`
   cut off; fixed 0c12c233b). `api:report` reads `dist/` types: build the element first, stage
   only my hunks. Bars: 41 app words at rest (limit 50); axe 0 on 13 screens (`tool/bars.mjs`).
-- (2026-10-07) A mesh toggled outside an update pass needs `meshesShownOrHidden()` (frozen
-  active-mesh list); an edge rebuilt outside a style pass needs `forceEdgeWalk()`.
 - (2026-10-07) Study prep: `project.open(file)` does NOT load into the element; `tmp/` is
   gitignored (copy evidence under `rounds/`). Tool: Find `=id == 'A' || id == 'B'`; freeze with
   `REAL_DIST`; add a file to an open project with `--key Control+o --upload`.
@@ -272,8 +292,6 @@ none)` on; not fixed).
   `selection.apply` THROWS SYNCHRONOUSLY on a bad selector (element defect, unfiled). Mantine
   TextInput: `error={text}` + `errorProps={{ role: "alert" }}`; selector `position` is 0-based after "=".
 
-- (2026-10-07) `--hover "<name>"` rests on the row's CENTER; hover a row's words, not its
-  checkbox name, to see a cut-name tooltip.
 - (2026-10-06 to 10-07) **Committing in the shared worktree (condensed).** Others stage and commit
   here continuously: commit from an empty `git diff --cached`, check `git show --stat HEAD` lists
   only my files. For a file others have dirty: a private index (`GIT_INDEX_FILE=<sp>/x.index git
@@ -301,7 +319,6 @@ Infinity, columns: [runId] })` (not `node.data`, not `results.get(run).nodes`). 
   JMESPath (numbers in backticks). Rerunning an algorithm replaces its run id. Single-table source:
   `session.project.open(file)` then `draft.load()`. Audit a tier by grepping the app's command ids
   (`grep -rhn -A1 'id: "' --include=commands.ts`): no command, no door.
-- (2026-10-06) Check a layout against a reference before a study offers it; assert a load on `element.graph.getNodes()` too.
 
 ## Thinking
 

@@ -2075,6 +2075,12 @@ export class Graphty extends LitElement {
     get nodeLabelPath(): string | undefined;
     set nodeLabelPath(value: string | undefined);
     nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined;
+    nodesInRect(rect: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    }): (string | number)[];
     static get observedAttributes(): string[];
     on(type: EventType, callback: EventCallbackType): void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;

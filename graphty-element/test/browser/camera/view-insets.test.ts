@@ -101,6 +101,44 @@ describe("view insets", () => {
         }
     }
 
+    for (const mode of ["2d", "3d"] as const) {
+        it(`${mode}: changing the insets leaves every node where it was drawn until the next fit`, async () => {
+            const nodes = ball();
+            await element.graph.addNodes(nodes);
+            await element.graph.setLayout("fixed", { dim: 3 });
+            await element.graph.waitForSettled();
+            await element.setViewMode(mode);
+            await element.graph.waitForSettled();
+            element.zoomToFit();
+            await frames();
+
+            const before = new Map(nodes.map(({ id }) => [id, element.nodeScreenPosition(id)]));
+            // A key grows over the top of the canvas, as one does when a new channel is painted.
+            element.viewInsets = { top: 150, bottom: 70 };
+            await frames();
+            for (const { id } of nodes) {
+                const was = before.get(id);
+                const now = element.nodeScreenPosition(id);
+                assert.isDefined(was, id);
+                assert.isDefined(now, id);
+                assert.closeTo(now.x, was.x, 0.5, `${id} kept its x`);
+                assert.closeTo(now.y, was.y, 0.5, `${id} kept its y`);
+            }
+
+            // The key hides nodes, so the consumer frames again; the fit keeps clear of the margins.
+            assert.isNotEmpty(element.nodesInRect({ x: 0, y: 0, width: WIDTH, height: 150 }));
+            element.zoomToFit();
+            await frames();
+            for (const { id } of nodes) {
+                const at = element.nodeScreenPosition(id);
+                assert.isDefined(at, id);
+                assert.isAbove(at.y, 150, `${id} is below the top inset`);
+                assert.isBelow(at.y, HEIGHT - 70, `${id} is above the bottom inset`);
+            }
+            assert.isEmpty(element.nodesInRect({ x: 0, y: 0, width: WIDTH, height: 140 }));
+        });
+    }
+
     it("no insets leave every side at 0, and a refused side reads 0", () => {
         assert.deepEqual(element.viewInsets, { top: 0, right: 0, bottom: 0, left: 0 });
         element.viewInsets = { top: -5, left: Number.NaN, right: 12 };

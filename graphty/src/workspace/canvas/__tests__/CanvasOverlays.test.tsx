@@ -3,6 +3,7 @@
  * legend, run and layer reads the cards make, so each state can be held still.
  * `CanvasOverlays.real-element.test.tsx` covers the element.
  */
+import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession, LegendBlock, ProgressChange, RunPainting } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, describe, it, vi } from "vitest";
@@ -98,6 +99,7 @@ function renderOver(
     session: GraphSession,
     state: Partial<WorkspaceState> = {},
     commands: Command[] = [],
+    element: GraphtyElement | null = null,
 ): WorkspaceStore {
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, ...state });
     const registrations =
@@ -110,7 +112,7 @@ function renderOver(
                   })),
                   defineRegistration({ owner: "test", commands }),
               ];
-    const value = makeWorkspaceValue(store, createRegistry(registrations), session, null);
+    const value = makeWorkspaceValue(store, createRegistry(registrations), session, element);
     render(
         <WorkspaceContext.Provider value={value}>
             <CanvasOverlays />
@@ -351,6 +353,22 @@ describe("the legend card", () => {
         });
         assert.deepEqual(store.get().viewInsets, {});
     });
+
+    for (const hides of [true, false]) {
+        it(`frames the graph again ${hides ? "when the card lands on a node" : "never while the card hides no node"}`, async () => {
+            const zoomToFit = vi.fn();
+            const element = {
+                autoFrame: true,
+                nodesInRect: vi.fn(() => (hides ? ["n1"] : [])),
+                zoomToFit,
+            } as unknown as GraphtyElement;
+            const store = renderOver(standIn(facts).session, {}, [], element);
+            await vi.waitFor(() => {
+                assert.notDeepEqual(store.get().viewInsets, {});
+            });
+            assert.equal(zoomToFit.mock.calls.length, hides ? 1 : 0);
+        });
+    }
 
     it("is hidden when the reader switched the legend off", () => {
         renderOver(standIn(facts).session, { legendShown: false });

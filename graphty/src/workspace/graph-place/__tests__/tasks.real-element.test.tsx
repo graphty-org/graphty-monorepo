@@ -133,6 +133,57 @@ describe("the Graph place on the real element", () => {
     );
 
     it(
+        "leaves the camera alone for a pick already on screen, and turns it to one off screen",
+        async () => {
+            const { session } = await openGraph();
+            const element = document.querySelector("graphty-element");
+            assert.isNotNull(element);
+            if (element === null) {
+                return;
+            }
+            // The element's own framing after the layout settles has landed: two reads apart agree.
+            let last = "";
+            await waitFor(
+                async () => {
+                    const now = JSON.stringify(element.getCameraState());
+                    await new Promise((resolve) => setTimeout(resolve, 300));
+                    const same = now === last && now === JSON.stringify(element.getCameraState());
+                    last = now;
+                    assert.isTrue(same && element.nodeScreenPosition(7)?.visible === true);
+                },
+                { timeout: TIMEOUT_MS, interval: 50 },
+            );
+            const pick = async (name: string, id: number): Promise<void> => {
+                const box = screen.getByRole("combobox", { name: "Find" });
+                await userEvent.type(box, name);
+                const list = await screen.findByRole("listbox", { name: "Find results" });
+                await userEvent.click(within(list).getAllByRole("option", { name: new RegExp(name) })[0]);
+                await waitFor(() => {
+                    assert.isTrue(session.selection.has(id));
+                });
+                // Long enough for a camera turn to have landed.
+                await new Promise((resolve) => setTimeout(resolve, 300));
+            };
+
+            const before = JSON.stringify(element.getCameraState());
+            await pick("Eve", 7);
+            assert.equal(JSON.stringify(element.getCameraState()), before, "a pick on screen moves nothing");
+
+            // Turned away from the graph, a pick brings the node back into view.
+            const away = element.getCameraState();
+            await element.setCameraState({ ...away, target: { x: 500, y: 500, z: 500 } });
+            await waitFor(() => {
+                assert.isFalse(element.nodeScreenPosition(4)?.visible);
+            });
+            await pick("Bea", 4);
+            await waitFor(() => {
+                assert.isTrue(element.nodeScreenPosition(4)?.visible);
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
         "says when nothing matches, and offers the value rows",
         async () => {
             await openGraph();

@@ -77,10 +77,11 @@ const CARD_GAP = 12;
  * Reports the card's box to the element as a view inset, on mount, on every resize of the card
  * or the canvas, and clears it when the card goes: on the left of a tall card, above a wide one,
  * whichever costs the canvas the smaller share. Above, the toolbar's height is kept at the bottom.
+ * A new inset moves nothing drawn; only when the card now hides a node is the graph framed again.
  * @returns The ref to put on the card.
  */
 function useReservedMargin(): React.RefObject<HTMLElement | null> {
-    const { store } = useWorkspace();
+    const { store, element } = useWorkspace();
     const ref = useRef<HTMLElement>(null);
     useLayoutEffect(() => {
         const card = ref.current;
@@ -99,6 +100,17 @@ function useReservedMargin(): React.RefObject<HTMLElement | null> {
             const now = store.get().viewInsets;
             if (now.left !== next.left || now.top !== next.top || now.bottom !== next.bottom) {
                 store.set({ viewInsets: next });
+                // The drawing stays put unless the card now hides a node; then it is framed clear of
+                // the card. The fit lands on the next frame, after the new insets reach the element.
+                const box = {
+                    x: card.offsetLeft,
+                    y: card.offsetTop,
+                    width: card.offsetWidth,
+                    height: card.offsetHeight,
+                };
+                if (element?.autoFrame === true && element.nodesInRect(box).length > 0) {
+                    element.zoomToFit();
+                }
             }
         };
         const observer = new ResizeObserver(report);
@@ -109,7 +121,7 @@ function useReservedMargin(): React.RefObject<HTMLElement | null> {
             observer.disconnect();
             store.set({ viewInsets: {} });
         };
-    }, [store]);
+    }, [store, element]);
     return ref;
 }
 

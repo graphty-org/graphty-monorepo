@@ -2177,9 +2177,11 @@ export class Graphty extends LitElement {
      * @remarks
      * Every fit keeps the graph out of them: the framing after a load or a layout change,
      * `zoomToFit()`, and the `fitToGraph` camera view. In 3D the camera also centers what it looks
-     * at on the part left free. Changing them frames the graph again when `autoFrame` is on. A
-     * preference of this view, not part of the project: not saved in a project file. A side left
-     * out is 0.
+     * at on the part left free. Changing them moves nothing: what is drawn stays where it is, and
+     * the next fit keeps clear of the new margins. To frame the graph at once only when the
+     * overlay now hides a node, ask {@link nodesInRect} for its rectangle and call `zoomToFit()`.
+     * A preference of this view, not part of the project: not saved in a project file. A side
+     * left out is 0.
      * @since 3.17.0
      * @example
      * ```typescript
@@ -2198,12 +2200,6 @@ export class Graphty extends LitElement {
     set viewInsets(value: ViewInsets | undefined) {
         const oldValue = this.viewInsets;
         this.#graph.setViewInsets(value);
-        const now = this.viewInsets;
-        const changed = (["top", "right", "bottom", "left"] as const).some((side) => now[side] !== oldValue[side]);
-        if (changed && this.autoFrame) {
-            this.#graph.zoomToFit();
-        }
-
         this.requestUpdate("viewInsets", oldValue);
     }
 
@@ -3756,6 +3752,45 @@ export class Graphty extends LitElement {
      */
     nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined {
         return this.#graph.nodeScreenPosition(nodeId);
+    }
+
+    /**
+     * The nodes drawn, even in part, inside a rectangle of the element -- what something laid over
+     * that part of the canvas hides. A node counts when {@link nodeScreenPosition} calls it visible
+     * and its drawn disc reaches into the rectangle. Read it again after the camera or the layout
+     * moves; it is not a live value.
+     * @param rect - The rectangle, CSS pixels from the element's top-left corner.
+     * @param rect.x - Its left edge.
+     * @param rect.y - Its top edge.
+     * @param rect.width - Its width.
+     * @param rect.height - Its height.
+     * @returns The ids of the nodes inside, in the graph's order; empty when none is.
+     * @since 3.17.0
+     * @example
+     * ```typescript
+     * // A key over the canvas grew: frame the graph again only when it now hides a node.
+     * element.viewInsets = { top: key.offsetTop + key.offsetHeight };
+     * if (element.nodesInRect({ x: key.offsetLeft, y: key.offsetTop, width: key.offsetWidth, height: key.offsetHeight }).length > 0) {
+     *     element.zoomToFit();
+     * }
+     * ```
+     */
+    nodesInRect(rect: { x: number; y: number; width: number; height: number }): (string | number)[] {
+        const inside: (string | number)[] = [];
+        for (const node of this.#graph.getNodes()) {
+            const at = this.#graph.nodeScreenPosition(node.id);
+            if (
+                at?.visible === true &&
+                at.x + at.radius > rect.x &&
+                at.x - at.radius < rect.x + rect.width &&
+                at.y + at.radius > rect.y &&
+                at.y - at.radius < rect.y + rect.height
+            ) {
+                inside.push(node.id);
+            }
+        }
+
+        return inside;
     }
 
     /**

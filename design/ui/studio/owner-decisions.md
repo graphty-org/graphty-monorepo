@@ -4,6 +4,32 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- Decided by the team: view insets never move the drawing, and `nodesInRect` says what an overlay hides
+
+**What.** Setting graphty-element's `viewInsets` (and `Graph.setViewInsets`) no longer moves the
+camera: every node stays where it is drawn, and the next fit keeps clear of the new margins. Before,
+the element framed the graph again on every change while `autoFrame` was on, and the 3D camera also
+re-centered on the new free area at once. The element also gains `nodesInRect({ x, y, width,
+height })`: the ids of the nodes drawn, even in part, inside a rectangle of the element, in CSS
+pixels from its top-left corner. The graphty app's legend card sets its inset and calls
+`zoomToFit()` only when `nodesInRect` of its own box is not empty.
+
+**Why.** Running an analysis grows the legend card; the app reported the bigger card as a new top
+margin, and the element re-framed and re-centered the whole drawing, so every node moved and shrank
+after each run although the card hid none of them. A margin is a band across the canvas, and a card
+in a corner covers far less than its band, so "a node lies under the margins" is the wrong test for
+moving the drawing; only the consumer knows the shape of what it laid over the canvas. Not breaking:
+`viewInsets` and its framing are new on this branch and not in any published release (master's
+graphty-element has no `viewInsets`). `nodesInRect` is additive. Tests:
+`graphty-element/test/browser/camera/view-insets.test.ts` ("changing the insets leaves every node
+where it was drawn until the next fit"), `graphty/src/workspace/canvas/__tests__/CanvasOverlays.test.tsx`
+("frames the graph again when the card lands on a node").
+
+**Alternatives.** Keep the re-framing and re-frame only when a node lies under the new bands (moved
+the drawing whenever a corner card's band reached a node the card did not cover); an option to turn
+the re-framing off (a second switch beside `autoFrame` for behavior nobody wants by default);
+rectangles instead of bands for fitting (a fit around a corner cut-out is a much larger change).
+
 ## 2026-10-08 -- Decided by the team: find an edge by its name (`FindOptions.edgeNameJoiner`)
 
 **What.** graphty-element's `FindOptions` gains an optional `edgeNameJoiner?: string`. Set, `find`

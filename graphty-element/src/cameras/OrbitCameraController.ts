@@ -160,6 +160,23 @@ export class OrbitCameraController {
     }
 
     /**
+     * Take new view insets without moving what is drawn. The lens shift follows the insets, so
+     * the pivot moves by the change in the shift and the camera stays where it is; the next fit
+     * centers the graph on the new free area.
+     * ponytail: until that fit the graph turns about a point off its center by up to half the
+     * inset change; re-center the pivot on the next turn if that ever reads as wrong.
+     * @param insets - CSS pixels per side.
+     */
+    public setViewInsets(insets: ViewInsets): void {
+        const before = this.camera.position.clone();
+        this.viewInsets = insets;
+        this.updateCameraPosition();
+        const moved = before.subtract(this.camera.position);
+        this.pivot.position.addInPlace(Vector3.TransformNormal(moved, this.pivot.computeWorldMatrix(true)));
+        this.pivot.computeWorldMatrix(true);
+    }
+
+    /**
      * Called when the canvas resizes: the shift that centers the free area depends on its aspect.
      */
     public onResize(): void {

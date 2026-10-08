@@ -180,14 +180,24 @@ const css = `
 
 /* Lock / eye: 24 hit targets on a 20 pitch, ending 8 from the panel edge. Hidden until the row
    is hovered or focused; a toggle that is on stays visible. */
+/* The slot gives way before the name does (four times as fast), so a long pinned text (a row's quiet
+   counts) never squeezes the name to nothing; buttons keep their size (their min-content), and a
+   pinned text ellipsizes. */
 .cm-tree-actions {
-    flex: none;
+    flex: 0 4 auto;
+    min-width: 0;
     display: flex;
     align-items: center;
     height: 24px;
     margin-inline-end: 8px;
 }
 .cm-tree-actions > * + * { margin-inline-start: -4px; }
+.cm-tree-actions > [data-pinned]:not(button, :has(button)) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 /* The buttons overlap by 4px (24 targets on a 20 pitch), so the shared button ring (1px outside the
    24 box) would run into the neighbor's glyph. A focused row action rings its 20 pitch instead. */
 .cm-tree-actions :is(.cm-action-icon, .cm-button):is(:focus-visible, [data-state="focus"]) { outline-offset: -2px; }

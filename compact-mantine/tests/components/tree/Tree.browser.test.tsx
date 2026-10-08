@@ -99,6 +99,31 @@ describe("Tree: semantics", () => {
     });
 });
 
+describe("Tree: a long pinned text", () => {
+    it("shares a narrow row with the name instead of squeezing the name to nothing", async () => {
+        const items: TreeNodeData[] = [
+            {
+                id: "passes",
+                name: "passes.csv",
+                actions: <span data-pinned="">17 edges, 1 row left out, and a good deal more text</span>,
+            },
+        ];
+        await renderThemed(
+            <div style={{ width: 200 }}>
+                <Tree label="Sources" items={items} />
+            </div>,
+        );
+        const row = screen.getByRole("treeitem", { name: "passes.csv" });
+        const name = row.querySelector(".cm-tree-name")!.getBoundingClientRect();
+        const pinned = within(row)
+            .getByText(/17 edges/)
+            .getBoundingClientRect();
+        // "passes.csv" is about 55px wide at rest; the pinned text gives way first.
+        expect(name.width).toBeGreaterThan(40);
+        expect(pinned.right).toBeLessThanOrEqual(row.getBoundingClientRect().right);
+    });
+});
+
 describe("Tree: keyboard", () => {
     it("moves with ArrowDown / ArrowUp / Home / End, without selecting", async () => {
         const onSelect = vi.fn();

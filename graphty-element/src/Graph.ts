@@ -115,6 +115,7 @@ import {
     type RendererStatus,
 } from "./managers/RenderManager";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
+import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node } from "./Node";
@@ -326,14 +327,6 @@ export class Graph implements GraphContext {
      * framing waits for a style pass on its way, so it can land any number of frames later.
      */
     #initialCameraStateOwed = false;
-
-    /**
-     * True from the end of `init()` until the load's label animations have started. A layout
-     * that runs starts them when it settles; one that is already at rest when the first frame
-     * with nodes is drawn never settles again, so that frame starts them. Paid by the frame loop,
-     * so a graph disposed first starts nothing.
-     */
-    #labelAnimationsOwed = false;
 
     /**
      * Whether the camera was placed explicitly (`setCameraState` and every route through it) since
@@ -1487,7 +1480,6 @@ export class Graph implements GraphContext {
             window.addEventListener("resize", this.resizeHandler);
 
             this.initialized = true;
-            this.#labelAnimationsOwed = true;
         } catch (error) {
             // Emit error event for user handling
             this.eventManager.emitGraphError(this, error instanceof Error ? error : new Error(String(error)), "init", {
@@ -1521,9 +1513,10 @@ export class Graph implements GraphContext {
                 // Only process settlement events if there are nodes - an empty graph
                 // has nothing to settle, so we shouldn't emit events or log
                 if (this.dataManager.nodes.size > 0) {
-                    if (this.#labelAnimationsOwed && !this.layoutManager.running && !this.layoutManager.building) {
-                        // The layout is at rest with nodes to show, so no settlement is coming.
-                        this.#labelAnimationsOwed = false;
+                    // A label built while the layout is at rest -- by the load, a style layer or
+                    // any later write -- has no settlement coming to start its animation, so the
+                    // first frame at rest does. See `oweLabelAnimations`.
+                    if (!this.layoutManager.running && !this.layoutManager.building && payLabelAnimations(this.scene)) {
                         this.dataManager.startLabelAnimations();
                     }
 
@@ -1533,7 +1526,7 @@ export class Graph implements GraphContext {
                         this.layoutManager.running = false;
 
                         // Start label animations after layout has settled
-                        this.#labelAnimationsOwed = false;
+                        payLabelAnimations(this.scene);
                         this.dataManager.startLabelAnimations();
 
                         // Only zoom to fit on FIRST settlement after data load.

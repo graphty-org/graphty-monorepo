@@ -89,6 +89,19 @@ const mouseUp: BrowserCommand<[]> = async (ctx) => {
     await ctx.page.mouse.up();
 };
 
+/**
+ * Node-side helpers for the measurement harness (tests/harness) and tests/setup.browser.ts. Both
+ * browser projects load that setup file, so both register the same commands.
+ */
+const browserCommands = {
+    figmaAvailable,
+    readFigmaCapture,
+    mouseAway,
+    mouseDown,
+    mouseUp,
+    emulateReducedMotion,
+};
+
 export default defineConfig({
     plugins: [react()],
     test: {
@@ -135,15 +148,7 @@ export default defineConfig({
                         instances: [{ browser: "chromium" }],
                         // Disable file parallelism to prevent race conditions
                         fileParallelism: false,
-                        // Node-side helpers for the measurement harness (tests/harness).
-                        commands: {
-                            figmaAvailable,
-                            readFigmaCapture,
-                            mouseAway,
-                            mouseDown,
-                            mouseUp,
-                            emulateReducedMotion,
-                        },
+                        commands: browserCommands,
                     },
                 },
             },
@@ -160,6 +165,7 @@ export default defineConfig({
                         headless: true,
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
+                        commands: browserCommands,
                         // addon-vitest's default story viewport (DEFAULT_VIEWPORT_DIMENSIONS).
                         viewport: { width: 1200, height: 900 },
                     },

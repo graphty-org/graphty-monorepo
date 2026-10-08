@@ -156,6 +156,20 @@ published types. Every review workflow includes a developer-experience lens and 
 personas in `design/designloom/personas/`, alongside security, evolution and implementability. A
 spec whose simplest example needs internal knowledge fails review.
 
+### Non-breaking API changes need no owner approval
+
+The owner's rule (2026-10-08), for every session and agent: "if there are non-breaking changes to
+APIs, you can make them without getting my approval."
+
+- **Non-breaking** means additive: a new export, method, property, event, error code, attribute or
+  entry point, or a new optional parameter or option whose default keeps today's behavior. Choose
+  its name and shape yourself, state the choice in one line where the work is recorded (the issue,
+  the pull request), and build it. Do not label it `needs-decision` and do not ask.
+- **Breaking** changes are still one-way doors that need the owner: removing or renaming anything
+  public, changing what an existing API does or returns, changing a default, or anything that
+  publishes a major version.
+- When unsure whether a change breaks a consumer, it is breaking.
+
 ### Why
 
 The failure mode this prevents is silent and expensive: a capability lands "in the product"
@@ -908,9 +922,11 @@ that starts the same server from the owner's own shell, which is how the owner s
   `stale` (the branch moved; run it again) or `failed` with the step and the end of the log. It
   refuses a pull request from a fork. The gate is unchanged: it checks CI's own capture against
   what the owner approved, and any image CI draws differently comes back to the owner.
-- Do not end a response with `ACTION NEEDED:` to ask for a visual review. The review page opens on
-  the pull requests waiting for the owner, and `visual-review notify` (under servherd, beside the
-  review server) sends one batched push notification when they become ready.
+- Ask the owner, with a final `ACTION NEEDED:` line, for anything you are actually blocked on,
+  including a screenshot review that is holding up your work. Ask once per item: do not repeat the
+  same request in later messages. A review that is not blocking anything needs no request: the
+  review page opens on the pull requests waiting for the owner, and `visual-review notify` (under
+  servherd, beside the review server) sends one batched push notification when they become ready.
 - To iterate on a story's look before pushing, build its Storybook and capture only that story:
   `node visual-review/trusted/cli.mjs capture --project <p> --out tmp/<task>/<p> --stories <id
   prefix>`, then look at the PNG, or serve it with `--results tmp/<task>`. Such an ad hoc capture

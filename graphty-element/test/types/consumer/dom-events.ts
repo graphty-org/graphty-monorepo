@@ -143,6 +143,25 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
         const { currentNodeId, previousNodeId } = e.detail;
         log(currentNodeId, previousNodeId);
     });
+    element.addEventListener("graph-started", (e) => {
+        log(e.detail.timestamp);
+    });
+    element.addEventListener("layout-changed", (e) => {
+        const { layoutType, options } = e.detail;
+        log(layoutType, options);
+    });
+    element.addEventListener("operation-cancelled", (e) => {
+        const { id, reason } = e.detail;
+        log(id, reason.length);
+    });
+    element.addEventListener("stats-update", (e) => {
+        const { totalUpdates, stats } = e.detail;
+        log(totalUpdates, stats.numNodes, stats.meshCacheHits);
+    });
+    element.addEventListener("input-enabled-changed", (e) => {
+        const { enabled }: { enabled: boolean } = e.detail;
+        log(enabled);
+    });
     element.addEventListener("ai-status-change", (e) => {
         log(e.detail.status);
     });

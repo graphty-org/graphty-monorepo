@@ -4,6 +4,49 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- Export variants and the Graphty JSON format in the format catalog
+
+**What.** Four additions to the format catalog (the `./catalog` and `./extend` entry points):
+
+- `FormatDescriptor.exportVariants`, a new optional list of `FormatExportVariant` (`id`,
+  `plainName`, `extensions`, `mimeTypes`, `preset`, `options`): one entry per kind of file a
+  writer produces. `json` lists seven (Node-link JSON (NetworkX), Cytoscape.js JSON, JSON Graph
+  Format, graphology JSON, vis.js JSON, d3 JSON, OBO Graphs JSON); `csv` lists three (CSV, Gephi
+  CSV, Neo4j CSV). `preset` is the writer options that make that kind of file, passed to
+  `exportGraph` unchanged; `options` is the writer options that still apply to it. Also a new
+  optional `FormatDescriptor.description`.
+- A new export-only format id, `graphty` (Graphty JSON, `.graphty.json`), added to
+  `KNOWN_FORMAT_IDS`. `exportGraph("graphty")` writes the document `session.project.save()`
+  produces without marking the project saved; it takes no options and loses nothing.
+  `session.data.import` refuses it with `E_UNKNOWN_FORMAT`, and format detection never returns
+  it: the file is read back by `session.project.open`.
+- Writer enum choices carry real labels ("Cytoscape.js JSON", "Gephi (Source, Target, Type,
+  Weight)", "Nodes and Relationships") instead of their raw values, and the CSV and Neo4j writer
+  options state the defaults the writer applies (separator, line ending, header row, list
+  separator).
+- Every writer option except CSV's `table` and Neo4j's `part` is marked `advanced`, so a picker
+  can fold it away. "Neutralise Formulas" reads "Neutralize Formulas".
+
+Nothing is removed or renamed; the change is additive.
+
+**Why.** A reader choosing how to save thinks in kinds of file ("a Cytoscape.js file", "a Gephi
+CSV"), not in a format id plus a dialect option. Without variants, every consumer that offers an
+export list has to know which dialect values exist, what to call them and which file ending each
+one gets -- knowledge that lives in graph-io and belongs to the element, not to each app. Without
+the `graphty` format, the one export that reads back exactly (styles, results, layout, notes)
+could not be offered in the same list as the others.
+
+**Alternatives.** Make each variant its own format id (`json-cytoscape`, `csv-gephi`): a flatter
+list, but it multiplies ids that all share one writer and one reader, and import detection would
+have to choose among them. Leave variants to the app: every consumer rebuilds the same table.
+Make `graphty` importable through `data.import`: a project file holds far more than a graph, and
+loading it as data would silently drop its styles and results. Leave the advanced flag off: a
+form shows a dozen options for a simple save.
+
+**Owner question.** Is `graphty` the right public id for the project file in the format list,
+given that `data.import` refuses it? And should `KNOWN_FORMAT_IDS` hold an id that cannot be
+imported, or should export-only ids be listed separately?
+
 ## 2026-10-07 -- Why a selector was refused, as a code: `E_BAD_SELECTOR` `details.reason`
 
 **What.** Every `E_BAD_SELECTOR` refusal now carries `details.reason`, a stable code, beside the

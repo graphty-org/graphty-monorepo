@@ -8,7 +8,7 @@
 
 import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 
-import { type ExportCapabilities, type LossNote } from "../types.js";
+import { type ExportCapabilities } from "../types.js";
 import { COLUMN_AS_PROPERTY_VALUE_CODE, ROLE_ASSUMED_CODE } from "./codes.js";
 import { checkCapabilities, LOSS } from "./export.js";
 import { formatNumber } from "./format.js";
@@ -32,7 +32,8 @@ const SUPERSEDED: ReadonlySet<string> = new Set([
 
 /** The roles the ontology formats have a slot for, and the column names their importers give them. */
 const SLOT_ROLES: ReadonlySet<string> = new Set(["label", "kind"]);
-const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({ label: "name", kind: "relation" });
+const NODE_ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({ label: "name" });
+const EDGE_ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({ kind: "relation" });
 
 /**
  * The roles whose columns are never written as values (their loss notes come from checkCapabilities()).
@@ -335,8 +336,15 @@ export function capabilityNotes(
     const { label, note } = spec;
     let fatal: GraphFormatError | null = null;
     const kind = snapshot.edges.byRole("kind");
-    for (const gen of checkCapabilities(snapshot, spec.caps, common, { roles: SLOT_ROLES, roleNames: ROLE_NAMES })) {
-        if (SUPERSEDED.has(gen.code) || (gen.code === LOSS.COLUMN_NAME_CHANGED && !isSlotRename(gen, label, kind))) {
+    // a node label goes into the name slot and an edge kind into the relation slot, when written there;
+    // an edge label has no slot (it becomes edge qualifiers or metadata), so it is never renamed
+    const extras = {
+        roles: SLOT_ROLES,
+        nodeRoleNames: label === null ? {} : NODE_ROLE_NAMES,
+        edgeRoleNames: kind !== null && isText(kind) ? EDGE_ROLE_NAMES : {},
+    };
+    for (const gen of checkCapabilities(snapshot, spec.caps, common, extras)) {
+        if (SUPERSEDED.has(gen.code)) {
             continue;
         }
         if (gen.code === LOSS.MIXED_DIRECTION_ERROR && fatal === null) {
@@ -382,19 +390,6 @@ function slotlessRoleNotes(snapshot: GraphSnapshot, spec: CapabilityNoteSpec): v
             label.length - label.nullCount,
         );
     }
-}
-
-/**
- * Whether a name-change note is about a column written into its slot: the node label, or a text
- * edge kind column.
- * @param gen - the note
- * @param label - the node label column, or null
- * @param kind - the edge kind column, or null
- * @returns true when it is
- */
-function isSlotRename(gen: LossNote, label: Column | null, kind: Column | null): boolean {
-    const isLabel = label !== null && gen.column === label.meta.name;
-    return isLabel || (kind !== null && gen.column === kind.meta.name && isText(kind));
 }
 
 /**

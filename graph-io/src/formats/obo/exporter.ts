@@ -150,8 +150,8 @@ export const OBO_LOSS = Object.freeze({
      */
     ROLE_ASSUMED: ROLE_ASSUMED_CODE,
     /**
-     * An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the
-     * name the format's importer gives it.
+     * The node label column is written as each node's `name` and reads back as the column `name`. An edge label has no slot:
+     * it is written as a qualifier (W_ROLE_DROPPED and W_OBO_EDGE_COLUMN_AS_QUALIFIER), never under a new name.
      */
     COLUMN_NAME_CHANGED: LOSS.COLUMN_NAME_CHANGED,
     /**

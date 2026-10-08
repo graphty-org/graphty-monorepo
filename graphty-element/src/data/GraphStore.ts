@@ -380,8 +380,12 @@ export class GraphStore {
     private revision = 0;
     /** The edge-id column, mirrored by builder row: what {@link GraphStore.edgeIdAt} reads. */
     private edgeIdByIndex: number[] = [];
-    /** Builder row by edge id: what {@link GraphStore.edgeIndexOf} reads. */
-    private readonly indexByEdgeId: number[] = [];
+    /**
+     * Builder row by edge id: what {@link GraphStore.edgeIndexOf} reads. A map, not an array, as
+     * counters only grow; every compacting freeze rebuilds it from the live rows, so it holds the
+     * live edges plus at most the ones removed since the last freeze.
+     */
+    private readonly indexByEdgeId = new Map<number, number>();
     private pending: PendingPublish | null = null;
     private pendingPositions: PendingPositions | null = null;
     /**
@@ -748,7 +752,7 @@ export class GraphStore {
     stampEdgeId(edgeIndex: number, edgeId: number): void {
         this.builder.setEdgeValue(this.edgeIdHandle, edgeIndex, edgeId);
         this.edgeIdByIndex[edgeIndex] = edgeId;
-        this.indexByEdgeId[edgeId] = edgeIndex;
+        this.indexByEdgeId.set(edgeId, edgeIndex);
     }
 
     /**
@@ -800,7 +804,7 @@ export class GraphStore {
     edgeIndexOf(edgeId: number): number {
         // First, so the index below is not read from before a structural change still waiting.
         this.settle();
-        const index = this.indexByEdgeId[edgeId];
+        const index = this.indexByEdgeId.get(edgeId);
         return index !== undefined && this.edgeIdByIndex[index] === edgeId && this.builder.hasEdge(index)
             ? index
             : INVALID_INDEX;
@@ -1442,7 +1446,7 @@ export class GraphStore {
         }
 
         this.edgeIdByIndex = [];
-        this.indexByEdgeId.length = 0;
+        this.indexByEdgeId.clear();
         const baseNode = new Uint32Array(base?.nodeCount ?? 0).fill(INVALID_INDEX);
         const baseEdge = new Uint32Array(base?.edgeCount ?? 0).fill(INVALID_INDEX);
         for (const row of nodeRows) {
@@ -1735,6 +1739,8 @@ export class GraphStore {
         }
 
         const moved: number[] = [];
+        // Rebuilt from the surviving rows: the entries of removed edges go with their rows.
+        this.indexByEdgeId.clear();
         for (const [index, edgeId] of this.edgeIdByIndex.entries()) {
             const next = remap[index] ?? INVALID_INDEX;
             if (edgeId === undefined || next === INVALID_INDEX) {
@@ -1742,7 +1748,7 @@ export class GraphStore {
             }
 
             moved[next] = edgeId;
-            this.indexByEdgeId[edgeId] = next;
+            this.indexByEdgeId.set(edgeId, next);
         }
 
         this.edgeIdByIndex = moved;

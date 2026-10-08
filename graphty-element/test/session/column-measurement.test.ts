@@ -8,6 +8,7 @@ import { assert, describe, it } from "vitest";
 
 import { algorithmByKey } from "../../src/catalog/algorithms";
 import type { AttributeDescriptor } from "../../src/catalog/types";
+import { EDGE_CONSTANTS } from "../../src/constants/meshConstants";
 import { isGraphtyError } from "../../src/errors";
 import { createGraphSession } from "../../src/session";
 import { createRunResult } from "../../src/session/results";
@@ -165,7 +166,7 @@ describe("encoding a column", () => {
         graph.dispose();
     });
 
-    it("sizes by a run over the same default range a column gets, on node.size and edge.width (#915)", async () => {
+    it("sizes by a run over the same default range a column gets, on node.size and edge.width (#915, #1506)", async () => {
         // Degree publishes a number per node and max-flow one per edge; the values do not matter
         // here, only that each run publishes an amount its channel sizes by.
         const execute = (context: RunExecutionContext): Promise<RunOutcome> => {
@@ -219,15 +220,18 @@ describe("encoding a column", () => {
         const degree = await graph.runs.start("degree", undefined, { style: false });
         const flow = await graph.runs.start("max-flow", { source: "n0", sink: "n39" }, { style: false });
 
-        for (const [run, field, columnRef, channel] of [
-            [degree.runId, undefined, column(graph, "score"), "node.size"],
-            [flow.runId, "value", capacity, "edge.width"],
+        // Each range starts at its half's unencoded default, so the lowest-ranked element looks
+        // exactly like an unencoded one: node size 1, edge width EDGE_CONSTANTS.DEFAULT_LINE_WIDTH.
+        const edgeWidth = EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
+        for (const [run, field, columnRef, channel, expected] of [
+            [degree.runId, undefined, column(graph, "score"), "node.size", [1, 3]],
+            [flow.runId, "value", capacity, "edge.width", [edgeWidth, edgeWidth * 2]],
         ] as const) {
             const fromColumn = graph.styles.proposeEncoding({ column: columnRef, channel });
             const fromRun = graph.styles.proposeEncoding({ run, field, channel });
             assert.isTrue(fromColumn.ok && fromRun.ok, channel);
             const columnRange = fromColumn.ok ? fromColumn.binding.range : undefined;
-            assert.deepEqual(columnRange, [1, 3], channel);
+            assert.deepEqual(columnRange, [...expected], channel);
             assert.deepEqual(fromRun.ok ? fromRun.binding.range : undefined, columnRange, channel);
 
             const layer = await graph.styles.encode({ run, field, channel });
@@ -316,7 +320,10 @@ describe("encoding a column", () => {
             channel: "edge.width",
         });
         assert.deepInclude(node.ok ? node.binding : {}, { by: "data.shared chapters", scale: "ordinal" });
-        assert.deepInclude(edge.ok ? edge.binding : {}, { scale: "linear", range: [1, 3] });
+        assert.deepInclude(edge.ok ? edge.binding : {}, {
+            scale: "linear",
+            range: [EDGE_CONSTANTS.DEFAULT_LINE_WIDTH, EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 2],
+        });
         graph.dispose();
     });
 

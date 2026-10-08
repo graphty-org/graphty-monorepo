@@ -54,6 +54,21 @@ export type GraphEvent =
     | StyleChangedEvent
     | SelectionChangedEvent;
 
+/** A graph event type that stays inside the element: see {@link INTERNAL_EVENT_TYPES}. */
+export type InternalEventType = GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"];
+
+/**
+ * The unprefixed events `<graphty-element>` forwards to the DOM, by name: every graph and AI event
+ * except the element-internal ones, each a `CustomEvent` whose `detail` is the internal event.
+ *
+ * They are typed by the element's own `addEventListener` and `removeEventListener` rather than on
+ * the global `HTMLElementEventMap`: the names carry no prefix, so a global declaration would type
+ * `style-changed` on every element of the page, and `error` is already `ErrorEvent` there.
+ */
+export type GraphtyForwardedEventMap = {
+    [K in Exclude<GraphEventType | AiEventType, InternalEventType>]: CustomEvent<EventOfType<K>>;
+};
+
 /**
  * The graph event types that stay INSIDE the element: emitted on the internal graph observable so
  * the element's own managers can react, and never re-dispatched to the DOM.
@@ -70,10 +85,12 @@ export type GraphEvent =
  * To keep a new internal event off the DOM, add its type to this set. Nothing else changes: the
  * forwarder asks {@link isDomForwardableEvent}, which is the only place the decision is made.
  */
+// The literals stay in this initializer: scripts/dom-events.mjs reads them from here to leave these
+// events out of the custom elements manifest.
 export const INTERNAL_EVENT_TYPES: ReadonlySet<GraphEventType> = new Set<GraphEventType>([
     "snapshot-replaced",
     "snapshot-dropped",
-]);
+] satisfies InternalEventType[]);
 
 /**
  * Whether a graph event may leave the element as a DOM CustomEvent.

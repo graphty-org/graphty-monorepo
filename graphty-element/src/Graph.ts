@@ -5117,7 +5117,7 @@ export class Graph implements GraphContext {
             });
 
             // Animate the dummy object
-            const animatable = this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1.0, () => {
+            const animatable = this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1, () => {
                 // Cleanup observer
                 this.scene.onBeforeRenderObservable.remove(observer);
 
@@ -5313,7 +5313,7 @@ export class Graph implements GraphContext {
                     }
                 };
 
-                this.scene.beginAnimation(orbitController.pivot, 0, frameCount, false, 1.0, () => {
+                this.scene.beginAnimation(orbitController.pivot, 0, frameCount, false, 1, () => {
                     // Wait for distance animation to complete
                     const finalize = async (): Promise<void> => {
                         if (distanceAnimation) {
@@ -5574,7 +5574,7 @@ export class Graph implements GraphContext {
             });
 
             // Animate dummy object
-            const animatable = this.scene.beginDirectAnimation(dummy, animations, 0, frameCount, false, 1.0, () => {
+            const animatable = this.scene.beginDirectAnimation(dummy, animations, 0, frameCount, false, 1, () => {
                 // Apply final values exactly from dummy (already calculated during animation)
                 if (targetState.pan) {
                     twoDController.camera.position.x = dummy.posX;

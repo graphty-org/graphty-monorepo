@@ -190,7 +190,7 @@ export class PivotController {
     reset(): void {
         this.pivot.position = Vector3.Zero();
         this.pivot.rotationQuaternion = Quaternion.Identity();
-        this.pivot.scaling.setAll(1.0);
+        this.pivot.scaling.setAll(1);
         this.accumulatedYaw = 0;
         this.accumulatedPitch = 0;
         logger.debug("Reset to initial state");

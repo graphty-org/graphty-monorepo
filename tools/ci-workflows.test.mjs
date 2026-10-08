@@ -233,72 +233,32 @@ describe("the pre-push gate matches CI", () => {
         }
     });
 
-    // A copy of the runner in a throwaway repository, beside a fake matrix of these shards, a fake
-    // run-tests.sh with this body, and a test-slots.mjs that only runs its command.
-    const fakeRunner = (names, runTests) => {
+    it("ends non-zero when a shard fails, even after its log stream ended and while another shard runs", () => {
+        // A copy of the runner beside a fake matrix and a fake run-tests.sh, in a throwaway repository:
+        // "broken" closes its output (so the log stream has finished) and then fails; "slow" is still
+        // running then and is stopped. The stopped shard closing last must still end the stage.
         const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
-        mkdirSync(join(dir, "tools"));
-        copyFileSync(new URL("./prepush-tests.mjs", import.meta.url), join(dir, "tools/prepush-tests.mjs"));
-        const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
-        writeFileSync(
-            join(dir, "tools/ci-test-matrix.mjs"),
-            `export const SHARDS = ${JSON.stringify(names.map(shard))};\n`,
-        );
-        writeFileSync(join(dir, "tools/run-tests.sh"), runTests);
-        writeFileSync(
-            join(dir, "tools/test-slots.mjs"),
-            'import { spawnSync } from "node:child_process";\n' +
-                'process.exit(spawnSync(process.argv[2], process.argv.slice(3), { stdio: "inherit" }).status ?? 1);\n',
-        );
-        assert.equal(spawnSync("git", ["init", "-q"], { cwd: dir }).status, 0);
-        const run = () =>
-            spawnSync(process.execPath, ["tools/prepush-tests.mjs", JSON.stringify(names)], {
+        try {
+            mkdirSync(join(dir, "tools"));
+            copyFileSync(new URL("./prepush-tests.mjs", import.meta.url), join(dir, "tools/prepush-tests.mjs"));
+            const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
+            writeFileSync(
+                join(dir, "tools/ci-test-matrix.mjs"),
+                `export const SHARDS = ${JSON.stringify([shard("broken"), shard("slow")])};\n`,
+            );
+            writeFileSync(
+                join(dir, "tools/run-tests.sh"),
+                'if [ "$1" = broken ]; then echo broken output; exec >&- 2>&-; sleep 1; exit 1; fi\nexec sleep 60\n',
+            );
+            assert.equal(spawnSync("git", ["init", "-q"], { cwd: dir }).status, 0);
+            const run = spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["broken","slow"]'], {
                 cwd: dir,
                 encoding: "utf8",
                 timeout: 60_000,
             });
-        return { dir, run };
-    };
-
-    it("ends non-zero when a shard fails, even after its log stream ended and while another shard runs", () => {
-        // "broken" closes its output (so the log stream has finished) and then fails; "slow" is still
-        // running then and is stopped. The stopped shard closing last must still end the stage.
-        const { dir, run: start } = fakeRunner(
-            ["broken", "slow"],
-            'if [ "$1" = broken ]; then echo broken output; exec >&- 2>&-; sleep 1; exit 1; fi\nexec sleep 60\n',
-        );
-        try {
-            const run = start();
             assert.match(run.stdout, /\[FAIL\] broken \(exit 1/);
             assert.match(run.stdout, /Stopped after broken failed/);
             assert.equal(run.status, 1, run.stdout + run.stderr);
-        } finally {
-            rmSync(dir, { recursive: true, force: true });
-        }
-    });
-
-    it("keeps a failed shard's test name and error where the next push does not overwrite them (#1562)", () => {
-        // The shard prints tmp/fake-output and fails; the second run overwrites tmp/prepush-tests/fake.log.
-        const { dir, run } = fakeRunner(["fake"], "cat tmp/fake-output; exit 1\n");
-        try {
-            mkdirSync(join(dir, "tmp"));
-            writeFileSync(
-                join(dir, "tmp/fake-output"),
-                " FAIL  src/a.test.ts > draws the edge\nError: Test timed out in 5000ms.\n",
-            );
-            const first = run();
-            assert.equal(first.status, 1, first.stdout + first.stderr);
-            const kept = /\[FAIL\] fake: its whole log is kept in (\S+)/.exec(first.stdout)?.[1];
-            assert.ok(kept?.startsWith(join(dir, "tmp/push-gate-logs/")), first.stdout);
-
-            writeFileSync(join(dir, "tmp/fake-output"), " FAIL  src/b.test.ts > another test\nError: fetch failed\n");
-            assert.equal(run().status, 1);
-            assert.match(readFileSync(join(dir, "tmp/prepush-tests/fake.log"), "utf8"), /fetch failed/);
-
-            const firstLog = readFileSync(kept, "utf8");
-            assert.match(firstLog, /FAIL {2}src\/a\.test\.ts > draws the edge/);
-            assert.match(firstLog, /Test timed out in 5000ms/);
-            assert.equal(readdirSync(join(dir, "tmp/push-gate-logs")).length, 2);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
@@ -2545,5 +2505,48 @@ describe("tests that run git", () => {
             });
         assert.deepEqual(bare, [], "these run git without isolateGit() or isolatedGitEnv()");
         assert.match(readFileSync(join(root, "visual-review/vitest.config.mjs"), "utf8"), /isolate-git\.setup\.mjs/);
+    });
+});
+
+describe("a failed pre-push test shard (#1562)", () => {
+    it("keeps its test name and error where the next push does not overwrite them", () => {
+        // A copy of the runner and test-slots.mjs in a throwaway repository, beside a one-shard matrix
+        // and a run-tests.sh that prints tmp/fake-output and fails. The second run overwrites
+        // tmp/prepush-tests/fake.log; the first run's copy under tmp/push-gate-logs/ must survive.
+        const dir = mkdtempSync(join(tmpdir(), "prepush-kept-log-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            mkdirSync(join(dir, "tmp"));
+            for (const f of ["prepush-tests.mjs", "test-slots.mjs"]) {
+                copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
+            }
+            const shard = { shard: "fake", package: "fake", "test-command": "true", "needs-browser": false };
+            writeFileSync(join(dir, "tools/ci-test-matrix.mjs"), `export const SHARDS = ${JSON.stringify([shard])};\n`);
+            writeFileSync(join(dir, "tools/run-tests.sh"), "cat tmp/fake-output; exit 1\n");
+            assert.equal(spawnSync("git", ["init", "-q"], { cwd: dir }).status, 0);
+            const run = (output) => {
+                writeFileSync(join(dir, "tmp/fake-output"), output);
+                return spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["fake"]'], {
+                    cwd: dir,
+                    encoding: "utf8",
+                    timeout: 60_000,
+                });
+            };
+
+            const first = run(" FAIL  src/a.test.ts > draws the edge\nError: Test timed out in 5000ms.\n");
+            assert.equal(first.status, 1, first.stdout + first.stderr);
+            const kept = /\[FAIL\] fake: its whole log is kept in (\S+)/.exec(first.stdout)?.[1];
+            assert.ok(kept?.startsWith(join(dir, "tmp/push-gate-logs/")), first.stdout);
+
+            assert.equal(run(" FAIL  src/b.test.ts > another test\nError: fetch failed\n").status, 1);
+            assert.match(readFileSync(join(dir, "tmp/prepush-tests/fake.log"), "utf8"), /fetch failed/);
+
+            const firstLog = readFileSync(kept, "utf8");
+            assert.match(firstLog, /FAIL {2}src\/a\.test\.ts > draws the edge/);
+            assert.match(firstLog, /Test timed out in 5000ms/);
+            assert.equal(readdirSync(join(dir, "tmp/push-gate-logs")).length, 2);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 });

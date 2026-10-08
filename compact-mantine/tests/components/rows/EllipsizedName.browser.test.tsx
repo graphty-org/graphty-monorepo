@@ -45,4 +45,65 @@ describe("a name that ellipsizes", () => {
         await userEvent.hover(screen.getByText(LONG));
         expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(LONG);
     });
+
+    it("shows the whole name when the pointer rests on the rest of a Tree row, such as its count", async () => {
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <Tree
+                    label="Filters"
+                    items={[
+                        {
+                            id: "a",
+                            name: "shared_chapters is at least 5",
+                            actions: (
+                                <>
+                                    <span>20 to 19 nodes</span>
+                                    <input type="checkbox" aria-label="Apply step" />
+                                </>
+                            ),
+                        },
+                    ]}
+                />
+            </div>,
+        );
+        await userEvent.hover(screen.getByText("20 to 19 nodes"));
+        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(
+            "shared_chapters is at least 5",
+        );
+    });
+
+    it("leaves a control in the row to its own tooltip", async () => {
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <Tree
+                    label="Filters"
+                    items={[
+                        {
+                            id: "a",
+                            name: "shared_chapters is at least 5",
+                            actions: (
+                                <>
+                                    <span>20 to 19 nodes</span>
+                                    <input type="checkbox" aria-label="Apply step" />
+                                </>
+                            ),
+                        },
+                    ]}
+                />
+            </div>,
+        );
+        await userEvent.hover(screen.getByRole("checkbox", { name: "Apply step" }));
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        expect(screen.queryByRole("tooltip")).toBeNull();
+    });
+
+    it("shows the whole name when the pointer rests on a DataRow's value", async () => {
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <DataRow stat name={LONG} value="1 to 36, mean 6.597" />
+            </div>,
+        );
+        await userEvent.hover(screen.getByTestId("data-row-value"));
+        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(LONG);
+    });
 });

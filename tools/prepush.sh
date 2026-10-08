@@ -266,13 +266,16 @@ if [ -z "$PROJECT_LIST" ]; then
     exit "$FAILED"
 fi
 
-# Lint the affected packages
-run_step "Lint" "NX_DAEMON=false pnpm exec nx run-many -t lint --projects=$PROJECT_LIST --parallel=3 --skip-nx-cache"
+# Lint the affected packages. --skip-nx-cache: every lint really runs. --exclude-task-dependencies:
+# lint's dependsOn would otherwise rebuild, cache skipped too, every package it depends on -- the
+# Build step above already built each of them (nx: build dependsOn ^build) or restored it from nx's
+# cache on identical inputs, which nx shares across this repository's worktrees. That rebuild cost a
+# graphty-only push the whole chain a second time.
+run_step "Lint" "NX_DAEMON=false pnpm exec nx run-many -t lint --projects=$PROJECT_LIST --parallel=3 --skip-nx-cache --exclude-task-dependencies"
 
-# Start the SonarQube step only after Lint: Lint (--skip-nx-cache) rebuilds the packages it depends
-# on, and each build deletes its dist/ first. The scanner walks the whole tree and dies with
-# NoSuchFileException when a folder vanishes mid-walk (seen 2026-10-02). No later step rewrites a
-# dist/. It is joined just before the summary.
+# Start the SonarQube step only after Lint. A build deletes its dist/ first, and the scanner walks the
+# whole tree and dies with NoSuchFileException when a folder vanishes mid-walk (seen 2026-10-02); no
+# step from here on rewrites a dist/. It is joined just before the summary.
 start_sonar
 
 # Pack every published package and compare the files it would ship with its package.json: an

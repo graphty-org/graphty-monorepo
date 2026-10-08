@@ -72,7 +72,7 @@
     "targetDefaults": {
         "build": {
             "dependsOn": ["^build"],
-            "inputs": ["production", "^production"],
+            "inputs": ["production", "^production", { "runtime": "node --version" }],
             "outputs": ["{projectRoot}/dist"],
             "cache": true
         },

@@ -141,7 +141,7 @@ export class D3GraphEngine extends LayoutEngine {
     newNodeMap = new Map<Node, D3InputNode>();
     newEdgeMap = new Map<Edge, D3InputEdge>();
     /** Each node id's edges, so removing a node visits only its own edges (issue #1425). */
-    private edgesByNode = new Map<Edge["srcId"], Set<Edge>>();
+    private readonly edgesByNode = new Map<Edge["srcId"], Set<Edge>>();
     reheat = false;
 
     /**
@@ -474,7 +474,8 @@ export class D3GraphEngine extends LayoutEngine {
      * @param n - the node leaving the graph
      */
     override removeNode(n: Node): void {
-        for (const edge of [...(this.edgesByNode.get(n.id) ?? [])]) {
+        // removeEdge deletes the visited edge from this set, which Set iteration allows.
+        for (const edge of this.edgesByNode.get(n.id) ?? []) {
             this.removeEdge(edge);
         }
 

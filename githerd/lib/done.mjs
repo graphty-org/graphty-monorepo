@@ -156,7 +156,7 @@ async function mergedAnswer(number, view, issue) {
     const ownRepo = pull?.head?.repo?.full_name === pull?.base?.repo?.full_name;
     if (pull?.state === "open" && pull.head?.sha && ownRepo) return { ciPending: pull.head.sha };
     if (!pull?.merged || pull.base?.ref !== branch) {
-        return { missing: [`#${number} is not an open pull request githerd has polled, nor merged into ${branch}`] };
+        return { missing: [`#${number} is not an open pull request of this repository, nor merged into ${branch}`] };
     }
     if (issue !== null && !new RegExp(String.raw`#${issue}(?!\d)`).test(pull.body ?? "")) {
         return { missing: [`#${number} merged but does not name #${issue} in its description`] };
@@ -417,7 +417,12 @@ function reviewAnswer(job, report) {
  */
 async function titleAnswer(number, view) {
     const rec = view.state.prs?.[String(number)];
-    if (!rec) return { missing: [`#${number} is not an open pull request githerd has polled`] };
+    if (!rec) {
+        // Opened since the last poll: its checks are pending until the poll reads them.
+        const pull = await view.io.pull(number);
+        if (pull?.state === "open" && pull.head?.sha) return { ciPending: pull.head.sha };
+        return { missing: [`#${number} is not an open pull request`] };
+    }
     const state = await view.io.checkRun(rec.headSha, TITLE_CHECK);
     if (state === "SUCCESS") return { holds: true };
     if (state === "FAILURE") return { missing: [`${TITLE_CHECK} fails on ${rec.headSha.slice(0, 9)}`] };

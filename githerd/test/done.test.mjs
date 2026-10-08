@@ -534,6 +534,12 @@ describe("verifyClaim", () => {
         expect(await verifyClaim(working("pr", "7"), report(), view(s))).toEqual({ ciPending: HEAD });
         const title = view(state(), fakeIo({ checkRun: async () => "CANCELLED" }));
         expect(await verifyClaim(working("title", "7"), report(), title)).toEqual({ ciPending: HEAD });
+        // Opened since the last poll: GitHub says it is open, so its checks are pending.
+        const unpolled = view(
+            state({ prs: {} }),
+            fakeIo({ pull: async () => ({ state: "open", head: { sha: HEAD } }) }),
+        );
+        expect(await verifyClaim(working("title", "8"), report(), unpolled)).toEqual({ ciPending: HEAD });
         const mixed = state({
             prs: { 7: pr({ required: { "All Checks Pass": "CANCELLED", "Lint PR Title": "FAILURE" } }) },
         });

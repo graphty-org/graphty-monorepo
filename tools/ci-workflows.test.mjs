@@ -56,11 +56,11 @@ const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 13 jobs", () => {
+    it("runs every shard exactly once on a full run, in 16 jobs", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 13);
+        assert.equal(include.length, 16);
     });
 
     it("puts only the affected members into a group's job", () => {
@@ -224,7 +224,14 @@ describe("the pre-push gate matches CI", () => {
         assert.match(code(tool("run-tests.sh")), /export FONTCONFIG_FILE="\$ROOT\/visual-fonts\/fonts.conf"/);
         assert.match(code(tool("prepush-tests.mjs")), /"bash", "tools\/run-tests.sh", shard.shard/);
         for (const s of SHARDS) {
-            const shared = SHARDS.filter((x) => x.package === s.package && / --coverage/.test(x["test-command"]));
+            // A shard that names its own COVERAGE_DIR (webgpu-graph-algorithms' device-error pass) writes
+            // where no other shard does.
+            const shared = SHARDS.filter(
+                (x) =>
+                    x.package === s.package &&
+                    / --coverage/.test(x["test-command"]) &&
+                    !/COVERAGE_DIR=/.test(x["test-command"]),
+            );
             assert.deepEqual(
                 shardEnv(s),
                 shared.length > 1 ? { COVERAGE_DIR: `.coverage-parts/${s.shard}` } : {},
@@ -647,7 +654,7 @@ describe("ci.yml", () => {
         // light is set only on a push; every other event takes the affected (pull request) or full path
         assert.equal(build.match(/echo "light=true"/g).length, 1);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 13, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, 16, "a full run is every shard");
         // no test-type job is limited to pushes or to master
         for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);

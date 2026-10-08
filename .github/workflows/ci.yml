@@ -750,7 +750,7 @@ jobs:
             # pipes cores to a program, and the kernel ignores RLIMIT_CORE for a piped pattern (core(5)). A plain
             # file pattern makes the limit bind. Issue #273.
             - name: Write core dumps to a file so the shard's ulimit -c 0 holds
-              if: matrix.shard == 'webgpu-graph-algorithms-node'
+              if: matrix.needs-lavapipe
               run: echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)" && sudo sysctl -w kernel.core_pattern=core
 
             - name: Run tests
@@ -816,6 +816,8 @@ jobs:
                   retention-days: 1
                   if-no-files-found: ignore
 
+            # The node shards of webgpu-graph-algorithms (tools/ci-test-matrix.mjs): two of the four write
+            # coverage. The node project's report is the one its thresholds judge; coverage.yml merges both.
             - name: Upload coverage (webgpu-graph-algorithms)
               if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node' }}
               uses: actions/upload-artifact@v4
@@ -826,14 +828,15 @@ jobs:
                   if-no-files-found: error
                   overwrite: true
 
-            # The device-error project's own run: a second artifact for the same package, which
+            # The device-error project's own shard: a second artifact for the same package, which
             # tools/merge-coverage.sh collects by the coverage-<package>-<shard> prefix and merges with the one
-            # above before rewriting the paths (it already does this for the graphty-element shards).
+            # above before rewriting the paths (it already does this for the graphty-element shards). Its
+            # name is the one it had when this pass ran inside the node shard.
             - name: Upload coverage (webgpu-graph-algorithms, the device-error project)
-              if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node' }}
+              if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node-device-errors' }}
               uses: actions/upload-artifact@v4
               with:
-                  name: coverage-${{ matrix.shard }}-device-errors
+                  name: coverage-webgpu-graph-algorithms-node-device-errors
                   path: webgpu-graph-algorithms/.coverage-parts/device-errors/lcov.info
                   retention-days: 1
                   if-no-files-found: error

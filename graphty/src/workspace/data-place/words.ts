@@ -5,7 +5,9 @@
  */
 
 import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
-import type { CodedFact, ColumnRef, ImportReport, LoadedSource } from "@graphty/graphty-element/session";
+import type { CodedFact, ColumnRef, ImportReport, LeftOutEdge, LoadedSource } from "@graphty/graphty-element/session";
+
+import { valueText } from "../inspector/words";
 
 /** What a Sources row's glyph shows: a graph file holding both tables, or one table. */
 export type SourceKind = "file" | "nodes" | "edges";
@@ -77,13 +79,33 @@ function leftOutWords(load: LoadedSource): string {
 }
 
 /**
+ * The nodes an edge row names that are in no node row: "a node", or "2 nodes".
+ * @param values - how many distinct such names.
+ * @returns the words.
+ */
+export function missingNodes(values: number): string {
+    return `${values === 1 ? "a node" : count(values, "node")} missing from the node rows`;
+}
+
+/**
  * The sentence that says why a load left rows out, for the inspector.
  * @param leftOut - `LoadedSource.leftOut`.
- * @returns such as "1 edge row was left out: it names 1 node no node row holds."
+ * @returns such as "1 edge row was left out: it names a node missing from the node rows."
  */
 export function leftOutSentence(leftOut: NonNullable<LoadedSource["leftOut"]>): string {
     const one = leftOut.rows === 1;
-    return `${count(leftOut.rows, "edge row")} ${one ? "was" : "were"} left out: ${one ? "it names" : "they name"} ${count(leftOut.values, "node")} no node row holds.`;
+    return `${count(leftOut.rows, "edge row")} ${one ? "was" : "were"} left out: ${one ? "it names" : "they name"} ${missingNodes(leftOut.values)}.`;
+}
+
+/**
+ * One left-out row as a line: its two ends, then its other values.
+ * @param edge - the row, as its load kept it.
+ * @returns such as "p11, p13, 6".
+ */
+export function leftOutRow(edge: LeftOutEdge): string {
+    return [edge.source, edge.target, ...Object.values(edge.values)]
+        .map((value) => (value === null || value === undefined ? "" : valueText(value)))
+        .join(", ");
 }
 
 /**

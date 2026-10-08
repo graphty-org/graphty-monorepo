@@ -125,8 +125,9 @@ const LOADED = "\u0000loaded";
  * The Weight line (tier2-design.md section 5): the loaded weight first, then None, then the
  * graph's other number edge columns, each with the meaning this run would read it as. Absent
  * reads the loaded weight, null none, a column name overrides it for this run. Whether the loaded
- * weight would be read is the element's rule: its plan for the run says, and a loaded weight it
- * would leave unread is labeled so, with the reason under the box.
+ * weight would be read is the element's rule: its plan for the run says. The box shows what the
+ * run will read, so a loaded weight it would leave unread shows None, with the reason under the
+ * box, and is listed as "not read" but cannot be chosen.
  * @param props - Component props
  * @param props.session - The element's session
  * @param props.value - The value set
@@ -172,13 +173,20 @@ function WeightField({
             live = false;
         };
     }, [session, algorithm, loadedAttribute, loadedMeaning]);
-    const data =
+    // A loaded weight the run would leave unread is listed, so the reader sees it is there, but
+    // not offered: choosing it would run exactly as None does.
+    const data: { value: string; label: string; disabled?: boolean }[] =
         loaded === null
             ? []
             : [
                   {
                       value: LOADED,
-                      label: weightName(loaded.attribute, loaded.meaning, unread === null ? "loaded" : "loaded, not read"),
+                      label: weightName(
+                          loaded.attribute,
+                          loaded.meaning,
+                          unread === null ? "loaded" : "loaded, not read",
+                      ),
+                      ...(unread === null ? {} : { disabled: true }),
                   },
               ];
     data.push({ value: "", label: "None" });
@@ -191,17 +199,19 @@ function WeightField({
             data.push({ value: column.name, label: weightName(column.plainName, reads) });
         }
     }
+    // The box shows what the run will read: the loaded weight when it is read, else None.
     let shown = typeof value === "string" ? value : "";
     if (value === undefined || (loaded !== null && value === loaded.attribute)) {
-        shown = loaded === null ? "" : LOADED;
+        shown = loaded === null || unread !== null ? "" : LOADED;
     }
+    const unreadLoaded = unread !== null && (value === undefined || value === loaded?.attribute);
     return (
         <Select
             size="xs"
             label={label}
             value={shown}
-            // "Not read -- weight has no meaning chosen, and a path needs a distance".
-            description={shown === LOADED && unread !== null ? unread.replace(/^n/, "N") : undefined}
+            // "Not read -- weight has no meaning chosen, and a path needs a distance", under None.
+            description={unreadLoaded ? unread.replace(/^n/, "N") : undefined}
             data={data}
             allowDeselect={false}
             comboboxProps={{ withinPortal: false }}

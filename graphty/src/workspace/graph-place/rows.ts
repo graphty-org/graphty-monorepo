@@ -5,9 +5,15 @@
  */
 
 import type { Channel, LayerId, RunId } from "@graphty/graphty-element/catalog";
-import { type GraphSession, RESULT_SHAPE_CONTRACTS, type StaleReason } from "@graphty/graphty-element/session";
+import {
+    type GraphSession,
+    RESULT_SHAPE_CONTRACTS,
+    type Run,
+    type StaleReason,
+} from "@graphty/graphty-element/session";
 
 import { runName } from "../analyze/words";
+import { count } from "../inspector/words";
 import { colorBlockOf, EVERYTHING_KEY, groupHidden, runColorOf } from "../style/row";
 
 /** The kind of a row, which is also the inspected kind a click on it opens (the inspector's kinds). */
@@ -32,8 +38,11 @@ export interface PaintRow {
     readonly problem?: string;
     /** The swatch: one color, or the stops of a ramp; absent when the row paints nothing yet. */
     readonly swatch?: { readonly color: string } | { readonly ramp: readonly string[] };
-    /** A count the element publishes for this row, or absent. */
-    readonly count?: number;
+    /**
+     * A count the element publishes for this row, or absent; for a path, its length in words
+     * ("4 hops"), since the number of elements it measured is not the path.
+     */
+    readonly count?: number | string;
     /**
      * The layers the eye shows and hides. Empty for the fixed rows, whose layers are the
      * element's own, and for a group row, whose eye hides one value of its run's layer instead.
@@ -114,7 +123,7 @@ export function paintRows(session: GraphSession): PaintRow[] {
             ...base,
             // A run whose primary field is one value per element is a single measure row.
             kind: RESULT_SHAPE_CONTRACTS[run.shape].primaryField === "value" ? "measure-row" : "run-row",
-            count: summary?.measured,
+            count: run.shape === "path" ? pathSize(run) : summary?.measured,
             swatch: ramp.length === 0 ? undefined : { ramp },
         };
     };
@@ -245,4 +254,15 @@ export function layerAbove(
         .reverse()
         .find((row) => row.layerIds.length > 0);
     return above?.layerIds[0] ?? null;
+}
+
+/**
+ * A path run's length, as its graph result publishes it: "4 hops", or absent before it has one
+ * (or when no path was found). Short, so the row's name stays whole beside it.
+ * @param run - the path run.
+ * @returns the words, or undefined.
+ */
+function pathSize(run: Run): string | undefined {
+    const { hops } = run.result?.graph ?? {};
+    return typeof hops === "number" ? count(hops, "hop") : undefined;
 }

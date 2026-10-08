@@ -70,4 +70,48 @@ describe("a path run's Values", () => {
         },
         TIMEOUT_MS,
     );
+
+    it(
+        "opens on Values as a Path, and its tree row gives the path's size, not every element it measured",
+        async () => {
+            const store = createWorkspaceStore({ project: { name: "Line", id: 1 } });
+            const view = render(<Workspace store={store} />);
+            let session: GraphSession | undefined;
+            await waitFor(
+                () => {
+                    session = document.querySelector("graphty-element")?.session;
+                    assert.isDefined(session);
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            if (session === undefined) {
+                throw new Error("the element never came up");
+            }
+            await session.data.addNodes(NODES);
+            await session.data.addEdges(EDGES);
+            const run = session.runs.start("shortest-path", { source: "b", target: "d" });
+            await act(async () => {
+                await run;
+                await session?.styles.settled();
+            });
+
+            // The reader's last tab for a measure was Style; a path still opens on its Values.
+            act(() => {
+                store.set({ inspected: { kind: "measure-row", id: run.id }, tabs: { "measure-row": "style" } });
+            });
+            const inspector = within(view.getByRole("complementary", { name: "Inspector" }));
+            await inspector.findByRole("group", { name: "Nodes in order" });
+            assert.equal(inspector.getByRole("tab", { name: "Values" }).getAttribute("aria-selected"), "true");
+            assert.isNull(inspector.queryByText("Measure"));
+            assert.isNotNull(inspector.getByRole("button", { name: "Path actions" }));
+
+            // 5 nodes and 5 edges were measured; the row says what the path is.
+            const row = await view.findByRole("treeitem", { name: /^Shortest path/ });
+            await waitFor(() => {
+                assert.include(row.textContent, "2 hops");
+            });
+            assert.notInclude(row.textContent, "10");
+        },
+        TIMEOUT_MS,
+    );
 });

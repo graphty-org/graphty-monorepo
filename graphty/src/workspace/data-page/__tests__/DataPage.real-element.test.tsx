@@ -201,7 +201,7 @@ describe("the Data page on the real element", () => {
             // Leave out is the default: the edge to z is dropped.
             assert.equal(strip.textContent, "node (3) --ties (2)--> node");
             const report = screen.getByRole("region", { name: "Match report" });
-            assert.include(report.textContent, "1 edge row names 1 node no node row holds.");
+            assert.include(report.textContent, "1 edge row names a node missing from the node rows.");
 
             await userEvent.click(within(report).getByRole("button", { name: "Show the 1 unmatched row" }));
             await screen.findByText("1 unmatched row");
@@ -235,7 +235,7 @@ describe("the Data page on the real element", () => {
 
             await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
             const report = screen.getByRole("region", { name: "Match report" });
-            assert.include(report.textContent, "3 edge rows name 2 nodes no node row holds.");
+            assert.include(report.textContent, "3 edge rows name 2 nodes missing from the node rows.");
         },
         TIMEOUT_MS * 2,
     );
@@ -399,7 +399,7 @@ describe("the Data page on the real element", () => {
     );
 
     it(
-        "Sources says a load left a row out; the source's inspector counts it and shows it on the Data page",
+        "Sources says a load left a row out; the source's inspector counts it and lists the row",
         async () => {
             await page.viewport(1366, 768);
             const { store } = await openFromEmptyApp();
@@ -423,13 +423,9 @@ describe("the Data page on the real element", () => {
 
             await userEvent.click(within(row).getAllByText("people.csv and passes.csv")[0]);
             const inspector = screen.getByRole("complementary", { name: "Inspector" });
-            await within(inspector).findByText("1 edge row was left out: it names 1 node no node row holds.");
-
-            await userEvent.click(within(inspector).getByText("Show the left-out row"));
-            await screen.findByRole("heading", { name: "Add to people" });
-            await screen.findByText("1 unmatched row", {}, { timeout: TIMEOUT_MS });
-            const grid = screen.getByRole("grid", { name: "Rows of passes.csv" });
-            assert.isNotNull(within(grid).getByText("z"));
+            await within(inspector).findByText("1 edge row was left out: it names a node missing from the node rows.");
+            // The row itself, kept by the element with the load: no file to reopen.
+            await within(inspector).findByText("c, z, 1");
         },
         TIMEOUT_MS * 3,
     );
@@ -567,15 +563,20 @@ describe("the Data page on the real element", () => {
             await pick("emails", "Weight");
 
             const higher = await screen.findByRole("radiogroup", { name: "Higher means" }, { timeout: TIMEOUT_MS });
-            // Unset until the reader chooses: nothing checked, and the gloss for an unset weight.
-            assert.lengthOf(
+            // Unset until the reader chooses, and drawn so: "Not set" is the checked choice.
+            const checked = (): string[] =>
                 within(higher)
-                    .getAllByRole("radio")
-                    .filter((radio) => (radio as HTMLInputElement).checked),
-                0,
-            );
+                    .getAllByRole<HTMLInputElement>("radio")
+                    .filter((radio) => radio.checked)
+                    .map((radio) => radio.labels?.[0]?.textContent ?? "");
+            assert.deepEqual(checked(), ["Not set"]);
             await userEvent.click(within(higher).getByText("Closer"));
             await screen.findByText("larger = closer");
+            assert.deepEqual(checked(), ["Closer"]);
+            // And back: Not set leaves the weight with no meaning again.
+            await userEvent.click(within(higher).getByText("Not set"));
+            assert.deepEqual(checked(), ["Not set"]);
+            await userEvent.click(within(higher).getByText("Closer"));
 
             await userEvent.click(loadButton());
             await waitFor(

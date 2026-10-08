@@ -158,7 +158,7 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
             dimmed: row.hidden,
             strong: row.kind === "selection-row" || row.kind === "everything-row" ? false : undefined,
             swatch: swatchOf(row),
-            count: row.count?.toLocaleString(),
+            count: typeof row.count === "number" ? row.count.toLocaleString() : row.count,
             description: stateWords(row),
             children: row.children?.map(toItem),
             actions: eye,

@@ -12,7 +12,7 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -84,11 +84,19 @@ describe("Filters on the real element", () => {
                 assert.equal(store.get().announcement, "Filter on: 5 of 8 nodes, 4 edges");
             });
 
-            // Untick: the full graph, the chip gone, the row says off.
+            // The step's own editor says it is on, as its row does.
+            act(() => {
+                store.set({ inspected: { kind: "filter-step", id: step.id } });
+            });
+            const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+            await inspector.findByText("On");
+
+            // Untick: the full graph, the chip gone, the row and the editor say off.
             await userEvent.click(screen.getByRole("checkbox", { name: "Apply step: value is at least 9" }));
             await waitFor(() => {
                 assert.isFalse(session.visibility.steps[0]?.on);
             });
+            await inspector.findByText("Off");
             assert.equal(session.visibility.summary.visibleNodes, 8);
             await waitFor(() => {
                 assert.isNull(screen.queryByRole("button", { name: /^Filter: / }));

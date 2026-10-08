@@ -36,6 +36,9 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     source: "Source",
 };
 
+/** The kind word of a path run's row, which is a measure row by shape but not a measure to a reader. */
+export const PATH_WORD = "Path";
+
 /**
  * The property token Why this look shows for each channel. Two channels may share one word. Every
  * channel has one, so a channel the element adds fails to compile here instead of reaching the

@@ -207,7 +207,10 @@ describe("the inspector", () => {
 
     it("shows no joining-edges row for an edge-only selection, and says what is selected in the header", async () => {
         const { session: on } = await renderInspector();
-        const edges = on.data.edges().slice(0, 3).map((edge) => edge.id);
+        const edges = on.data
+            .edges()
+            .slice(0, 3)
+            .map((edge) => edge.id);
         await act(async () => {
             await on.selection.apply({ edges });
         });
@@ -346,6 +349,30 @@ describe("the inspector", () => {
             await on.selection.apply({ edges: [bridge?.id ?? ""] });
         });
         assert.isNotNull(await screen.findByText("n0 -> n6"));
+    });
+
+    it("lists an edge's end columns once, as From and To, whatever the file named them", async () => {
+        const made = createGraphSession();
+        session = made;
+        // As the app opens a file: prepared, then loaded as it reads.
+        const file = new File(["from,to,minutes\nStation,Stadium,4\nDepot,Station,15\n"], "bus-stops.csv");
+        const draft = await made.data.prepare({ config: { file } });
+        await draft.load();
+        const store = createWorkspaceStore({ project: { name: "Bus", id: 1 } });
+        render(
+            <WorkspaceContext.Provider value={makeWorkspaceValue(store, createRegistry(REGISTRATIONS), made, null)}>
+                <Inspector />
+            </WorkspaceContext.Provider>,
+        );
+        const edge = made.data.edges().find((each) => each.source === "Station");
+        await act(async () => {
+            await made.selection.apply({ edges: [edge?.id ?? ""] });
+        });
+        await screen.findByRole("group", { name: "minutes" });
+        assert.include(screen.getByRole("button", { name: /^From/ }).textContent, "Station");
+        assert.include(screen.getByRole("button", { name: /^To/ }).textContent, "Stadium");
+        assert.isNull(screen.queryByRole("group", { name: "from" }));
+        assert.isNull(screen.queryByRole("group", { name: "to" }));
     });
 
     it("gives no two reachable controls the same accessible name", async () => {

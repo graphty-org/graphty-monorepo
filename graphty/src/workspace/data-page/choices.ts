@@ -151,17 +151,22 @@ export function weightHolder(draft: LoadDraft, table: DraftTable, choices: PageC
 /**
  * Says what a table's weight means.
  * @param table - the table.
- * @param meaning - the meaning.
+ * @param meaning - the meaning, or undefined to leave it unset.
  * @param choices - the page's choices.
  * @returns the new choices.
  */
 export function setWeightMeaning(
     table: DraftTable,
-    meaning: NonNullable<TableMapping["weightMeaning"]>,
+    meaning: NonNullable<TableMapping["weightMeaning"]> | undefined,
     choices: PageChoices,
 ): PageChoices {
-    const edits = choices.tables[table.id] ?? { roles: {} };
-    return { ...choices, tables: { ...choices.tables, [table.id]: { ...edits, weightMeaning: meaning } } };
+    const { rowsAre, roles } = choices.tables[table.id] ?? { roles: {} };
+    const edits: TableEdits = {
+        ...(rowsAre === undefined ? {} : { rowsAre }),
+        roles,
+        ...(meaning === undefined ? {} : { weightMeaning: meaning }),
+    };
+    return { ...choices, tables: { ...choices.tables, [table.id]: edits } };
 }
 
 /**

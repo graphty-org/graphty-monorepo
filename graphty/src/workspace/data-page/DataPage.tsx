@@ -31,6 +31,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { meaningGloss } from "../analyze/words";
+import { missingNodes } from "../data-place/words";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -81,8 +82,12 @@ function overlayOpen(): boolean {
     return [...document.querySelectorAll(OPEN_OVERLAY)].some((overlay) => overlay.checkVisibility());
 }
 
-/** The Higher means choices, and the element's meaning each writes (tier2-design.md section 5). */
+/**
+ * The Higher means choices, and the element's meaning each writes (tier2-design.md section 5).
+ * "Not set" is the state the weight starts in, drawn as a choice so a reader sees one is made.
+ */
 const HIGHER_MEANS = [
+    { value: "", label: "Not set" },
     { value: "strength", label: "Closer" },
     { value: "distance", label: "Farther" },
     { value: "capacity", label: "Capacity" },
@@ -143,22 +148,6 @@ export function DataPage(): React.JSX.Element {
         };
     });
     useCarriedMeaning(page, was?.meaning ?? null);
-
-    // Opened on a load's left-out rows (the inspector's link): once the report is in, the grid
-    // shows the edge table's unmatched rows, as the report's own link does.
-    const [showUnmatched, setShowUnmatched] = useState(request.show === "unmatched");
-    useEffect(() => {
-        const { draft, report, choices } = page;
-        if (!showUnmatched || draft === null || report === null) {
-            return;
-        }
-        setShowUnmatched(false);
-        const edges = draft.tables.find((table) => rowsAreOf(draft, table, choices) === "edges");
-        if (edges !== undefined && report.unmatched.rows > 0) {
-            page.setTableId(edges.id);
-            page.setFilter("unmatched");
-        }
-    }, [showUnmatched, page]);
 
     const titles = {
         new: "Open as a new graph",
@@ -740,7 +729,9 @@ function WeightLine({ page, draft, table }: PartProps & { draft: LoadDraft; tabl
                     onChange={(value) => {
                         const picked = HIGHER_MEANS.find((each) => each.value === value);
                         if (picked !== undefined) {
-                            page.setChoices(setWeightMeaning(table, picked.value, page.choices));
+                            page.setChoices(
+                                setWeightMeaning(table, picked.value === "" ? undefined : picked.value, page.choices),
+                            );
                         }
                     }}
                 />
@@ -1025,7 +1016,7 @@ function UnmatchedLine({
         <Group gap="xs">
             <Text size="xs">
                 {plural(report.unmatched.rows, "edge row")} {report.unmatched.rows === 1 ? "names" : "name"}{" "}
-                {plural(report.unmatched.values, "node")} no node row holds.{" "}
+                {missingNodes(report.unmatched.values)}.{" "}
                 <Anchor component="button" size="xs" onClick={onShow}>
                     Show the {plural(report.unmatched.rows, "unmatched row")}
                 </Anchor>

@@ -121,13 +121,15 @@ describe("the legend card's words", () => {
         );
     });
 
-    it("keys neither a label nor a size that does not vary", () => {
+    it("keys neither a label nor a size that does not vary, a highlight's included", () => {
         const color = block({ layerId: "color" });
         const bound = block({ layerId: "sized", channel: "node.size" });
         const blocks = [
             color,
             block({ layerId: "names", channel: "node.label", kind: "categorical" }),
             block({ layerId: "one-size", channel: "node.size", kind: "literal", swatches: [swatch({ size: 1 })] }),
+            // A path's highlight draws its edges 24 wide: a number a reader takes for the path's.
+            block({ layerId: "on-path", channel: "edge.width", kind: "highlight", swatches: [swatch({ size: 24 })] }),
             bound,
         ];
         assert.deepEqual(keyBlocks(blocks), [color, bound]);

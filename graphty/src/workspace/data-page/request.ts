@@ -24,8 +24,6 @@ export interface DataPageRequest {
     readonly files?: readonly File[];
     /** The roles and the rest the reader chose last time, when the page reopens a load (Edit source...). */
     readonly choices?: PageChoices;
-    /** `"unmatched"` opens the grid on the edge rows no node row holds, once the page has read them. */
-    readonly show?: "unmatched";
 }
 
 /** What a load read: the reader's files and the choices it loaded with. */
@@ -61,20 +59,10 @@ export function rememberLoad(session: GraphSession, input: LoadInput): void {
  * see opens the page empty, to choose its files again.
  * @param store - the workspace store.
  * @param loaded - the load, an entry of `data.sources()`.
- * @param show - `"unmatched"` to open on the edge rows the load left out.
  */
-export function editSource(store: WorkspaceStore, loaded: LoadedSource | undefined, show?: "unmatched"): void {
+export function editSource(store: WorkspaceStore, loaded: LoadedSource | undefined): void {
     const input = loaded === undefined ? undefined : inputs.get(loaded);
-    openDataPage(store, { intent: "add", ...input, ...(show === undefined ? {} : { show }) });
-}
-
-/**
- * Whether Edit source... can reopen a load on its own files, so the page can show its rows.
- * @param loaded - the load, an entry of `data.sources()`.
- * @returns true when this app made the load and remembers its files.
- */
-export function canReopen(loaded: LoadedSource): boolean {
-    return inputs.has(loaded);
+    openDataPage(store, { intent: "add", ...input });
 }
 
 /**

@@ -9,6 +9,7 @@ import { FilterStepEditor } from "../data-place/Filters";
 import { stepEditorName } from "../data-place/filterSteps";
 import { AttributeMenuItems } from "../data-place/MenuItems";
 import { SourceValues } from "../data-place/SourceValues";
+import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { loadIndexOf, loadName, sourcesWords } from "../data-place/words";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
@@ -25,7 +26,7 @@ import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValue
 import { type Draft, rowKindOf, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
-import { count, edgeName, groupName, KIND_WORDS, runDate, selectionWords } from "./words";
+import { count, edgeName, groupName, KIND_WORDS, PATH_WORD, runDate, selectionWords } from "./words";
 
 /** A kind's two tab bodies, or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
@@ -66,6 +67,8 @@ function runOf(session: GraphSession | null, resolved: Resolved): Run | undefine
 export function Inspector(): React.JSX.Element {
     const { session, store, registry, run: runCommand } = useWorkspace();
     const version = useSessionVersion(session);
+    // A filter step turned on or off changes its editor's header.
+    useVisibilityVersion(session);
     const inspected = useWorkspaceState((state) => state.inspected);
     const remembered = useWorkspaceState((state) => state.tabs);
     const [picked, setPicked] = useState<{ identity: string; tab: "style" | "values" } | null>(null);
@@ -96,7 +99,12 @@ export function Inspector(): React.JSX.Element {
             ? (rowKindOf(run) ?? resolved.kind)
             : resolved.kind;
     const kind = registry.kinds.get(kindId);
-    const tab = picked?.identity === identity ? picked.tab : tabFor(kind, remembered);
+    // A path's answer is its nodes in order, so its run opens on Values, as a single node does.
+    const isPath = run?.shape === "path";
+    const opensOn = isPath ? "values" : tabFor(kind, remembered);
+    const tab = picked?.identity === identity ? picked.tab : opensOn;
+    // A path is not a measure, though its run row is one.
+    const kindWord = isPath ? PATH_WORD : KIND_WORDS[kindId];
     const runDraft = run !== undefined && draft?.run === run.id ? draft.values : {};
     const onDraft = (values: Draft): void => {
         if (run !== undefined) {
@@ -181,9 +189,9 @@ export function Inspector(): React.JSX.Element {
                     </Group>
                     <Group gap={6} wrap="nowrap">
                         {/* The built-in rows' kind is their name: one "Everything", not two. */}
-                        {KIND_WORDS[kindId] !== header.name && (
+                        {kindWord !== header.name && (
                             <Text size="xs" c="dimmed">
-                                {KIND_WORDS[kindId]}
+                                {kindWord}
                             </Text>
                         )}
                         {header.from?.open === undefined ? (
@@ -217,7 +225,7 @@ export function Inspector(): React.JSX.Element {
                                         ml="auto"
                                         // Alone at the row's end, so a finger gets the full 44px.
                                         style={{ "--cm-ai-touch-target": "44px" }}
-                                        aria-label={`${KIND_WORDS[kindId]} actions`}
+                                        aria-label={`${kindWord} actions`}
                                     >
                                         <GLYPHS.more size={14} />
                                     </ActionIcon>
@@ -315,8 +323,14 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             return { name: "Selection" };
         case "layer-row":
             return { name: session.styles.get(resolved.layer)?.name ?? "Gone" };
-        case "filter-step":
-            return { name: stepEditorName(session, resolved.step) };
+        case "filter-step": {
+            // Whether the step is on, as its row's checkbox says, so the editor alone tells.
+            const step = session.visibility.steps.find((s) => s.id === resolved.step);
+            return {
+                name: stepEditorName(session, resolved.step),
+                from: step === undefined ? undefined : { words: step.on ? "On" : "Off" },
+            };
+        }
         case "source": {
             const load = session.data.sources()[loadIndexOf(resolved.row) ?? -1];
             return { name: load === undefined ? "Gone" : loadName(load) };

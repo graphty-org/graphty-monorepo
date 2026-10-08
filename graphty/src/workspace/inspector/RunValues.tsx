@@ -15,7 +15,17 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
 import { type Draft, measuredNoun, rowKindOf, selectNode, settingsChanged, settingsOf } from "./reads";
-import { count, formatNumber, groupName, queuedWords, rankedName, routeWords, runDate, runFailureWords, staleWords } from "./words";
+import {
+    count,
+    formatNumber,
+    groupName,
+    queuedWords,
+    rankedName,
+    routeWords,
+    runDate,
+    runFailureWords,
+    staleWords,
+} from "./words";
 
 /** How many top elements and group members a Values tab lists. */
 const TOP = 10;
@@ -294,7 +304,7 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
 }
 
 /**
- * A path run's values: how big the route is, its total distance when it read a distance weight,
+ * A path run's values: how big the path is, its total distance when it read a distance weight,
  * then its nodes from source to target, each selecting that node.
  * @param props - Component props
  * @param props.session - The session
@@ -316,7 +326,7 @@ function PathValues({ session, run }: Readonly<{ session: GraphSession; run: Run
         <>
             <ControlSection label="Summary" defaultOpened>
                 {typeof length === "number" && typeof hops === "number" && (
-                    <DataRow stat name="Route" value={routeWords(length, hops)} />
+                    <DataRow stat name="Path" value={routeWords(length, hops)} />
                 )}
                 {distance && <DataRow stat name="Total distance" value={formatNumber(cost)} />}
             </ControlSection>

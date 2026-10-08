@@ -263,7 +263,7 @@ describe("the Path popover, on the real element", () => {
     );
 
     it(
-        "the Weight box says before the run that a loaded weight with no meaning is not read, and Made with agrees",
+        "the Weight box shows None before the run when a loaded weight with no meaning is not read, and Made with agrees",
         async () => {
             const { store, session, element } = await openFriends(null);
             const why = "Not read -- weight has no meaning chosen, and a path needs a distance";
@@ -271,10 +271,20 @@ describe("the Path popover, on the real element", () => {
             await userEvent.keyboard("p");
             const form = await pathForm();
             const weight = within(form).getByRole<HTMLInputElement>("combobox", { name: "Weight" });
+            // The box shows what the run will read: None, with the reason under it.
             await waitFor(() => {
-                assert.equal(weight.value, "weight (loaded, not read)");
+                assert.equal(weight.value, "None");
+                assert.isNotNull(within(form).getByText(why));
             });
-            assert.isNotNull(within(form).getByText(why));
+            await userEvent.click(weight);
+            const unread = await screen.findByRole("option", { name: "weight (loaded, not read)" });
+            assert.isTrue(
+                unread.hasAttribute("data-combobox-disabled"),
+                "listed, but not a choice that differs from None",
+            );
+            // Closed again by its own box; Esc would also step the popover back.
+            await userEvent.click(weight);
+            await userEvent.click(within(form).getByRole("combobox", { name: "From" }));
 
             await userEvent.keyboard("Ava{Enter}Lee{Enter}{Enter}");
             let runId = "";
@@ -291,12 +301,14 @@ describe("the Path popover, on the real element", () => {
             });
             const madeWith = await screen.findByRole("group", { name: "Made with" });
             assert.isNotNull(
-                within(madeWith).getByText("Weight: not read -- weight has no meaning chosen, and a path needs a distance"),
+                within(madeWith).getByText(
+                    "Weight: not read -- weight has no meaning chosen, and a path needs a distance",
+                ),
             );
             await waitFor(() => {
                 assert.equal(
                     within(madeWith).getByRole<HTMLInputElement>("combobox", { name: "Weight" }).value,
-                    "weight (loaded, not read)",
+                    "None",
                 );
             });
             assert.isNotNull(within(madeWith).getByText(why));

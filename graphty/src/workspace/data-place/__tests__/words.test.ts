@@ -7,6 +7,7 @@ import {
     columnOf,
     count,
     fillOf,
+    leftOutRow,
     leftOutSentence,
     loadIndexOf,
     sourceRows,
@@ -121,12 +122,13 @@ describe("the Data place's words", () => {
         );
         assert.equal(
             leftOutSentence({ rows: 1, values: 1 }),
-            "1 edge row was left out: it names 1 node no node row holds.",
+            "1 edge row was left out: it names a node missing from the node rows.",
         );
         assert.equal(
             leftOutSentence({ rows: 3, values: 2 }),
-            "3 edge rows were left out: they name 2 nodes no node row holds.",
+            "3 edge rows were left out: they name 2 nodes missing from the node rows.",
         );
+        assert.equal(leftOutRow({ source: "p11", target: "p13", values: { emails: 6 } }), "p11, p13, 6");
         assert.equal(loadIndexOf("source:1:0"), 1);
         assert.isUndefined(loadIndexOf("node:age"));
     });

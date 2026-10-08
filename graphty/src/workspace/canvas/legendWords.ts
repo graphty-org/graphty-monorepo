@@ -52,7 +52,7 @@ const TEXT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
 /**
  * The blocks the legend shows: not a label's (it would list every name beside the name already
  * drawn), not a size that does not vary (a key for one size reads as "sizes done" while every
- * dot is the same), and not one a layer above paints over on every element (a key for paint no
+ * dot is the same, and a highlight's one width, "24", reads as a count), and not one a layer above paints over on every element (a key for paint no
  * reader can see is a false claim).
  * @param blocks - the blocks `styles.legend()` returned.
  * @returns the blocks worth a key, in the same order.
@@ -61,7 +61,7 @@ export function keyBlocks(blocks: readonly LegendBlock[]): LegendBlock[] {
     return blocks.filter(
         (block) =>
             !TEXT_CHANNELS.has(block.channel) &&
-            !(isSizeBlock(block) && block.kind === "literal") &&
+            !(isSizeBlock(block) && (block.kind === "literal" || block.kind === "highlight")) &&
             !block.facts.some((fact) => fact.code === "legend.painted-over"),
     );
 }

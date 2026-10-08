@@ -140,4 +140,13 @@ describe("the Data page's choices", () => {
         const choices = loadChoices(draft, setWeightMeaning(table, "distance", INITIAL_CHOICES), "replace");
         assert.isUndefined(choices.mapping);
     });
+
+    it("Not set takes a chosen meaning back off and keeps the role", async () => {
+        const draft = await prepare({ file: new File(["from,to,emails\np01,p02,14\n"], "messages.csv") });
+        const [table] = draft.tables;
+        const named = setRole(draft, table, "emails", "weight", INITIAL_CHOICES);
+        const unset = setWeightMeaning(table, undefined, setWeightMeaning(table, "distance", named));
+        assert.deepEqual(unset.tables[table.id], named.tables[table.id]);
+        assert.notProperty(unset.tables[table.id], "weightMeaning");
+    });
 });

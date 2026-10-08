@@ -96,7 +96,10 @@ function mustHold(tooltip: HTMLElement): boolean {
     if (!trigger || trigger !== document.activeElement || trigger.matches(":hover")) {
         return false;
     }
-    return focusedAt >= warmUntil && !anotherTooltipVisible(tooltip);
+    // Warm only when focus moved inside the window the key opened (warmUntil - TOOLTIP_CLOSE_DELAY
+    // is that key's time): focus that sat on the trigger since before the key is not a hand-off.
+    const warm = focusedAt >= warmUntil - TOOLTIP_CLOSE_DELAY && focusedAt < warmUntil;
+    return !warm && !anotherTooltipVisible(tooltip);
 }
 
 /**

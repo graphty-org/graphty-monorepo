@@ -241,13 +241,13 @@ describe("the pre-push gate matches CI", () => {
             shards.filter((s) => !running.includes(s) && canStart(s, running, new Set(warmed))).map((s) => s.shard);
         // Cold: one warm-up per package (the shortest command of a family), and nothing else.
         assert.deepEqual(startable([], []).sort(), [
-            "graphty-element-browser-2",
+            "graphty-element-browser-1",
             "graphty-element-default",
             "graphty-element-storybook-1",
             "layout",
         ]);
         // While one warm-up of graphty-element runs, no other shard of graphty-element may start.
-        assert.deepEqual(startable([pick("graphty-element-browser-2")], []), ["layout"]);
+        assert.deepEqual(startable([pick("graphty-element-browser-1")], []), ["layout"]);
         // A warmed family's siblings still wait for the package's other families.
         const afterBrowser = startable([], ["graphty-element-browser"]);
         assert.ok(!afterBrowser.includes("graphty-element-browser-3"));
@@ -506,6 +506,17 @@ describe("ci.yml", () => {
 
     it("keeps the benchmarks advisory", () => {
         assert.match(job(ci, "performance"), /continue-on-error: true/);
+    });
+
+    it("runs every benchmark, and the browser set-up the last one needs, after an earlier benchmark fails", () => {
+        const steps = job(ci, "performance")
+            .split(/\n {12}- /)
+            .slice(1);
+        const first = steps.findIndex((step) => /vitest run --project=bench/.test(step));
+        assert.ok(first > 0, "the performance job runs the graphty-element benchmarks");
+        for (const step of steps.slice(first)) {
+            assert.match(step, /\n\s+if: \$\{\{ !cancelled\(\) \}\}\n/, `this step runs after a failure:\n${step}`);
+        }
     });
 
     it("runs no test, screenshot, link or cost job on a push to master, and still builds every package", () => {

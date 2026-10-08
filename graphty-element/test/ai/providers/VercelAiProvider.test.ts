@@ -1,8 +1,16 @@
-import { assert, describe, expect, it } from "vitest";
+import * as ai from "ai";
+import { assert, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import type { StreamCallbacks } from "../../../src/ai/providers/types";
 import { VercelAiProvider } from "../../../src/ai/providers/VercelAiProvider";
+
+// generateText passes through to the real SDK unless a test queues a response, so a test can
+// read the model the provider built without a network call.
+vi.mock("ai", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("ai")>();
+    return { ...actual, generateText: vi.fn(actual.generateText) };
+});
 
 /** Create a StreamCallbacks object with no-op defaults and optional overrides */
 function createCallbacks(overrides?: Partial<StreamCallbacks>): StreamCallbacks {
@@ -109,7 +117,7 @@ describe("VercelAiProvider", () => {
             "generates text response",
             async () => {
                 const provider = new VercelAiProvider("anthropic");
-                provider.configure({ apiKey: getApiKey("ANTHROPIC_API_KEY"), model: "claude-3-haiku-20240307" });
+                provider.configure({ apiKey: getApiKey("ANTHROPIC_API_KEY") });
 
                 const response = await provider.generate(
                     [{ role: "user", content: "Say 'hello' and nothing else" }],
@@ -139,7 +147,7 @@ describe("VercelAiProvider", () => {
             "generates text response",
             async () => {
                 const provider = new VercelAiProvider("google");
-                provider.configure({ apiKey: getApiKey("GOOGLE_API_KEY"), model: "gemini-2.0-flash" });
+                provider.configure({ apiKey: getApiKey("GOOGLE_API_KEY") });
 
                 const response = await provider.generate(
                     [{ role: "user", content: "Say 'hello' and nothing else" }],
@@ -174,53 +182,60 @@ describe("VercelAiProvider", () => {
     });
 
     /**
-     * Regression tests for default model configurations.
-     * These tests ensure that the default model names are valid and known to work.
+     * A retired default model fails every request of a consumer who names no model: Anthropic
+     * retired claude-3-haiku-20240307 and Google retired gemini-2.0-flash. The live tests above
+     * (with keys) call each provider's default; these pin which model id each default is.
      */
-    describe("regression: default models are valid (Issue #2)", () => {
-        /**
-         * Issue #2: Anthropic default model was claude-3-5-sonnet-20241022 which
-         * was deprecated/unavailable. Changed to claude-3-haiku-20240307 which is
-         * known to work and is cost-effective.
-         */
-        it("anthropic default model is a known working model", () => {
-            // List of known working Anthropic models (not exhaustive, but includes common ones)
-            const knownWorkingModels = [
-                "claude-3-haiku-20240307",
-                "claude-3-sonnet-20240229",
-                "claude-3-opus-20240229",
-                "claude-3-5-haiku-20241022",
-                "claude-3-5-haiku-latest",
-                "claude-sonnet-4-5",
-                "claude-haiku-4-5",
-                "claude-opus-4-5",
-            ];
+    describe("default models", () => {
+        it.each([
+            ["openai", "gpt-4o"],
+            ["anthropic", "claude-haiku-4-5-20251001"],
+            ["google", "gemini-3.8-flash"],
+        ] as const)("%s defaults to %s", async (type, expected) => {
+            const provider = new VercelAiProvider(type);
+            provider.configure({ apiKey: "test-key" });
+            const spy = vi.mocked(ai.generateText).mockResolvedValueOnce({
+                text: "",
+                toolCalls: [],
+                usage: {},
+            } as unknown as Awaited<ReturnType<typeof ai.generateText>>);
 
-            // Create provider and check the default model by examining what getModel would use
-            // We can't directly access the private model field, but we can verify the provider
-            // is configured with a reasonable default by checking the name
-            const provider = new VercelAiProvider("anthropic");
-            assert.strictEqual(provider.name, "anthropic");
+            await provider.generate([{ role: "user", content: "hi" }], []);
 
-            // The actual model check happens via API call, but we document the expected default
-            // If the model name changes, this comment should be updated
-            // Current expected default: claude-3-haiku-20240307
-            assert.ok(
-                knownWorkingModels.includes("claude-3-haiku-20240307"),
-                "Default Anthropic model should be in the known working models list",
-            );
+            const { model } = spy.mock.lastCall?.[0] as unknown as { model: { modelId: string } };
+            assert.strictEqual(model.modelId, expected);
         });
+    });
 
-        it("openai default model is gpt-4o (a current model)", () => {
-            const provider = new VercelAiProvider("openai");
-            assert.strictEqual(provider.name, "openai");
-            // Default is gpt-4o which is a current model
-        });
-
-        it("google default model is gemini-2.0-flash (a current model)", () => {
+    describe("tool results", () => {
+        it("names each tool result after the call it answers", async () => {
+            // Google refuses a function response with an empty name, which is what every tool
+            // result carried, so a second ask after a tool call always failed there.
             const provider = new VercelAiProvider("google");
-            assert.strictEqual(provider.name, "google");
-            // Default is gemini-2.0-flash which is a current model
+            provider.configure({ apiKey: "test-key" });
+            const spy = vi.mocked(ai.generateText).mockResolvedValueOnce({
+                text: "",
+                toolCalls: [],
+                usage: {},
+            } as unknown as Awaited<ReturnType<typeof ai.generateText>>);
+
+            await provider.generate(
+                [
+                    { role: "user", content: "find servers" },
+                    {
+                        role: "assistant",
+                        content: "",
+                        toolCalls: [{ id: "c1", name: "findNodes", arguments: { selector: "data.type == 'server'" } }],
+                    },
+                    { role: "tool", toolCallId: "c1", content: "{}" },
+                ],
+                [],
+            );
+
+            const { messages } = spy.mock.lastCall?.[0] as unknown as {
+                messages: { role: string; content: { toolName?: string }[] }[];
+            };
+            assert.strictEqual(messages[2].content[0].toolName, "findNodes");
         });
     });
 

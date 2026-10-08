@@ -166,18 +166,18 @@ so; where the task reads names on the drawing, every name is drawn too, as Grace
 setups are in `../rounds/tier-2/setups/` and the participant never sees them (`tasks.md`,
 "Starts"). Each was run on the study build and its first screenshot looked at on 2026-10-08.
 
-| Task | A starts from                                    | B starts from                                     | Why                                                                                  |
-| ---- | ------------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| T4   | empty                                            | empty                                             | Bringing two new spreadsheets in as a new network is the task: it starts fresh.      |
-| T20  | empty                                            | empty                                             | A colleague's new file, read the right way round at load, is the task: it starts fresh. |
-| T17  | `friends-ranked.txt`                             | `lesmis-ranked.txt`                               | The club's ranked map, as left last time.                                            |
-| T18  | `friends-ranked.txt`                             | `florentine-ranked.txt`                           | The same; the chain must not overwrite the ranking's colors and sizes unasked.       |
-| T19  | `friends-ranked.txt`                             | `florentine-ranked.txt`                           | Notes are left on a map already worked on.                                           |
-| T21  | `friends-ranked.txt`                             | `team-ranked.txt`                                 | Last month's ranking, sized by it: what the newer file must keep or mark out of date. |
-| T22  | `bus-stops-ranked.txt`                           | `lesmis-ranked.txt`                               | The ranked map, as left last time.                                                   |
-| T23  | `friends-ranked.txt`                             | `florentine-ranked.txt`                           | The ranked map, as left last time.                                                   |
-| T24  | `friends-ranked-names.txt`                       | `bus-stops-ranked-names.txt`                      | The ranked map with every name drawn, since the task reads a tie between two names.  |
-| T12R | `lesmis-ranked.txt`                              | `florentine-ranked.txt`                           | The ranked map, as left last time.                                                   |
+| Task | A starts from              | B starts from                | Why                                                                                     |
+| ---- | -------------------------- | ---------------------------- | --------------------------------------------------------------------------------------- |
+| T4   | empty                      | empty                        | Bringing two new spreadsheets in as a new network is the task: it starts fresh.         |
+| T20  | empty                      | empty                        | A colleague's new file, read the right way round at load, is the task: it starts fresh. |
+| T17  | `friends-ranked.txt`       | `lesmis-ranked.txt`          | The club's ranked map, as left last time.                                               |
+| T18  | `friends-ranked.txt`       | `florentine-ranked.txt`      | The same; the chain must not overwrite the ranking's colors and sizes unasked.          |
+| T19  | `friends-ranked.txt`       | `florentine-ranked.txt`      | Notes are left on a map already worked on.                                              |
+| T21  | `friends-ranked.txt`       | `team-ranked.txt`            | Last month's ranking, sized by it: what the newer file must keep or mark out of date.   |
+| T22  | `bus-stops-ranked.txt`     | `lesmis-ranked.txt`          | The ranked map, as left last time.                                                      |
+| T23  | `friends-ranked.txt`       | `florentine-ranked.txt`      | The ranked map, as left last time.                                                      |
+| T24  | `friends-ranked-names.txt` | `bus-stops-ranked-names.txt` | The ranked map with every name drawn, since the task reads a tie between two names.     |
+| T12R | `lesmis-ranked.txt`        | `florentine-ranked.txt`      | The ranked map, as left last time.                                                      |
 
 ## Who takes which task in round 1
 

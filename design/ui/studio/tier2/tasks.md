@@ -42,7 +42,7 @@ changes:
     - `friends-ranked-names.txt`, `bus-stops-ranked-names.txt`: the same, with a label line on
       Everything bound to `id` and "Show all labels" ticked, so every name is drawn.
 
-  Earlier setups, kept so the pilots that used them can be re-run, and used by no task:
+    Earlier setups, kept so the pilots that used them can be re-run, and used by no task:
     - `friends.txt`: `friends.csv` opened from the start screen (20 people, 41 ties).
     - `friends-names.txt`: the same, with a label line on Everything bound to `id` and "Show all
       labels" ticked, so every name is drawn.
@@ -52,6 +52,7 @@ changes:
       this way it has no weight).
     - `bus-stops-names.txt`: the same, with every stop's name drawn as in `friends-names.txt`.
     - `lesmis.txt`, `florentine.txt`: the sample opened from the start screen.
+
 - **Files** are in `../tool/files/` (table in `../tool/README.md`); the prompt calls the folder
   "your Downloads folder". Tier 2 uses `friends.csv`, `friends-v2.csv`, `people.csv` with
   `messages.csv`, `players.csv` with `passes.csv`, `bus-stops.csv`, `trails.csv`, `team.csv` and
@@ -134,8 +135,8 @@ changes:
       how many introductions does it take?"
     - B: "The Peruzzi now want a message carried to the Ginori the same way. Which families does it
       pass through, in order?"
-  Both pairs have exactly one chain with the fewest in between, 4 ties long, counting every tie in
-  either direction (as the main prompts' pairs do).
+      Both pairs have exactly one chain with the fewest in between, 4 ties long, counting every tie in
+      either direction (as the main prompts' pairs do).
 - **Words avoided:** "shortest", "path", "route", "find", "from", "to" as a pair of field names
   ("from Chloe to Milo" keeps "from" and "to" in running prose; graders note any participant who
   went to the From field straight after reading it).

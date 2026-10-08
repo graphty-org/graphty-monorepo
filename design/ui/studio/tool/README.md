@@ -59,20 +59,20 @@ Several steps may follow one `--step`; they run in order, and one screenshot is 
 
 A file is a path, or a name from `files/`:
 
-| File                   | What it is                                                                                       |
-| ---------------------- | ------------------------------------------------------------------------------------------------ |
-| `friends.csv`          | A links spreadsheet: `source,target,weight`, 41 rows between 20 people.                          |
-| `friends-v2.csv`       | The same 41 links between the same 20 people, with new weights (each weight `w` is now `6 - w`). |
-| `florentine.gml`       | A small GML network: marriages between 15 Florentine families.                                   |
-| `club-members.graphml` | A GraphML file cut off part way through, which the app cannot read.                              |
-| `people.csv`           | A node spreadsheet: `id,name,team`, 12 staff of a small nonprofit.                               |
-| `messages.csv`         | Its edge spreadsheet: `from,to,emails`, 23 rows; one names `p13`, who is not in `people.csv`.    |
-| `players.csv`          | A node spreadsheet: `id,name,position`, 10 players of a football team.                           |
-| `passes.csv`           | Its edge spreadsheet: `from,to,passes`, 18 rows; one names `s11`, who is not in `players.csv`.   |
-| `bus-stops.csv`        | `from,to,minutes`: 17 bus links between 10 stops, each with its travel time.                     |
-| `trails.csv`           | `from,to,km`: 13 trails between 9 junctions, each with its length.                               |
-| `team.csv`             | `source,target,weight`: 16 ties between 12 colleagues.                                           |
-| `team-v2.csv`          | The same team two months later: two new people (Mo, Nia) and five new ties, 21 in all.           |
+| File                   | What it is                                                                                                                                                                                         |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `friends.csv`          | A links spreadsheet: `source,target,weight`, 41 rows between 20 people.                                                                                                                            |
+| `friends-v2.csv`       | The same 41 links between the same 20 people, with new weights (each weight `w` is now `6 - w`).                                                                                                   |
+| `florentine.gml`       | A small GML network: marriages between 15 Florentine families.                                                                                                                                     |
+| `club-members.graphml` | A GraphML file cut off part way through, which the app cannot read.                                                                                                                                |
+| `people.csv`           | A node spreadsheet: `id,name,team`, 12 staff of a small nonprofit.                                                                                                                                 |
+| `messages.csv`         | Its edge spreadsheet: `from,to,emails`, 23 rows; one names `p13`, who is not in `people.csv`.                                                                                                      |
+| `players.csv`          | A node spreadsheet: `id,name,position`, 10 players of a football team.                                                                                                                             |
+| `passes.csv`           | Its edge spreadsheet: `from,to,passes`, 18 rows; one names `s11`, who is not in `players.csv`.                                                                                                     |
+| `bus-stops.csv`        | `from,to,minutes`: 17 bus links between 10 stops, each with its travel time.                                                                                                                       |
+| `trails.csv`           | `from,to,km`: 13 trails between 9 junctions, each with its length.                                                                                                                                 |
+| `team.csv`             | `source,target,weight`: 16 ties between 12 colleagues.                                                                                                                                             |
+| `team-v2.csv`          | The same team two months later: two new people (Mo, Nia) and five new ties, 21 in all.                                                                                                             |
 | `long-names.csv`       | `source,target,average_minutes_between_visits`: 9 ties between 6 sites, two named in 40 or more characters, a 30-character column name. For the screenshot audit's truncation check, never a task. |
 
 ## Names, dialogs and lists

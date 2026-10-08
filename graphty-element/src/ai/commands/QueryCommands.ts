@@ -143,13 +143,13 @@ export const findNodes: GraphCommand = {
             const nodeIds = matchingNodes.slice(0, limit !== undefined && limit > 0 ? limit : DEFAULT_FIND_NODES_LIMIT);
             const returned = nodeIds.length;
             const truncated = total > returned;
+            const plural = total === 1 ? "" : "s";
+            const showing = truncated ? ` (showing ${returned})` : "";
+            const found = `Found ${total} matching node${plural}${showing}.`;
 
             return {
                 success: true,
-                message:
-                    total === 0 && !isMatchAllSelector(selector)
-                        ? noMatchMessage(selector)
-                        : `Found ${total} matching node${total !== 1 ? "s" : ""}${truncated ? ` (showing ${returned})` : ""}.`,
+                message: total === 0 && !isMatchAllSelector(selector) ? noMatchMessage(selector) : found,
                 data: {
                     total,
                     returned,

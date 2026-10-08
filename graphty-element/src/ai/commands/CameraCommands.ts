@@ -215,9 +215,10 @@ export const zoomToNodes: GraphCommand = {
             });
 
             const nodeCount = scoped ? matchingIds.length : graph.getNodeCount();
+            const matching = scoped ? ` matching "${selector}"` : "";
             return {
                 success: true,
-                message: `Zoomed to fit ${nodeCount} node(s)${scoped ? ` matching "${selector}"` : ""}.`,
+                message: `Zoomed to fit ${nodeCount} node(s)${matching}.`,
                 affectedNodes: matchingIds,
                 data: { nodeCount, animated: animate },
             };

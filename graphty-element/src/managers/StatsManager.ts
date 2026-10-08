@@ -304,7 +304,7 @@ export class StatsManager implements Manager {
 
         // Emit stats update event periodically (every 60 updates)
         if (this.totalUpdates % 60 === 0) {
-            this.eventManager.emitGraphEvent("stats-update", {
+            this.eventManager.emit("stats-update", {
                 totalUpdates: this.totalUpdates,
                 stats: this.getStats(),
             } satisfies Omit<StatsUpdateEvent, "type">);

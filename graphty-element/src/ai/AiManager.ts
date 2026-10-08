@@ -136,7 +136,7 @@ export class AiManager {
             // Onto the graph's own event channel, so `addListener` and the element's DOM
             // forwarder both deliver every AI event.
             emitEvent: (event) => {
-                graph.eventManager.emitGraphEvent(event.type, { ...event });
+                graph.eventManager.emit(event.type, { ...event });
             },
         });
 

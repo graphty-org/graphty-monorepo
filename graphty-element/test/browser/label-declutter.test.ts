@@ -254,11 +254,11 @@ describe("node labels do not overlap", () => {
     });
 
     it("keeps a hidden label hidden when its animation starts", async () => {
-        // The element starts every label's animation once the layout settles, and again 100 ms
-        // after init for a layout that settled at once. Neither moves a node or the camera, so
-        // the pass does not run again afterwards: a start that showed a label the pass had hidden
-        // left it drawn over the one it lost to, and whether that happened depended on whether
-        // the timer fired before or after the pass.
+        // The element starts every label's animation once the layout settles, or on the first
+        // frame that finds it at rest. Neither moves a node or the camera, so the pass does not
+        // run again afterwards: a start that showed a label the pass had hidden left it drawn
+        // over the one it lost to, and whether that happened depended on whether the start came
+        // before or after the pass.
         const g = await draw(PILED);
         const label = RichTextLabel.createLabel(g.scene, { text: "A LONG LABEL FOR THIS NODE" });
         const mesh = label.labelMesh;

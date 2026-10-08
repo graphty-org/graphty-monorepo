@@ -1,3 +1,27 @@
+## 3.19.0 (2026-10-08)
+
+### 🚀 Features
+
+- **graphty-element:** neutral facts beside the English in result APIs ([#866](https://github.com/graphty-org/graphty-monorepo/issues/866))
+
+### 🩹 Fixes
+
+- **graphty-element:** give each waiting freeze its own render id ([#1440](https://github.com/graphty-org/graphty-monorepo/issues/1440))
+- **graphty-element:** keep a node unplaced when undo restores it unplaced under ngraph and d3 ([#582](https://github.com/graphty-org/graphty-monorepo/issues/582))
+- **graphty-element:** let an edge measurement ask for edge width ([#708](https://github.com/graphty-org/graphty-monorepo/issues/708))
+- **graph-io:** import positions as f64 so exact values round-trip ([#963](https://github.com/graphty-org/graphty-monorepo/issues/963))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.39
+- Updated algorithms to 3.3.10
+- Updated graph-io to 0.3.30
+- Updated layout to 2.2.11
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.18.0 (2026-10-08)
 
 ### 🚀 Features

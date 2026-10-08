@@ -328,6 +328,14 @@ export class Graph implements GraphContext {
     #initialCameraStateOwed = false;
 
     /**
+     * True from the end of `init()` until the load's label animations have started. A layout
+     * that runs starts them when it settles; one that is already at rest when the first frame
+     * with nodes is drawn never settles again, so that frame starts them. Paid by the frame loop,
+     * so a graph disposed first starts nothing.
+     */
+    #labelAnimationsOwed = false;
+
+    /**
      * Whether the camera was placed explicitly (`setCameraState` and every route through it) since
      * the element last asked to frame the graph for a load or a new layout. The first-settlement
      * framing is skipped while it is set, so it never moves a camera somebody has just placed.
@@ -1479,15 +1487,7 @@ export class Graph implements GraphContext {
             window.addEventListener("resize", this.resizeHandler);
 
             this.initialized = true;
-
-            // For layouts that settle immediately, start animations after a short delay
-            setTimeout(() => {
-                if (!this.layoutManager.running) {
-                    for (const node of this.dataManager.nodes.values()) {
-                        node.label?.startAnimation();
-                    }
-                }
-            }, 100);
+            this.#labelAnimationsOwed = true;
         } catch (error) {
             // Emit error event for user handling
             this.eventManager.emitGraphError(this, error instanceof Error ? error : new Error(String(error)), "init", {
@@ -1522,14 +1522,23 @@ export class Graph implements GraphContext {
                 // has nothing to settle, so we shouldn't emit events or log
                 if (this.dataManager.nodes.size > 0) {
                     // Check if layout has settled
+                    if (
+                        this.#labelAnimationsOwed &&
+                        !this.layoutManager.running &&
+                        !this.layoutManager.building
+                    ) {
+                        // The layout is at rest with nodes to show, so no settlement is coming.
+                        this.#labelAnimationsOwed = false;
+                        this.dataManager.startLabelAnimations();
+                    }
+
                     if (this.layoutManager.isSettled && this.layoutManager.running) {
                         this.eventManager.emitGraphSettled(this);
                         this.layoutManager.running = false;
 
                         // Start label animations after layout has settled
-                        for (const node of this.dataManager.nodes.values()) {
-                            node.label?.startAnimation();
-                        }
+                        this.#labelAnimationsOwed = false;
+                        this.dataManager.startLabelAnimations();
 
                         // Only zoom to fit on FIRST settlement after data load.
                         // Subsequent settlements (e.g., after node selection/style change)

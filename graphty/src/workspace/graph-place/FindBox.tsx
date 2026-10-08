@@ -6,6 +6,7 @@ import React, { useId, useMemo, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { focusNodeValuesNext } from "../inspector/reads";
+import { edgeName } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useSessionVersion } from "./useSessionVersion";
 
@@ -51,12 +52,15 @@ function attributeName(session: GraphSession, path: string): string {
 }
 
 /**
- * A hit's name: a node's name, or an edge's two ends.
+ * A hit's name: a node's name, or an edge's two ends written the way the inspector writes them.
+ * @param session - the session, which says whether the graph is directed.
  * @param hit - the hit.
  * @returns the name.
  */
-function hitName(hit: FindHit): string {
-    return hit.kind === "edge" ? `${hit.ends.source.name} -- ${hit.ends.target.name}` : hit.name;
+function hitName(session: GraphSession, hit: FindHit): string {
+    return hit.kind === "edge"
+        ? edgeName(session, { source: hit.ends.source.name, target: hit.ends.target.name })
+        : hit.name;
 }
 
 /**
@@ -193,9 +197,12 @@ export function FindBox(): React.JSX.Element {
                                 Elements
                             </Text>
                             {found.records.map((hit, i) => {
-                                const name = hitName(hit);
+                                if (session === null) {
+                                    return null;
+                                }
+                                const name = hitName(session, hit);
                                 const where =
-                                    String(hit.match.value) === name || session === null
+                                    String(hit.match.value) === name
                                         ? undefined
                                         : `${attributeName(session, hit.match.path)}: ${String(hit.match.value)}`;
                                 return (
@@ -205,7 +212,9 @@ export function FindBox(): React.JSX.Element {
                                         name={name}
                                         match={text}
                                         path={where}
-                                        icon={hit.kind === "edge" ? <GLYPHS.edge size={14} /> : <GLYPHS.node size={14} />}
+                                        icon={
+                                            hit.kind === "edge" ? <GLYPHS.edge size={14} /> : <GLYPHS.node size={14} />
+                                        }
                                         current={i === active}
                                         onClick={() => {
                                             void pick({ type: "hit", hit });

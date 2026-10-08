@@ -107,6 +107,24 @@ describe("the Graph place", () => {
         assert.equal(session.selection.size, 0);
     });
 
+    for (const [directed, name] of [
+        [true, "Station -> Stadium"],
+        [false, "Station -- Stadium"],
+    ] as const) {
+        it(`names an edge hit "${name}" on ${directed ? "a directed" : "an undirected"} graph, as the inspector does`, async () => {
+            const session = createGraphSession();
+            sessions.push(session);
+            await session.config.set({ data: { directed } });
+            await session.data.addNodes([{ id: "Station" }, { id: "Stadium" }]);
+            await session.data.addEdges([{ source: "Station", target: "Stadium", line: "tram" }]);
+            renderPlace(session);
+
+            await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "tram");
+            const list = await screen.findByRole("listbox", { name: "Find results" });
+            assert.isNotNull(within(list).getByRole("option", { name: new RegExp(`^${name}`) }));
+        });
+    }
+
     it("moves through the list with Down and Up, never past its ends, and Enter picks the active row", async () => {
         const session = await sessionWithGraph();
         const store = renderPlace(session);
@@ -216,7 +234,10 @@ describe("the Graph place", () => {
     it("words any other refused rule with where it went wrong", async () => {
         renderPlace(await sessionWithGraph());
         await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "=side == 'law' ~{Enter}");
-        assert.match((await screen.findByRole("alert")).textContent ?? "", /^Not a rule Find can read \(at character \d+\)$/);
+        assert.match(
+            (await screen.findByRole("alert")).textContent ?? "",
+            /^Not a rule Find can read \(at character \d+\)$/,
+        );
     });
 
     it("focuses the find box from the find.focus command, moving to the Graph place", async () => {

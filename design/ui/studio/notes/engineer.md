@@ -150,6 +150,14 @@ direction })` + one status line; "Filter to neighbors" appends a `neighborhood` 
 
 ## Decisions and reasons
 
+- (2026-10-07) **Direction row never quotes the file's statement (app words only, no door).**
+  `directionWords` gives "Undirected, from the file", not "..., from the file: directed 0": a reader
+  cannot read GML/DOT syntax. The element's `statedBy` stays (a fact; another consumer may show it).
+  Proof: `inspector/__tests__/directionWords.test.ts` (fails on the old text);
+  `tmp/t2pilotfix-app-direction-words/s1/04.png` (florentine.gml, tooltip "Undirected, from the
+  file"). Still cut to "Undirected, from the ..." at the default inspector width: the grid gives
+  "Direction" and the value half each; shorter words do not fix that.
+
 - (2026-10-06/07) No default layout seed in the element (owner): the app seeds (`LAYOUT_SEED`,
     `takesSeed()`). Grep every route of a value; any NEW site showing a run calls `runName`.
 

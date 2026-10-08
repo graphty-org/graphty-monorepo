@@ -101,7 +101,8 @@ export function formatNumber(value: number): string {
 }
 
 /**
- * The graph's direction and where it was settled ("Undirected, from the file: digraph").
+ * The graph's direction and who settled it ("Undirected, from the file"). The file's own
+ * statement (GML "directed 0", DOT "digraph") is not quoted: a reader cannot read it.
  * @param statistics - the element's statistics.
  * @returns the words.
  */
@@ -114,7 +115,7 @@ export function directionWords(statistics: GraphStatistics): string {
     }[statistics.directedness];
     const { by, statedBy } = statistics.directednessSource;
     if (by === "file" && statedBy !== null) {
-        return `${word}, from the file: ${statedBy}`;
+        return `${word}, from the file`;
     }
     if (by === "configuration") {
         return `${word}, set in the project`;

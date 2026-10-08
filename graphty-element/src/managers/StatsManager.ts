@@ -7,6 +7,7 @@ import {
     type WebGPUEngine,
 } from "@babylonjs/core";
 
+import type { StatsUpdateEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
@@ -306,7 +307,7 @@ export class StatsManager implements Manager {
             this.eventManager.emitGraphEvent("stats-update", {
                 totalUpdates: this.totalUpdates,
                 stats: this.getStats(),
-            });
+            } satisfies Omit<StatsUpdateEvent, "type">);
         }
     }
 

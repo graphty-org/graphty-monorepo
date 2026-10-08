@@ -387,6 +387,7 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
                     values={values}
                     words={(option) => optionWords(descriptor.key, option)}
                     weightReads={descriptor.weightMeaning ?? null}
+                    algorithm={descriptor.key}
                     onChange={(name, value) => {
                         setValues({ ...values, [name]: value });
                     }}

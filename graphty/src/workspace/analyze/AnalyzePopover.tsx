@@ -406,6 +406,7 @@ function Essentials({
                     values={params}
                     words={(option) => optionWords(descriptor.key, option)}
                     weightReads={descriptor.weightMeaning ?? null}
+                    algorithm={descriptor.key}
                     onChange={(name, value) => {
                         onValues({ ...values, [name]: value });
                     }}

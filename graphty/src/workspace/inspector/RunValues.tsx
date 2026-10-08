@@ -157,6 +157,7 @@ function MadeWith({
                         values={settings}
                         words={(option) => optionWords(run.algorithm, option)}
                         weightReads={descriptor.weightMeaning ?? null}
+                        algorithm={run.algorithm}
                         canUseSelectedNode
                         onChange={(name, value) => {
                             onDraft({ ...draft, [name]: value });

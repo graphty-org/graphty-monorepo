@@ -12,7 +12,7 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -25,11 +25,17 @@ const TIMEOUT_MS = 90_000;
 /** Ava - Ben - Lee, Ava - Dev, and Zed - Zoe apart. */
 const FRIENDS = "source,target\nAva,Ben\nBen,Lee\nAva,Dev\nZed,Zoe\n";
 
+/** The running club: who runs with whom, and how often (a weight with no meaning chosen at load). */
+const CLUB = "source,target,weight\nAva,Ben,3\nBen,Lee,2\nAva,Dev,5\nZed,Zoe,1\n";
+
 /**
  * A project with the friends graph loaded.
+ * @param weighted - Load the running club with its weight, and this meaning for it (null: none chosen).
  * @returns the store, the session and the element.
  */
-async function openFriends(): Promise<{ store: WorkspaceStore; session: GraphSession; element: ElementUnderTest }> {
+async function openFriends(
+    weighted?: "distance" | null,
+): Promise<{ store: WorkspaceStore; session: GraphSession; element: ElementUnderTest }> {
     const store = createWorkspaceStore({ project: { name: "Friends", id: 1 } });
     render(<Workspace store={store} />);
     let element: ElementUnderTest | null = null;
@@ -43,8 +49,16 @@ async function openFriends(): Promise<{ store: WorkspaceStore; session: GraphSes
     const el = element as unknown as ElementUnderTest;
     const { session } = el;
     await session.data.import(
-        { type: "csv", config: { data: FRIENDS } },
-        { mapping: { rowsAre: "edges", source: "source", target: "target" } },
+        { type: "csv", config: { data: weighted === undefined ? FRIENDS : CLUB } },
+        {
+            mapping: {
+                rowsAre: "edges",
+                source: "source",
+                target: "target",
+                ...(weighted === undefined ? {} : { weight: "weight" }),
+                ...(weighted === "distance" ? { weightMeaning: weighted } : {}),
+            },
+        },
     );
     await waitFor(() => {
         assert.equal(session.data.statistics().nodeCount, 6);
@@ -244,6 +258,66 @@ describe("the Path popover, on the real element", () => {
             // The click was the pick's alone: the popover is open and the selection unchanged.
             assert.isNotNull(screen.queryByRole("form", { name: "Shortest path" }));
             assert.deepEqual(session.selection.nodes, ["Ava"]);
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "the Weight box says before the run that a loaded weight with no meaning is not read, and Made with agrees",
+        async () => {
+            const { store, session, element } = await openFriends(null);
+            const why = "Not read -- weight has no meaning chosen, and a path needs a distance";
+            element.focus();
+            await userEvent.keyboard("p");
+            const form = await pathForm();
+            const weight = within(form).getByRole<HTMLInputElement>("combobox", { name: "Weight" });
+            await waitFor(() => {
+                assert.equal(weight.value, "weight (loaded, not read)");
+            });
+            assert.isNotNull(within(form).getByText(why));
+
+            await userEvent.keyboard("Ava{Enter}Lee{Enter}{Enter}");
+            let runId = "";
+            await waitFor(
+                () => {
+                    const run = session.runs.list().find((r) => r.algorithm === "shortest-path");
+                    assert.equal(run?.status, "succeeded");
+                    runId = String(run?.id);
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            act(() => {
+                store.set({ inspected: { kind: "measure-row", id: runId }, tabs: { "measure-row": "values" } });
+            });
+            const madeWith = await screen.findByRole("group", { name: "Made with" });
+            assert.isNotNull(
+                within(madeWith).getByText("Weight: not read -- weight has no meaning chosen, and a path needs a distance"),
+            );
+            await waitFor(() => {
+                assert.equal(
+                    within(madeWith).getByRole<HTMLInputElement>("combobox", { name: "Weight" }).value,
+                    "weight (loaded, not read)",
+                );
+            });
+            assert.isNotNull(within(madeWith).getByText(why));
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "the Weight box reads a loaded distance as used",
+        async () => {
+            const { element } = await openFriends("distance");
+            element.focus();
+            await userEvent.keyboard("p");
+            const form = await pathForm();
+            const weight = within(form).getByRole<HTMLInputElement>("combobox", { name: "Weight" });
+            // The element's plan has answered once the form's pending effects settle.
+            await act(async () => {
+                await Promise.resolve();
+            });
+            assert.equal(weight.value, "weight (farther, loaded)");
+            assert.isNull(within(form).queryByText(/not read/i));
         },
         TIMEOUT_MS,
     );

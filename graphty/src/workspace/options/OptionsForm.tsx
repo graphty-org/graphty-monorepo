@@ -2,9 +2,9 @@ import { ControlSubGroup, StyleNumberInput } from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Button, Checkbox, Group, Select, Stack, Text, TextInput } from "@mantine/core";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
-import { type Meaning, weightName } from "../analyze/words";
+import { type Meaning, weightName, weightReadWords } from "../analyze/words";
 
 /** What the app calls one option, and each of its choices. */
 interface OptionLabel {
@@ -32,6 +32,8 @@ interface OptionsFormProps {
      * `weight` option is drawn as the Weight line, listing the loaded weight first.
      */
     weightReads?: Meaning;
+    /** The algorithm the form sets up: the element's plan for it says whether the loaded weight is read. */
+    algorithm?: string;
 }
 
 /** The option types the form draws a control for; the rest keep their defaults. */
@@ -122,12 +124,15 @@ const LOADED = "\u0000loaded";
 /**
  * The Weight line (tier2-design.md section 5): the loaded weight first, then None, then the
  * graph's other number edge columns, each with the meaning this run would read it as. Absent
- * reads the loaded weight, null none, a column name overrides it for this run.
+ * reads the loaded weight, null none, a column name overrides it for this run. Whether the loaded
+ * weight would be read is the element's rule: its plan for the run says, and a loaded weight it
+ * would leave unread is labeled so, with the reason under the box.
  * @param props - Component props
  * @param props.session - The element's session
  * @param props.value - The value set
  * @param props.label - The app's words for it
  * @param props.reads - The meaning the algorithm reads
+ * @param props.algorithm - The algorithm, for the element's plan
  * @param props.onChange - Called with the new value
  * @returns The select
  */
@@ -136,17 +141,46 @@ function WeightField({
     value,
     label,
     reads,
+    algorithm,
     onChange,
 }: Readonly<{
     session: GraphSession;
     value: unknown;
     label: string;
     reads: WeightMeaningRead;
+    algorithm: string | undefined;
     onChange: (v: unknown) => void;
 }>): React.JSX.Element {
     const loaded = session.data.loadedWeight();
+    // The plan is asked again when the loaded weight or its meaning changes.
+    const loadedAttribute = loaded?.attribute;
+    const loadedMeaning = loaded?.meaning;
+    // Why the run would leave the loaded weight unread, or null when it would read it.
+    const [unread, setUnread] = useState<string | null>(null);
+    useEffect(() => {
+        let live = true;
+        if (algorithm === undefined || loadedAttribute === undefined) {
+            setUnread(null);
+            return undefined;
+        }
+        void session.plan({ op: "algo.run", algorithm, params: {} }).then(({ caveats }) => {
+            if (live) {
+                setUnread(caveats.weightSkipped === undefined ? null : weightReadWords(caveats));
+            }
+        });
+        return () => {
+            live = false;
+        };
+    }, [session, algorithm, loadedAttribute, loadedMeaning]);
     const data =
-        loaded === null ? [] : [{ value: LOADED, label: weightName(loaded.attribute, loaded.meaning, "loaded") }];
+        loaded === null
+            ? []
+            : [
+                  {
+                      value: LOADED,
+                      label: weightName(loaded.attribute, loaded.meaning, unread === null ? "loaded" : "loaded, not read"),
+                  },
+              ];
     data.push({ value: "", label: "None" });
     for (const column of session.data.attributes()) {
         if (
@@ -166,6 +200,8 @@ function WeightField({
             size="xs"
             label={label}
             value={shown}
+            // "Not read -- weight has no meaning chosen, and a path needs a distance".
+            description={shown === LOADED && unread !== null ? unread.replace(/^n/, "N") : undefined}
             data={data}
             allowDeselect={false}
             comboboxProps={{ withinPortal: false }}
@@ -193,6 +229,7 @@ type WeightMeaningRead = NonNullable<Meaning>;
  * @param props.words - The app's words for an option
  * @param props.canUseSelectedNode - Whether a node option offers "Use selected node"
  * @param props.weightReads - The meaning of weight the algorithm reads, or null
+ * @param props.algorithm - The algorithm the form sets up
  * @returns The control, or nothing for an option the form does not draw
  */
 function OptionField({
@@ -203,6 +240,7 @@ function OptionField({
     words,
     canUseSelectedNode = false,
     weightReads = null,
+    algorithm,
 }: Readonly<FieldProps>): React.JSX.Element | null {
     const { label, choice } = words(option);
     const set = (v: unknown): void => {
@@ -269,7 +307,16 @@ function OptionField({
         case "attribute":
         case "partition":
             if (weightReads !== null && option.name === "weight" && option.on === "edge") {
-                return <WeightField session={session} value={value} label={label} reads={weightReads} onChange={set} />;
+                return (
+                    <WeightField
+                        session={session}
+                        value={value}
+                        label={label}
+                        reads={weightReads}
+                        algorithm={algorithm}
+                        onChange={set}
+                    />
+                );
             }
             return <AttributeField session={session} option={option} value={value} label={label} onChange={set} />;
         case "node-id": {
@@ -314,6 +361,7 @@ function OptionField({
  * @param props.words - The app's words for an option
  * @param props.canUseSelectedNode - Whether a node option offers "Use selected node"
  * @param props.weightReads - The meaning of weight the algorithm reads, or null
+ * @param props.algorithm - The algorithm the form sets up
  * @param props.advanced - More controls at the end of the Advanced fold
  * @returns The fields
  */

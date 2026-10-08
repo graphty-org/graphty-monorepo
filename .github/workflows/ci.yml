@@ -63,6 +63,12 @@ concurrency:
 # A Mergify merge-queue run: a draft on a mergify/merge-queue/* branch of this repository, opened by
 # Mergify's app. The branch name alone is not enough: anyone can push a branch with that prefix. A job's
 # `if` cannot read env, so the build job repeats this test.
+# The jobs read the repository and download this run's artifacts; checks: write lets a failed job mark the
+# summary checks failed at once (.github/actions/early-verdict). The visual job asks for its own.
+permissions:
+    contents: read
+    checks: write
+
 env:
     MERGE_QUEUE: ${{ startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]' }}
 
@@ -330,6 +336,16 @@ jobs:
                   path: compact-mantine/dist/
                   retention-days: 1
 
+            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # slowest job of the run ends (.github/actions/early-verdict).
+            - name: Fail the summary checks now
+              if: failure() && github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: ./.github/actions/early-verdict
+              with:
+                  job: packages
+                  advisory: ${{ steps.advisory.outputs.checks }}
+
     # The six Storybooks (deploy-pages.yml publishes them, the Links job checks them, the visual job
     # screenshots them). This job keeps the id "build": the visual job (whose steps follow
     # visual-review's template, and which this workflow leaves alone) needs build and reads its outputs,
@@ -433,6 +449,16 @@ jobs:
                   path: cytoscape-extensions/storybook-static/
                   retention-days: 1
 
+            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # slowest job of the run ends (.github/actions/early-verdict).
+            - name: Fail the summary checks now
+              if: failure() && github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: ./.github/actions/early-verdict
+              with:
+                  job: build
+                  advisory: ${{ needs.packages.outputs.advisory-checks }}
+
     # Lint every package (every affected one on a pull request), beside the tests.
     lint:
         name: Lint
@@ -471,6 +497,16 @@ jobs:
             - name: Lint all (master, a manual dispatch or the merge queue)
               if: needs.packages.outputs.full == 'true'
               run: pnpm exec nx run-many -t lint --parallel=3 --exclude-task-dependencies
+
+            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # slowest job of the run ends (.github/actions/early-verdict).
+            - name: Fail the summary checks now
+              if: failure() && github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: ./.github/actions/early-verdict
+              with:
+                  job: lint
+                  advisory: ${{ needs.packages.outputs.advisory-checks }}
 
     # The repository checks that read source or the built packages: the CI workflow tests, knip,
     # formatting, the bundle sizes, the public API report and the rest. The same checks run in
@@ -570,6 +606,16 @@ jobs:
             - name: Legacy graph API use
               run: pnpm run check:legacy-use
 
+            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # slowest job of the run ends (.github/actions/early-verdict).
+            - name: Fail the summary checks now
+              if: failure() && github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: ./.github/actions/early-verdict
+              with:
+                  job: checks
+                  advisory: ${{ needs.packages.outputs.advisory-checks }}
+
     # The documentation site and the two gh-pages builds (deploy-pages.yml publishes them; the Links job
     # checks them).
     docs:
@@ -636,6 +682,16 @@ jobs:
                   name: build-ghpages-layout
                   path: layout/gh-pages/
                   retention-days: 1
+
+            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # slowest job of the run ends (.github/actions/early-verdict).
+            - name: Fail the summary checks now
+              if: failure() && github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: ./.github/actions/early-verdict
+              with:
+                  job: docs
+                  advisory: ${{ needs.packages.outputs.advisory-checks }}
 
     # Sharded test jobs - run in parallel, collect coverage. The matrix comes from the packages job's plan
     # (tools/ci-test-matrix.mjs holds every shard and why it is split the way it is): every shard on master,
@@ -841,6 +897,16 @@ jobs:
                   retention-days: 1
                   if-no-files-found: error
                   overwrite: true
+
+            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # slowest job of the run ends (.github/actions/early-verdict).
+            - name: Fail the summary checks now
+              if: failure() && github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: ./.github/actions/early-verdict
+              with:
+                  job: test
+                  advisory: ${{ needs.packages.outputs.advisory-checks }}
 
     # Chromatic visual regression testing (graphty-element)
     # ALL CHROMATIC JOBS ARE SWITCHED OFF (they need the repository variable CHROMATIC_ENABLED) until the self-hosted visual review replaces them:
@@ -1148,6 +1214,16 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # slowest job of the run ends (.github/actions/early-verdict).
+            - name: Fail the summary checks now
+              if: failure() && github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: ./.github/actions/early-verdict
+              with:
+                  job: links
+                  advisory: ${{ needs.packages.outputs.advisory-checks }}
+
     # The algorithms benchmark table and graphty-element's timing benchmarks (a manual dispatch and
     # the release train): measurements, gating nothing. A push to master runs no test job, so this
     # one is skipped with it.
@@ -1267,6 +1343,16 @@ jobs:
                       grep -E "ratio [0-9.]+, machine speed" "$RUNNER_TEMP/cost.log" || echo "no rows ran"
                       echo '```'
                   } >> "$GITHUB_STEP_SUMMARY"
+
+            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # slowest job of the run ends (.github/actions/early-verdict).
+            - name: Fail the summary checks now
+              if: failure() && github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: ./.github/actions/early-verdict
+              with:
+                  job: cost-accuracy
+                  advisory: ${{ needs.packages.outputs.advisory-checks }}
 
     # Visual review: screenshot every story of a built Storybook and compare it with the baseline PNGs
     # in visual-baselines/ (@graphty/visual-review in visual-review/, configured by

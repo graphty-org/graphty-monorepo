@@ -1035,6 +1035,53 @@ jobs:
     });
 });
 
+describe("the summary checks fail as soon as a required job fails", () => {
+    const ci = workflow("ci.yml");
+    const jobs = parseJobs(ci);
+    // The jobs "All Checks Pass" fails on: every job it needs but the opt-in Chromatic jobs and the
+    // visual job, whose results the gate step judges at the end.
+    const deciding = jobs["all-checks"].needs.filter((n) => !n.startsWith("chromatic-") && n !== "visual");
+
+    it("ends every job whose failure fails them with the early-verdict step, on pull requests only", () => {
+        assert.deepEqual([...deciding].sort(), [
+            "build",
+            "checks",
+            "cost-accuracy",
+            "docs",
+            "links",
+            "lint",
+            "packages",
+            "test",
+        ]);
+        for (const name of deciding) {
+            const last = jobs[name].steps.at(-1);
+            assert.equal(last.uses, "./.github/actions/early-verdict", name);
+            assert.equal(last.if, "failure() && github.event_name == 'pull_request'", name);
+            assert.equal(last.coe, "true", `${name}: a failure to post never changes the job's result`);
+            assert.match(job(ci, name), new RegExp(`\\n {18}job: ${name}\\n`), name);
+        }
+        assert.match(ci, /\npermissions:\n {4}contents: read\n {4}checks: write\n/);
+        assert.match(
+            job(workflow("release.yml"), "ci"),
+            /permissions:\n(?: {12}.*\n)*? {12}checks: write\n(?: {12}#.*\n| {12}.*\n)*? {8}uses: \.\/\.github\/workflows\/ci\.yml/,
+            "a called workflow cannot ask for more than its caller grants",
+        );
+    });
+
+    it("only ever reports a failure, and never for a job in its warning period", () => {
+        const action = readFileSync(new URL("../.github/actions/early-verdict/action.yml", import.meta.url), "utf8");
+        assert.match(action, /for check in "All Checks Pass" "Queue Checks Pass"; do/);
+        assert.equal(action.match(/conclusion=/g).length, 1);
+        assert.match(action, /-f status=completed -f conclusion=failure/);
+        const program = /if jq -e --arg job "\$JOB" '([^']+)'/.exec(action)[1];
+        const advisory = (list, name) =>
+            spawnSync("jq", ["-e", "--arg", "job", name, program], { input: list, encoding: "utf8" }).status === 0;
+        assert.equal(advisory('["links"]', "links"), true);
+        assert.equal(advisory('["links"]', "lint"), false);
+        assert.equal(advisory("[]", "test"), false);
+    });
+});
+
 describe("screenshots of Storybooks a pull request cannot affect", () => {
     const ci = workflow("ci.yml");
     const VISUAL = ["compact-mantine", "graphty-element", "layout", "algorithms", "graphty"];

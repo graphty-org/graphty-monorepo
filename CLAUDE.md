@@ -156,6 +156,20 @@ published types. Every review workflow includes a developer-experience lens and 
 personas in `design/designloom/personas/`, alongside security, evolution and implementability. A
 spec whose simplest example needs internal knowledge fails review.
 
+### Non-breaking API changes need no owner approval
+
+The owner's rule (2026-10-08), for every session and agent: "if there are non-breaking changes to
+APIs, you can make them without getting my approval."
+
+- **Non-breaking** means additive: a new export, method, property, event, error code, attribute or
+  entry point, or a new optional parameter or option whose default keeps today's behavior. Choose
+  its name and shape yourself, state the choice in one line where the work is recorded (the issue,
+  the pull request), and build it. Do not label it `needs-decision` and do not ask.
+- **Breaking** changes are still one-way doors that need the owner: removing or renaming anything
+  public, changing what an existing API does or returns, changing a default, or anything that
+  publishes a major version.
+- When unsure whether a change breaks a consumer, it is breaking.
+
 ### Why
 
 The failure mode this prevents is silent and expensive: a capability lands "in the product"

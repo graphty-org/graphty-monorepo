@@ -10,6 +10,12 @@ made and evidence comes in.
 
 ## Top of mind
 
+- 2026-10-08 -- TIER 2 ROUND 1 PLANNED: `tier2/rounds/round-1/plan.md`, 56 sessions r1-s01 to
+  r1-s56 (core four 32, T4 6, T19/T22/T23/T24 16, T12R 2), roster's allocation exactly (checked by
+  `tier2/rounds/round-1/sessions.py`). T21 runs LAST of the core four and T19 after T4: both wait
+  for preflight item 2 (`--prove` 5 clean). No saved-project starts (tasks.md rule). Grades must
+  record first move, doors, follow-up cost, T20 weight route, T21 moved nodes, T22 rule use and
+  the open-work diff.
 - 2026-10-08 -- TIER 2 CRITERIA REVIEW (before freeze): 8 changes proposed, none applied by me
   (the director decides). Biggest: the per-round expert walkthrough and screenshot audit feed NO
   bar -- add bar 10 with its own confirmation rule; "not scored" must mean "round cannot pass";
@@ -39,12 +45,9 @@ made and evidence comes in.
   again after Replace; Find frames the graph off the canvas in T19 A (not in T23 on 16dcf); Hops 1
   and Hops 2 lists differ on A; thin gold bands on Les Miserables; legend layer names say "route";
   a multi-edge selection lists no members.
-- 2026-10-07 -- TIER 2 IS READY FOR THE OWNER TO START: `tier2/criteria.md` (frozen), `tasks.md`,
-  `answers.md`, `roster.md`. Nine tasks on two datasets each (T4, T17-T24); 54 sessions in round 1;
-  core four T20, T21, T17, T18 at 4+4. Owner: no keyboard-only, screen-reader or touch sessions.
-- 2026-10-07 -- Tier 2 bars differ from tier 1 in two places: bar 2 is "earlier work kept" (0
-  `work-lost`/`not-kept`) instead of first-time share; bar 7 is "the loaded weight is read as
-  loaded" (a catalog-wide script plus sessions) instead of keyboard and screen reader.
+- 2026-10-08 -- Tier 2 has 11 bars (frozen): bar 2 earlier work kept, bar 7 weight read as
+  loaded, bar 10 expert audit, bar 11 core-four cost. Nine tasks plus T12R; no keyboard-only,
+  screen-reader or touch sessions (owner).
 - 2026-10-07 -- The biggest validity threat in tier 2 is the briefing: a returning user is a fresh
   agent told a history. A history may name only tier 1 places, never a tier 2 control; graders
   record when a first move came straight from it. Persona files echo too: Ruth's says "notes", so
@@ -140,34 +143,29 @@ reasons, in short:
   Rejected: raising ease to 5.5 (uncalibrated; trend only); changing prompts (re-pilot cost, no
   echo found).
 
-- 2026-10-07 (researcher, tier 2 key corrected) -- Edited `tier2/answers.md` from the re-pilots
-  (`tier2/pilot/`) and one walk of my own: T4 "Add a table" by name, line 17 for B, left-out row
-  recorded nowhere after Load; T17 Overview 20/77 under a filter is `read-wrong`; T18 adds
-  "Shortest path 35" (B) and the preset Weight box detour; T20 adds 27 and 24 as `read-wrong`,
-  Style-first, and the Time role (walked: Weight none, Depot-Station-Harbor, `weight-not-read`);
-  T22 Everything keeps the selection, refusal shows only after Enter; T24 drops Escape. Reason:
-  the dependent app fixes were not in the tree (no commit after 6eba30d4e, no graphty/src edits
-  after 20 minutes of watching), so every sentence names the build it is true on rather than
-  describing a fix nobody could check. `tasks.md` needed no change. Bars untouched.
-- 2026-10-07 (researcher, tier 2 study prepared) -- Wrote `tier2/` (criteria frozen, tasks, answers,
-  roster) and moved the tier 2 sections out of `tasks.md` and `answers.md` (one copy; pointers left).
-  Kept the six tasks the engineer had piloted (T4, T17-T21) and added T22 (make the ones meeting a
-  condition stand out: bus links >= 10 minutes = 3; Les Mis ties >= 10 chapters = 13), T23 (a step
-  or two away: Ava 14, chip 15 of 20; Medici 11, chip 12 of 15) and T24 (one tie: Gus-Ivan 1,
-  Station-Stadium 4, then select its ends), each piloted on a frozen copy of ca8b3b916c22 and
-  checked against a count from the files. Reasons: the owner's list asks for rule queries,
-  neighborhood distance and edge selection; T22's "without taking anything off the drawing"
-  separates selecting from T17's filtering and tests whether "=" in Find is found, which is the
-  design's stated condition for a separate dialog. Bars: tier 1's nine, with bar 2 replaced by
-  earlier work kept (the returning persona's stated reason to quit) and bar 7 by the weight read as
-  loaded (owner rule; a script covers the catalog, sessions cover what a reader meets). Round 1 at
-  54: core four at 8, T4 at 6, the rest at 4 with all-must-pass. Personas: six tier 1 graduates
-  (67%) plus Alex, Jordan, Dana; 6 sessions each; no one takes both halves of a task. No saved-
-  project starts: reopening was measured in tier 1 and the project file format moves with the
-  build. Rejected: node-attribute rules for T22 (no single-file dataset has a numeric node
-  attribute; two-table setups need click-at); asking "which stops" in T22 (a several-edge
-  selection lists no members, so the task would grade a known gap twice); keeping Mara (expert
-  workflows are not common repeat work).
+- 2026-10-08 (researcher, tier 2 round 1 plan) -- Wrote `tier2/rounds/round-1/plan.md`: 56
+  sessions, ids r1-s01 to r1-s56, in run order, each with task, half, persona and start, persona
+  files, how a session runs and what every grade must record. Choices: (1) the roster's
+  allocation unchanged, verified by a script with asserts (count, each half's set, per-persona
+  totals, 37 graduates, no persona on both halves). (2) T21 moved from second to fourth of the
+  core four and T19 after T4, because criteria preflight item 2 forbids save-and-reopen sessions
+  until `--prove` runs 5 clean; this keeps the core four first without making them wait. (3)
+  Halves alternate and graduates mix with analysts inside each task, so a one-dataset build
+  defect shows within the first 2 sessions of a task, not after 4. (4) Every T17/T18 participant
+  who says done gets the follow-up, whatever the runner thinks of the first answer (graders
+  decide success; a runner judging it would pre-grade). (5) Grade fields listed in the plan so the
+  per-round measures (first move, doors, follow-up cost, T20 route, moved nodes, T22 rule use,
+  open-work diff) are recorded at grading time, not reconstructed after. (6) Starts are setups or
+  empty only, never a saved project: `tasks.md` (frozen) rules it out, though the launch brief
+  allowed either. Rejected: putting bars 8-10 in the session list (they are measured apart on the
+  build).
+- 2026-10-07 (researcher, tier 2 prepared and key corrected, folded) -- Wrote `tier2/` (tasks,
+  answers, roster, criteria); kept T4, T17-T21 and added T22 (rule: bus >= 10 min = 3; Les Mis
+  >= 10 chapters = 13), T23 (Ava 14; Medici 11), T24 (Gus-Ivan 1; Station-Stadium 4), each piloted
+  and checked against a hand count. Bars 2 and 7 replaced (work kept; weight read as loaded).
+  Personas: six graduates plus Alex, Jordan, Dana; no one on both halves. Key sentences name the
+  build they are true on, never an unlanded fix. Rejected: node-attribute rules for T22, "which
+  stops" in T22 (known gap graded twice), Mara (expert workflows).
 
 - 2026-10-07 (researcher, round 3 skeptic verdicts) -- Applied two skeptics' verdicts
   (`rounds/round-3/insights.md`). Rule added for split verdicts: one skeptic's weakening stands
@@ -206,6 +204,12 @@ reasons, in short:
 - 2026-09-28 (owner) -- Simulated personas built from public sources, each checked by a skeptic.
 
 ## Tried: worked / did not work
+
+- 2026-10-08 (round 1 plan) -- Worked: one script (`tier2/rounds/round-1/sessions.py`) holding the
+  run order, asserting it against the roster's per-half sets, and printing both the plan's table
+  and the session JSON, so the two cannot drift. Checked every persona file path exists before
+  listing it. Not done here: preflight items (prove, open-work lister, bars.mjs, bar 7 script);
+  the plan states them as gates, not as met.
 
 - 2026-10-08 (key vs round 1 pilots) -- Worked: one edit script with an exact-count assert per
   anchor and an ASCII assert on the result (`tmp/researcher/r1-pilot-key/edit.py`); checking each

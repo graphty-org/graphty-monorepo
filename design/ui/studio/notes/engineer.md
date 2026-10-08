@@ -15,6 +15,13 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+- (2026-10-08) **Neighborhood list (app only, no API change).** Heading and status line
+  "Javert's 17 connections" at every hop count (`neighborhoodWords`, inspector/words.ts), named by
+  `session.data.name()` (the old "#895, named by id" note was stale). Every hop count lists by
+  name (one hop: element `sort: { by: "name" }`; two or more: numeric `Intl.Collator` over the
+  selection); a weighted one hop keeps its tie values. "Filter to neighbors": `default` Button at
+  rest, `filled` when on, Tooltip says what it does and, on, "Press again to show every node".
+  Evidence `tmp/r1-dry2-neighborhood-view/` (T23B/04-08, T12RA/04-06, T23A/04, 07, 08).
 - (2026-10-08) **The key speaks the app's words for a run's highlight (app only, no API change).**
   `keySections` (legendWords.ts) merges a run's node and edge color highlight with one swatch into
   one section titled by the run alone ("Shortest path"); its entry is `highlightEntry(run.shape)`
@@ -131,6 +138,12 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
+- (2026-10-08) **Neighbors in name order at every hop count, weighted one hop included.** Two or
+  more hops list the selection, which has no single tie per node, so weight order is impossible
+  there; one hop in weight order made the lists disagree (pilot T23B). Tie values still show at
+  one hop. Filter to neighbors is outlined at rest because a subtle button read as a list row; the
+  way back is in the pressed button's tooltip, not new chrome.
+
 - (2026-10-08) **One key section per highlight color, titled by the run.** A node and an edge
   section with the same chip told a reader nothing the one does not; the property word ("Color",
   "Edge color") is dropped only when merged, since the one entry then covers both. Entry words
@@ -234,6 +247,10 @@ acceptance test. "The studio worktree" is
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-08) Did not work: piloting on `graphty/dist` while others rebuild (their `vite build`
+  empties it: "no production build"). Worked: copy dist into the task's tmp folder after the
+  build, grep its JS for the new words, serve the copy. Run prettier on an index-built blob.
 
 - (2026-10-08) Worked: re-piloting T20A/T20B from empty with the load-time weight steps of
   answers.md T20 in one shell function, and T18A/T18B from `friends-ranked.txt` and

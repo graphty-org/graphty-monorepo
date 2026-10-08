@@ -13,7 +13,7 @@ import type {
     SelectionAttributeStatistics,
     SelectionDirection,
 } from "@graphty/graphty-element/session";
-import { Button, Group, Stack, Text } from "@mantine/core";
+import { Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { newId, writeSteps } from "../data-place/filterSteps";
@@ -23,7 +23,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, neighborhoodKey, nodeKey } from "./inspected";
 import { finishedRuns, selectNode, takeNodeValuesFocus } from "./reads";
-import { count, formatNumber, groupName, valueText } from "./words";
+import { count, formatNumber, groupName, NEIGHBOR_FILTER_WORDS, neighborhoodWords, valueText } from "./words";
 
 /** How many of a node's attributes show before "N more attributes". */
 const ATTRIBUTES_SHOWN = 6;
@@ -196,21 +196,12 @@ const FOLLOW: readonly { value: SelectionDirection; label: string }[] = [
     { value: "all", label: "All" },
 ];
 
-/**
- * A neighborhood in words, one form at every reach: "6 nodes within 1 hop of Ava", "14 nodes
- * within 2 hops of Ava". The list's heading and the status line both say it.
- * @param around - how many nodes, the center left out.
- * @param hops - how many hops out.
- * @param center - the node at the center.
- * @returns the words.
- */
-function neighborhoodWords(around: number, hops: number, center: NodeId): string {
-    return `${count(around, "node")} within ${count(hops, "hop")} of ${String(center)}`;
-}
+/** Neighbor names in reading order, numbers by value ("Node 2" before "Node 10"). */
+const BY_NAME = new Intl.Collator("en", { numeric: true });
 
 /**
  * Selects a center's neighborhood, opens it in the inspector and puts its size on the status
- * line once: "14 nodes within 2 hops of Ava".
+ * line once: "Ava's 14 connections".
  * @param session - the element's session.
  * @param store - the chrome store.
  * @param center - the node at the center.
@@ -229,22 +220,20 @@ async function showNeighborhood(
     // The selection change closes the open row, so it is opened again on the new reach.
     store.set({
         inspected: { kind: "neighborhood", id: neighborhoodKey(center, hops, direction) },
-        announcement: neighborhoodWords(around, hops, center),
+        announcement: neighborhoodWords(session.data.name(center) ?? String(center), around),
     });
 }
 
 /**
- * A node's neighbors (tier1-design.md task T12; tier2-design.md section 6): "17 nodes within 1
- * hop of 1", each by name with its tie value, strongest first, read whole from
- * graphty-element's `data.neighbors()`. Each name selects that node; Back to the center, or Esc,
- * returns to the node at the center.
+ * A node's neighbors (tier1-design.md task T12; tier2-design.md section 6): "Javert's 17
+ * connections", each by name, in name order at every hop count (a weighted one hop shows each
+ * tie value beside it), read whole from graphty-element's `data.neighbors()`. Each name selects
+ * that node; Back to the center, or Esc, returns to the node at the center.
  *
  * Its header picks how far out (Hops 1 | 2 | 3) and, on a directed graph, which way edges are
  * followed (Follow: Out | In | All); a change reselects and relists. Past one hop it lists the
  * selected nodes other than the center, under the same heading form. Filter to neighbors adds
- * one filter step keeping the same neighborhood.
- *
- * The heading names the center by its id until graphty-element publishes a node's name (#895).
+ * one filter step keeping the same neighborhood; pressed again, it takes it away.
  * @param props - Component props
  * @param props.center - The node at the center
  * @param props.hops - How many hops out the neighborhood reaches
@@ -295,17 +284,21 @@ export function NeighborList({
     const reach = hops === 2 || hops === 3 ? hops : 1;
     const { directed } = session.status;
     const follow = directed ? direction : "all";
+    const centerName = session.data.name(center) ?? String(center);
 
     let words: string;
     let rows: React.JSX.Element[];
     let tie: string | undefined;
     if (reach > 1) {
-        const around = session.selection.nodes.filter((node) => node !== center);
-        words = neighborhoodWords(around.length, reach, center);
-        rows = around.map((node) => (
+        const around = session.selection.nodes
+            .filter((node) => node !== center)
+            .map((node) => ({ node, name: session.data.name(node) ?? String(node) }))
+            .sort((a, b) => BY_NAME.compare(a.name, b.name));
+        words = neighborhoodWords(centerName, around.length);
+        rows = around.map(({ node, name }) => (
             <DataRow
                 key={nodeKey(node)}
-                name={String(node)}
+                name={name}
                 onClick={() => {
                     selectNode(session, node);
                 }}
@@ -314,13 +307,14 @@ export function NeighborList({
     } else {
         let page;
         try {
-            page = session.data.neighbors(center, { limit: Infinity, direction: follow });
+            // By name, as past one hop, where there are no tie values to rank by.
+            page = session.data.neighbors(center, { limit: Infinity, direction: follow, sort: { by: "name" } });
         } catch {
             // E_UNKNOWN_ELEMENT: the node left the graph.
             return null;
         }
         tie = page.measuredBy?.attribute;
-        words = neighborhoodWords(page.total, 1, center);
+        words = neighborhoodWords(centerName, page.total);
         rows = page.records.map((neighbor) => (
             <DataRow
                 key={nodeKey(neighbor.node.id)}
@@ -357,7 +351,7 @@ export function NeighborList({
                     selectNode(session, center);
                 }}
             >
-                {`Back to ${String(center)}`}
+                {`Back to ${centerName}`}
             </Button>
             {/* The heading is a section title, as Summary is on the node, never smaller than its rows. */}
             <ControlSection label={words} collapsible={false}>
@@ -396,34 +390,36 @@ export function NeighborList({
                         </Group>
                     )}
                     {follow === "all" && (
-                        <Button
-                            variant={filtered?.on === true ? "light" : "subtle"}
-                            size="compact-xs"
-                            aria-pressed={filtered?.on === true}
-                            style={{ alignSelf: "flex-start" }}
-                            onClick={() => {
-                                const { steps } = session.visibility;
-                                // Pressed again, the step it added goes; an off one is turned back on.
-                                let next: FilterStep[];
-                                if (filtered === undefined) {
-                                    next = [
-                                        ...steps,
-                                        {
-                                            id: newId(steps),
-                                            on: true,
-                                            rule: { kind: "neighborhood", seeds: [center], depth: reach },
-                                        },
-                                    ];
-                                } else if (filtered.on) {
-                                    next = steps.filter((s) => s.id !== filtered.id);
-                                } else {
-                                    next = steps.map((s) => (s.id === filtered.id ? { ...s, on: true } : s));
-                                }
-                                void writeSteps(session, store, next);
-                            }}
-                        >
-                            Filter to neighbors
-                        </Button>
+                        <Tooltip label={NEIGHBOR_FILTER_WORDS[filtered?.on === true ? "on" : "off"]}>
+                            <Button
+                                variant={filtered?.on === true ? "filled" : "default"}
+                                size="compact-xs"
+                                aria-pressed={filtered?.on === true}
+                                style={{ alignSelf: "flex-start" }}
+                                onClick={() => {
+                                    const { steps } = session.visibility;
+                                    // Pressed again, the step it added goes; an off one is turned back on.
+                                    let next: FilterStep[];
+                                    if (filtered === undefined) {
+                                        next = [
+                                            ...steps,
+                                            {
+                                                id: newId(steps),
+                                                on: true,
+                                                rule: { kind: "neighborhood", seeds: [center], depth: reach },
+                                            },
+                                        ];
+                                    } else if (filtered.on) {
+                                        next = steps.filter((s) => s.id !== filtered.id);
+                                    } else {
+                                        next = steps.map((s) => (s.id === filtered.id ? { ...s, on: true } : s));
+                                    }
+                                    void writeSteps(session, store, next);
+                                }}
+                            >
+                                Filter to neighbors
+                            </Button>
+                        </Tooltip>
                     )}
                 </Stack>
                 {tie !== undefined && <DataRowHeader label="Neighbor" unit={tie} />}

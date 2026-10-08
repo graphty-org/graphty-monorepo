@@ -155,7 +155,7 @@ describe("the inspector", () => {
         assert.include(degree.textContent, "3");
         await userEvent.click(degree);
 
-        const list = await screen.findByRole("region", { name: "3 nodes within 1 hop of n0" });
+        const list = await screen.findByRole("region", { name: "n0's 3 connections" });
         const names = within(list)
             .getAllByRole("button")
             .map((row) => row.textContent)
@@ -183,19 +183,46 @@ describe("the inspector", () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
         await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
-        const list = await screen.findByRole("region", { name: "3 nodes within 1 hop of n0" });
+        const list = await screen.findByRole("region", { name: "n0's 3 connections" });
         // The heading is the section title, as the node's Summary is.
-        assert.isNotNull(within(list).getByRole("group", { name: "3 nodes within 1 hop of n0" }));
+        assert.isNotNull(within(list).getByRole("group", { name: "n0's 3 connections" }));
 
         await userEvent.click(within(list).getByRole("radio", { name: "2" }));
-        const wider = await screen.findByRole("region", { name: /nodes within 2 hops of n0$/ });
-        assert.match(wider.getAttribute("aria-label") ?? "", /^\d+ nodes within 2 hops of n0$/);
+        const wider = await screen.findByRole("region", { name: /^n0's \d+ connections$/ });
+        // Two hops list the same way one hop does: by name.
+        const names = within(wider)
+            .getAllByRole("button")
+            .map((row) => row.textContent ?? "")
+            .filter((name) => name !== "Filter to neighbors" && name !== "Back to n0");
+        assert.deepEqual(names, ["n1", "n2", "n4", "n5", "n6", "n7", "n11"]);
 
         await userEvent.click(within(wider).getByRole("button", { name: "Back to n0" }));
         await waitFor(() => {
             assert.deepEqual([...on.selection.nodes], ["n0"]);
         });
         assert.isNotNull(await screen.findByRole("button", { name: /Degree/ }));
+    });
+
+    it("draws Filter to neighbors as a button that says what it does, and how to undo it when on", async () => {
+        const { session: on } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n0"] });
+        });
+        await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
+        const toggle = await screen.findByRole("button", { name: "Filter to neighbors" });
+        assert.equal(toggle.getAttribute("data-variant"), "default");
+        assert.equal(toggle.getAttribute("aria-pressed"), "false");
+        await userEvent.hover(toggle);
+        assert.isNotNull(await screen.findByText("Hide every node outside this neighborhood"));
+
+        await userEvent.click(toggle);
+        await waitFor(() => {
+            assert.equal(toggle.getAttribute("aria-pressed"), "true");
+        });
+        assert.equal(toggle.getAttribute("data-variant"), "filled");
+        await userEvent.unhover(toggle);
+        await userEvent.hover(toggle);
+        assert.isNotNull(await screen.findByText(/Press again to show every node/));
     });
 
     it("draws an attribute's kind and origin as rows, the kind's meaning in a tooltip", async () => {
@@ -220,7 +247,7 @@ describe("the inspector", () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
         await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
-        await screen.findByRole("region", { name: "3 nodes within 1 hop of n0" });
+        await screen.findByRole("region", { name: "n0's 3 connections" });
 
         await act(async () => {
             await on.selection.apply({ nodes: [...on.selection.nodes, "n3"] });

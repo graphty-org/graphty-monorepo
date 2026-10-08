@@ -146,14 +146,14 @@ export const NodeWhyThisLook: Story = {
     },
 };
 
-/** Degree picked: the node's connections by name, strongest first (`#/inspector-several-elements/neighborhood`). */
+/** Degree picked: the node's connections, in name order (`#/inspector-several-elements/neighborhood`). */
 export const SeveralElementsNeighborhood: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await element.session.selection.apply({ nodes: ["n0"] });
         await userEvent.click(await inspector(canvasElement).findByRole("button", { name: /Degree/ }));
-        await inspector(canvasElement).findByRole("region", { name: "3 nodes within 1 hop of n0" });
+        await inspector(canvasElement).findByRole("region", { name: "Node 0's 3 connections" });
         await element.waitForStableFrame();
     },
 };

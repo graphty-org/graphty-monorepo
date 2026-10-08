@@ -157,6 +157,23 @@ export function count(count: number, noun: string): string {
 }
 
 /**
+ * A neighborhood's heading and status line, one form at every hop count: "Javert's 17
+ * connections". The Hops control above the list says how far out.
+ * @param center - the center node's name.
+ * @param around - how many nodes, the center left out.
+ * @returns the words.
+ */
+export function neighborhoodWords(center: string, around: number): string {
+    return `${center}'s ${count(around, "connection")}`;
+}
+
+/** What Filter to neighbors does, off and on. */
+export const NEIGHBOR_FILTER_WORDS = {
+    off: "Hide every node outside this neighborhood",
+    on: "Showing only this neighborhood. Press again to show every node",
+} as const;
+
+/**
  * A selection's size, leaving out a zero half ("2 nodes selected", "3 nodes, 1 edge selected").
  * @param nodes - how many nodes are selected.
  * @param edges - how many edges are selected.

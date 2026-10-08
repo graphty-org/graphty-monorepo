@@ -241,6 +241,8 @@ describe("the pre-push gate matches CI", () => {
         try {
             mkdirSync(join(dir, "tools"));
             copyFileSync(new URL("./prepush-tests.mjs", import.meta.url), join(dir, "tools/prepush-tests.mjs"));
+            // The runner starts each shard through the machine-wide test slot.
+            copyFileSync(new URL("./test-slots.mjs", import.meta.url), join(dir, "tools/test-slots.mjs"));
             const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
             writeFileSync(
                 join(dir, "tools/ci-test-matrix.mjs"),

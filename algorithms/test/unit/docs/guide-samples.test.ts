@@ -11,10 +11,11 @@
  */
 
 import assert from "node:assert";
+import { execFile } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import { promisify } from "node:util";
 
-import ts from "typescript";
 import { describe, it } from "vitest";
 
 const PKG = resolve(__dirname, "../../..");
@@ -26,6 +27,8 @@ const DOCS = [
         .map((f) => ({ path: `docs/guide/${f}`, everyBlock: true })),
     { path: "README.md", everyBlock: false },
 ];
+const CHECKER = join(__dirname, "type-check-samples.mjs");
+const execFileAsync = promisify(execFile);
 const MARK = "<!-- doc-check -->";
 const SCRIPT = /^(?:ts|typescript|js|javascript|jsx|tsx|mts|cts|mjs|cjs)$/i;
 const LOG = /^(\s*)console\.log\((.*)\);\s*\/\/ ?(.*)$/;
@@ -213,34 +216,15 @@ describe("documentation code samples", () => {
         });
     }
 
-    it("type-checks every checked sample", () => {
-        const config = ts.getParsedCommandLineOfConfigFile(
-            join(PKG, "tsconfig.json"),
-            {},
-            {
-                ...ts.sys,
-                onUnRecoverableConfigFileDiagnostic: () => undefined,
-            },
-        );
-        assert.ok(config);
+    // In a child process, which coverage does not instrument (see type-check-samples.mjs). Measured in the
+    // algorithms-default shard with coverage on a 32-core machine, with five to ten graphty-element test suites looping
+    // beside it, alternating runs: 2.4 to 5.2 s here (median 3.5 s, 7 runs) against 4.5 to 26.4 s in the test worker
+    // (median 5.4 s), where it timed out in two pre-push gates. The slowest of 17 runs here, 18.7 s, came in a run whose
+    // whole shard took 75 s instead of its usual 10 s; the 30 s limit leaves room for that.
+    it("type-checks every checked sample", { timeout: 30_000 }, async () => {
         const files = docs.flatMap((d) => d.run.map((r) => r.file));
-        const program = ts.createProgram(files, {
-            ...config.options,
-            noEmit: true,
-            composite: false,
-            incremental: false,
-            // No ambient @types packages: left unset, every @types package in the workspace's node_modules joins the
-            // program (three.js alone is 248 files, two thirds of what is parsed), and neither a sample nor src/ uses
-            // one. A sample that leans on Node globals fails here, as it would for a browser reader.
-            types: [],
-        });
-        // Diagnostics of the sample files only: asking for the whole program's would also type-check every file of
-        // src/ the samples import, which `npm run lint` already does, and that is half of the checker's work.
-        const errors = files
-            .flatMap((f) => ts.getPreEmitDiagnostics(program, program.getSourceFile(f)))
-            .filter((d) => d.file === undefined || d.file.fileName.startsWith(OUT))
-            .map((d) => `${d.file?.fileName ?? "(options)"}: ${ts.flattenDiagnosticMessageText(d.messageText, "\n")}`);
-        assert.deepEqual(errors, []);
+        const { stdout } = await execFileAsync(process.execPath, [CHECKER, join(PKG, "tsconfig.json"), OUT, ...files]);
+        assert.deepEqual(JSON.parse(stdout), []);
     });
 
     for (const { path, run } of docs) {

@@ -267,10 +267,11 @@ export function DataPlace(): React.JSX.Element {
 
     const rowMenu = useRowMenu();
     const tableBuilt = useCommand("table.toggle") !== null;
-    // Any row opens its load in the inspector: what it added and what it left out. A table row
-    // also opens the table dock on that table: a file's Node table or Edge table, or a source
-    // that produced one table (an edge list) and so has no children. Its menu's Edit source...
-    // opens the Data page.
+    // A row opens what it names in the inspector: a load what it added and what it left out, a
+    // table child what its table added, the left-out child the rows left out. A table row also
+    // opens the table dock on that table: a file's Node table or Edge table, a CSV load's node or
+    // edge file, or a source that produced one table (an edge list) and so has no children. Its
+    // menu's Edit source... opens the Data page.
     const inspected = useWorkspaceState((state) => state.inspected);
     const openSource = (ids: string[]): void => {
         const id = ids.at(-1);

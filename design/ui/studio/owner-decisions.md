@@ -4,6 +4,42 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- Decided by the team: a load says what each of its tables held (`LoadedSource.tableRows`)
+
+**What.** graphty-element adds one optional field, additive: `LoadedSource.tableRows?: readonly
+("nodes" | "edges")[]`, in the same order as `tables`: whether each table the load read held node
+rows or edge rows, as the load read them. It is kept with the load in `data.sources()` and saved
+with the project; it is absent for a graph file (its one name holds both kinds), for a load that
+read no table by name, and in a project saved before it was kept. The graphty app draws each table
+under a two-file source as a node or an edge table, and a click on one opens that table in the
+table dock and shows only what that table added.
+
+**Why.** Under "people.csv and messages.csv" the Sources list showed people.csv and messages.csv,
+and a click on either showed the whole load: the app could not tell which file had become nodes
+and which edges, because the element knew it while loading and then dropped it. Guessing from the
+order the files were added would be wrong whenever a reader adds the edge file first or flips
+"Each row is". Not breaking: a new optional field. Test:
+`graphty-element/test/session/data-sources.test.ts` (kept through save and reopen; absent for a
+graph file).
+
+**Alternatives.** A record keyed by table name, which two files of the same name would collide in
+just as `tables` does; the full mapping each table was read with, which is far more than any
+consumer asked for.
+
+**Also fixed in the element, with no API change.** A replacing load under a seeded layout now draws
+the new data exactly as opening that data draws it. The layout's rule "a seeded layout starts over
+when data arrives, unless another graph write is still to come" counted the import being placed as
+one of the writes still to come, so a replace never started over: the new graph was laid out from
+where the old one had got to, came out deep along the line of sight, and was framed small in the
+middle of the canvas. Only commands that have not started now count. Test:
+`graphty-element/test/browser/replace-load-frames.test.ts`.
+
+**Also fixed in compact-mantine, with no API change.** `Anchor`'s `size` prop was ignored (every
+link was drawn at the 11px body size), so a link in a 9px caption stood out larger than its
+sentence. A link now takes its size's type; the default, `sm`, is unchanged. Callers that pass
+`size="xs"` (the import grid's caption, the inspector's "from" line, the usage-data card) now draw
+it at the caption size they asked for.
+
 ## 2026-10-08 -- Decided by the team: a selection made by a rule says which columns the rule tested (`selection.originPaths`)
 
 **What.** graphty-element adds one read-only property, additive: `SelectionApi.originPaths: readonly

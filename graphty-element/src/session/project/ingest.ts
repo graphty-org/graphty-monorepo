@@ -560,6 +560,7 @@ export class Ingest<K extends KnownEdge> {
             const loaded: LoadedSource = Object.freeze({
                 ...described,
                 tables: Object.freeze([...(command.tables ?? [])]),
+                ...(command.tableRows === undefined ? {} : { tableRows: Object.freeze([...command.tableRows]) }),
                 added: Object.freeze({ nodes: after.nodes - before.nodes, edges: after.edges - before.edges }),
                 ...(this.leaveOutUnmatched && report.unmatched.rows > 0
                     ? {

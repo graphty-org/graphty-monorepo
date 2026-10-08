@@ -598,7 +598,7 @@ export class LayoutManager implements Manager {
     replacing: () => boolean = () => false;
 
     /**
-     * Whether another command that writes the graph is dispatched and not finished. While one is,
+     * Whether another command that writes the graph is dispatched and not started. While one is,
      * data arriving does not start a seeded layout over: the last write of the run does, once, so
      * `addEdge` in a loop rebuilds the layout once rather than once per add.
      * @returns True while one is.

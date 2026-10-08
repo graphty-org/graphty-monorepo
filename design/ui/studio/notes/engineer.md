@@ -22,6 +22,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Chrome 143. Fix: graphty-element's container sets `data-pointer-focus` on a press (cleared by a
   key or focus leaving) and the shadow CSS hides the canvas ring then. Evidence
   `tmp/r1-dry2-focus-after-actions/` (T18B/07, T19A/02-03, T19B/02-03, T12RA/07-09, T24A/02).
+- (2026-10-08) **Import page and Sources tell the truth (element + app + compact-mantine, team door).**
+  An edge table whose load leaves rows out wears a warning ("23 rows, 1 left out", mark named "1
+  row left out"), never the green check; the match report is one `sm` sentence; while the unmatched
+  rows show only "Show all rows" is offered; a Sources child opens what it names (element
+  `LoadedSource.tableRows` says which file held nodes or edges; the dock opens on it); leaving the
+  Data place closes a source, attribute or filter-step row (`DATA_PLACE_KINDS`, Frame); `<main>` has
+  no name. A replace under the seeded layout now draws as an open does (`Dispatcher.graphWritesQueued`).
+  compact-mantine `Anchor` honors `size`. Evidence `tmp/r1-dry2-import-page-sources/` (T4A/06-12,
+  T4B/04-13, T20A/05-06, T21A/06). OPEN: after Replace the legend loses "Size: PageRank" (T21A/06);
+  parallel-edges shortest path test fails on HEAD (not this work).
 - (2026-10-08) **Find confirms what it ran; selections list members (element + app, team door).**
   After Enter a rule stays in the box unselected (caret at end) and the line under it reads the
   live count ("3 edges selected", "Nothing matches this rule") while `selection.origin` is still
@@ -61,8 +71,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-08) **Which end is missing (element + app, team door).** `LeftOutEdge.missingEnds` /
   `DraftRow.missingEnds`; the app marks the cell, the caption and leads the inspector line with it.
   Evidence `tmp/r1-dry2-missing-end/`.
-- (2026-10-08) **Study tool trust (real.mjs).** Hover prints only its own tooltip; EPIPE no longer
-  kills a session; click timeouts print the reason; a setup ends with focus released.
 - (2026-10-08) **The drawing stays put (element + app).** View insets never move the camera
   (`OrbitCameraController.setViewInsets` shifts the pivot); the legend calls `zoomToFit()` only
   when `element.nodesInRect(cardBox)` is not empty; Find turns the camera only for an off-screen
@@ -102,6 +110,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **A replace is laid out as an open is, not framed differently.** The "small graph"
+  after Replace was a correct fit of a deep layout (z extent 37 vs x 23; an explicit `zoomToFit()`
+  changed nothing). Mechanism: the seeded restart skipped while "another graph write waits", and
+  the import being placed counted as waiting. Only not-started jobs count now. Rejected: re-arming
+  the settle framing (the fit was already right), turning the camera to the thinnest axis (an
+  opinion as a default).
+- (2026-10-08) **Which file held nodes is the element's fact (`tableRows`).** The app cannot infer
+  it: order of adding and "Each row is" both change it. Rejected: a record keyed by name (collides
+  like `tables`). A table child shows only its own count; the left-out child only the rows.
+- (2026-10-08) **A shared link follows its size prop.** `.cm-anchor` set the body font outright, so
+  `size="xs"` links were 11 px in 9 px captions. Fixed once for every caller (inspector "from"
+  line, usage card, import grid caption). The report itself moved to `sm`, the row size.
 - (2026-10-08) **Neighbors in name order at every hop count, weighted one hop included.** Two or
   more hops list the selection, which has no single tie per node, so weight order is impossible
   there; one hop in weight order made the lists disagree (pilot T23B). Tie values still show at
@@ -146,23 +166,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-08) **Find moves the camera only to show a pick that is off screen.** Reason: turning to
   every pick (`zoomToSelection`) swings the far side of the drawing off the canvas for good.
 
-- (2026-10-08) **Made with states facts as rows, and the weight once, as what the run read.**
-  The weight select left Made with: a rerun with another weight starts from Analyze. Reason: the
-  pilot saw the weight three times in three wordings (sentence, label, select). Whether a meaning
-  was assumed is the run's fact (`caveats.weight.assumed`), not `data.loadedWeight()`, which is
-  the data now and is wrong after a Replace. Rejected: keeping the select and dropping the line
-  (a select cannot say "not read -- ...").
-- (2026-10-08) **A visible label stays exactly "From"; only the accessible name grows.** Reason:
-  the study tool matches exact names first; "From node" as visible text would fall to its
-  partial pass and collide with the inspector's "from PageRank" link. Limit: with the edge
-  table's "From" header on screen, `--click From` still matches two (the header and the label).
+- (2026-10-08) **Made with states the weight once, as what the run read** (`caveats.weight.assumed`,
+  not `data.loadedWeight()`, which is wrong after a Replace); a rerun with another weight starts
+  from Analyze.
+- (2026-10-08) **A visible label stays exactly "From"; only the accessible name grows** (the study
+  tool matches exact names first; "From node" would collide with "from PageRank").
 
-- (2026-10-08) **After a surface comes up (project open, Data page closed) focus goes to the open
-  place's rail button, never a tree row and never the find box.** Reason: a focused tree row takes
-  every printable key for type-to-find, so "/", "P", "N", "G" and Shift+A all died (the re-walk
-  typed nothing in 5 of 6 sessions); the find box takes them as text. Rejected: the drawing (a
-  ring around the whole canvas), the first tree row. Cost: after a mouse open the rail button
-  shows no ring (Chrome's focus-visible follows the last pointer input); a keyboard open does.
+- (2026-10-08) **After a surface comes up, focus goes to the open place's rail button**, never a
+  tree row (type-to-find eats every single-key shortcut) or the find box (takes them as text).
 
 - (2026-10-08) **The app states its label look on every label line it adds** (body font, 72 on the
   label canvas): the element's default Verdana is missing on Linux. One `session.transaction`, one
@@ -171,26 +182,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   engine already keeps a rule's paths; `selection.originPaths` publishes them as attribute paths.
   Rejected: the app matching column names in the typed text (a second parser), paths on the
   change delta (a panel that did not make the call never sees it).
-- (2026-10-08) **A neighborhood heading has one form** ("N nodes within K hop(s) of X") for the list
-  and the status line. Rejected: "X's N connections" at 1 hop only (two forms read as two things).
-- (2026-10-08) **Facts are rows, not chips.** A badge looks clickable; the kind's meaning goes in a
-  tooltip on the word (tabbable span). A right-click on a header opens the menu the caret and the
-  context-menu key open (the participant looked for options there).
+- (2026-10-08) **Facts are rows, not chips** (a badge looks clickable); a header's right-click opens
+  its menu.
 
-- (2026-10-08) **A filter step row shows only its sentence and checkbox.** Reason: the threshold
-  is what the reader set and must stay readable on and off; the per-step count lost every room
-  fight on long attribute names. The count stays one hover or one screen reader read away (row
-  description), and the totals live in the header chip and Overview. Rejected: "19 left" and a
-  bare number (both still cut "shared_chapters is at least 3").
+- (2026-10-08) **A filter step row shows only its sentence and checkbox**; its count is in the row
+  description, totals in the header chip and Overview (counts cut long attribute names).
 
-- (2026-10-08) **A stat's reading and a list row's second line wrap; they are never cut.** Reason:
-  the reading is what the reader came for and a tooltip is not reading. A row's quiet text gets up
-  to half the row, and a cut row's tooltip carries name and quiet text. Rejected: cutting the
-  stat's name instead, trimming padding (8px buys one case).
-- (2026-10-08) A canned outcome (project open) must carry everything a live execution's outcome
-  does: result, summary, fields, caveats. Reason: the run's record is built from the outcome, so
-  any field left off silently vanishes from `run.record` after a reopen while the result itself
-  looks fine. Watch for the next field added to `RunOutcome`.
+- (2026-10-08) **A stat's reading and a list row's second line wrap; never cut** (a tooltip is not
+  reading).
+- (2026-10-08) A canned outcome (project open) carries every field a live one does, or it vanishes
+  from `run.record` after a reopen. Watch the next field added to `RunOutcome`.
 - (2026-10-08) **A selected edge gets its own flat settings** (`edgeColor`, `edgeScale`,
   `edgeOpacity`): no one value serves a ring and a band; flat because `setSelectionStyle` merges
   one level deep.
@@ -222,6 +223,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   keyboard modality there, with or without preventDefault; `real.mjs --sr` "focus:" lines and a
   computed-style probe (`title-ring-probe.mjs`) told "not focused" from "focused, no ring"
   (Mantine's `mantine-focus-never` erases outlines; `cm-focus-outside` restores one).
+- (2026-10-08) Worked: logging the node box's x/y/z extents and calling `zoomToFit()` in a probe
+  (`tmp/r1-dry2-import-page-sources/probe-replace.mjs`) split "framed wrong" from "laid out
+  differently" in one run. Did not work: `graph.waitForSettled()` right after a second load -- it
+  resolves on the OLD settlement; poll `isSettled && !running`. A column label click already opened
+  its role list on this build (the pilot's miss did not reproduce at 728,205 or 662,201); a test pins it.
 - (2026-10-08) Worked: staging only my hunks in a shared worktree: `git diff -U0` per file, drop
   foreign hunks by header, `git apply --cached --unidiff-zero`
   (`tmp/r1-dry2-find-and-selection/stage.py`). Did not work: expecting `data.name()` to read a
@@ -233,14 +239,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   empties it: "no production build"). Worked: copy dist into the task's tmp folder after the
   build, grep its JS for the new words, serve the copy. Run prettier on an index-built blob.
 
-- (2026-10-08) Worked: re-piloting T20A/T20B from empty with the load-time weight steps of
-  answers.md T20 in one shell function, and T18A/T18B from `friends-ranked.txt` and
-  `florentine-ranked.txt` with `--key p`, type, click, Find path; `--expect-not route` as the check.
 
-- (2026-10-08) Did not work: a contrast assertion alone for the "looks disabled" segment -- the old
-  gray already passed 4.5:1; the test that fails without the fix compares the unchosen label's
-  color to the chosen one's. Worked: nesting the test rows one level (`Sources` parent) to match
-  the app's indent, else everything fit at 240 and the count test proved nothing.
+- (2026-10-08) A test must fail without the fix: a contrast check passed on the old gray (compare
+  to the chosen label instead); unnested rows fit at 240 px and proved nothing.
 - (2026-10-08) Did not work: a browser test asserting explicit Dijkstra over a negative weight --
   the page froze (no test timeout fires on a synchronous loop); the vitest run sat at "RUN" 12 min.
   A hung browser test with no output means a sync infinite loop: rerun with `-t` to bisect. Another
@@ -248,8 +249,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-08, condensed) A fact at the END of a narrow inspector row is cut: lead with it.
   `while pgrep -f` matches its own shell: wait by PID. Session-entry public types are listed in
   `graphty-element/session.ts`. `getByText` misses text split across a glyph span.
-- (2026-10-08) Worked: `label-drawn-over-edges.test.ts` reads pixels off the frame to prove draw
-  order (282 edge pixels over the label without the change, 0 with it); story scenes need a capture.
+- (2026-10-08) Worked: proving draw order from frame pixels (`label-drawn-over-edges.test.ts`).
 - (2026-10-08) Worked: re-walking the pilots with a copy of `tier2/pilot/rewalk.sh` whose `SET`
   is overridable and setup files rebuilt from each pilot's `session.json` "setup" list (the r1d1
   T18 pilots started with PageRank run and sized, not the plain friends setup). Did not work:

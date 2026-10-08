@@ -64,6 +64,9 @@ describe("the workspace frame", () => {
         assert.isNotNull(screen.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
         assert.isNotNull(screen.getByRole("region", { name: "Graph place" }));
         assert.isNotNull(document.querySelector("graphty-element"));
+        // The one main landmark needs no name, so the rail's Graph button is the only "Graph".
+        assert.lengthOf(screen.getAllByRole("main"), 1);
+        assert.isNull(screen.getByRole("main").getAttribute("aria-label"));
     });
 
     it("switches the left panel between the Graph and Data places from the rail", async () => {

@@ -48,6 +48,9 @@ export const INSPECTED_KINDS = [
     "source",
 ] as const;
 
+/** The kinds only the Data place shows a row for: leaving that place closes them. */
+export const DATA_PLACE_KINDS: readonly string[] = ["attribute", "filter-step", "source"];
+
 /** One of {@link INSPECTED_KINDS}. */
 export type InspectedKindId = (typeof INSPECTED_KINDS)[number];
 

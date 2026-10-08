@@ -1299,6 +1299,12 @@ export interface LeftOutEdge {
 export interface LoadedSource extends DataSourceDescriptor {
     /** The names of the tables the load read, as the draft named them; empty when it read none by name. */
     readonly tables: readonly string[];
+    /**
+     * What each of `tables` held, in the same order: rows of nodes or rows of edges, as the load
+     * read them. Absent when the load read a graph file (its one entry holds both) or no table by
+     * name, and in a project saved before it was kept.
+     */
+    readonly tableRows?: readonly ("nodes" | "edges")[];
     /** How many nodes and edges the load added to the graph. */
     readonly added: { readonly nodes: number; readonly edges: number };
     /**

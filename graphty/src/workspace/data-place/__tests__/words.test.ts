@@ -11,6 +11,7 @@ import {
     leftOutSentence,
     loadIndexOf,
     noNodeRow,
+    sourceRowOf,
     sourceRows,
     sourcesWords,
 } from "../words";
@@ -127,6 +128,14 @@ describe("the Data place's words", () => {
         );
         const [lone] = sourceRows([load], null);
         assert.equal(lone.children?.at(-1)?.name, "1 row left out", "a lone load shows it too");
+        // A load that says what each table held draws each as a node or an edge table.
+        const [kinds] = sourceRows([{ ...load, tableRows: ["nodes", "edges"] }], null);
+        assert.deepEqual(
+            kinds.children?.map((t) => t.kind),
+            ["nodes", "edges", "left-out"],
+        );
+        assert.equal(sourceRowOf([load], null, "source:0:left-out")?.name, "1 row left out");
+        assert.isUndefined(sourceRowOf([load], null, "source:0:9"));
         assert.equal(
             sourceRows([load, loaded("passes.csv", ["passes.csv"], { nodes: 0, edges: 17 })], null)[1].quiet,
             "17 edges",

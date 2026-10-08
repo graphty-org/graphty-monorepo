@@ -109,4 +109,32 @@ describe("session.data.sources", () => {
         session.dispose();
         reopened.dispose();
     });
+    it("says what each table it read held, through save and reopen, and nothing of a graph file", async () => {
+        const session = createGraphSession();
+        const people = new File(["id\nAva\nBen\n"], "people.csv");
+        const passes = new File(["from,to\nAva,Ben\n"], "passes.csv");
+        const draft = await session.data.prepare({ config: { nodeFile: people, edgeFile: passes } });
+        await draft.load();
+        await load(session, MESSAGES, "messages.csv", "merge");
+        const rows = (each: LoadedSource): unknown => [each.tables, each.tableRows];
+        assert.deepStrictEqual(session.data.sources().map(rows), [
+            [["people.csv", "passes.csv"], ["nodes", "edges"]],
+            [["messages.csv"], ["edges"]],
+        ]);
+
+        const { text } = await session.project.save();
+        const reopened = createGraphSession();
+        await reopened.project.open(text, { discard: true });
+        assert.deepStrictEqual(reopened.data.sources().map(rows), session.data.sources().map(rows));
+
+        const gml = await session.data.prepare({
+            type: "gml",
+            config: { data: "graph [ node [ id 1 ] node [ id 2 ] edge [ source 1 target 2 ] ]" },
+            name: "two.gml",
+        });
+        await gml.load();
+        assert.notProperty(session.data.sources()[0], "tableRows", "a graph file's one name holds both");
+        session.dispose();
+        reopened.dispose();
+    });
 });

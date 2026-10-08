@@ -1641,6 +1641,7 @@ export interface LoadedSource extends DataSourceDescriptor {
         };
         readonly edges?: readonly LeftOutEdge[];
     };
+    readonly tableRows?: readonly ("nodes" | "edges")[];
     readonly tables: readonly string[];
 }
 

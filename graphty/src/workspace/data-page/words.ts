@@ -53,6 +53,15 @@ export function plural(value: number, noun: string): string {
     return `${count(value)} ${noun}${value === 1 ? "" : "s"}`;
 }
 
+/**
+ * How many edge rows a load leaves out, for a table's warning mark.
+ * @param rows - the count.
+ * @returns "1 row left out".
+ */
+export function leftOutWords(rows: number): string {
+    return `${plural(rows, "row")} left out`;
+}
+
 /** A graph's size, as `data.statistics()` or a load report counts it. */
 interface Size {
     readonly nodes: number;

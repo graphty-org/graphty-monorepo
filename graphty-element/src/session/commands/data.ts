@@ -148,6 +148,8 @@ export interface DataImportCommand {
     readonly coalesce?: string;
     /** The names of the tables a draft read, kept with the load in `data.sources()`. */
     readonly tables?: readonly string[];
+    /** What each of `tables` held, in the same order, kept with the load in `data.sources()`. */
+    readonly tableRows?: readonly ("nodes" | "edges")[];
 }
 
 /** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */

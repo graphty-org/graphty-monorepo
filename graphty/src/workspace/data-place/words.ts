@@ -184,7 +184,7 @@ export function sourceRows(sources: readonly LoadedSource[], report: ImportRepor
         if (load.tables.length > 1) {
             const children = load.tables.map((table, at): SourceRow => ({
                 id: `${id}:${String(at)}`,
-                kind: "file",
+                kind: load.tableRows?.[at] ?? "file",
                 name: table,
                 quiet: "",
             }));
@@ -205,6 +205,23 @@ export function sourceRows(sources: readonly LoadedSource[], report: ImportRepor
             ...(leftOut.length === 0 ? {} : { children: leftOut }),
         };
     });
+}
+
+/**
+ * One Sources row by its id, a load's or a child's.
+ * @param sources - `data.sources()`.
+ * @param report - `data.lastImport()`.
+ * @param id - the row's id.
+ * @returns the row, or undefined when it is gone.
+ */
+export function sourceRowOf(
+    sources: readonly LoadedSource[],
+    report: ImportReport | null,
+    id: string,
+): SourceRow | undefined {
+    return sourceRows(sources, report)
+        .flatMap((row) => [row, ...(row.children ?? [])])
+        .find((row) => row.id === id);
 }
 
 /**

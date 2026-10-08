@@ -10,6 +10,7 @@ import { CanvasOverlays } from "../canvas/CanvasOverlays";
 import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
 import { GraphPlace } from "../graph-place/GraphPlace";
+import { DATA_PLACE_KINDS } from "../inspector/inspected";
 import { Inspector } from "../inspector/Inspector";
 import { NotesPlace } from "../notes/NotesPlace";
 import { DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN } from "../state/store";
@@ -67,6 +68,14 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             element?.focus();
         }
     }, [panels, dockOpen, element]);
+    // A row only the Data place shows (a source, an attribute, a filter step) is not left open in
+    // the inspector once another place is showing: nothing on that page is its row.
+    useEffect(() => {
+        const kind = store.get().inspected?.kind;
+        if (place !== "data" && kind !== undefined && DATA_PLACE_KINDS.includes(kind)) {
+            store.set({ inspected: null });
+        }
+    }, [place, store]);
     // A note being written is about this project's graph: another project drops it.
     useEffect(() => {
         store.set({ noteDraft: null });
@@ -99,7 +108,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         }}
                     />
                 </aside>
-                <main className="ws-main" aria-label="Graph" hidden={!panels}>
+                <main className="ws-main" hidden={!panels}>
                     <div className="ws-canvas">
                         <CanvasMenu>
                             <ElementHost key={projectId} onReady={onElementReady} />

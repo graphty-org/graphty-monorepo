@@ -533,10 +533,19 @@ export class Draft implements LoadDraft {
     async loadVia(send: ReturnType<DraftHost["importer"]>, choices: LoadChoices = {}): Promise<void> {
         const read = this.live("load");
         const plan = this.plan(read, choices);
+        // One entry per table name, the first table of a name giving what it held.
+        const named = new Map<string, "nodes" | "edges">();
+        for (const held of read.tables) {
+            if (!named.has(held.table.name)) {
+                named.set(held.table.name, plan.mapping.tables[held.table.id].rowsAre);
+            }
+        }
         const command: DataImportCommand = {
             op: "data.import",
             source: read.source,
-            tables: [...new Set(read.tables.map((held) => held.table.name))],
+            tables: [...named.keys()],
+            // A graph file's one name holds both kinds, so it says nothing of what it held.
+            ...(read.tables.every((held) => held.table.fixed) ? {} : { tableRows: [...named.values()] }),
             mode: choices.mode ?? "replace",
             ...(choices.layout === undefined ? {} : { layout: choices.layout }),
             held: plan.held,

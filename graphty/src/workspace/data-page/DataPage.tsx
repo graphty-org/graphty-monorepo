@@ -56,6 +56,7 @@ import {
     count,
     formatName,
     graphName,
+    leftOutWords,
     modelWords,
     plural,
     READABLE_FORMATS,
@@ -446,7 +447,7 @@ function TableRows({ page, draft }: PartProps & { draft: LoadDraft }): React.JSX
         <NavLink
             label={sourceName(page.source)}
             description={formatName(draft.type)}
-            rightSection={<ReadyMark ready={tablesReady(page)} />}
+            rightSection={<ReadyMark ready={tablesReady(page)} leftOut={leftOutRows(page)} />}
             defaultOpened
         >
             {rows}
@@ -466,17 +467,33 @@ function tablesReady(page: LoadDraftState): boolean {
 }
 
 /**
- * A table's check: green when ready, a gray dashed circle when not.
+ * How many edge rows the load would leave out: the report's unmatched rows while Leave out is
+ * chosen, else 0.
+ * @param page - The page state
+ * @returns The count
+ */
+function leftOutRows(page: LoadDraftState): number {
+    return page.choices.unmatched === "leave-out" ? (page.report?.unmatched.rows ?? 0) : 0;
+}
+
+/**
+ * A table's check: green when ready, a gray dashed circle when not, and a warning with the count
+ * when the load would leave some of its rows out.
  * @param props - Component props
  * @param props.ready - Whether it is ready
+ * @param props.leftOut - How many of its rows the load would leave out
  * @returns The mark
  */
-function ReadyMark({ ready }: { ready: boolean }): React.JSX.Element {
-    return ready ? (
-        <GLYPHS.ready size={14} color="var(--mantine-color-green-6)" role="img" aria-label="Ready" />
-    ) : (
-        <GLYPHS.empty size={14} role="img" aria-label="Not ready" />
-    );
+function ReadyMark({ ready, leftOut = 0 }: { ready: boolean; leftOut?: number }): React.JSX.Element {
+    if (!ready) {
+        return <GLYPHS.empty size={14} role="img" aria-label="Not ready" />;
+    }
+    if (leftOut > 0) {
+        return (
+            <GLYPHS.warning size={14} color="var(--cm-text-danger)" role="img" aria-label={leftOutWords(leftOut)} />
+        );
+    }
+    return <GLYPHS.ready size={14} color="var(--mantine-color-green-6)" role="img" aria-label="Ready" />;
 }
 
 /**
@@ -489,14 +506,17 @@ function ReadyMark({ ready }: { ready: boolean }): React.JSX.Element {
  */
 function TableRow({ page, draft, table }: PartProps & { draft: LoadDraft; table: DraftTable }): React.JSX.Element {
     const kind = rowsAreOf(draft, table, page.choices) === "nodes" ? "Nodes" : "Edges";
+    const leftOut = kind === "Edges" ? leftOutRows(page) : 0;
     return (
         <NavLink
             component="button"
             label={table.fixed ? kind : `${kind}: ${table.name}`}
-            description={plural(table.rowCount, "row")}
+            description={
+                leftOut > 0 ? `${plural(table.rowCount, "row")}, ${count(leftOut)} left out` : plural(table.rowCount, "row")
+            }
             active={page.tableId === table.id}
             aria-current={page.tableId === table.id ? "true" : undefined}
-            rightSection={<ReadyMark ready={tablesReady(page)} />}
+            rightSection={<ReadyMark ready={tablesReady(page)} leftOut={leftOut} />}
             onClick={() => {
                 page.setTableId(table.id);
                 page.setFilter("all");
@@ -1067,7 +1087,7 @@ function MatchReport({ page }: PartProps): React.JSX.Element | null {
         ) : (
             <Anchor
                 component="button"
-                size="xs"
+                size="sm"
                 onClick={() => {
                     show(kind, "all");
                 }}
@@ -1078,10 +1098,10 @@ function MatchReport({ page }: PartProps): React.JSX.Element | null {
     return (
         <section className="dp-report" aria-label="Match report">
             {/* The nodes and edges made are plain text: the element cannot list them yet (#927). */}
-            <Text size="xs">
+            <Text size="sm">
                 {rowsLink("nodes", plural(report.counts.nodeRecords, "node row"))} and{" "}
-                {rowsLink("edges", plural(report.counts.edgeRecords, "edge row"))} read; the load makes{" "}
-                {plural(report.counts.nodes, "node")} and {plural(report.counts.edges, "edge")}.
+                {rowsLink("edges", plural(report.counts.edgeRecords, "edge row"))}
+                {` read; the load makes ${plural(report.counts.nodes, "node")} and ${plural(report.counts.edges, "edge")}.`}
             </Text>
             <UnmatchedLine
                 page={page}
@@ -1091,11 +1111,11 @@ function MatchReport({ page }: PartProps): React.JSX.Element | null {
                 }}
             />
             {report.counts.rejected > 0 ? (
-                <Text size="xs">
+                <Text size="sm">
                     {plural(report.counts.rejected, "row")} could not be read as an edge.{" "}
                     <Anchor
                         component="button"
-                        size="xs"
+                        size="sm"
                         onClick={() => {
                             show("edges", "rejected");
                         }}
@@ -1126,12 +1146,18 @@ function UnmatchedLine({
     }
     return (
         <Group gap="xs">
-            <Text size="xs">
+            <Text size="sm">
                 {plural(report.unmatched.rows, "edge row")} {report.unmatched.rows === 1 ? "names" : "name"}{" "}
-                {missingNodes(report.unmatched.values)}.{" "}
-                <Anchor component="button" size="xs" onClick={onShow}>
-                    Show the {plural(report.unmatched.rows, "unmatched row")}
-                </Anchor>
+                {missingNodes(report.unmatched.values)}.
+                {/* While the unmatched rows show, only the way back ("Show all rows") is offered. */}
+                {page.filter === "unmatched" ? null : (
+                    <>
+                        {" "}
+                        <Anchor component="button" size="sm" onClick={onShow}>
+                            Show the {plural(report.unmatched.rows, "unmatched row")}
+                        </Anchor>
+                    </>
+                )}
             </Text>
             <SegmentedControl
                 size="xs"

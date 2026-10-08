@@ -10,7 +10,7 @@ import { stepEditorName } from "../data-place/filterSteps";
 import { AttributeMenuItems } from "../data-place/MenuItems";
 import { SourceValues } from "../data-place/SourceValues";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
-import { loadIndexOf, loadName, sourcesWords } from "../data-place/words";
+import { loadIndexOf, loadName, sourceRowOf, sourcesWords } from "../data-place/words";
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
@@ -345,8 +345,14 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             };
         }
         case "source": {
-            const load = session.data.sources()[loadIndexOf(resolved.row) ?? -1];
-            return { name: load === undefined ? "Gone" : loadName(load) };
+            const sources = session.data.sources();
+            const load = sources[loadIndexOf(resolved.row) ?? -1];
+            // A child row ("people.csv", "1 row left out") is named as its row reads.
+            const child =
+                resolved.row.split(":").length > 2
+                    ? sourceRowOf(sources, session.data.lastImport(), resolved.row)
+                    : undefined;
+            return { name: load === undefined ? "Gone" : (child?.name ?? loadName(load)) };
         }
         default: {
             const column = session.data.attributes().find((candidate) => candidate.path === resolved.path);

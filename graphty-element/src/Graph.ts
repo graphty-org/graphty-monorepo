@@ -862,7 +862,10 @@ export class Graph implements GraphContext {
         };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
         this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
-        this.layoutManager.graphWritesWaiting = () => dispatcherOf(this.session).graphWritesWaiting;
+        // Not the write being derived: a replacing import runs until its own placement pass, and
+        // counting it there kept the seeded layout from starting over, so new data was drawn from
+        // where the old graph had got to instead of as opening it draws it.
+        this.layoutManager.graphWritesWaiting = () => dispatcherOf(this.session).graphWritesQueued;
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
         // way, and the layout engine can place every drawn edge.

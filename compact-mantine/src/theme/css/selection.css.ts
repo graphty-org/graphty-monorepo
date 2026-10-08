@@ -449,6 +449,10 @@ const css = `
     position: relative;
     isolation: isolate;
     ${cmFont("body")}
+    /* The size prop's type, so a link in an xs caption is the caption's size (sm, the default, is
+       the body role). The caption's weight and tracking come from the Text rule in shell.css. */
+    font-size: var(--text-fz, var(--mantine-font-size-sm));
+    line-height: var(--text-lh, var(--mantine-line-height-sm));
     color: var(--cm-text-brand);
     text-decoration: none;
     border-radius: 2px;

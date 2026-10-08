@@ -936,8 +936,10 @@ function isLoadedSource(value: unknown): value is LoadedSource {
         return false;
     }
 
-    const { leftOut } = value;
+    const { leftOut, tableRows } = value;
     return (
+        (tableRows === undefined ||
+            (Array.isArray(tableRows) && tableRows.every((rows) => rows === "nodes" || rows === "edges"))) &&
         typeof value.added.nodes === "number" &&
         typeof value.added.edges === "number" &&
         (leftOut === undefined ||

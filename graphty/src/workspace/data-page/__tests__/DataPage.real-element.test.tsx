@@ -15,6 +15,7 @@ import { page } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
+import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -242,6 +243,41 @@ describe("the Data page on the real element", () => {
     );
 
     it(
+        "a table with a row the load leaves out wears a warning with the count, and only the way back shows",
+        async () => {
+            await openFromEmptyApp();
+            await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));
+            await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+            const tables = screen.getByRole("region", { name: "Tables" });
+            const report = screen.getByRole("region", { name: "Match report" });
+
+            // The edge table is not "Ready": one of its rows will be left out, and the row says so.
+            assert.lengthOf(within(tables).getAllByLabelText("Ready"), 1, "only the node table is green");
+            assert.isNotNull(within(tables).getByRole("img", { name: "1 row left out" }));
+            assert.isNotNull(within(tables).getByText("3 rows, 1 left out"));
+            // No stray space before the semicolon, and the counts are the sentence's own size.
+            assert.include(report.textContent, "3 edge rows read; the load makes");
+            const sentence = report.querySelector("p");
+            const link = within(report).getByRole("button", { name: "3 edge rows" });
+            assert.equal(getComputedStyle(link).fontSize, getComputedStyle(sentence!).fontSize);
+
+            // While the unmatched row shows, only Show all rows is offered.
+            await userEvent.click(within(report).getByRole("button", { name: "Show the 1 unmatched row" }));
+            await screen.findByText("1 unmatched row: z has no node row");
+            assert.isNull(within(report).queryByRole("button", { name: /Show the 1 unmatched row/ }));
+            await userEvent.click(screen.getByRole("button", { name: "Show all rows" }));
+            await within(report).findByRole("button", { name: "Show the 1 unmatched row" });
+
+            // Added, nothing is left out: the check is green again.
+            await userEvent.click(within(report).getByText("Add"));
+            await waitFor(() => {
+                assert.lengthOf(within(tables).getAllByLabelText("Ready"), 2);
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
         "the match report's verb agrees with several unmatched edge rows",
         async () => {
             await openFromEmptyApp();
@@ -443,6 +479,28 @@ describe("the Data page on the real element", () => {
             await within(inspector).findByText("1 edge row was left out: it names a node missing from the node rows.");
             // The row itself, kept by the element with the load: no file to reopen.
             await within(inspector).findByText("Line 4: z has no node row; source c, target z, weight 1");
+
+            // A child opens what it names, not its load: the left-out row only the rows left out,
+            // a table its own count and its table in the dock.
+            await userEvent.click(within(sources).getByText("1 row left out"));
+            await waitFor(() => {
+                assert.equal(document.getElementById(INSPECTOR_TITLE_ID)?.textContent, "1 row left out");
+            });
+            await within(inspector).findByText("Left out");
+            assert.isNull(within(inspector).queryByText("Added"));
+            await within(inspector).findByText("Line 4: z has no node row; source c, target z, weight 1");
+            await userEvent.click(within(sources).getByText("passes.csv"));
+            await waitFor(() => {
+                assert.equal(document.getElementById(INSPECTOR_TITLE_ID)?.textContent, "passes.csv");
+            });
+            assert.isNull(within(inspector).queryByText("Nodes"));
+            assert.isNotNull(within(inspector).getByText("Edges"));
+            assert.deepInclude(store.get(), { dockOpen: true, dockTab: "edges" });
+
+            // The Graph place shows no source: switching to it closes the source's inspector.
+            await userEvent.click(screen.getByRole("button", { name: "Graph" }));
+            assert.isNull(store.get().inspected);
+            assert.notEqual(document.getElementById(INSPECTOR_TITLE_ID)?.textContent, "passes.csv");
         },
         TIMEOUT_MS * 3,
     );
@@ -688,6 +746,10 @@ describe("the Data page on the real element", () => {
             await openFromEmptyApp();
             await chooseFiles(new File(["from,to,km\na,b,3\nb,c,6\n"], "trails.csv"));
             await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+            // The column's name above its role box opens that box's list.
+            await userEvent.click(screen.getByText("km", { selector: "label" }));
+            await screen.findByRole("option", { name: "Weight" });
+            await userEvent.keyboard("{Escape}");
             await pick("Role of km", "Weight");
             await screen.findByText(UNSET_HINT, {}, { timeout: TIMEOUT_MS });
             const higher = screen.getByRole("radiogroup", { name: "Higher means" });

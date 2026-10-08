@@ -118,6 +118,26 @@ describe("the Path popover, on the real element", () => {
     );
 
     it(
+        "Enter on a typed name picks it and moves on: From to To, To to Find path",
+        async () => {
+            const { element } = await openFriends();
+            element.focus();
+            await userEvent.keyboard("p");
+            const form = await pathForm();
+            const from = within(form).getByRole<HTMLInputElement>("combobox", { name: "From" });
+            const to = within(form).getByRole<HTMLInputElement>("combobox", { name: "To" });
+            await waitFor(() => {
+                assert.equal(document.activeElement, from);
+            });
+            await userEvent.keyboard("Ava{Enter}Lee{Enter}");
+            assert.equal(from.value, "Ava");
+            assert.equal(to.value, "Lee");
+            assert.equal(document.activeElement, within(form).getByRole("button", { name: "Find path" }));
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
         "says when no path joins the two nodes",
         async () => {
             const { session } = await openFriends();

@@ -4,7 +4,7 @@ import { ResultRow, SearchInput, ToggleIconButton } from "@graphty/compact-manti
 import type { AlgorithmDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession, NodeId } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { OptionsForm } from "../options/OptionsForm";
@@ -80,6 +80,8 @@ interface NodeFieldProps {
     onPicking: (on: boolean) => void;
     error: string | null;
     autoFocus: boolean;
+    inputRef: React.Ref<HTMLInputElement>;
+    onEnterPicked: () => void;
 }
 
 /**
@@ -94,6 +96,8 @@ interface NodeFieldProps {
  * @param props.onPicking - Turns picking on or off
  * @param props.error - Why it names no node, or null
  * @param props.autoFocus - Whether it takes focus as the form opens
+ * @param props.inputRef - The text box
+ * @param props.onEnterPicked - Called after Enter picks a node, to move focus on
  * @returns The field
  */
 function NodeField({
@@ -105,6 +109,8 @@ function NodeField({
     onPicking,
     error,
     autoFocus,
+    inputRef,
+    onEnterPicked,
 }: Readonly<NodeFieldProps>): React.JSX.Element {
     const label = END_WORDS[end];
     const listId = useId();
@@ -127,11 +133,12 @@ function NodeField({
             const step = event.key === "ArrowDown" ? 1 : -1;
             setActive((i) => (i < 0 && step < 0 ? hits.length - 1 : (i + step + hits.length) % hits.length));
         } else if (event.key === "Enter") {
-            // Enter picks the active node, or the first; a second Enter finds the path.
+            // Enter picks the active node, or the first, and moves on to what is left to do.
             event.preventDefault();
             const hit = hits[Math.max(active, 0)];
             if (hit !== undefined) {
                 pick(hit);
+                onEnterPicked();
             }
         }
     };
@@ -139,6 +146,7 @@ function NodeField({
     return (
         <Stack gap={2} className="ws-path-field">
             <SearchInput
+                ref={inputRef}
                 label={label}
                 placeholder="Type a node's name"
                 value={value.text}
@@ -287,6 +295,8 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
         setPicking(null);
     });
     useCanvasPick(picking, onPicked);
+    const inputs = { source: useRef<HTMLInputElement>(null), target: useRef<HTMLInputElement>(null) };
+    const runButton = useRef<HTMLButtonElement>(null);
 
     // The ends are the form's own fields; every other option goes through the shared form.
     const options = descriptor.options.filter((o) => o.name !== "source" && o.name !== "target");
@@ -325,6 +335,12 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
             }}
             error={errors[end]}
             autoFocus={focus === end}
+            inputRef={inputs[end]}
+            onEnterPicked={() => {
+                // On to the other end while it is empty, else to Find path.
+                const other: End = end === "source" ? "target" : "source";
+                (ends[other].text.trim() === "" ? inputs[other] : runButton).current?.focus();
+            }}
         />
     );
 
@@ -376,7 +392,7 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
                     }}
                 />
                 <Group justify="flex-end">
-                    <Button size="xs" type="submit" data-autofocus={focus === "run" || undefined}>
+                    <Button ref={runButton} size="xs" type="submit" data-autofocus={focus === "run" || undefined}>
                         Find path
                     </Button>
                 </Group>

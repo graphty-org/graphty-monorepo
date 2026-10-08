@@ -1,3 +1,17 @@
+## 0.9.11 (2026-10-08)
+
+### 🩹 Fixes
+
+- **compact-mantine:** anchor pop-out panels inside transformed ancestors ([#433](https://github.com/graphty-org/graphty-monorepo/issues/433))
+
+### 🔥 Performance
+
+- **compact-mantine:** skip the pop-out scale probe when there is no layout ([#433](https://github.com/graphty-org/graphty-monorepo/issues/433))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.10 (2026-10-08)
 
 ### 🩹 Fixes

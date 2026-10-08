@@ -1328,20 +1328,21 @@ describe("gpu.yml", () => {
         assert.doesNotMatch(gpu, /gpu-lane-needed|T4 GPU gate/);
     });
 
-    it("runs on a spot T4 by default, the release train included, with on-demand and hosted as dispatch options", () => {
-        // owner decision, 2026-10-04; a workflow_call declares no runner input, so the train takes the default
+    it("runs on an on-demand T4 by default, the release train included, with spot and hosted as dispatch options", () => {
+        // owner decision, 2026-10-08 (spot reclaims held releases); a workflow_call declares no runner input, so the
+        // train takes the default
         assert.match(
             job(gpu, "test-gpu"),
-            /runs-on: \$\{\{ inputs\.runner \|\| 'machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=spot' \}\}/,
+            /runs-on: \$\{\{ inputs\.runner \|\| 'machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=on_demand' \}\}/,
         );
-        assert.match(gpu, /default: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=spot\n/);
-        for (const option of ["gpu-linux-t4", "machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand"]) {
+        assert.match(gpu, /default: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=on_demand\n/);
+        for (const option of ["gpu-linux-t4", "machine/gpu=t4/cpu=4/ram=16/tenancy=spot"]) {
             assert.ok(gpu.includes(`- ${option}\n`), option);
         }
         assert.doesNotMatch(triggers(gpu).split("workflow_dispatch:")[0], /runner:/);
         assert.match(
             job(workflow("gpu-weekly-paired.yml"), "paired"),
-            /runs-on: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=spot\n/,
+            /runs-on: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=on_demand\n/,
         );
     });
 
@@ -2644,6 +2645,49 @@ describe("tests that run git", () => {
             spawnSync("git", ["init", "-q"], { cwd: dir });
             writeFileSync(join(dir, "new.test.mjs"), 'spawnSync("git", ["status"]);\n');
             assert.deepEqual(bareGitTests(dir), ["new.test.mjs"]);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("a failed pre-push test shard (#1562)", () => {
+    it("keeps its test name and error where the next push does not overwrite them", () => {
+        // A copy of the runner and test-slots.mjs in a throwaway repository, beside a one-shard matrix
+        // and a run-tests.sh that prints tmp/fake-output and fails. The second run overwrites
+        // tmp/prepush-tests/fake.log; the first run's copy under tmp/push-gate-logs/ must survive.
+        const dir = mkdtempSync(join(tmpdir(), "prepush-kept-log-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            mkdirSync(join(dir, "tmp"));
+            for (const f of ["prepush-tests.mjs", "test-slots.mjs"]) {
+                copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
+            }
+            const shard = { shard: "fake", package: "fake", "test-command": "true", "needs-browser": false };
+            writeFileSync(join(dir, "tools/ci-test-matrix.mjs"), `export const SHARDS = ${JSON.stringify([shard])};\n`);
+            writeFileSync(join(dir, "tools/run-tests.sh"), "cat tmp/fake-output; exit 1\n");
+            assert.equal(spawnSync("git", ["init", "-q"], { cwd: dir }).status, 0);
+            const run = (output) => {
+                writeFileSync(join(dir, "tmp/fake-output"), output);
+                return spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["fake"]'], {
+                    cwd: dir,
+                    encoding: "utf8",
+                    timeout: 60_000,
+                });
+            };
+
+            const first = run(" FAIL  src/a.test.ts > draws the edge\nError: Test timed out in 5000ms.\n");
+            assert.equal(first.status, 1, first.stdout + first.stderr);
+            const kept = /\[FAIL\] fake: its whole log is kept in (\S+)/.exec(first.stdout)?.[1];
+            assert.ok(kept?.startsWith(join(dir, "tmp/push-gate-logs/")), first.stdout);
+
+            assert.equal(run(" FAIL  src/b.test.ts > another test\nError: fetch failed\n").status, 1);
+            assert.match(readFileSync(join(dir, "tmp/prepush-tests/fake.log"), "utf8"), /fetch failed/);
+
+            const firstLog = readFileSync(kept, "utf8");
+            assert.match(firstLog, /FAIL {2}src\/a\.test\.ts > draws the edge/);
+            assert.match(firstLog, /Test timed out in 5000ms/);
+            assert.equal(readdirSync(join(dir, "tmp/push-gate-logs")).length, 2);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

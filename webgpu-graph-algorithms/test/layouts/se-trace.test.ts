@@ -269,6 +269,11 @@ describe("spring-electrical trace: the kinetic energy, the free-running trajecto
     it(
         `writes the ${TRAJ10_HORIZON}-iteration positions of ${TRAJ10_GRAPH} and the f64 reference's as the traj10 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
         async (t) => {
+            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+                // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
+                // ones on every run (issue #455)
+                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+            }
             requireGpu(t);
             const s = paritySnapshot(TRAJ10_GRAPH, 1, false);
             try {

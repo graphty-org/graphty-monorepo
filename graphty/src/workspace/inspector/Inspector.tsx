@@ -20,6 +20,7 @@ import {
 import React, { useEffect, useState } from "react";
 
 import { LayoutGroup } from "../layout/LayoutGroup";
+import { runName } from "../runWords";
 import { tabFor } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StyleTab } from "../style/StyleTab";
@@ -276,7 +277,7 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
     const from = (made: Run): Header["from"] => {
         const date = runDate(made.startedAt);
         return {
-            words: fromWords(made.label, date),
+            words: fromWords(runName(session, made), date),
             open: () => {
                 open({ kind: "run-row", run: made.id });
             },
@@ -312,9 +313,10 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
                 return { name: "Gone" };
             }
             const date = runDate(run.startedAt);
-            const analysis = session.catalog.algorithms().find((a) => a.key === run.algorithm)?.plainName ?? run.label;
+            const name = runName(session, run);
+            const analysis = session.catalog.algorithms().find((a) => a.key === run.algorithm)?.plainName ?? name;
             return {
-                name: run.label,
+                name,
                 from: { words: fromWords(analysis, date), open: openAnalyze },
             };
         }

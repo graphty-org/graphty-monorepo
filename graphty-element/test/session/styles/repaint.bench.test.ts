@@ -28,6 +28,13 @@
  *   runner with fewer cores is worse -- the CONTRACT is one frame, and the printed number,
  *   measured with this file running on its own, is the one to read.
  *
+ * IT GATES NO PUSH. A ratio between two stopwatches read at different moments still moves with
+ * whatever else the machine is doing (24.7 ms against a 24.55 ms ceiling in a busy pre-push gate),
+ * so this file runs in ci.yml's advisory "performance" job and by hand. What it times is pinned by
+ * counts in the gating tests: repaint.test.ts proves an edit reads only the elements its run
+ * measured and repaints nothing for a layer that matches nothing, and selector.test.ts that a
+ * compiled selector reads each element's column once.
+ *
  * EVERY MEASUREMENT IS PRINTED, pass or fail, so a CI log carries the numbers and a regression
  * shows up as a trend rather than as a sudden red.
  */

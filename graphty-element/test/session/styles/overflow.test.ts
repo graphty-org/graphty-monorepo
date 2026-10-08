@@ -39,6 +39,8 @@ function field(name: string, kind: FieldDescriptor["kind"], type: FieldDescripto
 const LOUVAIN: EncodingRun = {
     id: "louvain",
     label: "Communities",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "louvain",
     params: {},
     shape: "community",
@@ -48,6 +50,8 @@ const LOUVAIN: EncodingRun = {
 const EDGE_GROUPS: EncodingRun = {
     id: "edgegroups",
     label: "Edge groups",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "edge-groups",
     params: {},
     shape: "edge-metric",
@@ -57,6 +61,8 @@ const EDGE_GROUPS: EncodingRun = {
 const DEGREE: EncodingRun = {
     id: "degree",
     label: "Degree",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "degree",
     params: {},
     shape: "node-metric",

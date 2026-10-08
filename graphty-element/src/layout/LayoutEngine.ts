@@ -672,6 +672,33 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Answer a read of one node from the engine's own coordinates: publish them over the node's
+     * row and read the row back, so a caller reading one node at a time sees what a caller reading
+     * the array in bulk does.
+     *
+     * A READ NEVER PLACES A ROW. A row that is unplaced stays unplaced, and the answer is null: a
+     * step or a placement places it. An engine that keeps coordinates of its own still holds one
+     * for a node whose row undo has just put back to unplaced, and a redraw reading it would
+     * otherwise place the node outside any history step -- at an earlier history position where it
+     * was never placed (issue #582).
+     * @param n - the node read
+     * @param x - the engine's scene-unit x
+     * @param y - the engine's scene-unit y
+     * @param z - the engine's scene-unit z
+     * @returns the node's published coordinates, or null when its row is unplaced or missing
+     */
+    protected publishOnRead(n: Node, x: number, y: number, z: number): Position | null {
+        const out = { x: 0, y: 0, z: 0 };
+        if (!this.readNodePosition(n, out)) {
+            return null;
+        }
+
+        this.writeNodePosition(n, x, y, z);
+        this.readNodePosition(n, out);
+        return out;
+    }
+
+    /**
      * Publish one node's coordinates, growing the array to reach its row.
      *
      * Three things are silently skipped rather than thrown, because this runs inside a layout step

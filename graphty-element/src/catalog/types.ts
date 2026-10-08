@@ -340,9 +340,15 @@ export type ResultShape = (typeof RESULT_SHAPES)[number];
 export interface FieldBand {
     /** A stable id a consumer may key its own wording on, such as "clear". */
     id: string;
-    /** The band in a few plain words, such as "Clearly separated". */
+    /**
+     * The band in a few plain words, such as "Clearly separated".
+     * @deprecated Word the band from {@link FieldBand.id} yourself. Removed in the next major.
+     */
     plainName: string;
-    /** One plain-language sentence on what a value in this band means. */
+    /**
+     * One plain-language sentence on what a value in this band means.
+     * @deprecated Word the band from {@link FieldBand.id} yourself. Removed in the next major.
+     */
     description: string;
     /** A value strictly greater than this is in the band. */
     above?: number;
@@ -355,7 +361,11 @@ export interface FieldBand {
  * thresholds come from.
  */
 export interface FieldInterpretation {
-    /** One sentence on what the score measures and the value that counts as good. */
+    /**
+     * One sentence on what the score measures and the value that counts as good.
+     * @deprecated Word the scale from the field's name and its bands' ids yourself. Removed in the
+     *   next major.
+     */
     summary: string;
     /** Where the thresholds come from, as a citation a reader can look up. */
     source: string;

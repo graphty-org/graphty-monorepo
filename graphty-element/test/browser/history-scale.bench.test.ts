@@ -49,6 +49,10 @@
  * moments as much as the teardown: with several pre-push gates running at once (load average 50
  * to 82), it moved from 0.84 to 1.86 on code that did not change (issue #1277). The 20 s teardown
  * of #543 is ten times a load however busy the machine is.
+ *
+ * A timing still moves with load, so this file gates no push: ci.yml's advisory "performance" job
+ * runs it. The teardown's scaling is pinned, gating, by count in bulk-teardown.test.ts, which
+ * records the length of every scene list a removal searches.
  */
 
 import { Vector3 } from "@babylonjs/core";

@@ -12,7 +12,7 @@
  * instead of the committed one.
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -176,6 +176,30 @@ export function writeNoiseFixture(
 }
 
 /**
+ * The fixture files parsed so far, by path, with the modification time and size they were parsed at. Every member of
+ * the noise set reads the whole directory (368 files, 13 MB), so parsing it on every call made the noise-floor
+ * suite's adapter-class check alone take 4.9 s; a file is parsed again only after it changes (a write run).
+ */
+const parsedFixtures = new Map<string, { readonly stamp: string; readonly doc: Partial<NoiseFixtureDocument> }>();
+
+/**
+ * One fixture file, parsed once per change.
+ * @param path - the file
+ * @returns its document
+ */
+function parseFixture(path: string): Partial<NoiseFixtureDocument> {
+    const { mtimeMs, size } = statSync(path);
+    const stamp = `${mtimeMs}:${size}`;
+    const hit = parsedFixtures.get(path);
+    if (hit?.stamp === stamp) {
+        return hit.doc;
+    }
+    const doc = JSON.parse(readFileSync(path, "utf8")) as Partial<NoiseFixtureDocument>;
+    parsedFixtures.set(path, { stamp, doc });
+    return doc;
+}
+
+/**
  * Every committed adapter output for (kernel, fixture), in adapter-class order. Files are matched on their
  * `kernel` / `fixture` fields, not on their names, so "random1k" never picks up "random1k-u32". Only `*.json` names
  * are read (an in-flight `*.json.tmp` of writeAtomic is skipped).
@@ -196,7 +220,7 @@ export function readNoiseFixtures(
         if (!name.endsWith(".json")) {
             continue;
         }
-        const doc = JSON.parse(readFileSync(resolve(dir, name), "utf8")) as Partial<NoiseFixtureDocument>;
+        const doc = parseFixture(resolve(dir, name));
         if (doc.kernel !== kernel || doc.fixture !== fixture) {
             continue;
         }

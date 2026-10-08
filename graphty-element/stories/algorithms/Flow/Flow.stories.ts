@@ -2,6 +2,7 @@ import {
     assertAlgorithmPainted,
     assertDistinctPicture,
     assertEdgeVariety,
+    assertEdgeWidthVariety,
     assertGraphLoaded,
     assertLabelsDrawn,
     drawn,
@@ -164,8 +165,8 @@ export const BipartiteMatching: Story = {
 
 /**
  * Max Flow - network flow visualization on a water supply network
- * Edge colour follows the flow carried along the element's sequential ramp, so the
- * mains carrying the most read at the bright end
+ * Edge colour and width follow the flow carried, colour along the element's sequential ramp, so the
+ * mains carrying the most read widest and at the bright end
  * The source (Reservoir) and the sink (City) are coloured by their role
  * Max flow is 26 megalitres/day; the three plant -> city mains are the bottleneck
  */
@@ -206,7 +207,9 @@ export const MaxFlow: Story = {
 
         // Name the endpoints. The algorithm otherwise defaults to the first and last node in
         // insertion order, which is only ever the right pair by accident.
-        await graph.run("max-flow", { source: "reservoir", sink: "city" });
+        // `size: true` asks for the edge width as well as the colour, so the mains carrying the
+        // most are drawn widest.
+        await graph.run("max-flow", { source: "reservoir", sink: "city" }, { style: { size: true } });
         graph.applySuggestedStyles("graphty:max-flow");
 
         const scene = await drawn(canvasElement, "Algorithms/Flow MaxFlow");
@@ -217,6 +220,7 @@ export const MaxFlow: Story = {
         // The demonstration is that the mains carry different amounts, drawn as different widths
         // and colours. One appearance for all twelve is the picture this story exists to rule out.
         await assertEdgeVariety(scene, 2);
+        await assertEdgeWidthVariety(scene, 2);
 
         // The node names carry the demonstration, so the story asks for them.
         await assertLabelsDrawn(scene);

@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat, noted } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
@@ -97,13 +98,6 @@ const PUBLISHED_HALF: Readonly<Record<HITSOptions["mode"], (hub: number, authori
     in: (_hub, authority) => authority,
     out: (hub) => hub,
     total: (hub, authority) => (hub + authority) / 2,
-};
-
-/** What the published `value` is, by the `mode` option, in a sentence a reader can read. */
-const MODE_NOTES: Readonly<Record<HITSOptions["mode"], string>> = {
-    in: "The published value is this node's authority score: how well the nodes pointing at it point.",
-    out: "The published value is this node's hub score: how well the nodes it points at are pointed at.",
-    total: "The published value is the average of this node's hub score and its authority score.",
 };
 
 /**
@@ -233,17 +227,13 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
                 method: "hits",
                 converged: results.converged,
                 iterations: results.iterations,
-                notes: [
-                    MODE_NOTES[mode],
-                    normalized
-                        ? "The hub and authority vectors each have unit length, which is how the iteration leaves them."
-                        : "The hub and authority vectors were each divided by their own highest score.",
-                    `Iteration stops at a tolerance of ${String(tolerance)} or after ${String(maxIterations)} passes, whichever comes first.`,
-                    ...(results.converged
-                        ? []
-                        : [`It stopped at the ${String(maxIterations)}-pass cap without reaching the tolerance.`]),
-                    "Edge weights are not read.",
-                ],
+                ...noted([
+                    caveat("hits.published-score", { mode }),
+                    caveat(normalized ? "hits.unit-length" : "hits.max-scaled"),
+                    caveat("iteration.stop-rule", { tolerance, maxIterations }),
+                    ...(results.converged ? [] : [caveat("iteration.cap-reached", { maxIterations })]),
+                    caveat("weights.unread"),
+                ]),
             },
         };
     }

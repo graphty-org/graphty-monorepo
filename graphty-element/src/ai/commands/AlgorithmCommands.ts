@@ -9,6 +9,7 @@ import { Algorithm } from "../../algorithms/Algorithm";
 import { algorithmByLegacyKey } from "../../catalog/algorithms";
 import { registeredAlgorithmByKey } from "../../catalog/registry";
 import type { Graph } from "../../Graph";
+import { englishReading } from "../../session/results/reading";
 import { type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
 
 /**
@@ -145,7 +146,7 @@ export const runAlgorithm: GraphCommand = {
 
             return {
                 success: true,
-                message: `Successfully ran ${namespace}:${type} algorithm. ${result.reading()}`,
+                message: `Successfully ran ${namespace}:${type} algorithm. ${englishReading(result, {})}`,
                 data,
                 ...(affectedNodes === undefined ? {} : { affectedNodes }),
             };

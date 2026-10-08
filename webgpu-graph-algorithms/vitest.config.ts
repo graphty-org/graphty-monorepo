@@ -250,6 +250,8 @@ const nodeForks = coverageRun && availableParallelism() <= 8 ? 2 : Math.max(1, a
 
 export default defineConfig({
     test: {
+        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
+        globalSetup: ["../tools/test-slots.mjs"],
         // Root, not per project (see nodeForks above). It applies to every project, and the node ones are the
         // only ones it binds: the browser project runs its files one at a time through its own fileParallelism.
         maxWorkers: nodeForks,

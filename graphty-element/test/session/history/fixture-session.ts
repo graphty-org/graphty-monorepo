@@ -42,7 +42,14 @@ function fakeRun(harness: () => Harness, context: RunExecutionContext): Promise<
         ],
         measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
         nodes: ids.map((id, index) => ({ id, values: route ? { onPath: true } : { value: degrees[index] } })),
-        caveats: { exact: true, direction: "as-loaded", precision: "f64", method: context.algorithm, notes: [] },
+        caveats: {
+            exact: true,
+            direction: "as-loaded",
+            precision: "f64",
+            method: context.algorithm,
+            facts: [],
+            notes: [],
+        },
         durationMs: 1,
     });
 

@@ -1,3 +1,25 @@
+## 0.8.57 (2026-10-08)
+
+### 🚀 Features
+
+- **graphty:** show/hide, delete, paint chip and match count on style layer rows ([#167](https://github.com/graphty-org/graphty-monorepo/issues/167))
+- **graphty:** word export losses in the Export dialog ([#876](https://github.com/graphty-org/graphty-monorepo/issues/876))
+
+### 🩹 Fixes
+
+- **graphty:** find nodes and edges in the command palette ([#173](https://github.com/graphty-org/graphty-monorepo/issues/173))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.38
+- Updated compact-mantine to 0.9.10
+- Updated graphty-element to 3.18.0
+- Updated graph-io to 0.3.29
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.56 (2026-10-07)
 
 ### 🚀 Features

@@ -467,8 +467,6 @@ Pajek:
   is not a number (`1 2 abc`), or names its ends by label (`"a" "b"`); 2.x kept all three;
 - a vertex line with a single coordinate (`1 "a" 0.5`) is reported and keeps only its id, and an
   unquoted word after the number (`1 5`) is the label, not x;
-- coordinates are stored as 32-bit floats, so a value with more than about seven significant
-  digits changes (`0.123456789` loads as `0.12345679`);
 - Pajek keywords after the coordinates (`ic Red`, `c Blue`, `l "x"`) are kept on the record under
   those keys, and `*Matrix` and `*Edgeslist` sections are read.
 

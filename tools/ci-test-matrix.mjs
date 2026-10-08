@@ -172,28 +172,22 @@ export const SHARDS = [
         "needs-browser": true,
     },
     // graphty-element default tests (Node.js, no browser)
-    // The bench project runs in the same shard but WITHOUT --coverage: it asserts
-    // the repaint's timing budget, and v8 coverage instruments this package's own
-    // source while leaving node_modules alone, so an instrumented run measures the
-    // instrumentation rather than the repaint.
+    // The timing benchmarks (the bench and browser-bench projects) gate nothing: a stopwatch on a
+    // busy machine measures the machine. They run in ci.yml's advisory "performance" job; what
+    // they time is pinned here by counts (repaint.test.ts, round-trip.test.ts, bulk-teardown.test.ts).
     {
         shard: "graphty-element-default",
         package: "graphty-element",
         "test-command":
-            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default ${CI:+--reporter=junit} --coverage && pnpm exec vitest run --project=bench --reporter=default ${CI:+--reporter=junit}",
+            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default ${CI:+--reporter=junit} --coverage",
         "needs-browser": false,
     },
     // graphty-element browser tests (5 shards)
     // Note: Using both blob and default reporters to capture test results and show failures in logs
-    // The first shard then runs the timing benchmarks on a real graph, without coverage.
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-browser-${n}`,
         package: "graphty-element",
-        "test-command":
-            `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} --coverage` +
-            (n === 1
-                ? " && pnpm exec vitest run --project=browser-bench --reporter=default ${CI:+--reporter=junit}"
-                : ""),
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} --coverage`,
         "needs-browser": true,
         // 935 s for the ten browser and storybook shards together (2026-10-06); a push that changes
         // only the element's source is left to CI here.

@@ -318,7 +318,7 @@ describe("cx2 robustness: values", () => {
 });
 
 describe("cx2 robustness: coordinates, bypasses and restored ids", () => {
-    it("refuses coordinates beyond the f32 position column with E_BAD_VALUE", async () => {
+    it("keeps a coordinate beyond the f32 range and refuses a non-finite one with E_BAD_VALUE", async () => {
         const text = cx2([
             {
                 nodes: [
@@ -328,9 +328,9 @@ describe("cx2 robustness: coordinates, bypasses and restored ids", () => {
             },
         ]).replace('"@1e400"', "1e400");
         const { snapshot, report } = await load(text);
-        expect(codes(report)).toEqual([CX2_ISSUE.BAD_VALUE]);
-        expect(issuesOf(report, CX2_ISSUE.BAD_VALUE)).toHaveLength(2);
-        expect(point(snapshot, 0)).toBeUndefined();
+        expect(codes(report)).toEqual([CX2_ISSUE.BAD_VALUE, CX2_ISSUE.PARTIAL_LAYOUT]);
+        expect(issuesOf(report, CX2_ISSUE.BAD_VALUE)).toHaveLength(1);
+        expect(point(snapshot, 0)).toEqual([1e39, 0, 0]);
         expect(point(snapshot, 1)).toBeUndefined();
     });
 

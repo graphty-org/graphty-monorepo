@@ -195,7 +195,7 @@ renderer is about to dispose.
 // A run started, made progress, or finished. This is what a progress bar hangs off.
 element.addEventListener("graphty-run-change", (e) => {
     const { run, phase } = e.detail; // phase: "queued" | "start" | "progress" | "end" | "removed" | "restored"
-    console.log(run.label, phase, run.status); // how far it got arrives as graphty-progress-change
+    console.log(run.id, phase, run.status); // how far it got arrives as graphty-progress-change
 });
 
 // Elements joined or left the selection. Only a real movement arrives -- selecting what is

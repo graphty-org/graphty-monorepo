@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import { GraphtyError } from "../errors";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -174,7 +175,7 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "strength" },
                 precision,
-                notes: [`Resolution ${String(resolution)}.`],
+                facts: [caveat("community.resolution", { resolution })],
             }),
         };
     }

@@ -92,6 +92,8 @@ const mouseUp: BrowserCommand<[]> = async (ctx) => {
 export default defineConfig({
     plugins: [react()],
     test: {
+        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
+        globalSetup: ["../tools/test-slots.mjs"],
         reporters: ["default", ...ciJunitReporter()],
         projects: [
             // Default project - runs in JSDOM

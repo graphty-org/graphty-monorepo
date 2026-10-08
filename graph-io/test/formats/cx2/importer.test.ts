@@ -141,7 +141,7 @@ describe("cx2Importer: the mapping (design section 1.3)", () => {
     it("stores positions y-up (y negated, never -0) and z in its own column", async () => {
         const { snapshot: s } = await load(RICH);
         const position = s.nodes.byRole("position");
-        expect(position?.meta).toMatchObject({ dtype: "f32", components: 3, extra: { sourceDims: 2, units: "file" } });
+        expect(position?.meta).toMatchObject({ dtype: "f64", components: 3, extra: { sourceDims: 2, units: "file" } });
         expect(Array.from(position?.value(s.ids.indexOf(0)) as ArrayLike<number>)).toEqual([10, -20, 0]);
         expect(Object.is((position?.value(s.ids.indexOf(1)) as ArrayLike<number>)[1], 0)).toBe(true);
         expect(Array.from(position?.value(s.ids.indexOf(7)) as ArrayLike<number>)).toEqual([0, 3, 0]);

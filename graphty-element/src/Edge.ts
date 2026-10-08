@@ -384,11 +384,12 @@ export class Edge {
      * appearance off `scene.meshes` -- which is how the story assertions have always read it --
      * finds one batch where it used to find one mesh per edge. The edge itself is where the
      * answer moved to: the batch's name carries the interned appearance, exactly as the instance
-     * name did, and the length is the drawn extent the bounding box used to carry.
+     * name did, the length is the drawn extent the bounding box used to carry, and the width is
+     * the line width the batch was built with.
      * @returns The appearance, or null for a patterned line, whose elements are read through
      *     {@link Edge.drawnPattern}.
      */
-    get drawnLine(): { name: string; length: number; visibility: number; centre: Vector3 } | null {
+    get drawnLine(): { name: string; length: number; width: number; visibility: number; centre: Vector3 } | null {
         if (this.lineBatch === null) {
             return null;
         }
@@ -399,6 +400,8 @@ export class Edge {
             name: batch.name,
             // A curve's length is its whole run's.
             length: this.lineSlots.reduce((sum, slot) => sum + batch.lengthOf(slot), 0),
+            // The width `createLine` built the batch with, from the same style.
+            width: this.drawnStyle?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
             visibility: batch.mesh.visibility,
             centre: this.curveMiddle(batch),
         };

@@ -8,6 +8,12 @@
  * every frozen frame drew each instance twice. Opaque nodes hid it; a translucent selection halo
  * was blended twice and came out visibly darker.
  *
+ * A FREEZE THAT WAITED. When the scene is not ready Babylon runs a freeze on its next 100 ms
+ * poll. A camera move in the meantime withdraws it and the next still frame asks again, and the
+ * second request waits on the same poll as the first. That poll walks the scene once per request
+ * under one render id, so the withdrawn walk and the live one fill the same list and every frozen
+ * frame after it drew those instances twice.
+ *
  * WHAT IS MEASURED. How many instances the engine is asked to draw in each frame, across the
  * frame that unfreezes (the camera is touched) and the frozen frames that follow it. Each frame
  * must ask for the same number.
@@ -57,9 +63,10 @@ describe("a frozen frame", () => {
      * Count the instances the engine is asked to draw, frame by frame.
      * @param engine - The engine to watch.
      * @param frames - How many frames to record.
+     * @param touchCamera - Whether to touch the camera first, so the first frame is drawn unfrozen.
      * @returns The instance count of each frame.
      */
-    async function instancesPerFrame(engine: AbstractEngine, frames: number): Promise<number[]> {
+    async function instancesPerFrame(engine: AbstractEngine, frames: number, touchCamera = true): Promise<number[]> {
         const { scene } = graph;
         const counts: number[] = [];
         let drawn = 0;
@@ -89,7 +96,9 @@ describe("a frozen frame", () => {
 
                 // Rebuilding the view matrix stamps it as changed, which the element reads as a
                 // camera move: the next frame is drawn unfrozen and the ones after it frozen.
-                scene.activeCamera?.getViewMatrix(true);
+                if (touchCamera) {
+                    scene.activeCamera?.getViewMatrix(true);
+                }
             });
         } finally {
             engine.drawElementsType = drawElements;
@@ -109,6 +118,38 @@ describe("a frozen frame", () => {
             counts,
             counts.map(() => counts[0]),
             "every frame, frozen or not, draws the same instances",
+        );
+    });
+
+    it("draws each instance once after two freezes waited on the same poll", async () => {
+        await graph.waitForStableFrame();
+        const { scene } = graph;
+        const [drawnUnfrozen] = await instancesPerFrame(graph.engine, 1);
+
+        // Pending data keeps the scene not ready, so every freeze waits on Babylon's poll.
+        const notReady = {};
+        scene.addPendingData(notReady);
+
+        // Each pass touches the camera, which withdraws any freeze, and then lets a still frame
+        // ask for a new one. The second request joins the poll the first is waiting on.
+        await instancesPerFrame(graph.engine, 3);
+        await instancesPerFrame(graph.engine, 3);
+
+        // Registered after the element's freezes, so it runs once both have landed.
+        const landed = new Promise<void>((resolve) => {
+            scene.executeWhenReady(() => {
+                resolve();
+            });
+        });
+        scene.removePendingData(notReady);
+        await landed;
+
+        const counts = await instancesPerFrame(graph.engine, 3, false);
+
+        assert.deepEqual(
+            counts,
+            counts.map(() => drawnUnfrozen),
+            "a frame frozen by a freeze that waited draws each instance once",
         );
     });
 });

@@ -3,6 +3,8 @@ import { plantedPartitionGraph } from "@graphty/graph-samples/generators";
 import { describe, expect, it, vi } from "vitest";
 
 import { grsbm, type GrsbmOptions, type GrsbmResult } from "../../../src/indexed/grsbm.js";
+import { louvain } from "../../../src/indexed/louvain.js";
+import { modularity } from "../../../src/indexed/modularity.js";
 import { mulberry32 } from "../../../src/utils/math-utilities.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { legacyResult } from "../../helpers/golden.js";
@@ -328,6 +330,33 @@ describe("indexed.grsbm", () => {
         const blocks = r.groups().map((group) => new Set([...group].map((i) => truth[Number(s.ids.idOf(i))])));
         expect(blocks.map((set) => set.size)).toEqual([1, 1]);
         expect(new Set(blocks.flatMap((set) => [...set])).size).toBe(2);
+    });
+
+    it("recovers four planted groups: a split is scored by the whole partition's modularity (issue #960)", () => {
+        const sample = plantedPartitionGraph({ groups: 4, groupSize: 20, pIn: 0.5, pOut: 0.02, seed: 3 });
+        const truth = sample.nodeColumns?.community;
+        if (!(truth instanceof Uint32Array)) {
+            throw new Error("planted partition graph has no u32 community column");
+        }
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 0; i < sample.nodeCount; i++) {
+            b.addNode(i);
+        }
+        for (let e = 0; e < sample.src.length; e++) {
+            b.addEdge(sample.src[e], sample.dst[e]);
+        }
+        const s = b.freeze();
+        const r = grsbm(s);
+        const q = modularity(s, r.labels);
+        expect(q).toBeGreaterThan(modularity(s, louvain(s).labels) - 0.01);
+        expect(r.count).toBe(4);
+        const blocks = r.groups().map((group) => new Set([...group].map((i) => truth[Number(s.ids.idOf(i))])));
+        expect(blocks.map((set) => set.size)).toEqual([1, 1, 1, 1]);
+        // The last score is the whole partition's modularity, and each accepted split raised it.
+        expect(r.modularityScores[r.modularityScores.length - 1]).toBeCloseTo(q, 12);
+        for (const c of r.clusters) {
+            expect(c.split === null || c.split.improvement > 0).toBe(true);
+        }
     });
 
     it("bisects a cluster with no internal arcs without NaN", () => {

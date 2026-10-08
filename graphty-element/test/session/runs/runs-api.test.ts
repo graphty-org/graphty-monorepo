@@ -505,12 +505,27 @@ describe("labels", () => {
         assert.strictEqual(three.label, "Core (k 3)");
     });
 
+    it("states what tells siblings apart as the differing options, and null for none (#866)", () => {
+        const { runs } = harness();
+        const two = runs.start("k-core", { k: 2 }, { as: "k2" });
+
+        assert.isNull(two.siblingsDifferBy, "no other run shares the name yet");
+        assert.isNull(two.distinguishedBy, "a run named with `as` was suggested by nothing");
+
+        const three = runs.start("k-core", { k: 3 }, { as: "k3" });
+
+        assert.deepStrictEqual(two.siblingsDifferBy, ["k"]);
+        assert.deepStrictEqual(three.siblingsDifferBy, ["k"]);
+        assert.deepStrictEqual(three.record.siblingsDifferBy, ["k"]);
+    });
+
     it("falls back to the scope when the parameters agree", () => {
         const { runs } = harness();
         runs.start("degree");
         const other = runs.start("degree", {}, { scope: "largest-component" });
 
         assert.strictEqual(other.label, "Connections (largest component)");
+        assert.deepStrictEqual(other.siblingsDifferBy, [], "only the scope differs");
     });
 });
 
@@ -632,6 +647,11 @@ describe("batches", () => {
         assert.strictEqual(result.partial, true);
         assert.strictEqual(result.completed, 1, "work somebody paid for is not thrown away");
         assert.strictEqual(batch.status, "canceled");
+        assert.deepStrictEqual(batch.caveats.partialCause, {
+            code: "partial.batch-incomplete",
+            params: { completed: 1, total: 3 },
+        });
+        assert.strictEqual(batch.caveats.partialReason, "1 of 3 members finished.");
 
         const finished = runs.list().filter((run) => run.status === "succeeded");
         assert.strictEqual(finished.length, 1);

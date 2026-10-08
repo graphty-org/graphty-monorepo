@@ -22,7 +22,8 @@
 import type { EdgeId, FieldBand, FieldDescriptor, NodeId, ResultShape, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { Caveats } from "../runs/types";
-import { defaultReading } from "./reading";
+import type { CodedFact } from "../shared";
+import { englishReading, readingFactOf } from "./reading";
 import { nearestNames } from "./ResultsApi";
 import {
     analyzeColumn,
@@ -44,6 +45,7 @@ import {
     type Normalization,
     type NumericColumnView,
     type RankingEntry,
+    type ReadingCode,
     type ReadingOptions,
     resultShapeContract,
     type ResultSummary,
@@ -795,6 +797,7 @@ class Result implements RunResult {
     readonly #orders = new Map<string, Uint32Array>();
     readonly #tops = new Map<string, TopRanking>();
     #summary: ResultSummary | undefined;
+    #readingFact: CodedFact<ReadingCode> | undefined;
 
     /**
      * Build a result around storage that has already been filled and frozen.
@@ -826,7 +829,7 @@ class Result implements RunResult {
         // The element's own generator unless a host supplied one. It used to be left undefined,
         // which made `reading()` throw on every run of the shipped element: a published verb that
         // could not be called. A host that wants different words still supplies its own.
-        this.#reading = init.reading ?? defaultReading;
+        this.#reading = init.reading ?? englishReading;
     }
 
     /**
@@ -1024,6 +1027,19 @@ class Result implements RunResult {
      */
     reading(options?: ReadingOptions): string {
         return this.#reading(this, options ?? {});
+    }
+
+    /**
+     * What this result means, as a code and the figures it is about.
+     * @returns The fact.
+     */
+    readingFact(): CodedFact<ReadingCode> {
+        if (this.#readingFact === undefined) {
+            const { code, params } = readingFactOf(this);
+            this.#readingFact = Object.freeze({ code, params: Object.freeze(params) });
+        }
+
+        return this.#readingFact;
     }
 
     /**

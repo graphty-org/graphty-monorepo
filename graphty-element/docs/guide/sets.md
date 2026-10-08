@@ -201,7 +201,7 @@ caveats. Nodes outside the set get no value.
 ```typescript
 const run = element.run("betweenness", {}, { scope: { set: team } });
 await run;
-console.log(run.caveats.notes); // ["Computed on the induced subgraph of 3 nodes."]
+console.log(run.caveats.facts); // [..., { code: "scope.induced-subgraph", params: { nodes: 3 } }]
 console.log(run.record.scope.set); // { id: "set_team", revision: "r1:..." }
 ```
 

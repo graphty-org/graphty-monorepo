@@ -427,7 +427,7 @@ const PURPOSE: Readonly<Record<string, string>> = {
     graphtyGreedyBipartiteMatching:
         "A set of edges with no node in common in a bipartite graph, found quickly; not always the largest.",
     graphtyGrsbm:
-        "Communities found by splitting groups in two by a spectral split. A split is kept unless it lowers modularity by more than 0.01. Its results are currently unreliable: the split does not follow the eigenvector that best separates the graph.",
+        "Communities found by splitting groups in two along their Fiedler vector. A split is kept only when it raises the modularity of the whole partition.",
     graphtyHasCycle: "Whether the graph has a cycle.",
     graphtyHierarchicalClustering:
         "A merge tree of clusters: every node starts alone, and the two closest clusters by hop distance merge until no pair can.",
@@ -528,7 +528,7 @@ const METHOD_NOTES: Readonly<Record<string, string>> = {
     graphtyCondensation:
         "`condensed.snapshot` is the graph of components as a @graphty/graph-format snapshot. Its node i stands for `result[i]`. Its edges run from e = 0 to `edgeCount - 1`, and the snapshot methods `edgeSource(e)` and `edgeTarget(e)` give the components at each end: `for (let e = 0; e < s.edgeCount; e++) console.log(result[s.edgeSource(e)].map((n) => n.id()), result[s.edgeTarget(e)].map((n) => n.id()))`, with `s = result.condensed.snapshot`. The other fields of `condensed` record how @graphty/graph-format derived the graph; you do not need them. [Snapshot](../guide/snapshot) explains snapshots.",
     graphtyGrsbm:
-        "Check the result with `graphtyModularity` before you use it; for communities you can rely on, use `graphtyLouvain` or `graphtyLeiden`.",
+        "A split is never undone and a group is cut only between 20% and 80% of its members, so the modularity can fall short of `graphtyLouvain`'s or `graphtyLeiden`'s on graphs whose communities are uneven in size.",
     graphtyHierarchicalClustering:
         "Distances are hop counts: weights are not read, and nodes with no path between them never merge. `cut(height)` returns the clusters of the merge tree whose height is `height` or less, where a node has height 0 and a merge is one more than its taller part. So `cut(0)` gives every node alone, and a large height gives one cluster per connected component. `merges` is the number of merges made.",
     graphtyGirvanNewman:

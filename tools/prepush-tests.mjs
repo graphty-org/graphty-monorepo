@@ -19,7 +19,8 @@
  *
  * Shards run side by side: browser shards each take one slot of <main checkout>/tmp/with-browser.sh
  * (the machine's shared cap of four browsers) when it exists, and at most two shards without a
- * browser run at once. Two things CI's separate runners give each shard are reproduced here:
+ * browser run at once. Every shard then takes one machine-wide test slot (tools/test-slots.mjs), which
+ * ad-hoc test runs share, so a shard may wait for runs of other sessions. Two things CI's separate runners give each shard are reproduced here:
  *  - The shards of one package share its Vite dependency caches (node_modules/.vite/vitest/<hash>,
  *    one per vitest project, plus Storybook's sb-vitest cache and the root project's). On a cold or
  *    stale cache each vitest optimizes and swaps a cache directory in under the others: four browser
@@ -36,7 +37,7 @@
  * Each
  * shard's output goes to tmp/prepush-tests/<shard>.log; the first failure stops the others and
  * prints the end of its log. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, not counting
- * its wait for a browser slot) fails; tools/prepush.sh bounds the whole stage, waits included.
+ * its wait for a browser or test slot) fails; tools/prepush.sh bounds the whole stage, waits included.
  */
 
 import { spawn, execFileSync } from "node:child_process";
@@ -237,12 +238,17 @@ async function main() {
     const canStart = startRule(shards);
     const waiting = [...shards];
     let failed = null;
+    let stopping = false;
     const started = Date.now();
 
     const start = (shard) => {
         const log = join(logs, `${shard.shard}.log`);
         const out = createWriteStream(log);
+        // A machine-wide test slot (tools/test-slots.mjs) for the whole shard, taken outside `timeout` so the wait
+        // does not count against the shard, and after the browser slot: nothing holding a test slot ever waits for
+        // a browser slot, so the two cannot wait on each other.
         const cmd = ["timeout", "--kill-after=30s", timeout, "bash", "tools/run-tests.sh", shard.shard];
+        cmd.unshift(process.execPath, "tools/test-slots.mjs");
         if (shard["needs-browser"] && existsSync(gate)) {
             cmd.unshift(gate);
         }
@@ -261,6 +267,10 @@ async function main() {
             running.delete(shard.shard);
             const secs = Math.round((Date.now() - t0) / 1000);
             if (failed) {
+                // Once stopAll ran, the last shard to close ends the stage: nothing else is left to.
+                if (stopping && running.size === 0) {
+                    finish();
+                }
                 return;
             }
             if (code === 0) {
@@ -270,15 +280,23 @@ async function main() {
                 return;
             }
             failed = shard.shard;
+            process.exitCode = 1;
             console.log(`  [FAIL] ${shard.shard} (exit ${code}, ${secs}s); the end of ${log}:`);
-            out.end(() => {
+            const tail = () => {
                 console.log(readFileSync(log, "utf8").split("\n").slice(-80).join("\n"));
                 stopAll();
-            });
+            };
+            // end() never calls back on a log stream destroyed before it finished.
+            if (out.destroyed) {
+                tail();
+            } else {
+                out.end(tail);
+            }
         });
     };
 
     const stopAll = () => {
+        stopping = true;
         for (const child of running.values()) {
             try {
                 process.kill(-child.pid, "SIGTERM");
@@ -298,7 +316,7 @@ async function main() {
                     }
                 }
                 finish();
-            }, 10_000).unref();
+            }, 10_000);
         }
     };
 
@@ -335,6 +353,7 @@ async function main() {
     for (const signal of ["SIGINT", "SIGTERM"]) {
         process.on(signal, () => {
             failed ??= signal;
+            process.exitCode = 1;
             stopAll();
         });
     }

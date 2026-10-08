@@ -29,7 +29,8 @@ import type {
     ResultShape,
     RunId,
 } from "../../catalog/types";
-import type { Caveats, Run } from "../runs/types";
+import type { Caveats, Run, RunDistinction } from "../runs/types";
+import type { CodedFact } from "../shared";
 
 // ---------------------------------------------------------------------------------------------
 // The published path
@@ -747,13 +748,54 @@ export interface HistogramOptions {
     readonly scale?: "linear" | "log" | "auto";
 }
 
-/** How the plain-language reading is written. */
+/**
+ * How the plain-language reading is written. Only the deprecated {@link RunResult.reading} takes
+ * it, and it goes with that method in the next major.
+ */
 export interface ReadingOptions {
     /** The BCP 47 locale to write in. */
     readonly locale?: string;
     /** Whether to name things the way a reader would or the way a paper would. */
     readonly audience?: "plain" | "technical";
 }
+
+/**
+ * What a result's {@link RunResult.readingFact} says, one code per result shape. Each code carries
+ * these `params`:
+ *
+ * - `reading.metric` -- a node or edge metric: `{ field, leader, leaderLabel, highest, median,
+ *   lowest, tiedAtLowest, measured, count }`. `field` is the measured field's name (`"value"`);
+ *   `leader` is the highest-ranked element's id and `leaderLabel` its label attribute or printed
+ *   id; `highest`, `median` and `lowest` are values of the field; `tiedAtLowest` is how many
+ *   measured elements sit at `lowest`; `measured` of `count` elements in scope carry a value.
+ *   The element's own English mentions the tie only when it is a tenth or more of `measured`.
+ * - `reading.metric-empty` -- a metric that measured nothing: `{ field }`.
+ * - `reading.groups` -- a partition (community, layered grouping or category table):
+ *   `{ groups, largest, measured, modularity, band }`, how many groups, the size of the largest,
+ *   how many elements were grouped, the modularity or null when the algorithm publishes none, and
+ *   the id of the modularity's {@link FieldBand} or null.
+ * - `reading.groups-empty` -- a partition that grouped nothing: `{}`.
+ * - `reading.path` -- a route: `{ hops, cost }`, each a number or null when not published.
+ * - `reading.path-none` -- a path result with neither: `{}`.
+ * - `reading.set` -- a node or edge set: `{ count, element }`, how many were chosen and
+ *   `"node"` or `"edge"`.
+ * - `reading.pairs` -- a pair list: `{ count }`.
+ * - `reading.series` -- a temporal series: `{ steps }`, 0 for an empty series.
+ * - `reading.coverage` -- any other shape: `{ measured, count }`, how many of the elements in
+ *   scope carry a value.
+ * @since 3.18.0
+ */
+export type ReadingCode =
+    | "reading.metric"
+    | "reading.metric-empty"
+    | "reading.groups"
+    | "reading.groups-empty"
+    | "reading.path"
+    | "reading.path-none"
+    | "reading.set"
+    | "reading.pairs"
+    | "reading.series"
+    | "reading.coverage";
 
 /** How a metric's values were scaled before publication. */
 export type Normalization = "max" | "min-max" | "none";
@@ -911,12 +953,20 @@ export interface RunResult {
      */
     summary(): ResultSummary;
     /**
-     * What this result means, in one sentence of plain language.
+     * What this result means, as a code and the figures it is about: one fact per result shape.
      *
-     * Generated from the result's own statistics by templates, never by a language model, and
-     * never asserting something the run did not compute.
+     * Every figure comes from the result's own statistics; nothing is asserted that the run did
+     * not compute. See {@link ReadingCode} for every code and its parameters. An application
+     * words it, choosing which of the figures to say.
+     * @returns The fact.
+     * @since 3.18.0
+     */
+    readingFact(): CodedFact<ReadingCode>;
+    /**
+     * What this result means, in one sentence of English, worded from {@link RunResult.readingFact}.
      * @param options - The locale and how technical to be.
      * @returns The sentence.
+     * @deprecated Word {@link RunResult.readingFact} yourself. Removed in the next major.
      */
     reading(options?: ReadingOptions): string;
     /**
@@ -946,8 +996,24 @@ export type RunRef = Run | RunResult | RunId;
 export interface ResultRoot {
     /** The run id, which is the path segment under `results`. */
     readonly runId: RunId;
-    /** What to call the run in a completion list. */
+    /**
+     * What to call the run in a completion list.
+     * @deprecated Word the run from its algorithm, {@link ResultRoot.distinguishedBy} and
+     *   {@link ResultRoot.siblingsDifferBy} yourself. Removed in the next major.
+     */
     readonly label: string;
+    /**
+     * The option the run's name was suggested by, once it left its default. See
+     * {@link Run.distinguishedBy}.
+     * @since 3.18.0
+     */
+    readonly distinguishedBy: RunDistinction | null;
+    /**
+     * What tells the run apart from other listed runs of its algorithm sharing its name. See
+     * {@link Run.siblingsDifferBy}.
+     * @since 3.18.0
+     */
+    readonly siblingsDifferBy: readonly string[] | null;
     /** Every field the run published. */
     readonly fields: readonly FieldDescriptor[];
 }

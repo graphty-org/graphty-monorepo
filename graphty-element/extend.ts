@@ -302,6 +302,7 @@ export type {
 export type { RunId } from "./src/catalog/types";
 export type { ResultElementValues } from "./src/session/results/RunResult";
 export { checkShapeContract } from "./src/session/results/types";
+export type { CaveatCode, PartialCode } from "./src/session/runs/caveatFacts";
 export type { Caveats, Progress, WeightMeaning } from "./src/session/runs/types";
 
 /*

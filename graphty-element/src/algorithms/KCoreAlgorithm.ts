@@ -2,6 +2,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
+import { caveat, noted } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
@@ -69,10 +70,7 @@ export class KCoreAlgorithm extends MetricAlgorithm {
                 weight: null,
                 precision,
                 method: "k-core",
-                notes: [
-                    "Counted over the graph read as undirected; edge weights are not read.",
-                    "A self-loop does not count toward its node's core number, and parallel edges count once.",
-                ],
+                ...noted([caveat("k-core.undirected"), caveat("k-core.loops-and-parallels")]),
             },
         };
     }

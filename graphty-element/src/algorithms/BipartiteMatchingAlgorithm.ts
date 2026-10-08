@@ -11,6 +11,7 @@ import { INVALID_INDEX, maskTest } from "@graphty/graph-format";
 
 import type { EdgeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -81,7 +82,7 @@ export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
                     method: "bipartite-matching",
                     direction: "undirected",
                     weight: null,
-                    notes: ["The graph does not have two sides, so nothing could be paired up."],
+                    facts: [caveat("matching.not-bipartite")],
                 }),
             };
         }
@@ -133,7 +134,7 @@ export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
                 direction: "undirected",
                 weight: null,
                 precision,
-                notes: [`${String(matching.size)} of the two sides' nodes found a partner.`],
+                facts: [caveat("matching.partnered", { count: matching.size })],
             }),
         };
     }

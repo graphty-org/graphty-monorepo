@@ -159,6 +159,14 @@ function tree(depth: number): fc.Arbitrary<RuleTree> {
 const TREE = tree(4);
 
 /**
+ * Cases per property per run. A case builds a session and finishes three runs, about 6 ms alone,
+ * so 1,000 cases took 6-17 s a property and up to 24 s in a busy pre-push gate, against the 30 s
+ * default. The seed is new every run (fc-params.ts), so the same generators reach as many cases
+ * over a few runs as 1,000 did in one.
+ */
+const CASES = 250;
+
+/**
  * The equivalent scope of a node leaf.
  * @param leaf - The leaf.
  * @param where - Whether an expression leaf becomes `{ where }` rather than an inline rule.
@@ -280,7 +288,7 @@ describe("the visibility filter and a rule read clipped are one evaluator", () =
 
                 assert.deepStrictEqual(wrapped, direct);
             }),
-            fcParams(1000),
+            fcParams(CASES),
         );
     });
 
@@ -298,7 +306,7 @@ describe("the visibility filter and a rule read clipped are one evaluator", () =
                     assert.deepStrictEqual(rewritten, direct);
                 },
             ),
-            fcParams(1000),
+            fcParams(CASES),
         );
     });
 });

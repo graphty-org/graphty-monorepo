@@ -12,6 +12,8 @@ import {
     type RunResult,
 } from "@graphty/graphty-element/session";
 
+import { runName } from "../runWords";
+
 /** A finished run with its result, and the field its result is read by. */
 interface FinishedRun {
     readonly id: string;
@@ -29,7 +31,7 @@ export function finishedRuns(session: GraphSession): FinishedRun[] {
     return session.runs.list().flatMap((run) => {
         const field = RESULT_SHAPE_CONTRACTS[run.shape].primaryField;
         return run.status === "succeeded" && run.result !== undefined && field !== null
-            ? [{ id: run.id, label: run.label, result: run.result, field }]
+            ? [{ id: run.id, label: runName(session, run), result: run.result, field }]
             : [];
     });
 }

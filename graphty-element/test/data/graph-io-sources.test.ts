@@ -395,12 +395,12 @@ describe("GML, DOT and Pajek read through graph-io", () => {
         assert.deepStrictEqual(edges, [{ source: "1", target: "2", directed: false }]);
     });
 
-    test("Pajek stores coordinates as 32-bit floats and reads an unquoted word as the label", async () => {
+    test("Pajek keeps coordinates exactly and reads an unquoted word as the label", async () => {
         const { nodes } = await collect(new PajekDataSource({ data: "*Vertices 2\n1 5\n2 0.123456789 0.5\n" }));
 
         assert.deepStrictEqual(nodes, [
             { id: "1", label: "5" },
-            { id: "2", x: 0.12345679, y: 0.5 },
+            { id: "2", x: 0.123456789, y: 0.5 },
         ]);
     });
 

@@ -93,8 +93,8 @@ export const GEXF_LOSS = Object.freeze({
     /** A numeric edge id column: GEXF edge ids read back as strings. */
     EDGE_ID_TEXT: "W_GEXF_EDGE_ID_TEXT",
     /**
-     * A visual attribute (position, color, size, thickness) is stored at more precision than GEXF keeps; it reads back
-     * as a 32-bit float.
+     * A visual attribute (position, color, size, thickness) is stored at another precision than the importer gives it;
+     * a position reads back as a 64-bit float, a color, size or thickness as a 32-bit float.
      */
     VIZ_DTYPE: "W_GEXF_VIZ_DTYPE",
     /**
@@ -271,7 +271,7 @@ function planExport(
         ...checkCapabilities(snapshot, caps, resolved, {
             openIntervals: version === "1.2",
             temporalText: true,
-            positionDtype: "f32",
+            positionDtype: "f64",
             roles: MAPPED_ROLES,
             // GEXF 1.2 has no edge kind: the kind column is dropped (W_GEXF_KIND_DROPPED), not renamed
             roleNames: version === "1.2" ? ROLE_NAMES_1_2 : ROLE_NAMES,
@@ -608,10 +608,12 @@ function collectRoles(
             }
             continue;
         }
-        if (VIZ_NUMERIC_ROLES.has(role) && column.dtype !== "f32") {
+        // the importer reads a position as f64 and every other viz value as f32
+        const vizDtype = role === "position" ? "f64" : "f32";
+        if (VIZ_NUMERIC_ROLES.has(role) && column.dtype !== vizDtype) {
             note(
                 GEXF_LOSS.VIZ_DTYPE,
-                `${domain} column "${meta.name}" (${role}) is ${column.dtype}; viz values read back as f32`,
+                `${domain} column "${meta.name}" (${role}) is ${column.dtype}; viz values read back as ${vizDtype}`,
                 meta.name,
                 column.length - column.nullCount,
             );

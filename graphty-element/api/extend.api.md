@@ -225,7 +225,7 @@ export type AlgorithmKey = KnownAlgorithm | (string & {});
 
 // @public
 export interface AlgorithmOutput {
-    readonly caveats: Caveats;
+    readonly caveats: Caveats | Omit<Caveats, "facts">;
     readonly edges?: readonly ResultElementValues<EdgeId>[];
     readonly fields: readonly ResultFieldSpec[];
     readonly graph?: Readonly<Record<string, unknown>>;
@@ -366,15 +366,22 @@ export interface CameraViewRegistration {
 }
 
 // @public
+export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "input.empty" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
+
+// @public
 export interface Caveats {
     readonly componentScope?: "all" | "largest";
     readonly converged?: boolean;
     readonly direction: RunDirection;
     readonly exact: boolean;
+    readonly facts: readonly CodedFact<CaveatCode>[];
     readonly filterScope?: boolean;
     readonly iterations?: number;
     readonly method: string;
+    // @deprecated
     readonly notes: readonly string[];
+    readonly partialCause?: CodedFact<PartialCode>;
+    // @deprecated
     readonly partialReason?: string;
     readonly precision: Precision;
     readonly sampleSize?: number;
@@ -606,6 +613,7 @@ export class Edge {
     get drawnLine(): {
         name: string;
         length: number;
+        width: number;
         visibility: number;
         centre: Vector3;
     } | null;
@@ -1371,6 +1379,7 @@ export abstract class LayoutEngine {
     // @deprecated
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null;
     protected abstract pin(n: Node_2): void;
+    protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     readNodePosition(n: Node_2, out: {
         x: number;
@@ -1706,6 +1715,9 @@ export type PaletteRegistration = Omit<PaletteDescriptor, "capacity" | "colorbli
     capacity?: number | null;
     colorblindSafe?: PaletteDescriptor["colorblindSafe"];
 };
+
+// @public
+export type PartialCode = "partial.iteration-cap" | "partial.time-box" | "partial.canceled" | "partial.stopped" | "partial.batch-incomplete";
 
 // @public
 export const PATH_FIELD_SPECS: readonly ResultFieldSpec[];

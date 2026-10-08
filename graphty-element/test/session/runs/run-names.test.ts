@@ -105,6 +105,19 @@ describe("the id of an unnamed run", () => {
         assert.strictEqual(pagerank.label, "Influence (damping 0.9)");
     });
 
+    it("states the setting a built-in's name was suggested by, and null at the defaults (#866)", () => {
+        const { runs } = harness();
+        const louvain = runs.start("louvain", { resolution: 1.5 });
+        const pagerank = runs.start("pagerank", { dampingFactor: 0.9 });
+
+        assert.deepStrictEqual(louvain.distinguishedBy, { option: "resolution", value: 1.5 });
+        assert.deepStrictEqual(louvain.record.distinguishedBy, { option: "resolution", value: 1.5 });
+        assert.deepStrictEqual(pagerank.distinguishedBy, { option: "dampingFactor", value: 0.9 });
+        assert.isNull(runs.start("louvain").distinguishedBy);
+        assert.isNull(runs.start("degree").distinguishedBy);
+        assert.deepStrictEqual(structuredClone(louvain.record).distinguishedBy, louvain.distinguishedBy);
+    });
+
     it("takes the id and label a registered algorithm suggests", () => {
         registerPlugin((options) => ({
             id: `acme_reach_${String(options.hops)}`,
@@ -115,6 +128,7 @@ describe("the id of an unnamed run", () => {
 
         assert.strictEqual(run.id, "acme_reach_3");
         assert.strictEqual(run.label, "Reach in 3 hops");
+        assert.isNull(run.distinguishedBy, "an extension's own name names no option");
         assert.isTrue(runs.isDerivedId(run.id));
     });
 

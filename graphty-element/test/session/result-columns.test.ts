@@ -58,7 +58,7 @@ async function execute(context: RunExecutionContext): Promise<RunOutcome> {
             measured: { nodes: nodes.length, edges: edges.length },
             nodes: nodes.map(([node, value]) => ({ id: node, values: { [key]: value } })),
             edges: edges.map(([edge, value]) => ({ id: edge, values: { value } })),
-            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "test", notes: [] },
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "test", facts: [], notes: [] },
             durationMs: 1,
         }),
     };

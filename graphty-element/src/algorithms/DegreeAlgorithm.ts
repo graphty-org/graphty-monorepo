@@ -1,6 +1,7 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
+import { caveat, noted } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
@@ -109,9 +110,7 @@ export class DegreeAlgorithm extends MetricAlgorithm {
                 weight: null,
                 precision: "f64",
                 method: "degree",
-                notes: [
-                    "Counted over the graph as the records declared it, so a node's total is its incoming edges plus its outgoing ones.",
-                ],
+                ...noted([caveat("degree.as-declared")]),
             },
         };
     }

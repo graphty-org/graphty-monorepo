@@ -238,7 +238,8 @@ export abstract class DeclaredAlgorithm<
                 graph: output.graph,
                 nodes: output.nodes,
                 edges: output.edges,
-                caveats: weight === undefined ? output.caveats : { ...output.caveats, weight },
+                // An output written without `facts` (an extension's own literal) has none.
+                caveats: { facts: [], ...output.caveats, ...(weight === undefined ? {} : { weight }) },
                 durationMs: Date.now() - startedAt,
             }),
         );

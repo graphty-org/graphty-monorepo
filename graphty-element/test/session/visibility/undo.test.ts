@@ -72,7 +72,7 @@ function scoreRun(harness: () => Harness, context: RunExecutionContext): Promise
         ],
         measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
         nodes: ids.map((id) => ({ id, values: { value: scores[String(id)] ?? 0 } })),
-        caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "fake", notes: [] },
+        caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "fake", facts: [], notes: [] },
         durationMs: 1,
     });
 

@@ -134,15 +134,31 @@ const MODULARITY_BAND_PHRASES: Readonly<Record<string, string>> = {
     weak: "weakly separated; treat with caution",
 };
 
+/** What each modularity band graphty-element publishes is called, keyed by its id. */
+const MODULARITY_BAND_NAMES: Readonly<Record<string, string>> = {
+    barely: "Barely separated",
+    clear: "Clearly separated",
+    weak: "Weakly separated",
+};
+
 /**
  * The band's exact words. Never paraphrased: the phrase carries the caution, and a
  * softer wording would make a weak grouping read as a finding. A band the spec does not
- * name -- one a newer element adds -- reads as the element's own plain name for it.
+ * name -- one a newer element adds -- reads as its id.
  * @param band - the band graphty-element put the modularity in.
  * @returns the phrase the reading drops after "The groups are ".
  */
 export function modularityBandPhrase(band: FieldBand): string {
-    return MODULARITY_BAND_PHRASES[band.id] ?? band.plainName.toLowerCase();
+    return MODULARITY_BAND_PHRASES[band.id] ?? band.id;
+}
+
+/**
+ * The band's name, as the Summary row shows it after the value: "0.447, Clearly separated".
+ * @param band - the band graphty-element put the modularity in.
+ * @returns the name; a band the app does not know reads as its id.
+ */
+export function modularityBandName(band: FieldBand): string {
+    return MODULARITY_BAND_NAMES[band.id] ?? band.id;
 }
 
 /**

@@ -31,17 +31,6 @@ export function formatF32(value: number): string {
 }
 
 /**
- * Whether a number read from a file keeps its decimal value in an f32 column: the shortest decimal
- * of its f32 rounding reads back as the same number (0.2 does; 123456789.123 and 0.123456789 do not).
- * @param value - a finite number
- * @returns true when nothing a reader would see is lost
- * @category Plugin helpers
- */
-export function survivesF32(value: number): boolean {
-    return Number(formatF32(Math.fround(value))) === value;
-}
-
-/**
  * The shortest text of an f64 value: `String(x)`, which is already the shortest round-tripping
  * decimal in JS, except for negative zero, which `String()` writes as "0".
  * @param value - the value

@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat, noted } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { releaseOnAccelerator, type ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
@@ -103,13 +104,6 @@ const KATZ_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
     plainName: "Influence at a distance",
     technicalName: "Katz score",
 });
-
-/** Which paths were counted, by the `mode` option, in a sentence a reader can read. */
-const MODE_NOTES: Readonly<Record<KatzCentralityOptions["mode"], string>> = {
-    in: "Paths were counted arriving at each node, along the direction each edge was declared in.",
-    out: "Paths were counted leaving each node, along the direction each edge was declared in.",
-    total: "Paths were counted over the graph read as undirected, so an edge carries influence both ways.",
-};
 
 /**
  * Katz centrality: every path that reaches a node, with a longer path counting for less.
@@ -261,15 +255,13 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
                 method: "katz-iteration",
                 converged: result.converged,
                 iterations: result.iterations,
-                notes: [
-                    `Every node starts with a base influence of ${String(beta)}, and a path of length k contributes ${String(alpha)} to the power k.`,
-                    MODE_NOTES[mode],
-                    `Iteration stops at a tolerance of ${String(tolerance)} or after ${String(maxIterations)} passes, whichever comes first.`,
-                    ...(result.converged
-                        ? []
-                        : [`It stopped at the ${String(maxIterations)}-pass cap without reaching the tolerance.`]),
-                    "Edge weights are not read.",
-                ],
+                ...noted([
+                    caveat("katz.attenuation", { beta, alpha }),
+                    caveat("katz.direction", { mode }),
+                    caveat("iteration.stop-rule", { tolerance, maxIterations }),
+                    ...(result.converged ? [] : [caveat("iteration.cap-reached", { maxIterations })]),
+                    caveat("weights.unread"),
+                ]),
             },
         };
     }

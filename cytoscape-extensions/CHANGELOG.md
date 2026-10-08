@@ -1,3 +1,20 @@
+## 0.0.2 (2026-10-08)
+
+### 🩹 Fixes
+
+- **layout:** kamadaKawai rejects a dist matrix with no finite distance ([#965](https://github.com/graphty-org/graphty-monorepo/issues/965))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.38
+- Updated algorithms to 3.3.9
+- Updated graph-io to 0.3.29
+- Updated layout to 2.2.10
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.1 (2026-10-07)
 
 ### 🚀 Features

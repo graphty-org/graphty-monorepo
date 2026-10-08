@@ -232,7 +232,7 @@ The codes `checkExport(snapshot, "obo", options)` can return before a save, also
 - `W_VIZ_DROPPED` (warning): OBO has no visual columns.
 - `W_ROLE_DROPPED` (warning): An attribute with a role the format has no place for is written as a plain attribute; the role is lost.
 - `W_ROLE_ASSUMED` (warning): An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and reads back with that role.
-- `W_COLUMN_NAME_CHANGED` (warning): An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the name the format's importer gives it.
+- `W_COLUMN_NAME_CHANGED` (warning): The node label column is written as each node's `name` and reads back as the column `name`. An edge label has no slot: it is written as a qualifier (`W_ROLE_DROPPED` and `W_OBO_EDGE_COLUMN_AS_QUALIFIER`), never under a new name.
 - `W_DTYPE_UNSUPPORTED` (warning): An OBO attribute stored as text where graph-io uses a dictionary (or the other way round); it reads back with graph-io's usual type. The values are the same.
 - `W_EMPTY_COLUMN_DROPPED` (warning): A column without a value on any written element reads back absent.
 - `W_DEFAULT_DROPPED` (warning): A declared default: OBO has none.

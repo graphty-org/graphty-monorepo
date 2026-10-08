@@ -293,9 +293,14 @@ export interface CheckExtras {
     /**
      * Roles the format writes into a fixed slot whose importer reads them back under a fixed name;
      * a role column named otherwise is reported as W_COLUMN_NAME_CHANGED (role -> the name the
-     * importer gives it). Defaults to none.
+     * importer gives it). Defaults to none. `nodeRoleNames` and `edgeRoleNames` override it for one
+     * kind, for a format whose slot exists for nodes only (or edges only).
      */
     readonly roleNames?: Readonly<Record<string, string>> | undefined;
+    /** Like `roleNames`, for node columns only. */
+    readonly nodeRoleNames?: Readonly<Record<string, string>> | undefined;
+    /** Like `roleNames`, for edge columns only: `{}` for a format with no edge slot for any role. */
+    readonly edgeRoleNames?: Readonly<Record<string, string>> | undefined;
     /**
      * False for a format that writes no node or edge attributes except the ones whose role is in
      * `roles`: every other attribute column is reported once as W_COLUMN_DROPPED, instead of the
@@ -556,6 +561,22 @@ function charsetText(charset: ExportCapabilities["idCharset"], n: number): strin
 }
 
 /**
+ * The role names of one kind (CheckExtras.nodeRoleNames / edgeRoleNames, else roleNames).
+ * @param domain - "node", "edge" or "graph"
+ * @param extras - format extras
+ * @returns the role names, or undefined when the extras name none
+ */
+function roleNamesOf(domain: string, extras: CheckExtras): Readonly<Record<string, string>> | undefined {
+    if (domain === "node") {
+        return extras.nodeRoleNames ?? extras.roleNames;
+    }
+    if (domain === "edge") {
+        return extras.edgeRoleNames ?? extras.roleNames;
+    }
+    return extras.roleNames;
+}
+
+/**
  * Whether a format writes the attributes of one kind (CheckExtras.nodeAttributes / edgeAttributes, else attributes).
  * @param domain - "node", "edge" or "graph"
  * @param extras - format extras
@@ -622,8 +643,9 @@ function checkColumns(
             continue;
         }
         const label = `${domain} column "${name}"`;
-        if (role !== null && extras.roleNames !== undefined) {
-            const fixed = extras.roleNames[role];
+        const roleNames = roleNamesOf(domain, extras);
+        if (role !== null && roleNames !== undefined) {
+            const fixed = roleNames[role];
             if (fixed !== undefined && fixed !== name) {
                 note(
                     LOSS.COLUMN_NAME_CHANGED,

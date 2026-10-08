@@ -35,7 +35,7 @@ function cell(
         return undefined;
     }
     const value = c.value(index);
-    return value instanceof Float32Array ? Array.from(value) : value;
+    return value instanceof Float32Array || value instanceof Float64Array ? Array.from(value) : value;
 }
 
 async function failure(promise: Promise<unknown>): Promise<ImportError> {

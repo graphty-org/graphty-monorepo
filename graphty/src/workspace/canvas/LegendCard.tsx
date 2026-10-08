@@ -3,6 +3,7 @@ import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session
 import { ColorSwatch, Paper, Stack, Text } from "@mantine/core";
 import React from "react";
 
+import { runName } from "../runWords";
 import { isSizeBlock, overflowLine, paintWords, sectionTitle, swatchName, swatchText } from "./legendWords";
 
 /** Props for LegendCard. */
@@ -21,7 +22,7 @@ interface LegendCardProps {
  */
 function rowName(session: GraphSession, block: LegendBlock): string {
     const run = block.runId === undefined ? undefined : session.runs.get(block.runId);
-    return run?.label ?? session.styles.get(block.layerId)?.name ?? block.layerId;
+    return run === undefined ? (session.styles.get(block.layerId)?.name ?? block.layerId) : runName(session, run);
 }
 
 /**

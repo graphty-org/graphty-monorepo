@@ -329,13 +329,10 @@ export class D3GraphEngine extends LayoutEngine {
     getNodePosition(n: Node): Position {
         const d3node = this._getMappedNode(n);
 
-        // Publish first, then answer from the array, so a caller reading one node at a time sees
-        // the same coordinates as a caller reading the array in bulk. A node with no row in the
-        // graph falls through to the simulation's own numbers.
-        const out = { x: 0, y: 0, z: 0 };
-        this.writeNodePosition(n, d3node.x, d3node.y, d3node.z);
-        if (this.readNodePosition(n, out)) {
-            return out;
+        // A node whose row is unplaced or missing falls through to the simulation's own numbers.
+        const published = this.publishOnRead(n, d3node.x, d3node.y, d3node.z);
+        if (published !== null) {
+            return published;
         }
 
         return {

@@ -17,7 +17,7 @@ import {
     snapshotOf,
     starEdges,
 } from "../helpers/graphs.js";
-import { brandesOracle } from "./betweenness.js";
+import { brandesAtPrecisions, brandesOracle } from "./betweenness.js";
 
 describe("brandesOracle (design 11.3)", () => {
     it("the path: vertex i scores i (n - 1 - i), edge (i, i + 1) scores (i + 1)(n - 1 - i); the arcs of an edge agree", () => {
@@ -88,13 +88,17 @@ describe("brandesOracle (design 11.3)", () => {
         expect(perSource[0].depth[s.nodeCount - 1]).toBe(9);
     });
 
+    // 3.8-4.0 s alone with coverage, the time of the 2,000 searches and their accumulation, once per precision (one
+    // sweep for both is about 1.4x faster than the two calls it replaced). It took 39 s at load average 50-70, past the
+    // 30 s default, so it gets an explicit 60 s.
     it("the f32 reference differs from the f64 one on randomEdges(2000, 8000, 7) by less than 1e-4 (the noise floor of design 9.7)", () => {
         const s = snapshotOf(randomEdges(2000, 8000, 7));
-        const f64 = brandesOracle(s);
-        const f32 = brandesOracle(s, { precision: "f32" });
+        // Both precisions over one breadth-first search per source, keeping no per-source state (two brandesOracle
+        // calls searched every source twice and kept 2,000 depth and sigma arrays each).
+        const [f64, f32] = brandesAtPrecisions(s, ["f64", "f32"]);
         const spread = scoreError(f32.vertex, f64.vertex);
         console.warn(`[noise-floor] brandes f32 vs f64 on randomEdges(2000, 8000, 7): ${spread.toExponential(3)}`);
         expect(spread).toBeGreaterThan(0);
         expect(spread).toBeLessThan(1e-4);
-    });
+    }, 60_000);
 });

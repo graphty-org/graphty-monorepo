@@ -6,6 +6,8 @@ import { ciJunitReporter } from "../vitest.ci-junit.mjs";
 // runs happy-dom, and this package is plain Node code with no DOM.
 export default defineConfig({
     test: {
+        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
+        globalSetup: ["../tools/test-slots.mjs"],
         globals: true,
         environment: "node",
         pool: "forks",

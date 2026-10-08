@@ -9,7 +9,7 @@ import {
 } from "../../../src/catalog/types";
 import type { RunRef } from "../../../src/session/results/types";
 import { ManagedRun, type RunDefinition, type RunSurroundings } from "../../../src/session/runs";
-import { DEFAULT_SIZE_RANGE } from "../../../src/session/styles/derive";
+import { DEFAULT_EDGE_WIDTH_RANGE, DEFAULT_SIZE_RANGE } from "../../../src/session/styles/derive";
 import { planEncoding } from "../../../src/session/styles/EncodingSpec";
 import {
     type EncodingRun,
@@ -39,7 +39,16 @@ function field(
  * @returns The run.
  */
 function runOf(id: RunId, shape: ResultShape, fields: readonly FieldDescriptor[]): EncodingRun {
-    return { id, label: `The ${id} run`, algorithm: id, params: {}, shape, fields };
+    return {
+        id,
+        label: `The ${id} run`,
+        distinguishedBy: null,
+        siblingsDifferBy: null,
+        algorithm: id,
+        params: {},
+        shape,
+        fields,
+    };
 }
 
 /** A centrality run: one number per node, and the graph half nothing paints. */
@@ -359,6 +368,45 @@ describe("the run object that makes the suggestion", () => {
     });
 });
 
+describe("widening edges by an edge measurement, asked for with style: { size }", () => {
+    const widthOf = (suggestions: readonly StyleSuggestion[]): EncodingSuggestion | undefined =>
+        suggestions.find(
+            (entry): entry is EncodingSuggestion => entry.as === "encoding" && entry.channels.includes("edge.width"),
+        );
+
+    it("adds nothing for true, false or left off", () => {
+        assert.isUndefined(widthOf(suggestStyles(EDGE_BETWEENNESS, true)));
+        assert.isUndefined(widthOf(suggestStyles(EDGE_BETWEENNESS, false)));
+        assert.isUndefined(widthOf(suggestStyles(EDGE_BETWEENNESS)));
+    });
+
+    it("adds an edge width over the same field, from the default edge width to twice it, for size: true", () => {
+        const suggestions = suggestStyles(EDGE_BETWEENNESS, { size: true });
+
+        assert.lengthOf(suggestions, 2, "the colour is still suggested");
+        assert.deepStrictEqual(widthOf(suggestions)?.spec, {
+            run: "edgebetweenness",
+            field: "value",
+            channel: "edge.width",
+            range: [...DEFAULT_EDGE_WIDTH_RANGE],
+        });
+        assert.strictEqual(DEFAULT_EDGE_WIDTH_RANGE[1], DEFAULT_EDGE_WIDTH_RANGE[0] * 2);
+    });
+
+    it("uses the range it was given", () => {
+        assert.deepStrictEqual(widthOf(suggestStyles(EDGE_BETWEENNESS, { size: [2, 6] }))?.spec.range, [2, 6]);
+    });
+
+    it("produces a layer scoped to the edges carrying the value, never every edge", () => {
+        const spec = widthOf(suggestStyles(EDGE_BETWEENNESS, { size: true }))?.spec;
+        const layer = spec === undefined ? undefined : planEncoding(spec, RUN_SOURCE);
+
+        assert.strictEqual(layer?.target, "edge");
+        assert.deepStrictEqual(layer?.selector, { match: "has", path: "results.edgebetweenness.value" });
+        assert.deepStrictEqual(Object.keys(layer?.encode ?? {}), ["edge.width"]);
+    });
+});
+
 describe("sizing by the run's measurement, asked for with style: { size }", () => {
     const sizeOf = (suggestions: readonly StyleSuggestion[]): EncodingSuggestion | undefined =>
         suggestions.find(
@@ -391,10 +439,14 @@ describe("sizing by the run's measurement, asked for with style: { size }", () =
         assert.lengthOf(suggestStyles(BETWEENNESS, { size: false }), 1);
     });
 
-    it("ignores size for a result that is not a node measurement", () => {
-        assert.isUndefined(sizeOf(suggestStyles(LOUVAIN, { size: true })));
-        assert.isUndefined(sizeOf(suggestStyles(EDGE_BETWEENNESS, { size: true })));
-        assert.isUndefined(sizeOf(suggestStyles(ROUTE, { size: true })));
+    it("ignores size for a result that is not a measurement", () => {
+        for (const run of [LOUVAIN, ROUTE, BRIDGES]) {
+            const channels = suggestStyles(run, { size: true }).flatMap((entry) => entry.channels);
+
+            assert.notInclude(channels, "node.size", run.id);
+            assert.notInclude(channels, "edge.width", run.id);
+        }
+        assert.isUndefined(sizeOf(suggestStyles(EDGE_BETWEENNESS, { size: true })), "an edge has no node to size");
     });
 
     it("produces a layer scoped to the elements carrying the value", () => {

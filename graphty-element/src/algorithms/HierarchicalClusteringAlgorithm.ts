@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -113,12 +114,12 @@ export class HierarchicalClusteringAlgorithm extends DeclaredAlgorithm<Hierarchi
                 method: `hierarchical-clustering-${linkage}`,
                 direction: "undirected",
                 weight: null,
-                notes: [
-                    "Distances are hop counts; edge weights are not read.",
-                    "Hierarchical clustering does not score its own partition, so it reports no modularity.",
+                facts: [
+                    caveat("hierarchical.hop-distances"),
+                    caveat("partition.unscored", { algorithm: "hierarchical-clustering" }),
                     ...(cut === clusters
                         ? []
-                        : [`${String(clusters)} clusters were asked for; the graph allows ${String(cut)}.`]),
+                        : [caveat("hierarchical.fewer-clusters", { asked: clusters, allowed: cut })]),
                 ],
             }),
         };

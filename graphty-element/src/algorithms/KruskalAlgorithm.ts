@@ -10,6 +10,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { scopeEdges, type ScopeInputDeclaration } from "./input/ScopedInput";
 import {
@@ -75,7 +76,7 @@ export class KruskalAlgorithm extends DeclaredAlgorithm {
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "distance" },
                 precision,
-                notes: [`The tree joins the graph with ${String(value.edges.length)} edges.`],
+                facts: [caveat("tree.edge-count", { edges: value.edges.length })],
             }),
         };
     }

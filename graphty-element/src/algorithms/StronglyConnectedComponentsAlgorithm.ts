@@ -1,6 +1,7 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -71,13 +72,9 @@ export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
                 direction: snapshot.directed ? "directed" : "undirected",
                 weight: null,
                 precision,
-                notes: [
-                    "Strength: strong. Two nodes share a piece only when a directed path runs each way.",
-                    ...(snapshot.directed
-                        ? []
-                        : [
-                              "The graph is undirected: every edge runs both ways, so the pieces are its connected ones.",
-                          ]),
+                facts: [
+                    caveat("components.strong"),
+                    ...(snapshot.directed ? [] : [caveat("components.undirected-strong")]),
                 ],
             }),
         };

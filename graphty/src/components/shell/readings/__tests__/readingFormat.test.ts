@@ -1,3 +1,4 @@
+import { BUILT_IN_ALGORITHMS } from "@graphty/graphty-element/catalog";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,6 +7,7 @@ import {
     formatPercent,
     formatProseCount,
     joinList,
+    modularityBandName,
     modularityBandPhrase,
 } from "../readingFormat";
 
@@ -116,10 +118,33 @@ describe("readingFormat", () => {
             expect(modularityBandPhrase(band("barely"))).toBe("barely separated; the grouping may not be meaningful");
         });
 
-        it("reads a band the spec does not name as the element's own plain name", () => {
+        it("reads a band the spec does not name as its id, the element's neutral fact (#866)", () => {
             expect(modularityBandPhrase({ id: "strong", plainName: "Strongly separated", description: "" })).toBe(
-                "strongly separated",
+                "strong",
             );
+        });
+    });
+
+    describe("modularityBandName, the Summary row's words", () => {
+        it("names each band graphty-element publishes from its id, as the element's plain name read", () => {
+            const band = (id: string) => ({ id, plainName: "", description: "" });
+
+            expect(modularityBandName(band("clear"))).toBe("Clearly separated");
+            expect(modularityBandName(band("weak"))).toBe("Weakly separated");
+            expect(modularityBandName(band("barely"))).toBe("Barely separated");
+            expect(modularityBandName(band("strong"))).toBe("strong");
+        });
+
+        it("says what the element's deprecated plain name for each modularity band says (#866)", () => {
+            const bands =
+                BUILT_IN_ALGORITHMS.find((entry) => entry.key === "louvain")?.fields.find(
+                    (field) => field.name === "modularity",
+                )?.interpretation?.bands ?? [];
+
+            expect(bands.length).toBe(3);
+            for (const band of bands) {
+                expect(modularityBandName(band)).toBe(band.plainName);
+            }
         });
     });
 });

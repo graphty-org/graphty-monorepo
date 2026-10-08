@@ -49,8 +49,18 @@ function sessionOf(parts: {
 }): GraphSession {
     return {
         styles: { list: () => parts.layers, legend: () => parts.legend ?? [] },
+        // No catalog entry, so the app names each run by its algorithm: the stub's label.
+        catalog: { algorithms: () => [] },
         runs: {
-            list: () => parts.runs,
+            list: () =>
+                parts.runs.map((run) => ({
+                    ...run,
+                    algorithm: run.label,
+                    params: {},
+                    distinguishedBy: null,
+                    siblingsDifferBy: null,
+                    scope: { spec: "visible" },
+                })),
             bindings: (id: string) =>
                 parts.layers.filter((l) => l.source.by === "run" && l.source.runId === id).map((l) => l.id),
         },

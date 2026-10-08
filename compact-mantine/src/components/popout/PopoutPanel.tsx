@@ -11,7 +11,7 @@ import { usePopoutAnchorContext } from "./PopoutAnchor";
 import { usePopoutContext, usePopoutManagerContext } from "./PopoutContext";
 import { PopoutHeader } from "./PopoutHeader";
 import { findPanelElement, type PopoutAnchorElements, resolveAnchorElement } from "./utils/anchor";
-import { calculatePopoutPosition, resolvePlacement } from "./utils/position";
+import { calculatePopoutPosition, measureContainingBlock, resolvePlacement } from "./utils/position";
 import { tabId, tabPanelId } from "./utils/tabs";
 
 // Accessibility: the APG "Dialog (Modal)" pattern, made non-modal -- role
@@ -109,6 +109,9 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
 
     // Ref for the panel element, used both to measure it and to manage focus
     const panelRef = useRef<HTMLDivElement>(null);
+    // An empty box at left 0, top 0 beside the panel: where it renders is the corner of the
+    // frame the panel's left and top are measured in (see measureContainingBlock).
+    const originRef = useRef<HTMLDivElement>(null);
 
     // A press on the header raises the panel, whether or not it becomes a drag.
     const handlePress = useCallback(() => {
@@ -227,8 +230,11 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         // so a panel that content has widened would otherwise be positioned as
         // if it were still the declared width and would grow over its anchor.
         const measured = panelRef.current?.getBoundingClientRect();
-        const renderedWidth = Math.max(width, measured?.width ?? 0);
-        const renderedHeight = Math.max(height ?? 0, measured?.height ?? 0);
+        // The anchors are measured in viewport pixels, but left and top are applied in the
+        // panel's containing block, which a transformed ancestor moves and scales.
+        const frame = measureContainingBlock(originRef.current, panelRef.current);
+        const renderedWidth = Math.max(width * frame.scaleX, measured?.width ?? 0);
+        const renderedHeight = Math.max((height ?? 0) * frame.scaleY, measured?.height ?? 0);
 
         const physicalPlacement = resolvePlacement(placement, direction);
         const isBlockPlacement = physicalPlacement === "top" || physicalPlacement === "bottom";
@@ -251,6 +257,12 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             next.top = Math.max(0, Math.min(next.top, maxTop));
             next.left = Math.max(0, Math.min(next.left, maxLeft));
         }
+
+        // ponytail: the drag offset is still applied unscaled, so inside a scaled ancestor a
+        // dragged panel moves by the scale times the pointer's travel; divide it by the frame's
+        // scale if that matters.
+        next.left = (next.left - frame.x) / frame.scaleX;
+        next.top = (next.top - frame.y) / frame.scaleY;
 
         setPosition((previous) => {
             if (previous && previous.left === next.left && previous.top === next.top) {
@@ -454,5 +466,11 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     );
 
     // Render in a portal at the manager's container
-    return createPortal(panel, portalContainer);
+    return createPortal(
+        <>
+            <div ref={originRef} aria-hidden="true" style={{ position: "fixed", left: 0, top: 0 }} />
+            {panel}
+        </>,
+        portalContainer,
+    );
 }

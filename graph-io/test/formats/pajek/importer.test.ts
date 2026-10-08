@@ -91,12 +91,12 @@ describe("pajekImporter: the corpus", () => {
         expect(snapshot.ids.toArray()).toEqual([1, 2, 3, 4, 5]);
         expect(label(snapshot, 0)).toBe("Node A");
         expect(label(snapshot, 4)).toBe("Node E");
-        const position = snapshot.nodes.requireTyped("position", "f32");
+        const position = snapshot.nodes.requireTyped("position", "f64");
         expect(position.meta.role).toBe("position");
         expect(position.meta.components).toBe(3);
         expect(position.meta.extra).toEqual({ sourceDims: 3, units: "file" });
-        expect(Array.from(position.value(0) as ArrayLike<number>)).toEqual([Math.fround(0.1), Math.fround(0.2), 0]);
-        expect(Array.from(position.value(4) as ArrayLike<number>)).toEqual([Math.fround(0.9), 1, 0]);
+        expect(Array.from(position.value(0) as ArrayLike<number>)).toEqual([0.1, 0.2, 0]);
+        expect(Array.from(position.value(4) as ArrayLike<number>)).toEqual([0.9, 1, 0]);
         // 3 arcs, then 2 undirected edges expanded into pairs
         expect(snapshot.directed).toBe(true);
         expect(snapshot.edgeCount).toBe(7);
@@ -228,7 +228,7 @@ describe("pajekImporter: vertex lines", () => {
         expect(label(snapshot, 0)).toBe("alpha");
         expect(label(snapshot, 1)).toBe("beta gamma");
         expect(label(snapshot, 2)).toBe("delta");
-        const position = snapshot.nodes.requireTyped("position", "f32");
+        const position = snapshot.nodes.requireTyped("position", "f64");
         expect(position.meta.extra.sourceDims).toBe(2);
         expect(Array.from(position.value(0) as ArrayLike<number>)).toEqual([0.5, 0.25, 0]);
         expect(position.isSet(2)).toBe(false);
@@ -341,7 +341,7 @@ describe("pajekImporter: vertex lines", () => {
     it("warns once when vertex lines mix two and three coordinates", async () => {
         const { snapshot, report } = await load("*Vertices 3\n1 a 1 2\n2 b 3 4 5\n3 c 6 7 8\n*Edges\n");
         expect(codes(report)).toEqual([PAJEK_ISSUE.COORD_DIMS]);
-        const position = snapshot.nodes.requireTyped("position", "f32");
+        const position = snapshot.nodes.requireTyped("position", "f64");
         expect(position.meta.extra.sourceDims).toBe(2);
         expect(Array.from(position.value(1) as ArrayLike<number>)).toEqual([3, 4, 5]);
     });

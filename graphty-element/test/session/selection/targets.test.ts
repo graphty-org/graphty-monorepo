@@ -30,6 +30,7 @@ const CAVEATS: Caveats = {
     direction: "undirected",
     precision: "f64",
     method: "degree",
+    facts: [],
     notes: [],
 };
 

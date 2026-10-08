@@ -1,3 +1,19 @@
+## 0.6.38 (2026-10-08)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** weigh the GPU BFS bottom-up step by in-arcs ([#1358](https://github.com/graphty-org/graphty-monorepo/issues/1358))
+- **graphty-element:** key the large-graph story generator on the unordered pair ([#228](https://github.com/graphty-org/graphty-monorepo/pull/228))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.3.9
+- Updated layout to 2.2.10
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.37 (2026-10-07)
 
 ### 🧱 Updated Dependencies

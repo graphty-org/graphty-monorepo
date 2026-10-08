@@ -732,6 +732,7 @@ export class Edge {
     get drawnLine(): {
         name: string;
         length: number;
+        width: number;
         visibility: number;
         centre: Vector3;
     } | null;
@@ -2747,6 +2748,7 @@ export abstract class LayoutEngine {
     // @deprecated
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null;
     protected abstract pin(n: Node_2): void;
+    protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     readNodePosition(n: Node_2, out: {
         x: number;

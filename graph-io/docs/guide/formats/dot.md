@@ -176,7 +176,7 @@ The codes this format's import report can hold. They are also exported as `DOT_I
 - `W_DOT_NODE_PORT_DROPPED` (warning): A port on a node statement has no meaning and was dropped.
 - `W_DOT_CLUSTER_NODE_MERGED` (warning): A plain node and a cluster share a name and were merged into one container node.
 - `W_DOT_CLUSTER_CONFLICT` (warning): A node mentioned in two unrelated clusters keeps the first.
-- `W_DOT_BAD_POS` (warning): A node's `pos` is not a point, or is too large for a 32-bit float position; the value was dropped.
+- `W_DOT_BAD_POS` (warning): A node's `pos` is not a point, or has a coordinate that is not finite; the value was dropped.
 - `W_DOT_POS_DIMS` (warning): Node `pos` values mix two and three coordinates; the position column records the first's.
 - `W_PRECISION` (warning): An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit.
 - `W_DUPLICATE_ATTRIBUTE` (warning): The same attribute twice in one statement's attribute lists; the last value stands, as in Graphviz.

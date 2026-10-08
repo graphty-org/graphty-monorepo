@@ -1,4 +1,4 @@
-import { MantineProvider } from "@mantine/core";
+import { MantineProvider, type MantineThemeOverride } from "@mantine/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -9,19 +9,25 @@ import {
     type AlignmentMatrixProps,
 } from "../../../src/components/selection/AlignmentMatrix";
 import { compactTheme } from "../../../src/theme";
+import { compactThemeWithoutTooltips } from "../theme-without-tooltips";
 
-function renderMatrix(props: AlignmentMatrixProps = {}): ReturnType<typeof render> {
+function renderMatrix(
+    props: AlignmentMatrixProps = {},
+    theme: MantineThemeOverride = compactTheme,
+): ReturnType<typeof render> {
     return render(
-        <MantineProvider theme={compactTheme}>
+        <MantineProvider theme={theme}>
             <AlignmentMatrix {...props} />
         </MantineProvider>,
     );
 }
 
+// `hidden: true` skips testing-library's visibility check, which reads the computed style of
+// every radio and its ancestors on each call; the checked radio is what is asked for here.
 function checkedValue(): string | undefined {
     return (
         screen
-            .getAllByRole("radio")
+            .getAllByRole("radio", { hidden: true })
             .find((radio) => (radio as HTMLInputElement).checked)
             ?.getAttribute("value") ?? undefined
     );
@@ -81,9 +87,11 @@ describe("AlignmentMatrix", () => {
         expect(checkedValue()).toBe("bottom-center");
     });
 
+    // Without tooltips: each arrow focuses the next cell, which would mount its tooltip (see
+    // theme-without-tooltips.ts), and the test is about the value and where focus goes.
     it("moves in two dimensions with the arrows, and stops at the edges", () => {
         const onChange = vi.fn();
-        renderMatrix({ onChange });
+        renderMatrix({ onChange }, compactThemeWithoutTooltips);
         const start = screen.getByRole("radio", { name: "Align top left" });
 
         fireEvent.keyDown(start, { key: "ArrowUp" });

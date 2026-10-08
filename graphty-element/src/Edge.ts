@@ -53,6 +53,13 @@ const ARROW_CAPTION_LOCATION: AttachPosition = "top";
 const ARROW_CAPTION_OFFSET = 0.3;
 
 /**
+ * How far a selected edge's band is pushed back in depth (a material's `zOffset`, which scales
+ * with the slope, and `zOffsetUnits`, which a band facing the camera needs), so the line it marks
+ * wins every pixel they share and the band shows only beside it, as a casing.
+ */
+const HALO_DEPTH_OFFSET = 2;
+
+/**
  * The caption one end of an edge should be drawing, or undefined when it should draw none.
  *
  * TWO WAYS TO GET NOTHING, AND THEY MEAN DIFFERENT THINGS.
@@ -778,26 +785,28 @@ export class Edge {
     }
 
     /**
-     * Draw, move or drop the band of the configured selection colour, at the configured opacity,
-     * along this edge's line: the edge's halo.
+     * Draw, move or drop the band of the configured edge selection colour, at the configured
+     * opacity, along this edge's line: the edge's halo.
      *
-     * THE SAME THREE SETTINGS A NODE'S HALO READS. The band is `scale` times twice the line's
-     * width, so the default 1.45 stands visibly clear of a thin line on both sides. It replaced a
-     * mark that recoloured the line itself, darkened until it stood 3:1 from the canvas and from
-     * the line: on a light canvas that turned gold into a dark olive nobody had configured, and
-     * opacity was never read at all.
+     * THE SELECTION STYLE'S THREE EDGE SETTINGS (`edgeColor`, `edgeScale`, `edgeOpacity`). The
+     * band is `edgeScale` times twice the line's width and is drawn BEHIND the line, pushed back
+     * in depth, so the line keeps its own paint down the middle and the band shows on both sides
+     * as a casing. It used to read the node halo's settings: a pale gold band at 0.4 opacity
+     * beside a one-pixel line, which on a dense drawing could not be told from the grey edges.
+     * Before that it recoloured the line itself, darkened until it stood 3:1 from the canvas: on
+     * a light canvas that turned gold into a dark olive nobody had configured.
      * @param style - The line's resolved style; the band follows its width and its curve.
      */
     private paintHalo(style: EdgeStyleConfig): void {
         const selection = this.selected
             ? (this.context.getStyles().config.graph.selection ?? DEFAULT_SELECTION_STYLE)
             : null;
-        const width = (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) * 2 * (selection?.scale ?? 0);
+        const width = (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) * 2 * (selection?.edgeScale ?? 0);
         const curve = style.line?.bezier === true;
         const key =
             selection === null
                 ? null
-                : `selection-halo|${selection.color}|${String(selection.opacity)}|${String(width)}|${String(curve)}`;
+                : `selection-halo|${selection.edgeColor}|${String(selection.edgeOpacity)}|${String(width)}|${String(curve)}`;
         const gone = this.haloBatch?.mesh.isDisposed() ?? true;
 
         if (key === this.haloKey && (key === null || !gone)) {
@@ -811,13 +820,18 @@ export class Edge {
             return;
         }
 
-        const { color, opacity } = selection;
+        const { edgeColor: color, edgeOpacity: opacity } = selection;
         this.haloBatch = EdgeMesh.lineBatch(
             this.context.getMeshCache(),
             { styleId: key, width, color },
             { line: { type: "solid", color, opacity, width, bezier: curve } },
             this.context.getScene(),
         );
+        // Behind the line: the batch is the band's alone, so its material can be pushed back.
+        if (this.haloBatch?.mesh.material) {
+            this.haloBatch.mesh.material.zOffset = HALO_DEPTH_OFFSET;
+            this.haloBatch.mesh.material.zOffsetUnits = HALO_DEPTH_OFFSET;
+        }
         this.haloSlots = this.haloBatch ? [this.haloBatch.acquire()] : [];
         this.haloIsCurve = curve;
         // The band has no place until the next update puts it on the line.

@@ -231,30 +231,37 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
         assert.strictEqual(await cursorAt({ x: 2, y: 2 }), "", "back on empty canvas");
     }, 60_000);
 
-    it("draws a selected edge with a band of the selection color at the selection opacity", async () => {
+    it("draws a selected edge with a solid band of the edge selection color behind the line", async () => {
         const element = await mounted(viewMode);
         const ab = edgeBetween(element, "a", "b");
         const mid = midpointOf(element, "a", "b");
-        const { color, opacity } = element.session.config.selectionStyle;
-        const gold = [1, 3, 5].map((at) => Number.parseInt(color.slice(at, at + 2), 16));
+        const { edgeColor, edgeOpacity } = element.session.config.selectionStyle;
+        const band = [1, 3, 5].map((at) => Number.parseInt(edgeColor.slice(at, at + 2), 16));
 
         const before = await columnAt(element, mid);
         await element.graph.select({ edges: [ab] });
         const after = await columnAt(element, mid);
 
-        // Across the line at its midpoint: canvas before, and inside the band now. The band is
-        // the selection color laid over the canvas at the configured opacity, as a node's halo is.
+        // Across the line at its midpoint. Where the canvas showed, the band now does, at the edge
+        // opacity (solid by default); where the line showed, the line still does in its own paint,
+        // because the band is drawn behind it as a casing.
         const canvas = before[0];
-        const want = canvas.map((channel, at) => channel * (1 - opacity) + gold[at] * opacity);
+        const want = canvas.map((channel, at) => channel * (1 - edgeOpacity) + band[at] * edgeOpacity);
+        const isCanvas = (row: number): boolean =>
+            before[row].every((channel, at) => Math.abs(channel - canvas[at]) <= 2);
         const banded = after.filter(
-            (pixel, row) =>
-                before[row].every((channel, at) => Math.abs(channel - canvas[at]) <= 2) &&
-                pixel.every((channel, at) => Math.abs(channel - want[at]) <= 8),
+            (pixel, row) => isCanvas(row) && pixel.every((channel, at) => Math.abs(channel - want[at]) <= 8),
         );
+        const lineRows = before.map((_, row) => row).filter((row) => !isCanvas(row));
         assert.isAtLeast(
             banded.length,
-            2,
+            4,
             `a band of ${String(want.map(Math.round))} beside the line; across it: ${JSON.stringify(after)}`,
+        );
+        assert.deepStrictEqual(
+            after[lineRows[Math.floor(lineRows.length / 2)]],
+            before[lineRows[Math.floor(lineRows.length / 2)]],
+            "the line keeps its own paint down the middle",
         );
 
         await element.graph.select({ edges: [] });

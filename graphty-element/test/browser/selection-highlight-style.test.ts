@@ -181,6 +181,9 @@ describe("what a selected node looks like", () => {
             color: "#00BCD4",
             scale: 1.45,
             opacity: 0.4,
+            edgeColor: "#0077BB",
+            edgeScale: 2.5,
+            edgeOpacity: 1,
         });
     });
 

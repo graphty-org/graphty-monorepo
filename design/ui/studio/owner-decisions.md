@@ -41,6 +41,47 @@ nodes; only the edges showed the chain.
 **Alternatives.** The app passes its own path color (a consumer's choice, but every consumer that
 stacks a path on a ranking meets the same clash first).
 
+**Built.** `DEFAULT_HIGHLIGHT.color` (every highlight a caller names no style for: a route and a
+node or edge set) goes from Okabe-Ito vermilion `#D55E00` to Paul Tol's indigo `#332288`. The
+vermilion was Delta E 1 from the second step of the default measurement palette. The indigo is at
+least Delta E 19 from the default node, the default edge, the background and all eleven sampled
+colors of the default measurement palette, for normal vision and all three kinds of color
+blindness, and 11:1 against the background; a search of the color space found only dark blues
+and violets that clear Delta E 15 against all of those at once. The cost: on a drawing with no
+measure, the route is a dark indigo among the default periwinkle nodes, told apart by lightness
+rather than by hue (Delta E 23 to 24 and 2.7:1, against 31 to 34 for the vermilion). Test:
+`test/catalog/default-palette-quality.test.ts`; story `Algorithms/Combined::RouteOverRanking`.
+
+## 2026-10-08 -- For the owner: a selected edge is drawn with a solid blue band behind it
+
+**What.** A selected edge used to be drawn with the node halo's settings: a gold band at 0.4
+opacity, 2.9 line widths wide, over the line. It is now drawn with a solid band of Paul Tol's
+blue `#0077BB`, five line widths wide, BEHIND the line, so the line keeps its own paint down the
+middle and the band shows on both sides. A changed default appearance, so listed here; built on
+the studio branch.
+
+**Why.** On the dense Les Miserables drawing the 13 marked ties of the tier 2 study were thin
+pale-gold lines that could not be told from the gray edges around them. Gold at 0.4 over the
+background is 1.15:1; gold itself is 1.3:1 and sits next to the oranges of the default
+measurement palette.
+
+**Alternatives.** A new shared selection color for nodes and edges (changes every selected
+node's halo too, and a blue halo is too close to the default indigo node); darkening the line
+itself (tried before: it turned the configured gold into an olive nobody chose).
+
+## 2026-10-08 -- Decided by the team: three edge settings on the selection style
+
+`GraphSelectionStyle` gains `edgeColor` (default `#0077BB`), `edgeScale` (default 2.5: the band
+is that many times twice the line width) and `edgeOpacity` (default 1), beside the node halo's
+`color`, `scale` and `opacity`. Additive: optional fields with defaults, so every existing
+selection style still parses. Flat rather than a nested `edge` object because
+`graph.setSelectionStyle` merges one level deep, so a flat field set alone keeps the others.
+Reason for separate settings: a see-through ring reads around a ball but vanishes beside a
+one-pixel line, so one set of values cannot serve both. The graphty app's Highlight color control
+still writes only the node halo's `color`; whether it should also write `edgeColor` is the app's
+choice. Test: `test/browser/element-at.test.ts` (the band is solid, beside the line, and the line
+keeps its paint), `test/catalog/default-palette-quality.test.ts`.
+
 ## 2026-10-08 -- Decided by the team: a left-out row's file line and end columns
 
 **What.** Two optional fields, additive: `LeftOutEdge.line?: number`, the row's line in the file,

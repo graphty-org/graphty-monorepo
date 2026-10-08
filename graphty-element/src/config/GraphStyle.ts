@@ -51,6 +51,28 @@ const GraphSelectionStyle = z.strictObject({
     scale: z.number().positive().default(1.45),
     /** How solid the halo is, in `[0, 1]`. Low enough to read as a highlight rather than a node. */
     opacity: z.number().min(0).max(1).default(0.4),
+    /**
+     * The colour of the band a selected EDGE is drawn with. Any colour the element understands;
+     * normalised to hex on parse.
+     *
+     * An edge has its own three settings because the node halo's do not carry over: a pale,
+     * see-through ring reads around a ball, but the same band beside a one-pixel line vanished
+     * on a dense drawing, and gold sat inside the default measurement palette's oranges. The
+     * default, Paul Tol's vibrant blue, stands 4.4:1 off the default background and is apart from
+     * the default edge grey, every colour of the default measurement palette and the element's
+     * own highlight for every kind of colour vision (`test/catalog/default-palette-quality.test.ts`).
+     */
+    edgeColor: ColorStyle.default("#0077BB"),
+    /**
+     * How wide a selected edge's band is, as a multiple of twice the line's own width: the
+     * default 2.5 draws a band five lines wide, so two line widths of it show on each side.
+     */
+    edgeScale: z.number().positive().default(2.5),
+    /**
+     * How solid a selected edge's band is, in `[0, 1]`. The band is drawn BEHIND the line, so the
+     * line keeps its own paint down the middle whatever this is; solid by default.
+     */
+    edgeOpacity: z.number().min(0).max(1).default(1),
 });
 
 /** What a selected node looks like, as it parses. See {@link GraphSelectionStyleOpts}. */

@@ -14,6 +14,7 @@
         "Algorithms/Combined::CommunityStructureWithPath",
         "Algorithms/Combined::DegreeAndPageRank",
         "Algorithms/Combined::LinkPrediction",
+        "Algorithms/Combined::RouteOverRanking",
         "Algorithms/Community::GirvanNewman",
         "Algorithms/Community::KCore",
         "Algorithms/Community::LabelPropagation",

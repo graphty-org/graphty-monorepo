@@ -664,6 +664,9 @@ export const GraphSelectionStyleOpts: z.ZodObject<{
     color: z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     scale: z.ZodDefault<z.ZodNumber>;
     opacity: z.ZodDefault<z.ZodNumber>;
+    edgeColor: z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    edgeScale: z.ZodDefault<z.ZodNumber>;
+    edgeOpacity: z.ZodDefault<z.ZodNumber>;
 }, z.core.$strict>;
 
 // @public

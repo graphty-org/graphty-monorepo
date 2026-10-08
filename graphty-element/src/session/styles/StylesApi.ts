@@ -811,19 +811,21 @@ const NO_INDEX = (): number | undefined => undefined;
 /**
  * What a highlight paints when its caller names no style.
  *
- * A highlight is drawn OVER the default indigo node, the default darkgrey edge and the whitesmoke
- * background, so it is chosen against those three rather than on its own. Okabe-Ito vermilion is
- * at least Delta E 16 from each of them at normal vision and under all three kinds of colour
- * blindness, and 3.5:1 against the background. The blue this replaced was Delta E 13 from the
- * default node and under 4 for tritanopia, so a route through default nodes disappeared into
- * them. `test/catalog/default-palette-quality.test.ts` measures it.
+ * A highlight is drawn OVER the default indigo node, the default darkgrey edge, the whitesmoke
+ * background AND whatever a measurement painted the other nodes, so it is chosen against all of
+ * them rather than on its own. Paul Tol's indigo is at least Delta E 19 from each of them -- every
+ * colour of the default measurement palette included -- at normal vision and under all three
+ * kinds of colour blindness, and 11:1 against the background. The Okabe-Ito vermilion it replaced
+ * sat inside the default measurement palette (Delta E 1 from its second step), so a route drawn
+ * over nodes coloured by a score read as low-scored nodes; the blue before that was Delta E 13
+ * from the default node. `test/catalog/default-palette-quality.test.ts` measures it.
  *
  * Colour alone is not enough for an edge: a thin line at the default width reads as a thin line
  * whatever its colour, so a highlighted edge is also drawn three times as wide. A node gets no
  * size, because a size here would flatten whatever size encoding the layers beneath it drew.
  */
 export const DEFAULT_HIGHLIGHT = {
-    color: "#D55E00",
+    color: "#332288",
     edgeWidth: EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 3,
 } as const;
 

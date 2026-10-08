@@ -231,8 +231,9 @@ export const RestyledWhileSelected: Story = {
 };
 
 /**
- * A selected EDGE: the line keeps its own paint, with a band of the selection colour at the
- * selection opacity along it -- the same three settings a node's halo reads.
+ * A selected EDGE: the line keeps its own paint down the middle, with a solid band of the edge
+ * selection colour drawn behind it on both sides -- `edgeColor`, `edgeScale` and `edgeOpacity`,
+ * the edge's own three settings, because a pale see-through band beside a thin line vanishes.
  */
 export const SelectedEdge: Story = {
     render: (args: HighlightArgs) => {

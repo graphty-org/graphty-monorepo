@@ -15,6 +15,17 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+000. (2026-10-08) **Marks visible on a colored drawing (graphty-element; owner doors listed).**
+     Highlight default `#D55E00` -> `#332288` (Tol indigo): vermilion was Delta E 1 from the
+     default ramp's 2nd step. A grid search of sRGB found ONLY dark blues/violets clear Delta E 15
+     from the indigo node, darkgrey edge, whitesmoke and the YlOrBr ramp under all 3 color
+     blindnesses (tritan kills teals/blues, protan/deutan kill greens/reds). Cost: on an
+     unmeasured drawing the route is dark indigo among periwinkle nodes (lightness, not hue).
+     Selected edge: new `edgeColor` `#0077BB` / `edgeScale` 2.5 / `edgeOpacity` 1 on the selection
+     style; the band is drawn BEHIND the line (material `zOffset` + `zOffsetUnits` -- `zOffset`
+     alone does nothing for a camera-facing quad) as a casing. Evidence
+     `tmp/r1-dry1-marks-visible/` (T18A/05, T18B/05, T20B/05, T22B/04, T22B-middle-x3.png).
+     The app's Highlight color still writes only the node halo `color`.
 00. (2026-10-08) **A continuous measure's histogram is banded (element `buildHistogram`).** Per-value
     bars only for an integer field, all-whole values, a single value, or repeats (distinct * 2 <=
     measured); else bands. Owner door already listed in `owner-decisions.md` (built rule added).
@@ -107,6 +118,11 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
+- (2026-10-08) **A selected edge gets its own three settings, flat (`edgeColor`, `edgeScale`,
+  `edgeOpacity`).** Reason: no one value serves a translucent ring around a ball and a band beside
+  a one-pixel line; changing the shared gold would move every node halo, and blue is too close to
+  the default indigo node. Flat because `setSelectionStyle` merges one level deep. Rejected: a
+  nested `edge` object, darkening the line (rejected before: unconfigured olive).
 - (2026-10-07) "Is the weight read?" is answered by the element's `plan()`, never re-derived from
   meanings in the app; the plan reuses the run's resolver so the two cannot disagree. Tier 2 study
   prep (T4, T17-T21 in `tasks.md`/`answers.md`, preflight `rounds/tier-2/preflight.md`) is done.
@@ -176,6 +192,12 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Choosing a default color: measure it, never eyeball. `default-palette-quality.test.ts`
+  has the color science (OKLab, Machado CVD); a scratch copy in `tmp/r1-dry1-marks-visible/`
+  (`search.mjs` grid search, `pair.mjs` pairwise) found the feasible region in seconds.
+- (2026-10-08) Drawing one line mesh behind another at the same depth: `material.zOffset` did
+  NOTHING (it is slope-scaled; a screen-facing quad has slope 0); `zOffsetUnits` worked. Probe:
+  a one-pixel column of `engine.readPixels` across the line, before and after.
 - (2026-10-08) real.mjs: `--key Shift+A` after a setup that ends with focus on a tree row types
   nothing (focus is a treeitem). To capture a second analysis, start a separate setup for it.
 - (2026-10-08) Check a dry-run finding against the frozen build before building a fix: sweep

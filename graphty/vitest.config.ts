@@ -37,6 +37,8 @@ export default defineConfig({
         force: true,
     },
     test: {
+        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
+        globalSetup: ["../tools/test-slots.mjs"],
         reporters: ["default", ...ciJunitReporter()],
         globals: true,
         exclude: BASE_EXCLUDE,

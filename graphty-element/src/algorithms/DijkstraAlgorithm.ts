@@ -129,7 +129,11 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
      * @internal
      */
     readsNegativeWeight(): boolean {
-        return this.input("undirected").derived().snapshot.weights?.some((weight) => weight < 0) ?? false;
+        return (
+            this.input("undirected")
+                .derived()
+                .snapshot.weights?.some((weight) => weight < 0) ?? false
+        );
     }
 
     /**

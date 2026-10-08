@@ -249,7 +249,7 @@ acceptance test. "The studio worktree" is
   agent's `nx run graphty:build` emptied `graphty/dist` mid-start: copy dist to `tmp/<task>/dist`.
 - (2026-10-08) Did not work: a value marked at the END of an inspector DataRow ("to s11 (no node
   row)") -- the row is cut at 1440 px wide; the fact must lead. Did not work (again): `while pgrep
-  -f <pattern>` waiting on a build matches its own shell and never ends; wait by PID. The session
+-f <pattern>` waiting on a build matches its own shell and never ends; wait by PID. The session
   entry's public types are listed in `graphty-element/session.ts`, not only `src/session/index.ts`:
   a type missing there is absent from `api/session.api.md`. `getByText` misses text split across a
   glyph span: read `.textContent` of the marked cell.
@@ -300,8 +300,8 @@ acceptance test. "The studio worktree" is
 - (2026-10-06 to 10-07, condensed) Shared worktree: commit from an empty `git diff --cached`; for a
   file others have dirty use a private index (`GIT_INDEX_FILE`, `read-tree HEAD`, `apply --cached`
   my hunks); never commit `api:report` output wholesale (it reads `dist/` types). Builds: `nx run
-  graphty:build` can OOM and empty `graphty/dist` (`NODE_OPTIONS=--max-old-space-size=8192 npx vite
-  build --outDir <dir>`); the app reads compact-mantine from its `dist/`. Tests: a `Run` is thenable;
+graphty:build` can OOM and empty `graphty/dist` (`NODE_OPTIONS=--max-old-space-size=8192 npx vite
+build --outDir <dir>`); the app reads compact-mantine from its `dist/`. Tests: a `Run` is thenable;
   pixel checks via `waitForStableFrame()` + `engine.readPixels`; never call a failure a flake; a
   run's per-node values via `session.data.nodePage({ columns: [runId] })`; queries are JMESPath.
   `selection.apply` throws synchronously on a bad selector (element defect, unfiled).

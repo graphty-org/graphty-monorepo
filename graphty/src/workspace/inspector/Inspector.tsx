@@ -8,7 +8,8 @@ import { useAttributeActions } from "../data-place/attributeActions";
 import { FilterStepEditor } from "../data-place/Filters";
 import { stepEditorName } from "../data-place/filterSteps";
 import { AttributeMenuItems } from "../data-place/MenuItems";
-import { sourcesWords } from "../data-place/words";
+import { SourceValues } from "../data-place/SourceValues";
+import { loadIndexOf, loadName, sourcesWords } from "../data-place/words";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { LayoutGroup } from "../layout/LayoutForm";
@@ -316,6 +317,10 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             return { name: session.styles.get(resolved.layer)?.name ?? "Gone" };
         case "filter-step":
             return { name: stepEditorName(session, resolved.step) };
+        case "source": {
+            const load = session.data.sources()[loadIndexOf(resolved.row) ?? -1];
+            return { name: load === undefined ? "Gone" : loadName(load) };
+        }
         default: {
             const column = session.data.attributes().find((candidate) => candidate.path === resolved.path);
             const made = column?.runId === undefined ? undefined : session.runs.get(column.runId);
@@ -402,6 +407,8 @@ function bodyOf(
         case "filter-step":
             // Keyed by the step, so opening another step starts from its own fields.
             return { only: <FilterStepEditor key={resolved.step} id={resolved.step} /> };
+        case "source":
+            return { only: <SourceValues row={resolved.row} /> };
         default:
             return { only: <AttributeValues path={resolved.path} /> };
     }

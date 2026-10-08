@@ -15,7 +15,7 @@ export interface SourceRow {
     readonly id: string;
     readonly kind: SourceKind;
     readonly name: string;
-    /** The quiet line: "34 nodes, 78 edges"; "254 rows, 254 edges"; "77 nodes". */
+    /** The quiet line: "34 nodes, 78 edges"; "254 rows, 254 edges"; "77 nodes"; "12 nodes, 22 edges, 1 row left out". */
     readonly quiet: string;
     readonly children?: readonly SourceRow[];
 }
@@ -54,12 +54,47 @@ export function count(n: number, noun: string): string {
 }
 
 /**
- * What a load added, as its row's quiet line.
+ * What a load added, as its row's quiet line. A kind it added none of is left out, so a narrow
+ * row keeps room for its name.
  * @param added - `LoadedSource.added`.
- * @returns such as "20 nodes, 41 edges".
+ * @returns such as "20 nodes, 41 edges", "17 edges", or "0 nodes, 0 edges" for a load that added nothing.
  */
 function addedWords(added: LoadedSource["added"]): string {
-    return `${count(added.nodes, "node")}, ${count(added.edges, "edge")}`;
+    const parts = [
+        ...(added.nodes > 0 ? [count(added.nodes, "node")] : []),
+        ...(added.edges > 0 ? [count(added.edges, "edge")] : []),
+    ];
+    return parts.length === 0 ? "0 nodes, 0 edges" : parts.join(", ");
+}
+
+/**
+ * What a load left out, appended to its row's quiet line.
+ * @param load - the load, an entry of `data.sources()`.
+ * @returns such as ", 1 row left out", or "" when the load left nothing out.
+ */
+function leftOutWords(load: LoadedSource): string {
+    return load.leftOut === undefined ? "" : `, ${count(load.leftOut.rows, "row")} left out`;
+}
+
+/**
+ * The sentence that says why a load left rows out, for the inspector.
+ * @param leftOut - `LoadedSource.leftOut`.
+ * @returns such as "1 edge row was left out: it names 1 node no node row holds."
+ */
+export function leftOutSentence(leftOut: NonNullable<LoadedSource["leftOut"]>): string {
+    const one = leftOut.rows === 1;
+    return `${count(leftOut.rows, "edge row")} ${one ? "was" : "were"} left out: ${one ? "it names" : "they name"} ${count(leftOut.values, "node")} no node row holds.`;
+}
+
+/**
+ * The index into `data.sources()` that a Sources row id names.
+ * @param id - `source:<load>` or `source:<load>:<table>`.
+ * @returns the index, or undefined for an id that is not a source row's.
+ */
+export function loadIndexOf(id: string): number | undefined {
+    const [head, index] = id.split(":");
+    const at = Number(index);
+    return head === "source" && Number.isInteger(at) && at >= 0 ? at : undefined;
 }
 
 /**
@@ -86,11 +121,12 @@ function kindOf(added: LoadedSource["added"]): SourceKind {
 export function sourceRows(sources: readonly LoadedSource[], report: ImportReport | null): SourceRow[] {
     const [only] = sources;
     if (sources.length === 1 && only.tables.length <= 1 && report !== null) {
-        return oneTableRows(only.name ?? "Untitled data", report);
+        const rows = oneTableRows(only.name ?? "Untitled data", report);
+        return rows.map((row) => ({ ...row, quiet: row.quiet + leftOutWords(only) }));
     }
     return sources.map((load, index) => {
         const id = `source:${String(index)}`;
-        const name = load.name ?? (load.tables.join(" and ") || "Untitled data");
+        const name = loadName(load);
         if (load.tables.length > 1) {
             const children = load.tables.map((table, at): SourceRow => ({
                 id: `${id}:${String(at)}`,
@@ -98,10 +134,19 @@ export function sourceRows(sources: readonly LoadedSource[], report: ImportRepor
                 name: table,
                 quiet: "",
             }));
-            return { id, kind: "file", name, quiet: addedWords(load.added), children };
+            return { id, kind: "file", name, quiet: addedWords(load.added) + leftOutWords(load), children };
         }
-        return { id, kind: kindOf(load.added), name, quiet: addedWords(load.added) };
+        return { id, kind: kindOf(load.added), name, quiet: addedWords(load.added) + leftOutWords(load) };
     });
+}
+
+/**
+ * A load's name: the one it was given, else its tables'.
+ * @param load - an entry of `data.sources()`.
+ * @returns such as "people.csv and passes.csv".
+ */
+export function loadName(load: LoadedSource): string {
+    return load.name ?? (load.tables.join(" and ") || "Untitled data");
 }
 
 /**

@@ -2,7 +2,16 @@ import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
 import type { ImportReport, LoadedSource } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { attributeRows, columnOf, count, fillOf, sourceRows, sourcesWords } from "../words";
+import {
+    attributeRows,
+    columnOf,
+    count,
+    fillOf,
+    leftOutSentence,
+    loadIndexOf,
+    sourceRows,
+    sourcesWords,
+} from "../words";
 
 /**
  * An import report with these counts; the rest of the report is not read.
@@ -97,6 +106,29 @@ describe("the Data place's words", () => {
             rows.map((r) => [r.kind, r.name, r.quiet]),
             [["nodes", "les miserables", "77 nodes"]],
         );
+    });
+
+    it("says how many rows a load left out, and why, in the reader's words", () => {
+        const load = {
+            ...loaded(undefined, ["people.csv", "passes.csv"], { nodes: 12, edges: 22 }),
+            leftOut: { rows: 1, values: 1 },
+        };
+        const [row] = sourceRows([load, loaded("more.csv", ["more.csv"], { nodes: 1, edges: 1 })], null);
+        assert.equal(row.quiet, "12 nodes, 22 edges, 1 row left out");
+        assert.equal(
+            sourceRows([load, loaded("passes.csv", ["passes.csv"], { nodes: 0, edges: 17 })], null)[1].quiet,
+            "17 edges",
+        );
+        assert.equal(
+            leftOutSentence({ rows: 1, values: 1 }),
+            "1 edge row was left out: it names 1 node no node row holds.",
+        );
+        assert.equal(
+            leftOutSentence({ rows: 3, values: 2 }),
+            "3 edge rows were left out: they name 2 nodes no node row holds.",
+        );
+        assert.equal(loadIndexOf("source:1:0"), 1);
+        assert.isUndefined(loadIndexOf("node:age"));
     });
 
     it("lists every load, oldest first, a load of two tables expanding to them", () => {

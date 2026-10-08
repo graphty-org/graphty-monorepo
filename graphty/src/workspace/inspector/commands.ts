@@ -23,5 +23,6 @@ export const registration = defineRegistration({
         { kind: "selection-row", tabs: ["style", "values"], defaultTab: "style" },
         { kind: "attribute", tabs: [] },
         { kind: "filter-step", tabs: [] },
+        { kind: "source", tabs: [] },
     ],
 });

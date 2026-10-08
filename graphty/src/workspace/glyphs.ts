@@ -146,4 +146,5 @@ export const KIND_GLYPHS: Readonly<Record<InspectedKindId, LucideIcon>> = {
     "layer-row": GLYPHS.layer,
     attribute: GLYPHS.attribute,
     "filter-step": GLYPHS.filter,
+    source: GLYPHS.file,
 };

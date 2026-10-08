@@ -144,6 +144,22 @@ export function DataPage(): React.JSX.Element {
     });
     useCarriedMeaning(page, was?.meaning ?? null);
 
+    // Opened on a load's left-out rows (the inspector's link): once the report is in, the grid
+    // shows the edge table's unmatched rows, as the report's own link does.
+    const [showUnmatched, setShowUnmatched] = useState(request.show === "unmatched");
+    useEffect(() => {
+        const { draft, report, choices } = page;
+        if (!showUnmatched || draft === null || report === null) {
+            return;
+        }
+        setShowUnmatched(false);
+        const edges = draft.tables.find((table) => rowsAreOf(draft, table, choices) === "edges");
+        if (edges !== undefined && report.unmatched.rows > 0) {
+            page.setTableId(edges.id);
+            page.setFilter("unmatched");
+        }
+    }, [showUnmatched, page]);
+
     const titles = {
         new: "Open as a new graph",
         add: `Add to ${projectName}`,

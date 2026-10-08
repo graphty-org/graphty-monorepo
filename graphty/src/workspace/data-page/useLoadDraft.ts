@@ -219,15 +219,15 @@ export function useLoadDraft(
         };
     }, [draft, choices, mode]);
 
-    // The grid's rows. The element reads the unmatched and rejected filters with the choices of
-    // the last report() call (draft.ts filter), so they wait for that report; #927 asks rows() to
-    // take the choices itself.
+    // The grid's rows. The unmatched and rejected filters are read under the same choices the
+    // report counted with: without them the element reads a load that replaces the graph, so an
+    // edge table added to a graph would list none of the rows the report calls unmatched.
     useEffect(() => {
-        if (draft === null || tableId === null || (filter !== "all" && report === null)) {
+        if (draft === null || tableId === null) {
             return undefined;
         }
         let stale = false;
-        const only = filter === "all" ? {} : { only: filter };
+        const only = filter === "all" ? {} : { only: filter, choices: loadChoices(draft, choices, mode) };
         // "Show the 32 unmatched rows" shows all of them, not a sample (round 8).
         const limit = filter === "all" ? SAMPLE_ROWS : Infinity;
         draft.rows(tableId, { limit, ...only }).then(
@@ -243,7 +243,7 @@ export function useLoadDraft(
         return () => {
             stale = true;
         };
-    }, [draft, tableId, filter, report]);
+    }, [draft, tableId, filter, choices, mode]);
 
     const load = useCallback(async (): Promise<boolean> => {
         if (draft === null) {

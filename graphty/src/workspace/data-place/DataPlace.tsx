@@ -258,12 +258,17 @@ export function DataPlace(): React.JSX.Element {
 
     const rowMenu = useRowMenu();
     const tableBuilt = useCommand("table.toggle") !== null;
-    // A table row opens the table dock on that table: a file's Node table or Edge table, or a
-    // source that produced one table (an edge list) and so has no children. A file holding both
-    // tables only expands to them. Its menu's Edit source... opens the Data page.
+    // Any row opens its load in the inspector: what it added and what it left out. A table row
+    // also opens the table dock on that table: a file's Node table or Edge table, or a source
+    // that produced one table (an edge list) and so has no children. Its menu's Edit source...
+    // opens the Data page.
+    const inspected = useWorkspaceState((state) => state.inspected);
     const openSource = (ids: string[]): void => {
         const id = ids.at(-1);
         const row = sources.flatMap((source) => [source, ...(source.children ?? [])]).find((r) => r.id === id);
+        if (row !== undefined) {
+            store.set({ inspected: { kind: "source", id: row.id } });
+        }
         if (tableBuilt && row !== undefined && row.kind !== "file") {
             store.set({ dockOpen: true, dockTab: row.kind });
         }
@@ -299,7 +304,7 @@ export function DataPlace(): React.JSX.Element {
                         items={sources.map(sourceItem)}
                         defaultExpanded={sources.map((row) => row.id)}
                         multiselect={false}
-                        selected={[]}
+                        selected={inspected?.kind === "source" && inspected.id !== undefined ? [inspected.id] : []}
                         onSelect={openSource}
                         rowMenu={rowMenu}
                     />

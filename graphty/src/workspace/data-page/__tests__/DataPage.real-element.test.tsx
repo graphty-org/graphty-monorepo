@@ -354,6 +354,99 @@ describe("the Data page on the real element", () => {
     );
 
     it(
+        "Sources says a load left a row out; the source's inspector counts it and shows it on the Data page",
+        async () => {
+            await page.viewport(1366, 768);
+            const { store } = await openFromEmptyApp();
+            await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "passes.csv"));
+            await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+            // Leave out is the default: the row naming z is left out.
+            await userEvent.click(loadButton());
+            await waitFor(
+                () => {
+                    assert.equal(store.get().page, "panels");
+                },
+                { timeout: TIMEOUT_MS },
+            );
+
+            act(() => {
+                store.set({ place: "data" });
+            });
+            const sources = await screen.findByRole("tree", { name: "Sources" });
+            const row = within(sources).getByRole("treeitem", { name: "people.csv and passes.csv" });
+            assert.include(row.textContent, "3 nodes, 2 edges, 1 row left out");
+
+            await userEvent.click(within(row).getAllByText("people.csv and passes.csv")[0]);
+            const inspector = screen.getByRole("complementary", { name: "Inspector" });
+            await within(inspector).findByText("1 edge row was left out: it names 1 node no node row holds.");
+
+            await userEvent.click(within(inspector).getByText("Show the left-out row"));
+            await screen.findByRole("heading", { name: "Add to people" });
+            await screen.findByText("1 unmatched row", {}, { timeout: TIMEOUT_MS });
+            const grid = screen.getByRole("grid", { name: "Rows of passes.csv" });
+            assert.isNotNull(within(grid).getByText("z"));
+        },
+        TIMEOUT_MS * 3,
+    );
+
+    it(
+        "Sources says nothing was left out when a load kept every row",
+        async () => {
+            const { store } = await openFromEmptyApp();
+            await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "passes.csv"));
+            const report = await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
+            await userEvent.click(await within(report).findByText("Add", {}, { timeout: TIMEOUT_MS }));
+            await userEvent.click(loadButton());
+            await waitFor(
+                () => {
+                    assert.equal(store.get().page, "panels");
+                },
+                { timeout: TIMEOUT_MS },
+            );
+
+            act(() => {
+                store.set({ place: "data" });
+            });
+            const sources = await screen.findByRole("tree", { name: "Sources" });
+            const row = within(sources).getByRole("treeitem", { name: "people.csv and passes.csv" });
+            assert.notInclude(row.textContent, "left out");
+            await userEvent.click(within(row).getAllByText("people.csv and passes.csv")[0]);
+            const inspector = screen.getByRole("complementary", { name: "Inspector" });
+            await within(inspector).findByText("Added");
+            assert.notInclude(inspector.textContent, "left out");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "an edge table added to a graph lists the unmatched rows its report counts",
+        async () => {
+            const store = createWorkspaceStore({ project: { name: "Ring", id: 7 } });
+            render(<Workspace store={store} />);
+            const session = await elementSession();
+            await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+            act(() => {
+                openDataPage(store, { intent: "add" });
+            });
+            await screen.findByRole("heading", { name: "Add to Ring" });
+            await chooseFiles(new File([TIES], "ties.csv"));
+
+            const report = await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
+            await userEvent.click(
+                await within(report).findByRole(
+                    "button",
+                    { name: "Show the 1 unmatched row" },
+                    { timeout: TIMEOUT_MS },
+                ),
+            );
+            await screen.findByText("1 unmatched row");
+            const grid = screen.getByRole("grid", { name: "Rows of ties.csv" });
+            assert.isNotNull(within(grid).getByText("z"));
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
         "Add data... adds to the open project without renaming it",
         async () => {
             const store = createWorkspaceStore({ project: { name: "Ring", id: 7 } });

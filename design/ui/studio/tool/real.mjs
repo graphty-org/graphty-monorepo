@@ -864,8 +864,9 @@ const ROLES = [
 ];
 const TIP = "[role=tooltip], .mantine-Tooltip-tooltip";
 // The control a click names: "<name>", "<name>#2" or "role=<role>:<name>". Exact names before partial
-// ones, controls before text; a name several controls share says so. With no control of that name, a
-// node whose label is drawn on the canvas, at its center.
+// ones, controls before text, a text box's placeholder only when no name matches; a name several
+// controls share says so. With no control of that name, a node whose label is drawn on the canvas,
+// at its center.
 async function find(page, raw, out) {
     let name = raw,
         role = null,
@@ -884,7 +885,12 @@ async function find(page, raw, out) {
               ];
         const seen = new Map(); // one entry per control: text inside a button is that button
         let behind = 0; // controls of that name behind an open modal dialog, which a person cannot reach
-        for (const loc of locs) {
+        // a box is also named by the words it shows: its placeholder, when no accessible name matches
+        for (let loc of [...locs, ...(role ? [] : ["placeholder"])]) {
+            if (loc === "placeholder") {
+                if (seen.size || behind) break;
+                loc = page.getByPlaceholder(name, { exact });
+            }
             for (const el of await loc.filter({ visible: true }).elementHandles()) {
                 const [key, desc] = await el.evaluate((e, tip) => {
                     // a tooltip bubble, hidden text and the graph's canvas are not controls
@@ -1323,6 +1329,12 @@ async function prove() {
         );
         x = step(A, "--click", "Find", "--type", "Strozzi", "--expect", "Strozzi");
         check("a type goes into the focused box", x.code === 0, x.out);
+        x = step(A, "--key", "Escape", "--click", "Find nodes, edges, values", "--type", "Pazzi", "--expect", "Pazzi");
+        check(
+            "a click by a text box's placeholder focuses that box",
+            x.code === 0 && !/nothing on screen is called/.test(x.out),
+            x.out,
+        );
         x = step(A, "--key", "Escape", "--click", "Main menu", "--click", "Export...", "--click", "role=button:Export");
         check(
             "a download is saved into the session folder and printed",

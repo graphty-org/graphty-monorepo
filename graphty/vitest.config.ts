@@ -87,6 +87,10 @@ export default defineConfig({
                     // the plays are written against the layout the reader and the capture see.
                     browser: { ...chromium(), viewport: { width: 1200, height: 900 } },
                     setupFiles: [".storybook/vitest.setup.ts"],
+                    // As graphty-element's storybook project: a story that loads the real element
+                    // takes under a second alone, and 7 to 15 seconds while the pre-push gate runs
+                    // its other browser shards beside it, which crossed the 15-second default.
+                    testTimeout: 30000,
                 },
             },
             {

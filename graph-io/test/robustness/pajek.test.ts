@@ -239,12 +239,11 @@ describe("Pajek robustness: labels and encodings", () => {
         expect(column(snapshot, "nodes", "label")).toEqual([`caf${E_ACUTE}`]);
     });
 
-    it("warns once when a coordinate does not survive the f32 position column", async () => {
+    it("keeps coordinates exactly, beyond f32 precision", async () => {
         const { snapshot, report } = await pajek('*Vertices 2\n1 "a" 0.123456789 0.2\n2 "b" 0.5 0.25\n*Edges\n');
-        expect(codes(report)).toEqual(["W_PRECISION"]);
-        expect(issue(report, "W_PRECISION").line).toBe(2);
+        expect(codes(report)).toEqual([]);
         expect(column(snapshot, "nodes", "position")).toEqual([
-            [Math.fround(0.123456789), Math.fround(0.2), 0],
+            [0.123456789, 0.2, 0],
             [0.5, 0.25, 0],
         ]);
     });

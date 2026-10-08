@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -151,7 +152,7 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
                 iterations,
                 ...(synchronous ? {} : { seed: randomSeed }),
                 precision,
-                notes: ["Label propagation does not score its own partition, so it reports no modularity."],
+                facts: [caveat("partition.unscored", { algorithm: "label-propagation" })],
             }),
         };
     }

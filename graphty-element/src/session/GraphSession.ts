@@ -56,6 +56,7 @@ import { declarationKey } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
+import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
 import { recommendLayout } from "./layout";
 import { createNoteFacts } from "./notes/countIndex";
@@ -235,6 +236,7 @@ const PLANNED_CAVEATS: Caveats = Object.freeze({
     weight: null,
     precision: "f64",
     method: "exact",
+    facts: Object.freeze([]),
     notes: Object.freeze([]),
 });
 
@@ -1973,7 +1975,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // What status and "Used by" read of a run. Late-bound: the runs are built below.
     const statusRun = (run: Run): StatusRun => ({
         id: run.id,
-        label: run.label,
+        label: englishRunLabel(run),
         algorithm: run.algorithm,
         registered: SESSION_CATALOG_TABLES.algorithms().some((descriptor) => descriptor.key === run.algorithm),
         execution: executionOf(run.id),
@@ -1984,7 +1986,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Offers and Memberships. Read through calls: the runs and the scope resolver are built below.
     const offerRun = (run: Run): { id: RunId; label: string; result: Run["result"] } => ({
         id: run.id,
-        label: run.label,
+        label: englishRunLabel(run),
         result: run.result,
     });
     const offering = createOffering({
@@ -2260,7 +2262,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                     : (key) => captureItem(result, key, graph, (row) => edgeMember(space.idOf(row))),
             );
         },
-        ...(runsOptions.defaultCaveats === undefined ? {} : { defaultCaveats: runsOptions.defaultCaveats }),
+        ...(runsOptions.defaultCaveats === undefined
+            ? {}
+            : { defaultCaveats: { facts: [], ...runsOptions.defaultCaveats } }),
         // ONE POLICY, EVERY ROUTE. A run paints itself on its first completion, from the encoding
         // its own shape derives -- see `./styles/autoApply` for the six rules and `./styles/derive`
         // for what a shape suggests. It is handed in here rather than called at each door because
@@ -2993,7 +2997,9 @@ function publish<K extends keyof SessionEventMap>(watchers: Watchers, event: K, 
 function toResultsEntry(run: Run): ResultsRunEntry {
     return {
         id: run.id,
-        label: run.label,
+        label: englishRunLabel(run),
+        distinguishedBy: run.distinguishedBy,
+        siblingsDifferBy: run.siblingsDifferBy,
         shape: run.shape,
         ...(run.result === undefined ? {} : { result: run.result }),
         ...(run instanceof ManagedRun && run.resultExecution !== undefined ? { execution: run.resultExecution } : {}),
@@ -3030,7 +3036,8 @@ function planningContext(
     acceleration: AccelerationControllerLike,
     keptSets: NonNullable<PlanningContext["keptSets"]>,
 ): PlanningContext {
-    const defaultCaveats: Caveats = runsOptions.defaultCaveats ?? PLANNED_CAVEATS;
+    const defaultCaveats: Caveats =
+        runsOptions.defaultCaveats === undefined ? PLANNED_CAVEATS : { facts: [], ...runsOptions.defaultCaveats };
 
     return {
         algorithms: () => SESSION_CATALOG_TABLES.algorithms(),

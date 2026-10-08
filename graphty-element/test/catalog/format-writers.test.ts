@@ -123,7 +123,7 @@ function measureTwo(context: RunExecutionContext): Promise<RunOutcome> {
                 { id: "a", values: { value: 1 } },
                 { id: "b", values: { value: 2 } },
             ],
-            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "degree", notes: [] },
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "degree", facts: [], notes: [] },
             durationMs: 1,
         }),
     });

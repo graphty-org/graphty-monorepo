@@ -17,6 +17,7 @@ const CAVEATS: Caveats = {
     direction: "undirected",
     precision: "f64",
     method: "degree",
+    facts: [],
     notes: [],
 };
 
@@ -60,10 +61,31 @@ function runRef(id: string, shape: ResultShape): Run {
 
 const DEGREE = metricResult("degree");
 const REGISTRY = registryOf([
-    { id: "degree", label: "Connections", shape: "node-metric", result: DEGREE },
-    { id: "louvain", label: "Communities", shape: "community", result: metricResult("louvain") },
-    { id: "facts", label: "Facts", shape: "fact", result: metricResult("facts") },
-    { id: "running", label: "Bridges", shape: "node-metric" },
+    {
+        id: "degree",
+        label: "Connections",
+        distinguishedBy: null,
+        siblingsDifferBy: null,
+        shape: "node-metric",
+        result: DEGREE,
+    },
+    {
+        id: "louvain",
+        label: "Communities (resolution 1.5)",
+        distinguishedBy: { option: "resolution", value: 1.5 },
+        siblingsDifferBy: null,
+        shape: "community",
+        result: metricResult("louvain"),
+    },
+    {
+        id: "facts",
+        label: "Facts",
+        distinguishedBy: null,
+        siblingsDifferBy: null,
+        shape: "fact",
+        result: metricResult("facts"),
+    },
+    { id: "running", label: "Bridges", distinguishedBy: null, siblingsDifferBy: null, shape: "node-metric" },
 ]);
 
 describe("addressing a result", () => {
@@ -138,6 +160,9 @@ describe("what an expression editor completes from", () => {
             ["degree", "louvain", "facts"],
         );
         assert.strictEqual(roots[0].label, "Connections");
+        assert.isNull(roots[0].distinguishedBy);
+        assert.deepStrictEqual(roots[1].distinguishedBy, { option: "resolution", value: 1.5 });
+        assert.isNull(roots[1].siblingsDifferBy);
         assert.strictEqual(roots[0].fields, DEGREE.fields);
     });
 
@@ -171,7 +196,9 @@ describe("did you mean", () => {
     });
 
     it("suggests the run itself when a run published no fields", () => {
-        const roots: readonly ResultRoot[] = [{ runId: "facts", label: "Facts", fields: [] }];
+        const roots: readonly ResultRoot[] = [
+            { runId: "facts", label: "Facts", distinguishedBy: null, siblingsDifferBy: null, fields: [] },
+        ];
 
         assert.deepStrictEqual(suggestResultPaths("results.fact", roots, 1), ["results.facts"]);
     });

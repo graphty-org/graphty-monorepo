@@ -69,6 +69,7 @@ function degreeExecutor(): Runner {
                         direction: "as-loaded",
                         precision: "f64",
                         method: "degree",
+                        facts: [],
                         notes: [],
                     },
                     durationMs: 1,

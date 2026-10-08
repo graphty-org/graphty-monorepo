@@ -206,7 +206,7 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
     check(snapshot: GraphSnapshot, options?: DotExportOptions & CommonExportOptions): readonly LossNote[] {
         const resolved = resolveExportOptions(options);
         const notes = checkCapabilities(snapshot, CAPABILITIES, resolved, {
-            positionDtype: "f32",
+            positionDtype: "f64",
             roles: KEPT_ROLES,
             roleNames: ROLE_NAMES,
         });

@@ -50,7 +50,16 @@ const EXPECTED: Readonly<
  * @returns What `suggestStyles` takes.
  */
 function runOf(key: AlgorithmKey, shape: ResultShape, fields: readonly FieldDescriptor[]) {
-    return { id: key, algorithm: key, params: {}, label: key, shape, fields };
+    return {
+        id: key,
+        algorithm: key,
+        params: {},
+        label: key,
+        distinguishedBy: null,
+        siblingsDifferBy: null,
+        shape,
+        fields,
+    };
 }
 
 describe("what a built-in algorithm draws by itself", () => {

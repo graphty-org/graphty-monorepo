@@ -63,7 +63,7 @@ class ScopedCounter extends DeclaredAlgorithm {
             shape: "node-metric",
             fields: [{ name: "value", kind: "node", type: "number" }],
             nodes,
-            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "count", notes: [] },
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "count", facts: [], notes: [] },
         });
     }
 }
@@ -192,6 +192,7 @@ describe("every value outside the scope reads missing", () => {
                 direction: "as-loaded" as const,
                 precision: "f64" as const,
                 method: "m",
+                facts: [],
                 notes: [],
             },
             durationMs: 0,
@@ -208,6 +209,7 @@ describe("the run says what it computed on", () => {
             const result = await publishOver(algorithm, graph, graph.scope(["a", "b", "c"]));
 
             assert.include(result.summary().caveats.notes, WHOLE_GRAPH_CAVEAT);
+            assert.deepStrictEqual(result.summary().caveats.facts.at(-1), { code: "scope.whole-graph", params: {} });
         }
 
         assert.strictEqual(WHOLE_GRAPH_CAVEAT, "Computed on the whole graph; values kept for the scope only.");
@@ -219,6 +221,10 @@ describe("the run says what it computed on", () => {
         const result = await publishOver(new ScopedCounter(graph.asGraph()), graph, scope);
 
         assert.include(result.summary().caveats.notes, "Computed on the induced subgraph of 3 nodes.");
+        assert.deepStrictEqual(result.summary().caveats.facts.at(-1), {
+            code: "scope.induced-subgraph",
+            params: { nodes: 3 },
+        });
         assert.notInclude(result.summary().caveats.notes, WHOLE_GRAPH_CAVEAT);
         assert.strictEqual(result.node("a")?.value, 3, "it computed on the scope");
     });

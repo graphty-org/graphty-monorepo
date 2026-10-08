@@ -9,7 +9,7 @@
  */
 
 import type { AlgorithmDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
-import type { Caveats, GraphSession, Run, WeightMeaning } from "@graphty/graphty-element/session";
+import type { Caveats, CostEstimate, GraphSession, Run, WeightMeaning } from "@graphty/graphty-element/session";
 
 /** One heading of the list, and the result shapes it gathers. */
 export interface Heading {
@@ -497,4 +497,31 @@ export function pathAnnouncement(session: GraphSession, run: Run): string | null
     return words.hops === null
         ? `No path from ${words.from} to ${words.to}.`
         : `Shortest path added: ${words.from} to ${words.to}, ${words.hops}`;
+}
+
+/**
+ * Why a run cannot start, in the reader's words, from the element's coded refusal.
+ * @param estimate - the element's estimate for the run, `available` false.
+ * @returns the sentence.
+ */
+export function runRefusalWords(estimate: CostEstimate): string {
+    const params = estimate.refusal?.params ?? {};
+    switch (estimate.refusal?.code) {
+        case "algorithm.needs-directed":
+            return "Needs a graph whose edges point one way";
+        case "algorithm.needs-undirected":
+            return "Needs a graph whose edges point both ways";
+        case "algorithm.needs-weighted":
+            return "Needs edge weights";
+        case "algorithm.needs-connected":
+            return typeof params.pieces === "number"
+                ? `Needs a connected graph; this one is in ${params.pieces.toLocaleString("en-US")} pieces`
+                : "Needs a connected graph";
+        case "algorithm.needs-accelerator":
+            return "Needs a graphics card this browser does not offer";
+        case "estimate.scope-unresolved":
+            return "The nodes to run on could not be found";
+        default:
+            return "Cannot run on this graph";
+    }
 }

@@ -61,7 +61,7 @@ function elementEstimate(seconds: number): CostEstimate {
  * @param reason - the element's own sentence.
  * @returns the estimate.
  */
-function refusedEstimate(reason: string): CostEstimate {
+function refusedEstimate(refusal: CostEstimate["refusal"]): CostEstimate {
     return {
         seconds: Number.POSITIVE_INFINITY,
         confidence: "unknown",
@@ -69,8 +69,8 @@ function refusedEstimate(reason: string): CostEstimate {
         blocksFrame: false,
         cancellable: false,
         available: false,
-        reason,
-        basis: `n=20,000 m=60,000; ${reason}`,
+        refusal,
+        basis: "n=20,000 m=60,000",
     };
 }
 
@@ -212,16 +212,18 @@ describe("metricCostFromEstimate", () => {
     });
 
     /**
-     * The element reports a refusal rather than throwing, and the shell's whole job with
-     * one is to repeat the element's sentence and start nothing. Inventing a duration
+     * The element reports a refusal rather than throwing, as a code, and the shell's whole job
+     * with one is to word that code and start nothing. Inventing a duration
      * here is the failure this pins: an infinite estimate formats as "under a second".
      */
-    it("says the element's own reason, and confirms nothing, when the run cannot happen", () => {
-        const reason = "Needs a directed graph; this graph is undirected.";
-        const estimate = metricCostFromEstimate("pagerank", refusedEstimate(reason));
+    it("words the element's refusal code, and confirms nothing, when the run cannot happen", () => {
+        const estimate = metricCostFromEstimate(
+            "pagerank",
+            refusedEstimate({ code: "algorithm.needs-directed", params: { algorithm: "pagerank" } }),
+        );
 
         expect(estimate.verdict).toBe("unavailable");
-        expect(estimate.warningSentence).toBe(reason);
+        expect(estimate.warningSentence).toBe("Needs a graph whose edges point one way");
         expect(estimate.confirmSentence).toBeUndefined();
         expect(estimate.runLabel).toBe("Run");
         expect(estimate.runTitle).toBe("Run");
@@ -233,12 +235,11 @@ describe("metricCostFromEstimate", () => {
         }
     });
 
-    it("falls back to a sentence of its own only when the element supplied none", () => {
-        const silent = { ...refusedEstimate("unused"), reason: undefined };
-        const estimate = metricCostFromEstimate("degree", silent);
+    it("falls back to a sentence of its own when the element supplied no code", () => {
+        const estimate = metricCostFromEstimate("degree", refusedEstimate(undefined));
 
         expect(estimate.verdict).toBe("unavailable");
-        expect(estimate.warningSentence).toBe("This cannot run on this graph.");
+        expect(estimate.warningSentence).toBe("Cannot run on this graph");
     });
 
     /**

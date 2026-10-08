@@ -31,7 +31,7 @@ const FRIENDS_V2 = "source,target,weight\nAva,Ben,1\nBen,Chloe,2\nChloe,Ava,1\nC
  * @returns the source.
  */
 function source(tables: string[]): LoadedSource {
-    return { name: "friends.csv", tables, added: { nodes: 4, edges: 4 } } as unknown as LoadedSource;
+    return { name: "friends.csv", tables, added: { nodes: 4, edges: 4 } };
 }
 
 describe("Replace with file...", () => {
@@ -44,7 +44,10 @@ describe("Replace with file...", () => {
     });
 
     it("words what changes and what went out of date", () => {
-        assert.equal(replaceWords({ nodes: 20, edges: 60 }, { nodes: 22, edges: 74 }), "Was 20 nodes, 60 edges; now 22, 74");
+        assert.equal(
+            replaceWords({ nodes: 20, edges: 60 }, { nodes: 22, edges: 74 }),
+            "Was 20 nodes, 60 edges; now 22, 74",
+        );
         assert.equal(
             replacedWords("friends.csv", { nodes: 22, edges: 74 }, 3),
             "friends.csv replaced: 22 nodes, 74 edges. 3 rows out of date",
@@ -92,10 +95,7 @@ describe("Replace with file...", () => {
 
             await waitFor(
                 () => {
-                    assert.equal(
-                        store.get().announcement,
-                        "friends.csv replaced: 4 nodes, 4 edges. 1 row out of date",
-                    );
+                    assert.equal(store.get().announcement, "friends.csv replaced: 4 nodes, 4 edges. 1 row out of date");
                 },
                 { timeout: TIMEOUT_MS },
             );

@@ -7,7 +7,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { OptionsForm } from "../options/OptionsForm";
 import { PATH_ALGORITHM, PathForm } from "./PathForm";
-import { costLine, groupAlgorithms, type Heading, HEADINGS, optionWords, wordsFor } from "./words";
+import { costLine, groupAlgorithms, type Heading, HEADINGS, optionWords, runRefusalWords, wordsFor } from "./words";
 
 /** The type icon of the row a run adds, by heading. */
 const ROW_ICON: Readonly<Record<Heading["id"], React.ReactNode>> = {
@@ -55,9 +55,7 @@ function unavailable(session: GraphSession, descriptor: AlgorithmDescriptor): st
         return needed === 1 ? "Select a node first" : `Select ${String(needed)} nodes first`;
     }
     const estimate = session.estimate({ op: "algo.run", algorithm: descriptor.key });
-    // ponytail: the element's reason is English prose; it becomes a code the app words once the
-    // element reports one (recorded as an element gap).
-    return estimate.available ? null : (estimate.reason ?? "Cannot run on this graph");
+    return estimate.available ? null : runRefusalWords(estimate);
 }
 
 /**
@@ -413,7 +411,7 @@ function Essentials({
                 />
                 <Group justify="space-between" wrap="nowrap">
                     <Text size="xs" c="dimmed">
-                        {estimate.available ? costLine(estimate.seconds) : (estimate.reason ?? "")}
+                        {estimate.available ? costLine(estimate.seconds) : runRefusalWords(estimate)}
                     </Text>
                     {/* Focus lands on Run, so Enter runs and Esc steps back (tier1-design.md 5.T7). */}
                     <Button size="xs" type="submit" disabled={!estimate.available} autoFocus>

@@ -74,4 +74,29 @@ describe("session.data.sources", () => {
         session.dispose();
         reopened.dispose();
     });
+
+    it("keeps the unmatched edge rows a load left out, through undo, redo, save and reopen", async () => {
+        const session = createGraphSession();
+        const people = new File(["id\nAva\nBen\n"], "people.csv");
+        const passes = new File(["source,target\nAva,Ben\nBen,Zed\n"], "passes.csv");
+        const draft = await session.data.prepare({ config: { nodeFile: people, edgeFile: passes } });
+        await draft.load({ unmatched: "leave-out" });
+        await load(session, MESSAGES, "messages.csv", "merge");
+        const [first, second] = session.data.sources();
+        assert.deepStrictEqual(first?.leftOut, { rows: 1, values: 1 });
+        assert.notProperty(second, "leftOut", "a load that left nothing out says nothing");
+
+        await session.undo();
+        await session.undo();
+        assert.deepStrictEqual(session.data.sources(), []);
+        await session.redo();
+        assert.deepStrictEqual(session.data.sources()[0]?.leftOut, { rows: 1, values: 1 });
+
+        const { text } = await session.project.save();
+        const reopened = createGraphSession();
+        await reopened.project.open(text, { discard: true });
+        assert.deepStrictEqual(reopened.data.sources()[0]?.leftOut, { rows: 1, values: 1 });
+        session.dispose();
+        reopened.dispose();
+    });
 });

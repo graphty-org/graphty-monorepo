@@ -1262,6 +1262,12 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly tables: readonly string[];
     /** How many nodes and edges the load added to the graph. */
     readonly added: { readonly nodes: number; readonly edges: number };
+    /**
+     * Edge rows the load left out because they named a node no node row held (`unmatched:
+     * "leave-out"`), and how many distinct such names, as `LoadReport.unmatched` counts them.
+     * Present only when the load left at least one row out.
+     */
+    readonly leftOut?: { readonly rows: number; readonly values: number };
 }
 
 /** How an import treats the graph already there. */

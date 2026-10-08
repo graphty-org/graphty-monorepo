@@ -936,6 +936,14 @@ function isLoadedSource(value: unknown): value is LoadedSource {
         return false;
     }
 
+    const { leftOut } = value;
+    return (
+        typeof value.added.nodes === "number" &&
+        typeof value.added.edges === "number" &&
+        (leftOut === undefined || (isObject(leftOut) && typeof leftOut.rows === "number" && typeof leftOut.values === "number"))
+    );
+}
+
 /** What one open is doing. */
 interface Opening {
     readonly tx: TransactionScope;

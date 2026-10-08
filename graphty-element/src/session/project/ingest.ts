@@ -21,7 +21,7 @@ import { decideRepeat } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
-import { type ImportReport, type ImportTally, loadErrorOf, newImportTally, sealImportReport } from "../../data/report";
+import { type ImportReport, type ImportTally, loadErrorOf, type LoadReport, newImportTally, sealImportReport } from "../../data/report";
 import { readSeedPosition } from "../../data/seedPosition";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import { GraphtyLogger, type Logger } from "../../logging/GraphtyLogger.js";
@@ -471,7 +471,7 @@ export class Ingest<K extends KnownEdge> {
         this.measure = command.measure === undefined || command.mode === "merge" ? (command.measure ?? null) : EMPTY;
         this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
         try {
-            await this.addDataFromSource(
+            const report = await this.addDataFromSource(
                 type,
                 config,
                 writer,
@@ -485,6 +485,7 @@ export class Ingest<K extends KnownEdge> {
                 ...described,
                 tables: Object.freeze([...(command.tables ?? [])]),
                 added: Object.freeze({ nodes: after.nodes - before.nodes, edges: after.edges - before.edges }),
+                ...(this.leaveOutUnmatched && report.unmatched.rows > 0 ? { leftOut: report.unmatched } : {}),
             });
             writer.setGraphValues({ [SOURCES_VALUE]: Object.freeze([...earlier, loaded]) });
         } finally {
@@ -1086,6 +1087,7 @@ export class Ingest<K extends KnownEdge> {
      *     is a failure
      * @param held - Rows a draft already read, loaded instead of reading the source
      * @param name - What the import called the data, for its progress
+     * @returns The load's report
      */
     async addDataFromSource(
         type: string,
@@ -1095,7 +1097,7 @@ export class Ingest<K extends KnownEdge> {
         replacing = false,
         held?: HeldRows,
         name?: string,
-    ): Promise<void> {
+    ): Promise<LoadReport> {
         this.logger.info("Loading data source", { type, options: opts });
 
         const startTime = Date.now();
@@ -1253,6 +1255,7 @@ export class Ingest<K extends KnownEdge> {
 
                 this.host.loadComplete(type, report, progress, duration, errorCount);
                 end({ outcome: "succeeded" });
+                return report;
             } catch (error) {
                 end(failedEnd(error, signal));
                 // A cancelled load did not fail: whoever cancelled it says why.
@@ -1337,7 +1340,7 @@ export class Ingest<K extends KnownEdge> {
      * @param writer - the graph primitives to write through
      * @returns the report
      */
-    private sealLoad(format: string, tally: ImportTally, writer: GraphWriter): ImportReport {
+    private sealLoad(format: string, tally: ImportTally, writer: GraphWriter): LoadReport {
         const { knownFields } = this.host.dataConfig();
         const endpoints = this.loadEndpoints ?? {
             // A file with no edge records at all: nothing was probed, so nothing was decided, and

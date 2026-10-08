@@ -1606,6 +1606,19 @@ export interface LoadDraft {
 }
 
 // @public
+export interface LoadedSource extends DataSourceDescriptor {
+    readonly added: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly leftOut?: {
+        readonly rows: number;
+        readonly values: number;
+    };
+    readonly tables: readonly string[];
+}
+
+// @public
 export interface LoadedWeight {
     readonly attribute: string;
     readonly meaning: WeightMeaning["meaning"] | null;
@@ -1623,15 +1636,6 @@ export interface LoadError {
 export type LoadMapping = TableMapping | {
     readonly tables: Readonly<Record<string, TableMapping>>;
 };
-
-// @public
-export interface LoadedSource extends DataSourceDescriptor {
-    readonly added: {
-        readonly nodes: number;
-        readonly edges: number;
-    };
-    readonly tables: readonly string[];
-}
 
 // @public
 export interface LoadMappingRead {

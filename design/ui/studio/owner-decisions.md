@@ -608,3 +608,27 @@ value (a new command and save format for one field). Renaming `WeightMeaning` (a
 **Known limits.** A load with no mapping at all leaves the last meaning in place; the attribute
 comes from the last load's report, so the pair can only disagree if a load without a mapping
 reads a different weight column. Runs still choose their own meaning.
+
+## 2026-10-07 -- Each load keeps the edge rows it left out: `LoadedSource.leftOut`
+
+**What.** One optional field on `LoadedSource`, the entry `session.data.sources()` returns for
+each load still in the graph: `leftOut?: { rows, values }`. `rows` is how many edge rows the load
+left out because they named a node no node row held (`unmatched: "leave-out"`), and `values` how
+many distinct such names, counted exactly as `LoadReport.unmatched`. Present only when the load
+left at least one row out; a load that left nothing out, or that added unmatched rows as new
+nodes, has no such field. It is part of the entry, so it is saved in the project file and undo and
+redo move it with the load. Additive, not breaking.
+
+**Why.** After a load that leaves rows out, nothing says so once the load report closes:
+`sources()` holds only names, tables and added counts, and `lastImport()` is replaced by the next
+load. A tier 2 participant who loaded players.csv and passes.csv could name the left-out pass
+(line 17, a player not in players.csv) only by comparing 17 edges with the file's 18 rows. With
+the count kept on the source, the app can say "1 row left out" under that source at any time.
+
+**Alternatives.** Keep the whole `LoadReport` on each source (much larger, and most of it, such as
+repeated-edge counts and errors, has no reader after the load; it would also freeze the report's
+shape into the project file format). Keep the left-out rows themselves, with their lines and
+values (the reader could see which row, not just how many, but it grows the saved file with data
+the graph does not hold; can be added later as a separate field). Always present with zeros
+(every saved source would carry a field that is almost always empty). Name it `unmatched` like
+the report (it would then suggest rows that were added, which this does not count).

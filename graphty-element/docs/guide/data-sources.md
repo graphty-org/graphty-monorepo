@@ -155,6 +155,10 @@ session.data.sources().map(({ name, added }) => [name, added]);
 // [["friends.csv", { nodes: 20, edges: 41 }], ["messages.csv", { nodes: 13, edges: 23 }]]
 ```
 
+A load that left out edge rows naming a node no node row held (`unmatched: "leave-out"`) keeps
+that count on its entry as `leftOut: { rows, values }`: the rows left out, and how many distinct
+names they gave. The field is there only when at least one row was left out.
+
 ## Preview a Load Before Loading It
 
 `session.data.prepare(source)` reads a file once and holds it, so a reader can see its tables and

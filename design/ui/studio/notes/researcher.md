@@ -10,6 +10,11 @@ made and evidence comes in.
 
 ## Top of mind
 
+- 2026-10-07 -- The tier 2 answer key is corrected for build ca8b3b916c22 only. The seven app
+  fixes it was meant to follow (report wording, left-out row kept in Sources, Enter moving From to
+  To, the path's weight truth, live rule check, selection summary words, Overview under a filter)
+  had NOT landed when it was edited. Once they land: re-walk T4, T17, T18, T20, T22 and replace
+  every "on build ca8b3b916c22" sentence in `tier2/answers.md`.
 - 2026-10-07 -- TIER 2 IS READY FOR THE OWNER TO START: `tier2/criteria.md` (frozen), `tasks.md`,
   `answers.md`, `roster.md`. Nine tasks on two datasets each (T4, T17-T24); 54 sessions in round 1;
   core four T20, T21, T17, T18 at 4+4. Owner: no keyboard-only, screen-reader or touch sessions.
@@ -78,6 +83,15 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-07 (researcher, tier 2 key corrected) -- Edited `tier2/answers.md` from the re-pilots
+  (`tier2/pilot/`) and one walk of my own: T4 "Add a table" by name, line 17 for B, left-out row
+  recorded nowhere after Load; T17 Overview 20/77 under a filter is `read-wrong`; T18 adds
+  "Shortest path 35" (B) and the preset Weight box detour; T20 adds 27 and 24 as `read-wrong`,
+  Style-first, and the Time role (walked: Weight none, Depot-Station-Harbor, `weight-not-read`);
+  T22 Everything keeps the selection, refusal shows only after Enter; T24 drops Escape. Reason:
+  the dependent app fixes were not in the tree (no commit after 6eba30d4e, no graphty/src edits
+  after 20 minutes of watching), so every sentence names the build it is true on rather than
+  describing a fix nobody could check. `tasks.md` needed no change. Bars untouched.
 - 2026-10-07 (researcher, tier 2 study prepared) -- Wrote `tier2/` (criteria frozen, tasks, answers,
   roster) and moved the tier 2 sections out of `tasks.md` and `answers.md` (one copy; pointers left).
   Kept the six tasks the engineer had piloted (T4, T17-T21) and added T22 (make the ones meeting a
@@ -160,6 +174,11 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-07 (tier 2 key correction) -- Worked: checking `git log` and `git status graphty` for
+  the dependency fixes before writing "the fixed build" -- they were absent. Worked: a one-file walk
+  script (`tmp/researcher/t2key/time.sh`) through `with-browser.sh` for the untested Time role.
+  Did not work: python replace anchors copied from a wrapped view -- match the file's own line
+  breaks (grep -n first).
 - 2026-10-07 (tier 2 preparation) -- Worked: freezing a copy of `graphty/dist` (`REAL_DIST`) for
   the pilots while other agents rebuild; piloting each new task on both halves (7 sessions, about
   15 minutes) found three gaps the key now names (several-edge selection has no member list,

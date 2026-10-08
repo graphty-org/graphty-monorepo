@@ -7,7 +7,8 @@ graded from the last screenshot, the downloads and the transcript, never from a 
 build defects confirmed by a scripted repro.
 
 **Screenshot paths** such as `preflight/T17A/09.png` or `T17A/09.png` are under
-`../rounds/tier-2/preflight/`.
+`../rounds/tier-2/preflight/`. Paths starting `pilot/` are in this folder: the re-pilot of every
+task on build ca8b3b916c22 at commit 6eba30d4e.
 
 **Where the values come from.** Every reference value was read from graphty-element on the served
 build `ca8b3b916c22 graphty@0.8.55` (https://dev.ato.ms:9366/?next, 2026-10-07), two ways: a probe
@@ -57,13 +58,13 @@ seed, so the pilot of each round re-reads it.
   nodes, 22 edges", with both tables under it (`T4A/06.png`, `07.png`). Choosing "Add" instead loads 13 nodes and 23 edges (p13 becomes a
   node with no name); either choice is correct if the participant says which row did not fit.
 - **B (football team): 10 players and 17 passes arrived; passes.csv has 18 rows, and one
-  (`s04,s11,3`: Dina Moss passes 3 times to s11) names s11, who is not in players.csv.** Data
+  (line 17, `s04,s11,3`: Dina Moss passes 3 times to s11) names s11, who is not in players.csv.** Data
   page: "10 node rows and 18 edge rows read; the load makes 10 nodes and 17 edges", "1 edge row
   names 1 node no node row holds" (`T4B/03.png`); after Load: "From 2 files", 10 nodes, 17 edges
   (`T4B/04.png`). With "Add": 11 and 18.
 - **Success path:** `--click "No thanks"`; `--click "New from data..."`; `--click "choose a
-file..." --upload people.csv`; `--click-at 271,107` ("Add a table"); `--click "File..." --upload
-messages.csv`; read the report; `--click "Load"`; `--click "Data"` (Sources).
+file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); `--click "File..."
+--upload messages.csv`; read the report; `--click "Load"`; `--click "Data"` (Sources).
 - **Other routes:** opening people.csv from "Open project or file..." loads it straight in (12
   nodes, no ties); then Control+O with messages.csv goes through the Data page as an addition
   (not piloted). Grade SD if the end state and the unmatched row are right.
@@ -71,6 +72,11 @@ messages.csv`; read the report; `--click "Load"`; `--click "Data"` (Sources).
   (or "one email row names someone not on the staff list"). **SD:** counts right but the unmatched
   row found only after a detour, or not named but counted ("22 of 23"). **F:** `false-done`
   ("everything arrived" with 22 of 23 links), `never-found` (only one file in), wrong counts.
+- **After Load the left-out row is recorded nowhere** on build ca8b3b916c22: the Sources row reads
+  "12 nodes, 22 edges" and selecting messages.csv under it shows nothing about the row
+  (`pilot/T4/A/10.png`). A participant who loads without reading the report can name the row
+  only by comparing 22 with the file's 23 rows: S if they do, `false-done` if they say everything
+  arrived.
 - **Note:** the people's names are an Attribute, not the label, by default; the drawing shows no
   names. Not part of the task; record any participant who stops to put names on.
 
@@ -97,6 +103,10 @@ messages.csv`; read the report; `--click "Load"`; `--click "Data"` (Sources).
   instead (selected dots highlighted but nothing left out: the chip never appears), or never
   brought back (`work-lost` if the step was deleted with no way back and the participant believed
   the club gone).
+- **Wrong reading on build ca8b3b916c22:** with the step on, the Overview still reads Nodes 20,
+  Edges 41 (B: 77, 254) and nothing there says these are the whole graph's counts
+  (`pilot/T17/07.png`). 20 (or 77) given as "still in it" is `read-wrong`; record it as a wrong
+  reading the build invited.
 
 ## T18. The fewest people in between
 
@@ -116,13 +126,16 @@ messages.csv`; read the report; `--click "Load"`; `--click "Data"` (Sources).
   must name the people by typing or put names on first.
 - **Known on this build:** typing a name and pressing Enter in From does not move to To; a second
   name typed lands in From ("No node named DepotHarbor", `T20A/10.png`). Record it as a wrong turn
-  caused by the build, not the participant. The Graph tree row reads "Shortest path 61" (a count
-  that is not the chain), and the legend reads "Shortest route (edges) 24": neither is the answer.
+  caused by the build, not the participant. The Graph tree row reads "Shortest path 61" in A and
+  "Shortest path 35" in B (counts that are not the chain), and the legend reads "Shortest route
+  (edges) 24" in both: none of them is the answer (`pilot/T18/A/08.png`, `B/07.png`). In A
+  the popover's Weight box is preset to "weight (loaded)" while the run reports "Weight: not
+  read"; a participant who stops to set it to None took a detour the build caused.
 - **S:** names in order and the count (4 introductions, or 3 people between, or 5 people in the
   chain) read off the Values or the drawing with names on. **SD:** right chain after a detour, or
   read from the highlighted drawing with names put on. **F:** a longer chain, a guess from the
   drawing with no names on screen (`not-run`), or the tree row's number given as the count
-  (`read-wrong`).
+  (`read-wrong`: 61, 35 or 24).
 
 ## T19. Reminders that stay with the work
 
@@ -164,6 +177,15 @@ messages.csv`; read the report; `--click "Load"`; `--click "Data"` (Sources).
   728,205, the box showing "Attribute"); `--click "Weight"`; `--click "Farther"` (under "Higher
   means"); `--click "Load"`; `--key p`; From Depot, To Harbor as in T18; `--click "Find path"`;
   `--click "Values"`.
+- **Numbers that are not the answer:** after Find path the inspector opens on the run's Style
+  page, not Values, so neither 14 nor the stops are on screen until Values is opened; meanwhile
+  the Graph tree row reads "Shortest path 27" and the legend "Shortest route (edges) 24"
+  (`pilot/T20/14.png`). 27 or 24 given as the minutes is `read-wrong`.
+- **The "Time" role:** the minutes column's role list offers Time beside Weight. Chosen for
+  minutes, the file loads with "Weight: none (each edge counts 1)" on the Data page, and the path
+  run counts links: Values "Route 3 nodes, 2 edges", Depot, Station, Harbor, no total, Made with
+  "Weight: none (each edge counts 1)" (`T20A-time/06.png`, `13.png`, walked on build
+  ca8b3b916c22). It is `weight-not-read`.
 - **The per-run route:** opened from "Open project or file..." the file loads straight in with no
   weight ("Weight: none" on the Data page; no "Loaded weight" in the Overview). The Path popover's
   Weight list then offers "minutes (farther)", which gives the right route and total
@@ -171,8 +193,8 @@ messages.csv`; read the report; `--click "Load"`; `--click "Data"` (Sources).
   asked that every calculation treat minutes as a length, and the next calculation would not.
 - **S:** the load-time route, the right stops in order and the total, and the participant points
   to "Loaded weight minutes (farther)" or Made with "Weight: minutes (farther)". **SD:** the
-  per-run route; or the load-time route found after a detour. **F:** `weight-not-read`; Closer
-  chosen (paths then ignore the number: same wrong routes); a total added by hand from a wrong
+  per-run route; or the load-time route found after a detour. **F:** `weight-not-read` (Time chosen
+  counts here); `read-wrong` (27 or 24); Closer chosen (paths then ignore the number: same wrong routes); a total added by hand from a wrong
   route.
 
 ## T21. The list was updated
@@ -213,19 +235,21 @@ messages.csv`; read the report; `--click "Load"`; `--click "Data"` (Sources).
   "Rule: press Enter to select matches"); `--key Enter`; read the inspector header. B: `--type
   "=shared_chapters >= \`10\`"`. A bare number (`=minutes >= 10`) is refused with "Put numbers in
   backticks: weight > `3`" under the box (`check-edge-find/09.png`): a correction after it is not a
-  detour, it is the path.
+  detour, it is the path. On build ca8b3b916c22 the refusal comes only after Enter: while the bare
+  number (or a lone "=") is typed, the gray line still reads "Rule: press Enter to select matches"
+  (`pilot/T22/A/03.png`, `A/04.png`).
 - **Other routes, graded by the end state:** clicking each line with Shift held (A: 3 lines; not
   checked on this build); a color on Everything's edges that separates exactly the 10-or-more ties.
   A filter step ("minutes is at least 10") narrows the drawing to the slow links and their stops (not
   piloted) but hides the rest; turned off again it leaves nothing marked.
 - **Known on this build:** a selection of several edges lists no members: the inspector shows only
   counts, and its menu offers no way to select their ends (`T22A/04.png`). Clicking Everything (to
-  put names on, say) replaces the selection, so a participant who marks first and adds names second
-  loses the marking (`T22A/06.png`); record it as a wrong turn the build caused, and grade the end
-  state.
+  put names on, say) keeps the selection: Selection still reads 3 and the lines stay marked
+  (`pilot/T22/A/07.png`). Nothing on screen lists the names a rule can use; record where the
+  participant went to find `minutes` or `shared_chapters`.
 - **S:** the matching ties marked, everything else still drawn and no filter step on, and the count
   (3; 13) read from the screen. **SD:** the same after a detour (a filter first, then off; a wrong
-  comparison corrected; the marking lost once and redone), or the count read by counting marked
+  comparison corrected; a refused rule retyped), or the count read by counting marked
   lines. **F:** `hid-the-rest`, `not-marked` (a count from a filter with nothing marked at the end),
   a wrong count, `false-done`.
 - **Measure:** the route (a rule in the box, Shift-clicks, a color, a filter), and whether the
@@ -272,8 +296,9 @@ messages.csv`; read the report; `--click "Load"`; `--click "Data"` (Sources).
   Select endpoints, Station and Stadium ringed, "2 nodes, 0 edges" (`T24B/04.png`).
 - **Success path (A):** `--click-at 755,586` (the middle of the Gus-Ivan line on the pilot's
   drawing; the tool prints `edge with id "13"`); read the inspector; `--click "Edge actions"`;
-  `--click "Select endpoints"`. B: `--key Escape` (closes the setup's Everything inspector),
-  `--click-at 750,172` (the Station-Stadium line), then the same.
+  `--click "Select endpoints"`. B: `--click-at 750,172` (the Station-Stadium line), then the same.
+  The setups end with the Everything inspector open; Escape does not close it, and the line click
+  does not need it closed.
 - **Other routes, graded by the end state:** typing Gus in the find box lists his ties as "Gus --
   Ivan" among the results, which open the same inspector; selecting Gus and then Ivan with Shift
   held (S if both and only both are selected).

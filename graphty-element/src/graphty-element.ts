@@ -14,7 +14,13 @@ import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInp
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
-import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, type NodeEventDetail, nodeEventDetail } from "./events";
+import {
+    type GraphtyForwardedEventMap,
+    isDomForwardableEvent,
+    NODE_EVENT_DOM_NAMES,
+    type NodeEventDetail,
+    nodeEventDetail,
+} from "./events";
 import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf } from "./Graph";
 import type { NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
@@ -297,7 +303,7 @@ export class Graphty extends LitElement {
 
         this.dispatchEvent(
             new CustomEvent("graphty-run-change", {
-                detail: { run: change.run, phase: change.phase },
+                detail: { run: change.run, phase: change.phase } satisfies GraphtyRunChangeDetail,
                 bubbles: true,
                 composed: true,
             }),
@@ -389,7 +395,7 @@ export class Graphty extends LitElement {
                     steps: history.steps.length,
                     canUndo: session.canUndo,
                     canRedo: session.canRedo,
-                },
+                } satisfies GraphtyHistoryChangeDetail,
                 bubbles: true,
                 composed: true,
             }),
@@ -482,7 +488,7 @@ export class Graphty extends LitElement {
         this.#unwatchNotes ??= session.on("note:changed", ({ id, change, fields, cause }) => {
             this.dispatchEvent(
                 new CustomEvent("graphty-note-change", {
-                    detail: { id, change, fields, cause },
+                    detail: { id, change, fields, cause } satisfies GraphtyNoteChangeDetail,
                     bubbles: true,
                     composed: true,
                 }),
@@ -592,6 +598,103 @@ export class Graphty extends LitElement {
      */
     render(): Element {
         return this.#element;
+    }
+
+    /**
+     * Listen for an event. The unprefixed graph events the element forwards (`style-changed`,
+     * `data-loaded`, `error` and the rest of {@link GraphtyForwardedEventMap}) reach the listener
+     * as a `CustomEvent` with a typed `detail`; the `graphty-*` events are typed through
+     * `HTMLElementEventMap`, and every other name behaves as on any element.
+     * @param type - The event name.
+     * @param listener - What to call.
+     * @param options - As for any element.
+     */
+    override addEventListener<K extends keyof GraphtyForwardedEventMap>(
+        type: K,
+        listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown,
+        options?: boolean | AddEventListenerOptions,
+    ): void;
+    /**
+     * An event of `HTMLElementEventMap`, typed as on any element, `graphty-*` events included.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override addEventListener<K extends keyof HTMLElementEventMap>(
+        type: K,
+        listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown,
+        options?: boolean | AddEventListenerOptions,
+    ): void;
+    /**
+     * Any other event name, as on any element.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override addEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: boolean | AddEventListenerOptions,
+    ): void;
+    /**
+     * Hands every overload to the element's own `EventTarget`.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override addEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: boolean | AddEventListenerOptions,
+    ): void {
+        super.addEventListener(type, listener, options);
+    }
+
+    /**
+     * Stop listening for an event, typed the same way as {@link Graphty.addEventListener}.
+     * @param type - The event name.
+     * @param listener - The listener that was added.
+     * @param options - As for any element.
+     */
+    override removeEventListener<K extends keyof GraphtyForwardedEventMap>(
+        type: K,
+        listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown,
+        options?: boolean | EventListenerOptions,
+    ): void;
+    /**
+     * An event of `HTMLElementEventMap`, typed as on any element, `graphty-*` events included.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override removeEventListener<K extends keyof HTMLElementEventMap>(
+        type: K,
+        listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown,
+        options?: boolean | EventListenerOptions,
+    ): void;
+    /**
+     * Any other event name, as on any element.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override removeEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: boolean | EventListenerOptions,
+    ): void;
+    /**
+     * Hands every overload to the element's own `EventTarget`.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override removeEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: boolean | EventListenerOptions,
+    ): void {
+        super.removeEventListener(type, listener, options);
     }
 
     /**
@@ -4140,7 +4243,7 @@ export class Graphty extends LitElement {
                 this.requestUpdate("acceleration");
                 this.dispatchEvent(
                     new CustomEvent("graphty-capabilities-change", {
-                        detail: { capabilities: controller.capabilities },
+                        detail: { capabilities: controller.capabilities } satisfies GraphtyCapabilitiesChangeDetail,
                         bubbles: true,
                         composed: true,
                     }),
@@ -4174,6 +4277,37 @@ if (registered === undefined) {
     );
 }
 
+/** The detail of `graphty-run-change`: the run as it stands now, and which phase it reached. */
+export type GraphtyRunChangeDetail = Pick<RunChange, "run" | "phase">;
+
+/**
+ * The detail of `graphty-history-change`: the undo cursor and what the next undo and redo would do,
+ * enough for an Undo and a Redo button. A history panel reads `session.history` for the steps.
+ */
+export interface GraphtyHistoryChangeDetail {
+    /** Why the history changed. */
+    readonly reason: SessionEventMap["history:changed"]["reason"];
+    /** `session.history.version`: bumps on every change. */
+    readonly version: number;
+    /** `session.history.position`: how many steps are applied. */
+    readonly position: number;
+    /** How many steps the history holds. */
+    readonly steps: number;
+    /** Whether an undo would do anything. */
+    readonly canUndo: boolean;
+    /** Whether a redo would do anything. */
+    readonly canRedo: boolean;
+}
+
+/** The detail of `graphty-note-change`: which note, what happened to it, and what caused it. */
+export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields" | "cause">;
+
+/** The detail of `graphty-capabilities-change`: the same document as `session.capabilities`. */
+export interface GraphtyCapabilitiesChangeDetail {
+    /** The acceleration capabilities after the change. */
+    readonly capabilities: AccelerationCapabilities;
+}
+
 /*
  * The tag, declared to TypeScript.
  *
@@ -4197,21 +4331,14 @@ declare global {
     // on every element names nothing a page could already be using, and
     // `element.addEventListener("graphty-run-change", (e) => e.detail)` type-checks without a cast.
     interface HTMLElementEventMap {
-        "graphty-run-change": CustomEvent<Pick<RunChange, "run" | "phase">>;
+        "graphty-run-change": CustomEvent<GraphtyRunChangeDetail>;
         "graphty-progress-change": CustomEvent<ProgressChange>;
         "graphty-selection-change": CustomEvent<SelectionDelta>;
         "graphty-visibility-change": CustomEvent<VisibilityChange>;
-        "graphty-history-change": CustomEvent<{
-            readonly reason: SessionEventMap["history:changed"]["reason"];
-            readonly version: number;
-            readonly position: number;
-            readonly steps: number;
-            readonly canUndo: boolean;
-            readonly canRedo: boolean;
-        }>;
-        "graphty-note-change": CustomEvent<Pick<NoteChange, "id" | "change" | "fields" | "cause">>;
+        "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
+        "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
         "graphty-project-status": CustomEvent<ProjectStatus>;
-        "graphty-capabilities-change": CustomEvent<{ readonly capabilities: AccelerationCapabilities }>;
+        "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
         "graphty-node-click": CustomEvent<NodeEventDetail>;
         "graphty-node-hover": CustomEvent<NodeEventDetail>;
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
@@ -4219,8 +4346,20 @@ declare global {
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
     }
 
-    // It bubbles and is composed, so a listener on the document is typed the same way.
+    // Every one bubbles and is composed, so a listener on the document is typed the same way.
     interface DocumentEventMap {
+        "graphty-run-change": CustomEvent<GraphtyRunChangeDetail>;
+        "graphty-progress-change": CustomEvent<ProgressChange>;
+        "graphty-selection-change": CustomEvent<SelectionDelta>;
+        "graphty-visibility-change": CustomEvent<VisibilityChange>;
+        "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
+        "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
+        "graphty-project-status": CustomEvent<ProjectStatus>;
+        "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
+        "graphty-node-click": CustomEvent<NodeEventDetail>;
+        "graphty-node-hover": CustomEvent<NodeEventDetail>;
+        "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
+        "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
     }
 }

@@ -1215,8 +1215,11 @@ export class UpdateManager implements Manager {
     /** Set by anything in this frame that changed what is drawn. See `settleActiveMeshFreeze`. */
     private sceneChanged = true;
 
-    /** Whether Babylon is currently drawing from a cached list of what is visible. */
+    /** Whether a freeze of the list of what is visible was asked for and not withdrawn since. */
     private activeMeshesFrozen = false;
+
+    /** Counts freeze requests and changes, so a freeze Babylon runs late knows it was withdrawn. */
+    private freezeRequest = 0;
 
     /** The camera's view and projection stamps at the last frame, or null before the first. */
     private lastCameraState: readonly number[] | null = null;
@@ -1408,6 +1411,9 @@ export class UpdateManager implements Manager {
         this.sceneChanged = false;
 
         if (changed) {
+            // Withdraws a freeze Babylon has not run yet; see below.
+            this.freezeRequest++;
+
             if (this.activeMeshesFrozen) {
                 scene.unfreezeActiveMeshes();
                 this.activeMeshesFrozen = false;
@@ -1424,8 +1430,23 @@ export class UpdateManager implements Manager {
             // opaque node, a doubled blend on a translucent one. Babylon bumps the id the same way
             // before it evaluates the scene outside a render (`Scene._checkIsReady`).
             scene.incrementRenderId();
-            scene.freezeActiveMeshes();
             this.activeMeshesFrozen = true;
+
+            // A FREEZE CAN LAND LATER THAN IT WAS ASKED FOR. Babylon freezes inside
+            // `executeWhenReady`, which waits for its next 100 ms poll whenever the scene is not
+            // ready -- a shader still compiling, or another caller's poll already pending -- and
+            // `unfreezeActiveMeshes` does not cancel a freeze that is still waiting. So a change
+            // made in between unfroze nothing, the poll then froze the list as it stood, and this
+            // manager, believing the scene unfrozen, never unfroze it: the next mesh the scene
+            // built was missing from the list and was not drawn. A layer taken off an edge lost
+            // the edge's rebuilt line that way (test/browser/a-late-freeze-does-not-hide-a-rebuilt-mesh.test.ts).
+            // A freeze that lands after a change withdrew it is undone at once.
+            const request = ++this.freezeRequest;
+            scene.freezeActiveMeshes(false, () => {
+                if (request !== this.freezeRequest) {
+                    scene.unfreezeActiveMeshes();
+                }
+            });
         }
     }
 

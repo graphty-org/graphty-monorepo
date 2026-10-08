@@ -542,7 +542,7 @@ CI, and Mergify queues only ready pull requests.
 | `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- no release PR, nothing published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
 | `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
 | `hosts.yml` | PR touching `webgpu-graph-algorithms/` or `graph-format/`, nightly, dispatch, called by `release.yml`; never on a push to master | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows; a PR runs the 15-minute `windows-scan-questions` scope, advisory); a red run on the release candidate holds the release |
-| `master-guard.yml` | After CI (the build) or the nightly Hosts on master | CI red on master: freezes the Mergify queue (only `priority:critical` PRs merge), opens a revert of the commit when its parent was green, and a `priority:critical` issue; the next green master CI lifts the freeze. Hosts red: a `priority:critical` issue naming the merges since the lane's last green run; never a freeze (`tools/master-guard.mjs`) |
+| `master-guard.yml` | After CI (the build) or the nightly Hosts on master | CI red on master: freezes the Mergify queue (only `priority:critical` PRs merge), opens a revert of the commit when its parent was green, and a `priority:critical` issue; a failure that looks external (an outside service's 5xx or network error, a lost runner, the same job red on an earlier commit) gets neither freeze nor revert, a re-run, and the evidence in the issue. The next green master CI lifts the freeze and closes the guard's revert pull requests it shows are not needed. Hosts red: a `priority:critical` issue naming the merges since the lane's last green run; never a freeze (`tools/master-guard.mjs`) |
 | `githerd-watchdog.yml` | Twice an hour, after CI on master, dispatch | Alarms the owner by an issue comment when githerd's heartbeat issue (label `githerd-heartbeat`, written by githerd every 15 minutes) is over an hour old, stuck, fatal or missing (green until githerd first writes it), and when master CI has been red for over 2 hours. Works with the dev machine off (`tools/githerd-watchdog.mjs`) |
 
 ### Dead Links
@@ -610,6 +610,25 @@ type setting), so decide a package's next major before the first breaking commit
 version plan in a temporary release group for exactly this reason; the group is gone, and every
 package is on conventional commits again. Check any release change with
 `pnpm exec nx release --dry-run --skip-publish`.
+
+### A new package's first npm publish
+
+npm trusted publishing is configured per package on npmjs.com, and a new trusted-publisher
+configuration expires if no publish uses it within 2 days (https://docs.npmjs.com/trusted-publishers/).
+So the first publish of a new package is a manual owner step, done at one moment only:
+
+1. Wait until the first release containing the package reaches its publish step and fails with
+   "This command requires you to be logged in to https://registry.npmjs.org/ / You need to
+   authorize this machine using `npm adduser`". The "Release held: publish failed" issue then
+   says so as an owner item naming the package.
+2. Then, and not before, create the trusted publisher: the package's settings page on npmjs.com
+   (`https://www.npmjs.com/package/<name>/access`), Trusted Publisher, GitHub Actions, with
+   organization `graphty-org`, repository `graphty-monorepo`, workflow filename `release.yml`,
+   and no environment.
+3. Re-run the failed publish job at once: `gh run rerun <run id> --failed`.
+
+Never create the trusted publisher ahead of time: unused, it expires after 2 days and the publish
+fails the same way (this is how @graphty/cytoscape-extensions' first release failed on 2026-10-07).
 
 To hold one package back from npm, add it to `release-hold.json` at the repository root, with a
 reason and the date: `{ "hold": [{ "project": "graphty-element", "reason": "...", "since":

@@ -146,6 +146,12 @@ export interface RunResultInit {
     readonly graph?: Readonly<Record<string, unknown>>;
     /** What the run published per node, in the order a column reads them. */
     readonly nodes?: readonly ResultElementValues[] | ResultColumns;
+    /**
+     * The node id index of the snapshot the run computed over. When the published nodes are
+     * exactly its ids in its order -- every run over the whole graph -- the result reads through
+     * it and builds no index of its own.
+     */
+    readonly snapshotIds?: ResultIdIndex;
     /** What the run published per edge, in the order a column reads them. */
     readonly edges?: readonly ResultElementValues<EdgeId>[];
     /** What qualifies the numbers. */
@@ -240,6 +246,14 @@ interface ElementTable {
     readonly length: number;
     /** The fields, in the order they were first published. */
     readonly columns: Map<string, Column>;
+    /**
+     * The `rank` (and `percentile`) columns the shape declares and the run left to the element,
+     * filled from this field's order on their first read rather than when the result is built:
+     * the sort is most of a cheap metric's result, and most results are never ranked.
+     */
+    pendingRanks: { readonly field: string; readonly percentile: boolean } | null;
+    /** Each ranked field's order, as positions, computed on its first read and kept. */
+    readonly orders: Map<string, Uint32Array>;
 }
 
 /**
@@ -249,18 +263,25 @@ interface ElementTable {
  * caller's objects are not. An id that arrives twice merges into the row it already has: two rows
  * for one element would make a column longer than the set of elements it measures.
  * @param entries - What the run published, or undefined when this half is empty.
+ * @param shared - The snapshot's id index, read through when it holds exactly the published ids.
  * @returns The table; its columns stay plain arrays until {@link sealTable}.
  */
-function buildTable(entries: readonly ResultElementValues[] | ResultColumns | undefined): ElementTable {
+function buildTable(
+    entries: readonly ResultElementValues[] | ResultColumns | undefined,
+    shared?: ResultIdIndex,
+): ElementTable {
     if (entries !== undefined && "columns" in entries) {
-        return columnTable(entries);
+        return columnTable(entries, shared);
     }
 
-    const { index, positions } = indexIds((entries ?? []).map((entry) => entry.id));
-    const table: ElementTable = { index, token: null, length: index.ids.length, columns: new Map() };
+    const { index, positions } = indexIds(
+        (entries ?? []).map((entry) => entry.id),
+        shared,
+    );
+    const table = emptyTable(index);
     (entries ?? []).forEach((entry, at) => {
         for (const [name, value] of Object.entries(entry.values)) {
-            (columnFor(table, name) as unknown[])[positions[at]] = value;
+            (columnFor(table, name) as unknown[])[positions === null ? at : positions[at]] = value;
         }
     });
 
@@ -270,15 +291,22 @@ function buildTable(entries: readonly ResultElementValues[] | ResultColumns | un
 /**
  * {@link buildTable} for a run that published columns. Each is copied, as an entry's values are.
  * @param published - The ids and their columns.
+ * @param shared - The snapshot's id index, read through when it holds exactly the published ids.
  * @returns The table, its columns already `Float64Array`s.
  */
-function columnTable(published: ResultColumns): ElementTable {
+function columnTable(published: ResultColumns, shared?: ResultIdIndex): ElementTable {
     const { ids, columns } = published;
-    const { index, positions } = indexIds(ids);
-    const table: ElementTable = { index, token: null, length: index.ids.length, columns: new Map() };
+    const { index, positions } = indexIds(ids, shared);
+    const table = emptyTable(index);
     for (const [name, values] of Object.entries(columns)) {
-        const column = new Float64Array(table.length);
-        positions.forEach((position, at) => (column[position] = values[at]));
+        let column: Float64Array;
+        if (positions === null) {
+            column = Float64Array.from(values);
+        } else {
+            column = new Float64Array(table.length);
+            positions.forEach((position, at) => (column[position] = values[at]));
+        }
+
         table.columns.set(name, column);
     }
 
@@ -286,11 +314,50 @@ function columnTable(published: ResultColumns): ElementTable {
 }
 
 /**
- * Give each id a position in a new index; an id seen before keeps the position it has.
- * @param ids - The ids, in the order the run published them.
- * @returns The index, and each published row's position in it.
+ * A table with no columns yet, over an index.
+ * @param index - Where each element sits.
+ * @returns The table.
  */
-function indexIds(ids: readonly NodeId[]): { index: OwnIndex; positions: number[] } {
+function emptyTable(index: ResultIdIndex): ElementTable {
+    return { index, token: null, length: index.size, columns: new Map(), pendingRanks: null, orders: new Map() };
+}
+
+/**
+ * Whether an index holds exactly these ids, in this order.
+ * @param index - The index.
+ * @param ids - The ids.
+ * @returns True when row `i` of the index is `ids[i]` for every row.
+ */
+function holdsInOrder(index: ResultIdIndex, ids: readonly NodeId[]): boolean {
+    if (index.size !== ids.length) {
+        return false;
+    }
+
+    for (let position = 0; position < ids.length; position++) {
+        if (index.idOf(position) !== ids[position]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Give each id a position: the shared index's own when it holds exactly these ids in this order,
+ * else a new index where an id seen before keeps the position it has.
+ * @param ids - The ids, in the order the run published them.
+ * @param shared - An index to read through instead of building one, when it matches.
+ * @returns The index, and each published row's position in it, or null positions when row `i`
+ *   sits at position `i`.
+ */
+function indexIds(
+    ids: readonly NodeId[],
+    shared?: ResultIdIndex,
+): { index: ResultIdIndex; positions: readonly number[] | null } {
+    if (shared !== undefined && holdsInOrder(shared, ids)) {
+        return { index: shared, positions: null };
+    }
+
     const index = new OwnIndex();
     const positions: number[] = [];
     for (const id of ids) {
@@ -328,11 +395,36 @@ function columnFor(table: ElementTable, field: string): Column {
  * @param table - The filled table.
  */
 function sealTable(table: ElementTable): void {
-    for (const [name, column] of table.columns) {
-        if (Array.isArray(column) && column.every((value): value is number => typeof value === "number")) {
-            table.columns.set(name, Float64Array.from(column));
-        }
+    for (const name of table.columns.keys()) {
+        sealColumn(table, name);
     }
+}
+
+/**
+ * Turn one column into a `Float64Array` when every element carries a number for it.
+ * @param table - The table.
+ * @param name - The field.
+ */
+function sealColumn(table: ElementTable, name: string): void {
+    const column = table.columns.get(name);
+    if (Array.isArray(column) && column.every((value): value is number => typeof value === "number")) {
+        table.columns.set(name, Float64Array.from(column));
+    }
+}
+
+/**
+ * One field's column, filling the pending ranks first when it is one of them.
+ * @param table - The table.
+ * @param field - The field.
+ * @returns The column, or undefined when no element carries the field.
+ */
+function columnOf(table: ElementTable, field: string): Column | undefined {
+    const pending = table.pendingRanks;
+    if (pending !== null && (field === "rank" || (field === "percentile" && pending.percentile))) {
+        fillPendingRanks(table, pending.field, pending.percentile);
+    }
+
+    return table.columns.get(field);
 }
 
 /**
@@ -343,7 +435,7 @@ function sealTable(table: ElementTable): void {
  * @returns The value, or undefined when it carries none.
  */
 function valueAt(table: ElementTable, field: string, position: number): unknown {
-    const value = table.columns.get(field)?.[position];
+    const value = columnOf(table, field)?.[position];
     return value === MISSING ? undefined : value;
 }
 
@@ -359,6 +451,13 @@ function recordOf(table: ElementTable, id: NodeId): Readonly<Record<string, unkn
         return undefined;
     }
 
+    const pending = table.pendingRanks;
+    // A run that published some ranks of its own has them in place among the columns: fill the
+    // rest now, so the record's fields keep the order they always had.
+    if (pending !== null && (table.columns.has("rank") || table.columns.has("percentile"))) {
+        fillPendingRanks(table, pending.field, pending.percentile);
+    }
+
     const record: Record<string, unknown> = {};
     for (const [name, column] of table.columns) {
         const value = column[position];
@@ -367,11 +466,26 @@ function recordOf(table: ElementTable, id: NodeId): Readonly<Record<string, unkn
         }
     }
 
+    // The ranks still pending go last, where filling them would put them, and only on an element
+    // that has a place: one whose ranked value is a finite number. Reading one sorts, once.
+    if (
+        table.pendingRanks !== null &&
+        Number.isFinite(numberOf(table.columns.get(table.pendingRanks.field)?.[position]))
+    ) {
+        const names = table.pendingRanks.percentile ? ["rank", "percentile"] : ["rank"];
+        for (const name of names) {
+            Object.defineProperty(record, name, {
+                enumerable: true,
+                get: (): unknown => columnOf(table, name)?.[position],
+            });
+        }
+    }
+
     return Object.freeze(record);
 }
 
 /**
- * What a table's columns hold, in bytes: eight per slot, typed or not.
+ * What a table's columns and orders hold, in bytes: eight per slot, typed or not.
  * @param table - The table.
  * @returns Bytes; the id index is not counted (see {@link retentionOf}).
  */
@@ -379,6 +493,21 @@ function columnBytes(table: ElementTable): number {
     let bytes = 0;
     for (const column of table.columns.values()) {
         bytes += column instanceof Float64Array ? column.byteLength : 8 * column.length;
+    }
+
+    for (const order of table.orders.values()) {
+        bytes += order.byteLength;
+    }
+
+    // Ranks still to be filled are charged as if filled: the undo history charges a result once,
+    // when its step is recorded, and a reader may fill them at any time after.
+    const pending = table.pendingRanks;
+    if (pending !== null) {
+        for (const name of pending.percentile ? ["rank", "percentile"] : ["rank"]) {
+            if (!table.columns.has(name)) {
+                bytes += Float64Array.BYTES_PER_ELEMENT * table.length;
+            }
+        }
     }
 
     return bytes;
@@ -391,7 +520,7 @@ function columnBytes(table: ElementTable): number {
  * @returns A source over the table's own storage.
  */
 function tableColumn(table: ElementTable, field: string): NumericColumnSource {
-    const column = table.columns.get(field);
+    const column = columnOf(table, field);
 
     return {
         length: table.length,
@@ -400,18 +529,25 @@ function tableColumn(table: ElementTable, field: string): NumericColumnSource {
 }
 
 /**
- * A table's field in ranking order.
+ * A table's field in ranking order, sorted on the first ask and kept, so the rank column and a
+ * ranking read later share one sort.
  * @param table - The elements to rank.
  * @param field - The field name.
  * @returns The ranked positions, best first.
  */
 function orderOf(table: ElementTable, field: string): Uint32Array {
-    const column = tableColumn(table, field);
-    return rankOrder(
-        table.length,
-        (position) => column.get(position),
-        (position) => table.index.idOf(position),
-    );
+    let order = table.orders.get(field);
+    if (order === undefined) {
+        const column = tableColumn(table, field);
+        order = rankOrder(
+            table.length,
+            (position) => column.get(position),
+            (position) => table.index.idOf(position),
+        );
+        table.orders.set(field, order);
+    }
+
+    return order;
 }
 
 /**
@@ -515,12 +651,39 @@ function declaredNormalization(fields: readonly FieldDescriptor[], name: string)
 }
 
 /**
- * Give every ranked element its rank, and optionally its percentile, where it has none.
+ * Leave every ranked element's rank, and optionally its percentile, to be filled on first read.
+ * A run that published every one of them already leaves nothing to fill.
  * @param table - The table, still being filled.
  * @param field - The field ranked on.
  * @param percentile - Whether to fill the percentile too.
  */
-function fillRanks(table: ElementTable, field: string, percentile: boolean): void {
+function deferRanks(table: ElementTable, field: string, percentile: boolean): void {
+    const complete = (name: string): boolean => {
+        const column = table.columns.get(name);
+        return column?.every((value) => value !== MISSING && value !== undefined) ?? false;
+    };
+
+    if (!complete("rank") || (percentile && !complete("percentile"))) {
+        table.pendingRanks = { field, percentile };
+    }
+}
+
+/**
+ * Give every ranked element its rank, and optionally its percentile, where it has none.
+ * @param table - The sealed table.
+ * @param field - The field ranked on.
+ * @param percentile - Whether to fill the percentile too.
+ */
+function fillPendingRanks(table: ElementTable, field: string, percentile: boolean): void {
+    table.pendingRanks = null;
+    for (const name of percentile ? ["rank", "percentile"] : ["rank"]) {
+        const column = table.columns.get(name);
+        if (column instanceof Float64Array) {
+            // Sealed full of the run's own numbers; filling writes only where it has none.
+            table.columns.set(name, Array.from(column));
+        }
+    }
+
     const order = orderOf(table, field);
     const measured = order.length;
     let rank = 0;
@@ -538,6 +701,11 @@ function fillRanks(table: ElementTable, field: string, percentile: boolean): voi
             fillElement(table, "percentile", position, (measured - rank + 1) / measured);
         }
     }
+
+    sealColumn(table, "rank");
+    if (percentile) {
+        sealColumn(table, "percentile");
+    }
 }
 
 /**
@@ -552,7 +720,7 @@ function fillRanks(table: ElementTable, field: string, percentile: boolean): voi
 function fillMetric(table: ElementTable, graph: Record<string, unknown>, fields: readonly FieldDescriptor[]): void {
     const { statistics } = analyzeColumn(tableColumn(table, "value"));
 
-    fillRanks(table, "value", true);
+    deferRanks(table, "value", true);
 
     if (statistics.measured > 0) {
         fillGraph(graph, "min", statistics.min);
@@ -600,7 +768,7 @@ function fillGrouping(
  * @param graph - The graph half, still mutable.
  */
 function fillCategories(table: ElementTable, graph: Record<string, unknown>): void {
-    fillRanks(table, "score", false);
+    deferRanks(table, "score", false);
 
     const rows: ResultCategoryRow[] = [...countByKey(table, "category").entries()].map(([category, count]) => ({
         category: String(category),
@@ -793,8 +961,6 @@ class Result implements RunResult {
     readonly #labelOf: (id: NodeId) => string | undefined;
     readonly #reading: ResultReadingGenerator;
     readonly #columns = new Map<string, AnalyzedColumn>();
-    /** Each ranked field's order, as positions: four bytes per ranked element. */
-    readonly #orders = new Map<string, Uint32Array>();
     readonly #tops = new Map<string, TopRanking>();
     #summary: ResultSummary | undefined;
     #readingFact: CodedFact<ReadingCode> | undefined;
@@ -883,7 +1049,7 @@ class Result implements RunResult {
         }
 
         const table = this.#tableFor(field);
-        const order = this.#orderFor(field, table);
+        const order = orderOf(table, field);
         const column = tableColumn(table, field);
 
         return rankedPrefix(
@@ -914,7 +1080,7 @@ class Result implements RunResult {
 
         const limit = this.#checkLimit(n, "n");
         const table = this.#tableFor(field);
-        const order = this.#orderFor(field, table);
+        const order = orderOf(table, field);
         const column = tableColumn(table, field);
         // Only the entries the cut can reach: up to n, and on through the tie group n falls in.
         let end = Math.min(limit, order.length);
@@ -1155,31 +1321,12 @@ class Result implements RunResult {
     }
 
     /**
-     * One field's ranking order, computed on the first ask and kept.
-     * @param field - The field to rank on.
-     * @param table - The half it belongs to.
-     * @returns The ranked positions, best first.
-     */
-    #orderFor(field: string, table: ElementTable): Uint32Array {
-        let order = this.#orders.get(field);
-        if (order === undefined) {
-            order = orderOf(table, field);
-            this.#orders.set(field, order);
-        }
-
-        return order;
-    }
-
-    /**
      * What this result retains, in bytes: its columns and every cache it has built. Its id
      * indexes are not counted; see {@link retentionOf}.
      * @returns Bytes.
      */
     get byteSize(): number {
         let bytes = columnBytes(this.#nodes) + columnBytes(this.#edges);
-        for (const order of this.#orders.values()) {
-            bytes += order.byteLength;
-        }
 
         for (const top of this.#tops.values()) {
             bytes += 64 * top.entries.length;
@@ -1206,18 +1353,20 @@ class Result implements RunResult {
      */
     shareNodeIndex(index: ResultIdIndex, token: number): void {
         const table = this.#nodes;
-        if (!(table.index instanceof OwnIndex) || index.size !== table.length) {
-            return;
-        }
-
-        const { ids } = table.index;
-        for (let position = 0; position < ids.length; position++) {
-            if (index.idOf(position) !== ids[position]) {
+        if (table.index !== index) {
+            if (index.size !== table.length) {
                 return;
             }
+
+            for (let position = 0; position < table.length; position++) {
+                if (index.idOf(position) !== table.index.idOf(position)) {
+                    return;
+                }
+            }
+
+            table.index = index;
         }
 
-        table.index = index;
         table.token = token;
     }
 
@@ -1324,7 +1473,7 @@ class Result implements RunResult {
  * @returns The result, immutable.
  */
 export function createRunResult(init: RunResultInit): RunResult {
-    const nodes = buildTable(init.nodes);
+    const nodes = buildTable(init.nodes, init.snapshotIds);
     const edges = buildTable(init.edges);
     const graph: Record<string, unknown> = { ...init.graph };
 

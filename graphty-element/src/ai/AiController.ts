@@ -11,6 +11,7 @@ import type { CommandRegistry } from "./commands";
 import type { CommandContext, CommandResult } from "./commands/types";
 import { MAX_TOOL_TURNS } from "./prompt/SystemPromptBuilder";
 import type { LlmProvider, Message, ToolCall } from "./providers/types";
+import { toSafeError } from "./safeError";
 import type { SchemaManager } from "./schema";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
@@ -197,8 +198,10 @@ export class AiController {
 
             return result;
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            const errorObj = error instanceof Error ? error : new Error(errorMessage);
+            // Any provider's error, a consumer's own included, may carry the prompt and the
+            // response; only its name, message and stack go on.
+            const errorObj = toSafeError(error);
+            const errorMessage = errorObj.message;
 
             this.lastError = errorObj;
 

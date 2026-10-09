@@ -498,7 +498,7 @@ import { ApiKeyManager } from "@graphty/graphty-element/ai";
 const keys = new ApiKeyManager();
 await keys.ready(); // keys saved by an earlier page are back
 
-await keys.enablePersistence({ encryptionKey: passphrase }); // save keys from now on
+await keys.enablePersistence(); // save keys in localStorage, obscured (see below), from now on
 keys.setKey("anthropic", apiKey);
 keys.setDefaultProvider("anthropic"); // saved with the keys
 
@@ -514,29 +514,31 @@ the page (any script running on it) or to the browser profile can read them. The
 out of plain text.
 :::
 
-For real protection, pass `{ encryptionKey }`: a passphrase of at least 10 characters that you
-take from the user, for example from a field in your settings UI. Do not hard-code it in your
-page, which would make it as public as the built-in key. The manager derives an AES-GCM key from
-the passphrase with PBKDF2 (SHA-256, 600,000 iterations, a random salt) and encrypts every save
-with a fresh random IV, so you write no crypto code. A wrong passphrase reads nothing and leaves
-the stored keys untouched.
-
-The manager remembers the passphrase in `sessionStorage`, so a reload in the same tab restores
-the keys and closing the tab ends it; after that, call `enablePersistence({ encryptionKey })`
-again to unlock them. `new ApiKeyManager({ storage, prefix })` changes where the keys are kept
-(default `localStorage` and `"@graphty-ai-keys"`).
-
-A host that wants a key per reader can make one with `deriveKeyFromPassphrase(passphrase, salt)`
-from the same entry point and pass it as `encryptionKey`. The salt is not secret, but one per
-reader (an account id, or random bytes you keep) means a guessed passphrase cannot be tried
-against every reader at once:
+To protect them, ask the reader for a passphrase and turn remembering on with it; the key is
+derived with PBKDF2 in WebCrypto, so you write no crypto yourself:
 
 ```typescript
-import { ApiKeyManager, deriveKeyFromPassphrase } from "@graphty/graphty-element/ai";
+import { ApiKeyManager } from "@graphty/graphty-element/ai";
 
 const keys = new ApiKeyManager();
-await keys.enablePersistence({ encryptionKey: await deriveKeyFromPassphrase(passphrase, userId) });
+await keys.enablePersistenceWithPassphrase(passphrase, { salt: userId });
 ```
+
+The salt is not secret, but one per reader (an account id, or random bytes you keep) means a
+guessed passphrase cannot be tried against every reader at once; it defaults to a fixed salt.
+The same passphrase and salt unlock the same keys on every page, and a wrong passphrase loads
+no keys and leaves the saved ones as they were. The key derived from the passphrase is kept in
+memory only, so nothing restores itself after a reload: ask for the passphrase again and call
+`enablePersistenceWithPassphrase` again.
+
+`enablePersistence({ encryptionKey })` (at least 10 characters) uses a key you supply instead.
+The manager remembers that key in clear text in `sessionStorage`, so a reload in the same tab
+restores the keys and closing the tab ends it; after that, call
+`enablePersistence({ encryptionKey })` again to unlock them. While the tab is open, anyone with
+access to the page can read the key there, which is why a passphrase goes through
+`enablePersistenceWithPassphrase` instead.
+`new ApiKeyManager({ storage, prefix })` changes where the keys are kept (default
+`localStorage` and `"@graphty-ai-keys"`).
 
 ### The In-Browser Model (WebLLM)
 

@@ -5,6 +5,7 @@
  */
 
 import type { ProviderType } from "../providers";
+import { deriveKeyFromPassphrase } from "./deriveKeyFromPassphrase";
 
 type StorageType = "localStorage" | "sessionStorage";
 
@@ -15,16 +16,36 @@ export interface PersistenceConfig {
     /**
      * A passphrase the user supplies (minimum 10 characters). The stored keys are encrypted with
      * AES-GCM under a key derived from it with PBKDF2, so a host that passes the user's own
-     * passphrase gets real encryption without writing any crypto code. A key made with
-     * `deriveKeyFromPassphrase` works here too. It is remembered in `sessionStorage` for the rest
-     * of the tab's life, so persistence survives a reload and ends when the tab closes.
+     * passphrase gets real encryption without writing any crypto code.
      *
      * Default: a built-in key. KEYS SAVED WITHOUT A USER-SUPPLIED PASSPHRASE ARE ONLY OBSCURED, NOT
      * ENCRYPTED: the built-in key is public in this package's source, so any script on the page,
      * or anyone with access to the browser profile, can read them. They are just not stored as
      * plain text.
+     *
+     * A custom key is remembered in clear text in `sessionStorage` for the rest of the tab's life,
+     * so persistence survives a reload and ends when the tab closes. Anyone with access to the page
+     * can read it there while the tab is open. To keep the passphrase out of storage, call
+     * `enablePersistenceWithPassphrase` instead.
      */
     encryptionKey?: string;
+    /** Storage type (default: the constructor's, which defaults to "localStorage") */
+    storage?: StorageType;
+    /** Prefix for storage keys (default: the constructor's, which defaults to "@graphty-ai-keys") */
+    prefix?: string;
+}
+
+/**
+ * Options for {@link ApiKeyManager.enablePersistenceWithPassphrase}. Every field is optional.
+ */
+export interface PassphrasePersistenceConfig {
+    /**
+     * A per-reader value mixed into the key, such as an account id or random bytes the host
+     * keeps. It need not be secret, but one per reader means a guessed passphrase cannot be tried
+     * against every reader at once. The same passphrase and salt always unlock the same keys.
+     * Default: a fixed salt shared by every reader.
+     */
+    salt?: string;
     /** Storage type (default: the constructor's, which defaults to "localStorage") */
     storage?: StorageType;
     /** Prefix for storage keys (default: the constructor's, which defaults to "@graphty-ai-keys") */
@@ -87,7 +108,7 @@ interface DerivedKey {
  *
  * Keys persisted without an `encryptionKey` are obscured, not encrypted: the built-in key is
  * public, so anyone with access to the page or the browser profile can read them. To protect
- * them, derive the key from the reader's passphrase with `deriveKeyFromPassphrase`.
+ * them, call `enablePersistenceWithPassphrase` with the reader's passphrase.
  *
  * Persistence restores itself: a manager constructed after a reload finds the keys an earlier
  * page persisted (with the built-in key, or with a custom key from the same tab) and turns
@@ -143,6 +164,60 @@ export class ApiKeyManager {
      */
     enablePersistence(config: PersistenceConfig = {}): Promise<void> {
         const encryptionKey = config.encryptionKey ?? DEFAULT_ENCRYPTION_KEY;
+        const started = this.startPersistence(encryptionKey, config);
+        if (started === null) {
+            return this.pending;
+        }
+
+        this.rememberSessionKey(encryptionKey === DEFAULT_ENCRYPTION_KEY ? null : encryptionKey);
+        return started;
+    }
+
+    /**
+     * Enable persistent storage with a key derived from a passphrase the reader types, so the
+     * saved keys are encrypted rather than obscured: only someone who knows the passphrase can
+     * read them. Keys already in memory are saved, and keys already stored under the same
+     * passphrase and salt are loaded; a wrong passphrase loads nothing and leaves the stored keys
+     * as they are.
+     *
+     * The derived key is held in memory only, never in storage, so nothing restores itself after a
+     * reload: call this again with the passphrase on the next page.
+     *
+     * The key is derived with WebCrypto PBKDF2-HMAC-SHA256 (600,000 iterations), which takes a
+     * noticeable fraction of a second.
+     * @example
+     * ```typescript
+     * const keys = new ApiKeyManager();
+     * await keys.enablePersistenceWithPassphrase(passphrase, { salt: userId });
+     * ```
+     * @param passphrase - What the reader typed. Must not be empty.
+     * @param config - Where to store the keys, and the salt (see {@link PassphrasePersistenceConfig.salt})
+     * @returns A promise that resolves when stored keys are loaded and the store is saved
+     * @throws Error if the passphrase is empty
+     */
+    async enablePersistenceWithPassphrase(passphrase: string, config: PassphrasePersistenceConfig = {}): Promise<void> {
+        const encryptionKey = await deriveKeyFromPassphrase(passphrase, config.salt);
+        const started = this.startPersistence(encryptionKey, config);
+        if (started === null) {
+            return this.pending;
+        }
+
+        // A key remembered for this tab by an earlier enablePersistence no longer applies
+        this.rememberSessionKey(null);
+        return started;
+    }
+
+    /**
+     * Point persistence at a store opened with this key. It never writes the key anywhere.
+     * @param encryptionKey - The key to encrypt the stored keys with
+     * @param config - Where the store lives
+     * @returns A promise that resolves when stored keys are loaded and the store is saved, or null
+     *   without a window
+     */
+    private startPersistence(
+        encryptionKey: string,
+        config: Omit<PersistenceConfig, "encryptionKey">,
+    ): Promise<void> | null {
         if (encryptionKey.trim().length === 0) {
             throw new Error("Encryption key cannot be empty");
         }
@@ -160,10 +235,9 @@ export class ApiKeyManager {
         this.persistenceConfig = persistenceConfig;
 
         if (globalThis.window === undefined) {
-            return this.pending;
+            return null;
         }
 
-        this.rememberSessionKey(encryptionKey === DEFAULT_ENCRYPTION_KEY ? null : encryptionKey);
         return this.enqueue(() => this.open(persistenceConfig));
     }
 

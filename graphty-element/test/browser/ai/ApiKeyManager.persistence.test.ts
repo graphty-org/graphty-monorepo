@@ -5,7 +5,8 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { ApiKeyManager, deriveKeyFromPassphrase } from "../../../ai";
+import { ApiKeyManager } from "../../../ai";
+import { deriveKeyFromPassphrase } from "../../../src/ai/keys/deriveKeyFromPassphrase";
 
 /**
  * A store written by graphty-element before 4.0 (encrypt-storage, crypto-js AES with the built-in
@@ -280,43 +281,90 @@ describe("ApiKeyManager Persistence", () => {
         });
     });
 
-    describe("deriveKeyFromPassphrase", () => {
-        it("saves under a passphrase that a later page unlocks and a wrong one does not", async () => {
-            const right = await deriveKeyFromPassphrase("correct horse battery staple", "reader-1");
-            assert.strictEqual(right, await deriveKeyFromPassphrase("correct horse battery staple", "reader-1"));
-            assert.match(right, /^[0-9a-f]{64}$/);
+    describe("storage key prefix", () => {
+        it("uses custom storage key prefix", async () => {
+            const customPrefix = "@custom-app-prefix-test";
+            const manager = new ApiKeyManager();
+            await manager.enablePersistence({
+                encryptionKey: "prefix-test-long-key",
+                storage: "localStorage",
+                prefix: customPrefix,
+            });
+            manager.setKey("openai", "sk-prefixed");
+            await manager.ready();
 
+            // The store is one item, named prefix:keys
+            const storedValue = localStorage.getItem(`${customPrefix}:keys`);
+            assert.ok(storedValue !== null);
+        });
+    });
+
+    describe("enablePersistenceWithPassphrase", () => {
+        const passphrase = "correct horse battery staple";
+
+        it("saves under a passphrase that a later page unlocks and a wrong one does not", async () => {
             const saver = new ApiKeyManager({ prefix: testPrefix });
-            await saver.enablePersistence({ encryptionKey: right });
+            await saver.enablePersistenceWithPassphrase(passphrase, { salt: "reader-1" });
             saver.setKey("openai", "sk-secret");
             await saver.ready();
-            assert.notInclude(localStorage.getItem(`${testPrefix}:keys`) ?? "", "sk-secret");
-            sessionStorage.clear(); // the tab closed: the derived key is gone
+            assert.isTrue(saver.isPersistenceEnabled());
+
+            const reloaded = new ApiKeyManager({ prefix: testPrefix });
+            await reloaded.ready();
+            assert.isFalse(reloaded.isPersistenceEnabled(), "nothing restores without the passphrase");
+            assert.isUndefined(reloaded.getKey("openai"));
 
             const wrong = new ApiKeyManager({ prefix: testPrefix });
-            await wrong.ready();
-            assert.isFalse(wrong.isPersistenceEnabled(), "nothing restores without the passphrase");
-            await wrong.enablePersistence({ encryptionKey: await deriveKeyFromPassphrase("wrong guess", "reader-1") });
+            await wrong.enablePersistenceWithPassphrase("wrong guess", { salt: "reader-1" });
             assert.isUndefined(wrong.getKey("openai"), "a wrong passphrase decrypts nothing");
-            sessionStorage.clear();
 
             const otherSalt = new ApiKeyManager({ prefix: testPrefix });
-            await otherSalt.enablePersistence({
-                encryptionKey: await deriveKeyFromPassphrase("correct horse battery staple", "reader-2"),
-            });
+            await otherSalt.enablePersistenceWithPassphrase(passphrase, { salt: "reader-2" });
             assert.isUndefined(otherSalt.getKey("openai"), "another reader's salt decrypts nothing");
-            sessionStorage.clear();
 
             const later = new ApiKeyManager({ prefix: testPrefix });
-            await later.enablePersistence({ encryptionKey: right });
+            await later.enablePersistenceWithPassphrase(passphrase, { salt: "reader-1" });
             assert.strictEqual(later.getKey("openai"), "sk-secret", "the stored keys survived the wrong tries");
+        });
+
+        it("stores neither the passphrase, the derived key nor the API key in clear text", async () => {
+            const derived = await deriveKeyFromPassphrase(passphrase, "reader-1");
+            const manager = new ApiKeyManager({ prefix: testPrefix });
+            await manager.enablePersistenceWithPassphrase(passphrase, { salt: "reader-1" });
+            manager.setKey("openai", "sk-secret");
+            await manager.ready();
+
+            const stored: string[] = [];
+            for (const area of [localStorage, sessionStorage]) {
+                for (let index = 0; index < area.length; index++) {
+                    const name = area.key(index) ?? "";
+                    stored.push(name, area.getItem(name) ?? "");
+                }
+            }
+
+            assert.isNotEmpty(stored, "the keys were saved");
+            for (const secret of [passphrase, derived, "sk-secret"]) {
+                assert.isFalse(
+                    stored.some((text) => text.includes(secret)),
+                    `${secret.slice(0, 6)}... is not in storage`,
+                );
+            }
+        });
+
+        it("forgets a custom key an earlier enablePersistence remembered for the tab", async () => {
+            const manager = new ApiKeyManager({ prefix: testPrefix });
+            await manager.enablePersistence({ encryptionKey: "my-own-secret-key" });
+            await manager.enablePersistenceWithPassphrase(passphrase);
+            assert.isNull(sessionStorage.getItem(`${testPrefix}:session-encryption-key`));
         });
 
         it("refuses an empty passphrase", async () => {
             let refused: unknown;
-            await deriveKeyFromPassphrase("").catch((error: unknown) => {
-                refused = error;
-            });
+            await new ApiKeyManager({ prefix: testPrefix })
+                .enablePersistenceWithPassphrase("")
+                .catch((error: unknown) => {
+                    refused = error;
+                });
             assert.instanceOf(refused, Error);
         });
     });

@@ -11,6 +11,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **Find list: counts on headings, a drawn scrollbar, scrolls a row at a time.**
+  Headings read "Nodes 1" / "Edges 17" from the element's new `FindResult.totals` (additive; in
+  owner-decisions.md). The list is `ScrollArea.Autosize type="auto"`: the shared overlay bar is
+  drawn while it overflows (headless Chromium hides native bars, so the old `overflow: auto` list
+  never showed one). The edge "falling between rows" / "Values heading alone" was the SCROLL
+  position, not the cut: the cut at the top was already whole; a wheel left the window anywhere.
+  Fix: `scroll-snap-type: y mandatory` on the viewport, `scroll-snap-align: end` on options, so
+  every resting position ends on a row. Graph title uses compact-mantine `EllipsizedName self`
+  (now exported): tooltip only when cut. Evidence `tmp/r1-dry3-app-find-list-graph-title/`
+  (T12RA/02-06, T12RB/02-03, T23B/03). Baselines that will change: GraphPlace stories with a find.
 - (2026-10-08) **Filters say what each control does (app only, no API).** The step checkbox has a
   tooltip by state ("Turn this step off" / "on", `applyTip`); an off step's editor button reads
   "Save and turn on" (`saveLabel`) and is enabled even with the rule unchanged, since it does
@@ -19,22 +29,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   hop(s) of Ava" (hop count first, also at one hop), whole in the 240-wide row. Rows, chip and
   answers.md's T17 follow-up ("Save step") now differ: the key's wording is the next editor's to
   update. Evidence `tmp/r1-dry3-app-filters/` (T17A/07,10-12; T17B/07-11; T23A/07-08).
-- (2026-10-08) **Study tool records the served build, finds relative setups (tool only).**
-  `session.json` `commit` is the served build's (stamp in `REAL_DIST/index.html`, resolved to the
-  full sha; else the frozen folder's `-<sha>` suffix); the checkout's HEAD is `toolCommit`. Reason:
-  sessions on frozen 909b19b57 recorded the worktree HEAD and misled graders. `setup:<file>` is
-  looked up in cwd, then `tier2/`, then `rounds/tier-2/setups/`; none prints one "SETUP FAILED: no
-  such setup file" line, exit 2 (was an uncaught ENOENT stack). Both in `--prove`. answers.md T17
-  gives the follow-up path: open the off step, set 5, "Save step" (turns it on), read, then one
-  tick brings everyone back. Evidence `tmp/r1-dry3-studio-tool-records/` (T17A/08-12, frozen/).
-- (2026-10-08) **Import page sizes, Add / Leave out, weight line (app only, no API).** Sentences,
-  links, SegmentedControls and buttons on the Data page are `sm` (11 px; buttons 24 tall); dimmed
-  captions stay `xs`, except the filtered-grid sentence ("1 unmatched row: z has no node row"),
-  `sm` while a filter is on. Add / Leave out options carry tooltips (`UNMATCHED_HINTS`, words.ts;
-  a Tooltip around a span in the option label). WeightLine renders after RoleList, so choosing
-  Weight moves no role box (y 203 before and after, T20A/05-06, T20B/05-06); Higher means stays
-  unset. Commit bba626d9a. Evidence `tmp/r1-dry3-app-import-page/` (T4A, T4B, T20A, T20B and
-  their scripts). Baselines that will change: graphty DataPage stories.
+- (2026-10-08, condensed) **Study tool records the served build** (`session.json` `commit`; the
+  checkout's HEAD is `toolCommit`) and finds `setup:<file>` in cwd, `tier2/`, then
+  `rounds/tier-2/setups/`. Evidence `tmp/r1-dry3-studio-tool-records/`.
+
+- (2026-10-08, condensed) **Import page (app only).** Data page text `sm`, captions `xs`; Add /
+  Leave out tooltips (`UNMATCHED_HINTS`); WeightLine after RoleList so Weight moves no role box.
+  Evidence `tmp/r1-dry3-app-import-page/`.
+
 - (2026-10-08, condensed) **Sources and left-out rows (app only).** Sources counts are a visible
   second line (`description` + `descriptionVisible`); the left-out child wears `GLYPHS.warning` in
   danger ink and opens "Left out of <load>" with the whole load's counts; left-out lines wrap.
@@ -63,6 +65,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **A scroll list ends on a whole row at every resting position, not only at the top.**
+  Cutting the height once fixes the first view; scroll-snap fixes every view after a wheel. A
+  per-kind count belongs to the element (a fact about the matches), the heading's words to the app.
 - (2026-10-08) **A button that changes state says so before the click.** "Save and turn on" on an
   off step, not a status line after it (the save already announces). Rejected: keeping it disabled
   when unchanged -- a button that names an action and refuses it is a new flaw. A neighborhood's
@@ -195,6 +200,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Worked: snap test scrolls the viewport by 7 px steps and asserts the bottom is an
+  option's bottom; fails with `scroll-snap-type: none`. Scroll-area thumb needs `waitFor` (sized
+  after its ResizeObserver). Did not work: measuring the title tooltip via `--hover "<name>"` --
+  that matched the top bar's project name (Rename F2); `--hover-at 150,61` hits the Graph title.
 - (2026-10-08) A tooltip assertion after `userEvent.hover` needs `{ timeout: 3000 }`: the theme's
   1000 ms open delay equals findBy's default timeout, so the chip-tooltip check failed until given room.
 - (2026-10-08) Worked: one pilot script per task in `tmp/<task>/T*.sh`, run under

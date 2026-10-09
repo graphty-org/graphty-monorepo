@@ -100,6 +100,7 @@ export {
     CompoundRow,
     DataRow,
     DataRowHeader,
+    EllipsizedName,
     FieldRow,
     HistogramRow,
     MetricRow,

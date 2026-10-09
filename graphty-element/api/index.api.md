@@ -1494,6 +1494,10 @@ export interface FindResult {
     readonly records: readonly FindHit[];
     readonly revision: string;
     readonly total: number;
+    readonly totals: {
+        readonly node: number;
+        readonly edge: number;
+    };
     readonly values: readonly FindValueRow[];
 }
 

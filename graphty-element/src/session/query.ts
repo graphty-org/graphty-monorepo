@@ -325,7 +325,7 @@ export interface SearchRequest {
 }
 
 /** What {@link QueryEngine.search} answers; the caller adds the window and the revision. */
-export type SearchAnswer = Pick<FindResult, "records" | "total" | "values" | "notSearchable">;
+export type SearchAnswer = Pick<FindResult, "records" | "total" | "totals" | "values" | "notSearchable">;
 
 /** Where a match fell, in rank order within a tier. */
 const MATCH_ORDER = ["whole", "word-start", "anywhere"] as const;
@@ -597,7 +597,7 @@ function claim(best: BestMatch, members: number[], rank: number, column: Indexed
  * @returns The hits, the value rows and the total.
  */
 function search(parts: QueryEngineParts, index: FindIndex, text: string, request: SearchRequest): SearchAnswer {
-    const nothing = { records: [], total: 0, values: [] };
+    const nothing = { records: [], total: 0, totals: { node: 0, edge: 0 }, values: [] };
     const find = parseFind(index, text.trim());
     if (typeof find === "string") {
         return { ...nothing, notSearchable: find };
@@ -617,6 +617,7 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
     const nodeCount = index.node.ids.length;
     const span = nodeCount + index.edge.ids.length;
     const keys: number[] = [];
+    const totals = { node: 0, edge: 0 };
     for (const [kind, offset] of [
         ["node", 0],
         ["edge", nodeCount],
@@ -624,6 +625,7 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
         best[kind].rank.forEach((rank, at) => {
             if (rank !== NO_RANK) {
                 keys.push(rank * span + offset + at);
+                totals[kind]++;
             }
         });
     }
@@ -637,7 +639,12 @@ function search(parts: QueryEngineParts, index: FindIndex, text: string, request
         return hitOf(parts, index, best[kind], kind, kind === "node" ? order : order - nodeCount);
     });
 
-    return { records, total: sorted.length, values: rows.slice(0, VALUE_ROWS).map((row) => valueRowOf(index, row)) };
+    return {
+        records,
+        total: sorted.length,
+        totals,
+        values: rows.slice(0, VALUE_ROWS).map((row) => valueRowOf(index, row)),
+    };
 }
 
 /**

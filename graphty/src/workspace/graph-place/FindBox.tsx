@@ -1,7 +1,7 @@
 import { ResultRow, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
 import { type GraphSession, isGraphtyError, quotePath } from "@graphty/graphty-element/session";
-import { Input, Text } from "@mantine/core";
+import { Input, ScrollArea, Text } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -16,7 +16,10 @@ export const FIND_BOX_ID = "ws-find";
 /** How many element hits the list shows. */
 const LIMIT = 20;
 
-/** The tallest the list grows before it scrolls; it is cut back to end on a whole row. */
+/**
+ * The tallest the list grows before it scrolls; it is cut back to end on a whole row, and it
+ * scrolls a row at a time, so its edge never falls inside a row or just under a heading.
+ */
 const LIST_MAX_PX = 320;
 
 /**
@@ -324,20 +327,24 @@ export function FindBox(): React.JSX.Element {
     };
 
     const open = found !== null;
-    // The list ends on a whole row: past the cap, its height is cut back to the last row that fits.
+    // The list ends on a whole row: past the cap, its height is cut back to the bottom of the last
+    // option row that fits, headings counted in, so it never ends on a heading. Scrolling then
+    // stops only where a row's bottom meets the edge (scroll-snap in graph-place.css).
     const listRef = useRef<HTMLDivElement>(null);
+    const viewportRef = useRef<HTMLDivElement>(null);
     useLayoutEffect(() => {
         const { current: list } = listRef;
-        if (list === null) {
+        const { current: viewport } = viewportRef;
+        if (list === null || viewport === null) {
             return;
         }
         list.style.maxHeight = "";
-        if (list.scrollHeight <= LIST_MAX_PX) {
+        if (viewport.scrollHeight <= LIST_MAX_PX) {
             return;
         }
-        const { top } = list.getBoundingClientRect();
-        const fits = [...list.querySelectorAll<HTMLElement>("[role=option]")]
-            .map((row) => row.getBoundingClientRect().bottom - top + list.scrollTop)
+        const { top } = viewport.getBoundingClientRect();
+        const fits = [...viewport.querySelectorAll<HTMLElement>("[role=option]")]
+            .map((row) => row.getBoundingClientRect().bottom - top + viewport.scrollTop)
             .filter((bottom) => bottom <= LIST_MAX_PX);
         // The max height counts the bottom border too (border-box).
         list.style.maxHeight = `${String(Math.max(...fits, 0) + list.offsetHeight - list.clientHeight)}px`;
@@ -387,110 +394,118 @@ export function FindBox(): React.JSX.Element {
                 disabled={session === null}
             />
             {found !== null && options.length > 0 ? (
-                <div // NOSONAR(S6819): the popup of an ARIA combobox on a text box; a native select cannot be one
-                    id={listId}
-                    role="listbox"
-                    aria-label="Find results"
+                // The scrollbar is drawn while the list overflows, so more rows below are seen.
+                <ScrollArea.Autosize
+                    type="auto"
                     className="ws-find-list"
+                    classNames={{ viewport: "ws-find-viewport" }}
                     ref={listRef}
+                    viewportRef={viewportRef}
                 >
-                    {[
-                        { label: "Nodes", group: nodeHits, first: 0 },
-                        { label: "Edges", group: edgeHits, first: nodeHits.length },
-                    ].map(({ label, group, first }) =>
-                        group.length === 0 || session === null ? null : (
+                    <div // NOSONAR(S6819): the popup of an ARIA combobox on a text box; a native select cannot be one
+                        id={listId}
+                        role="listbox"
+                        aria-label="Find results"
+                    >
+                        {[
+                            { label: "Nodes", group: nodeHits, first: 0, total: found.totals.node },
+                            { label: "Edges", group: edgeHits, first: nodeHits.length, total: found.totals.edge },
+                        ].map(({ label, group, first, total }) =>
+                            group.length === 0 || session === null ? null : (
+                                <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+                                    key={label}
+                                    role="group"
+                                    aria-label={label}
+                                >
+                                    {/* The heading counts every match of its kind, not only the rows listed. */}
+                                    <Text component="div" className="ws-find-heading" aria-hidden="true">
+                                        {label} <span className="ws-find-heading-count">{total}</span>
+                                    </Text>
+                                    {group.map((hit, j) => {
+                                        const i = first + j;
+                                        const name = hitName(session, hit);
+                                        const where =
+                                            String(hit.match.value) === name
+                                                ? undefined
+                                                : `${attributeName(session, hit.match.path)}: ${String(hit.match.value)}`;
+                                        return (
+                                            <ResultRow
+                                                key={optionId(i)}
+                                                id={optionId(i)}
+                                                name={name}
+                                                match={text}
+                                                path={where}
+                                                icon={
+                                                    hit.kind === "edge" ? (
+                                                        <GLYPHS.edge size={14} />
+                                                    ) : (
+                                                        <GLYPHS.node size={14} />
+                                                    )
+                                                }
+                                                current={i === active}
+                                                onClick={() => {
+                                                    void pick({ type: "hit", hit });
+                                                }}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                            ),
+                        )}
+                        {found.values.length > 0 && session !== null ? (
                             <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
-                                key={label}
                                 role="group"
-                                aria-label={label}
+                                aria-label="Values"
                             >
                                 <Text component="div" className="ws-find-heading" aria-hidden="true">
-                                    {label}
+                                    Values
                                 </Text>
-                                {group.map((hit, j) => {
-                                    const i = first + j;
-                                    const name = hitName(session, hit);
-                                    const where =
-                                        String(hit.match.value) === name
-                                            ? undefined
-                                            : `${attributeName(session, hit.match.path)}: ${String(hit.match.value)}`;
+                                {found.values.map((row, j) => {
+                                    const i = found.records.length + j;
                                     return (
                                         <ResultRow
                                             key={optionId(i)}
                                             id={optionId(i)}
-                                            name={name}
-                                            match={text}
-                                            path={where}
-                                            icon={
-                                                hit.kind === "edge" ? (
-                                                    <GLYPHS.edge size={14} />
-                                                ) : (
-                                                    <GLYPHS.node size={14} />
-                                                )
-                                            }
+                                            name={`Select where ${attributeName(session, row.path)} is ${String(row.value)} (${String(row.count)})`}
+                                            icon={<GLYPHS.filter size={14} />}
                                             current={i === active}
                                             onClick={() => {
-                                                void pick({ type: "hit", hit });
+                                                void pick({ type: "value", row });
                                             }}
                                         />
                                     );
                                 })}
                             </div>
-                        ),
-                    )}
-                    {found.values.length > 0 && session !== null ? (
-                        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
-                            role="group"
-                            aria-label="Values"
-                        >
-                            <Text component="div" className="ws-find-heading" aria-hidden="true">
-                                Values
-                            </Text>
-                            {found.values.map((row, j) => {
-                                const i = found.records.length + j;
-                                return (
-                                    <ResultRow
-                                        key={optionId(i)}
-                                        id={optionId(i)}
-                                        name={`Select where ${attributeName(session, row.path)} is ${String(row.value)} (${String(row.count)})`}
-                                        icon={<GLYPHS.filter size={14} />}
-                                        current={i === active}
-                                        onClick={() => {
-                                            void pick({ type: "value", row });
-                                        }}
-                                    />
-                                );
-                            })}
-                        </div>
-                    ) : null}
-                    {columns.length > 0 ? (
-                        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
-                            role="group"
-                            aria-label="Columns"
-                        >
-                            <Text component="div" className="ws-find-heading" aria-hidden="true">
-                                Columns
-                            </Text>
-                            {columns.map((column, j) => {
-                                const i = found.records.length + found.values.length + j;
-                                return (
-                                    <ResultRow
-                                        key={optionId(i)}
-                                        id={optionId(i)}
-                                        name={column.name}
-                                        match={word}
-                                        path={kindWords(column.kinds)}
-                                        icon={<GLYPHS.attribute size={14} />}
-                                        current={i === active}
-                                        onClick={() => {
-                                            void pick({ type: "column", column });
-                                        }}
-                                    />
-                                );
-                            })}
-                        </div>
-                    ) : null}
-                </div>
+                        ) : null}
+                        {columns.length > 0 ? (
+                            <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+                                role="group"
+                                aria-label="Columns"
+                            >
+                                <Text component="div" className="ws-find-heading" aria-hidden="true">
+                                    Columns
+                                </Text>
+                                {columns.map((column, j) => {
+                                    const i = found.records.length + found.values.length + j;
+                                    return (
+                                        <ResultRow
+                                            key={optionId(i)}
+                                            id={optionId(i)}
+                                            name={column.name}
+                                            match={word}
+                                            path={kindWords(column.kinds)}
+                                            icon={<GLYPHS.attribute size={14} />}
+                                            current={i === active}
+                                            onClick={() => {
+                                                void pick({ type: "column", column });
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        ) : null}
+                    </div>
+                </ScrollArea.Autosize>
             ) : null}
             {found !== null && (options.length === 0 || isRule) && refusal === null && emptyLine !== null ? (
                 // The theme's hint under a field: the size and color of every other field hint.

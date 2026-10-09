@@ -184,6 +184,22 @@ describe("finding without selecting", () => {
         session.dispose();
     });
 
+    it("counts the hits of each kind in all, past the window", async () => {
+        const session = await cast();
+
+        const found = session.find("valjean", { limit: 1, edgeNameJoiner: " -- " });
+
+        assert.lengthOf(found.records, 1);
+        assert.deepEqual(found.totals, { node: 2, edge: 2 });
+        assert.strictEqual(found.total, 4);
+        assert.deepEqual(session.find("valjean", { kinds: ["node"], edgeNameJoiner: " -- " }).totals, {
+            node: 2,
+            edge: 0,
+        });
+        assert.deepEqual(session.find("  ").totals, { node: 0, edge: 0 });
+        session.dispose();
+    });
+
     it("pages with offset and limit, reports the total and the revision, and finds nothing for blank text", async () => {
         const session = await cast();
 

@@ -1,6 +1,7 @@
 import "./graph-place.css";
 
-import { Text, Tooltip } from "@mantine/core";
+import { EllipsizedName } from "@graphty/compact-mantine";
+import { Text } from "@mantine/core";
 import React, { useMemo } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -64,11 +65,8 @@ export function GraphPlace(): React.JSX.Element {
                 <Text span className="ws-graph-title-prefix">
                     Graph
                 </Text>
-                <Tooltip label={name}>
-                    <Text span className="ws-graph-title-name">
-                        {name}
-                    </Text>
-                </Tooltip>
+                {/* The whole name as a tooltip only while it is cut short. */}
+                <EllipsizedName name={name} className="ws-graph-title-name" self />
             </div>
             <div className="ws-graph-treebar">
                 <FindBox />

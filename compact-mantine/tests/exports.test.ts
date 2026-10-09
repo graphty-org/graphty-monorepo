@@ -382,6 +382,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "CompoundRow",
     "DataRow",
     "DataRowHeader",
+    "EllipsizedName",
     "FieldRow",
     "HistogramRow",
     "MetricRow",

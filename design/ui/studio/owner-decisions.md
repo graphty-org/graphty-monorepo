@@ -4,6 +4,25 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- Decided by the team: find counts its hits by kind (`FindResult.totals`)
+
+**What.** graphty-element's `FindResult` gains `totals: { node: number; edge: number }`: how many
+of the hits are nodes and how many are edges, in all, past the window (they add up to `total`).
+compact-mantine also exports `EllipsizedName`, the name that ellipsizes and shows its whole text
+as a tooltip only while it is cut short (already used inside its Tree and DataRow).
+
+**Why.** The graphty app lists node and edge hits under their own headings, and a heading that
+says "Edges 17" while six rows show tells a reader more ties are below. Only `total` came back,
+and counting the listed rows gives the window's size, not the number of matches; counting the
+graph again in the app would be computing over the graph outside the element. The Graph place's
+title used a plain tooltip that repeated its own whole text; the shared component already does
+the right thing and was not exported. Tests: `graphty-element/test/session/find.test.ts` ("counts
+the hits of each kind in all, past the window"), `compact-mantine/tests/exports.test.ts`.
+
+**Alternatives.** A `kinds` filter call per kind with `limit: 0` (two finds per keystroke, and the
+app adding them up); an optional field (every consumer then handles a missing count the element
+always has).
+
 ## 2026-10-08 -- For the owner: a compact-mantine fold's content is no longer a named region
 
 **What.** compact-mantine's `ControlSubGroup` drops `role="region"` and `aria-labelledby` from the

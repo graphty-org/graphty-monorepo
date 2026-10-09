@@ -355,6 +355,8 @@ export interface FindResult {
     readonly offset: number;
     /** How many hits there are in all. */
     readonly total: number;
+    /** How many of those hits are nodes and how many are edges; they add up to `total`. */
+    readonly totals: { readonly node: number; readonly edge: number };
     /** The input revision the answer was read at; a different one means it is stale. */
     readonly revision: string;
     /** At most three matched attribute values, commonest first. */

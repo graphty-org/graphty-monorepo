@@ -65,11 +65,44 @@ function renderPlace(
     return store;
 }
 
+/**
+ * Asserts that the scroller's visible bottom is the bottom of an option row: no row is cut and
+ * no heading sits alone at the edge.
+ * @param viewport - the scroller.
+ * @param list - the listbox inside it.
+ */
+function assertEndsOnRow(viewport: HTMLElement, list: HTMLElement): void {
+    const bottom = viewport.getBoundingClientRect().top + viewport.clientHeight;
+    const rowBottoms = within(list)
+        .getAllByRole("option")
+        .map((row) => row.getBoundingClientRect().bottom);
+    assert.isTrue(
+        rowBottoms.some((b) => Math.abs(b - bottom) < 1),
+        `the list ends at ${String(bottom)}, not on a row (${rowBottoms.join(", ")})`,
+    );
+}
+
 describe("the Graph place", () => {
     it("titles the graph with a quiet Graph prefix and its name", async () => {
         renderPlace(await sessionWithGraph());
         const place = screen.getByRole("region", { name: "Graph place" });
         assert.match(place.textContent ?? "", /^GraphLes Miserables/);
+    });
+
+    it("shows the graph's name as a tooltip only while the name is cut short", async () => {
+        renderPlace(await sessionWithGraph());
+        const name = screen.getByText("Les Miserables");
+        await userEvent.hover(name);
+        // Past the theme's 1000 ms open delay: a whole name has no tooltip.
+        await new Promise((resolve) => setTimeout(resolve, 1300));
+        assert.isNull(screen.queryByRole("tooltip"));
+        await userEvent.unhover(name);
+
+        const place = screen.getByRole("region", { name: "Graph place" });
+        place.style.width = "90px";
+        await userEvent.hover(name);
+        const tip = await screen.findByRole("tooltip", {}, { timeout: 3000 });
+        assert.equal(tip.textContent, "Les Miserables");
     });
 
     it("draws Selection and Everything only, with nothing run", async () => {
@@ -325,16 +358,62 @@ describe("the Graph place", () => {
         );
         assert.isNull(within(list).queryByRole("group", { name: "Elements" }));
 
-        // The list scrolls, and its visible bottom is the bottom of an option row.
-        assert.isAbove(list.scrollHeight, list.clientHeight);
-        const bottom = list.getBoundingClientRect().top + list.clientHeight;
-        const rowBottoms = within(list)
-            .getAllByRole("option")
-            .map((row) => row.getBoundingClientRect().bottom);
-        assert.isTrue(
-            rowBottoms.some((b) => Math.abs(b - bottom) < 1),
-            `the list ends at ${String(bottom)}, not on a row (${rowBottoms.join(", ")})`,
+        // The list scrolls, shows its scrollbar, and its visible bottom is the bottom of an option row.
+        const viewport = list.closest<HTMLElement>(".ws-find-viewport");
+        assert.isNotNull(viewport);
+        assert.isAbove(viewport.scrollHeight, viewport.clientHeight);
+        assertEndsOnRow(viewport, list);
+        // The scrollbar is measured once the scroll area has observed its size.
+        await waitFor(() => {
+            const thumb = list.closest(".ws-find-list")?.querySelector("[data-orientation='vertical'] > *");
+            assert.isAbove(thumb?.getBoundingClientRect().height ?? 0, 0, "a scrollbar thumb is drawn");
+        });
+    });
+
+    it("counts every match of a kind on its heading, past the rows listed", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        await session.config.set({ data: { directed: false } });
+        // A hub with 25 ties: more than the list holds.
+        await session.data.addNodes([
+            { id: "hub", name: "Hub" },
+            ...Array.from({ length: 25 }, (_, i) => ({ id: `t${String(i)}`, name: `Tie${String(i)}` })),
+        ]);
+        await session.data.addEdges(Array.from({ length: 25 }, (_, i) => ({ source: "hub", target: `t${String(i)}` })));
+        renderPlace(session);
+
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "Hub");
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        const edges = within(list).getByRole("group", { name: "Edges" });
+        assert.isBelow(within(edges).getAllByRole("option").length, 25);
+        assert.equal(edges.querySelector(".ws-find-heading")?.textContent, "Edges 25");
+        const nodes = within(list).getByRole("group", { name: "Nodes" });
+        assert.equal(nodes.querySelector(".ws-find-heading")?.textContent, "Nodes 1");
+    });
+
+    it("scrolls only to where an option row ends the list, never leaving a heading alone at its edge", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        await session.config.set({ data: { directed: false } });
+        // Node rows, then edge rows, then value rows: two headings fall inside the scroll.
+        await session.data.addNodes(Array.from({ length: 9 }, (_, i) => ({ id: `n${String(i)}`, kind: "x" })));
+        await session.data.addEdges(
+            Array.from({ length: 8 }, (_, i) => ({ source: `n${String(i)}`, target: `n${String(i + 1)}`, kind: "x" })),
         );
+        renderPlace(session);
+
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "x");
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        const viewport = list.closest<HTMLElement>(".ws-find-viewport");
+        assert.isNotNull(viewport);
+        const room = viewport.scrollHeight - viewport.clientHeight;
+        assert.isAbove(room, 0);
+        for (let to = 0; to <= room; to += 7) {
+            viewport.scrollTop = to;
+            await waitFor(() => {
+                assertEndsOnRow(viewport, list);
+            });
+        }
     });
 
     it("words any other refused rule with where it went wrong", async () => {

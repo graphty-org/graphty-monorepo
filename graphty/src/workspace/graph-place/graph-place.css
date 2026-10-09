@@ -40,8 +40,17 @@
 .ws-find-list {
     max-height: 320px;
     margin: 4px -8px 0;
-    overflow-y: auto;
     border-bottom: 1px solid var(--cm-border);
+}
+
+/* Scrolling stops only where an option row's bottom meets the list's edge, so the edge never
+   cuts a row or leaves a heading alone under it. */
+.ws-find-viewport {
+    scroll-snap-type: y mandatory;
+}
+
+.ws-find-viewport [role="option"] {
+    scroll-snap-align: end;
 }
 
 .ws-find-heading {
@@ -49,6 +58,11 @@
     color: var(--cm-text-secondary);
     font-size: 10px;
     font-weight: 550;
+}
+
+.ws-find-heading-count {
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
 }
 
 .ws-find-empty {

@@ -228,6 +228,18 @@ export function sessionReachable(declarations) {
 }
 
 /**
+ * Whether a result type may hold a plain string under this property name.
+ * @param type - the declaring type's name
+ * @param property - the property's name
+ * @returns true for an identifier, a name, a machine value or a catalog description
+ */
+function allowedPlainString(type, property) {
+    if (PLAIN_STRING_ALLOWLIST.has(property) || /[a-z](Id|Key)$/.test(property)) return true;
+    // catalog descriptions describe the thing registered, not the consumer's graph (#1604)
+    return property === "description" && type.endsWith("Descriptor");
+}
+
+/**
  * Every `Type.property` typed plain string in a report, optionally only on result types.
  * @param text - the report
  * @param resultsOnly - true to keep only result types and properties outside the allowlist
@@ -243,11 +255,8 @@ export function plainStringProperties(text, resultsOnly) {
         const rule = nameRule ? `its name ends in ${nameRule}` : `${SESSION_ROOT} returns it`;
         for (const line of members(lines.slice(1)).map(receivedType).join("\n").split("\n")) {
             const property = PLAIN_STRING_PROPERTY.exec(line)?.[1];
-            if (!property) continue;
-            if (resultsOnly && (PLAIN_STRING_ALLOWLIST.has(property) || /[a-z](Id|Key)$/.test(property))) continue;
-            // catalog descriptions describe the thing registered, not the consumer's graph (#1604)
-            if (resultsOnly && property === "description" && name.endsWith("Descriptor")) continue;
-            found.set(`${name}.${property}`, rule);
+            if (property && !(resultsOnly && allowedPlainString(name, property)))
+                found.set(`${name}.${property}`, rule);
         }
     }
     return found;

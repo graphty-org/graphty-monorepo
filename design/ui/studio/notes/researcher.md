@@ -10,46 +10,33 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-09 -- ROUND 2 KEY WRITTEN BEFORE THE BUILD: the workflow applies key changes before the
-  app changes land, so the T20/T21/T22 "Round 2 routes" (10, 7, 4 steps) are counted from round 1's
-  measured steps plus the spec, marked "not walked yet"; the round 2 pilot must walk and correct
-  them. Bar 11 keeps the success paths' counts. "Scripted exit" = label only, grade stays G.
-- 2026-10-09 -- ROUND 2 CHANGE SET PROPOSED (critique): five app-only changes, each reusing a
-  path that already works -- find box no-match line points to rules (FindBox.tsx 355); source
-  verbs in the source inspector's "..." (Inspector.tsx MENUS); "Set what higher means..." on a
-  number edge attribute opening the existing Edit source page (attributeActions.ts, editSource);
-  stale mark on the canvas key (LegendCard.tsx); ellipsis, no sideways scroll in find results.
-  Not changing: filtering's place, path run, import page, T22 dialog, label font, selection tint.
-- 2026-10-09 -- TIER 2 ROUND 1 INSIGHTS WRITTEN (`tier2/rounds/round-1/insights.md`) after two
-  skeptics. Bar 3 now HOLDS (each give-up one participant; 2 of 3 were Tom's persona file's
-  scripted two-attempt exit). Still failing: 1 (T22), 5 (stale key, sev 2-3), 10 (truncation,
-  overlap class, stale run), 11 (T20); 2, 7, 8, 9 not scored.
-- 2026-10-09 -- DRY RUN ANSWER (owner asked): yes -- 5 early sessions discarded, 4 dry runs on
-  successive builds, a 5th walk on 946256efb876 (T18 B walked, report missing). Success paths
-  clean (every session.log empty, 0 build-decided grades). But dry runs walk ONLY the key's
-  routes; participants met defects on detours (Edges color landing on Everything, confirmed;
-  selection display overriding fill/path color, now a sev 2 design finding; edge width split and
-  partly refuted). Next dry run walks each task's commonest detours.
-- 2026-10-09 -- The study TOOL reached participants more than the build: 5+ sessions alive (load
-  158, click timeouts), wrong-row matches (r1-s44, s30), synthetic drop silent (r1-s29), void not
-  re-run, T18 follow-up skipped twice, r1-s03 read facilitator notes, preflight scripts never
-  built. Fix all before round 2.
-- 2026-10-09 -- Confirmed sev 3 design problems after skeptics: find box answers a condition
-  with only "No match" (T22, 4 of 4); Replace not visible at rest (T21, 8 of 8; hover "..." NOT
-  shown); plain open ignores a weight's meaning and Back to start drops the graph (T20); drawn
-  names overlap (class only; layout unseeded); filtering not reachable from Graph (T17).
-- 2026-10-09 -- Weakened to sev 2: note subject follows inspector, Leave out preselected,
-  left-out row after Load, backticks. T18 "connections lead nowhere" not confirmed (two places).
+- 2026-10-09 -- ROUND 2 DRY RUN DONE on ddf8b3b63039: 19 of 21 halves walked (T12R A never got a
+  browser, T12R B unreported), every success path and every round 2 route reached on the first
+  try, 0 script/console/request errors, every value held. No implementation defect blocks a task.
+  What participants will meet is UX: the stale key's "out of date" (T17, T21, T23), no way back to
+  the graph Overview after a run (T20), Escape silently dropping a selection (T22, T24).
+- 2026-10-09 -- TOOL DEADLOCK blocks T12R: `with-browser.sh` passes --step/--end/--brief but not
+  `real.mjs --start`, which takes its own slot; a wrapped start holds a slot and waits for a
+  second. Fix in the tool (add `start` to the regex) or never wrap --start. Walk T12R after.
+- 2026-10-09 -- Walked counts: T20 route 10, T21 route 8 (not 7: Replace from the source
+  inspector lands on the Graph inspector, PageRank click needed), T22 route 4. Bar 11 unchanged.
+- 2026-10-09 -- "Out of date" on the legend under a filter is a new risk: it may send people to
+  rerun PageRank on a task that needs none. Watch for it in T17/T23 sessions.
+- 2026-10-09 -- Dry runs walk ONLY the key's routes; round 1's defects sat on detours (Edges
+  color landing on Everything; selection display overriding fill). Next dry run seeds each task
+  with the previous round's commonest wrong turns.
+- 2026-10-09 -- The study TOOL reached participants more than the build in round 1 (5+ sessions
+  alive, wrong-row matches, silent synthetic drop, follow-ups skipped). Verify tool fixes before
+  each round, by a pilot that exercises them.
+- 2026-10-09 -- Confirmed sev 3 design problems (round 1, after skeptics): find box answering a
+  condition with "No match" (T22), Replace hidden at rest (T21), plain open ignoring a weight's
+  meaning (T20), drawn names overlapping (class only; layout unseeded), filtering not reachable
+  from Graph (T17). Round 2 tests the fixes for the first three.
 - 2026-10-09 -- Persona scripts can decide outcomes: read the persona FILE, not just the roster
-  briefing, before calling a give-up the screen's fault (Tom: `recipe-recipient.md` 157-162).
-- 2026-10-09 -- Histories steer first moves: "7 of 7 opened with Open" and "4 of 4 typed in the
-  find box" are the briefings, not habits. Count the SECOND place looked as the real signal.
-- 2026-10-09 -- The unseeded default layout makes overlap instances non-deterministic; report the
-  class, never "once per dataset", unless the setup passes a seed.
-- 2026-10-09 -- T22 failed: round 2 changes the find box's hint and refusal words first; the dialog
-  only if T22 fails both halves again with 3+ looking in one place.
-- 2026-10-09 -- Experts find how a reached screen behaves; sessions find whether a user reaches
-  it. Bar 10's "specialist + session" rule was mine, not the criteria's -- state it as a deviation.
+  briefing, before calling a give-up the screen's fault. "Scripted exit" = label only, grade G.
+- 2026-10-09 -- Histories steer first moves; count the SECOND place looked as the real signal.
+- 2026-10-09 -- The unseeded layout makes overlap instances non-deterministic; report the class.
+- 2026-10-09 -- Experts find how a reached screen behaves; sessions find whether a user reaches it.
 - 2026-10-07 -- Do not override a grader without new evidence; one skeptic's weakening stands
   unless the other answers its reason with evidence.
 - 2026-10-06 -- All participants are one model: N alike is not independent. Failure strong, pass
@@ -95,6 +82,16 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-09 (researcher, key matched to the round 2 pilots) -- Re-pointed `answers.md` at
+  ddf8b3b63039 with a build section (legend "out of date" under filter/replace; Summary heading;
+  halo-only selection; no focus mark after Find path/Rerun/Save) and per-task fixes; marked the
+  three round 2 routes walked with real counts (T21 8, not 7); marked T12R "not yet walked" rather
+  than leaving 946256efb876 notes unlabeled. Told graders `work.json` "gone" for the replaced file
+  (T21) and "step-1 off" (T17) are tool artifacts, not lost work. Checked conflicting pilot claims
+  myself (T20 bottom bar: A stays at y 876, B moves 824 -> 876 -- both true, preview length).
+  Kept tasks.md unchanged: no prompt was wrong; "Total minutes"/"Total km" echo only the data's
+  own column words. Rejected: fixing `with-browser.sh` myself (tool owner's file; reported).
 
 - 2026-10-09 (researcher, round 2 key and grading wording) -- Added "Round 2 route" entries to T20
   (start-screen Open through the Data page, 10), T21 (source inspector "...", 7), T22 (find hint to
@@ -151,35 +148,12 @@ reasons, in short:
   myself. Rejected: retiring a screen defect as a `false-done` risk; changing T20 prompt B for the
   "longer trail" echo.
 
-- 2026-10-08 (researcher, tier 2 criteria review, folded) -- Proposed 8 changes: bar 10 for the
-  expert walkthrough and screenshot audit (two specialists or a measurement confirm; 0 sev 3+);
-  "not scored" counts as not holding; bar 7 (a) over every algorithm and meaning; preflight 2 not
-  met (trace Save as first; a save the tool lost voids); bar 2 by an inventory script; steps
-  median <= 2x a gate on the core four; bar 9 on a "returning rest" screen; 2 spare slots to tier
-  1 T15. Rejected: raising ease to 5.5; changing prompts.
-
-- 2026-10-08 (researcher, tier 2 round 1 plan, folded) -- 56 sessions in run order, the roster's
-  allocation verified by a script; T21 fourth and T19 after T4 (preflight 2); halves alternate and
-  graduates mix so a one-dataset defect shows within 2 sessions; every T17/T18 "done" gets the
-  follow-up; grade fields fixed in the plan; starts are setups or empty only.
-- 2026-10-07 (researcher, tier 2 prepared and key corrected, folded) -- Wrote `tier2/` (tasks,
-  answers, roster, criteria); kept T4, T17-T21 and added T22 (rule: bus >= 10 min = 3; Les Mis
-
-    > = 10 chapters = 13), T23 (Ava 14; Medici 11), T24 (Gus-Ivan 1; Station-Stadium 4), each piloted
-    > and checked against a hand count. Bars 2 and 7 replaced (work kept; weight read as loaded).
-    > Personas: six graduates plus Alex, Jordan, Dana; no one on both halves. Key sentences name the
-    > build they are true on, never an unlanded fix. Rejected: node-attribute rules for T22, "which
-    > stops" in T22 (known gap graded twice), Mara (expert workflows).
-
-- 2026-10-07 (researcher, round 3 skeptic verdicts) -- Applied two skeptics' verdicts
-  (`rounds/round-3/insights.md`). Rule added for split verdicts: one skeptic's weakening stands
-  unless the other gives evidence answering its reason (kept: no live text on outline/size/Find,
-  two DOM alert regions; lowered: selection ring 2 since only r3-s02 exported, group-layout
-  pointer 2 since T11 5 of 5, hover/ramp/wording to 1). Bar 3 holds (both: sev 3; 2.8% tie,
-  outside the graded question, primed graders, T7 named Farah from Values). Bar 5 holds (graders
-  ruled "none"; Chloe drawn in front of Farah). Bar 6 holds, r3-s01 SD (both dropped the F).
-  Spectral moved to words. "Live regions already holding text" to not shown. Rejected: keeping
-  bar 3 failing because "the picture names the wrong person" -- the picture's key names nobody.
+- 2026-10-07 to 10-08 (tier 2 preparation, criteria review, round 1 plan and round 3 skeptics,
+  folded) -- Wrote `tier2/` (T22 bus >= 10 min = 3, Les Mis >= 10 = 13; T23 Ava 14, Medici 11;
+  T24 Gus-Ivan 1, Station-Stadium 4), each piloted and hand-counted; bars 10 and 11 added, "not
+  scored" fails, bar 7 (a) over every algorithm and meaning; 56 sessions with halves alternating;
+  key sentences name the build they are true on. Split skeptic rule: one weakening stands unless
+  the other answers its reason with evidence. Rejected: raising ease to 5.5, changing prompts.
 
 - 2026-10-07 (round 3 plan, preflight and scoring, folded) -- Sized at 56: full size where the
   path changed or a target missed, regression checks at 4, the rest 1-3 so every task is seen.
@@ -208,6 +182,11 @@ reasons, in short:
 - 2026-09-28 (owner) -- Simulated personas built from public sources, each checked by a skeptic.
 
 ## Tried: worked / did not work
+
+- 2026-10-09 (round 2 key) -- Worked: applying each task's edits as (old, new) pairs scoped to the
+  task's section with an assert per pair; viewing the two screenshots where pilots disagreed
+  before writing either claim; reading `work.json` to confirm a "gone" entry before telling
+  graders to ignore it. Did not work: an Edit anchored on text I remembered, not the file's.
 
 - 2026-10-09 (round 2 key) -- Worked: checking `git status graphty` and the workflow script's order
   before claiming "measured on the new build" (the build did not exist). Worked: reconstructing a

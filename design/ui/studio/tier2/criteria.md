@@ -521,3 +521,30 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   `tool/real.mjs --prove` was matched to that change (a dropped file is checked on the Data page;
   an uploaded file is loaded with Load before the checks that need the graph) and passes every
   check on this build. No bar changed.
+- **2026-10-09, before round 2: the answer key matched to the pilots on ddf8b3b63039.** Every task
+  half but T12R was piloted on the round 2 build from its start (`rounds/r2/pilot/`), and the
+  three round 2 routes were walked. Every success path and route landed on the first try with no
+  script errors, console errors or failed requests, and every reference value held. `answers.md`
+  now names this build and gives its screens where they differ: a section on the build (the
+  drawing's key marked "out of date" under a filter or after a replacement, with the old range
+  still shown; a "Summary" heading on a run's Values; a selected node marked by its halo only; no
+  focus mark after Find path, Rerun or Save); the round 2 routes as walked (T20 10 steps, with
+  "Higher means" asked only once the column is a Weight and B's Load moving 52 px; T21 8 steps,
+  not 7, because a replacement made from the source's inspector returns to the Graph inspector and
+  PageRank must be clicked before Rerun; T22 4 steps, the hint's example already starting with
+  "="); T4's unmatched-row view, the Add tooltip, the left-out row's white text, the "Open as a new
+  graph" title, "CSV auto" and the tooltip over "Each row is"; T17's legend wording, no count
+  before "Add step", the row's hover background and the tool's step name in `work.json`; T18's
+  new Weight line ("Each edge counts as 1. weight's meaning is not set.") and the overlap at the
+  path's start; T19's start screen, the "Opened" toast on both halves, n switching to the Notes
+  place and no focus mark after Save; T20's "Total minutes" / "Total km" (the unit is now shown),
+  the result key on the canvas, and no way back to the graph's Overview after a run; T21's
+  "Replace" button, the "Weight: weight auto" and Higher means lines on both halves, the bottom
+  table drawer, the "Added" heading after a replacement, the bare x reset and the old file listed
+  as gone in `work.json` (not lost work); T22's Escape with no notice on B and the box keeping
+  the last typed text; T23's find list, the chip's icon and name, and the tooltip now opening on
+  A; T24's halos with no change of fill, the menu's bare shortcut letters and a miss after Select
+  endpoints clearing the selection. T12R is marked not yet walked on this build: its pilot never
+  got a browser, because `tool/with-browser.sh` does not pass `real.mjs --start` through while
+  `--start` takes its own slot, so a wrapped start holds one slot and waits for a second. No bar,
+  floor, step limit or prompt changed; bar 11 keeps the success paths' counts.

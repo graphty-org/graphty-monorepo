@@ -8,6 +8,7 @@ import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph } from "../../../src/Graph";
+import { nextFrame } from "../../helpers/real-input";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [
@@ -80,8 +81,7 @@ describe("View Mode Transitions", () => {
         const modes: ("2d" | "3d")[] = ["2d", "3d", "2d", "3d", "2d", "3d"];
         for (const mode of modes) {
             await graph.setViewMode(mode);
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 20));
+            await nextFrame();
         }
 
         await graph.waitForStableFrame();

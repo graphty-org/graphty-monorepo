@@ -1,7 +1,9 @@
 # bus-stops-ranked.txt, then every stop's name drawn (a label line on Everything bound to id)
 --click No thanks
---click Open project or file...
+--click New from data...
+--click choose a file...
 --upload bus-stops.csv
+--click Load
 --key Shift+A
 --type PageRank
 --click PageRank

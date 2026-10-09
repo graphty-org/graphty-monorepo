@@ -90,6 +90,24 @@ export function replaceSource(store: WorkspaceStore, loaded: LoadedSource, file:
 /** One request per store, read once by the page that opens on it. */
 const requests = new WeakMap<WorkspaceStore, DataPageRequest>();
 
+/** The open Data page's way to take a request that arrives while it is open. */
+const openPages = new WeakMap<WorkspaceStore, (request: DataPageRequest) => void>();
+
+/**
+ * Hands the open Data page every request made while it is open.
+ * @param store - the workspace store.
+ * @param take - what the page does with the request.
+ * @returns a function that stops it, for when the page closes.
+ */
+export function whileDataPageOpen(store: WorkspaceStore, take: (request: DataPageRequest) => void): () => void {
+    openPages.set(store, take);
+    return () => {
+        if (openPages.get(store) === take) {
+            openPages.delete(store);
+        }
+    };
+}
+
 /**
  * Opens the Data page. With `intent: "new"` and no project open, a project is opened first,
  * named "Untitled" until the load names it after the file. With a project open the intent is
@@ -98,6 +116,13 @@ const requests = new WeakMap<WorkspaceStore, DataPageRequest>();
  * @param request - what the door hands over.
  */
 export function openDataPage(store: WorkspaceStore, request: DataPageRequest): void {
+    // Already open (Open project or file... from the page itself): the page takes the files as
+    // a drop, rather than the request waiting for a page that never opens again.
+    const open = openPages.get(store);
+    if (open !== undefined) {
+        open(request);
+        return;
+    }
     const intent = store.get().project === null || request.intent === "replace" ? request.intent : "add";
     requests.set(store, { ...request, intent });
     store.set((state) => ({

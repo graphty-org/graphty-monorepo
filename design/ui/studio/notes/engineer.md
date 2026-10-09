@@ -11,6 +11,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **A data file opened from the start screen goes through the Data page, as New
+  from data... does.** `openInSession` in `project/actions.ts`: on the start-screen route (`fresh`)
+  a data file disposes the element's draft, closes the project and calls `openDataPage({ intent:
+"new", files })`, so Cancel returns to the start screen and "Higher means" is asked before any
+  load; a project file still opens directly ("Opened trails"). New: an Open project or file...
+  (Control+O) made while the Data page is open lands on the page as a drop (`whileDataPageOpen` in
+  `data-page/request.ts`); before, the request waited for a page that never reopened and the file
+  was silently dropped -- round 1's T4 wrong turn (people.csv, then Control+O messages.csv) hit it
+  once the first file stopped loading at once. Test `StartScreen.real-element.test.tsx`, "opens a
+  data file from the start screen on the Data page" (fails without either change). Every tier 2
+  setup that opened a data file now goes New from data... > choose a file... > Load, which runs on
+  the frozen build too. Real app: `tmp/t2r1-6/a/03.png` (page), `05.png` (Higher means: Not set),
+  `13.png` (project opens directly), `15.png` (drop), `16.png` (Cancel to start).
 - (2026-10-09) **The source's inspector has a "..." ("Source actions") holding the Sources row
   menu's verbs.** `useSourceActions` in `data-place/sourceActions.ts` gives Edit source... and
   Replace with file... under `canReplace`; the row menu and `Inspector.tsx` both call it, as
@@ -83,14 +96,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   writes `loadedWords(...)` after the rename ("people and messages: 12 nodes, 22 edges, 1 row left
   out", heard once); run state bar and find refusal follow the same rule. Evidence `tmp/t2r1-8/`.
 
-- (2026-10-09, summarized) **A list that scrolls only up and down passes `scrollbars="y"`;**
-  compact-mantine then makes its content as wide as the area (Mantine's Autosize used
-  `min-content`), and `ResultRow` ellipsizes through `EllipsizedName`. Do the same for any other
-  vertical list over long text. Evidence `tmp/t2r1-9/s1/`.
 - (2026-10-09) **The selection halo draws only its back faces, so a selected node keeps its own
   color** (`createOverlaySource` in `Node.ts`; test
   `graphty-element/test/browser/selection-halo-rings-without-tinting.test.ts`). Selection story
   baselines change and go to visual review.
+
+## Decisions and reasons
+
+- (2026-10-09, summarized) **A list that scrolls only up and down passes `scrollbars="y"`;**
+  compact-mantine then makes its content as wide as the area (Mantine's Autosize used
+  `min-content`), and `ResultRow` ellipsizes through `EllipsizedName`. Do the same for any other
+  vertical list over long text. Evidence `tmp/t2r1-9/s1/`.
 - (2026-10-09) **Tier 2 screenshot audit (round 1): the app breaks on long names and narrow
   windows, not at the study's size** (`tier2/rounds/round-1/expert/engineer.md`, 24 findings).
   `REAL_VIEWPORT=<w>x<h>` on `real.mjs --start` sets the window (default 1440x900).
@@ -98,8 +114,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-09, summarized) **Four word fixes on the path and Replace screens:** the path total
   named by its weight column (`PathValues`), an unread weight says why (`weightRead`), Replace's
   button says "Replace", Shortest path answers chain/quickest/link/between. Evidence `tmp/t2r1-14/`.
-
-## Decisions and reasons
 
 - (2026-10-09) **"Accepted" alone is not enough to call plain text a condition.** The element
   reads a bare word ("zzz", a name) as a column reference and accepts it, so the hint would have
@@ -137,28 +151,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the unweighted line ("Each edge counts as 1.") and then the one fact that explains it. When the
   meaning is unset, the "needs a distance" clause is dropped: the reader cannot act on it until a
   meaning is set, and the Data page's Higher means row says that already.
-- (2026-10-09) **The page that names the graph announces its load.** Rejected: having the canvas
-  read the header name at load end (the rename comes after `page.load()` resolves), and writing
-  the line on a timer after the place mounts (a timer is a guess; a region that is always present
-  needs none). An Add counts the file by what it adds (report total minus the graph at page open),
-  so an edge list that names only known people reads "adds 0 nodes, 41 edges": true, where the
-  file's own row count would hide repeated edges. Replace says "runs out of date".
+- (2026-10-09, condensed) **The page that names the graph announces its load** (no timer, no
+  canvas read of the header). An Add counts what it adds ("adds 0 nodes, 41 edges"); Replace says
+  "runs out of date".
 
-- (2026-10-09) **The bar scripts measure in the session the participant would use.** Tier 2's
-  screens are walked as `real.mjs` sessions (bars.mjs talks to a session's socket: ops `measure`,
-  `work`), not by a second Playwright driver, so name resolution, settling and file pickers are the
-  study's own; one `measure.mjs` holds the page checks for both. Each move carries an `--expect`
-  for the screen it should reach: on 1fc173a12 `--click Load` on the Replace page silently matched
-  other text (the button is now "Replace") and the walk measured the wrong screen until it did.
-- (2026-10-09) **What each check counts.** Focus fell = `document.activeElement` is the body or
-  null (focus inside graphty-element's shadow root counts as kept). Shared names: reachable,
-  not-disabled controls in Chromium's AX tree (button, link, checkbox, radio, switch, tab, menu
-  items, combobox, textbox, searchbox, slider, spinbutton); list items (option, treeitem, row) are
-  the data's and left out. Bar 7: a run reads the loaded column in its own sense, or reads none
-  and answers as on the table with no weight column (max-flow reads its own default `capacity`
-  attribute, which is not the loaded column, so it counts as "read none"); seeds fixed at 42 so a
-  random start cannot differ between tables. Bar 9 (b): the four screens' words, the limit being
-  round 1's count measured on the round 1 frozen build, never a later build's.
+- (2026-10-09, condensed) **The bar scripts measure in the participant's own `real.mjs` session**
+  (ops `measure`, `work`; checks in `measure.mjs`), each move with an `--expect`. Focus fell = body
+  or null (shadow-root focus is kept); shared names count reachable controls, not list items; bar
+  7 seeds 42; bar 9 limits are round 1's counts on round 1's frozen build.
 - (2026-10-08, summarized 2026-10-09) **Older dry-run fixes, still standing:** study tool `--read`
   prints table rows by cell, takes a visible `labels[0]` for a role target, records the served
   build in `session.json`; sources show counts and "Added"/"Left out" sections
@@ -225,6 +225,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Worked: checking a door change by re-walking the dry-run walks of every task whose
+  path or setup uses that door (`HERE=... LANES=1 tool/with-browser.sh bash tier2/pilot/detours.sh
+T3 T4 T20 T21 T17-P`). It found the silent Control+O loss on the Data page and the 11 setups
+  that opened a data file, neither of which the unit tests saw.
+
 - (2026-10-09) Did not work: adding a second load in a test with a bare `session.data.import`:
   its default mode is "replace", so Sources still lists one. Pass `{ mode: "merge" }`. In the real
   app, the Sources "+" is not drawn on this build and a canvas drop lands on an edge and is not
@@ -264,23 +269,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the entry point last. Did not work: `cp -p .husky/_/*` into a temp hooks dir alone -- the shim
   runs `$(dirname $(dirname $0))/<hook>`, so without the top-level hook copies beside `_/` every
   hook silently exits 0; copy both. Commit scope `studio` is refused by commitlint; `tools` passes.
-- (2026-10-09) The first-save fault: its two recorded failures were (1) the old picker-save check
-  ("a first save is answered and its file copied to the session folder") printing only the
-  screenshot path -- that check and the picker save are gone (a first save now stays in the
-  browser), so its cause cannot be traced on today's tool; (2) a run where every step after
-  "labels are turned on" failed with ECONNREFUSED on the session socket: the session process was
-  gone. Mechanism not proven; two `--prove` runs on the default `tmp/prove` folder end each
-  other's sessions (`finish()` ends every session folder it knows), so always set
-  `REAL_PROVE_DIR`. Five runs in a row on 1fc173a12 with a private folder all passed.
+- (2026-10-09, condensed) The first-save fault: one cause is gone with the picker save; the other
+  (ECONNREFUSED, session process gone) is unproven. Two `--prove` runs on the default `tmp/prove`
+  end each other's sessions: always set `REAL_PROVE_DIR`.
 
-- (2026-10-09) Did not work: leaving my edits uncommitted while another agent committed in the
-  same files. Their commit (`17bf87085`) swept my `RunValues.tsx`, `DataPage.tsx` and Replace test
-  hunks into its own message. Commit a file's hunks as soon as they pass, or at least before another
-  agent's commit window.
-- (2026-10-09) Did not work: `open(p, "w").write(f(open(p).read()))` in Python. The write-mode open
-  runs first and empties the file, so the read sees nothing; it wiped another agent's uncommitted
-  notes. Recovered by replaying that agent's edit scripts from its transcript onto HEAD (byte count
-  matched). Always read into a variable, then open for writing.
+- (2026-10-09, condensed) Did not work: leaving edits uncommitted while others commit in the same
+  files (`17bf87085` swept my hunks); commit as soon as hunks pass. Did not work:
+  `open(p, "w").write(f(open(p).read()))` empties the file before the read; read first, then write.
 - (2026-10-09, condensed) Worked: polling `/proc/*/fd` for slot-file holders (`tmp/t2r1-1/holders.sh`;
   `fuser` prints nothing useful); staging only my hunks of shared files (`git update-index
 --cacheinfo`), since real.mjs edits reach every agent's next session; `real.mjs --sr` with Tab and
@@ -305,9 +300,6 @@ of <col>`; an import page needs "New from data..."; step N lands in screenshot N
   `session.data.nodePage({ columns: [runId] })`; `selection.apply` throws synchronously on a bad
   selector (unfiled); `data.name()` returns the id until `knownFields.nodeLabelPath` is set.
 - (2026-10-06 to 10-08) Grep every route of a value before calling a change done.
-- **Open project or file... reopening a project.** #913 closed in the element with "one intake
-  verb"; the app still imports a `.graphty.json` as data. A tier 1 task (save, close, reopen) only
-  passes today through Recent projects.
 
 ## Sources
 

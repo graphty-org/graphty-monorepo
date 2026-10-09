@@ -1,7 +1,9 @@
 # friends.csv open with PageRank run (a returning user's last session)
 --click No thanks
---click Open project or file...
+--click New from data...
+--click choose a file...
 --upload friends.csv
+--click Load
 --key Shift+A
 --type PageRank
 --click PageRank

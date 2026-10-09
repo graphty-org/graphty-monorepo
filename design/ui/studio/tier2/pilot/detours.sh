@@ -49,9 +49,9 @@ T4-K) walk T4-K "empty $K" '--key Tab --key Tab --key Tab --key Tab --key Enter'
     '--key Enter' '--expect "people and messages"' ;;
 # Wrong turn: each table through "Open project or file..." (Control+O), the second as an addition.
 T4-D1) walk T4-D1 empty '--click "No thanks"' '--click "Open project or file..." --upload people.csv' \
-    '--key Control+o --upload messages.csv' '--expect "Add to"' '--click "Add"' '--key Tab' '--key Escape' ;;
-# ---- Tier 1 T3: one's own file, opened from the start screen (a data file opening the Data page
-# first adds a Load to this path: re-walk it on a build that does)
+    '--expect "Open as a new graph"' '--key Control+o --upload messages.csv' '--expect "Edges: messages.csv"' \
+    '--click "Add"' '--key Tab' '--key Escape' ;;
+# ---- Tier 1 T3: one's own file, opened from the start screen, through the Data page
 T3-P) walk T3-P empty '--click "No thanks"' '--click "Open project or file..." --upload friends.csv' \
     '--click "Load"' '--click "Data"' '--expect "41 edges"' ;;
 # ---- T17: filtering --------------------------------------------------------------------------

@@ -1,7 +1,9 @@
 # bus-stops.csv open (no weight), ranked by PageRank, dots colored and sized by it
 --click No thanks
---click Open project or file...
+--click New from data...
+--click choose a file...
 --upload bus-stops.csv
+--click Load
 --key Shift+A
 --type PageRank
 --click PageRank

@@ -49,7 +49,7 @@ import {
     setWeightMeaning,
     weightHolder,
 } from "./choices";
-import { rememberLoad, takeDataPageRequest } from "./request";
+import { rememberLoad, takeDataPageRequest, whileDataPageOpen } from "./request";
 import { type LoadDraftState, type PageSource, type RowFilter, sourceName, useLoadDraft } from "./useLoadDraft";
 import {
     addWords,
@@ -282,6 +282,19 @@ export function DataPage(): React.JSX.Element {
         added.current = held.length > 0 ? (files[0]?.name ?? null) : null;
         page.setSource({ kind: "files", files: next });
     };
+
+    // A file opened while the page is open (Open project or file..., Control+O) lands as a drop.
+    const addFilesRef = useRef(addFiles);
+    useEffect(() => {
+        addFilesRef.current = addFiles;
+    });
+    useEffect(
+        () =>
+            whileDataPageOpen(store, (next) => {
+                addFilesRef.current(next.files ?? [], true);
+            }),
+        [store],
+    );
 
     return (
         <PopoutManager>

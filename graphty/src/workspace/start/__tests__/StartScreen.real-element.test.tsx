@@ -246,6 +246,34 @@ describe("Open project or file... and a dropped file, on the real element", () =
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
+        "opens a data file from the start screen on the Data page as a new graph, loading nothing until Load, and takes a second file opened from there",
+        async () => {
+            const store = createWorkspaceStore();
+            const { unmount } = render(<Workspace store={store} />);
+            chooseNextFile(new File(["from,to,km\na,b,3\nb,c,6\n"], "trail.csv", { type: "text/csv" }));
+            await userEvent.click(screen.getByRole("button", { name: /Open project or file\.\.\./ }));
+            // The roles and the weight's meaning are asked before anything loads.
+            await screen.findByRole("heading", { name: "Open as a new graph" }, { timeout: TIMEOUT_MS });
+            await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+            const session = await elementSession();
+            assert.equal(session.data.statistics().nodeCount, 0);
+            // Opening a second file from the page itself joins it as the second table, as a drop does.
+            chooseNextFile(new File(["id,name\na,A\nb,B\nc,C\n"], "junctions.csv", { type: "text/csv" }));
+            await userEvent.keyboard("{Control>}o{/Control}");
+            await screen.findByText("Nodes: junctions.csv", {}, { timeout: TIMEOUT_MS });
+            assert.isNotNull(screen.getByText("Edges: trail.csv"));
+            // Cancel goes back to the start screen, as from New from data....
+            await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+            await waitFor(() => {
+                assert.isNull(store.get().project);
+            });
+            unmount();
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
         "adds a data file to the open project through the Data page, and asks before a project file replaces unsaved changes",
         async () => {
             const project = await lesMiserablesProjectFile();

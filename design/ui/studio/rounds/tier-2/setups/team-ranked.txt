@@ -1,7 +1,9 @@
 # team.csv open, ranked by PageRank, dots colored and sized by it (the routine every history shares)
 --click No thanks
---click Open project or file...
+--click New from data...
+--click choose a file...
 --upload team.csv
+--click Load
 --key Shift+A
 --type PageRank
 --click PageRank

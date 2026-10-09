@@ -13,11 +13,11 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
+import { nextFrame } from "../helpers/real-input";
 
 const WIDTH = 480;
 const HEIGHT = 360;
 const FRAMES = 8;
-const FRAME_MS = 10;
 /**
  * The strong-to-faint glow ratio with placement cancelled out. Drawn at one strength it is exactly
  * 1. Each at its own strength it measured 2.1, not 10: the strong glow's centre saturates the 8-bit
@@ -30,7 +30,6 @@ describe("glow strength per style", () => {
     let graph: Graph;
     let session: GraphSession;
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeAll(async () => {
         container = document.createElement("div");
         container.style.width = `${String(WIDTH)}px`;
@@ -44,7 +43,7 @@ describe("glow strength per style", () => {
         // Circular, so the frame does not drift between reads.
         await graph.setLayout("circular", { scale: 0.2 });
         await operationQueueOf(graph).waitForCompletion();
-    }, 60000);
+    });
 
     afterAll(() => {
         graph.dispose();
@@ -56,10 +55,7 @@ describe("glow strength per style", () => {
 
         for (let at = 0; at < FRAMES; at++) {
             graph.scene.render();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
+            await nextFrame();
         }
 
         const { engine } = graph;

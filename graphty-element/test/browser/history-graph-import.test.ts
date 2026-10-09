@@ -16,9 +16,6 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 
-/** Per-test budget: each builds a real Babylon scene. */
-const TEST_TIMEOUT_MS = 30_000;
-
 /** Three nodes and two edges, as a JSON document. */
 const GRAPH = JSON.stringify({
     nodes: [{ id: "1" }, { id: "2" }, { id: "3" }],
@@ -84,145 +81,115 @@ function ids(element: Graphty): unknown[] {
 }
 
 describe("loading data into the element, under undo", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "a data source in the markup is the baseline: Undo is off once it has loaded",
-        async () => {
-            const element = await declared((each) => {
-                each.setAttribute("data-source", "json");
-                each.dataSourceConfig = { data: GRAPH };
-            });
-            await vi.waitFor(() => {
-                assert.deepEqual(ids(element), ["1", "2", "3"]);
-            });
-            await settled(element);
-
-            assert.isFalse(element.session.canUndo);
-            assert.lengthOf(element.session.history.steps, 0);
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "node and edge data declared before the first update are the baseline too",
-        async () => {
-            const element = await declared((each) => {
-                each.nodeData = [{ id: "a" }, { id: "b" }];
-                each.edgeData = [{ source: "a", target: "b" }];
-            });
-            await settled(element);
-
-            assert.deepEqual(ids(element), ["a", "b"]);
-            assert.isFalse(element.session.canUndo);
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "a load after the element is up is one step, and the two source properties in one tick are one load",
-        async () => {
-            const element = await declared((each) => {
-                each.dataSource = "json";
-                each.dataSourceConfig = { data: GRAPH };
-            });
-            await settled(element);
-            let loads = 0;
-            element.addEventListener("data-loaded", () => {
-                loads++;
-            });
-
-            element.dataSource = "json";
-            element.dataSourceConfig = { data: OTHER };
-            await settled(element);
-
-            assert.strictEqual(loads, 1, "one load");
-            assert.lengthOf(element.session.history.steps, 1, "one step");
-            assert.deepEqual(ids(element), ["1", "9"], "the new source replaced the graph");
-
-            await element.session.undo();
+    it("a data source in the markup is the baseline: Undo is off once it has loaded", async () => {
+        const element = await declared((each) => {
+            each.setAttribute("data-source", "json");
+            each.dataSourceConfig = { data: GRAPH };
+        });
+        await vi.waitFor(() => {
             assert.deepEqual(ids(element), ["1", "2", "3"]);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        });
+        await settled(element);
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "a declared load that fails leaves nothing to undo, and a later edit is a step",
-        async () => {
-            const element = await declared((each) => {
-                each.dataSource = "json";
-                each.dataSourceConfig = { data: FAILING };
-            });
-            await settled(element);
+        assert.isFalse(element.session.canUndo);
+        assert.lengthOf(element.session.history.steps, 0);
+    });
 
-            assert.isFalse(element.session.canUndo);
-            assert.deepEqual(ids(element), [], "the rows it wrote were taken back");
+    it("node and edge data declared before the first update are the baseline too", async () => {
+        const element = await declared((each) => {
+            each.nodeData = [{ id: "a" }, { id: "b" }];
+            each.edgeData = [{ source: "a", target: "b" }];
+        });
+        await settled(element);
 
-            await element.session.styles.add({
-                name: "after the failure",
-                target: "node",
-                selector: { match: "everything" },
-                set: { "node.color": "#ff0000" },
-            });
-            assert.isTrue(element.session.canUndo);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.deepEqual(ids(element), ["a", "b"]);
+        assert.isFalse(element.session.canUndo);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "setData is one step, and so is assigning the edges",
-        async () => {
-            const element = await declared(() => undefined);
-            await settled(element);
+    it("a load after the element is up is one step, and the two source properties in one tick are one load", async () => {
+        const element = await declared((each) => {
+            each.dataSource = "json";
+            each.dataSourceConfig = { data: GRAPH };
+        });
+        await settled(element);
+        let loads = 0;
+        element.addEventListener("data-loaded", () => {
+            loads++;
+        });
 
-            element.setData({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }], edges: [{ source: "a", target: "b" }] });
-            await settled(element);
-            assert.lengthOf(element.session.history.steps, 1, "setData");
+        element.dataSource = "json";
+        element.dataSourceConfig = { data: OTHER };
+        await settled(element);
 
-            element.edgeData = [
-                { source: "b", target: "c" },
-                { source: "c", target: "a" },
-            ];
-            await settled(element);
-            assert.lengthOf(element.session.history.steps, 2, "the edges");
-            assert.strictEqual(element.graph.getEdgeCount(), 2, "the old edge was replaced");
+        assert.strictEqual(loads, 1, "one load");
+        assert.lengthOf(element.session.history.steps, 1, "one step");
+        assert.deepEqual(ids(element), ["1", "9"], "the new source replaced the graph");
 
-            await element.session.undo();
-            assert.deepEqual(
-                element.edgeData?.map((edge) => [edge.source, edge.target]),
-                [["a", "b"]],
-            );
-            await element.session.undo();
-            assert.isUndefined(element.nodeData);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        await element.session.undo();
+        assert.deepEqual(ids(element), ["1", "2", "3"]);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "a pin does not outlive its node: pin 1, clear, load a graph reusing 1, and nothing is pinned",
-        async () => {
-            const element = await declared((each) => {
-                each.dataSource = "json";
-                each.dataSourceConfig = { data: GRAPH };
-            });
-            await settled(element);
+    it("a declared load that fails leaves nothing to undo, and a later edit is a step", async () => {
+        const element = await declared((each) => {
+            each.dataSource = "json";
+            each.dataSourceConfig = { data: FAILING };
+        });
+        await settled(element);
 
-            element.pin("1");
-            assert.isTrue(element.isPinned("1"));
-            element.clearData();
-            await settled(element);
-            element.dataSource = "json";
-            element.dataSourceConfig = { data: OTHER };
-            await settled(element);
+        assert.isFalse(element.session.canUndo);
+        assert.deepEqual(ids(element), [], "the rows it wrote were taken back");
 
-            assert.deepEqual(ids(element), ["1", "9"]);
-            assert.isFalse(element.isPinned("1"));
-            assert.deepEqual([...element.pinnedNodes], []);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        await element.session.styles.add({
+            name: "after the failure",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        assert.isTrue(element.session.canUndo);
+    });
+
+    it("setData is one step, and so is assigning the edges", async () => {
+        const element = await declared(() => undefined);
+        await settled(element);
+
+        element.setData({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }], edges: [{ source: "a", target: "b" }] });
+        await settled(element);
+        assert.lengthOf(element.session.history.steps, 1, "setData");
+
+        element.edgeData = [
+            { source: "b", target: "c" },
+            { source: "c", target: "a" },
+        ];
+        await settled(element);
+        assert.lengthOf(element.session.history.steps, 2, "the edges");
+        assert.strictEqual(element.graph.getEdgeCount(), 2, "the old edge was replaced");
+
+        await element.session.undo();
+        assert.deepEqual(
+            element.edgeData?.map((edge) => [edge.source, edge.target]),
+            [["a", "b"]],
+        );
+        await element.session.undo();
+        assert.isUndefined(element.nodeData);
+    });
+
+    it("a pin does not outlive its node: pin 1, clear, load a graph reusing 1, and nothing is pinned", async () => {
+        const element = await declared((each) => {
+            each.dataSource = "json";
+            each.dataSourceConfig = { data: GRAPH };
+        });
+        await settled(element);
+
+        element.pin("1");
+        assert.isTrue(element.isPinned("1"));
+        element.clearData();
+        await settled(element);
+        element.dataSource = "json";
+        element.dataSourceConfig = { data: OTHER };
+        await settled(element);
+
+        assert.deepEqual(ids(element), ["1", "9"]);
+        assert.isFalse(element.isPinned("1"));
+        assert.deepEqual([...element.pinnedNodes], []);
+    });
 });

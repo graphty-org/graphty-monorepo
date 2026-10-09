@@ -278,6 +278,40 @@ describe("checks", () => {
         const pending = polls([early])["704"];
         expect(pending.required["All Checks Pass"]).toBe("MISSING");
         expect(pending.failingChecks).toEqual([]);
+        const rerunPassed = withChecks(node(), [
+            run("All Checks Pass", "FAILURE", { databaseId: 1 }),
+            run("All Checks Pass", "SUCCESS", { databaseId: 2 }),
+        ]);
+        expect(polls([rerunPassed])["704"].required["All Checks Pass"]).toBe("SUCCESS");
+    });
+
+    it("a draft run whose summary started after the ready event is replaced by the in-flight ready run", () => {
+        // #1814: the draft run was created in the second of the ready event and its summary check
+        // started 3 s later; the ready run is in flight and has not made its summary check yet.
+        const wr = (/** @type {number} */ id, /** @type {string} */ createdAt) => ({
+            checkSuite: { workflowRun: { databaseId: id, createdAt, workflow: { name: "CI" } } },
+        });
+        const ready = { timelineItems: { nodes: [{ createdAt: "2026-10-09T21:48:02Z" }] } };
+        const draft = wr(37995599224, "2026-10-09T21:48:02Z");
+        const live = wr(37995604138, "2026-10-09T21:48:05Z");
+        const checks = [
+            run("All Checks Pass", "FAILURE", { databaseId: 1, startedAt: "2026-10-09T21:48:05Z", ...draft }),
+            run("Build", null, { databaseId: 2, startedAt: "2026-10-09T21:48:07Z", ...live }),
+        ];
+        const rec = polls([withChecks(node(ready), checks)])["704"];
+        expect(rec.required["All Checks Pass"]).toBe("MISSING");
+        expect(rec.failingChecks).toEqual([]);
+        // The ready run finished: its own summary check counts, whichever way it went.
+        const done = (/** @type {string} */ c) => [
+            checks[0],
+            run("Build", "SUCCESS", { databaseId: 2, ...live }),
+            run("All Checks Pass", c, { databaseId: 3, ...live }),
+        ];
+        expect(polls([withChecks(node(ready), done("SUCCESS"))])["704"].required["All Checks Pass"]).toBe("SUCCESS");
+        expect(polls([withChecks(node(ready), done("FAILURE"))])["704"].required["All Checks Pass"]).toBe("FAILURE");
+        // With no other run of the workflow in flight, the draft run's failure stands.
+        const alone = withChecks(node(ready), [checks[0]]);
+        expect(polls([alone])["704"].required["All Checks Pass"]).toBe("FAILURE");
     });
 
     it("a cancelled required check is no failure: no ask, no pr job, its run listed for a re-run", () => {

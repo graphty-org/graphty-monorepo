@@ -205,6 +205,37 @@ function runOpen(r) {
 }
 
 /**
+ * The workflow runs on a head that still have a pending check, by workflow name.
+ * @param {any[]} contexts CheckRun and StatusContext nodes
+ * @returns {Map<string, Set<number>>} run ids by workflow name
+ */
+function inFlightRuns(contexts) {
+    /** @type {Map<string, Set<number>>} */
+    const out = new Map();
+    for (const c of contexts) {
+        const wr = c.checkSuite?.workflowRun;
+        if (!wr?.databaseId || contextState(c) !== "PENDING") continue;
+        const name = wr.workflow?.name ?? "";
+        out.set(name, (out.get(name) ?? new Set()).add(wr.databaseId));
+    }
+    return out;
+}
+
+/**
+ * Whether a check run belongs to a run made at or before the pull request was marked ready while
+ * another run of the same workflow on the head is still in flight: the draft run, replaced.
+ * @param {any} c the context
+ * @param {string} readyAt the last ready-for-review time
+ * @param {Map<string, Set<number>>} inFlight {@link inFlightRuns}
+ * @returns {boolean} true when it says nothing about the ready pull request
+ */
+function replacedDraftRun(c, readyAt, inFlight) {
+    const wr = c.checkSuite?.workflowRun;
+    if (!wr?.createdAt || wr.createdAt > readyAt) return false;
+    return [...(inFlight.get(wr.workflow?.name ?? "") ?? [])].some((id) => id !== wr.databaseId);
+}
+
+/**
  * The checks of a node's head commit.
  * @param {any} node a GraphQL pullRequest node
  * @param {string[]} requiredChecks the required context names
@@ -229,9 +260,17 @@ function readChecks(node, requiredChecks, queueChecks) {
     // A check run that started before the PR was last marked ready ran on the draft: it says nothing
     // about the ready PR, even while the ready run is queued and has reported no check (#1080). A
     // StatusContext has no start time and is kept.
+    // A run made at or before that time, while another run of its workflow on this head is still in
+    // flight, is the draft run too, however late its jobs started: a draft run whose summary check
+    // starts seconds after the ready event would otherwise read as the verdict while the ready run's
+    // summary check does not exist yet (#1814). Once the ready run finishes, its later check runs win.
     const readyAt = node.timelineItems?.nodes?.[0]?.createdAt;
+    const inFlight = inFlightRuns(allContexts);
     const contexts = readyAt
-        ? allContexts.filter((/** @type {any} */ c) => !(c.startedAt && c.startedAt < readyAt))
+        ? allContexts.filter(
+              (/** @type {any} */ c) =>
+                  !(c.startedAt && c.startedAt < readyAt) && !replacedDraftRun(c, readyAt, inFlight),
+          )
         : allContexts;
     /** @type {Map<number, RunNote>} */
     const runs = new Map();

@@ -313,7 +313,7 @@ const PRS_QUERY = `query($owner: String!, $name: String!) {
           statusCheckRollup { contexts(first: 100) { nodes {
             __typename
             ... on CheckRun { name status conclusion startedAt completedAt databaseId
-              checkSuite { workflowRun { databaseId workflow { name } } } }
+              checkSuite { workflowRun { databaseId createdAt workflow { name } } } }
             ... on StatusContext { context state }
           } } }
         } } }

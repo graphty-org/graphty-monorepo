@@ -139,95 +139,82 @@ describe("FA2 subgroup twins in-process (spec 11.3)", () => {
         for (const tuning of [PAPER, NETWORKX]) {
             const paper = tuning.compat === "paper";
             const label = `${graph}/${tuning.compat ?? "paper"}`;
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-            it(
-                `${label}: every stage agrees between the twins within the traced tolerances; K2's attraction bitwise`,
-                async (t) => {
-                    requireGpu(t);
-                    if (NO_SUBGROUPS_PASS) {
-                        t.skip("GRAPHTY_GPU_NO_SUBGROUPS=1: both contexts are the workgroup twin");
-                        return;
-                    }
-                    const s = paritySnapshot(graph, gpuScale(), false);
-                    try {
-                        const start = startPositions(s, BASE_OPTIONS, false);
-                        const a = await captureAllStages(withSubgroups, s, start, BASE_OPTIONS, tuning, null);
-                        const b = await captureAllStages(withoutSubgroups, s, start, BASE_OPTIONS, tuning, null);
-                        for (const key of STAGE_KEYS) {
-                            const err = stageError(a[key].vector, a[key].values, b[key].values);
-                            const report: CheckReport = {
-                                worst: ratioOf(err.rel, toleranceOf(TWIN_TOLERANCE[key])),
-                                worstLabel: `${label}/${key}`,
-                                samples: a[key].values.length,
-                            };
-                            console.warn(
-                                `[fa2-twins] ${label}/${key}: rel ${err.rel.toExponential(3)} abs ${err.abs.toExponential(3)} ratio ${report.worst.toExponential(3)}`,
-                            );
-                            assertCheckPasses(report);
-                            if (!TWINNED.includes(key)) {
-                                expectBitwiseEqual(a[key].values, b[key].values, `${label}/${key}: no twin, bitwise`);
-                            }
-                        }
-                    } finally {
-                        withSubgroups.release(s);
-                        withoutSubgroups.release(s);
-                    }
-                },
-                CASE_TIMEOUT,
-            );
-
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-            it(
-                `${label}: one iteration from each of ${TRACE_TEN} trajectory states agrees between the twins (re-synchronised per iteration)`,
-                async (t) => {
-                    requireGpu(t);
-                    if (NO_SUBGROUPS_PASS) {
-                        t.skip("GRAPHTY_GPU_NO_SUBGROUPS=1: both contexts are the workgroup twin");
-                        return;
-                    }
-                    const s = paritySnapshot(graph, gpuScale(), false);
-                    try {
-                        const start = startPositions(s, BASE_OPTIONS, false);
-                        // the states: the f64 oracle's positions after t = 0 .. TRACE_TEN - 1 iterations
-                        const states = oracleStates(s, start, BASE_OPTIONS, tuning, TRACE_TEN);
-                        const records: CheckReport[] = [];
-                        const positions: CheckReport[] = [];
-                        for (let k = 0; k < states.length; k++) {
-                            const a = await oneIterationFrom(withSubgroups, s, states[k], tuning);
-                            const b = await oneIterationFrom(withoutSubgroups, s, states[k], tuning);
-                            records.push({
-                                worst: ratioOf(
-                                    stageError(false, a.record, b.record).rel,
-                                    toleranceOf("fa2-twins.trace"),
-                                ),
-                                worstLabel: `${label}: record from state ${k}`,
-                                samples: a.record.length,
-                            });
-                            positions.push({
-                                worst: ratioOf(
-                                    stageError(true, a.positions, b.positions).rel,
-                                    toleranceOf("fa2-twins.positions"),
-                                ),
-                                worstLabel: `${label}: positions from state ${k}`,
-                                samples: s.nodeCount,
-                            });
-                        }
-                        const record = mergeReports(records);
-                        const position = mergeReports(positions);
+            it(`${label}: every stage agrees between the twins within the traced tolerances; K2's attraction bitwise`, async (t) => {
+                requireGpu(t);
+                if (NO_SUBGROUPS_PASS) {
+                    t.skip("GRAPHTY_GPU_NO_SUBGROUPS=1: both contexts are the workgroup twin");
+                    return;
+                }
+                const s = paritySnapshot(graph, gpuScale(), false);
+                try {
+                    const start = startPositions(s, BASE_OPTIONS, false);
+                    const a = await captureAllStages(withSubgroups, s, start, BASE_OPTIONS, tuning, null);
+                    const b = await captureAllStages(withoutSubgroups, s, start, BASE_OPTIONS, tuning, null);
+                    for (const key of STAGE_KEYS) {
+                        const err = stageError(a[key].vector, a[key].values, b[key].values);
+                        const report: CheckReport = {
+                            worst: ratioOf(err.rel, toleranceOf(TWIN_TOLERANCE[key])),
+                            worstLabel: `${label}/${key}`,
+                            samples: a[key].values.length,
+                        };
                         console.warn(
-                            `[fa2-twins] ${label}: re-synchronised twin over ${states.length} states: record ratio ${record.worst.toExponential(3)} (${record.worstLabel}), positions ratio ${position.worst.toExponential(3)}`,
+                            `[fa2-twins] ${label}/${key}: rel ${err.rel.toExponential(3)} abs ${err.abs.toExponential(3)} ratio ${report.worst.toExponential(3)}`,
                         );
-                        assertCheckPasses(record);
-                        assertCheckPasses(position);
-                    } finally {
-                        withSubgroups.release(s);
-                        withoutSubgroups.release(s);
+                        assertCheckPasses(report);
+                        if (!TWINNED.includes(key)) {
+                            expectBitwiseEqual(a[key].values, b[key].values, `${label}/${key}: no twin, bitwise`);
+                        }
                     }
-                },
-                CASE_TIMEOUT,
-            );
+                } finally {
+                    withSubgroups.release(s);
+                    withoutSubgroups.release(s);
+                }
+            });
 
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+            it(`${label}: one iteration from each of ${TRACE_TEN} trajectory states agrees between the twins (re-synchronised per iteration)`, async (t) => {
+                requireGpu(t);
+                if (NO_SUBGROUPS_PASS) {
+                    t.skip("GRAPHTY_GPU_NO_SUBGROUPS=1: both contexts are the workgroup twin");
+                    return;
+                }
+                const s = paritySnapshot(graph, gpuScale(), false);
+                try {
+                    const start = startPositions(s, BASE_OPTIONS, false);
+                    // the states: the f64 oracle's positions after t = 0 .. TRACE_TEN - 1 iterations
+                    const states = oracleStates(s, start, BASE_OPTIONS, tuning, TRACE_TEN);
+                    const records: CheckReport[] = [];
+                    const positions: CheckReport[] = [];
+                    for (let k = 0; k < states.length; k++) {
+                        const a = await oneIterationFrom(withSubgroups, s, states[k], tuning);
+                        const b = await oneIterationFrom(withoutSubgroups, s, states[k], tuning);
+                        records.push({
+                            worst: ratioOf(stageError(false, a.record, b.record).rel, toleranceOf("fa2-twins.trace")),
+                            worstLabel: `${label}: record from state ${k}`,
+                            samples: a.record.length,
+                        });
+                        positions.push({
+                            worst: ratioOf(
+                                stageError(true, a.positions, b.positions).rel,
+                                toleranceOf("fa2-twins.positions"),
+                            ),
+                            worstLabel: `${label}: positions from state ${k}`,
+                            samples: s.nodeCount,
+                        });
+                    }
+                    const record = mergeReports(records);
+                    const position = mergeReports(positions);
+                    console.warn(
+                        `[fa2-twins] ${label}: re-synchronised twin over ${states.length} states: record ratio ${record.worst.toExponential(3)} (${record.worstLabel}), positions ratio ${position.worst.toExponential(3)}`,
+                    );
+                    assertCheckPasses(record);
+                    assertCheckPasses(position);
+                } finally {
+                    withSubgroups.release(s);
+                    withoutSubgroups.release(s);
+                }
+            });
+
+            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 91 s on the T4 lane, 78 s on the dev box's RTX 4070 SUPER under load, 48 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
             it(
                 `${label}: the workgroup twin's ${TRACE_ITERATIONS}-iteration trajectory agrees with the re-synchronised f32 / f64 oracles; the free-running ${TRACE_TEN}-iteration twin trace ${paper ? "printed (chaotic)" : "within fa2-twins.trace"}`,
                 async (t) => {
@@ -276,111 +263,106 @@ describe("FA2 subgroup twins in-process (spec 11.3)", () => {
         }
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "writes the workgroup twin's outputs of the UNSCALED random1k / karate as `<class>-no-subgroups` noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
-                // a writer asserts nothing a recording run does not need, and its unscaled f64 oracle runs are
-                // tens of seconds of synchronous work under coverage (issue #413)
-                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
-            }
-            requireGpu(t);
-            const twinClass = `${adapterClass(withoutSubgroups.caps)}${TWIN_SUFFIX}`;
-            // the stage members (paper, random1k)
-            const paperInputs = noiseInputs();
-            try {
-                const capture = await captureAllStages(
-                    withoutSubgroups,
-                    paperInputs.s,
-                    paperInputs.start,
-                    paperInputs.options,
-                    paperInputs.tuning,
-                    null,
-                );
-                for (const key of TWIN_MEMBERS) {
-                    writeNoiseFixture(
-                        NOISE_FIXTURES[key].kernel,
-                        NOISE_FIXTURES[key].fixture,
-                        twinClass,
-                        capture[key].values,
-                        "f32",
-                    );
-                }
-            } finally {
-                withoutSubgroups.release(paperInputs.s);
-            }
-            // the states10 member: both twins and the f64 reference from the same ten oracle-trajectory states of
-            // each mode (twenty geometries)
-            const st = noiseInputs();
-            try {
-                const feature: number[] = [];
-                const workgroup: number[] = [];
-                const reference: number[] = [];
-                for (const tuning of [PAPER, NETWORKX]) {
-                    for (const state of oracleStates(st.s, st.start, st.options, tuning, TRACE_TEN)) {
-                        feature.push(...(await oneIterationFrom(withSubgroups, st.s, state, tuning)).record);
-                        workgroup.push(...(await oneIterationFrom(withoutSubgroups, st.s, state, tuning)).record);
-                        reference.push(...oracleRecordFrom(st.s, state, st.options, tuning));
-                    }
-                }
-                const { kernel, fixture } = NOISE_FIXTURES.states10;
-                if (!NO_SUBGROUPS_PASS) {
-                    writeNoiseFixture(kernel, fixture, adapterClass(withSubgroups.caps), feature, "f32");
-                }
-                writeNoiseFixture(kernel, fixture, twinClass, workgroup, "f32");
-                writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, reference, "f32");
-            } finally {
-                withSubgroups.release(st.s);
-                withoutSubgroups.release(st.s);
-            }
-            // the free-running networkx trace10 twin member
-            const nx = noiseInputs(NETWORKX);
-            try {
-                const run = await resyncTrace(withoutSubgroups, nx.s, nx.start, nx.options, nx.tuning, TRACE_TEN);
+    it("writes the workgroup twin's outputs of the UNSCALED random1k / karate as `<class>-no-subgroups` noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+            // a writer asserts nothing a recording run does not need, and its unscaled f64 oracle runs are
+            // tens of seconds of synchronous work under coverage (issue #413)
+            t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+        }
+        requireGpu(t);
+        const twinClass = `${adapterClass(withoutSubgroups.caps)}${TWIN_SUFFIX}`;
+        // the stage members (paper, random1k)
+        const paperInputs = noiseInputs();
+        try {
+            const capture = await captureAllStages(
+                withoutSubgroups,
+                paperInputs.s,
+                paperInputs.start,
+                paperInputs.options,
+                paperInputs.tuning,
+                null,
+            );
+            for (const key of TWIN_MEMBERS) {
                 writeNoiseFixture(
-                    NOISE_FIXTURES.trace10.kernel,
-                    NOISE_FIXTURES.trace10.fixture,
+                    NOISE_FIXTURES[key].kernel,
+                    NOISE_FIXTURES[key].fixture,
                     twinClass,
-                    traceValues(run.trace, 0, TRACE_TEN),
+                    capture[key].values,
+                    "f32",
+                );
+            }
+        } finally {
+            withoutSubgroups.release(paperInputs.s);
+        }
+        // the states10 member: both twins and the f64 reference from the same ten oracle-trajectory states of
+        // each mode (twenty geometries)
+        const st = noiseInputs();
+        try {
+            const feature: number[] = [];
+            const workgroup: number[] = [];
+            const reference: number[] = [];
+            for (const tuning of [PAPER, NETWORKX]) {
+                for (const state of oracleStates(st.s, st.start, st.options, tuning, TRACE_TEN)) {
+                    feature.push(...(await oneIterationFrom(withSubgroups, st.s, state, tuning)).record);
+                    workgroup.push(...(await oneIterationFrom(withoutSubgroups, st.s, state, tuning)).record);
+                    reference.push(...oracleRecordFrom(st.s, state, st.options, tuning));
+                }
+            }
+            const { kernel, fixture } = NOISE_FIXTURES.states10;
+            if (!NO_SUBGROUPS_PASS) {
+                writeNoiseFixture(kernel, fixture, adapterClass(withSubgroups.caps), feature, "f32");
+            }
+            writeNoiseFixture(kernel, fixture, twinClass, workgroup, "f32");
+            writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, reference, "f32");
+        } finally {
+            withSubgroups.release(st.s);
+            withoutSubgroups.release(st.s);
+        }
+        // the free-running networkx trace10 twin member
+        const nx = noiseInputs(NETWORKX);
+        try {
+            const run = await resyncTrace(withoutSubgroups, nx.s, nx.start, nx.options, nx.tuning, TRACE_TEN);
+            writeNoiseFixture(
+                NOISE_FIXTURES.trace10.kernel,
+                NOISE_FIXTURES.trace10.fixture,
+                twinClass,
+                traceValues(run.trace, 0, TRACE_TEN),
+                "f32",
+            );
+        } finally {
+            withoutSubgroups.release(nx.s);
+        }
+        // the paper-mode re-synchronised members of the twin, with the oracles that followed ITS states
+        for (const member of ["resync50", "resyncKarate50"] as const) {
+            const inputs = noiseInputs(PAPER, member === "resync50" ? "random1k" : "karate");
+            try {
+                const run = await resyncTrace(
+                    withoutSubgroups,
+                    inputs.s,
+                    inputs.start,
+                    inputs.options,
+                    inputs.tuning,
+                    TRACE_ITERATIONS,
+                );
+                const { kernel, fixture } = NOISE_FIXTURES[member];
+                writeNoiseFixture(kernel, fixture, twinClass, resyncValues(run.gpu), "f32");
+                writeNoiseFixture(
+                    kernel,
+                    fixture,
+                    resyncOracleClass(ORACLE_F32_CLASS, twinClass),
+                    resyncValues(run.f32),
+                    "f32",
+                );
+                writeNoiseFixture(
+                    kernel,
+                    fixture,
+                    resyncOracleClass(ORACLE_F64_CLASS, twinClass),
+                    resyncValues(run.f64),
                     "f32",
                 );
             } finally {
-                withoutSubgroups.release(nx.s);
+                withoutSubgroups.release(inputs.s);
             }
-            // the paper-mode re-synchronised members of the twin, with the oracles that followed ITS states
-            for (const member of ["resync50", "resyncKarate50"] as const) {
-                const inputs = noiseInputs(PAPER, member === "resync50" ? "random1k" : "karate");
-                try {
-                    const run = await resyncTrace(
-                        withoutSubgroups,
-                        inputs.s,
-                        inputs.start,
-                        inputs.options,
-                        inputs.tuning,
-                        TRACE_ITERATIONS,
-                    );
-                    const { kernel, fixture } = NOISE_FIXTURES[member];
-                    writeNoiseFixture(kernel, fixture, twinClass, resyncValues(run.gpu), "f32");
-                    writeNoiseFixture(
-                        kernel,
-                        fixture,
-                        resyncOracleClass(ORACLE_F32_CLASS, twinClass),
-                        resyncValues(run.f32),
-                        "f32",
-                    );
-                    writeNoiseFixture(
-                        kernel,
-                        fixture,
-                        resyncOracleClass(ORACLE_F64_CLASS, twinClass),
-                        resyncValues(run.f64),
-                        "f32",
-                    );
-                } finally {
-                    withoutSubgroups.release(inputs.s);
-                }
-            }
-        },
-        CASE_TIMEOUT,
-    );
+        }
+    });
 });

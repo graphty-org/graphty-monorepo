@@ -246,7 +246,7 @@ async function compare(
 }
 
 describe("FR vs @graphty/layout: the admission rule (the f64 and f32 oracles alone, no GPU)", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 75 s on the T4 lane, 55 s on the dev box's RTX 4070 SUPER under load, 35 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "every case's trajectory sensitivity is printed; the admitted horizons are under a third of the cap on both counts; the layout10 member's configuration (karate with the mask) is admitted at its horizon",
         async () => {
@@ -333,154 +333,129 @@ describe("FR vs @graphty/layout's FruchtermanReingoldSimulation: the second refe
             const label = caseLabel(graph, k);
             const asserted = ADMITTED[label];
             const printed = [...HORIZONS.filter((h) => !asserted.includes(h)), PRINTED];
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-            it(
-                `${label}: twice bitwise; within fr-layout-oracle after ${asserted.join(", ")} iterations, ${printed.join(", ")} printed; the temperature schedule bitwise`,
-                async (t) => {
-                    requireGpu(t);
-                    const s = paritySnapshot(graph, gpuScale(), false);
-                    try {
-                        const options: FruchtermanReingoldOptions = { ...FR_BASE_OPTIONS, k };
-                        assertUnitStart(options);
-                        await compare(ctx, s, options, null, asserted, printed, label);
-                    } finally {
-                        ctx.release(s);
-                    }
-                },
-                CASE_TIMEOUT,
-            );
+            it(`${label}: twice bitwise; within fr-layout-oracle after ${asserted.join(", ")} iterations, ${printed.join(", ")} printed; the temperature schedule bitwise`, async (t) => {
+                requireGpu(t);
+                const s = paritySnapshot(graph, gpuScale(), false);
+                try {
+                    const options: FruchtermanReingoldOptions = { ...FR_BASE_OPTIONS, k };
+                    assertUnitStart(options);
+                    await compare(ctx, s, options, null, asserted, printed, label);
+                } finally {
+                    ctx.release(s);
+                }
+            });
         }
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        `karate with a fixed mask on both sides: the pinned row is bitwise the seed at every horizon, the rest within fr-layout-oracle after ${ADMITTED[FIXED_LABEL].join(", ")} iterations`,
-        async (t) => {
-            requireGpu(t);
-            const s = paritySnapshot("karate", 1, false);
+    it(`karate with a fixed mask on both sides: the pinned row is bitwise the seed at every horizon, the rest within fr-layout-oracle after ${ADMITTED[FIXED_LABEL].join(", ")} iterations`, async (t) => {
+        requireGpu(t);
+        const s = paritySnapshot("karate", 1, false);
+        try {
+            assertUnitStart(FR_BASE_OPTIONS);
+            const asserted = ADMITTED[FIXED_LABEL];
+            await compare(
+                ctx,
+                s,
+                FR_BASE_OPTIONS,
+                pinMask(s.nodeCount, pinIndex(s.nodeCount)),
+                asserted,
+                [...HORIZONS.filter((h) => !asserted.includes(h)), PRINTED],
+                FIXED_LABEL,
+            );
+        } finally {
+            ctx.release(s);
+        }
+    });
+
+    it(`karate at scale 3, center (10, 20, 0) with the mask: the owner arrays agree within fr-layout-oracle at k = ${Math.max(...ADMITTED[FIXED_LABEL])}, k = ${SCALED_PRINTED} printed (both write layout * scale + center, never a rescale)`, async (t) => {
+        requireGpu(t);
+        const s = paritySnapshot("karate", 1, false);
+        try {
+            const options: FruchtermanReingoldOptions = { ...FR_BASE_OPTIONS, scale: 3, center: [10, 20, 0] };
+            await compare(
+                ctx,
+                s,
+                options,
+                pinMask(s.nodeCount, pinIndex(s.nodeCount)),
+                [Math.max(...ADMITTED[FIXED_LABEL])],
+                [SCALED_PRINTED],
+                "karate/scale3-center",
+            );
+        } finally {
+            ctx.release(s);
+        }
+    });
+
+    it('karate under cooling: "adaptive": the CPU class runs the same controller -- the temperature of each of the first 12 iterations and the positions after 1 and 5', async (t) => {
+        requireGpu(t);
+        const s = paritySnapshot("karate", 1, false);
+        try {
+            const options: FruchtermanReingoldOptions = { ...FR_BASE_OPTIONS, cooling: "adaptive" };
+            const start = startPositions(s, options, false);
+            const count = 12;
+            const gpu = await gpuTrajectory(ctx, s, start, options, [1, 5, count]);
+            // the CPU's adaptive temperature moves at the start of an iteration, so it is read AFTER each step
+            const sim = new FruchtermanReingoldSimulation(options);
+            const positions = Float32Array.from(start);
+            const cpuTemperature: number[] = [];
+            const cpuAt = new Map<number, F32>();
             try {
-                assertUnitStart(FR_BASE_OPTIONS);
-                const asserted = ADMITTED[FIXED_LABEL];
-                await compare(
-                    ctx,
-                    s,
-                    FR_BASE_OPTIONS,
-                    pinMask(s.nodeCount, pinIndex(s.nodeCount)),
-                    asserted,
-                    [...HORIZONS.filter((h) => !asserted.includes(h)), PRINTED],
-                    FIXED_LABEL,
+                sim.load(s, positions);
+                for (let k = 1; k <= count; k++) {
+                    sim.step(1);
+                    cpuTemperature.push(sim.temperature);
+                    cpuAt.set(k, Float32Array.from(positions));
+                }
+            } finally {
+                sim.dispose();
+            }
+            // f32 on the GPU, f64 on the CPU: the same steps of x0.9 and x1/0.9, within f32 rounding
+            for (let k = 0; k < count; k++) {
+                expect(gpu.temperature[k], `adaptive: temperature of iteration ${k + 1}`).toBeCloseTo(
+                    cpuTemperature[k],
+                    7,
                 );
-            } finally {
-                ctx.release(s);
             }
-        },
-        CASE_TIMEOUT,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        `karate at scale 3, center (10, 20, 0) with the mask: the owner arrays agree within fr-layout-oracle at k = ${Math.max(...ADMITTED[FIXED_LABEL])}, k = ${SCALED_PRINTED} printed (both write layout * scale + center, never a rescale)`,
-        async (t) => {
-            requireGpu(t);
-            const s = paritySnapshot("karate", 1, false);
-            try {
-                const options: FruchtermanReingoldOptions = { ...FR_BASE_OPTIONS, scale: 3, center: [10, 20, 0] };
-                await compare(
-                    ctx,
-                    s,
-                    options,
-                    pinMask(s.nodeCount, pinIndex(s.nodeCount)),
-                    [Math.max(...ADMITTED[FIXED_LABEL])],
-                    [SCALED_PRINTED],
-                    "karate/scale3-center",
-                );
-            } finally {
-                ctx.release(s);
-            }
-        },
-        CASE_TIMEOUT,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        'karate under cooling: "adaptive": the CPU class runs the same controller -- the temperature of each of the first 12 iterations and the positions after 1 and 5',
-        async (t) => {
-            requireGpu(t);
-            const s = paritySnapshot("karate", 1, false);
-            try {
-                const options: FruchtermanReingoldOptions = { ...FR_BASE_OPTIONS, cooling: "adaptive" };
-                const start = startPositions(s, options, false);
-                const count = 12;
-                const gpu = await gpuTrajectory(ctx, s, start, options, [1, 5, count]);
-                // the CPU's adaptive temperature moves at the start of an iteration, so it is read AFTER each step
-                const sim = new FruchtermanReingoldSimulation(options);
-                const positions = Float32Array.from(start);
-                const cpuTemperature: number[] = [];
-                const cpuAt = new Map<number, F32>();
-                try {
-                    sim.load(s, positions);
-                    for (let k = 1; k <= count; k++) {
-                        sim.step(1);
-                        cpuTemperature.push(sim.temperature);
-                        cpuAt.set(k, Float32Array.from(positions));
-                    }
-                } finally {
-                    sim.dispose();
-                }
-                // f32 on the GPU, f64 on the CPU: the same steps of x0.9 and x1/0.9, within f32 rounding
-                for (let k = 0; k < count; k++) {
-                    expect(gpu.temperature[k], `adaptive: temperature of iteration ${k + 1}`).toBeCloseTo(
-                        cpuTemperature[k],
-                        7,
-                    );
-                }
-                expect(Math.max(...cpuTemperature), "the temperature grew within the first 12").toBeGreaterThan(0.1);
-                const tolerance = frTolerance("fr-layout-oracle").value;
-                for (const k of [1, 5]) {
-                    const cpu = cpuAt.get(k);
-                    expect(cpu).toBeDefined();
-                    const err = stageError(true, at(gpu, k), cpu as F32);
-                    assertCheckPasses({
-                        worst: ratioOf(err.rel, tolerance),
-                        worstLabel: `karate/adaptive: positions after ${k} iterations vs @graphty/layout`,
-                        samples: s.nodeCount,
-                    });
-                }
-            } finally {
-                ctx.release(s);
-            }
-        },
-        CASE_TIMEOUT,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        `writes the GPU's and the CPU class's ${LAYOUT10_LABEL} positions after ${LAYOUT10_HORIZON} iterations as the layout10 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
-        async (t) => {
-            requireGpu(t);
-            const s = paritySnapshot(LAYOUT10_GRAPH, 1, false);
-            try {
-                const options: FruchtermanReingoldOptions = {
-                    ...FR_BASE_OPTIONS,
-                    fixed: pinMask(s.nodeCount, pinIndex(s.nodeCount)),
-                };
-                const start = startPositions(s, options, false);
-                const gpu = await gpuTrajectory(ctx, s, start, options, [LAYOUT10_HORIZON]);
-                const cpu = layoutTrajectory(s, start, options, [LAYOUT10_HORIZON], `noise/${LAYOUT10_LABEL}`);
-                const { kernel, fixture } = FR_NOISE_FIXTURES.layout10;
-                writeNoiseFixture(kernel, fixture, adapterClass(ctx.caps), at(gpu, LAYOUT10_HORIZON), "f32");
-                writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, at(cpu, LAYOUT10_HORIZON), "f32");
-                const err = stageError(true, at(gpu, LAYOUT10_HORIZON), at(cpu, LAYOUT10_HORIZON));
-                console.warn(`[fr-layout-oracle] noise/${LAYOUT10_LABEL}/layout10: error ${err.rel.toExponential(3)}`);
+            expect(Math.max(...cpuTemperature), "the temperature grew within the first 12").toBeGreaterThan(0.1);
+            const tolerance = frTolerance("fr-layout-oracle").value;
+            for (const k of [1, 5]) {
+                const cpu = cpuAt.get(k);
+                expect(cpu).toBeDefined();
+                const err = stageError(true, at(gpu, k), cpu as F32);
                 assertCheckPasses({
-                    worst: ratioOf(err.rel, frTolerance("fr-layout-oracle").value),
-                    worstLabel: `noise/${LAYOUT10_LABEL}/layout10`,
+                    worst: ratioOf(err.rel, tolerance),
+                    worstLabel: `karate/adaptive: positions after ${k} iterations vs @graphty/layout`,
                     samples: s.nodeCount,
                 });
-            } finally {
-                ctx.release(s);
             }
-        },
-        CASE_TIMEOUT,
-    );
+        } finally {
+            ctx.release(s);
+        }
+    });
+
+    it(`writes the GPU's and the CPU class's ${LAYOUT10_LABEL} positions after ${LAYOUT10_HORIZON} iterations as the layout10 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`, async (t) => {
+        requireGpu(t);
+        const s = paritySnapshot(LAYOUT10_GRAPH, 1, false);
+        try {
+            const options: FruchtermanReingoldOptions = {
+                ...FR_BASE_OPTIONS,
+                fixed: pinMask(s.nodeCount, pinIndex(s.nodeCount)),
+            };
+            const start = startPositions(s, options, false);
+            const gpu = await gpuTrajectory(ctx, s, start, options, [LAYOUT10_HORIZON]);
+            const cpu = layoutTrajectory(s, start, options, [LAYOUT10_HORIZON], `noise/${LAYOUT10_LABEL}`);
+            const { kernel, fixture } = FR_NOISE_FIXTURES.layout10;
+            writeNoiseFixture(kernel, fixture, adapterClass(ctx.caps), at(gpu, LAYOUT10_HORIZON), "f32");
+            writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, at(cpu, LAYOUT10_HORIZON), "f32");
+            const err = stageError(true, at(gpu, LAYOUT10_HORIZON), at(cpu, LAYOUT10_HORIZON));
+            console.warn(`[fr-layout-oracle] noise/${LAYOUT10_LABEL}/layout10: error ${err.rel.toExponential(3)}`);
+            assertCheckPasses({
+                worst: ratioOf(err.rel, frTolerance("fr-layout-oracle").value),
+                worstLabel: `noise/${LAYOUT10_LABEL}/layout10`,
+                samples: s.nodeCount,
+            });
+        } finally {
+            ctx.release(s);
+        }
+    });
 });

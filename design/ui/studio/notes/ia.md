@@ -7,37 +7,40 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-1. (2026-10-07) Tier 2 build order is element-first: the edge-attribute filter defect (0 nodes),
-   every run defaulting to the loaded weight with a meaning, numbers in rules without backticks
-   (or a neutral { code, params } refusal instead of a throw), edge picking plus an edge
-   selection look, and a run output's kind (measure vs membership) so the app never guesses.
-2. (2026-10-07) One popover per job, every door opens it: Path popover (canvas menu Path
-   between, P, Analyze > Shortest path); Neighborhood popover (G, canvas menu) with 1-3 hops,
-   Out/In/Both and Select | Filter to neighbors | Add as steps. "Grow by one hop" in "..." goes.
-3. (2026-10-07) The path-row crash (RunValues histogram on a boolean) is an app guess about run
-   kind; fix by reading the element's output kind, not by a try/catch around histogram.
-4. (2026-10-07) Notes need a third rail place (Notes) and the built-in Notes row; first check that
-   the project file saves notes (project/ code does not mention them as of today).
-5. (2026-10-07) Two tier 1 defects surfaced by the tier 2 audit belong in this pass: Sources lists
-   only the last file, and a CSV opened into an open project skips the Data page (weight never
-   chosen). Both break "one intake, one home per source".
-6. (2026-10-07) Do not draw a node Weight role until something reads it (no promise without a
-   place): ship it together with PageRank restart weights, or not at all.
-7. (2026-10-07) Round 3 watch: Size "+" opens its picker at once; "Show all labels" beside
-   "N labels, M hidden"; run named by its method everywhere. Bars in Decisions below.
-8. (2026-10-07) Before calling a door "blocked on the element", read the element's existing
-   config and catalog (the declutter lesson).
-9. (2026-10-07) Grouping candidates come from the element (`optionsFor` "partition"). Watch the
-   Layout list offering methods that do not answer the task (Spectral, Circle).
-10. (2026-10-07) Deferred: key box covering nodes; one refusal sentence for a damaged file;
-    Overview truncation ("Edges per ...").
-11. (2026-10-07) "Selection 18" vs "Javert's 17 connections": if it recurs, propose "Javert and
-    17 connections" (neutral), not the rejected "his".
-12. (2026-10-07) Propose one change per path so a round can credit it.
-13. (2026-10-06) A refusal lives next to the control that caused it; same words from every door.
-14. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
+1. (2026-10-09) Tier 2 round 1: the dry run kept every success path clean (empty session logs,
+   no grade decided by a build defect); the three non-successes all stopped on WHERE a feature
+   lives. Off-path detours (styling, selection display) did meet build defects, and the study
+   tool (over four browsers, load about 158) reached participants more than the build did. The
+   next dry run also walks each task's commonest detours from round 1.
+2. (2026-10-09) Round 2 IA changes, one per path: (a) a data file opened from the start screen
+   goes through the Data page like every other door; (b) the source inspector shows "Replace with
+   file..." and "Edit source..." (same labels as the row menu); (c) the find box's "No match" on
+   a condition-shaped text says how a rule starts, in the app's words; (d) the column menu gets
+   "Select where..." that opens the find box prefilled with "=<column> "; (e) the key marks an
+   out-of-date run. Reasons and evidence in Decisions.
+3. (2026-10-09) The column is the second place every user goes (T20 6 of 7, T22 4 of 4). It is a
+   door, not a new home: "Select where..." lands in the find box; a weight's meaning stays set on
+   the Data page until the element exposes a way to change it after load.
+4. (2026-10-09) "Open project or file..." from the start screen loads a CSV straight
+   (`project/actions.ts` openInSession, `fresh` branch), while the same label inside a project
+   opens the Data page: a door-fidelity defect in the app, not a user habit.
+5. (2026-10-09) Do NOT change in round 2: Filters' home under Data, the rail, Analyze order,
+   Hops wording, the selection-over-fill priority, the path popover. One variable per path.
+6. (2026-10-07) Element-first, still open: run defaults read the loaded weight's meaning; rule
+   errors as { code, params } (backticks); edge picking; a run output's kind; label placement
+   and frame-to-fit ignoring label extents (round 1 confirmed the class).
+7. (2026-10-07) One popover per job, every door opens it (Path, Neighborhood).
+8. (2026-10-07) Notes: the subject a note takes follows the inspector (sev 2 in round 1); the
+   form should show and let the reader change its subject before any new place is drawn.
+9. (2026-10-07) No promise without a place: no node Weight role until something reads it.
+10. (2026-10-07) Before calling a door "blocked on the element", read the element's config and
+    catalog first.
+11. (2026-10-06) A refusal lives next to the control that caused it; same words from every door.
+12. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
     in the Summary; a Style-tab pointer to Label; Size pre-bound to the row's result.
-15. (2026-10-06) Simulated participants share one model: a pass is weak, a failure strong.
+13. (2026-10-06) Simulated participants share one model: a pass is weak, a failure strong; a first
+    move that matches a persona's history says little; label give-ups that follow a persona's
+    scripted rule.
 
 ## Priorities and values
 
@@ -173,6 +176,17 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   a stale run row gets a mark, and rerun stays per row (no "Rerun all" yet). Reason: one home per
   job; every guess the app makes about a run or a rule is an element defect hidden.
 
+- 2026-10-09 (IA proposal for tier 2 round 2, after round 1): five door fixes, no new places.
+  (1) Start-screen Open of a data file goes to the Data page (intent new), matching the same
+  label inside a project and request.ts's own list of doors. Evidence: T20 7 of 7 took Open;
+  nothing on that route sets a weight's meaning; median 23 vs 22 steps. (2) Replace and Edit
+  source drawn in the source's inspector. Evidence: T21 8 of 8 hunted; left click shows only
+  counts (r1-s29/08.png). (3) Find refusal for condition-shaped text names the rule start.
+  Evidence: T22 4 of 4 typed `col >= 10` and got "No match" (r1-s46/12.png). (4) "Select
+  where..." on the column menu, as a door to the find box. Evidence: the column was every T22
+  user's second place. (5) Out-of-date mark on the key entry. Evidence: two experts, bar 5.
+  Reason for all: each is a door to an existing home; none adds a home or moves one.
+
 ## Tried: worked / did not work
 
 - 2026-09-28 to 10-02 -- Tree tests (text outline only). Worked as a ranking of where to look:
@@ -226,23 +240,19 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   group layouts after Louvain (T11), method names (T7, T16), export (T13). Scripted success says
   the doors exist; round 3 says whether people take them.
 
+- 2026-10-09 (tier 2 round 1) -- Filters under Data: worked once found (7 of 8, median 7 = the
+  success path) but nothing on Graph points there; keep the home, watch the doors.
+- 2026-10-09 -- Replace only on the row's right-click: did not work at rest (8 of 8 hunted; 7
+  recovered by habit). Path run, Replace page and load-time "Higher means": read right every
+  time once reached -- the homes hold, the doors fail.
+- 2026-10-09 -- Find box as the one home for rules: half worked. Users start there (4 of 4) but
+  the refusal does not lead on; the "=" start is invisible.
+
 ## Thinking
 
-- **The open tier 1 IA questions, in order of risk on the core path:**
-    1. Does Open project or file... behave as its one-intake label promises? If a saved project
-       re-imports as data, T14 (save and reopen) has a door that lies.
-    2. Do the two homes-that-were-wrong now work on real wiring: names on every node (Label "+"),
-       and a node's neighbors by name? These were the tier 1 failures.
-    3. Is "Values" findable as the place a node's data lives, and does selecting a node land
-       there? Do first-time users go to the Data rail place instead?
-    4. Does a first-time user tell the Data place (rail), the Data page (full page) and the Values
-       tab apart? Three surfaces for "data" is a known collision risk.
-    5. Can a first-time user find a run by name (find box has no Rows group yet)?
-    6. Is Analyze's search box enough, or do the headings still cost wrong turns on the real
-       popover? Candidate: compare headings by what a run adds vs by question vs no headings
-       (alphabetical with search), on two domains.
-    7. Export of the numbers: does a first-time user find Export > Data, and does the table's
-       own door land in the same dialog?
+- **Tier 1 IA questions (2026-10-06)** were answered by rounds 1-3: the intake, names and
+  neighbors, Values, Analyze search and export all hold; the Data place / Data page / Values
+  collision has not shown up in sessions. Keep watching it in tier 2.
 - **Things I saw in a smoke render of the real build (2026-10-06, unverified with users):**
   the nothing-selected inspector opens on Values with an Overview; long labels truncate
   ("Edges per ...", "Undirected, from the file: the GML def..."); the Legend toolbar button is on
@@ -265,6 +275,10 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   picture, export the numbers, save and reopen.
 
 ## Sources
+
+- `tier2/rounds/round-1/insights.md`, `scores.md`, `expert/figma.md`; screenshots
+  `r1-s46/12.png`, `r1-s29/08.png`, `r1-s05/09.png`; `graphty/src/workspace/project/actions.ts`
+  (openInSession), `data-place/DataPlace.tsx` (row menu), `graph-place/FindBox.tsx` (2026-10-09)
 
 - refined B sections 2.1, 2.3 (selection bar, Path popover), 7, 8, 10.1 (Select where), 11.3
   (weight, several tables); tier1-design.md section 7; the tier 2 audit list (2026-10-07)

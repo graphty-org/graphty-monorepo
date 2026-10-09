@@ -83,8 +83,8 @@ export function allocDense<T>(
     bytes: number,
     alloc: () => T,
 ): T {
-    // Written negated so a NaN maxNodes refuses rather than switching the bound off.
-    if (maxNodes !== undefined && !(nodeCount <= maxNodes)) {
+    // A NaN maxNodes refuses rather than switching the bound off.
+    if (maxNodes !== undefined && (nodeCount > maxNodes || Number.isNaN(maxNodes))) {
         throw tooLarge(fn, nodeCount, maxNodes, bytes);
     }
     try {

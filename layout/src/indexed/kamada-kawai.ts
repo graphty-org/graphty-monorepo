@@ -193,8 +193,8 @@ export function kamadaKawai(g: GraphSnapshot, options: KamadaKawaiOptions = {}):
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);
     const n = s.nodeCount;
-    // Written negated so a NaN maxNodes refuses rather than switching the bound off.
-    if (options.maxNodes !== undefined && !(n <= options.maxNodes)) {
+    // A NaN maxNodes refuses rather than switching the bound off.
+    if (options.maxNodes !== undefined && (n > options.maxNodes || Number.isNaN(options.maxNodes))) {
         throw tooLarge(n, options.maxNodes);
     }
     if (n <= 1) {

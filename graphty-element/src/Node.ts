@@ -1158,8 +1158,20 @@ export class Node {
         material.diffuseColor = Color3.Black();
         material.specularColor = Color3.Black();
         material.alpha = alpha;
-        // Both faces, so a halo drawn around a node is still a ring when the camera is inside it.
-        material.backFaceCulling = false;
+        if (name === SELECTION_HALO_MESH) {
+            // BACK FACES ONLY. The halo's front hemisphere lies between the camera and the node it
+            // rings, so drawing it laid a 40% veil of the selection colour over the node: a black
+            // node read olive and an orange one mustard. The back hemisphere lies behind the node,
+            // so the depth test hides it there and it shows only past the node's edge -- a ring.
+            // From INSIDE the sphere every face the camera sees is a back face, so the halo still
+            // draws when the camera is inside it.
+            material.backFaceCulling = true;
+            material.cullBackFaces = false;
+        } else {
+            // Both faces: a context point stands in for a hidden node, with nothing inside it to
+            // keep clear.
+            material.backFaceCulling = false;
+        }
         source.material = material;
 
         return source;

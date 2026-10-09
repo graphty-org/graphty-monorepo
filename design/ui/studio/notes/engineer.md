@@ -11,6 +11,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **The selection halo draws only its back faces, so a selected node keeps its own
+  color.** `createOverlaySource` (`Node.ts`) drew the 40% gold halo sphere with both faces, so its
+  front hemisphere veiled the node: a black node read (102, 86, 0) olive. Now
+  `backFaceCulling = true, cullBackFaces = false` for the halo only (the context point keeps both
+  faces: nothing inside it). The back hemisphere hides behind the node by depth and shows past
+  its edge as a ring; from inside the sphere every visible face is a back face, so it still draws.
+  Test `graphty-element/test/browser/selection-halo-rings-without-tinting.test.ts` reads pixels
+  (black centre equals unselected black; ring gold; camera-inside tints the view) and fails both
+  without the fix and with front-only culling. Real app (Florentine, Medici selected,
+  `design/ui/studio/tmp/t2r1-12/s1/02.png`): centre (72, 74, 175) equals the unselected node.
+  Selection story baselines change and go to visual review.
+
 - (2026-10-09) **Round 1 critique: the dry runs walked only success paths, so build defects
   reached participants on detours.** Four dry runs plus a walk of the study build left every
   success path clean (all `session.log` empty, no grade decided by a defect), but participants took
@@ -85,32 +97,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (`FindResult.totals`); list scroll-snaps to whole rows. Filter controls say what they do ("Save
   and turn on", "within N hop(s) of X"). Evidence `tmp/r1-dry3-app-find-list-graph-title/`,
   `tmp/r1-dry3-app-filters/`.
-- (2026-10-08, condensed) **Study tool:** `--read` prints a table row by its cells; a role target
-  with no visible match takes a visible `labels[0]` (hidden SegmentedControl radios); `session.json`
-  `commit` is the served build. Evidence `tmp/r1-dry4-tool-and-key/`.
-
-- (2026-10-08, condensed) **Sources and left-out rows (app only).** Counts as a visible second
-  line; the left-out child wears `GLYPHS.warning`; a load and its left-out child show "Added" and
-  "Left out" sections (`SourceValues.tsx`). Evidence `tmp/r1-dry4-left-out-inspector/`.
-- (2026-10-08, condensed) **Shared tree and menu fixes (compact-mantine).** `Tree childBand?`
-  (default true; the app passes false); type-ahead takes letters and digits only; a menu's Escape
-  is marked used in the capture phase; a disabled first focus moves to the first enabled row
-  (`data-autofocus`); menu highlights skip disabled rows; chosen segment weight 600. Evidence
-  `tmp/r1-dry3-cm-tree-menus/`.
-- (2026-10-08, condensed) **A tooltip opens on hover only after the pointer moves onto its target**
-  (compact-mantine `overlayBehavior.ts`, `data-cm-still`). The theme's open delay is 1000 ms, so a
-  test waits with `findByText(hint, {}, { timeout })`, not the default 1 s. OPEN: an `opened`-prop
-  tooltip under a resting pointer stays hidden until a move. Evidence `tmp/r1-dry3-cm-tooltip-pointer-move/`.
-- (2026-10-08, condensed) Earlier dry-run fixes: the study tool blurs focus and moves the
-  pointer off after setup; a panel's Escape waits for inner controls (`isPanelEscape`); Made
-  with's Weight is `weightRead(caveats)`; OPEN: Columns after "=" omit run results. Focus after
-  an action goes to the inspector's
-  title; find keeps the rule and live count; selections list members (`selection.originPaths`;
-  OPEN: `edgePage({ scope: "selection" })` empty for edge-only selections, owner door). OPEN:
-  after Replace the legend loses "Size: PageRank"; explicit dijkstra over a negative undirected
-  weight freezes the page.
 
 ## Decisions and reasons
+
+- (2026-10-08, summarized 2026-10-09) **Older dry-run fixes, still standing:** study tool `--read`
+  prints table rows by cell, takes a visible `labels[0]` for a role target, records the served
+  build in `session.json`; sources show counts and "Added"/"Left out" sections
+  (`SourceValues.tsx`); compact-mantine `Tree childBand?`, letter/digit type-ahead, capture-phase
+  menu Escape, disabled rows skipped, hover tooltips open only after a pointer move (open delay
+  1000 ms, so tests wait longer); focus after an action goes to the inspector title. OPEN: Columns
+  after "=" omit run results; `edgePage({ scope: "selection" })` empty for edge-only selections
+  (owner door); legend loses "Size: PageRank" after Replace; explicit dijkstra over a negative
+  undirected weight freezes the page.
 
 - (2026-10-09) **A run row's Style tab offers only the sides the run's own layers cover.** Reason:
   `writeLine` adds `EVERYTHING_LAYER` when the row has no layer for the target, so Edges on a

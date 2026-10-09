@@ -98,7 +98,7 @@ describe("a run goes out of date", () => {
         const reopened = createGraphSession({ runs: { execute } });
         await reopened.project.open(text);
 
-        assert.isString(reopened.runs.get(id)?.record.scope.data);
+        assert.isString(reopened.runs.get(id)?.record.scope.dataDigest);
         assert.strictEqual(reopened.runs.get(id)?.stale, null);
         session.dispose();
         reopened.dispose();

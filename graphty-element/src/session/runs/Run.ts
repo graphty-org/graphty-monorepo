@@ -585,7 +585,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The digest.
      */
     get dataDigest(): string | undefined {
-        return (this.heldRecord()?.scope ?? this.scopeFactsValue)?.data;
+        return (this.heldRecord()?.scope ?? this.scopeFactsValue)?.dataDigest;
     }
 
     /**

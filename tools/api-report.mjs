@@ -126,6 +126,10 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "runId",
     "field",
     "column",
+    // the column a load read (the weight's attribute, the columns an edge's ends came from)
+    "attribute",
+    "source",
+    "target",
     // names the consumer or its data gave (an attribute, a set, a layer), and catalog names (#1332)
     "name",
     "technicalName",
@@ -133,6 +137,7 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     // machine values: versions, hashes, timestamps, paths, media types, colors
     "revision",
     "digest",
+    "dataDigest",
     "fingerprint",
     "version",
     "at",

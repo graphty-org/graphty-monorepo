@@ -361,11 +361,11 @@ export interface RunScopeRecord {
      * scope; a different one now means the data changed under the run. Absent when the session
      * records none.
      */
-    readonly data?: string;
+    readonly dataDigest?: string;
 }
 
 /** What a run records about the set its scope named, beside the resolution. */
-export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading" | "data">;
+export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading" | "dataDigest">;
 
 /** Which versions of which packages produced a result. */
 export interface EngineVersions {

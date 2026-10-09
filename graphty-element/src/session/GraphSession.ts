@@ -2332,8 +2332,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const data = dataNow();
 
             return kept === undefined
-                ? { reading, data }
-                : { set: { id: kept.id, revision: kept.revision }, reading, data };
+                ? { reading, dataDigest: data }
+                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data };
         },
         dataDigest: () => dataNow(),
         setName: (id: SetId) => sets.get(id)?.name,

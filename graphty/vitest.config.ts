@@ -97,6 +97,10 @@ export default defineConfig({
                     // takes under a second alone, and 7 to 15 seconds while the pre-push gate runs
                     // its other browser shards beside it, which crossed the 15-second default.
                     testTimeout: 30000,
+                    // One story file at a time, as graphty-element's storybook project: in parallel
+                    // every file mounts a real element at once, and on a machine already busy with
+                    // other test runs the stories' own waits ran out.
+                    fileParallelism: false,
                 },
             },
             {

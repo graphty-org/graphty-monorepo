@@ -57,8 +57,13 @@ async function countScreenshotColours(element: ElementUnderTest): Promise<number
 /**
  * Renders the shell, clicks a sample's Welcome row, and waits on the element's own load
  * events. Rejects when the element reports `data-loading-error` for the load.
+ *
+ * It returns once the load's whole transaction is recorded and the element's queue and style
+ * work are done, NOT once the layout has come to rest: settling the force layout is most of a
+ * mount's cost (about 1.5 s of frames even for 20 nodes), and only a test about the picture
+ * needs it. Such a test waits for `waitForStableFrame()` itself.
  * @param record - the manifest row to click.
- * @returns the shell's container and the element, once the load is complete and the frame stable.
+ * @returns the shell's container and the element, once the load and the work it started are done.
  */
 async function mountSampleThroughWelcome(
     record: SampleRecord,
@@ -87,9 +92,21 @@ async function mountSampleThroughWelcome(
         throw new Error(`Welcome drew no row for ${record.id}`);
     }
 
+    // The shell loads a sample as one transaction (the import, the degree pass, the label
+    // layer), recorded as one history step named after the file.
+    const recorded = new Promise<void>((resolve) => {
+        const unwatch = element.session.on("history:changed", () => {
+            if (element.session.history.steps.some((step) => step.label === record.fileName)) {
+                unwatch();
+                resolve();
+            }
+        });
+    });
+
     fireEvent.click(row);
     await loaded;
-    await element.waitForStableFrame();
+    await recorded;
+    await element.waitForSettled();
 
     return { container, element };
 }
@@ -101,6 +118,8 @@ async function mountSampleThroughWelcome(
  */
 async function loadSampleThroughWelcome(record: SampleRecord): Promise<LoadedSample> {
     const { element } = await mountSampleThroughWelcome(record);
+
+    await element.waitForStableFrame();
 
     return {
         nodes: element.getNodeCount(),
@@ -184,37 +203,27 @@ describe("AppShell with the real graphty-element", () => {
         );
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "fails when a sample's file is not the format it claims",
-        async () => {
-            const served = servedSample();
+    it("fails when a sample's file is not the format it claims", async () => {
+        const served = servedSample();
 
-            serveBrokenFile(served.source.url, "this is not a graph");
+        serveBrokenFile(served.source.url, "this is not a graph");
 
-            const failure = await failureOf(expectSampleLoads(served));
+        const failure = await failureOf(expectSampleLoads(served));
 
-            assert.include(failure.message, `the element rejected ${served.fileName}`);
-        },
-        LOAD_TEST_TIMEOUT_MS,
-    );
+        assert.include(failure.message, `the element rejected ${served.fileName}`);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "fails when a sample's file is cut short",
-        async () => {
-            const served = servedSample();
+    it("fails when a sample's file is cut short", async () => {
+        const served = servedSample();
 
-            // The element refuses a GML file that ends inside an open list, so the load itself
-            // fails rather than holding the one node that parsed.
-            serveBrokenFile(served.source.url, "graph [ node [ id 1 ");
+        // The element refuses a GML file that ends inside an open list, so the load itself
+        // fails rather than holding the one node that parsed.
+        serveBrokenFile(served.source.url, "graph [ node [ id 1 ");
 
-            const failure = await failureOf(expectSampleLoads(served));
+        const failure = await failureOf(expectSampleLoads(served));
 
-            assert.include(failure.message, `the element rejected ${served.fileName}`);
-        },
-        LOAD_TEST_TIMEOUT_MS,
-    );
+        assert.include(failure.message, `the element rejected ${served.fileName}`);
+    });
 });
 
 /**
@@ -253,108 +262,83 @@ function hopsFrom(edges: readonly { source: unknown; target: unknown }[], seed: 
 }
 
 describe("the ego network with the real graphty-element", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "shows exactly a node's 2-hop neighborhood, and Clear shows the whole graph again",
-        async () => {
-            const karate = findSample("karate");
-            assert.isDefined(karate);
-            const { container, element } = await mountSampleThroughWelcome(karate);
-            const { session } = element;
-            const edges = session.data.edges();
-            const total = session.data.nodes().length;
+    it("shows exactly a node's 2-hop neighborhood, and Clear shows the whole graph again", async () => {
+        const karate = findSample("karate");
+        assert.isDefined(karate);
+        const { container, element } = await mountSampleThroughWelcome(karate);
+        const { session } = element;
+        const edges = session.data.edges();
+        const total = session.data.nodes().length;
 
-            // A node whose 2-hop neighborhood is wider than its 1-hop one and narrower than the
-            // graph, so the depth visibly matters.
-            const seedRecord = session.data.nodes().find((node) => {
-                const two = hopsFrom(edges, String(node.id), 2).length;
+        // A node whose 2-hop neighborhood is wider than its 1-hop one and narrower than the
+        // graph, so the depth visibly matters.
+        const seedRecord = session.data.nodes().find((node) => {
+            const two = hopsFrom(edges, String(node.id), 2).length;
 
-                return two > hopsFrom(edges, String(node.id), 1).length && two < total;
-            });
-            assert.isDefined(seedRecord, "karate has no node whose 2-hop neighborhood is a strict subset");
-            const seed = String(seedRecord.id);
+            return two > hopsFrom(edges, String(node.id), 1).length && two < total;
+        });
+        assert.isDefined(seedRecord, "karate has no node whose 2-hop neighborhood is a strict subset");
+        const seed = String(seedRecord.id);
 
-            await session.selection.apply({ nodes: [seedRecord.id] });
+        await session.selection.apply({ nodes: [seedRecord.id] });
 
-            const visible = (): string[] => [...session.visibility.nodes].map(String).sort();
-            const changed = (): Promise<void> =>
-                new Promise((resolve) => {
-                    const unwatch = session.on("visibility:changed", () => {
-                        unwatch();
-                        resolve();
-                    });
+        const visible = (): string[] => [...session.visibility.nodes].map(String).sort();
+        const changed = (): Promise<void> =>
+            new Promise((resolve) => {
+                const unwatch = session.on("visibility:changed", () => {
+                    unwatch();
+                    resolve();
                 });
+            });
 
-            // G applies the element's neighborhood filter at the default depth of one hop.
-            let next = changed();
-            fireEvent.keyDown(window, { key: "g" });
-            await next;
-            assert.deepEqual(visible(), hopsFrom(edges, seed, 1));
+        // G applies the element's neighborhood filter at the default depth of one hop.
+        let next = changed();
+        fireEvent.keyDown(window, { key: "g" });
+        await next;
+        assert.deepEqual(visible(), hopsFrom(edges, seed, 1));
 
-            // The depth control moves the same filter to two hops.
-            const control = await within(container).findByTestId("ego-network-control");
-            next = changed();
-            fireEvent.click(within(control).getByLabelText("2 hop"));
-            await next;
-            assert.deepEqual(session.visibility.filter, { kind: "neighborhood", seeds: [seedRecord.id], depth: 2 });
-            assert.deepEqual(visible(), hopsFrom(edges, seed, 2));
+        // The depth control moves the same filter to two hops.
+        const control = await within(container).findByTestId("ego-network-control");
+        next = changed();
+        fireEvent.click(within(control).getByLabelText("2 hop"));
+        await next;
+        assert.deepEqual(session.visibility.filter, { kind: "neighborhood", seeds: [seedRecord.id], depth: 2 });
+        assert.deepEqual(visible(), hopsFrom(edges, seed, 2));
 
-            next = changed();
-            fireEvent.click(within(control).getByRole("button", { name: "Clear" }));
-            await next;
-            assert.isNull(session.visibility.filter);
-            assert.strictEqual(session.visibility.nodes.size, total);
-        },
-        LOAD_TEST_TIMEOUT_MS,
-    );
+        next = changed();
+        fireEvent.click(within(control).getByRole("button", { name: "Clear" }));
+        await next;
+        assert.isNull(session.visibility.filter);
+        assert.strictEqual(session.visibility.nodes.size, total);
+    });
 });
 
 describe("the inspector's Pin verb on the real graphty-element", () => {
     /* Karate's GML ids are integers, so the element holds node 34 under the number while the
        shell prints and passes "34". The Pinned badge reads the element's own pinned set, which
        is the only thing that answers for either spelling. */
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "pins a numeric node by its printed id and draws the Pinned badge",
-        async () => {
-            const karate = SAMPLE_MANIFEST.find((record) => record.id === "karate");
+    it("pins a numeric node by its printed id and draws the Pinned badge", async () => {
+        const karate = SAMPLE_MANIFEST.find((record) => record.id === "karate");
 
-            if (karate === undefined) {
-                throw new Error("the manifest has no karate sample");
-            }
+        if (karate === undefined) {
+            throw new Error("the manifest has no karate sample");
+        }
 
-            const { container } = render(<AppShell initialShellWidth={1440} measureViewport={false} persist={false} />);
-            const element = container.querySelector<ElementUnderTest>("graphty-element");
+        const { element } = await mountSampleThroughWelcome(karate);
 
-            if (element === null) {
-                throw new Error("the shell mounted no graphty-element");
-            }
+        assert.isTrue(element.selectNode(34), "the element holds node 34");
+        fireEvent.click(await screen.findByTestId("inspector-actions-more"));
+        fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
 
-            const loaded = new Promise<void>((resolve) => {
-                element.addEventListener("data-loading-complete", () => {
-                    resolve();
-                });
-            });
+        assert.include((await screen.findByTestId("node-pinned-badge")).textContent ?? "", "Pinned");
+        assert.deepEqual([...element.session.positions.pinned], [34], "pinned under the id the graph holds");
 
-            fireEvent.click(container.querySelector<HTMLElement>(`[data-sample-row="karate"]`) ?? container);
-            await loaded;
-            await element.waitForStableFrame();
-
-            assert.isTrue(element.selectNode(34), "the element holds node 34");
-            fireEvent.click(await screen.findByTestId("inspector-actions-more"));
-            fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
-
-            assert.include((await screen.findByTestId("node-pinned-badge")).textContent ?? "", "Pinned");
-            assert.deepEqual([...element.session.positions.pinned], [34], "pinned under the id the graph holds");
-
-            fireEvent.click(screen.getByTestId("node-unpin"));
-            await waitFor(() => {
-                assert.isNull(screen.queryByTestId("node-pinned-badge"));
-            });
-            assert.strictEqual(element.session.positions.pinned.size, 0);
-        },
-        LOAD_TEST_TIMEOUT_MS,
-    );
+        fireEvent.click(screen.getByTestId("node-unpin"));
+        await waitFor(() => {
+            assert.isNull(screen.queryByTestId("node-pinned-badge"));
+        });
+        assert.strictEqual(element.session.positions.pinned.size, 0);
+    });
 });
 
 describe("the command palette's node and edge search on the real graphty-element", () => {
@@ -371,53 +355,43 @@ describe("the command palette's node and edge search on the real graphty-element
         fireEvent.change(await screen.findByLabelText(COMMAND_PALETTE_PLACEHOLDER), { target: { value: text } });
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "selects a node typed by its id and frames it",
-        async () => {
-            const cat = findSample("cat-social-network");
-            assert.isDefined(cat);
-            const { element } = await mountSampleThroughWelcome(cat);
-            const framed = vi.spyOn(element, "zoomToNodes");
+    it("selects a node typed by its id and frames it", async () => {
+        const cat = findSample("cat-social-network");
+        assert.isDefined(cat);
+        const { element } = await mountSampleThroughWelcome(cat);
+        const framed = vi.spyOn(element, "zoomToNodes");
 
-            await typeInPalette("Mr_Whiskers");
-            const rows = await screen.findAllByRole("option", { name: /^Nodes/ });
-            // The exact id match sorts first.
-            assert.strictEqual(rows[0]?.textContent, "NodesMr_Whiskers");
-            fireEvent.click(rows[0]);
+        await typeInPalette("Mr_Whiskers");
+        const rows = await screen.findAllByRole("option", { name: /^Nodes/ });
+        // The exact id match sorts first.
+        assert.strictEqual(rows[0]?.textContent, "NodesMr_Whiskers");
+        fireEvent.click(rows[0]);
 
-            await waitFor(() => {
-                assert.deepEqual([...element.session.selection.nodes], ["Mr_Whiskers"]);
-            });
-            await waitFor(() => {
-                assert.deepEqual(framed.mock.calls[0]?.[0], "Mr_Whiskers");
-            });
-        },
-        LOAD_TEST_TIMEOUT_MS,
-    );
+        await waitFor(() => {
+            assert.deepEqual([...element.session.selection.nodes], ["Mr_Whiskers"]);
+        });
+        await waitFor(() => {
+            assert.deepEqual(framed.mock.calls[0]?.[0], "Mr_Whiskers");
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "selects an edge found by one of its values",
-        async () => {
-            const cat = findSample("cat-social-network");
-            assert.isDefined(cat);
-            const { element } = await mountSampleThroughWelcome(cat);
-            const [expected] = element.session.find("rivals", { kinds: ["edge"], limit: 1 }).records;
-            assert.isDefined(expected, "the cat sample has a rivals edge");
+    it("selects an edge found by one of its values", async () => {
+        const cat = findSample("cat-social-network");
+        assert.isDefined(cat);
+        const { element } = await mountSampleThroughWelcome(cat);
+        const [expected] = element.session.find("rivals", { kinds: ["edge"], limit: 1 }).records;
+        assert.isDefined(expected, "the cat sample has a rivals edge");
 
-            await typeInPalette("rivals");
-            const [row] = await screen.findAllByRole("option", { name: /^Edges/ });
-            assert.isDefined(row);
-            fireEvent.click(row);
+        await typeInPalette("rivals");
+        const [row] = await screen.findAllByRole("option", { name: /^Edges/ });
+        assert.isDefined(row);
+        fireEvent.click(row);
 
-            await waitFor(() => {
-                assert.deepEqual([...element.session.selection.edges], [expected.id]);
-            });
-            assert.strictEqual(element.session.selection.nodes.length, 0);
-        },
-        LOAD_TEST_TIMEOUT_MS,
-    );
+        await waitFor(() => {
+            assert.deepEqual([...element.session.selection.edges], [expected.id]);
+        });
+        assert.strictEqual(element.session.selection.nodes.length, 0);
+    });
 });
 
 /**

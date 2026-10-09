@@ -559,6 +559,7 @@ CI, and Mergify queues only ready pull requests.
 | `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build (the packages, then the Storybooks, Lint, Checks and Docs jobs beside the tests), sharded tests (16 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. The test jobs start as soon as the `Build` job has built and uploaded the packages. On a push to master only the build jobs (Build, Storybooks, Lint, Checks, Docs) run; the summaries pass when they do |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
 | `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), push to master (publishes a merged release pull request), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts and audit on the candidate, then opens the release pull request; on the merge, tags and publishes it with npm trusted publishing. Anything red holds the release and opens one "Release held: <what> failed on <sha>" issue |
+| `release-watch.yml` | After every Release run (`workflow_run`, completed) | The backstop for the release announcements: a Release run that ended badly (failure, cancelled, timed out, startup failure) with no failure comment for that run attempt on the `Release status` issue gets one there (`tools/release-status.mjs run-ended`). Silent on success and skipped runs, on a pending run the release-train concurrency group replaced, and on a first attempt that only lost its T4 spot runner |
 | `deploy-pages.yml` | After every green CI run (the build) on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- no release PR, nothing published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
@@ -623,7 +624,9 @@ closes it. The scheduled attempts skip while either hold is open. Every release 
 attempt, a release pull request opened, a publish that succeeded or failed, again after a restart or a
 re-run) is announced as a comment on the one open `Release status` issue (label `release-status`) by
 `tools/release-status.mjs`, mentioning the people in the repository variable `RELEASE_NOTIFY`; attempts
-that do nothing announce nothing. Never edit or push to a release branch, and never close one
+that do nothing announce nothing. A run that ends badly before it announces anything (no job
+started, a job never got a runner, the announce step failed, a failure after the release pull request
+was announced) is announced there by `release-watch.yml` instead. Never edit or push to a release branch, and never close one
 unless it must be replaced: while one is open, no new train runs. An ad hoc release cuts the same
 pull request at once, for the owner or an agent the owner asked:
 `gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never

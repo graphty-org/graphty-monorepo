@@ -25,6 +25,17 @@ run returns: breaking, and an opinionated default); a boolean `directed` (cannot
 the neighborhood already offers); the app reversing or filtering edges itself (computing over the
 graph outside the element).
 
+**Built.** `"out"` searches the graph as declared, `"in"` searches its transpose (same node and
+edge spaces, released from the accelerator after the run), and the run's `caveats.direction` reads
+"directed" when either was used. The path run's catalog entry picks the option up from Dijkstra,
+so a generic options view (the app's Made with "Advanced run settings") shows "Follow Edges: All"
+with no app change. The public API report is unchanged: the options interfaces are not exported.
+Tests in `graphty-element/test/algorithms/pathfinding/path-direction.test.ts`, for each of
+Dijkstra and Bellman-Ford on the chain a -> b -> c, path c to a: "defaults to all", "all crosses
+edges either way on a directed chain", "the default finds the same route as all", "out follows
+edges only source to target", "in follows edges only target to source", "an undirected graph is
+read either way whatever the value".
+
 ## 2026-10-08 -- Decided by the team: find counts its hits by kind (`FindResult.totals`)
 
 **What.** graphty-element's `FindResult` gains `totals: { node: number; edge: number }`: how many

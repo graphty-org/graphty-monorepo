@@ -1,7 +1,7 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
-import type { EdgeId } from "../catalog/types";
+import type { EdgeId, SelectionDirection } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
@@ -16,7 +16,7 @@ import {
     PATH_FIELD_SPECS,
 } from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
-import { routeEdgeRows } from "./utils/routeEdges";
+import { routeEdgeRows, searchFollowing } from "./utils/routeEdges";
 
 /**
  * Zod-based options schema for Dijkstra algorithm
@@ -45,6 +45,15 @@ const dijkstraOptionsSchema = defineOptions({
             advanced: true,
         },
     },
+    direction: {
+        schema: z.enum(["out", "in", "all"]).default("all"),
+        meta: {
+            label: "Follow Edges",
+            description:
+                "On a directed graph, which way the route may cross an edge: out (source to target), in (target to source) or all (either way). An undirected graph is always read either way",
+            advanced: true,
+        },
+    },
 });
 
 /**
@@ -57,6 +66,8 @@ interface DijkstraOptions extends Record<string, unknown> {
     target: number | string | null;
     /** Accepted and ignored; see the option's description. */
     bidirectional: boolean;
+    /** On a directed graph, which way the route may cross an edge; `"all"` (the default) reads it undirected. */
+    direction: SelectionDirection;
 }
 
 /**
@@ -103,6 +114,19 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
                 "Accepted and ignored: the shortest-path search relaxes outwards from the source in one direction, and the route it finds is the same one either way",
             advanced: true,
         },
+        direction: {
+            type: "select",
+            default: "all",
+            label: "Follow Edges",
+            description:
+                "On a directed graph, which way the route may cross an edge: out (source to target), in (target to source) or all (either way). An undirected graph is always read either way",
+            options: [
+                { value: "out", label: "Out" },
+                { value: "in", label: "In" },
+                { value: "all", label: "All" },
+            ],
+            advanced: true,
+        },
     };
 
     /**
@@ -147,16 +171,18 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
      * @returns The route, or null when there are no nodes to search.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        // "all", or any value on a graph loaded undirected: a route may cross an edge either way.
+        const { direction } = this._schemaOptions;
+        const directed = direction !== "all" && this.input("declared").graph.directed;
         // The nodes and edges of the run's input: its scope's, or the whole graph's.
-        const input = this.input("undirected");
+        const input = this.input(directed ? "declared" : "undirected");
         const nodeIds = scopeNodeIds(input);
 
         if (nodeIds.length === 0) {
             return null;
         }
 
-        // Undirected: a shortest path may cross an edge in either direction.
-        const { snapshot, edgeRemap, run } = this.accelerated("sssp", "undirected");
+        const { snapshot, edgeRemap, run } = this.accelerated("sssp", directed ? "directed" : "undirected");
 
         /* Get source and target from legacy options, schema options, or use the input's first and
            last node -- the scope's, for a scoped run. The DEFAULTS come from the snapshot rather
@@ -168,7 +194,12 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
         const targetIndex = this.nodeIndex(snapshot, "target", target);
 
         context.report({ phase: "Searching for the route", total: null });
-        const { value, precision } = await run((dispatch, s) => dispatch.sssp(s, sourceIndex));
+        const { value, precision } = await searchFollowing(
+            this.graph,
+            directed && direction === "in",
+            run,
+            (dispatch, s) => dispatch.sssp(s, sourceIndex),
+        );
 
         /* ONE search answers both questions this run publishes. The distances come straight out of
            it, and the route is walked back from the target through the predecessor arcs -- which
@@ -215,7 +246,7 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
             },
             caveats: declaredCaveats({
                 method: "dijkstra",
-                direction: "undirected",
+                direction: directed ? "directed" : "undirected",
                 ...this.weightCaveats(),
                 precision,
                 notes:

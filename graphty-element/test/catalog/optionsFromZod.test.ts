@@ -40,7 +40,7 @@ describe("optionsFromZod", () => {
 
             assert.deepEqual(
                 options.map((o) => o.name),
-                ["source", "target", "bidirectional"],
+                ["source", "target", "bidirectional", "direction"],
             );
         });
 

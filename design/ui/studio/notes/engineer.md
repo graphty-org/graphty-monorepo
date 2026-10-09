@@ -11,16 +11,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-08) **Style tab: one name style, and the Selection row shows the edge band (app only).**
-  A Color line's name is the same `Text size="xs"` in the same column as Size and Shape
-  (`PaintLine` in SetLine.tsx); the paint field sits under it because at 156 px it cannot fit the
-  88 px value column (an inline paint field would lose the opacity box). The paint field no longer
-  carries its own `label` caption; `PaintLine` names the group. The Label heading is an
-  `UnstyledButton` holding the same `Text xs 600 pl4` as Fill/Shape. The Selection row's Style
-  has a Nodes part (halo) and an Edges part (`edgeColor`/`edgeOpacity`/`edgeScale`), both with
-  `PaintLine` Color and an inline `ComboInput` Size (the old `StyleNumberInput` Size reset is gone).
-  Evidence `tmp/r1-dry3-app-style-tab/` (T22A/02-03, T22B/03-04: 0077BB shown, DD0000 repaints).
-  Baselines that will change: StyleTab stories, Inspector selection stories.
+- (2026-10-08) **Shortest path can follow edges one way (element only).** Dijkstra and
+  Bellman-Ford take `direction: "out" | "in" | "all"` (default "all" = today). "out" searches the
+  declared snapshot, "in" its `transpose()` (shared helper `searchFollowing` in
+  `algorithms/utils/routeEdges.ts`, which releases the transpose); `caveats.direction` says
+  directed/undirected. The path catalog entry merges Dijkstra's options, so the app's Made with
+  "Advanced run settings" already shows "Follow Edges: All" with no app code; the Path popover's
+  Follow (Out | All) is still the app's to build. API report unchanged (options types are not
+  exported). Evidence `tmp/r1-dry4-path-direction-element/` (T18A/05 = r1d3 T18A/10 route).
+  Baselines that will change: any story showing a path run's Advanced run settings.
+- (2026-10-08, condensed) **Style tab: one name style (app only).** Every line's name is `Text xs`
+  in one column (`PaintLine` in SetLine.tsx); the paint field sits under it (fixed 156 px). The
+  Selection row has Nodes (halo) and Edges (`edgeColor`/`edgeOpacity`/`edgeScale`) parts. Evidence
+  `tmp/r1-dry3-app-style-tab/`. Baselines: StyleTab, Inspector selection stories.
 - (2026-10-08, condensed) **Find list.** Headings count each kind (`FindResult.totals`); list is
   `ScrollArea.Autosize type="auto"` with scroll-snap so every rest ends on a whole row; graph title
   `EllipsizedName self`. Evidence `tmp/r1-dry3-app-find-list-graph-title/`.
@@ -51,7 +54,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-08, condensed) Study tool blurs focus and moves the pointer off the page after setup;
   a saved note takes focus; a panel's Escape waits for inner controls (`isPanelEscape`); Made
   with's Weight is `weightRead(caveats)`; runs show time to the second. OPEN: Columns after "="
-  omit run results; Dijkstra always undirected.
+  omit run results.
 - (2026-10-08, condensed) Earlier dry-run fixes: focus after an action goes to the inspector's
   title (`focusInspectorTitle`; element `data-pointer-focus` hides the click ring); a load that
   leaves rows out wears a warning, a Sources child opens what it names (`tableRows`); find keeps
@@ -63,6 +66,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **A one-way path searches the transpose, not a swapped source and target.** Swapping
+  ends would give the right route but wrong per-node distances (distance TO the source, not from
+  it); the transpose keeps node and edge spaces, so the result loop and `edgeRemap` are unchanged.
+  Same pattern Katz uses for "out". "all" keeps the exact old code path (undirected input).
 - (2026-10-08) **One label style beats a wider field.** A field that cannot fit the value column
   keeps its own row, but its name is drawn by the same component, type and column as every other
   line's name; a shared component's own caption (CompactColorInput `label`) is not used inside the
@@ -192,13 +199,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
-- (2026-10-08) Did not work: `CompactColorInput width="100%"` inside `PaintLine` with no trailing
-  control -- the field grew past the panel edge and cut off the opacity (T22B/03 first try); a fixed
-  `PAINT_FIELD_WIDTH` (156) fits. Worked: a style test comparing computed font size, weight, ink and
-  left edge of two names (fails at "11px 400" against "9px 450" on the old code). The new ComboInput
-  is `role="combobox"`, not a textbox. Pre-existing, not mine: Inspector.test.tsx "names a selected
-  edge by its ends" fails in a whole-file run (passes alone) on HEAD too -- its `findByText("Edge
-  actions")` has the default 1 s timeout against the 1000 ms tooltip delay.
+- (2026-10-08) Did not work: a string-anchored script edit put the new descriptor inside the Zod
+  `meta` (two `advanced: true` blocks matched); caught by the "defaults to all" test. Anchor on
+  the closing `};` of `optionsSchema`. Worked: read `algo.result.graph.length` and
+  `result.edge(id).onPath` directly in a test; the 1.x key helper has no `length` mapping.
+- (2026-10-08, condensed) `CompactColorInput width="100%"` with no trailing control overflows the
+  panel; a fixed 156 px fits. The ComboInput is `role="combobox"`. Inspector.test.tsx "names a
+  selected edge by its ends" fails whole-file on HEAD too (1 s findBy vs 1000 ms tooltip delay).
 - (2026-10-08) Worked: snap test scrolls the viewport by 7 px steps and asserts the bottom is an
   option's bottom; fails with `scroll-snap-type: none`. Scroll-area thumb needs `waitFor` (sized
   after its ResizeObserver). Did not work: measuring the title tooltip via `--hover "<name>"` --

@@ -1,7 +1,7 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
-import type { EdgeId } from "../catalog/types";
+import type { EdgeId, SelectionDirection } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
@@ -15,6 +15,7 @@ import {
     PATH_FIELD_SPECS,
 } from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
+import { searchFollowing } from "./utils/routeEdges";
 
 /**
  * Zod-based options schema for Bellman-Ford algorithm
@@ -34,6 +35,15 @@ const bellmanFordOptionsSchema = defineOptions({
             description: "Destination node for shortest path (uses last node if not set)",
         },
     },
+    direction: {
+        schema: z.enum(["out", "in", "all"]).default("all"),
+        meta: {
+            label: "Follow Edges",
+            description:
+                "On a directed graph, which way the route may cross an edge: out (source to target), in (target to source) or all (either way). An undirected graph is always read either way",
+            advanced: true,
+        },
+    },
 });
 
 /**
@@ -42,6 +52,8 @@ const bellmanFordOptionsSchema = defineOptions({
 interface BellmanFordOptions extends Record<string, unknown> {
     source: number | string | null;
     target: number | string | null;
+    /** On a directed graph, which way the route may cross an edge; `"all"` (the default) reads it undirected. */
+    direction: SelectionDirection;
 }
 
 /**
@@ -75,6 +87,19 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
             description: "Destination node for shortest path (uses last node if not set)",
             required: false,
         },
+        direction: {
+            type: "select",
+            default: "all",
+            label: "Follow Edges",
+            description:
+                "On a directed graph, which way the route may cross an edge: out (source to target), in (target to source) or all (either way). An undirected graph is always read either way",
+            options: [
+                { value: "out", label: "Out" },
+                { value: "in", label: "In" },
+                { value: "all", label: "All" },
+            ],
+            advanced: true,
+        },
     };
 
     /**
@@ -106,8 +131,11 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
      * @returns The route, or null when there are no nodes to search.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        // "all", or any value on a graph loaded undirected: a route may cross an edge either way.
+        const { direction } = this._schemaOptions;
+        const directed = direction !== "all" && this.input("declared").graph.directed;
         // The nodes and edges of the run's input: its scope's, or the whole graph's.
-        const input = this.input("undirected");
+        const input = this.input(directed ? "declared" : "undirected");
         const nodeIds = scopeNodeIds(input);
 
         if (nodeIds.length === 0) {
@@ -119,15 +147,20 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
         const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
         const target = this.legacyOptions?.target ?? this._schemaOptions.target ?? nodeIds[nodeIds.length - 1];
 
-        /* Undirected: a shortest path may cross an edge in either direction, and a negative edge
-           read that way is a loop of its own. No accelerator the element hands work to runs
-           Bellman-Ford, so this is the CPU port's decision. */
-        const { snapshot, edgeRemap, run } = this.accelerated("bellmanFord", "undirected");
+        /* Undirected (the default): a shortest path may cross an edge in either direction, and a
+           negative edge read that way is a loop of its own. No accelerator the element hands work
+           to runs Bellman-Ford, so this is the CPU port's decision. */
+        const { snapshot, edgeRemap, run } = this.accelerated("bellmanFord", directed ? "directed" : "undirected");
         const sourceIndex = this.nodeIndex(snapshot, "source", source);
         const targetIndex = this.nodeIndex(snapshot, "target", target);
 
         context.report({ phase: "Relaxing edges", total: null });
-        const { value, precision } = await run((dispatch, s) => dispatch.bellmanFord(s, sourceIndex));
+        const { value, precision } = await searchFollowing(
+            this.graph,
+            directed && direction === "in",
+            run,
+            (dispatch, s) => dispatch.bellmanFord(s, sourceIndex),
+        );
 
         /* With a negative loop the predecessors can chase each other round it, so no route is
            read off them: the distances are published, and the graph half says why there is no
@@ -147,7 +180,7 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
             nodes.push({ id: nodeId, values: { onPath: order !== undefined, order, distance } });
         });
 
-        /* The route names edges of the UNDIRECTED, simplified view, so each of the element's own
+        /* The route names edges of the searched, simplified view, so each of the element's own
            edges is mapped onto that space: both records of a reciprocal pair, and every edge of a
            parallel group, stand for the one merged edge the route crossed, and all of them are on
            it. The id PUBLISHED is the element's own, which a style layer can name. */
@@ -181,7 +214,7 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
             },
             caveats: declaredCaveats({
                 method: "bellman-ford",
-                direction: "undirected",
+                direction: directed ? "directed" : "undirected",
                 ...this.weightCaveats(),
                 precision,
                 notes,

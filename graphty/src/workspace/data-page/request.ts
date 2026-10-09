@@ -55,14 +55,14 @@ export function rememberLoad(session: GraphSession, input: LoadInput): void {
 }
 
 /**
- * Opens the Data page on one load's own files and roles (Edit source...); a load the app did not
- * see opens the page empty, to choose its files again.
+ * Opens the Data page to replace the graph's one source on its own files and roles (Edit
+ * source...), so Load swaps the source rather than adding a second copy; a load the app did not
+ * see opens the page empty, to choose its files again. Offered only where `canReplace` holds.
  * @param store - the workspace store.
- * @param loaded - the load, an entry of `data.sources()`.
+ * @param loaded - the source, `data.sources()[0]`.
  */
-export function editSource(store: WorkspaceStore, loaded: LoadedSource | undefined): void {
-    const input = loaded === undefined ? undefined : inputs.get(loaded);
-    openDataPage(store, { intent: "add", ...input });
+export function editSource(store: WorkspaceStore, loaded: LoadedSource): void {
+    openDataPage(store, { intent: "replace", ...inputs.get(loaded) });
 }
 
 /**

@@ -438,27 +438,16 @@ describe("the Data page on the real element", () => {
     );
 
     it(
-        "lists each load in Sources, and Edit source... reopens a load on its own tables and roles",
+        "Edit source... reopens the one source on its own roles, and its Load replaces the source rather than adding a copy",
         async () => {
             await page.viewport(1366, 768);
-            const { store } = await openFromEmptyApp();
-            await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));
-            await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
-            await pick("Role of name", "Attribute");
-            await userEvent.click(loadButton());
-            await waitFor(
-                () => {
-                    assert.equal(store.get().page, "panels");
-                },
-                { timeout: TIMEOUT_MS },
-            );
-
-            act(() => {
-                openDataPage(store, { intent: "add" });
-            });
-            await chooseFiles(new File(["source,target\nc,d\n"], "more.csv"));
+            const { store, session } = await openFromEmptyApp();
+            await chooseFiles(new File([TIES], "ties.csv"));
             const report = await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
-            await userEvent.click(await within(report).findByText("Add", {}, { timeout: TIMEOUT_MS }));
+            // An edge list has no node rows, and the sentence does not count them.
+            assert.include(report.textContent, "3 edge rows read; the load makes");
+            assert.notInclude(report.textContent, "node row");
+            await pick("Role of weight", "Attribute");
             await userEvent.click(loadButton());
             await waitFor(
                 () => {
@@ -466,35 +455,35 @@ describe("the Data page on the real element", () => {
                 },
                 { timeout: TIMEOUT_MS },
             );
+            assert.equal(session.data.statistics().edgeCount, 3);
 
             act(() => {
                 store.set({ place: "data" });
             });
             const sources = await screen.findByRole("tree", { name: "Sources" });
-            const first = within(sources).getByRole("treeitem", { name: "people.csv and ties.csv" });
-            assert.isNotNull(
-                within(sources).getByRole("treeitem", { name: "more.csv" }),
-                "the second load has its row",
-            );
-            assert.isNotNull(within(sources).getByRole("treeitem", { name: "ties.csv" }), "a load lists its tables");
-
-            first.focus();
+            within(sources).getByRole("treeitem", { name: "ties.csv" }).focus();
             await userEvent.keyboard("{Shift>}{F10}{/Shift}");
             await userEvent.click(await screen.findByRole("menuitem", { name: "Edit source..." }));
-            await screen.findByRole("heading", { name: "Add to people and ties" });
-            const tables = await screen.findByRole("region", { name: "Tables" }, { timeout: TIMEOUT_MS });
-            assert.isNotNull(await within(tables).findByText("Nodes: people.csv", {}, { timeout: TIMEOUT_MS }));
-            assert.isNotNull(within(tables).getByText("Edges: ties.csv"));
+            await screen.findByRole("heading", { name: "Replace: ties.csv" });
             await waitFor(
                 () => {
                     assert.equal(
-                        screen.getByRole<HTMLInputElement>("combobox", { name: "Role of name" }).value,
+                        screen.getByRole<HTMLInputElement>("combobox", { name: "Role of weight" }).value,
                         "Attribute",
                         "the role the reader chose comes back",
                     );
                 },
                 { timeout: TIMEOUT_MS },
             );
+            await userEvent.click(loadButton());
+            await waitFor(
+                () => {
+                    assert.equal(store.get().page, "panels");
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.equal(session.data.statistics().edgeCount, 3, "the source is replaced, not loaded twice");
+            assert.lengthOf(session.data.sources(), 1);
         },
         TIMEOUT_MS * 3,
     );
@@ -699,6 +688,23 @@ describe("the Data page on the real element", () => {
             await userEvent.keyboard("{Escape}");
             assert.equal(store.get().page, "panels");
             assert.equal(store.get().project?.name, "Ring");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "Esc keeps a chosen file on the page: Cancel is the way out",
+        async () => {
+            const { store } = await openFromEmptyApp();
+            await chooseFiles(new File(["from,to,km\na,b,3\nb,c,6\n"], "trails.csv"));
+            await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
+            await userEvent.click(screen.getByRole("heading", { name: "Open as a new graph" }));
+            await userEvent.keyboard("{Escape}");
+            assert.equal(store.get().page, "data-page");
+            assert.isNotNull(store.get().project, "the new graph is not dropped");
+            assert.isNotNull(screen.getByRole("heading", { name: "Open as a new graph" }));
+            await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+            assert.isNull(store.get().project);
         },
         TIMEOUT_MS * 2,
     );

@@ -158,7 +158,7 @@ export function DataPage(): React.JSX.Element {
     const titles = {
         new: "Open as a new graph",
         add: `Add to ${projectName}`,
-        replace: `Replace: ${page.source === null ? "" : sourceName(page.source)}`,
+        replace: `Replace: ${page.source === null ? (was?.name ?? "") : sourceName(page.source)}`,
     };
     const title = titles[request.intent];
 
@@ -167,20 +167,25 @@ export function DataPage(): React.JSX.Element {
     }, [store, request]);
 
     // Esc returns to where the reader came from, wherever focus is on the page, unless a menu,
-    // list or popover is open (it takes its own Esc first). It listens in the capture phase, so it
-    // runs before the workspace's key map and the map's Esc (Clear selection) does not.
+    // list or popover is open (it takes its own Esc first), and only while the page holds nothing
+    // the reader chose: once a file is chosen, one stray Esc would throw it and its roles away, so
+    // Cancel is the way out. It listens in the capture phase, so it runs before the workspace's
+    // key map and the map's Esc (Clear selection) does not.
+    const chosen = page.source !== null;
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent): void => {
             if (event.key === "Escape" && !event.defaultPrevented && !overlayOpen()) {
                 event.preventDefault();
-                cancel();
+                if (!chosen) {
+                    cancel();
+                }
             }
         };
         globalThis.addEventListener("keydown", onKeyDown, true);
         return () => {
             globalThis.removeEventListener("keydown", onKeyDown, true);
         };
-    }, [cancel]);
+    }, [cancel, chosen]);
 
     const load = async (): Promise<void> => {
         const { source } = page;
@@ -1102,8 +1107,12 @@ function MatchReport({ page }: PartProps): React.JSX.Element | null {
         <section className="dp-report" aria-label="Match report">
             {/* The nodes and edges made are plain text: the element cannot list them yet (#927). */}
             <Text size="sm">
-                {rowsLink("nodes", plural(report.counts.nodeRecords, "node row"))} and{" "}
-                {rowsLink("edges", plural(report.counts.edgeRecords, "edge row"))}
+                {/* A kind the load read none of is left out: "41 edge rows read", not "0 node rows and 41". */}
+                {report.counts.nodeRecords > 0 || report.counts.edgeRecords === 0
+                    ? rowsLink("nodes", plural(report.counts.nodeRecords, "node row"))
+                    : null}
+                {report.counts.nodeRecords > 0 && report.counts.edgeRecords > 0 ? " and " : null}
+                {report.counts.edgeRecords > 0 ? rowsLink("edges", plural(report.counts.edgeRecords, "edge row")) : null}
                 {` read; the load makes ${plural(report.counts.nodes, "node")} and ${plural(report.counts.edges, "edge")}.`}
             </Text>
             <UnmatchedLine

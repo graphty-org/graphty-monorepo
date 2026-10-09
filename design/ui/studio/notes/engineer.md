@@ -11,6 +11,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **Edit source... is a replace, offered only where Replace with file... is; Esc
+  keeps a chosen file; the match report leaves out a zero kind (app only).** `editSource` opens
+  the Data page with intent "replace" on the load's remembered files and choices, so its Load
+  swaps the source (41 ties stayed 41; the "add" intent made 82). Both source verbs share one
+  `canReplace` guard in `useRowMenu`, so a graph of several loads or one load of two tables gets
+  no source menu. The page's Esc leaves only while `page.source === null`; with a file chosen it
+  is swallowed (still `preventDefault`, so the workspace's Clear selection does not run behind
+  the page) and Cancel is the way out; an open list closes first as before. The match report
+  writes "41 edge rows read; ..." on an edge list. Evidence `tmp/r1-dry4-loads/` (T21A/04 the
+  Replace page and sentence, T21A/06 Sources "20 nodes, 41 edges"; T20B/07 and 11 Esc stays,
+  T20B/12 Cancel leaves). OPEN: a two-table load can no longer be edited at all; it needs
+  replace-of-several-tables (canReplace's limit) before Edit source returns there.
 - (2026-10-08) **A tooltip's position is a request; the theme flips it.** compact-mantine's
   Tooltip default is `bottom` with `flip`; `position="right"` on "Filter to neighbors" lands LEFT
   of the button in the real app, because the inspector sits at the window's right edge. Either side
@@ -97,6 +109,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   weight freezes the page.
 
 ## Decisions and reasons
+
+- (2026-10-08) **A reopened load replaces itself; it never adds.** "Edit source" names the same
+  source, so the only reading a reader expects is a swap; "add" doubled every edge. Where the
+  graph cannot be replaced (several loads or tables) the verb is withheld rather than offered as
+  an add, since an add under that name is the defect. Esc on the import page: lost work with no
+  undo outranks a one-key exit, so Esc exits only an empty page. Rejected: a "discard changes?"
+  confirm (a dialog for a key press; Cancel already exists).
 
 - (2026-10-08) **No script ring after a pointer action.** Back to <name> returns focus to Degree
   but shows no ring after a click: the ring is keyboard-only everywhere (spec 2.7), and
@@ -192,131 +211,43 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
-- (2026-10-08) Did not work: waiting for the shared build with `pgrep -f "graphty.*vite build"` in
-  the same command line -- it matches itself and never ends (the background-chaining trap). Copy
-  `graphty/dist` once it has `index.html` and serve the copy.
-
-- (2026-10-08) Worked: path Follow row as `Input.Wrapper label="Follow" labelElement="div"` around
-  the shared SegmentedControl (aria-labelledby the label id) -- reads like From/To/Weight with no
-  bespoke control. Did not work at first: a test picked Lee and Ava expecting From=Lee; the form
-  fills From with the earlier-inserted node, so pick a pair whose insertion order runs against the
-  arrows (Lee, Dev).
-
-- (2026-10-08) Did not work: `focus({ focusVisible: true })` to show a ring after a pointer click
-  (Chrome 143 ignores it, and `false` too); the vitest browser test passed with or without it,
-  because its page was already in keyboard modality, so a `:focus-visible` assertion there proves
-  nothing (script focus inherits the modality). Worked: `--click X --key Tab` in real.mjs, or
-  `--sr` "focus:" lines, to tell "not focused" from "focused, no ring".
-- (2026-10-08) Worked: proving a test fails without a fix by copying the fixed file aside,
-  writing `git show HEAD:<file>` over it, running, and copying back (no stash). graphty's tests
-  read compact-mantine from its `dist`, so rebuild compact-mantine before an app test sees a
-  change. Did not work: assuming "label change remounts the tooltip" from the finding's words; the
-  probe showed the button and tooltip lifecycle (a late first mount). Inspector.test.tsx "names a
-  selected edge by its ends" raced its 1 s `findByText` against the 1000 ms open delay again in a
-  multi-file run; now waits 3 s.
-- (2026-10-08) Worked: a standalone Playwright probe (`tmp/<task>/probe.mjs`, own static server on
-  `graphty/dist`, under `with-browser.sh`) that wraps `session.runs.start`, reads `run.params`,
-  the DOM attribute and `Accessibility.getFullAXTree` split "the value is wrong" from "the reading
-  is wrong" in one run. An element or app test of params passed in every setup; it could not.
-  `--read` in `--sr` mode refuses `--click`; read without `--sr`. graphty's real-element tests are
-  project `real-element`, not `browser`.
-
-- (2026-10-08) Did not work: a string-anchored script edit put the new descriptor inside the Zod
-  `meta` (two `advanced: true` blocks matched); caught by the "defaults to all" test. Anchor on
-  the closing `};` of `optionsSchema`. Worked: read `algo.result.graph.length` and
-  `result.edge(id).onPath` directly in a test; the 1.x key helper has no `length` mapping.
-- (2026-10-08, condensed) `CompactColorInput width="100%"` with no trailing control overflows the
-  panel; a fixed 156 px fits. The ComboInput is `role="combobox"`. Inspector.test.tsx "names a
-  selected edge by its ends" fails whole-file on HEAD too (1 s findBy vs 1000 ms tooltip delay).
-- (2026-10-08) Worked: snap test scrolls the viewport by 7 px steps and asserts the bottom is an
-  option's bottom; fails with `scroll-snap-type: none`. Scroll-area thumb needs `waitFor` (sized
-  after its ResizeObserver). Did not work: measuring the title tooltip via `--hover "<name>"` --
-  that matched the top bar's project name (Rename F2); `--hover-at 150,61` hits the Graph title.
-- (2026-10-08) A tooltip assertion after `userEvent.hover` needs `{ timeout: 3000 }`: the theme's
-  1000 ms open delay equals findBy's default timeout, so the chip-tooltip check failed until given room.
-- (2026-10-08) Worked: one pilot script per task in `tmp/<task>/T*.sh`, run under
-  `with-browser.sh`, on a dist copy. "New from data..." then "choose a file..." --upload; a second
-  table via "Add a table" > "File...". A role select is `--click "role=combobox:Role of <col>"`
-  (the bare column name also matches the grid's header button). Did not work: "Open project or
-  file..." for an import -- it loads the CSV straight to the graph.
-- (2026-10-08) Worked: "fails without" for a file only I had dirty: copy mine aside, write
-  `git show HEAD:<file>` over it, run, copy back (both new assertions failed at 9px).
-- (2026-10-08) Worked: a `--prove` case that spawns `real.mjs` with `cwd` set to a scratch folder
-  proves a setup path is found from elsewhere; `git rev-parse --verify <short>^{commit}` turns a
-  build stamp's 12-char sha into the full one.
-- (2026-10-08, condensed) Tooltip tests: `findByText` then `closest('[role="tooltip"]')`, not
-  `findByRole("tooltip")`. A row that looks highlighted after a click is the pointer's hover. Stage
-  my hunks with `git apply --cached` of a filtered diff and commit at once (another agent's
-  whole-file commit swept mine in). Re-pilot an `empty` start from answers.md's success path.
-- (2026-10-08, condensed) Menus and tooltips: a theme `onKeyDown` on `MenuDropdown` never runs
-  (capture-phase close unmounts first); a disabled first focus needs `data-autofocus` (Mantine's
-  trap refocuses row 1); Tooltip `vars` run only when the tooltip renders; read "tooltip under X"
-  with a probe of ancestors and z-index, never from a screenshot (`elementFromPoint` skips
-  `pointer-events: none`). Never revert-and-restore a file another agent is editing to prove a
-  test fails; comment my lines out in place instead.
-- (2026-10-08) Worked: `pilot/rewalk.sh` with `HERE=<my tmp>` and `REAL_DIST=graphty/dist` re-pilots
-  a task on a fresh build; step N lands in screenshot N+1 (01 is the start).
-- (2026-10-08) Did not work: rerunning a path with the same From and To to show two times -- it
-  returns the same run (same time is then the truth). Use a different pair (T18B: Peruzzi, Ginori).
-- (2026-10-08) Did not work: a tree row's count slot for a filter outcome. The slot yields to the
-  name but keeps a 2.5em stub, so "weight is at least 4" + "20 to 19 nodes" became "weight is at
-  least..." + "20 to ...". An old test passed because `textContent` includes a `hidden` span:
-  assert `checkVisibility()` on visible words.
-- (2026-10-08, condensed) A probe logging node extents plus `zoomToFit()` splits "framed wrong"
-  from "laid out differently"; after a second load poll `isSettled && !running`, not
-  `waitForSettled()`; `data.name()` returns the id until `knownFields.nodeLabelPath` is set.
-- (2026-10-08) Others' rebuilds empty `graphty/dist`: pilot on a copy in tmp. Prettier an index-built blob.
-
-- (2026-10-08) A test must fail without the fix: a contrast check passed on the old gray (compare
-  to the chosen label instead); unnested rows fit at 240 px and proved nothing.
-- (2026-10-08) Did not work: a browser test asserting explicit Dijkstra over a negative weight --
-  the page froze (no test timeout fires on a synchronous loop); the vitest run sat at "RUN" 12 min.
-  A hung browser test with no output means a sync infinite loop: rerun with `-t` to bisect. Another
-  agent's `nx run graphty:build` emptied `graphty/dist` mid-start: copy dist to `tmp/<task>/dist`.
-- (2026-10-08, condensed) A fact at the END of a narrow inspector row is cut: lead with it.
-  `while pgrep -f` matches its own shell: wait by PID. Session-entry public types are listed in
-  `graphty-element/session.ts`. `getByText` misses text split across a glyph span.
-- (2026-10-06 to 10-08, condensed) Re-walk pilots from their `session.json` setup lists, not the
-  plain setups. Flat-swatch Delta E is no proxy for a shaded sphere. `--hover` rests on a row's
-  center; toggled meshes need `meshesShownOrHidden()`, rebuilt edges `forceEdgeWalk()`. A camera
-  probe logging `getCameraState()`, canvas rect and `viewInsets` per step names camera mechanisms;
-  a real-element app test cannot measure the legend (element 0 px wide). Untraced: toolbar real
-  test "frames a selected edge's two ends" lands off in x (13.8 to 14.5 vs 14.07) with or without
-  unrelated changes; TableDock's export preview fails only inside the full real run.
-
-- (2026-10-08) Did not work: focus on the left tree after open (typeahead eats single-key
-  shortcuts); a plain rail button works. A project opened ON the Data page keeps that page's focus.
-
-- (2026-10-08, condensed) Shared worktree: snapshot a file another agent has dirty BEFORE editing
-  (`tmp/<task>/base/`); stage only my hunks (`git apply --cached --unidiff-zero`, or
-  `hash-object -w` + `update-index --cacheinfo`). Their half-saved files can break `tsc` and the build
-  for minutes: wait for a clean `tsc` before building. A setup's Shift+A missed in a WIP build;
-  `--click Analyze` works the same.
-
-- (2026-10-08, condensed) Flex: `flex-basis: auto` to split by content. "Fails without" with no
-  stash: `git diff > p.patch`, `git apply -R`, run, `git apply`. Canvas `measureText` sizes a column
-  once weight and `letterSpacing` match. Mantine Tooltip never opens in jsdom. Same-depth line:
-  `zOffsetUnits`. real.mjs: `--key Shift+A` after a setup ending on a tree row types nothing; check
-  a dry-run finding on the frozen build first; a Tree child row is not inside its parent treeitem.
-
-- (2026-10-07, condensed) Contrast in a browser test: blend alpha over the first opaque ancestor
-  (`contrastOnPage`). Prove a tool fix with a copy of `real.mjs` with the fix undone (beside it in
-  `tool/`, so its relative paths hold; delete after); concurrent `--prove` runs need `REAL_PROVE_DIR`. "New from data..." opens no file chooser: click
-  "Add a table" > "File..." first.
-- (2026-10-06 to 10-07, condensed) Shared worktree: commit from an empty `git diff --cached`; for a
-  file others have dirty use a private index (`GIT_INDEX_FILE`, `read-tree HEAD`, `apply --cached`
-  my hunks); never commit `api:report` output wholesale (it reads `dist/` types). Builds: `nx run
-graphty:build` can OOM and empty `graphty/dist` (`NODE_OPTIONS=--max-old-space-size=8192 npx vite
-build --outDir <dir>`); the app reads compact-mantine from its `dist/`. Tests: a `Run` is thenable;
-  pixel checks via `waitForStableFrame()` + `engine.readPixels`; never call a failure a flake; a
-  run's per-node values via `session.data.nodePage({ columns: [runId] })`; queries are JMESPath.
-  `selection.apply` throws synchronously on a bad selector (element defect, unfiled).
-
+- (2026-10-08) Worked: re-piloting T21A from its `session.json` setup list (written to
+  `t21a-setup.txt` in the task folder, `setup:t21a-setup.txt`), then `--click Data`, `--rclick
+  friends.csv`, `--click "Edit source..."`, `--click Load`, `--expect "20 nodes, 41 edges"`.
+  T20B's import page: "New from data..." then "choose a file..." `--upload trails.csv`.
+- (2026-10-08, condensed) Proving "fails without" with no stash: copy my fixed files aside, write
+  `git show HEAD:<file>` over them, run, copy back; for a file another agent has dirty, comment my
+  lines out in place instead. graphty's real-element tests are project `real-element`, not
+  `browser`; graphty reads compact-mantine from its `dist` (rebuild it first).
+- (2026-10-08, condensed) Study tool: pilot on a dist copy (others' rebuilds empty
+  `graphty/dist`); a role select is `--click "role=combobox:Role of <col>"` (the bare column name
+  also matches the grid header); "Open project or file..." loads a CSV straight to the graph, so
+  an import page needs "New from data..."; `--read` refuses `--click` in `--sr`; step N lands in
+  screenshot N+1. Telling "not focused" from "focused, no ring": `--click X --key Tab` or `--sr`
+  focus lines; `focus({ focusVisible: true })` does nothing in Chrome 143.
+- (2026-10-08, condensed) Probes: a standalone Playwright probe on `graphty/dist` under
+  `with-browser.sh` (wrap `session.runs.start`, read `run.params`, the DOM and the AX tree) splits
+  "value wrong" from "reading wrong"; a camera probe logging `getCameraState()`, canvas rect and
+  `viewInsets` names camera mechanisms; tooltip-under-X needs a probe of ancestors and z-index.
+- (2026-10-08, condensed) Tests: a tooltip after `userEvent.hover` needs `{ timeout: 3000 }` (the
+  open delay equals findBy's default); `findByText` then `closest('[role="tooltip"]')`; a
+  `textContent` assertion includes `hidden` spans (assert `checkVisibility()`); a hung browser test
+  with no output is a sync infinite loop (bisect with `-t`); a contrast or fit test must fail on
+  the old value; never call a failure a flake.
+- (2026-10-08, condensed) Did not work: `pgrep -f` waits (match themselves; wait by PID); a tree
+  row's count slot for a filter outcome (cut the words); focus on the left tree after open
+  (typeahead eats shortcuts); a string-anchored script edit matching twice (anchor on a unique
+  closing line); rerunning a path with the same ends to show two times (same run returned).
+- (2026-10-06 to 10-08, condensed) Shared worktree: stage only my hunks (`git apply --cached`, or a
+  private `GIT_INDEX_FILE`), commit from an empty `git diff --cached`; wait for a clean `tsc` before
+  building over others' half-saved files; never commit `api:report` output wholesale. Builds:
+  `NODE_OPTIONS=--max-old-space-size=8192`. Element facts: a `Run` is thenable; per-node values via
+  `session.data.nodePage({ columns: [runId] })`; `selection.apply` throws synchronously on a bad
+  selector (unfiled); `data.name()` returns the id until `knownFields.nodeLabelPath` is set.
 - (2026-10-06 to 10-08) Grep every route of a value before calling a change done.
-
 - **Open project or file... reopening a project.** #913 closed in the element with "one intake
   verb"; the app still imports a `.graphty.json` as data. A tier 1 task (save, close, reopen) only
-  passes today through Recent projects. Adoption should be a small app change.
+  passes today through Recent projects.
 
 ## Sources
 

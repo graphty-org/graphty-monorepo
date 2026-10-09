@@ -138,9 +138,9 @@ function attributeTree(session: GraphSession | null, needle: string): TreeNodeDa
 }
 
 /**
- * The Data place's row menu, for Tree's rowMenu: Edit source on a source (and on its tables),
- * which opens the Data page on that load's own files and roles, and Replace with file... when
- * the graph has one source of one table (tier2-design.md section 7); on an attribute, the
+ * The Data place's row menu, for Tree's rowMenu: when the graph has one source of one table
+ * (tier2-design.md section 7), Edit source..., which opens the Data page to replace it on its own
+ * files and roles, and Replace with file...; on an attribute, the
  * attribute's verbs (the same as its inspector's "..."). Other rows (the Nodes and Edges
  * subheads) have none.
  * @returns the rowMenu function.
@@ -150,31 +150,32 @@ function useRowMenu(): (node: TreeNodeData) => React.ReactNode {
     const actionsOf = useAttributeActions();
     return (node) => {
         if (node.id.startsWith("source")) {
-            // Row ids are `source:<load>` and `source:<load>:<table>`.
-            const index = Number(node.id.split(":")[1]);
+            // Both verbs replace the graph's one source, so a graph of several loads, or of one
+            // load of several tables, offers neither.
             const sources = session?.data.sources() ?? [];
+            if (!canReplace(sources)) {
+                return null;
+            }
             return (
                 <>
                     <Menu.Item
                         onClick={() => {
-                            editSource(store, sources[index]);
+                            editSource(store, sources[0]);
                         }}
                     >
                         Edit source...
                     </Menu.Item>
-                    {canReplace(sources) && (
-                        <Menu.Item
-                            onClick={() => {
-                                void pickFile().then((file) => {
-                                    if (file !== undefined) {
-                                        replaceSource(store, sources[0], file);
-                                    }
-                                });
-                            }}
-                        >
-                            Replace with file...
-                        </Menu.Item>
-                    )}
+                    <Menu.Item
+                        onClick={() => {
+                            void pickFile().then((file) => {
+                                if (file !== undefined) {
+                                    replaceSource(store, sources[0], file);
+                                }
+                            });
+                        }}
+                    >
+                        Replace with file...
+                    </Menu.Item>
                 </>
             );
         }

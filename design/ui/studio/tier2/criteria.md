@@ -1,5 +1,5 @@
-The study runs on build 8c4eef4722ac served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d3-8c4eef472/`
-(graphty@0.8.56, commit 8c4eef472), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build 946256efb876 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d4-946256efb/`
+(graphty@0.8.56, commit 946256efb), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -458,3 +458,8 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   headings and scrollbar (17 read from "Edges 17" is the right count), focus drawn as underlined
   text, both halves showing two lit controls in the Neighborhood view, and the header's changed
   icon. No bar and no prompt changed.
+- **2026-10-08, before round 1: the fourth dry run build.** The study build moved from
+  8c4eef4722ac (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d3-8c4eef472/`) to
+  946256efb876 (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d4-946256efb/`), a
+  fresh build of the worktree's current commit, which holds the fixes found in the fourth dry run.
+  `tool/real.mjs --prove` passed on it. No bar changed.

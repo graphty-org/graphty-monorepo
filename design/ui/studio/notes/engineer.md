@@ -11,6 +11,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **Focus and keys in the Filters section, the step editor and the Notes place.**
+  The step editor is a `<form>`: Enter adds or saves, Escape (`isPanelEscape`) closes it to the
+  step's row, or to "+" for a new step. After Add/Save focus goes to the step's row, after a
+  delete to the next row, the one above for the last, or "+" (`focusNext`/`focusStep` in
+  `data-place/Filters.tsx`, run on the visibility version). Note chips are named
+  "<target>, in note: <first line>" and delete buttons "Delete note: <first line>" (cut at 40), so
+  no two controls share a name. The find box needed nothing: compact-mantine `SearchInput` already
+  refocuses after the clearing Escape (GraphPlace.test.tsx asserts it; bars "kept"). Test:
+  `data-place/__tests__/FilterFocus.real-element.test.tsx`; Notes test asserts the unique names.
+  Evidence `tmp/t2r1-7/bars.log`.
+
 - (2026-10-09) **Bars 2, 7, 8 and 9 are scored by script, each check proven on a planted failure**
   (commit 80fb33e68). Bar 2: `real.mjs` writes `work-start.json` after setup and `work.json` at
   `--end` (start, end, `gone` by id; sources by name); `--prove` clears the table and checks it is
@@ -82,17 +93,8 @@ the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nod
   out-of-date mark on the legend key from `run.stale`. Do not fix edge width until a script
   measures the element's units (`EdgeMesh.ts` *20 and /40); do not move Filters.
 - (2026-10-09) **Tier 2 screenshot audit (round 1): the app breaks on long names and narrow
-  windows, not at the study's own size.** Walked every tier 2 screen at 1200x900 and 900x700 on
-  build 946256efb (`tier2/rounds/round-1/expert/engineer.md`, 24 findings). Severity 3: canvas
-  labels cut at the canvas edge and drawn over each other (element: the fit ignores label
-  extents); the find list cuts rows with no ellipsis and scrolls sideways (`FindBox.tsx`
-  ScrollArea); a long name ellipsizes away the neighborhood count, and "Back to ..." is clipped
-  with no ellipsis (`NodeValues.tsx`). Severity 2: at 900 wide both panels keep 240 px and the
-  Analyze/Path popovers overlap the left panel; the Path popover hides the nodes it asks you to
-  pick; the legend card covers labels (refits for nodes only); the path key's black swatch on the
-  dark card (~1.3:1); Everything's Style tab mixes stacked and inline labels. With the study's
-  files at 1440x900 only the popover cover, the swatch, button placement and the two segmented
-  looks show up, so participants should not be meeting the long-name defects.
+  windows, not at the study's size** (`tier2/rounds/round-1/expert/engineer.md`, 24 findings:
+  canvas labels cut at the edge, "Back to ..." clipped, popovers over the left panel at 900 wide).
 - (2026-10-09) **`REAL_VIEWPORT=<w>x<h>` on `real.mjs --start`** sets the window (default 1440x900,
   recorded in `session.json`). A private walk script (one `walk` per screen, like
   `tier2/pilot/rewalk.sh`) run at two sizes in parallel took two browser slots and ~25 min.
@@ -214,6 +216,12 @@ the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nod
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Worked: a module-level "focus next" request taken in an effect keyed on the
+  element's change version (the Notes place's pattern) -- focus after the row exists, whatever
+  order the editor unmount and the step write land in. For Escape nothing changes in the
+  element, so the handler focuses the row directly before closing. Watch out: other agents in the
+  worktree commit with broad adds; my Filters/Notes source changes landed inside their
+  "repair what merging master broke" commit (9ca8e79c3). Stage and commit own files promptly.
 - (2026-10-09) Did not work: planting a bar 2 removal by `styles.remove()` of the last layer (a
   locked default layer stays; nothing went). Worked: `session.data.clear()`, listed gone as the
   source. Did not work: `const WALKS` below a top-level `await outer()` (temporal dead zone); run
@@ -252,11 +260,8 @@ the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nod
   the full real-element run and passed alone: its `waitFor` keeps the 1 s default while the export
   preview is written asynchronously under 168 parallel files (not touched by this change).
 
-- (2026-10-09) Worked: finding the sideways-scrolling find list's cause in Mantine's CSS
-  (`.m_d57069b5:where([data-autosize]) .m_b1336c6 { min-width: min-content }`) before touching the
-  row. Did not need: an app tooltip; the shared row's EllipsizedName already does it.
-- (2026-10-09) Worked: reading `scores.md` beside `insights.md` -- the skeptics weakened edge width
-  from severity 3 to 2 (thick after deselect, `r1-s45/26.png`), so scores alone overstates it.
+- (2026-10-09) Worked: finding a layout defect's cause in Mantine's own CSS before touching the row.
+- (2026-10-09) Worked: reading `scores.md` beside `insights.md` (skeptics can lower a severity).
 - (2026-10-09) Worked: `long-names.csv` (with PageRank, Size and every label drawn, setup in the
   audit's own file) is what surfaced every severity 3 truncation; the study datasets hide them.
   Did not work: `--click "Add to Shape"` on Everything's Style tab (Shape has fields there, no

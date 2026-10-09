@@ -32,10 +32,12 @@ export interface CommandContext {
     /** The graph instance to operate on */
     graph: Graph;
     /**
-     * The message's transaction. Everything a command changes through `tx` -- `tx.styles.add`,
-     * `tx.layout.set`, `tx.run` -- joins the message's one undoable step, and is rolled back with
-     * the rest of the message when a command throws. A change made through `graph` instead is a
-     * step of its own and is not rolled back.
+     * The transaction of the batch of tool calls this command is in. Everything a command changes
+     * through `tx` -- `tx.styles.add`, `tx.layout.set`, `tx.run` -- joins the message's one
+     * undoable step, and is rolled back with the rest of the message when a command throws. Each
+     * batch has its own short transaction, committed before the model is asked again, so keep no
+     * `tx` past the command's own call. A change made through `graph` instead is a step of its own
+     * and is not rolled back.
      */
     tx: TransactionScope;
     /**

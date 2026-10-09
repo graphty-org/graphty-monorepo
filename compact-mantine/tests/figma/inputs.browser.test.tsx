@@ -45,7 +45,10 @@ const available = await figmaAvailable();
 beforeEach(async () => {
     await page.viewport(900, 700);
 });
-afterEach(resetHarness);
+afterEach(async () => {
+    vi.restoreAllMocks();
+    await resetHarness();
+});
 
 const SCHEMES = ["light", "dark"] as const;
 
@@ -389,12 +392,21 @@ describe.skipIf(!available)("6.2 text input and search", () => {
         const { container } = await renderFigma(<SearchInput />);
         const input = part(container, "input");
         await drive(input, "focus");
-        input.blur();
-        await settle();
-        expectMeasured(field(container), { outlineColor: "#0d99ff" });
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        expectMeasured(field(container), { outlineColor: "#00000000" });
+        // The linger runs on setTimeout: a fake one steps it exactly.
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            input.blur();
+            await settle();
+            expectMeasured(field(container), { outlineColor: "#0d99ff" });
+            vi.advanceTimersByTime(99);
+            await settle();
+            expectMeasured(field(container), { outlineColor: "#0d99ff" });
+            vi.advanceTimersByTime(1);
+            await settle();
+            expectMeasured(field(container), { outlineColor: "#00000000" });
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("a clear button appears with text; Escape clears, and bubbles once empty", async () => {
@@ -816,8 +828,12 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         await userEvent.keyboard("c");
         expect(highlighted()).toBe("Center");
         expect(document.getElementById(input.getAttribute("aria-activedescendant") ?? "")?.textContent).toBe("Center");
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 600));
+        // A new run starts once 500ms of event time has passed since the last letter. The list
+        // reads that time from event.timeStamp: move it forward instead of waiting.
+        const timeStamp = Object.getOwnPropertyDescriptor(Event.prototype, "timeStamp")?.get;
+        vi.spyOn(Event.prototype, "timeStamp", "get").mockImplementation(function (this: Event) {
+            return (timeStamp?.call(this) as number) + 600;
+        });
         await userEvent.keyboard("o");
         expect(highlighted()).toBe("Outside");
         await userEvent.keyboard("o");

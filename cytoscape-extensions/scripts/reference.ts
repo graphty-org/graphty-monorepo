@@ -124,7 +124,7 @@ const BETWEENNESS_SOURCES: Override = {
 };
 const PREDICTION_TOP_K: Override = {
     default: "every pair above 0",
-    doc: "Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order, and `topK` counts rows, not pairs. A directed graph lists each pair once (see above).",
+    doc: "Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. Each pair is listed once, so `topK` counts distinct pairs; on an undirected graph `source` is the node that comes first in the collection (see above).",
 };
 const CANDIDATES_TOP_K: Override = {
     default: "`10`",

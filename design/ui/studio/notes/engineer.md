@@ -11,6 +11,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **The import preview's caption says "All N rows" when it holds the whole table**
+  ("1 row" for a one-row table), and "The first N rows of M" only when it holds fewer.
+  `previewCaption(shown, total)` in `data-page/words.ts`, unit-tested in `words.test.ts`; the
+  real-element "draws every sample row" test now waits for "All 12 rows". The "Add a table"
+  tooltip opens `position="left"` of its "+", over the empty Tables heading row, so it no longer
+  covers "Each row is". Evidence `tmp/r2-dry3-import-page-caption-and-tooltip/{T20A/05,T20B/06,
+  T21A/05,T4A-hover/05}.png`.
+
 - (2026-10-09) **A menu opened by a click highlights no row, whatever its first row is.**
   compact-mantine `overlayBehavior.ts` (`skipDisabledFirstRow`): the row Mantine's focus trap
   picks (the menu's first menuitem) is redirected to the menu itself when the pointer opened it;
@@ -29,19 +37,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   four false claims (Medici scrollbar, Graph title "does nothing", T19 reshaping, T19 ring beside
   the new form) are rewritten against that build's screenshots; T21B finally has screens.
 
-- (2026-10-09) **Find, neighbor list and inspector notes.** The Find refusal line has the hint's
-  padding (`.ws-find-refusal` in `graph-place.css`), so red and gray start at one x. The neighbor
-  list's `<section>` carries no name: the `ControlSection` group is the one name (a named section
-  was a second "region" under the same words; tests now find the list by `group`). Filter to
-  neighbors matches any neighborhood step seeded on this center, at any reach: pressed at Hops 1
-  under a 2-hop filter, tooltip "Showing only the neighborhood 2 hops out...", pressing removes it,
-  pressing an off one turns it on at the reach shown; never a second step. Inspector notes under a
-  row (Made with's weight note, the histogram summary, "N more edges", the Overview's whole-graph
-  line) are `size="sm"` with `pl={PANEL_GRID.PAD_LEFT}` -- the DataRow name's 16 px, not
-  `px="md"` (8 px in compact-mantine). Tests: `GraphPlace.test.tsx` (refusal left = hint left),
-  `Inspector.test.tsx` (named once; toggle across reaches), `PathForm.real-element.test.tsx`
-  (note size and left = row name's); all fail without the change. Evidence
-  `tmp/r2-dry2-app-find-neighbors-notes/{T22B/crop03,crop04,T23B/06,08,09,T18A/03}.png`.
+- (2026-10-09, condensed) **Find, neighbor list and inspector notes:** the Find refusal starts at
+  the hint's x (`.ws-find-refusal`); the neighbor list is named once (its `ControlSection` group);
+  Filter to neighbors toggles the one neighborhood step on this center at any reach; inspector notes
+  are `size="sm"` with `pl={PANEL_GRID.PAD_LEFT}`. Tests in `GraphPlace`, `Inspector`, `PathForm.real-element`.
 - (2026-10-09, condensed) **Nothing on the Data page moves when a link goes;** a Sources row shows
   only what its title names (`DataPage.real-element.test.tsx`).
 - (2026-10-09, condensed) **Study screenshots draw native scrollbars** (`measure.mjs` `LAUNCH`
@@ -246,6 +245,10 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-09) Worked: re-piloting only the halves a fix touches with
+  `REAL_DIST=graphty/dist OUT=<my tmp> LANES=3 tier2/pilot/repilot.sh T20A T20B T21A`, then one
+  hand session for a hover the script does not take (`--hover "Add a table"` prints the tooltip).
 
 - (2026-10-09) Did not work: wrapping `tier2/pilot/repilot.sh` in `tool/with-browser.sh` -- the
   wrapper held a browser slot with no browser while each `real.mjs --start` took its own; run

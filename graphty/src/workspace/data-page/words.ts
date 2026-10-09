@@ -54,6 +54,19 @@ export function plural(value: number, noun: string): string {
 }
 
 /**
+ * The sample grid's caption: whether it shows the whole table or only its first rows.
+ * @param shown - the rows the preview holds.
+ * @param total - the rows in the table.
+ * @returns "All 17 rows", "1 row", "The first 50 rows of 3,000".
+ */
+export function previewCaption(shown: number, total: number): string {
+    if (shown < total) {
+        return `The first ${plural(shown, "row")} of ${count(total)}`;
+    }
+    return total === 1 ? "1 row" : `All ${plural(total, "row")}`;
+}
+
+/**
  * How many edge rows a load leaves out, for a table's warning mark.
  * @param rows - the count.
  * @returns "1 row left out".

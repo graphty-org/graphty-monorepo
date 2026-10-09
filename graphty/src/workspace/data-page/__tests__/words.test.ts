@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import { addWords, graphName, loadedWords, roleWords } from "../words";
+import { addWords, graphName, loadedWords, previewCaption, roleWords } from "../words";
 
 describe("the Data page's role words", () => {
     it("names the time role as a date, so a column of minutes is not taken for it", () => {
@@ -43,5 +43,14 @@ describe("the words after a load", () => {
             addWords("friends", { nodes: 20, edges: 41 }, ["staff"], { nodes: 5, edges: 0 }, false, true),
             "friends: 20 nodes, 41 edges; staff adds 5 nodes",
         );
+    });
+});
+
+describe("the sample grid's caption", () => {
+    it("says a preview holding every row is the whole table, and a shorter one is only its start", () => {
+        assert.equal(previewCaption(17, 17), "All 17 rows");
+        assert.equal(previewCaption(1, 1), "1 row");
+        assert.equal(previewCaption(50, 3000), "The first 50 rows of 3,000");
+        assert.equal(previewCaption(1, 2), "The first 1 row of 2");
     });
 });

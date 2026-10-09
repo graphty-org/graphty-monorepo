@@ -61,6 +61,7 @@ import {
     loadedWords,
     modelWords,
     plural,
+    previewCaption,
     READABLE_FORMATS,
     type Refusal,
     refusalFor,
@@ -410,7 +411,8 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                 </Text>
                 <Menu position="bottom-start">
                     <Menu.Target>
-                        <Tooltip label="Add a table">
+                        {/* To the left, over empty space: below, it covers the table's "Each row is" label. */}
+                        <Tooltip label="Add a table" position="left">
                             <ActionIcon ref={addButton} variant="subtle" size="sm" aria-label="Add a table">
                                 <GLYPHS.add size={14} aria-hidden />
                             </ActionIcon>
@@ -1088,12 +1090,12 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
     );
     const caption =
         page.filter === "all"
-            ? `The first ${plural(rows.length, "row")} of ${count(table.rowCount)}`
+            ? previewCaption(rows.length, table.rowCount)
             : `${plural(page.rows?.total ?? 0, what)}${missingNames.length === 0 ? "" : `: ${noNodeRow(missingNames)}`}`;
     return (
         <Stack gap={4}>
             <Group gap="xs">
-                {/* "The first 17 rows" is a caption; "1 unmatched row: z has no node row" is a sentence. */}
+                {/* "All 17 rows" is a caption; "1 unmatched row: z has no node row" is a sentence. */}
                 <Text size={page.filter === "all" ? "xs" : "sm"} c="dimmed">
                     {caption}
                 </Text>

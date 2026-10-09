@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { announce, LABEL, statusComment, TITLE } from "./release-status.mjs";
+import { announce, LABEL, replacedWhilePending, reportsFailure, statusComment, TITLE } from "./release-status.mjs";
 
 const RUN = "https://github.com/o/r/actions/runs/1";
 
@@ -58,17 +58,78 @@ describe("statusComment", () => {
         );
     });
 
+    it("says a run ended badly without announcing, with its conclusion and attempt", () => {
+        const c = statusComment("run-ended", { run: RUN, sha: "abcdef123", what: "timed_out", attempt: "2" });
+        assert.match(c, /\*\*Release run ended timed_out\*\* \(re-run, attempt 2\) on abcdef1, and no comment here/);
+        assert.match(c, /Run: https:\/\/github\.com\/o\/r\/actions\/runs\/1$/);
+    });
+
     it("refuses an unknown outcome", () => {
         assert.throws(() => statusComment("skipped", { run: RUN }), /unknown outcome/);
     });
 });
 
+describe("reportsFailure", () => {
+    const held = (attempt) => statusComment("held", { run: RUN, sha: "abc", attempt }, "@x");
+    it("finds a failure comment of the same run and attempt", () => {
+        assert.ok(reportsFailure(held("1"), RUN, "1"));
+        assert.ok(reportsFailure(held(undefined), RUN, "1"));
+        assert.ok(reportsFailure(held("2"), RUN, "2"));
+        assert.ok(reportsFailure(statusComment("publish-failed", { run: RUN }), RUN, "1"));
+        assert.ok(reportsFailure(statusComment("run-ended", { run: RUN, what: "failure" }), RUN, "1"));
+    });
+    it("ignores another attempt, another run, and the success comments a run can still fail after", () => {
+        assert.ok(!reportsFailure(held("1"), RUN, "2"));
+        assert.ok(!reportsFailure(held("2"), RUN, "1"));
+        assert.ok(!reportsFailure(held("1"), `${RUN}0`, "1"));
+        assert.ok(!reportsFailure(statusComment("opened", { run: RUN, pr: "p" }), RUN, "1"));
+        assert.ok(!reportsFailure(statusComment("published", { run: RUN }), RUN, "1"));
+    });
+});
+
+describe("replacedWhilePending", () => {
+    const req =
+        (total_count, calls = []) =>
+        async (method, path) => (calls.push(path), { total_count });
+    it("is true only for a cancelled run with no job", async () => {
+        const calls = [];
+        assert.ok(
+            await replacedWhilePending({
+                request: req(0, calls),
+                repo: "o/r",
+                run: RUN,
+                attempt: "1",
+                conclusion: "cancelled",
+            }),
+        );
+        assert.deepEqual(calls, ["/repos/o/r/actions/runs/1/attempts/1/jobs?per_page=1"]);
+        assert.ok(
+            !(await replacedWhilePending({
+                request: req(3),
+                repo: "o/r",
+                run: RUN,
+                attempt: "1",
+                conclusion: "cancelled",
+            })),
+        );
+        assert.ok(
+            !(await replacedWhilePending({
+                request: req(0),
+                repo: "o/r",
+                run: RUN,
+                attempt: "1",
+                conclusion: "startup_failure",
+            })),
+        );
+    });
+});
+
 describe("announce", () => {
-    const fake = (issues) => {
+    const fake = (issues, comments = []) => {
         const calls = [];
         const request = async (method, path, body) => {
             calls.push([method, path, body]);
-            if (method === "GET") return issues;
+            if (method === "GET") return path.includes("/comments") ? comments : issues;
             if (path.endsWith("/labels")) throw new Error("422 already_exists");
             if (path.endsWith("/issues")) return { number: 42 };
             return {};
@@ -99,5 +160,27 @@ describe("announce", () => {
         );
         assert.equal(calls[2][2].title, TITLE);
         assert.deepEqual(calls[2][2].labels, [LABEL]);
+    });
+
+    it("skips a run-ended comment when a failure of that run attempt is already reported", async () => {
+        const { calls, request } = fake([{ number: 8 }], [{ body: statusComment("held", { run: RUN }) }]);
+        const unlessReported = { run: RUN, attempt: "1", since: "2026-10-09T12:00:00Z" };
+        assert.equal(await announce({ request, repo: "o/r", body: "hi", unlessReported }), null);
+        assert.deepEqual(
+            calls.map(([m, p]) => `${m} ${p}`),
+            [
+                `GET /repos/o/r/issues?labels=${LABEL}&state=open&per_page=1`,
+                "GET /repos/o/r/issues/8/comments?since=2026-10-09T12%3A00%3A00Z&per_page=100",
+            ],
+        );
+    });
+
+    it("posts a run-ended comment when only a success of that run was announced", async () => {
+        const { calls, request } = fake([{ number: 8 }], [{ body: statusComment("opened", { run: RUN, pr: "p" }) }]);
+        assert.equal(
+            await announce({ request, repo: "o/r", body: "hi", unlessReported: { run: RUN, attempt: "1" } }),
+            8,
+        );
+        assert.deepEqual(calls.at(-1), ["POST", "/repos/o/r/issues/8/comments", { body: "hi" }]);
     });
 });

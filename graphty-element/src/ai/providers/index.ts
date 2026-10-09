@@ -29,7 +29,7 @@ export { MockLlmProvider } from "./MockLlmProvider";
 export type { VercelProviderType } from "./VercelAiProvider";
 export { VercelAiProvider } from "./VercelAiProvider";
 // Re-export types from WebLlmProvider (types are erased at runtime, safe to import)
-export type { ProgressCallback, WebLlmModelInfo } from "./WebLlmProvider";
+export type { ProgressCallback, WebLlmModelInfo, WebLlmProviderOptions } from "./WebLlmProvider";
 // NOTE: WebLlmProvider class is NOT exported directly. Use getWebLlmProviderClass() instead.
 
 /** All supported provider types; their facts are `AI_PROVIDER_DESCRIPTORS` in `./catalog`. */
@@ -80,4 +80,19 @@ export function createProvider(type: ProviderType): LlmProvider {
 export async function createWebLlmProvider(): Promise<LlmProvider> {
     const WebLlmProvider = await getWebLlmProviderClass();
     return new WebLlmProvider();
+}
+
+/**
+ * Create the in-browser WebLLM provider the way `enableAiControl` does: check that
+ * `@mlc-ai/web-llm` is installed, and load the model on the first request.
+ * @param model - The WebLLM model id, or undefined for the provider's default
+ * @returns The provider
+ * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when `@mlc-ai/web-llm` is not installed.
+ */
+export async function loadWebLlmProvider(model?: string): Promise<LlmProvider> {
+    const { WebLlmProvider, requireWebLlmPackage } = await import("./WebLlmProvider");
+    await requireWebLlmPackage();
+    const provider = new WebLlmProvider({ initializeOnFirstUse: true });
+    provider.configure({ model });
+    return provider;
 }

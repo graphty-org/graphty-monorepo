@@ -4,6 +4,7 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { within } from "storybook/test";
 
+import { runName } from "../runWords";
 import { Workspace } from "../Workspace";
 import { LoadingCard } from "./CanvasOverlays";
 import KARATE from "./fixtures/karate.json";
@@ -39,6 +40,17 @@ async function loadKarate(canvasElement: HTMLElement): Promise<GraphtyElement> {
     await element.session.data.addNodes(KARATE.nodes);
     await element.session.data.addEdges(KARATE.edges);
     return element;
+}
+
+/**
+ * A run's name as the key titles its section: the app's words for it.
+ * @param element - the element.
+ * @param id - the run's id.
+ * @returns the name.
+ */
+function nameOf(element: GraphtyElement, id: string): string {
+    const listed = element.session.runs.list().find((each) => each.id === id);
+    return listed === undefined ? id : runName(element.session, listed);
 }
 
 /**
@@ -107,7 +119,7 @@ export const Finished: Story = {
         const element = await loadKarate(canvasElement);
         const run = element.session.runs.start("pagerank");
         await run;
-        await settle(canvasElement, element, `Color: ${run.label}`);
+        await settle(canvasElement, element, `Color: ${nameOf(element, run.id)}`);
     },
 };
 
@@ -118,7 +130,7 @@ export const PaintedSize: Story = {
         const element = await loadKarate(canvasElement);
         const run = element.session.runs.start("pagerank", {}, { style: { size: true } });
         await run;
-        await settle(canvasElement, element, `Size: ${run.label}`);
+        await settle(canvasElement, element, `Size: ${nameOf(element, run.id)}`);
     },
 };
 
@@ -129,7 +141,7 @@ export const LouvainOpen: Story = {
         const element = await loadKarate(canvasElement);
         const run = element.session.runs.start("louvain");
         await run;
-        await settle(canvasElement, element, `Color: ${run.label}`);
+        await settle(canvasElement, element, `Color: ${nameOf(element, run.id)}`);
     },
 };
 

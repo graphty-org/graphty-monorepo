@@ -5,6 +5,7 @@ import { defineAlgorithm } from "@graphty/graphty-element/extend";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "storybook/test";
 
+import { runName } from "../runWords";
 import { Workspace } from "../Workspace";
 import { EDGES, NODES } from "./twoRings.fixture";
 
@@ -106,8 +107,10 @@ export const Hidden: Story = {
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await run(element, "pagerank");
-        const label = element.session.runs.list()[0]?.label ?? "";
-        const eye = await within(canvasElement).findByRole("button", { name: `Hide ${label}` });
+        const [listed] = element.session.runs.list();
+        const eye = await within(canvasElement).findByRole("button", {
+            name: `Hide ${listed === undefined ? "" : runName(element.session, listed)}`,
+        });
         await userEvent.click(eye);
         await userEvent.unhover(eye);
         await element.waitForStableFrame();

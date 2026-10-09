@@ -23,6 +23,7 @@ import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
+import { assertScalesLinearly } from "../helpers/cost";
 
 /**
  * A node as a layout engine sees one: an id and the row it owns in the position array.
@@ -193,15 +194,17 @@ describe("a layout engine gives back a node the graph has removed", () => {
 
     describe("removes a batch of nodes visiting only their own edges (issue #1425)", () => {
         // Each removal used to scan every edge the engine held, so k removals from E edges cost
-        // k x E. Counted as reads of an edge's (or link's) endpoints rather than timed.
-        const n = 1000;
+        // k x E. Counted as reads of an edge's (or link's) endpoints rather than timed: removing
+        // the same 100 nodes from a graph four times larger reads about as many endpoints.
+        const sizes = [1000, 4000] as const;
         const removed = 100;
 
         /**
-         * A ring with two chords per node: 3,000 edges.
+         * A ring of `n` nodes with two chords per node: 3n edges.
+         * @param n - how many nodes
          * @returns the nodes, the edges, and a counter of endpoint reads
          */
-        function graph(): { nodes: Node[]; edges: Edge[]; reads: { count: number } } {
+        function graph(n: number): { nodes: Node[]; edges: Edge[]; reads: { count: number } } {
             const reads = { count: 0 };
             const nodes = Array.from({ length: n }, (_, i) => node(`n${i}`, i));
             const edges: Edge[] = [];
@@ -235,55 +238,75 @@ describe("a layout engine gives back a node the graph has removed", () => {
             return { touched: edges.length - left.length, left };
         }
 
-        it("in a d3 simulation", () => {
-            const { nodes, edges, reads } = graph();
-            const { touched, left } = expected(nodes, edges);
-            const simulation = new D3GraphEngine({});
-            layoutEngineInternals.addNodes(simulation, nodes);
-            layoutEngineInternals.addEdges(simulation, edges);
-            simulation.step();
+        it("in a d3 simulation", async () => {
+            await assertScalesLinearly(
+                (n) => {
+                    const { nodes, edges, reads } = graph(n);
+                    const { touched, left } = expected(nodes, edges);
+                    const simulation = new D3GraphEngine({});
+                    layoutEngineInternals.addNodes(simulation, nodes);
+                    layoutEngineInternals.addEdges(simulation, edges);
+                    simulation.step();
 
-            reads.count = 0;
-            for (const v of nodes.slice(0, removed)) {
-                simulation.removeNode(v);
-            }
+                    reads.count = 0;
+                    for (const v of nodes.slice(0, removed)) {
+                        simulation.removeNode(v);
+                    }
 
-            const visits = reads.count;
-            assert.isAtMost(visits, 2 * touched, "two endpoint reads per edge removed, not per edge held");
-            assert.deepStrictEqual([...simulation.nodes], nodes.slice(removed), "exactly the other nodes remain");
-            assert.sameMembers([...simulation.edges], left, "exactly the edges between them remain");
-            assert.doesNotThrow(() => {
-                simulation.step();
-            }, "and the simulation still steps");
+                    const visits = reads.count;
+                    assert.isAtMost(visits, 2 * touched, "two endpoint reads per edge removed, not per edge held");
+                    assert.deepStrictEqual(
+                        [...simulation.nodes],
+                        nodes.slice(removed),
+                        "exactly the other nodes remain",
+                    );
+                    assert.sameMembers([...simulation.edges], left, "exactly the edges between them remain");
+                    assert.doesNotThrow(() => {
+                        simulation.step();
+                    }, "and the simulation still steps");
+                    return visits;
+                },
+                { sizes, growth: "constant", counter: "endpoint reads removing 100 nodes" },
+            );
         });
 
-        it("in an ngraph simulation", () => {
-            const { nodes, edges } = graph();
-            const { touched, left } = expected(nodes, edges);
-            const simulation = new NGraphEngine({});
-            layoutEngineInternals.addNodes(simulation, nodes);
-            layoutEngineInternals.addEdges(simulation, edges);
+        it("in an ngraph simulation", async () => {
+            await assertScalesLinearly(
+                (n) => {
+                    const { nodes, edges } = graph(n);
+                    const { touched, left } = expected(nodes, edges);
+                    const simulation = new NGraphEngine({});
+                    layoutEngineInternals.addNodes(simulation, nodes);
+                    layoutEngineInternals.addEdges(simulation, edges);
 
-            // The engine keys its sweep on ngraph's links, so count reads of THEIR endpoints.
-            const reads = { count: 0 };
-            for (const link of simulation.edgeMapping.values()) {
-                const { fromId, toId } = link;
-                Object.defineProperties(link, {
-                    fromId: { get: () => (reads.count++, fromId) },
-                    toId: { get: () => (reads.count++, toId) },
-                });
-            }
+                    // The engine keys its sweep on ngraph's links, so count reads of THEIR endpoints.
+                    const reads = { count: 0 };
+                    for (const link of simulation.edgeMapping.values()) {
+                        const { fromId, toId } = link;
+                        Object.defineProperties(link, {
+                            fromId: { get: () => (reads.count++, fromId) },
+                            toId: { get: () => (reads.count++, toId) },
+                        });
+                    }
 
-            for (const v of nodes.slice(0, removed)) {
-                simulation.removeNode(v);
-            }
+                    for (const v of nodes.slice(0, removed)) {
+                        simulation.removeNode(v);
+                    }
 
-            const visits = reads.count;
-            assert.isAtMost(visits, 4 * touched, "a few endpoint reads per link removed, not per link held");
-            assert.deepStrictEqual([...simulation.nodes], nodes.slice(removed), "exactly the other nodes remain");
-            assert.sameMembers([...simulation.edges], left, "exactly the edges between them remain");
-            assert.strictEqual(simulation.ngraph.getNodesCount(), n - removed, "ngraph holds the same nodes");
-            assert.strictEqual(simulation.ngraph.getLinksCount(), left.length, "and the same links");
+                    const visits = reads.count;
+                    assert.isAtMost(visits, 4 * touched, "a few endpoint reads per link removed, not per link held");
+                    assert.deepStrictEqual(
+                        [...simulation.nodes],
+                        nodes.slice(removed),
+                        "exactly the other nodes remain",
+                    );
+                    assert.sameMembers([...simulation.edges], left, "exactly the edges between them remain");
+                    assert.strictEqual(simulation.ngraph.getNodesCount(), n - removed, "ngraph holds the same nodes");
+                    assert.strictEqual(simulation.ngraph.getLinksCount(), left.length, "and the same links");
+                    return visits;
+                },
+                { sizes, growth: "constant", counter: "link endpoint reads removing 100 nodes" },
+            );
         });
     });
 });

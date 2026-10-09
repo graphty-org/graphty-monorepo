@@ -30,6 +30,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Graph } from "../../src/Graph";
 import type { ElementSession } from "../../src/session";
+import { assertScalesLinearly } from "../helpers/cost";
 import { asData, cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 /** At most this many whole-graph repaints for one load, however many elements it holds. */
@@ -340,17 +341,20 @@ describe("the scene-wide work of a load", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("grows roughly linearly with the edge count between 500 and 2000 edges, default arrowheads on", async () => {
-        const small = await workOfLoad(500);
-        const large = await workOfLoad(2000);
         const total = (counts: Record<WorkKind, number>): number =>
             Object.values(counts).reduce((sum, count) => sum + count, 0);
-        const message =
-            `a 500-edge load visited ${String(total(small))} scene-list entries (${describeWork(small)}) and a ` +
-            `2000-edge load ${String(total(large))} (${describeWork(large)}). Linear is 4 times as many.`;
-
-        // A load does some scene-wide work, so a 0 here means the counter saw nothing, not that the
-        // load is cheap.
-        assert.isAbove(total(small), 0, message);
-        assert.isAtMost(total(large), MAX_LOAD_RATIO * total(small), message);
+        const seen: string[] = [];
+        await assertScalesLinearly(
+            async (edgeCount) => {
+                const work = await workOfLoad(edgeCount);
+                seen.push(`${String(edgeCount)} edges: ${describeWork(work)}`);
+                return total(work);
+            },
+            {
+                sizes: [500, 2000],
+                maxRatio: MAX_LOAD_RATIO,
+                counter: () => `scene-list entries a load visited (${seen.join("; ")})`,
+            },
+        );
     }, 300000);
 });

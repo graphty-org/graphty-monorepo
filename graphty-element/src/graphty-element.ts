@@ -1770,9 +1770,10 @@ export class Graphty extends LitElement {
      * runner, a headless browser) that is tens to hundreds of milliseconds of every frame, and
      * the page's own controls answer that much faster.
      *
-     * Leave it off if your code changes the Babylon.js scene directly (through `graph.scene`):
-     * the element cannot see such a change, so it is not drawn until something else asks for a
-     * frame.
+     * If your code changes the Babylon.js scene directly (through `graph.scene`), adding or
+     * removing a mesh, material, texture, light or camera is drawn, but changing a property of
+     * something already there (a material's color, a mesh's position) is not drawn until something
+     * else asks for a frame. Leave it off in that case.
      *
      * A preference of this view, not part of the project: switching it records no undo step and
      * is not saved in a project file. The same switch as `layoutBehavior.rendering.onDemand`.

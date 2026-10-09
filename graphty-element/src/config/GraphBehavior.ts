@@ -48,8 +48,9 @@ const RenderingBehaviorOpts = z
          * on. On, the element skips a frame once the layout has settled, the styles are painted and
          * the camera is still, and draws again when anything it drives or the reader's input changes
          * the picture. A still graph then costs the page nothing per frame, which on a software GPU
-         * is tens to hundreds of milliseconds of every frame. A change made to the scene from
-         * outside the element is not seen until something else asks for a frame.
+         * is tens to hundreds of milliseconds of every frame. Something added to or removed from the
+         * scene from outside the element is drawn; a property changed on something already in it
+         * is not seen until something else asks for a frame.
          */
         onDemand: z.boolean().default(false),
     })

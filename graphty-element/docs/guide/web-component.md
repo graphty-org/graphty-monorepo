@@ -165,9 +165,12 @@ own buttons and fields answer that much later.
 <graphty-element render-on-demand></graphty-element>
 ```
 
-Leave it off if your code changes the Babylon.js scene directly, through `element.graph.scene`:
-the element cannot see such a change, so it would not be drawn until something else changed the
-picture. Like `labelDeclutter`, it is a preference of the view, not saved in a project file.
+It can also be set as `layoutBehavior.rendering.onDemand`. If your own code changes the Babylon.js
+scene directly, through `element.graph.scene`: adding or removing a mesh, material, texture, light
+or camera is drawn, and so is a new background color, but changing a property of something already
+in the scene (a material's color, a mesh's position) is not drawn until something else changes the
+picture. Leave the option off in that case. Like `labelDeclutter`, it is a preference of the view,
+not saved in a project file.
 
 ## Basic Usage
 

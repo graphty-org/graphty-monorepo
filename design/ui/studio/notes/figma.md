@@ -5,48 +5,40 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-07 (tier 2 gap proposal added; round 3 watch list kept).
+Last updated: 2026-10-09 (tier 2 round 1 expert walkthrough; file summarized).
 
 ## Top of mind
 
-0. (2026-10-07) Tier 2 build proposal sent (Decisions, 2026-10-07 tier 2). Order: crash and
-   escapes first (paint-tree path row, '=weight > 3'), then the selection bar as the home of
-   Path between / Add note / Neighborhood, then Filters, Notes, weight. Several tables and node
-   weight are the element-heavy items; every new element API is an owner record.
-1. (2026-10-07) Round 3 measures the twelve round-2 changes. The re-pilot reached every end state
-   with no blocker: Size "+" opens its list at once (T9), runs read "PageRank" everywhere (T7,
-   T16), group layouts enable after Louvain with "Group by: Communities" chosen (T11), "Show all
-   labels" shows every name (T10). Watch whether ease on sizing and names moves; that is credit.
-2. (2026-10-07) "Show all labels" was decided against my "do not add it yet". The forcing fact was
-   good: the element already has the capability and the switch visibly changes the drawing, so it
-   is not the round 8 "Show labels" trap. Accept it; watch that words at rest do not rise.
-3. (2026-10-07) New top risk, element: in the default 3D view perspective makes a nearer dot look
-   bigger, so "biggest dot" can name the wrong node (Ava drawn larger than Farah, T15). Figma never
-   lies about size; a size encoding must survive the camera. Open choice: element fix or the app
-   opening a sized drawing in 2D. Not mine to decide; push for a recorded decision.
-4. (2026-10-07) The key over a node: the element's fit has no inset (fixed 5 percent), so no
-   consumer can keep the graph clear of an overlay. Needs a public option: an owner decision.
-   Chrome over content stays a Figma violation; propose it for round 4 if round 3 confirms it.
-5. (2026-10-07) The element still writes English refusals the app shows as is ('the layout
-   "planar" ... G is not planar', '"results.louvain.group" names 6'). Words-at-rest debt; the fix
-   is an element code plus app words, never an app rewrite of the sentence.
-6. (2026-10-07) Before a round: check every decided change in the served build (preflight). The
-   run rename slipped through round 2 unbuilt.
-7. (2026-10-07) Check the Degree-row chevron and menu-to-dialog focus in round 3 on pointer and
-   keyboard sessions; the re-pilot used Control+E and clicked the row word, so neither is proven.
-8. (2026-10-06, owner) Figma's authority covers CONTROLS AND GESTURES ONLY; structure comes from
-   graphty's ontology.
-9. (2026-10-06) Every control must visibly change canvas, legend or popover. A key row for a
-   painted-over layer is this class; round 2 decision removes fully covered blocks only.
-10. (2026-10-06) Held, Figma-consistent: graph Style tab with no signpost, bind icon, icon-only
-    toolbar, 1000 ms tooltip. No round-2 failure argues against them.
-11. (2026-09-26, owner) No wizards, coach marks, first-run UI or suggestion cards.
-12. (2026-10-07) Study reading: one model plays every persona; a failure is strong, a pass weak;
-    the screen-reader tool now must follow the active option before its findings count.
-13. (2026-10-07) Do not ask for what the build cannot do in a task prompt; a missing control is a
-    finding, not a 3.5x measure.
-14. (2026-10-06) Ledger debt: `figma-crosswalk.md` section 4 lacks rows for undo notices, the
-    Discard prompt and Save/Save as.
+1. (2026-10-09) Tier 2 round 1 walkthrough done (`tier2/rounds/round-1/expert/figma.md`): 4
+   severity 3, 22 severity 2, 9 severity 1. The 3s: Enter does not commit in the filter step
+   editor; rules need backticks around numbers (element syntax on screen); edge names cut inside
+   the string so the far end is lost; the canvas key shows an out-of-date range with no mark.
+2. (2026-10-09) Four dry runs preceded round 1 and still left implementation faults a participant
+   can trip on (the Enter commit, the cut names, the suggestion list over the next field, Escape
+   not closing the step editor, "1 note" with two notes). A dry run must click every field's
+   commit keys (Enter, Tab, Escape), not only the success path's button.
+3. (2026-10-09) Biggest Figma divergence in tier 2: the step editor is a form with Save, not a
+   live inspector; its one button both saves and turns the step on. Push for live commit plus the
+   row's own toggle.
+4. (2026-10-09) Show/hide is a checkbox on filter rows and an eye on paint rows: one job, two
+   controls. Ask for the eye on both.
+5. (2026-10-09) Selection on canvas has two marks (yellow halo nodes, blue edges) and halos swamp
+   colors at Hops 2; edges give no hover feedback. Element items, owner-visible.
+6. (2026-10-09) Segmented controls mark the choice only with an outline that reads as focus
+   (compact-mantine). One fix there helps five screens.
+7. (2026-10-07) In the 3D view perspective makes a nearer dot look bigger, so "biggest dot" can
+   name the wrong node. Size encodings must survive the camera. Element or app-opens-2D: undecided.
+8. (2026-10-07) The element's fit has no inset, so the key can cover a node. Needs a public option.
+9. (2026-10-07) The element still writes English refusals the app shows; the fix is an element
+   code plus app words, never an app rewrite.
+10. (2026-10-07) Before a round: check every decided change in the served build (preflight).
+11. (2026-10-06, owner) Figma's authority covers CONTROLS AND GESTURES ONLY; structure comes from
+    graphty's ontology.
+12. (2026-10-06) Every control must visibly change canvas, legend or popover.
+13. (2026-09-26, owner) No wizards, coach marks, first-run UI or suggestion cards.
+14. (2026-10-07) Study reading: one model plays every persona; a failure is strong, a pass weak.
+15. (2026-10-06) Ledger debt: `figma-crosswalk.md` section 4 lacks rows for undo notices, the
+    Discard prompt and Save/Save as; tier 2 adds the deselect toast and the step editor's Save.
 
 ## Priorities and values
 
@@ -112,6 +104,11 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- 2026-10-09 (me, tier 2 round 1 walkthrough) Severity 3 for: Enter not committing in the step
+  editor (bar 4, silent non-commit), backtick numbers in rules (raw code string on a success path,
+  bar 10 rule), edge names cut in the string (truncation hiding the word needed to act), the key
+  without an out-of-date mark (bar 5). Owners: app, element, app, app. Everything else 2 or 1.
+  Reason: the bar 10 rules name exactly these classes; the rest slows a reader but does not mislead.
 - 2026-10-07 (me, tier 2 gap proposal) Build to refined B where it is decided: Data > Filters with
   an Apply checkbox and the header chip; Path popover with pick fields (P, the selection bar, the
   node menu); Notes place with N; Neighborhood popover (1-3 hops, Out/In/Both, Filter to
@@ -213,48 +210,28 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   silent reset, Selection row emptying the inspector. Lesson: the remaining failures are doors
   that lead somewhere different from the home, and controls that do nothing visible.
 
-- 2026-09-06 to 09-09 (v1 app) Figma pop-overs and a bottom-center toolbar: the owner liked the
-  screens (2026-09-07), but panels were closed where popovers existed, so the "panel expands,
-  icon opens advanced popover" pattern was not visible. Lesson: show the panel's common options
-  open; a popover holds only the advanced rest.
-- 2026-09-13 (v1) W14 onboarding slice with a welcome modal, a suggestion strip and a plain-
-  language reading. Did not work: it is the clutter the owner later ruled out (2026-09-26). Lesson:
-  Figma has no first-run UI; samples and defaults do that job.
-- 2026-09-25 Object-first mocks borrowed Figma's frame. Owner found inconsistent chrome
-  (hamburger vs rail), an overloaded right panel, and no way to open data. Lesson: copying the
-  frame is not a design; data loading is key functionality Figma also has.
-- 2026-09-26 Round-1 novice walkthrough (Elena, Karate Club): unlabeled toolbar icons with a 1 s
-  tooltip delay were the steepest moment; the first click on a color swatch did nothing; the verb
-  clicked ("Find groups") did not match the row it made. Lesson: Figma's icon-only toolbar works
-  for Figma users because of muscle memory; newcomers need the first click to pay off.
-- 2026-09-28 Mocks put Export top right and Styles under the Graph nav (copying Figma's Share
-  slot and Styles list). Owner: copying Figma too literally. Moved Export to the project-name
-  menu; styles later became the paint tree.
-- 2026-09-30 My Structure B spec proposed (a) measures add no row until Color by / Size by is
-  pressed, (b) a partition shows its largest 10 groups plus one "Other" child, (c) a Run dropdown
-  in a TOP-center toolbar like Figma's shape tool. Owner rejected (a) as a fatal flaw ("this is
-  graph visualization software"), accepted hundreds of groups collapsed and sortable instead of
-  (b), and kept the toolbar bottom center. The Run dropdown survived as the Analyze popover.
-  Lesson: Figma's "creating a variable binds nothing" does not transfer; in a graph tool a result
-  must show.
-- 2026-09-30 to 10-01 Refined B skeleton reviews (my lens): the blocking problems were mostly
-  wiring (doors jumping to another project, label lines vanishing on popover open, a bound label
-  line opening the color binding popover). Lesson: a control that changes state without the
-  canvas following is the defect class that sinks tasks; review by clicking, not by reading.
-- 2026-10-01 to 10-02 Rounds 7 and 8 on the skeleton: Figma-grammar fixes helped where wiring
-  worked (layout method list ease 2.50 to 4.80, file actions in the main menu, the communities run
-  row). Failed where a menu item did nothing visible: "Show labels" (19 of 21 never bound a name),
-  Neighborhood that named no one (0 of 12). Lesson: Figma's "+" pattern is only as good as the
-  visible result it produces.
-- 2026-10-02 Round 8 first click: Layout icon read as "play" (62%); export data 10% (people
-  clicked the Table toggle). Lesson: icon-only works when the glyph says the verb; otherwise the
-  tooltip delay becomes the bottleneck.
-- 2026-10-04 Build vs mock comparison: compact-mantine limits pushed the app into workarounds (roles
-  as a row of selects above the Data page grid because the grid header cannot hold a menu; tick
-  menu instead of the field list for Columns). Lesson: fix the shared component first.
+- 2026-09-06 to 10-04, summarized 2026-10-09. Worked: Figma popovers and a bottom toolbar
+  (owner liked them), the "+" pattern wherever the result showed at once, file actions in the main
+  menu. Did not: closed panels hiding the common options; first-run modals and suggestion strips
+  (clutter, ruled out); copying Figma's frame or Export slot literally; a measure that adds no row
+  until bound (fatal in a graph tool); icon-only verbs whose glyph did not say the verb (Layout
+  read as "play"); controls that changed state with no visible result ("Show labels",
+  Neighborhood naming no one); app workarounds for compact-mantine limits. Lessons: review by
+  clicking, not reading; fix the shared component first; a result must show.
+
+- 2026-10-09 Tier 2 round 1 walkthrough on build 946256efb876. Worked: one home for filtering
+  (Filter to neighbors lands as a step), the header chip and its tooltip, matching edge menus,
+  Escape from the Path popover. Did not: the step editor's form-and-Save model, two selection
+  marks, the Path popover covering the canvas and its own next field. Lesson: press Enter, Tab
+  and Escape in every new field during a walk; that found the worst fault in one try.
 
 ## Thinking
 
+- (2026-10-09) The step editor. Figma's closest model is a layer's properties: edits live, the eye
+  separate, the new layer selected after "+". Applied here: "+" adds a step bound to the first
+  amount column at its minimum (shows everything, changes nothing yet), Value commits on Enter,
+  the row's own eye turns it on and off, and the step stays selected. Bring it as a proposal with
+  this round's evidence, not taste.
 - (2026-10-07) Perspective and size. Figma's canvas is orthographic: an object's on-screen size is
   its size. graphty's default 3D view breaks that for any size encoding. When a style line binds
   size, the honest drawing is one where size reads true. Candidate Figma-consistent move: the

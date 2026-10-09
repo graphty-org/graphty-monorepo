@@ -262,7 +262,6 @@ const config: KnipConfig = {
         graphty: {
             entry: [
                 "src/App.tsx!",
-                "src/stubs/web-llm-stub.ts",
                 "src/**/*.test.{ts,tsx}",
                 "src/stories/**/*.stories.tsx",
                 "eslint-rules/**/*.test.ts",

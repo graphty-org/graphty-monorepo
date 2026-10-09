@@ -44,6 +44,12 @@ Every command prints what a participant would notice, then the path of the new s
   tool that ran the session, not the build), and `uncommittedChanges` says whether this
   checkout's `graphty/` or `graphty-element/` had uncommitted edits; it also holds the URL,
   the start time and the setup steps.
+- For bar 2 (earlier work kept), `work-start.json` lists the open work the participant arrives to
+  -- runs, style layers, notes, filter steps and sources, each by its id and name -- and `--end`
+  writes `work.json`: that list, the same list at the end, and `gone`, what the start held and the
+  end does not (a renamed run, an edited note or a step turned off is not gone). Graders judge
+  only whether each item in `gone` was the participant's choice. The participant never sees
+  either file.
 - `REAL_VIEWPORT=<w>x<h>` on the `--start` command opens the window at another size (a screenshot
   audit at 1200x900 or 900x700); studies keep the default 1440 x 900. `session.json` records it.
 - A session nobody steps for 15 minutes closes itself, so a forgotten one cannot hold a browser.
@@ -204,16 +210,34 @@ unconfirmed, `--read` in the Export dialog) and an end. It prints `ok` or `FAIL`
 Its sessions are written under `design/ui/studio/tmp/prove/`, which it clears first; set
 `REAL_PROVE_DIR=<folder>` to run it beside another self-test.
 
-## Measuring the accessibility and word-count bars
+## Measuring the scripted bars
 
 ```bash
-node design/ui/studio/tool/bars.mjs <out dir> [--dist <build dir>]
+node design/ui/studio/tool/bars.mjs <out dir> [--dist <build dir>] [--scheme dark|light]
 ```
 
-Measures two of the bars in `criteria.md` on a production build: axe-core on each core screen of
-bar 8 (tags `wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa`; a serious or critical violation fails),
-and bar 9, the app's own words on screen at rest (Les Miserables loaded, nothing selected,
-1440 x 900; data values, node names, numbers and the drawing left out, every counted word
-printed). It writes `<out dir>/bars.json` and exits 1 when either bar fails. The other parts of
-bar 8 (shared names, focus drops, focus visibility, announcements) are not in it. To measure a
-build before fixes replace it, copy `graphty/dist` first and pass the copy with `--dist`.
+Measures the scripted bars of `criteria.md` and `../tier2/criteria.md` on a production build, in
+about 15 minutes, and writes `<out dir>/bars.json`; it exits 1 when a bar fails or a screen was not
+reached:
+
+- **Bar 7 (a):** every algorithm in graphty-element's catalog runs on `friends.csv` loaded with each
+  weight meaning (closer, farther, capacity, not set) and once with no weight column, directed
+  and undirected. A run must read the loaded weight in its own sense or not at all, and a run that
+  read no weight must give the same answer as on the table with no weight column.
+- **Bar 8:** axe-core (tags `wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa`; a serious or critical
+  violation fails) on tier 1's core screens and on every tier 2 screen the criteria list; on the
+  tier 2 screens also controls that share an accessible name, and whether focus fell to the page
+  after each action the criteria list (adding, ticking and deleting a filter step, Escape from the
+  step editor, the Path popover and the find box, Find path, saving a note, each Load, Rerun,
+  Filter to neighbors, Select endpoints).
+- **Bar 9:** the app's own words on screen (data values, node names and numbers left out, every
+  counted word printed): tier 1's screen at rest, at most 50; and tier 2's rest screen, a path
+  run's inspector, an edge's inspector and the neighbor list, none above round 1's count in
+  `bars-limits.json`.
+
+Tier 1's screens and bar 7 run in the script's own browser; tier 2's screens are walked with
+`real.mjs` sessions under `<out dir>/sessions/`, whose screenshots show each screen measured.
+Before a reading is trusted, each check must fail on a planted case (an image with no text
+alternative, two buttons of one name, focus dropped to the page, a wrong weight reading of each
+kind), and a check that reads nothing fails. To measure a build before fixes replace it, copy
+`graphty/dist` first and pass the copy with `--dist`.

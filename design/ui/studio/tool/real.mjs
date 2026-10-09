@@ -66,6 +66,17 @@ import { fileURLToPath } from "node:url";
 
 import { PNG } from "pngjs";
 
+import {
+    axeViolations,
+    focusOnPage,
+    openWork,
+    plant,
+    sameNames,
+    unplant,
+    wordsOnScreen,
+    workGone,
+} from "./measure.mjs";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../../../..");
 // REAL_DIST serves a copy of a build instead, one a rebuild cannot replace mid-session
@@ -379,7 +390,10 @@ async function serve(dir, sr) {
                     else if (req.op === "plant-live") r = await plantLive(s);
                     else if (req.op === "plant-ticker") r = await plantTicker(s);
                     else if (req.op === "hovered") r = await hovered(s);
-                    else if (req.op === "end") r = { out: [`session ended: ${dir}`], code: 0, end: true };
+                    else if (req.op === "measure") r = await measure(s, req.plant);
+                    else if (req.op === "work") r = { out: [], code: 0, data: await s.page.evaluate(openWork) };
+                    else if (req.op === "plant-removal") r = await plantRemoval(s);
+                    else if (req.op === "end") r = await opEnd(s);
                     else r = { out: [`unknown request ${req.op}`], code: 2 };
                 } catch (e) {
                     r = { out: [`the tool failed: ${e.stack || e.message}`], code: 1 };
@@ -714,6 +728,12 @@ async function opStart(s, setup) {
             code = 1;
         }
     }
+    // bar 2: the open work the participant arrives to, compared with the end's at --end
+    await writeFile(
+        join(s.dir, "work-start.json"),
+        JSON.stringify(await s.page.evaluate(openWork).catch((e) => ({ error: e.message.split("\n")[0] })), null, 1) +
+            "\n",
+    );
     s.errors.length = 0; // what loading and setup printed is in session.log, not the participant's view
     if (s.sr) await srReport(s, out);
     out.push(
@@ -723,6 +743,50 @@ async function opStart(s, setup) {
     return { out, code };
 }
 
+// Bar 2: the open work at the end beside the start's, and what is gone, in work.json for the graders
+// (whether each loss was the participant's own choice is theirs to judge); never shown to the participant
+async function opEnd(s) {
+    let end = null;
+    try {
+        end = await s.page.evaluate(openWork);
+    } catch (e) {
+        end = { error: e.message.split("\n")[0] };
+    }
+    const start = JSON.parse(await readFile(join(s.dir, "work-start.json"), "utf8").catch(() => "null"));
+    await writeFile(
+        join(s.dir, "work.json"),
+        JSON.stringify({ start, end, gone: workGone(start, end) }, null, 1) + "\n",
+    );
+    return { out: [`session ended: ${s.dir}`], code: 0, end: true };
+}
+// What the studio's bars read on the page as it is now (bars.mjs): axe, controls sharing a name,
+// focus fallen to the page, the app's words on screen. A plant ("img", "twins", "blur") puts a
+// known failure on the page first and takes it away after, to prove each check can fail.
+async function measure(s, planted) {
+    const { page } = s;
+    s.cdp ??= await s.context.newCDPSession(page);
+    if (planted) await page.evaluate(plant, planted);
+    try {
+        return {
+            out: [],
+            code: 0,
+            data: {
+                focusOnPage: await page.evaluate(focusOnPage),
+                axe: await axeViolations(page),
+                names: await sameNames(s.cdp),
+                words: await page.evaluate(wordsOnScreen),
+            },
+        };
+    } finally {
+        if (planted) await page.evaluate(unplant);
+    }
+}
+// --prove only: clears the graph through the element, as a lost table would go; says the source's name
+async function plantRemoval(s) {
+    const [name] = (await s.page.evaluate(openWork)).sources;
+    await s.page.evaluate(() => document.querySelector("graphty-element").session.data.clear());
+    return { out: [name], code: 0 };
+}
 // --prove only: holds the orbit camera's yaw key on the focused canvas (or lets it go), a real spin
 async function plantSpin(s, on) {
     if (on) {
@@ -1606,7 +1670,21 @@ async function prove() {
     check("the setup's sample is open when the participant arrives", y.code === 0, y.out);
     const lit = (await ask(B, { op: "hovered" })).out[0];
     check("a setup leaves the pointer over nothing, so no control is lit by a hover", lit === "", lit);
+    // bar 2: the open work at the start is listed, and a planted removal shows up as gone at the end
+    const workStart = JSON.parse(readFileSync(join(B, "work-start.json"), "utf8"));
+    check(
+        "the open work at the start lists the setup's source and style layers",
+        workStart?.sources?.length > 0 && workStart?.layers?.length > 0,
+        JSON.stringify(workStart),
+    );
+    const removed = (await ask(B, { op: "plant-removal" })).out[0];
     node(["--end", B]);
+    const work = existsSync(join(B, "work.json")) ? JSON.parse(readFileSync(join(B, "work.json"), "utf8")) : {};
+    check(
+        "a planted removal of the loaded table is listed as gone at the end",
+        !!removed && (work.gone?.sources ?? []).includes(removed),
+        `removed ${removed}; gone ${JSON.stringify(work.gone)}`,
+    );
     await writeFile(setup, "--click A control that does not exist\n");
     const C = join(base, "session-c");
     r = node(["--start", C, `setup:${setup}`]);

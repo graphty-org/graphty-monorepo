@@ -19,10 +19,10 @@
  * Copied from packages/graph-io/scripts/build-bundle.js; the code is unchanged, only this header differs.
  */
 
-import { spawnSync } from "child_process";
-import { readFileSync } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { build } from "vite";
 
 import { ENTRIES } from "./entries.js";

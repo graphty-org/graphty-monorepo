@@ -1112,7 +1112,7 @@ export class LayoutManager implements Manager {
             const built = engine;
             snapshotLayoutInternals.connect(built, {
                 progress: (progress) => {
-                    this.eventManager.emitGraphEvent("layout-progress", { layoutType: type, ...progress });
+                    this.eventManager.emit("layout-progress", { layoutType: type, ...progress });
                 },
                 fail: (error) => {
                     if (this.layoutEngine === built) {
@@ -1241,7 +1241,7 @@ export class LayoutManager implements Manager {
             previousEngine?.dispose();
 
             // Emit layout changed event
-            this.eventManager.emitGraphEvent("layout-changed", {
+            this.eventManager.emit("layout-changed", {
                 layoutType: type,
                 options: layoutOpts,
             } satisfies Omit<LayoutChangedEvent, "type">);
@@ -2095,7 +2095,7 @@ export class LayoutManager implements Manager {
         if (this.layoutEngine instanceof SimulationLayoutEngine) {
             this.dataManager.getSnapshot();
 
-            this.eventManager.emitGraphEvent("layout-updated", {
+            this.eventManager.emit("layout-updated", {
                 nodeCount: nodes.length,
                 type: "incremental",
             });
@@ -2131,7 +2131,7 @@ export class LayoutManager implements Manager {
         }
 
         // Emit event that layout was updated
-        this.eventManager.emitGraphEvent("layout-updated", {
+        this.eventManager.emit("layout-updated", {
             nodeCount: nodes.length,
             type: "incremental",
         });

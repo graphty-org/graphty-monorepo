@@ -162,6 +162,23 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
         const { enabled }: { enabled: boolean } = e.detail;
         log(enabled);
     });
+    element.addEventListener("input:pointer-down", (e) => {
+        const { x, y }: { x: number; y: number } = e.detail;
+        log(x, y);
+    });
+    element.addEventListener("input:wheel", (e) => {
+        log(e.detail.deltaY, e.detail.deltaMode);
+    });
+    element.addEventListener("input:touch-start", (e) => {
+        log(e.detail.array.map((touch) => touch.x));
+    });
+    element.addEventListener("input:touch-end", (e) => {
+        log(e.detail.array.map((touch) => touch.value));
+    });
+    element.addEventListener("input:key-down", (e) => {
+        const { key, code, ctrlKey, shiftKey, altKey, metaKey } = e.detail;
+        log(key, code, ctrlKey, shiftKey, altKey, metaKey);
+    });
     element.addEventListener("ai-status-change", (e) => {
         log(e.detail.status);
     });
@@ -207,6 +224,13 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
         "screenshot-ready",
         "zoom-to-fit-complete",
         "graph-frame-stable",
+        "input:pointer-move",
+        "input:pointer-up",
+        "input:touch-move",
+        "input:key-up",
+        "input:undo",
+        "input:redo",
+        "input:select-all",
     ] as const satisfies readonly (keyof GraphtyForwardedEventMap)[];
     for (const name of rest) {
         element.addEventListener(name, (e) => {

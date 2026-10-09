@@ -173,6 +173,7 @@ describe("FR behaviour pins (spec 11.4, 7.20; the CPU layout test's pins on the 
         }
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "fixed at creation: the pinned row is bitwise where the seed put it after run({ maxIter: 20 }) and the other rows are NOT rescaled (design 13 row P5); a bool column with role fixed pins the same rows; a missing column is E_INVALID_ARGUMENT",
         async (t) => {
@@ -367,6 +368,7 @@ describe("FR behaviour pins (spec 11.4, 7.20; the CPU layout test's pins on the 
         }
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the same seed gives the same layout bitwise on the same device; a different seed gives a different layout",
         async (t) => {

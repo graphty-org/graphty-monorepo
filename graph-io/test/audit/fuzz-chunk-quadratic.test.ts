@@ -273,6 +273,7 @@ describe.skipIf(!BENCH)("fuzz audit: 50 MB end-to-end import times, a measuremen
         return performance.now() - t0;
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "CSV: a 50 MB quoted cell in 16 KB chunks imports",
         async () => {
@@ -282,6 +283,7 @@ describe.skipIf(!BENCH)("fuzz audit: 50 MB end-to-end import times, a measuremen
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "CSV: an unclosed quote followed by 50 MB of rows in 16 KB chunks fails",
         async () => {
@@ -294,6 +296,7 @@ describe.skipIf(!BENCH)("fuzz audit: 50 MB end-to-end import times, a measuremen
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Pajek: a 50 MB label in 16 KB chunks imports",
         async () => {
@@ -303,6 +306,7 @@ describe.skipIf(!BENCH)("fuzz audit: 50 MB end-to-end import times, a measuremen
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "GraphML: a 50 MB attribute value in 16 KB chunks imports",
         async () => {
@@ -313,6 +317,7 @@ describe.skipIf(!BENCH)("fuzz audit: 50 MB end-to-end import times, a measuremen
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "GraphML: a 50 MB comment in 16 KB chunks imports",
         async () => {
@@ -323,6 +328,7 @@ describe.skipIf(!BENCH)("fuzz audit: 50 MB end-to-end import times, a measuremen
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "JSON: a node with 100k keys imports",
         async () => {
@@ -333,6 +339,7 @@ describe.skipIf(!BENCH)("fuzz audit: 50 MB end-to-end import times, a measuremen
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "CSV: a 100k-column header imports",
         async () => {

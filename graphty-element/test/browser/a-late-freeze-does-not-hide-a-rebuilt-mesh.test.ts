@@ -34,6 +34,7 @@ describe("a freeze Babylon puts off", () => {
     let graph: Graph;
     let session: GraphSession;
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeAll(async () => {
         container = document.createElement("div");
         container.style.width = "480px";
@@ -134,6 +135,7 @@ describe("a freeze Babylon puts off", () => {
 
         // The scene becomes ready and Babylon's next poll runs the freeze that was put off.
         scene.isReady = isReady;
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 250));
 
         // Taking the layer away rebuilds the edge's line in a batch that did not exist when the

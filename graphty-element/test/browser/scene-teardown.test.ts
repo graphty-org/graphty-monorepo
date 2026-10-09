@@ -65,6 +65,7 @@ async function createGraphtyElement(): Promise<Graphty> {
     element.style.display = "block";
     container.appendChild(element);
 
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
 
     mounted = element;
@@ -99,6 +100,7 @@ async function loadInline(element: Graphty, data: string): Promise<void> {
     element.dataSource = "json";
     element.dataSourceConfig = { data };
 
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
 }
 
@@ -122,6 +124,7 @@ describe("scene teardown on clearData", () => {
             assert.isAbove(scene.meshes.length, baseline, "loading must add meshes, or the test proves nothing");
 
             element.clearData();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, CLEAR_SETTLE_MS));
 
             assert.strictEqual(

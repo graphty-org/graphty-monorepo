@@ -495,7 +495,7 @@ import { ApiKeyManager } from "@graphty/graphty-element/ai";
 
 const keys = new ApiKeyManager(); // restores keys saved by an earlier page
 
-keys.enablePersistence(); // save keys in localStorage, encrypted, from now on
+keys.enablePersistence(); // save keys in localStorage, obscured (see below), from now on
 keys.setKey("anthropic", apiKey);
 keys.setDefaultProvider("anthropic"); // saved with the keys
 
@@ -504,13 +504,59 @@ const provider = keys.getDefaultProvider() ?? keys.getConfiguredProviders()[0];
 keys.disablePersistence(); // forget them on the next load (they stay in memory)
 ```
 
-With no argument, `enablePersistence()` encrypts with a built-in key: the keys are not stored
-in plain text, but anyone who can run script on the page can read them. Pass
-`{ encryptionKey }` (at least 10 characters) to use the reader's own password instead. The
-manager remembers that password in `sessionStorage`, so a reload in the same tab restores the
-keys and closing the tab ends it; after that, call `enablePersistence({ encryptionKey })` again
-to unlock them. `new ApiKeyManager({ storage, prefix })` changes where the keys are kept
-(default `localStorage` and `"@graphty-ai-keys"`).
+With no argument, `enablePersistence()` uses a built-in key, and that key is public in the
+package's source. **Keys saved that way are obscured, not encrypted**: they are not in plain
+text, but anyone with access to the page or the browser profile can decrypt them.
+
+To protect them, ask the reader for a passphrase and derive the key from it with
+`deriveKeyFromPassphrase` (PBKDF2 in WebCrypto; you write no crypto yourself):
+
+```typescript
+import { ApiKeyManager, deriveKeyFromPassphrase } from "@graphty/graphty-element/ai";
+
+const keys = new ApiKeyManager();
+keys.enablePersistence({ encryptionKey: await deriveKeyFromPassphrase(passphrase, userId) });
+```
+
+The second argument is a salt: not secret, but one per reader (an account id, or random bytes
+you keep) so a guessed passphrase cannot be tried against every reader at once. It defaults to
+a fixed salt. The same passphrase and salt give the same key on every page, and a wrong
+passphrase loads no keys and leaves the saved ones as they were.
+
+Any `{ encryptionKey }` of at least 10 characters works the same way. The manager remembers it
+in `sessionStorage`, so a reload in the same tab restores the keys and closing the tab ends it;
+after that, call `enablePersistence({ encryptionKey })` again to unlock them.
+`new ApiKeyManager({ storage, prefix })` changes where the keys are kept (default
+`localStorage` and `"@graphty-ai-keys"`).
+
+### The In-Browser Model (WebLLM)
+
+With the optional `@mlc-ai/web-llm` package installed, the assistant can run a model in the
+reader's browser over WebGPU, with no key. Only some models can call the assistant's tools --
+select nodes, run a layout, zoom -- because WebLLM accepts tools only for its Hermes models.
+Every other model answers in text only: it can describe and explain, but it changes nothing.
+
+```typescript
+import { getWebLlmProviderClass } from "@graphty/graphty-element/ai";
+
+const WebLlmProvider = await getWebLlmProviderClass();
+for (const m of WebLlmProvider.getAvailableModels()) {
+    console.log(m.id, m.supportsTools, m.downloadMB); // capability and approximate download, in MB
+}
+
+const provider = new WebLlmProvider();
+provider.configure({ model: "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC" }); // can call tools
+await provider.initialize(); // downloads the model the first time; onProgress() reports it
+console.log(provider.modelSupportsTools); // true
+
+await graph.enableAiControl({ provider: "webllm", providerInstance: provider });
+```
+
+The trade-off is the download. The default model, Llama 3.2 1B, is about 500 MB and answers in
+text only; the Hermes models that can call tools are about 4 to 4.5 GB and need a GPU with
+roughly 4 to 5 GB of memory. The browser caches a model after its first download.
+`modelSupportsTools` tells you which kind the provider has, so you can say so to the reader;
+the provider never sends tools to a model that would refuse them.
 
 ### Voice Input
 

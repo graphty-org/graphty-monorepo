@@ -194,7 +194,7 @@ export class ScreenshotCapture {
             let enhancementStartTime: number | undefined;
             if (finalOptions.enhanceQuality) {
                 enhancementStartTime = Date.now();
-                this.graph.eventManager.emitGraphEvent("screenshot-enhancing", {});
+                this.graph.eventManager.emit("screenshot-enhancing", {});
 
                 // Normalize enhanceQuality to options object
                 const enhancementOptions: QualityEnhancementOptions =
@@ -263,7 +263,7 @@ export class ScreenshotCapture {
 
                 // Emit screenshot-ready event with enhancement info
                 if (finalOptions.enhanceQuality) {
-                    this.graph.eventManager.emitGraphEvent("screenshot-ready", { enhancementTime });
+                    this.graph.eventManager.emit("screenshot-ready", { enhancementTime });
                 }
 
                 return {

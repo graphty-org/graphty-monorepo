@@ -239,6 +239,9 @@ export function createSystemPromptBuilder(): SystemPromptBuilder;
 export function createWebLlmProvider(): Promise<LlmProvider>;
 
 // @public
+export function deriveKeyFromPassphrase(passphrase: string, salt?: string): Promise<string>;
+
+// @public
 export const describeProperty: GraphCommand;
 
 // @public
@@ -577,9 +580,11 @@ export type VoiceStartCallback = (started: boolean, error?: string) => void;
 // @public
 export interface WebLlmModelInfo {
     description?: string;
+    downloadMB?: number;
     id: string;
     name: string;
     size: string;
+    supportsTools?: boolean;
 }
 
 // @public

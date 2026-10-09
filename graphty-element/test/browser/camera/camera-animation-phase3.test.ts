@@ -82,6 +82,7 @@ test("disposal during animation does not throw", async () => {
         });
 
     // Wait a bit to ensure animation is running
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Dispose the graph while animation is running
@@ -101,6 +102,7 @@ test("skipQueue option bypasses operation queue", async () => {
     );
 
     // Wait a bit
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Use skipQueue to set camera immediately (should not wait for queue)

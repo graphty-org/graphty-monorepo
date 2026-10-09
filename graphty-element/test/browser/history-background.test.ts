@@ -90,6 +90,7 @@ async function between(graph: Graph, scale: number): Promise<void> {
 }
 
 describe("the background across undo and redo", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "colour, skybox, colour: at most one dome, none while the background is a colour",
         async () => {
@@ -123,6 +124,7 @@ describe("the background across undo and redo", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "undoing the first background returns the scene to the default colour",
         async () => {
@@ -141,6 +143,7 @@ describe("the background across undo and redo", () => {
 });
 
 describe("the configuration document", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "is the same frozen object on two reads with no change between them, and a new one after a change",
         async () => {
@@ -165,6 +168,7 @@ describe("the configuration document", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "takes the layout-behaviour preferences of the view without a step or a change of project state",
         async () => {

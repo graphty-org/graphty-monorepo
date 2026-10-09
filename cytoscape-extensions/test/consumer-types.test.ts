@@ -20,6 +20,7 @@ const pkg = fileURLToPath(new URL("..", import.meta.url));
 const require = createRequire(import.meta.url);
 
 describe("the published typings", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("compile in a strict consumer with skipLibCheck off", () => {
         expect(existsSync(join(pkg, "dist/index.d.ts")), "build the package first (npm run build)").toBe(true);
         const cytoscapeDir = process.env.CYTOSCAPE_DIR ?? join(pkg, "node_modules/cytoscape");

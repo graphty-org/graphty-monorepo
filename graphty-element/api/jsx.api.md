@@ -137,6 +137,18 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
     "oninput-enabled-changed"?: (event: CustomEvent<EventOfType<"input-enabled-changed">>) => void;
+    "oninput:key-down"?: (event: CustomEvent<EventOfType<"input:key-down">>) => void;
+    "oninput:key-up"?: (event: CustomEvent<EventOfType<"input:key-up">>) => void;
+    "oninput:pointer-down"?: (event: CustomEvent<EventOfType<"input:pointer-down">>) => void;
+    "oninput:pointer-move"?: (event: CustomEvent<EventOfType<"input:pointer-move">>) => void;
+    "oninput:pointer-up"?: (event: CustomEvent<EventOfType<"input:pointer-up">>) => void;
+    "oninput:redo"?: (event: CustomEvent<EventOfType<"input:redo">>) => void;
+    "oninput:select-all"?: (event: CustomEvent<EventOfType<"input:select-all">>) => void;
+    "oninput:touch-end"?: (event: CustomEvent<EventOfType<"input:touch-end">>) => void;
+    "oninput:touch-move"?: (event: CustomEvent<EventOfType<"input:touch-move">>) => void;
+    "oninput:touch-start"?: (event: CustomEvent<EventOfType<"input:touch-start">>) => void;
+    "oninput:undo"?: (event: CustomEvent<EventOfType<"input:undo">>) => void;
+    "oninput:wheel"?: (event: CustomEvent<EventOfType<"input:wheel">>) => void;
     "onlayout-changed"?: (event: CustomEvent<EventOfType<"layout-changed">>) => void;
     // (undocumented)
     "onlayout-initialized"?: (event: CustomEvent<EventOfType<"layout-initialized">>) => void;

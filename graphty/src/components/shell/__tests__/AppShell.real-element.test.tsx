@@ -174,6 +174,7 @@ describe("AppShell with the real graphty-element", () => {
     });
 
     for (const record of SAMPLE_MANIFEST) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `loads ${record.name} with the manifest's counts and draws it`,
             async () => {
@@ -183,6 +184,7 @@ describe("AppShell with the real graphty-element", () => {
         );
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "fails when a sample's file is not the format it claims",
         async () => {
@@ -197,6 +199,7 @@ describe("AppShell with the real graphty-element", () => {
         LOAD_TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "fails when a sample's file is cut short",
         async () => {
@@ -250,6 +253,7 @@ function hopsFrom(edges: readonly { source: unknown; target: unknown }[], seed: 
 }
 
 describe("the ego network with the real graphty-element", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "shows exactly a node's 2-hop neighborhood, and Clear shows the whole graph again",
         async () => {
@@ -309,6 +313,7 @@ describe("the inspector's Pin verb on the real graphty-element", () => {
     /* Karate's GML ids are integers, so the element holds node 34 under the number while the
        shell prints and passes "34". The Pinned badge reads the element's own pinned set, which
        is the only thing that answers for either spelling. */
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "pins a numeric node by its printed id and draws the Pinned badge",
         async () => {
@@ -366,6 +371,7 @@ describe("the command palette's node and edge search on the real graphty-element
         fireEvent.change(await screen.findByLabelText(COMMAND_PALETTE_PLACEHOLDER), { target: { value: text } });
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "selects a node typed by its id and frames it",
         async () => {
@@ -390,6 +396,7 @@ describe("the command palette's node and edge search on the real graphty-element
         LOAD_TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "selects an edge found by one of its values",
         async () => {

@@ -44,6 +44,7 @@ import type {
     SetDefinitionInput,
 } from "../../catalog/types";
 import { canonicalEdgeEnds, pairsOrdered } from "../../data/edgeIdentity";
+import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import type { ResolvedScope } from "../runs/types";
@@ -369,9 +370,15 @@ function assertScope(spec: Scope): void {
  * @param mask - The bitmap.
  * @param length - How many indices it covers.
  * @param idOf - The id at an index.
+ * @param alias - The other spelling of an id, which `has` also answers for (node ids only).
  * @returns The set.
  */
-function idSetOf<TId>(mask: U32, length: number, idOf: (index: number) => TId): ReadonlySet<TId> {
+function idSetOf<TId>(
+    mask: U32,
+    length: number,
+    idOf: (index: number) => TId,
+    alias?: (id: TId) => TId | undefined,
+): ReadonlySet<TId> {
     resolveCounters.idSetBuilds++;
     // Sealed: a resolved scope is an answer, and a write into it would change nothing it answers.
     return sealedSet(
@@ -381,6 +388,7 @@ function idSetOf<TId>(mask: U32, length: number, idOf: (index: number) => TId): 
             }
         })(),
         SCOPE_HINT,
+        alias,
     );
 }
 
@@ -437,7 +445,7 @@ function resolvedScopeOf(resolution: Resolution, graph: GraphSnapshot, spec: Sco
         nodes: {
             enumerable: true,
             get: (): ReadonlySet<NodeId> => {
-                nodes ??= idSetOf(resolution.nodes, graph.nodeCount, (index) => graph.ids.idOf(index));
+                nodes ??= idSetOf(resolution.nodes, graph.nodeCount, (index) => graph.ids.idOf(index), otherIdSpelling);
                 return nodes;
             },
         },

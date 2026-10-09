@@ -222,6 +222,7 @@ describe("benchmarks/harness.ts (contract 6.1)", () => {
                 },
                 run: async (input) => {
                     bodies += 1;
+                    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
                     await new Promise((resolveSleep) => setTimeout(resolveSleep, 2));
                     return input;
                 },

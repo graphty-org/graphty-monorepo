@@ -88,7 +88,7 @@ export {
 
 // AI Key Management
 export type { ApiKeyManagerOptions, PersistenceConfig } from "./src/ai/index";
-export { ApiKeyManager } from "./src/ai/index";
+export { ApiKeyManager, deriveKeyFromPassphrase } from "./src/ai/index";
 
 // AI Prompt Builder
 export type { SystemPromptOptions } from "./src/ai/index";

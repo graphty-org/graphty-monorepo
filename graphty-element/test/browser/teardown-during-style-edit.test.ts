@@ -139,6 +139,7 @@ describe("tearing down around a style edit", () => {
         });
 
         await Promise.resolve(graph.run("degree")).catch(() => undefined);
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         assert.isTrue(disposed, "the run never ended");

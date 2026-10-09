@@ -192,8 +192,10 @@ describe("ViewMode Switching Regression Tests", () => {
 
             // Rapid switching without waiting between each
             void graph.setViewMode("2d");
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
             void graph.setViewMode("3d");
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
             void graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
@@ -254,6 +256,7 @@ describe("ViewMode Switching Regression Tests", () => {
             assert.strictEqual(graph.getViewMode(), "2d");
 
             // Wait for camera to be properly set up
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             // Verify 2D camera is active
@@ -279,14 +282,17 @@ describe("ViewMode Switching Regression Tests", () => {
             // Multiple switches
             await graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             await graph.setViewMode("3d");
             await operationQueueOf(graph).waitForCompletion();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             await graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             // Verify camera controller is active

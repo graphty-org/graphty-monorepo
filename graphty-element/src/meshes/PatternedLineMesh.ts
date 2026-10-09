@@ -507,7 +507,7 @@ export class PatternedLineMesh {
         // For alternating patterns, we need to handle both shapes
         // For now, use the first shape as representative (this is for spacing calculations)
         const shapeDef = patternDef.shapes[0];
-        const aspectRatio = shapeDef.aspectRatio ?? 1.0;
+        const aspectRatio = shapeDef.aspectRatio ?? 1;
 
         switch (shapeDef.type) {
             case "circle":

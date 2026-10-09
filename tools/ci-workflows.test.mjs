@@ -2116,8 +2116,9 @@ describe("release.yml", () => {
     describe("never ends a train attempt without a pull request or a held issue", () => {
         const trainNeeds = /\n {8}needs: \[([^\]]*)\]/.exec(train)[1].split(", ");
         const condition = /\n {8}if: \$\{\{ (.*) \}\}\n/.exec(held)[1];
-        // the condition as JavaScript: GitHub's expression syntax here is a subset of it
-        const runs = (results, release = "true") =>
+        // the condition as JavaScript: GitHub's expression syntax here is a subset of it. `pr` is the train's
+        // output: the release pull request it opened, "" (GitHub's value for an unset output) when it opened none.
+        const runs = (results, release = "true", pr = "") =>
             new Function(
                 "needs",
                 `return ${condition.replace(/\balways\(\)/g, "true").replace(/!cancelled\(\)/g, "true")};`,
@@ -2125,7 +2126,10 @@ describe("release.yml", () => {
                 Object.fromEntries(
                     ["pick", "ci", "t4", "hosts", "audit", "llm", "train"].map((j) => [
                         j,
-                        { result: results[j] ?? "success", outputs: { release: j === "pick" ? release : undefined } },
+                        {
+                            result: results[j] ?? "success",
+                            outputs: j === "pick" ? { release } : j === "train" ? { pr } : {},
+                        },
                     ]),
                 ),
             );
@@ -2202,6 +2206,27 @@ describe("release.yml", () => {
                 train: "skipped",
             };
             assert.equal(runs(none, "false"), false);
+        });
+
+        // Issue #1768: a bookkeeping step after the pull request opened (closing the held issue, announcing it)
+        // failed the train, and this job posted "Release held" for a release that was going ahead.
+        it("opens no held issue when a step fails after the train opened its pull request", () => {
+            const pr = "https://github.com/graphty-org/graphty-monorepo/pull/1800";
+            for (const result of NOT_SUCCESS.filter((r) => r !== "skipped")) {
+                assert.equal(runs({ train: result }, "true", pr), false, `train ${result}`);
+            }
+            assert.match(train, /\n {8}outputs:\n {12}pr: \$\{\{ steps.open.outputs.pr \}\}\n/);
+            // and the train says so in the run, rather than failing silently
+            assert.match(
+                train,
+                /- name: Report a failure after the release pull request opened\n\s+if: \$\{\{ failure\(\) && steps.open.outputs.pr != '' \}\}[\s\S]*::error::/,
+            );
+        });
+
+        it("still opens the held issue when the train fails before its pull request opens", () => {
+            for (const result of NOT_SUCCESS) {
+                assert.equal(runs({ train: result }, "true", ""), true, `train ${result}`);
+            }
         });
 
         // The issue step, run in a scratch directory with stubs: gh lists this attempt's jobs (run 37635516841's

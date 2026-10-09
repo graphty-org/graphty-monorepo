@@ -139,6 +139,13 @@ function Editor({ onSaved }: Readonly<{ onSaved: (id: string) => void }>): React
     const { session, store } = useWorkspace();
     const draft = useWorkspaceState((state) => state.noteDraft);
     const [error, setError] = useState<string | null>(null);
+    // Add note while a note is open (its text kept, or new targets) puts the cursor back in it:
+    // notes.add writes a fresh `targets`, typing does not.
+    const field = useRef<HTMLTextAreaElement>(null);
+    const targets = draft?.targets;
+    useEffect(() => {
+        field.current?.focus();
+    }, [targets]);
     if (session === null || draft === null) {
         return null;
     }
@@ -170,6 +177,7 @@ function Editor({ onSaved }: Readonly<{ onSaved: (id: string) => void }>): React
                 <Chips session={session} targets={draft.targets} />
             </Group>
             <Textarea
+                ref={field}
                 aria-label="Note"
                 autosize
                 minRows={3}

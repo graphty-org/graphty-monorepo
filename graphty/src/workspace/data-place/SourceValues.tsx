@@ -40,12 +40,13 @@ export function SourceValues({ row }: Readonly<{ row: string }>): React.JSX.Elem
             </Text>
         );
     }
-    // A table child shows what its table added; a load and its left-out child, the whole load.
+    // A table child shows what its table loaded; a load and its left-out child, the whole load.
+    // "Loaded", not "Added": true for a first load, a second table and a replacement alike.
     const child = row.split(":").length > 2 ? sourceRowOf(sources, session.data.lastImport(), row)?.kind : undefined;
     const part = child === "nodes" || child === "edges" ? child : "all";
     const { leftOut } = load;
     const added = (
-        <ControlSection key="added" label="Added" defaultOpened>
+        <ControlSection key="added" label="Loaded" defaultOpened>
             {part === "edges" ? null : <DataRow stat name="Nodes" value={load.added.nodes} />}
             {part === "nodes" ? null : <DataRow stat name="Edges" value={load.added.edges} />}
         </ControlSection>

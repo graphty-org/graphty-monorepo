@@ -326,7 +326,7 @@ describe("the Path popover, on the real element", () => {
         "the Weight box shows None before the run when a loaded weight with no meaning is not read, and Made with agrees",
         async () => {
             const { store, session, element } = await openFriends(null);
-            const why = "Each edge counts as 1. weight's meaning is not set.";
+            const why = 'Each edge counts as 1. A path needs a distance, and "weight" has no meaning set.';
             element.focus();
             await userEvent.keyboard("p");
             const form = await pathForm();
@@ -379,7 +379,7 @@ describe("the Path popover, on the real element", () => {
             assert.notInclude(text, "Source");
             assert.notInclude(text, "Target");
             assert.isNull(within(madeWith).queryByRole("combobox", { name: "Weight" }));
-            assert.lengthOf(text.match(/weight's meaning/g) ?? [], 1, "the weight is stated once");
+            assert.lengthOf(text.match(/"weight" has no meaning/g) ?? [], 1, "the weight is stated once");
             // The header names the run once: "ran <date, time>", never "Path from Shortest path".
             const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
             assert.isNotNull(inspector.getByRole("button", { name: /^ran .*\d:\d\d:\d\d/ }));

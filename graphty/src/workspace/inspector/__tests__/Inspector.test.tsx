@@ -155,7 +155,7 @@ describe("the inspector", () => {
         assert.include(degree.textContent, "3");
         await userEvent.click(degree);
 
-        const list = await screen.findByRole("region", { name: "n0's 3 connections" });
+        const list = await screen.findByRole("region", { name: "n0 and 3 connections" });
         const names = within(list)
             .getAllByRole("button")
             .map((row) => row.textContent)
@@ -184,13 +184,13 @@ describe("the inspector", () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
         await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
-        const list = await screen.findByRole("region", { name: "n0's 3 connections" });
+        const list = await screen.findByRole("region", { name: "n0 and 3 connections" });
         // The heading is the section title, as the node's Summary is.
-        assert.isNotNull(within(list).getByRole("group", { name: "n0's 3 connections" }));
+        assert.isNotNull(within(list).getByRole("group", { name: "n0 and 3 connections" }));
 
         await userEvent.click(within(list).getByRole("radio", { name: "2" }));
         // Past one hop the heading says how far: only the one-hop count is direct ties.
-        const wider = await screen.findByRole("region", { name: "n0's 7 connections within 2 hops" });
+        const wider = await screen.findByRole("region", { name: "n0 and 7 connections within 2 hops" });
         // Two hops list the same way one hop does: by name.
         const names = within(wider)
             .getAllByRole("button")
@@ -257,7 +257,7 @@ describe("the inspector", () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
         await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
-        await screen.findByRole("region", { name: "n0's 3 connections" });
+        await screen.findByRole("region", { name: "n0 and 3 connections" });
 
         await act(async () => {
             await on.selection.apply({ nodes: [...on.selection.nodes, "n3"] });

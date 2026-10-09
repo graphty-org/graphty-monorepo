@@ -479,23 +479,20 @@ interface WeightRead {
  * @param caveats - the run's caveats.
  * @returns the value ("emails (closer)", "w (read as closer)", "None") and its note ("Its meaning
  *     was not set, so this run assumed a higher weight means closer.", "Each edge counts as 1.",
- *     "Each edge counts as 1. emails means closer, and a path needs a distance."), or no note.
+ *     "Each edge counts as 1. A path needs a distance, and \"emails\" means closer."), or no note.
  */
 export function weightRead(caveats: Pick<Caveats, "weight" | "weightSkipped">): WeightRead {
     const skipped = caveats.weightSkipped;
     if (skipped !== undefined) {
         const { attribute, meaning, reads } = skipped.params;
         const column = String(attribute);
-        // "Meaning not set" is the Data page's own word for a weight nobody gave a meaning.
-        // Said in the form of the unweighted note: what the run did, then why the weight was left.
-        if (!isMeaning(meaning)) {
-            return { value: "None", note: `Each edge counts as 1. ${column}'s meaning is not set.` };
-        }
+        // Said in the form of the unweighted note: what the run did, then why the weight was left --
+        // what the analysis needs, then what the column is (or that nobody set it). Each sentence
+        // starts with a capital, and the column is quoted, so a lowercase name never starts one.
         const needs = isMeaning(reads) ? NEEDS[reads] : "this analysis reads another kind";
-        return {
-            value: "None",
-            note: `Each edge counts as 1. ${column} means ${MEANING_WORDS[meaning]}, and ${needs}.`,
-        };
+        const why = `${needs.charAt(0).toUpperCase()}${needs.slice(1)}`;
+        const is = isMeaning(meaning) ? `means ${MEANING_WORDS[meaning]}` : "has no meaning set";
+        return { value: "None", note: `Each edge counts as 1. ${why}, and "${column}" ${is}.` };
     }
     const read = caveats.weight;
     if (read === null || read === undefined) {

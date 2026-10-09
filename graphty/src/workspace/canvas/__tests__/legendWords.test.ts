@@ -219,5 +219,8 @@ describe("the legend card's words", () => {
         assert.equal(title(), "Size: PageRank");
         run.stale = { reason: "data-changed" } as unknown as Run["stale"];
         assert.equal(title(), "Size: PageRank, out of date");
+        // A filter step since the run: the values still hold for the nodes it ran on.
+        run.stale = { reason: "scope-changed", ranOn: 20, nowVisible: 15 } as unknown as Run["stale"];
+        assert.equal(title(), "Size: PageRank on 20 nodes");
     });
 });

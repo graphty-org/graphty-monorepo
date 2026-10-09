@@ -203,7 +203,7 @@ const BY_NAME = new Intl.Collator("en", { numeric: true });
 
 /**
  * Selects a center's neighborhood, opens it in the inspector and puts its size on the status
- * line once: "Ava's 14 connections".
+ * line once: "Ava and 14 connections".
  * @param session - the element's session.
  * @param store - the chrome store.
  * @param center - the node at the center.
@@ -227,7 +227,7 @@ async function showNeighborhood(
 }
 
 /**
- * A node's neighbors (tier1-design.md task T12; tier2-design.md section 6): "Javert's 17
+ * A node's neighbors (tier1-design.md task T12; tier2-design.md section 6): "Javert and 17
  * connections", each by name, in name order at every hop count (a weighted one hop shows each
  * tie value beside it), read whole from graphty-element's `data.neighbors()`. Each name selects
  * that node; Back to the center, or Esc, returns to the node at the center.

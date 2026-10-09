@@ -170,7 +170,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             assert.equal(values.getAttribute("aria-selected"), "true");
             await userEvent.click(inspector().getByRole("button", { name: /Degree/ }));
 
-            const list = await inspector().findByRole("region", { name: "Node 0's 3 connections" });
+            const list = await inspector().findByRole("region", { name: "Node 0 and 3 connections" });
             const rows = rowButtons(list);
             // In name order, as two hops list them; each tie value beside its name.
             assert.deepEqual(
@@ -195,7 +195,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             // The node's own menu in the inspector, where the Neighborhood command lives.
             await userEvent.click(await inspector().findByRole("button", { name: "Node actions" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: /^Neighborhood/ }));
-            const list = await inspector().findByRole("region", { name: "Node 0's 3 connections" });
+            const list = await inspector().findByRole("region", { name: "Node 0 and 3 connections" });
             assert.deepEqual(
                 rowButtons(list).map((row) => row.textContent),
                 ["Node 11", "Node 56", "Node 69"],
@@ -215,7 +215,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 .getByRole("button", { name: /Degree/ })
                 .focus();
             await userEvent.keyboard("{Enter}");
-            const list = await inspector().findByRole("region", { name: "Node 0's 3 connections" });
+            const list = await inspector().findByRole("region", { name: "Node 0 and 3 connections" });
             // Focus lands on the checked Hops choice, not a neighbor row and not the whole list.
             assert.equal(document.activeElement, within(list).getByRole("radio", { name: "1" }));
 
@@ -228,7 +228,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 assert.equal(document.activeElement, inspector().getByRole("button", { name: /Degree/ }));
             });
             await userEvent.keyboard("{Enter}");
-            const again = await inspector().findByRole("region", { name: "Node 0's 3 connections" });
+            const again = await inspector().findByRole("region", { name: "Node 0 and 3 connections" });
             const first = rowButtons(again)[0];
             await waitFor(() => {
                 assert.equal(document.activeElement, within(again).getByRole("radio", { name: "1" }));
@@ -266,7 +266,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             assert.equal(getComputedStyle(title).textDecorationLine, "none");
             assert.equal(getComputedStyle(title).outlineStyle, "none");
             await userEvent.keyboard("{Enter}");
-            assert.isNull(inspector().queryByRole("region", { name: "Node 0's 3 connections" }));
+            assert.isNull(inspector().queryByRole("region", { name: "Node 0 and 3 connections" }));
         },
         TIMEOUT_MS * 2,
     );
@@ -468,7 +468,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             assert.deepEqual(controlNames(), [...new Set(controlNames())]);
             await pick(session, "n0");
             await userEvent.click(await inspector().findByRole("button", { name: /Degree/ }));
-            await inspector().findByRole("region", { name: "Node 0's 3 connections" });
+            await inspector().findByRole("region", { name: "Node 0 and 3 connections" });
             assert.deepEqual(controlNames(), [...new Set(controlNames())]);
         },
         TIMEOUT_MS * 2,

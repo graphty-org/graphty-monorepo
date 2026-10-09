@@ -168,16 +168,17 @@ export function count(count: number, noun: string): string {
 }
 
 /**
- * A neighborhood's heading and status line: "Javert's 17 connections" at one hop, and past one
- * hop how far it reaches, "Javert's 40 connections within 2 hops", since only the one-hop count
- * is direct ties.
+ * A neighborhood's heading and status line: "Javert and 17 connections" at one hop, and past one
+ * hop how far it reaches, "Javert and 40 connections within 2 hops", since only the one-hop count
+ * is direct ties. The center is named beside the count, so the heading agrees with the Selection
+ * count beside it (the center and its connections: 41).
  * @param center - the center node's name.
  * @param around - how many nodes, the center left out.
  * @param hops - how many hops out (1 when omitted).
  * @returns the words.
  */
 export function neighborhoodWords(center: string, around: number, hops = 1): string {
-    const words = `${center}'s ${count(around, "connection")}`;
+    const words = `${center} and ${count(around, "connection")}`;
     return hops > 1 ? `${words} within ${hops} hops` : words;
 }
 

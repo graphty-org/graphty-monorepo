@@ -175,7 +175,7 @@ describe("the Analyze popover's words", () => {
         });
         assert.deepEqual(skipped, {
             value: "None",
-            note: "Each edge counts as 1. emails means closer, and a path needs a distance.",
+            note: 'Each edge counts as 1. A path needs a distance, and "emails" means closer.',
         });
         const unset = weightRead({
             weight: null,
@@ -184,7 +184,7 @@ describe("the Analyze popover's words", () => {
                 params: { attribute: "w", meaning: null, reads: "distance" },
             },
         });
-        assert.equal(unset.note, "Each edge counts as 1. w's meaning is not set.");
+        assert.equal(unset.note, 'Each edge counts as 1. A path needs a distance, and "w" has no meaning set.');
         // A meaning nobody set: the value says how it was read, the note that it was assumed,
         // never "meaning not set" and "closer" in one value.
         const assumed = weightRead({ weight: { attribute: "w", meaning: "strength", assumed: true } });

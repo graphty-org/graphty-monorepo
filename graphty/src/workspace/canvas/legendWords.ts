@@ -21,6 +21,7 @@ import type {
 } from "@graphty/graphty-element/session";
 
 import { highlightEntry } from "../analyze/words";
+import { count } from "../inspector/words";
 import { runName } from "../runWords";
 
 /** The property word each channel a legend shows goes by ("Color: PageRank"). */
@@ -298,9 +299,11 @@ export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): Sc
 }
 
 /**
- * The name of the row that paints a block: its run's name, else its layer's. A run that is out of
- * date (`run.stale`) is named as the run list names it, "PageRank, out of date", so the key never
- * passes off a stale result as current.
+ * The name of the row that paints a block: its run's name, else its layer's. A run whose data
+ * changed since it ran is named as the run list names it, "PageRank, out of date", so the key never
+ * passes off a stale result as current. A run that only no longer matches what is shown (a filter
+ * step since) is still right about the nodes it ran on, so the key names them instead: "PageRank on
+ * 20 nodes".
  * @param session - the session.
  * @param block - the block.
  * @returns the name.
@@ -311,7 +314,12 @@ function rowName(session: GraphSession, block: LegendBlock): string {
         return session.styles.get(block.layerId)?.name ?? block.layerId;
     }
     const name = runName(session, run);
-    return run.status === "succeeded" && run.stale !== null ? `${name}, out of date` : name;
+    if (run.status !== "succeeded" || run.stale === null) {
+        return name;
+    }
+    return run.stale.reason === "data-changed"
+        ? `${name}, out of date`
+        : `${name} on ${count(run.stale.ranOn, "node")}`;
 }
 
 /**

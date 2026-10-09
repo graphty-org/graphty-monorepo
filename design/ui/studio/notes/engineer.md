@@ -43,9 +43,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   on it or one to add (PageRank: no Nodes | Edges switch). Test `StyleTab.real-element.test.tsx`;
   evidence `tmp/t2r1-11/`.
 
-- (2026-10-09) **The canvas key names a stale run as the run list does: "Size: PageRank, out of
-  date"** (`rowName` in `canvas/legendWords.ts`, from `run.stale`; one mark, no color). Test
-  `legendWords.test.ts`; evidence `tmp/t2r1-10/a/06.png`, `07.png`.
+- (2026-10-09) **Words true in every case they appear in.** The canvas key says ", out of date"
+  only when `run.stale.reason` is `data-changed` (Replace); under a filter step (`scope-changed`)
+  the values still hold for the nodes the run covered, so it reads "Size: PageRank on 20 nodes"
+  (`rowName`, `canvas/legendWords.ts`). The unused-weight note reads 'Each edge counts as 1. A path
+  needs a distance, and "weight" has no meaning set.' (`weightRead`, `analyze/words.ts`: column
+  quoted, every sentence capitalized, reason kept; no one-word last line at 1440). The source
+  inspector heads its counts "Loaded", not "Added" (true after Replace). The neighbor heading names
+  the center beside the count, "Ava and 14 connections within 2 hops", so it adds up to Selection 15
+  (`neighborhoodWords`, `inspector/words.ts`). Tests `legendWords.test.ts`, `words.test.ts`,
+  `neighborhoodWords.test.ts`; evidence `tmp/r2-dry1-words-that-misstate/{filter/07,path/04,path/09,
+replace/05,replace/07,hood/05}.png`.
 
 - (2026-10-09) **Focus and keys in the Filters section, the step editor and the Notes place.**
   The step editor is a `<form>` (Enter saves, Escape closes to the step's row or "+"); focus after
@@ -76,6 +84,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-09) **A count in a heading is the count the reader can check beside it.** "Ava's 14
+  connections" next to "Selection 15" read as a disagreement; naming the center in the heading
+  ("Ava and 14 ...") keeps the one-hop count equal to Degree and makes the sum match Selection.
+  Chosen over "15 nodes: Ava and 14 ..." as the shorter form. A key under a filter names the run's
+  own node count rather than nothing, so a reader comparing 19 shown with 20 ranked sees why.
 - (2026-10-09) **Chosen segment fill: the inverse color, not the brand blue.** Measured: brand
   #0d99ff against the light track #f5f5f5 is 2.7:1 (fails 1.4.11) and white 11px text on dark
   brand #0c8ce9 is 3.5:1 (fails 1.4.3); inverse passes both in every palette, accent-independent.
@@ -130,11 +143,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (compact-mantine `overlayBehavior.ts`); check what a finding measured before fixing the code it
   names (Damping 0.85 was Chromium's 32-bit value; `--read` prints `valuetext`).
 
-- (2026-10-09) **A skipped weight's note leads with what the run did.** "Not read -- w's meaning is
-  not set, and a path needs a distance" read as gibberish to a participant; the note now opens with
-  the unweighted line ("Each edge counts as 1.") and then the one fact that explains it. When the
-  meaning is unset, the "needs a distance" clause is dropped: the reader cannot act on it until a
-  meaning is set, and the Data page's Higher means row says that already.
+- (2026-10-09) **A skipped weight's note leads with what the run did, then why** ("Each edge counts
+  as 1." first). Dropping "a path needs a distance" when the meaning was unset (an earlier call)
+  left a sentence that began with a lowercase column name and gave no reason; the reason is back,
+  before the column, which is quoted.
 - (2026-10-09, condensed) **The page that names the graph announces its load** (no timer, no
   canvas read of the header). An Add counts what it adds ("adds 0 nodes, 41 edges"); Replace says
   "runs out of date".
@@ -209,6 +221,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Seen, not mine: T7 in `inspector/__tests__/tasks.real-element.test.tsx` failed once
+  in a five-file run ("expected '0.5' to equal '0.85'") and passed alone. Mechanism: after Revert
+  it waits for the status bar to empty, then reads the Damping field's `value` attribute outside
+  the wait; the bar clears in one commit and the number field re-syncs in a later one, so a busy
+  browser reads the old value. Fix: read the field inside the `waitFor`.
 - (2026-10-09) Worked: proving a CSS fix's test fails without it by writing `git show HEAD:<file>`
   over the edited CSS files (backups in the scratchpad), running the tests, copying the backups
   back -- no stash, no checkout. Worked: `--hover-at` over every control class in one session to

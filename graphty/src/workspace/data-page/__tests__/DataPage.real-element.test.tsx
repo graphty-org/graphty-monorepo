@@ -552,7 +552,7 @@ describe("the Data page on the real element", () => {
             await within(inspector).findByText("Line 4: z has no node row; source c, target z, weight 1");
             // Two headed sections: what it added first, then what it left out.
             assertInOrder(
-                within(inspector).getByText("Added"),
+                within(inspector).getByText("Loaded"),
                 within(inspector).getByText("Left out"),
                 within(inspector).getByText("1 edge row was left out: it names a node missing from the node rows."),
             );
@@ -565,16 +565,16 @@ describe("the Data page on the real element", () => {
             });
             await within(inspector).findByText("Left out of people.csv and passes.csv");
             assert.isNull(within(inspector).queryByText("Source"));
-            await within(inspector).findByText("Added");
+            await within(inspector).findByText("Loaded");
             assert.isNotNull(within(inspector).getByText("Nodes"));
             assert.isNotNull(within(inspector).getByText("Edges"));
             await within(inspector).findByText("Line 4: z has no node row; source c, target z, weight 1");
-            // It leads with what it names: "Left out" over the sentence and the row, "Added" below.
+            // It leads with what it names: "Left out" over the sentence and the row, "Loaded" below.
             assertInOrder(
                 within(inspector).getByText("Left out"),
                 within(inspector).getByText("1 edge row was left out: it names a node missing from the node rows."),
                 within(inspector).getByText("Line 4: z has no node row; source c, target z, weight 1"),
-                within(inspector).getByText("Added"),
+                within(inspector).getByText("Loaded"),
                 within(inspector).getByText("Nodes"),
             );
             await userEvent.click(within(sources).getByText("passes.csv"));
@@ -617,7 +617,7 @@ describe("the Data page on the real element", () => {
             assert.notInclude(row.textContent, "left out");
             await userEvent.click(within(row).getAllByText("people.csv and passes.csv")[0]);
             const inspector = screen.getByRole("complementary", { name: "Inspector" });
-            await within(inspector).findByText("Added");
+            await within(inspector).findByText("Loaded");
             assert.notInclude(inspector.textContent, "left out");
         },
         TIMEOUT_MS * 2,

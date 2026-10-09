@@ -95,7 +95,8 @@ habit. So a finding on a changed line does not block when master already has it:
   MD5 of the line with all whitespace removed, so reformatting a line keeps it. Such issues are
   listed under "existing issues on lines you touched (not blocking)".
 - **Issues reported on a function's signature, S3776 (cognitive complexity) and S107 (too many
-  parameters):** the signature line usually changes with the edit, so its hash cannot match.
+  parameters), and on a regex, S5843 (regex complexity):** the reported line usually changes with
+  the edit, so its hash cannot match.
   Instead, match a master issue with the same rule in the same file whose line lies in the same
   diff hunk (or maps to the same line outside one), and block only when the number in the
   message went up ("from 17 to the 15 allowed" against master's 16, or 9 parameters against
@@ -591,7 +592,7 @@ Labels: drop `needs-decision` and `blocked`; keep `infrastructure`, `priority:me
   error now block. `SONAR_REQUIRED` is gone. Every run is logged, and the weekly comment reports
   the skip rate.
 - A finding on a changed line that master already has (same rule and line hash, following
-  renames) no longer blocks. S3776 and S107 block only when the score rises. A missing baseline
+  renames) no longer blocks. S3776, S107 and S5843 block only when the score rises. A missing baseline
   falls back to blocking everything on changed lines.
 - Hotspots block from stage 0. A hotspot master has (to review or SAFE) or one on a line with a
   `NOSONAR` naming its rule is skipped.

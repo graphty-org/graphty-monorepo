@@ -11,6 +11,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **The canvas key names a stale run as the run list does: "Size: PageRank, out of
+  date".** `rowName` in `canvas/legendWords.ts` appends ", out of date" when the block's run has
+  `status === "succeeded"` and `run.stale !== null` (the paint tree's own test), so the key, its
+  section's accessible name and the exported image's key all carry it. One mark only: no color, no
+  dimming of the drawing. The legend re-reads on `run:changed`, so Replace adds it and Rerun drops
+  it with no extra wiring. Checked on a fresh build: `tmp/t2r1-10/a/06.png` (after Replace, both
+  sections marked), `07.png` (after Rerun, plain). Test: `legendWords.test.ts`, "marks a section
+  whose run is out of date".
+
 - (2026-10-09) **Focus and keys in the Filters section, the step editor and the Notes place.**
   The step editor is a `<form>`: Enter adds or saves, Escape (`isPanelEscape`) closes it to the
   step's row, or to "+" for a new step. After Add/Save focus goes to the step's row, after a
@@ -80,18 +89,12 @@ the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nod
   color** (`createOverlaySource` in `Node.ts`; test
   `graphty-element/test/browser/selection-halo-rings-without-tinting.test.ts`). Selection story
   baselines change and go to visual review.
-- (2026-10-09) **Round 1 critique: the dry runs walked only success paths, so build defects
-  reached participants on detours.** Four dry runs plus a walk of the study build left every
-  success path clean (all `session.log` empty, no grade decided by a defect), but participants took
-  styling and selection detours no walk covered. Verified in code: a run row's Style tab offers
-  Edges, and with no edge layer in the row `writeLine` (`style/row.ts`) falls back to its default
-  `fresh = EVERYTHING_LAYER` (StyleTab.tsx line 112 passes none), so "Edge color" lands on
-  Everything and the open panel stays empty (`r1-s46/05.png`). Smallest fix: a run row offers only
-  the sides its own layers cover. Next dry run must walk each task's commonest detours. Other
-  round 2 proposals: a find-box hint offering the "=" rule when "="+text passes the element's rule
-  check (`FindBox.tsx` ~355); "Replace with file..." as a button in the source's inspector; an
-  out-of-date mark on the legend key from `run.stale`. Do not fix edge width until a script
-  measures the element's units (`EdgeMesh.ts` *20 and /40); do not move Filters.
+- (2026-10-09, summarized) **Round 1 critique: the dry runs walked only success paths, so build
+  defects reached participants on detours** (styling and selection detours no walk covered; e.g. a
+  run row's Edges side wrote "Edge color" to Everything via `writeLine`'s default, `r1-s46/05.png`).
+  Next dry run must walk each task's commonest detours. Done since: the legend's out-of-date mark.
+  Still open: find-box "=" hint, "Replace with file..." button in the source inspector. Do not fix
+  edge width until a script measures the element's units; do not move Filters.
 - (2026-10-09) **Tier 2 screenshot audit (round 1): the app breaks on long names and narrow
   windows, not at the study's size** (`tier2/rounds/round-1/expert/engineer.md`, 24 findings:
   canvas labels cut at the edge, "Back to ..." clipped, popovers over the left panel at 900 wide).

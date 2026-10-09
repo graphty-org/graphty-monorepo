@@ -298,14 +298,20 @@ export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): Sc
 }
 
 /**
- * The name of the row that paints a block: its run's name, else its layer's.
+ * The name of the row that paints a block: its run's name, else its layer's. A run that is out of
+ * date (`run.stale`) is named as the run list names it, "PageRank, out of date", so the key never
+ * passes off a stale result as current.
  * @param session - the session.
  * @param block - the block.
  * @returns the name.
  */
 function rowName(session: GraphSession, block: LegendBlock): string {
     const run = block.runId === undefined ? undefined : session.runs.get(block.runId);
-    return run === undefined ? (session.styles.get(block.layerId)?.name ?? block.layerId) : runName(session, run);
+    if (run === undefined) {
+        return session.styles.get(block.layerId)?.name ?? block.layerId;
+    }
+    const name = runName(session, run);
+    return run.status === "succeeded" && run.stale !== null ? `${name}, out of date` : name;
 }
 
 /**

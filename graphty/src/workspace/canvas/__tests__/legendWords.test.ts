@@ -1,10 +1,11 @@
-import type { LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
+import type { GraphSession, LegendBlock, LegendSwatch, Run } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import {
     factSentence,
     imageLegend,
     keyBlocks,
+    keyNames,
     keySections,
     overflowLine,
     paintWords,
@@ -194,5 +195,29 @@ describe("the legend card's words", () => {
             ["Color: Shortest path", "Edge color: Shortest path"],
         );
         assert.lengthOf(keySections([{ ...edges, runId: "r3" }, nodes], names), 2);
+    });
+
+    it("marks a section whose run is out of date as the run list does, and only then", () => {
+        const run = {
+            id: "r1",
+            algorithm: "pagerank",
+            params: {},
+            distinguishedBy: null,
+            siblingsDifferBy: null,
+            scope: { spec: "graph" },
+            status: "succeeded",
+            stale: null as Run["stale"],
+        };
+        const session = {
+            runs: { get: () => run },
+            styles: { get: () => undefined },
+            sets: { get: () => undefined },
+            catalog: { algorithms: () => [{ key: "pagerank", plainName: "PageRank" }] },
+        } as unknown as GraphSession;
+        const size = block({ channel: "node.size", runId: "r1" });
+        const title = (): string => keySections([size], keyNames(session))[0].title;
+        assert.equal(title(), "Size: PageRank");
+        run.stale = { reason: "data-changed" } as unknown as Run["stale"];
+        assert.equal(title(), "Size: PageRank, out of date");
     });
 });

@@ -115,6 +115,37 @@ function paintShown(container: HTMLElement): string {
     return `#${hex.value} ${opacity.value}%`;
 }
 
+/**
+ * A layer's edge color as `#RRGGBB`, its opacity dropped.
+ * @param value - what the layer sets for `edge.color`.
+ * @returns the hex, or null when it is not a written hex.
+ */
+function edgeHex(value: unknown): string | null {
+    return typeof value === "string" ? value.toUpperCase().slice(0, 7) : null;
+}
+
+/**
+ * Sets the Edges side's Color line to a hex, adding the line first when the row has none.
+ * @param hex - the color, six hex digits.
+ */
+async function setEdgeColor(hex: string): Promise<void> {
+    const line = await within(styleTab()).findByRole("group", { name: "Line" }, { timeout: TIMEOUT_MS });
+    if (within(line).queryByRole("group", { name: "Color" }) === null) {
+        const one = within(line).queryByRole("button", { name: "Add Color" });
+        if (one === null) {
+            await userEvent.click(within(line).getByRole("button", { name: "Add to Line" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+        } else {
+            await userEvent.click(one);
+        }
+    }
+    const field = await within(
+        await within(styleTab()).findByRole("group", { name: "Color" }, { timeout: TIMEOUT_MS }),
+    ).findByRole("textbox", { name: "Color hex value" });
+    await userEvent.clear(field);
+    await userEvent.type(field, `${hex}{Enter}`);
+}
+
 describe("the Style tab on the real element", () => {
     // The design's frame. At the runner's default width the inspector has no room.
     beforeAll(async () => {
@@ -241,7 +272,6 @@ describe("the Style tab on the real element", () => {
                 await waitFor(
                     () => {
                         assert.isNotNull(within(styleTab()).getByRole("button", { name: /Detach Color/ }));
-                        assert.isNotNull(within(styleTab()).getByRole("radio", { name: "Nodes, set" }));
                     },
                     { timeout: TIMEOUT_MS },
                 );
@@ -875,6 +905,62 @@ describe("editing lines on the real element", () => {
             const start = channelsFor("node").find((d) => d.channel === "node.color")?.default;
             await waitFor(() => {
                 assert.equal(mine(session, "node.color"), start, "a literal again: the element's own default");
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "a PageRank run paints only nodes, so its Style tab offers no Edges side",
+        async () => {
+            const { session, store } = await openWithGraph();
+            const { runId } = await session.runs.start("pagerank");
+            await session.styles.settled();
+            assert.isNotEmpty(session.runs.bindings(runId), "PageRank painted");
+            store.set({ inspected: { kind: "run-row", id: runId } });
+            await pickStyleTab();
+            await waitFor(
+                () => {
+                    assert.isNotNull(within(styleTab()).getByRole("button", { name: /Detach Color/ }));
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            // No Nodes | Edges switch at all: an edge line would have had no layer of the run's to go to.
+            assert.isNull(within(styleTab()).queryByRole("radio", { name: /^Edges/ }));
+            assert.isNull(within(styleTab()).queryByRole("group", { name: "Arrows" }));
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "Everything's edge Color goes to the Everything layer, and an edge's to its own row",
+        async () => {
+            const { session } = await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+            await userEvent.click(within(tab).getByRole("radio", { name: /^Edges/ }));
+            await setEdgeColor("FF0000");
+            await waitFor(() => {
+                const everything = readerLayers(session).filter((l) => l.userData?.[EVERYTHING_KEY] === true);
+                assert.deepEqual(
+                    everything.map((l) => [l.target, edgeHex(l.set?.["edge.color"])]),
+                    [["edge", "#FF0000"]],
+                );
+            });
+
+            const [edge] = session.data.edges();
+            await act(async () => {
+                await session.selection.apply({ edges: [edge.id] });
+            });
+            await pickStyleTab();
+            await setEdgeColor("00FF00");
+            await waitFor(() => {
+                const own = readerLayers(session).filter((l) => l.selector.match === "ids");
+                assert.deepEqual(
+                    own.map((l) => [l.target, edgeHex(l.set?.["edge.color"])]),
+                    [["edge", "#00FF00"]],
+                );
             });
         },
         TIMEOUT_MS * 2,

@@ -2,7 +2,7 @@ import { CHANNEL_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { addLabelRow, LABEL_SIZE_PX, propose, startingValue, writeLine } from "../row";
+import { addLabelRow, EVERYTHING_LAYER, LABEL_SIZE_PX, propose, startingValue, writeLine } from "../row";
 
 describe("the value a line starts with", () => {
     it("is the element's own value for every channel a line can add, never an invented one", () => {
@@ -49,7 +49,7 @@ describe("a label line the app adds", () => {
             throw new Error("the element refused to label by name");
         }
         const before = on.history.steps.length;
-        const id = await writeLine(on, [], "node", "node.label", { binding: proposal.binding });
+        const id = await writeLine(on, [], "node", "node.label", { binding: proposal.binding }, EVERYTHING_LAYER);
         const layer = on.styles.list().find((l) => l.id === id);
         assert.deepEqual(layer?.set?.["node.labelStyle"], {
             font: getComputedStyle(document.body).fontFamily,

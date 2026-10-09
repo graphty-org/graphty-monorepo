@@ -194,7 +194,7 @@ export interface NewLayer {
 }
 
 /** The reader's Everything layer, which the Everything row's first edit adds. */
-const EVERYTHING_LAYER: NewLayer = {
+export const EVERYTHING_LAYER: NewLayer = {
     name: "Everything",
     selector: { match: "everything" },
     userData: { [EVERYTHING_KEY]: true },
@@ -263,7 +263,9 @@ export function selectionLayer(session: GraphSession, name: string): NewLayer {
  * @param target - nodes or edges.
  * @param channel - the channel.
  * @param write - the value or the binding.
- * @param fresh - the layer the row's first edit adds when it has none the reader may edit.
+ * @param fresh - the layer the row's first edit adds when it has none the reader may edit, or
+ *   undefined for a row that adds none (a run's row): the write then fails rather than land on a
+ *   layer the row does not name.
  * @returns the id of the layer written to.
  */
 export async function writeLine(
@@ -272,7 +274,7 @@ export async function writeLine(
     target: Target,
     channel: Channel,
     write: { readonly value: ChannelValue } | { readonly binding: DataBinding },
-    fresh: NewLayer = EVERYTHING_LAYER,
+    fresh: NewLayer | undefined,
 ): Promise<LayerId> {
     const layers = rowLayers(session, ids, target);
     const own = [...layers].reverse().find((layer) => !layer.locked);
@@ -281,6 +283,9 @@ export async function writeLine(
     // A label line being bound brings the app's label look with it, in the same step.
     const look = encode === undefined ? {} : labelLookFor(channel, own?.set);
     if (own === undefined) {
+        if (fresh === undefined) {
+            throw new Error(`The row has no ${target} layer to write ${channel} to`);
+        }
         const base = layers.at(-1) ?? topmostRow(session);
         const added = await session.styles.add(
             {

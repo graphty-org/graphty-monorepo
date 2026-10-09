@@ -11,6 +11,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **A style line goes only to a layer its row names; nothing falls back to
+  Everything.** `writeLine(..., fresh)` in `style/row.ts` takes the layer to add as a required
+  argument (`EVERYTHING_LAYER` is exported for the Everything row, `selectionLayer` for a
+  selection, `undefined` for a run's or a layer's row) and throws when the row has no layer the
+  reader may edit and no layer to add. `RowStyle` offers a side only when the row has a layer on it
+  or a layer to add, so a PageRank run shows no Nodes | Edges switch, a path run keeps both, and a
+  node-only reader layer no longer offers Edges. `SetLine` and `CompoundSetLine` pass `fresh` too
+  (editing a base line on Everything still adds the Everything layer). Test:
+  `StyleTab.real-element.test.tsx`, "a PageRank run paints only nodes..." (fails without the fix)
+  and "Everything's edge Color goes to the Everything layer...". Real app: `tmp/t2r1-11/a/02.png`
+  (PageRank, no switch), `04.png` (Everything edges red, key "Edge color: Everything"),
+  `c/03.png` (path run, both sides).
+
 - (2026-10-09) **The canvas key names a stale run as the run list does: "Size: PageRank, out of
   date".** `rowName` in `canvas/legendWords.ts` appends ", out of date" when the block's run has
   `status === "succeeded"` and `run.stale !== null` (the paint tree's own test), so the key, its
@@ -92,25 +105,18 @@ the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nod
 - (2026-10-09, summarized) **Round 1 critique: the dry runs walked only success paths, so build
   defects reached participants on detours** (styling and selection detours no walk covered; e.g. a
   run row's Edges side wrote "Edge color" to Everything via `writeLine`'s default, `r1-s46/05.png`).
-  Next dry run must walk each task's commonest detours. Done since: the legend's out-of-date mark.
+  Next dry run must walk each task's commonest detours. Done since: the legend's out-of-date mark,
+  the run row's Edges side.
   Still open: find-box "=" hint, "Replace with file..." button in the source inspector. Do not fix
   edge width until a script measures the element's units; do not move Filters.
 - (2026-10-09) **Tier 2 screenshot audit (round 1): the app breaks on long names and narrow
   windows, not at the study's size** (`tier2/rounds/round-1/expert/engineer.md`, 24 findings:
   canvas labels cut at the edge, "Back to ..." clipped, popovers over the left panel at 900 wide).
-- (2026-10-09) **`REAL_VIEWPORT=<w>x<h>` on `real.mjs --start`** sets the window (default 1440x900,
-  recorded in `session.json`). A private walk script (one `walk` per screen, like
-  `tier2/pilot/rewalk.sh`) run at two sizes in parallel took two browser slots and ~25 min.
+- (2026-10-09) **`REAL_VIEWPORT=<w>x<h>` on `real.mjs --start`** sets the window (default 1440x900).
 
-- (2026-10-09) **Four word fixes on the path and Replace screens.** The path total is named by the
-  weight column it read ("Total minutes 14", `RunValues.tsx` `PathValues`); a weight the path left
-  unread says "Each edge counts as 1. weight's meaning is not set." (`weightRead`, `analyze/words.ts`;
-  a set but wrong meaning keeps its reason: "Each edge counts as 1. emails means closer, and a path
-  needs a distance."); the Replace page's button says "Replace" (`Footer` takes `action`); Shortest
-  path answers chain, quickest, link and between and says "shortest path by weight". Tests:
-  analyze `words.test.ts`, `PathRun.real-element.test.tsx` "names the total by the weight column",
-  `Replace.real-element.test.tsx`. Real app: `design/ui/studio/tmp/t2r1-14/s1/13.png`, `16-19.png`,
-  `s2/10.png`, `s2/14.png`.
+- (2026-10-09, summarized) **Four word fixes on the path and Replace screens:** the path total
+  named by its weight column (`PathValues`), an unread weight says why (`weightRead`), Replace's
+  button says "Replace", Shortest path answers chain/quickest/link/between. Evidence `tmp/t2r1-14/`.
 
 ## Decisions and reasons
 
@@ -160,12 +166,9 @@ the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nod
   (owner door); legend loses "Size: PageRank" after Replace; explicit dijkstra over a negative
   undirected weight freezes the page.
 
-- (2026-10-09) **A run row's Style tab offers only the sides the run's own layers cover.** Reason:
-  `writeLine` adds `EVERYTHING_LAYER` when the row has no layer for the target, so Edges on a
-  node-only run wrote to the whole graph. A node-only result has nothing to say about edges (the
-  algorithm-styles rule), so the segment should not be there; a path run keeps both sides because
-  its layers cover edges. Rejected: a run-named edge layer with an empty selector (paints every edge,
-  breaks the rule).
+- (2026-10-09) **A run row's Style tab offers only the sides the run's own layers cover** (built,
+  see Top of mind). A node-only result has nothing to say about edges (the algorithm-styles rule).
+  Rejected: a run-named edge layer with an empty selector (paints every edge, breaks the rule).
 - (2026-10-09) **Audit findings name the owning package; the canvas label clipping is the
   element's.** The fit frames spheres only, so any app fix (smaller font, padding) would hide an
   element defect. The legend card's label overlap waits on the same element fact (label bounds).
@@ -218,6 +221,14 @@ the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nod
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-09) Seen, not fixed: after Everything's edge color was set, a new path run showed
+  "Hidden by your layer Everything" and its Style tab was blank (no sections, no words):
+  `defaultRow` returns null when `session.runs.bindings(run)` is empty, and the tab says nothing
+  about why (`tmp/t2r1-11/a/06.png`). Without the Everything edit the same run lists both sides
+  (`c/03.png`). An empty Style tab should say what the run paints and why it is hidden.
+- (2026-10-09) Worked: proving a test fails without the fix with `git diff -- <my files> > patch`,
+  `git apply -R`, run, `git apply` (no stash in a shared worktree).
 
 - (2026-10-09) Worked: a module-level "focus next" request taken in an effect keyed on the
   element's change version (the Notes place's pattern) -- focus after the row exists, whatever

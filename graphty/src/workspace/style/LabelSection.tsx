@@ -94,7 +94,7 @@ function readsOf(session: GraphSession, target: Target, channel: Channel, line: 
  * @param props.target - nodes or edges
  * @param props.row - the row's layers
  * @param props.layers - the row's layers on this side
- * @param props.fresh - the layer the row's first edit adds, when it is not the Everything row
+ * @param props.fresh - the layer the row's first edit adds, when the row adds one
  * @returns The section
  */
 export function LabelSection({ target, row, layers, fresh }: Readonly<LabelSectionProps>): React.JSX.Element | null {

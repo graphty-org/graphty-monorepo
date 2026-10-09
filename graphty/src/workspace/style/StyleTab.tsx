@@ -11,6 +11,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LabelSection } from "./LabelSection";
 import {
     colorBlockOf,
+    EVERYTHING_LAYER,
     everythingRow,
     lineOf,
     type NewLayer,
@@ -108,8 +109,12 @@ export function StyleTab({ layers }: Readonly<StyleTabProps>): React.JSX.Element
     if (row === null) {
         return null;
     }
+    // Only the Everything row adds a layer of its own; a run's or a layer's row writes to its own.
+    const everything = layers === undefined && (inspected?.kind ?? "everything-row") === "everything-row";
     // Keyed by the row, so an empty label line and the side are dropped when the selection changes.
-    return <RowStyle key={row.join(" ")} session={session} row={row} />;
+    return (
+        <RowStyle key={row.join(" ")} session={session} row={row} fresh={everything ? EVERYTHING_LAYER : undefined} />
+    );
 }
 
 /**
@@ -186,13 +191,14 @@ function SelectionRow({ session }: Readonly<{ session: GraphSession }>): React.J
  * @param props.session - the element's session
  * @param props.row - the row's layers
  * @param props.sides - the sides the row can paint; one side draws no Nodes | Edges switch
- * @param props.fresh - the layer the row's first edit adds, when it is not the Everything row
+ * @param props.fresh - the layer the row's first edit adds; left out, the row adds none, so a
+ *   side the row has no layer on is not offered
  * @returns The tab
  */
 function RowStyle({
     session,
     row,
-    sides = ["node", "edge"],
+    sides: offered = ["node", "edge"],
     fresh,
 }: Readonly<{
     session: GraphSession;
@@ -200,6 +206,8 @@ function RowStyle({
     sides?: readonly Target[];
     fresh?: NewLayer;
 }>): React.JSX.Element {
+    // A side with no layer of the row's, and no layer to add, has no lines to offer.
+    const sides = offered.filter((t) => fresh !== undefined || rowLayers(session, row, t).length > 0);
     // The reader's own lines only: the element's locked base layers set something on both sides
     // of the Everything row, which would make the dot say nothing.
     const sets = (target: Target): boolean =>
@@ -280,7 +288,7 @@ interface Entry {
  * @param props.row - the row's layers
  * @param props.layers - the row's layers on this side
  * @param props.documentColors - colors the document uses
- * @param props.fresh - the layer the row's first edit adds, when it is not the Everything row
+ * @param props.fresh - the layer the row's first edit adds, when the row adds one
  * @returns The section
  */
 function Section({
@@ -402,11 +410,19 @@ function Section({
                             layers={layers}
                             row={row}
                             documentColors={colors}
+                            fresh={fresh}
                         />
                     );
                 }
                 return line === undefined ? null : (
-                    <SetLine key={e.adds.channel} descriptor={e.adds} line={line} row={row} documentColors={colors} />
+                    <SetLine
+                        key={e.adds.channel}
+                        descriptor={e.adds}
+                        line={line}
+                        row={row}
+                        documentColors={colors}
+                        fresh={fresh}
+                    />
                 );
             })}
         </Stack>

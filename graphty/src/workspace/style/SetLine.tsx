@@ -24,6 +24,7 @@ import {
     type DataChoice,
     type Line,
     lineOf,
+    type NewLayer,
     propose,
     readsNothing,
     removeLine,
@@ -48,6 +49,8 @@ interface SetLineProps {
     name?: string;
     /** Whether it is a part inside a compound line's popover, which has no "-" of its own. */
     part?: boolean;
+    /** The layer the row's first edit adds, when the row adds one. */
+    fresh?: NewLayer;
 }
 
 /** Figma's paint field beside a row's bind icon and "-": 156 px, so the hex and opacity fit whole. */
@@ -81,6 +84,7 @@ function colorOf(value: ChannelValue | undefined): { hex: string; percent: numbe
  * @param props.documentColors - colors the document uses
  * @param props.name - the line's name, when it is not the channel's own
  * @param props.part - whether it is a part inside a compound line's popover
+ * @param props.fresh - the layer the row's first edit adds, when the row adds one
  * @returns The line
  */
 export function SetLine({
@@ -90,6 +94,7 @@ export function SetLine({
     documentColors,
     name: partName,
     part = false,
+    fresh,
 }: Readonly<SetLineProps>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const [binding, setBinding] = useState(() => !part && listOpensNext(descriptor.channel));
@@ -109,7 +114,7 @@ export function SetLine({
         store.set({ notice: { message: `${name} could not be changed` } });
     };
     const write = (next: { value: ChannelValue } | { binding: DataBinding }): void => {
-        writeLine(session, row, target, channel, next).catch(fail);
+        writeLine(session, row, target, channel, next, fresh).catch(fail);
     };
     const bind = (choice: DataChoice): void => {
         const proposal = propose(session, choice, channel);
@@ -578,6 +583,8 @@ interface CompoundSetLineProps {
     row: readonly LayerId[];
     /** The colors the document already uses, offered in the Color popover. */
     documentColors: readonly string[];
+    /** The layer the row's first edit adds, when the row adds one. */
+    fresh?: NewLayer;
 }
 
 /**
@@ -590,6 +597,7 @@ interface CompoundSetLineProps {
  * @param props.layers - the row's layers on this side
  * @param props.row - the row's layers
  * @param props.documentColors - colors the document uses
+ * @param props.fresh - the layer the row's first edit adds, when the row adds one
  * @returns The line, or nothing when the row sets none of its parts
  */
 export function CompoundSetLine({
@@ -598,6 +606,7 @@ export function CompoundSetLine({
     layers,
     row,
     documentColors,
+    fresh,
 }: Readonly<CompoundSetLineProps>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const [moreOpen, setMoreOpen] = useState(false);
@@ -681,6 +690,7 @@ export function CompoundSetLine({
                 documentColors={documentColors}
                 name={p.part.word}
                 part
+                fresh={fresh}
             />
             {p.part.caveat === true && p.descriptor.caveat !== undefined ? (
                 <Text size="xs" c="dimmed" px={4}>

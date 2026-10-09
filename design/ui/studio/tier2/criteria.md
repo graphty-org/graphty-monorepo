@@ -1,5 +1,5 @@
-The study runs on build 909b19b578d4 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d2-909b19b57/`
-(graphty@0.8.56, commit 909b19b57), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build 8c4eef4722ac served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d3-8c4eef472/`
+(graphty@0.8.56, commit 8c4eef472), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -423,3 +423,8 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   Javert's 17 ties with no sign of more. `tasks.md`: setup files are passed by absolute path,
   because `real.mjs` reads a relative path from the folder the command runs in. No bar and no
   prompt changed.
+- **2026-10-08, before round 1: the third dry run build.** The study build moved from
+  909b19b578d4 (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d2-909b19b57/`) to
+  8c4eef4722ac (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d3-8c4eef472/`), a
+  fresh build of the worktree's current commit, which holds the fixes found in the third dry run
+  (`dry-run-r1-3.md`). `tool/real.mjs --prove` passed on it. No bar changed.

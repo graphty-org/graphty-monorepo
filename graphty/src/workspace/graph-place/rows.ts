@@ -53,6 +53,38 @@ export interface PaintRow {
 }
 
 /**
+ * A run row's kind, the one the tree draws and the inspector's header reads: a grouping, or a run
+ * whose primary field is not one value per element (a path, a set), is a run row; one value per
+ * element is a measure row.
+ * @param run - the run.
+ * @returns the kind.
+ */
+export function runRowKind(run: Run): "measure-row" | "run-row" {
+    if (run.record.summary?.groups !== undefined) {
+        return "run-row";
+    }
+    return RESULT_SHAPE_CONTRACTS[run.shape].primaryField === "value" ? "measure-row" : "run-row";
+}
+
+/**
+ * Whether a row is the one inspected. A run is opened as a measure or a run row depending on the
+ * door (a toolbar run, a note, Why this look), so either kind matches the run's own row.
+ * @param row - the row.
+ * @param inspected - what is inspected.
+ * @returns true when the row is what the inspector shows.
+ */
+export function isInspectedRow(
+    row: PaintRow,
+    inspected: { readonly kind: string; readonly id?: string } | null,
+): boolean {
+    if (inspected === null || row.id !== inspected.id) {
+        return false;
+    }
+    const isRun = (kind: string): boolean => kind === "measure-row" || kind === "run-row";
+    return row.kind === inspected.kind || (isRun(row.kind) && isRun(inspected.kind));
+}
+
+/**
  * The paint tree's rows, top first: Selection; then the runs and the reader's own layers in paint
  * order, the topmost first, with a run that has no layer yet (queued, running, failed, or styled
  * off) above them, newest first; then Everything, whose paint includes the reader's Everything
@@ -116,8 +148,7 @@ export function paintRows(session: GraphSession): PaintRow[] {
         const ramp = color?.swatches.flatMap((s) => (s.color === undefined ? [] : [s.color])) ?? [];
         return {
             ...base,
-            // A run whose primary field is one value per element is a single measure row.
-            kind: RESULT_SHAPE_CONTRACTS[run.shape].primaryField === "value" ? "measure-row" : "run-row",
+            kind: runRowKind(run),
             count: run.shape === "path" ? pathSize(run) : summary?.measured,
             swatch: ramp.length === 0 ? undefined : { ramp },
         };

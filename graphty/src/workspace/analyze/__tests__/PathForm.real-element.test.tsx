@@ -277,6 +277,10 @@ describe("the Path popover, on the real element", () => {
             await userEvent.keyboard("p");
             const form = await pathForm();
             const weight = within(form).getByRole<HTMLInputElement>("combobox", { name: "Weight" });
+            // One control in the form is called Weight: the box; the word is drawn once, as its label.
+            assert.lengthOf(within(form).getAllByRole("combobox", { name: "Weight" }), 1);
+            assert.lengthOf(within(form).queryAllByRole("group", { name: "Weight" }), 0);
+            assert.lengthOf(within(form).getAllByText("Weight", { exact: true }), 1);
             // The box shows what the run will read: None, with the reason under it.
             await waitFor(() => {
                 assert.equal(weight.value, "None");

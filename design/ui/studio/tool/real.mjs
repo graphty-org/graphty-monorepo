@@ -909,7 +909,7 @@ async function find(page, raw, out) {
                 loc = page.getByPlaceholder(name, { exact });
             }
             for (const el of await loc.filter({ visible: true }).elementHandles()) {
-                const [key, desc] = await el.evaluate((e, tip) => {
+                const [key, desc, control] = await el.evaluate((e, tip) => {
                     // a tooltip bubble, hidden text and the graph's canvas are not controls
                     if (e.closest(`${tip}, [aria-hidden=true], graphty-element, canvas`)) return [null];
                     // with a modal dialog open, only it (and a list or menu it opened) can be used
@@ -917,10 +917,10 @@ async function find(page, raw, out) {
                         .filter((m) => m.checkVisibility())
                         .pop();
                     if (modal && !modal.contains(e) && !e.closest("[role=listbox],[role=menu]")) return ["behind"];
-                    const hit =
-                        e.closest(
-                            "button,a[href],input,select,textarea,label,tr,[tabindex],[role=button],[role=link],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=tab],[role=treeitem],[role=switch],[role=option],[role=row],[role=checkbox],[role=radio],[role=combobox]",
-                        ) || e;
+                    const found = e.closest(
+                        "button,a[href],input,select,textarea,label,tr,[tabindex],[role=button],[role=link],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=tab],[role=treeitem],[role=switch],[role=option],[role=row],[role=checkbox],[role=radio],[role=combobox]",
+                    );
+                    const hit = found || e;
                     // a label and the control it labels are one control to a person
                     const c = hit.tagName === "LABEL" && hit.control ? hit.control : hit;
                     c.dataset.tryKey ??= String((window.__tryKeys = (window.__tryKeys || 0) + 1));
@@ -928,13 +928,19 @@ async function find(page, raw, out) {
                         .trim()
                         .replace(/\s+/g, " ")
                         .slice(0, 40);
-                    return [c.dataset.tryKey, `${c.getAttribute("role") || c.tagName.toLowerCase()} "${said}"`];
+                    return [
+                        c.dataset.tryKey,
+                        `${c.getAttribute("role") || c.tagName.toLowerCase()} "${said}"`,
+                        found !== null,
+                    ];
                 }, TIP);
                 if (key === "behind") behind++;
-                else if (key && !seen.has(key)) seen.set(key, { el, desc });
+                else if (key && !seen.has(key)) seen.set(key, { el, desc, control });
             }
         }
         let all = [...seen.values()];
+        // controls before text: words that only read the name (a stat's label and its group) give way
+        if (all.some((x) => x.control)) all = all.filter((x) => x.control);
         if (!all.length && behind)
             return { miss: `nothing in the open dialog is called "${name}" (a control behind the dialog is)` };
         if (!all.length && !role) all = await nodesNamed(page, name, exact);

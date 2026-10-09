@@ -14,6 +14,7 @@ import { loadIndexOf, loadName, sourceRowOf, sourcesWords } from "../data-place/
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
+import { runRowKind } from "../graph-place/rows";
 import { LayoutGroup } from "../layout/LayoutForm";
 import { notesAbout } from "../notes/words";
 import { tabFor } from "../state/store";
@@ -24,7 +25,7 @@ import { useSessionVersion } from "./hooks";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
 import { MENUS } from "./kindMenus";
 import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValues";
-import { type Draft, rowKindOf, swatchOf } from "./reads";
+import { type Draft, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
 import { count, edgeName, groupName, KIND_WORDS, leftOutOf, PATH_WORD, runTime, selectionWords } from "./words";
@@ -96,10 +97,10 @@ export function Inspector(): React.JSX.Element {
     );
     const identity = identityOf(resolved);
     const run = runOf(session, resolved);
-    // A run's row is a measure or a grouping by its result, whichever door opened it.
+    // A run's kind is its paint tree row's, whichever door opened it, so the two draw one glyph.
     const kindId: InspectedKindId =
         run !== undefined && (resolved.kind === "measure-row" || resolved.kind === "run-row")
-            ? (rowKindOf(run) ?? resolved.kind)
+            ? runRowKind(run)
             : resolved.kind;
     const kind = registry.kinds.get(kindId);
     // A path's answer is its nodes in order, so its run opens on Values, as a single node does.

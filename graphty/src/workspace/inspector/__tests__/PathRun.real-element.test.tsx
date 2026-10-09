@@ -111,6 +111,13 @@ describe("a path run's Values", () => {
                 assert.include(row.textContent, "2 hops");
             });
             assert.notInclude(row.textContent, "10");
+
+            // Opened as a measure, the run is still its own tree row: marked selected, one glyph.
+            assert.equal(row.getAttribute("aria-selected"), "true");
+            const headerGlyph = document.querySelector("[data-inspected] svg")?.getAttribute("class") ?? "";
+            const glyph = headerGlyph.split(" ").find((name) => name.startsWith("lucide-"));
+            assert.isDefined(glyph);
+            assert.isNotNull(row.querySelector(`svg.${glyph}`), `the row draws ${glyph}`);
         },
         TIMEOUT_MS,
     );

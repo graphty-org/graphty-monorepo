@@ -9,7 +9,7 @@ import { matchesKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { moveRow, setRowHidden } from "./actions";
 import { ROW_COMMANDS } from "./commands";
-import { findRow, hasEye, isMovable, layerAbove, type PaintRow } from "./rows";
+import { findRow, hasEye, isInspectedRow, isMovable, layerAbove, type PaintRow } from "./rows";
 
 /** A group run with more groups than this opens collapsed (tier1-design.md section 2.5). */
 const OPEN_UP_TO = 12;
@@ -171,7 +171,7 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
         .filter((row) => opened.get(row.id) ?? (row.children?.length ?? 0) <= OPEN_UP_TO)
         .map((row) => row.id);
     const shown = inspected?.id === undefined ? undefined : findRow(rows, inspected.id);
-    const selected = shown !== undefined && shown.kind === inspected?.kind ? [shown.id] : [];
+    const selected = shown !== undefined && isInspectedRow(shown, inspected) ? [shown.id] : [];
 
     const rowMenu = (node: TreeNodeData): React.ReactNode => {
         const row = findRow(rows, node.id);

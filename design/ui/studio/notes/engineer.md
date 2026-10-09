@@ -11,6 +11,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **A run's kind is its tree row's (app only, no API).** `runRowKind(run)` in
+  `graph-place/rows.ts` is the one rule (a grouping, or a primary field that is not one value per
+  element -- path, set -- is `run-row`; else `measure-row`); the paint tree and the inspector header
+  both read it, so a path run draws one glyph (Shapes) in both. Doors still open a run as either
+  kind (toolbar run, notes, Why this look), so `isInspectedRow` matches a run row on either: the
+  path row is marked selected after Find path. `reads.rowKindOf` stays only as RunValues' "is a
+  grouping" test. The "three things named Weight" were the Path popover's box plus the inspector's
+  Made with Weight stat (a `role=group` named by its label span), not PathForm: `real.mjs` now
+  ranks controls before text (a name a control has wins over a group or span that only reads it),
+  `--prove` all ok. Evidence `tmp/r1-dry3-app-path-run/` (T18A/09, 12; T18B/07, 14). Test:
+  PathRun.real-element (fails on the old code: aria-selected false).
+
 - (2026-10-08) **Inspector title, actions button and neighborhood focus (app + compact-mantine,
   no element API).** The title that takes focus after a run, find pick or Find path is a level-2
   heading (`role="heading" aria-level={2}`) marked by the new shared `cm-focus-underline` (2px
@@ -43,40 +55,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Baselines that will change: compact-mantine SegmentedControl, Toolbar, Tabs, ToggleRow(Group),
   AlignmentMatrix stories; graphty CompactControls, CompactOverview, Frame stories.
 
-- (2026-10-08) **A tooltip opens on hover only after the pointer moves onto its target
-  (compact-mantine, no API).** Chromium's after-layout hover update is a move that does not move,
-  so T21's reset button, sliding under the resting pointer after Load, opened its tooltip over "Its
-  meaning was not set...". overlayBehavior.ts keeps the last pointermove that changed position; a
-  tooltip whose trigger the pointer did not move onto is `data-cm-still` (hidden) until a real move
-  or a focus, then held 1000 ms; dismiss skips still ones so Tab shows them. Listeners now install
-  when the theme loads. Evidence `tmp/r1-dry3-cm-tooltip-pointer-move/` (T21A/06, 08, 12; T21B/06).
-  OPEN: an `opened`-prop tooltip under a resting pointer would stay hidden until a move (none).
-
+- (2026-10-08, condensed) A tooltip opens on hover only after a real pointer move onto its target
+  (compact-mantine overlayBehavior.ts, `data-cm-still`); Tab still shows it. Evidence
+  `tmp/r1-dry3-cm-tooltip-pointer-move/`.
 - (2026-10-08, condensed) Study tool: after setup `real.mjs` blurs focus and moves the pointer
   off the page (`--prove` checks it). Notes: a saved note takes focus (`focusWhenDrawn`); delete
   note is `GLYPHS.delete` (trash). Evidence `tmp/r1-dry2-study-tool-handover/`, `tmp/r1-dry2-notes-polish/`.
-- (2026-10-08) **Path form and Made with (app + compact-mantine, no element API).** A panel's
-  Escape (Path, Analyze, Layout popovers) waits for inner controls: `isPanelEscape` (keys.ts) is
-  false when `defaultPrevented` or the target has `data-expanded`, so one Escape closes only the
-  Weight list and From/To stay. Made with's Weight is `weightRead(caveats)` -> `{ value, note }`:
-  "km (farther)", "weight (read as closer)" or "None" in the row, the reason on its own `xs`
-  line under it ("Its meaning was not set, so this run assumed a higher weight means closer.").
-  Runs show date and time to the second (`runTime`, header "ran Oct 8, 3:36:46 PM" and Ran row).
-  `ControlSubGroup` content is no longer a named region (it took the button's name; "Advanced"
-  named two things) -- for the owner. Made with rows: Analysis, Ran, From, To, Weight.
-  Evidence `tmp/r1-dry2-path-form-made-with/` (T18A/07-09, T18B/07 vs 14, T20A/14-17, T21A/02,
-  07, T21B/02, 07). OPEN: `--click "From"` with a path run inspected is ambiguous (Made with's
-  group "From Strozzi", the popover's "From"; the tool took the group); toolbar test "frames a
-  selected edge's two ends" still off in x (known before this, see Tried); Columns after "=" omit run results; Dijkstra always undirected.
-- (2026-10-08) **Filter steps show on/off and what they keep (compact-mantine + app, team door).**
-  A step row's outcome ("77 to 26 nodes", "off") is a second line under the condition through the
-  new shared `TreeNodeData.descriptionVisible` (row 44 tall); the count slot cut both in the
-  240-wide list. Saving a step from the editor turns it on (Undo restores the old rule, off);
-  status "Saved "x". The step is on."; header chip Tooltip names the steps on ("Turn it off in the
-  Filters list", `chipTip`). Off-row dimming left as is: under the app's high-contrast theme
-  tertiary == secondary (70% white, the AA floor), so the word "off" carries the state. Evidence
-  `tmp/r1-dry2-filters/` (T17A/07-12, T17B/07-12). OPEN: once, T17B's "Attribute actions" click
-  timed out with the button "visible, enabled and stable"; the rerun passed. Mechanism not found.
+- (2026-10-08, condensed) Path form: a panel's Escape waits for inner controls (`isPanelEscape`
+  false when `defaultPrevented` or the target has `data-expanded`); Made with's Weight is
+  `weightRead(caveats)` -> `{ value, note }`, the note on its own line; runs show time to the second.
+  OPEN: Columns after "=" omit run results; Dijkstra always undirected.
+- (2026-10-08, condensed) Filter steps: a step row's outcome ("77 to 26 nodes", "off") is a second
+  line via compact-mantine `TreeNodeData.descriptionVisible`; saving a step turns it on; the header
+  chip's tooltip names the steps on. Evidence under `tmp/` (filter steps).
 - (2026-10-08, condensed) Earlier dry-run fixes: focus after an action goes to the inspector's
   title (`focusInspectorTitle`; element `data-pointer-focus` hides the click ring); a load that
   leaves rows out wears a warning, a Sources child opens what it names (`tableRows`); find keeps

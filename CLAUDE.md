@@ -1080,6 +1080,13 @@ and commit the report with the change. An agent whose pull request changes the r
 the pull request description: which entry points, what was added, changed or removed, and whether
 it is breaking.
 
+The same check fails when the report adds a property typed plain `string` to a result type -- a type
+whose name ends in `Result`, `Summary`, `Estimate`, `Recommendation` or `Explanation`, or one a
+`GraphSession` method returns -- compared with the merge base with origin/master. Use an exported
+string-literal union of codes or a `CodedFact` `{ code, params }` instead. Identifiers, names of the
+consumer's data and catalog names are allowed by `PLAIN_STRING_ALLOWLIST` in `tools/api-report.mjs`,
+and a descriptor's `description` is catalog data. Fields that already exist never fail.
+
 ### Module System
 
 - ES modules are the default format

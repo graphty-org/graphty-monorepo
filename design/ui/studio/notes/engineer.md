@@ -200,7 +200,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   build stamp's 12-char sha into the full one.
 - (2026-10-08) Did not work: `findByRole("tooltip")` for the Edge actions tooltip in
   Inspector.test (testing-library judged it inaccessible); `findByText` then `closest('[role=
-  "tooltip"]')` works, as the measurement-gloss test already does. A row that looks highlighted
+"tooltip"]')` works, as the measurement-gloss test already does. A row that looks highlighted
   right after clicking Degree is the pointer's hover (it clears with `--hover-at` elsewhere,
   florentine/03 vs florentine2/03), not focus.
 - (2026-10-08) Trap: another agent's `git commit` of whole files swept my uncommitted hunks
@@ -214,7 +214,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   it. Did not work: weight 550 for the chosen segment (crop compare old/new identical to the eye).
   Worked: "fails without" for a file another agent had dirty by commenting my two listener lines
   in place, not `git apply -R` (context mismatch); a my-hunks-only patch built from `git show
-  HEAD:` plus my blocks.
+HEAD:` plus my blocks.
 - (2026-10-08) Did not work: Tooltip `vars` installing listeners that must see events before the
   first tooltip (vars run only when the tooltip renders). A same-pixel move after the pointer left
   the window is real (the vitest harness does this between tests). Never revert-and-restore a file

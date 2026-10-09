@@ -166,6 +166,19 @@ function contrastOnPage(element: HTMLElement): number {
     return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
 }
 
+/**
+ * Asserts that elements come in this document order.
+ * @param elements - the elements, in the expected order.
+ */
+function assertInOrder(...elements: HTMLElement[]): void {
+    for (let i = 1; i < elements.length; i++) {
+        assert.isTrue(
+            Boolean(elements[i - 1].compareDocumentPosition(elements[i]) & Node.DOCUMENT_POSITION_FOLLOWING),
+            `"${elements[i - 1].textContent}" comes before "${elements[i].textContent}"`,
+        );
+    }
+}
+
 describe("the Data page on the real element", () => {
     it(
         "T3: opens a graph file with every check green and focus on Load, and Enter loads it",
@@ -520,6 +533,12 @@ describe("the Data page on the real element", () => {
             await within(inspector).findByText("1 edge row was left out: it names a node missing from the node rows.");
             // The row itself, kept by the element with the load: no file to reopen.
             await within(inspector).findByText("Line 4: z has no node row; source c, target z, weight 1");
+            // Two headed sections: what it added first, then what it left out.
+            assertInOrder(
+                within(inspector).getByText("Added"),
+                within(inspector).getByText("Left out"),
+                within(inspector).getByText("1 edge row was left out: it names a node missing from the node rows."),
+            );
 
             // The left-out child names its load, not "Source", and shows what the load added above
             // the rows it left out; a table child its own count and its table in the dock.
@@ -533,6 +552,14 @@ describe("the Data page on the real element", () => {
             assert.isNotNull(within(inspector).getByText("Nodes"));
             assert.isNotNull(within(inspector).getByText("Edges"));
             await within(inspector).findByText("Line 4: z has no node row; source c, target z, weight 1");
+            // It leads with what it names: "Left out" over the sentence and the row, "Added" below.
+            assertInOrder(
+                within(inspector).getByText("Left out"),
+                within(inspector).getByText("1 edge row was left out: it names a node missing from the node rows."),
+                within(inspector).getByText("Line 4: z has no node row; source c, target z, weight 1"),
+                within(inspector).getByText("Added"),
+                within(inspector).getByText("Nodes"),
+            );
             await userEvent.click(within(sources).getByText("passes.csv"));
             await waitFor(() => {
                 assert.equal(document.getElementById(INSPECTOR_TITLE_ID)?.textContent, "passes.csv");
@@ -799,7 +826,7 @@ describe("the Data page on the real element", () => {
             const higher = screen.getByRole("radiogroup", { name: "Higher means" });
             await userEvent.click(within(higher).getByText("Farther"));
             await screen.findByText(
-                "A higher weight means farther apart, such as a longer trail; a path takes the smallest total.",
+                "A higher weight means farther apart, such as a longer distance or travel time; a path takes the smallest total.",
             );
             assert.isNotNull(screen.getByText("Weight: km (farther)"));
 

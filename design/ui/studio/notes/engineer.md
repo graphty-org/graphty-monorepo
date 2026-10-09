@@ -56,10 +56,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Leave out tooltips (`UNMATCHED_HINTS`); WeightLine after RoleList so Weight moves no role box.
   Evidence `tmp/r1-dry3-app-import-page/`.
 
-- (2026-10-08, condensed) **Sources and left-out rows (app only).** Sources counts are a visible
-  second line (`description` + `descriptionVisible`); the left-out child wears `GLYPHS.warning` in
-  danger ink and opens "Left out of <load>" with the whole load's counts; left-out lines wrap.
-  Evidence `tmp/r1-dry3-app-sources-left-out/`.
+- (2026-10-08) **Sources and left-out rows (app only).** Sources counts are a visible second line
+  (`description` + `descriptionVisible`); the left-out child wears `GLYPHS.warning` in danger ink.
+  Both a load's row and its left-out child show two headed sections, "Added" (Nodes, Edges) and
+  "Left out" (the sentence and each row, wrapping); the left-out child leads with "Left out", the
+  load with "Added" (`SourceValues.tsx`). A table child keeps "Added" alone. Evidence
+  `tmp/r1-dry4-left-out-inspector/` (T4A/03-04, T4B/03-04), earlier `tmp/r1-dry3-app-sources-left-out/`.
 - (2026-10-08, condensed) **Shared tree and menu fixes (compact-mantine).** `Tree childBand?`
   (default true; the app passes false); type-ahead takes letters and digits only; a menu's Escape
   is marked used in the capture phase; a disabled first focus moves to the first enabled row
@@ -109,8 +111,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   unchanged; a follow-up choice goes below the control that caused it (Higher above the roles moved
   them ~62 px under the pointer); a script-focused heading gets an underline, not a box (read as an
   editable name), shared in compact-mantine.
-- (2026-10-08) **A left-out row opens its load's whole account, not a "Left out" section alone.**
-  The task asks how many arrived AND what was dropped; the small inspector hid the counts (T4A/12).
+- (2026-10-08) **A left-out row opens its load's whole account, each part under its own heading,
+  what it names first.** The task asks how many arrived AND what was dropped, so the counts stay
+  (the small inspector hid them, T4A/12 of r1d2). But under one "Added" heading the counts read as
+  describing the left-out row, and the two inspectors were identical (r1d3 T4A/11, T4B/12-13).
+  Order is the only difference between them: it says which row was selected. Tried and kept:
+  reorder whole `ControlSection`s by `child === "left-out"`; the test asserts DOM order with
+  `compareDocumentPosition` and fails on the old component ("Unable to find ... Left out").
 - (2026-10-08) **A shared control's defect is fixed in compact-mantine, and an app-specific
   look is an option with today's look as default.** The child band is right where selecting a
   parent selects its children (Figma), wrong in this app; so an option, not a removal. Menu

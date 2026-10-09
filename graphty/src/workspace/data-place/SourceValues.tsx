@@ -20,11 +20,11 @@ function keyedLines(lines: readonly string[]): { key: string; line: string }[] {
 }
 
 /**
- * A Sources row in the inspector. A load's row: what it added and, when it left edge rows out,
- * how many and why, then the left-out rows themselves, which the element keeps with the load
- * (through a save and reopen too). A table child shows what it names: a node table what it added
- * as nodes, an edge table as edges. The left-out child shows its whole load. Every count is the
- * element's (`data.sources()`).
+ * A Sources row in the inspector. A load's row: what it added, then, under "Left out" when it
+ * left edge rows out, how many and why and the left-out rows themselves, which the element keeps
+ * with the load (through a save and reopen too). A table child shows what it names: a node table
+ * what it added as nodes, an edge table as edges. The left-out child shows its whole load, "Left
+ * out" first. Every count is the element's (`data.sources()`).
  * @param props - Component props
  * @param props.row - The Sources row id, `source:<load>` or `source:<load>:<child>`
  * @returns The values
@@ -44,25 +44,30 @@ export function SourceValues({ row }: Readonly<{ row: string }>): React.JSX.Elem
     const child = row.split(":").length > 2 ? sourceRowOf(sources, session.data.lastImport(), row)?.kind : undefined;
     const part = child === "nodes" || child === "edges" ? child : "all";
     const { leftOut } = load;
-    return (
-        <ControlSection label="Added" defaultOpened>
+    const added = (
+        <ControlSection key="added" label="Added" defaultOpened>
             {part === "edges" ? null : <DataRow stat name="Nodes" value={load.added.nodes} />}
             {part === "nodes" ? null : <DataRow stat name="Edges" value={load.added.edges} />}
-            {leftOut === undefined || part !== "all" ? null : (
-                <>
-                    <Text size="sm" px="md" py={2}>
-                        {leftOutSentence(leftOut)}
+        </ControlSection>
+    );
+    if (leftOut === undefined || part !== "all") {
+        return added;
+    }
+    const left = (
+        <ControlSection key="left-out" label="Left out" defaultOpened>
+            <Text size="sm" px="md" py={2}>
+                {leftOutSentence(leftOut)}
+            </Text>
+            {/* One wrapping line per row, so a long row reads whole. */}
+            {keyedLines((leftOut.edges ?? []).map((edge) => leftOutRow(edge, leftOut.endColumns))).map(
+                ({ key, line }) => (
+                    <Text key={key} size="sm" px="md" py={2}>
+                        {line}
                     </Text>
-                    {/* One wrapping line per row, so a long row reads whole. */}
-                    {keyedLines((leftOut.edges ?? []).map((edge) => leftOutRow(edge, leftOut.endColumns))).map(
-                        ({ key, line }) => (
-                            <Text key={key} size="sm" px="md" py={2}>
-                                {line}
-                            </Text>
-                        ),
-                    )}
-                </>
+                ),
             )}
         </ControlSection>
     );
+    // The left-out row leads with what it names; the load's row with what it added.
+    return <>{child === "left-out" ? [left, added] : [added, left]}</>;
 }

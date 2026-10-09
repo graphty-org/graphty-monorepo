@@ -355,10 +355,10 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   browser ("Saved friends in this browser."); Recent projects lists it after reopening as "friends"
   over "In this browser - 20 nodes - Oct 8, 2026, 7:28 PM" (the date and time of the save)
   (`rounds/r1d3/pilot/T19A/09.png`, `10.png`, `11.png`). That save
-      alone counts as kept. The start screen also says "This browser can clear projects kept here.
-      Save a local copy of any project you need to keep."; a participant who saves a local copy as
-      well took no detour. The header's "Local only" label reads the same before and after the save,
-      and nothing lasting on screen says the project is saved: only the toast, which fades.
+  alone counts as kept. The start screen also says "This browser can clear projects kept here.
+  Save a local copy of any project you need to keep."; a participant who saves a local copy as
+  well took no detour. The header's "Local only" label reads the same before and after the save,
+  and nothing lasting on screen says the project is saved: only the toast, which fades.
 - **S:** both notes, each on the right target, there after reopening, and the participant shows
   the Notes place (or the inspector's "1 note" link). **SD:** one note on the wrong target fixed
   after a detour; or the reminders kept but found only after searching. **F:** `not-kept` (no save,
@@ -554,7 +554,7 @@ line under it reads "3 edges selected" (B "13 edges selected"). A second Enter o
 changes nothing and is not a detour. Escape in the box clears the box and keeps the selection; the
 line under the box goes with the text, so the count is then read from the inspector or the
 Selection layer row (`rounds/r1d3/pilot/T22A/09.png`, `T22B/08.png`). On B the example 16 sits
-near the task's 10; record any participant who uses 16.
+  near the task's 10; record any participant who uses 16.
 - **Other routes, graded by the end state:** clicking each line with Shift held (A: 3 lines; not
   checked on this build); a color on Everything's edges that separates exactly the 10-or-more ties.
   A filter step ("minutes is at least 10") narrows the drawing to the slow links and their stops

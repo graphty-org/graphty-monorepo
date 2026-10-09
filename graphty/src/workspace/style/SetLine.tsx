@@ -365,12 +365,7 @@ function ValueEditor({
     switch (descriptor.accepts) {
         case "color":
             return (
-                <ColorValue
-                    value={value}
-                    fallback={descriptor.default}
-                    documentColors={documentColors}
-                    write={write}
-                />
+                <ColorValue value={value} fallback={descriptor.default} documentColors={documentColors} write={write} />
             );
         case "enum":
             return descriptor.channel === "node.shape" ? (

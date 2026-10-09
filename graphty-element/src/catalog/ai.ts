@@ -214,3 +214,50 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
 
     return { valid: true };
 }
+
+/**
+ * Every code an AI command's result carries (`ExecutionResult.code` from `aiCommand()`), with
+ * the facts it states in `ExecutionResult.params`. Switch on the code and write your own words;
+ * `ExecutionResult.message` is English for a log and may change in any release.
+ *
+ * Succeeded (`success: true`):
+ * - `AI_COMPLETED` -- the model answered, running every tool it called. `{ toolCalls }`: how many ran.
+ * - `AI_NO_RESPONSE` -- the model wrote nothing and called no tool.
+ *
+ * Failed (`success: false`):
+ * - `AI_NOT_ENABLED` -- the assistant is not switched on (`enableAiControl()` not called).
+ * - `AI_DISPOSED` -- the assistant was shut down.
+ * - `AI_KEY_MISSING` -- the provider needs an API key and has none. `{ provider }`.
+ * - `AI_KEY_REJECTED` -- the provider refused the key (HTTP 401 or 403). `{ provider, status }`.
+ * - `AI_PROVIDER_ERROR` -- the provider or the network failed. `{ provider }`, and `{ status }`
+ *   when the provider answered with an HTTP status.
+ * - `AI_CANCELLED` -- the command was cancelled (`cancelAiCommand()`); what it changed is taken back.
+ * - `AI_UNDONE` -- the command was undone while it ran; what it changed is taken back.
+ * - `AI_TOOL_UNKNOWN` -- the model called a tool that does not exist. `{ tool }`.
+ * - `AI_TOOL_INVALID_ARGUMENTS` -- the model called a tool with arguments it refused. `{ tool }`.
+ * - `AI_TOOL_FAILED` -- a tool ran and reported failure. `{ tool }`.
+ * - `AI_TOOL_THREW` -- a tool threw; what the command changed is taken back. `{ tool }`.
+ * - `AI_FAILED` -- anything else went wrong while the command ran.
+ */
+export const AI_RESULT_CODES = Object.freeze([
+    "AI_COMPLETED",
+    "AI_NO_RESPONSE",
+    "AI_NOT_ENABLED",
+    "AI_DISPOSED",
+    "AI_KEY_MISSING",
+    "AI_KEY_REJECTED",
+    "AI_PROVIDER_ERROR",
+    "AI_CANCELLED",
+    "AI_UNDONE",
+    "AI_TOOL_UNKNOWN",
+    "AI_TOOL_INVALID_ARGUMENTS",
+    "AI_TOOL_FAILED",
+    "AI_TOOL_THREW",
+    "AI_FAILED",
+] as const);
+
+/** One AI command result code; see {@link AI_RESULT_CODES}. */
+export type AiResultCode = (typeof AI_RESULT_CODES)[number];
+
+/** The facts an AI command result states, keyed by name; which ones each code carries is listed in {@link AI_RESULT_CODES}. */
+export type AiResultParams = Readonly<Record<string, string | number>>;

@@ -41,10 +41,13 @@ export type {
     AiModelDescriptor,
     AiProviderDescriptor,
     AiProviderId,
+    AiResultCode,
+    AiResultParams,
 } from "./src/catalog/ai";
 export {
     AI_PROVIDER_DESCRIPTORS,
     AI_PROVIDER_IDS,
+    AI_RESULT_CODES,
     AI_STAGES,
     AI_STATES,
     AI_TOOL_CALL_STATUSES,

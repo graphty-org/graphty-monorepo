@@ -3,6 +3,7 @@
  * @module ai/AiController
  */
 
+import type { AiResultCode, AiResultParams } from "../catalog/ai";
 import type { AiEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession, HistoryStepId, TransactionScope } from "../session/types";
@@ -10,8 +11,8 @@ import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiS
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, CommandResult } from "./commands/types";
 import { MAX_TOOL_TURNS } from "./prompt/SystemPromptBuilder";
-import type { LlmProvider, Message, ToolCall } from "./providers/types";
-import { toSafeError } from "./safeError";
+import type { LlmProvider, LlmResponse, Message, ToolCall } from "./providers/types";
+import { API_KEY_MISSING_ERROR, toSafeError } from "./safeError";
 import type { SchemaManager } from "./schema";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
@@ -121,6 +122,26 @@ export interface AiControllerOptions {
 export interface ExecutionResult extends CommandResult {
     /** Raw response text from LLM (if any) */
     llmText?: string;
+    /**
+     * What happened, as a stable code to switch on; `AI_RESULT_CODES` in `./catalog` lists them all.
+     * Every result the element returns sets it.
+     */
+    code?: AiResultCode;
+    /** The facts behind the code (a provider id, a tool name, an HTTP status); empty when there are none. */
+    params?: AiResultParams;
+}
+
+/** A result's code and its facts. */
+interface Outcome {
+    readonly code: AiResultCode;
+    readonly params: AiResultParams;
+}
+
+/** The provider failed while the model was asked. Carries what it threw. */
+class ProviderFailed extends Error {
+    constructor(readonly original: unknown) {
+        super("The provider failed.");
+    }
 }
 
 /**
@@ -150,6 +171,8 @@ export class AiController {
     private startTime: number | null = null;
     private lastInput: string | null = null;
     private lastError: Error | null = null;
+    /** The abort controller of the message `cancel()` ended, so its result says cancelled, not undone. */
+    private cancelled: AbortController | null = null;
 
     /**
      * Creates a new AiController instance.
@@ -194,6 +217,8 @@ export class AiController {
             return {
                 success: false,
                 message: "Controller has been disposed",
+                code: "AI_DISPOSED",
+                params: {},
             };
         }
 
@@ -244,6 +269,10 @@ export class AiController {
                 }
 
                 ({ result } = error);
+                // The batch's rollback aborts the message too, so only a cancel overrides the tool's code.
+                if (this.cancelled === abortController) {
+                    result = { ...result, code: "AI_CANCELLED", params: {} };
+                }
             }
 
             // Complete
@@ -260,7 +289,8 @@ export class AiController {
         } catch (error) {
             // Any provider's error, a consumer's own included, may carry the prompt and the
             // response; only its name, message and stack go on.
-            const errorObj = toSafeError(error);
+            const original = error instanceof ProviderFailed ? error.original : error;
+            const errorObj = toSafeError(original);
             const errorMessage = errorObj.message;
 
             this.lastError = errorObj;
@@ -278,12 +308,51 @@ export class AiController {
             return {
                 success: false,
                 message: `Error: ${errorMessage}`,
+                ...this.failureOutcome(error, errorObj, abortController),
             };
         } finally {
             stopWatching?.();
             this.abortController = null;
             this.currentInput = null;
         }
+    }
+
+    /**
+     * Why a message that was aborted ended.
+     * @param abortController - The message's abort controller.
+     * @returns Cancelled when `cancel()` ended it, undone otherwise.
+     */
+    private abortOutcome(abortController: AbortController): Outcome {
+        return { code: this.cancelled === abortController ? "AI_CANCELLED" : "AI_UNDONE", params: {} };
+    }
+
+    /**
+     * Why a message that threw failed.
+     * @param error - What `converse` threw.
+     * @param safe - Its safe copy, which keeps the name and the HTTP status.
+     * @param abortController - The message's abort controller.
+     * @returns The code and its facts.
+     */
+    private failureOutcome(error: unknown, safe: Error, abortController: AbortController): Outcome {
+        if (abortController.signal.aborted) {
+            return this.abortOutcome(abortController);
+        }
+
+        if (!(error instanceof ProviderFailed)) {
+            return { code: "AI_FAILED", params: {} };
+        }
+
+        const provider = this.provider.name;
+        if (safe.name === API_KEY_MISSING_ERROR) {
+            return { code: "AI_KEY_MISSING", params: { provider } };
+        }
+
+        const { statusCode: status } = safe as { statusCode?: number };
+        if (status === 401 || status === 403) {
+            return { code: "AI_KEY_REJECTED", params: { provider, status } };
+        }
+
+        return { code: "AI_PROVIDER_ERROR", params: status === undefined ? { provider } : { provider, status } };
     }
 
     /**
@@ -393,6 +462,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         // to act; asked only once, it would stop after looking and the person would get nothing.
         const results: CommandResult[] = [];
         const texts: string[] = [];
+        let failure: Outcome | undefined;
 
         for (let turn = 1; ; turn++) {
             // Past the tool turns, a text answer only: a model that spent every turn looking
@@ -401,10 +471,15 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             // toolChoice "none" alone is not enough: gemini-3.8-flash still answers it with a tool
             // call and no text, so the ask also says, in words, that it is time to answer.
             const answerOnly = turn > MAX_TOOL_TURNS;
-            const response = await this.provider.generate(answerOnly ? [...messages, ANSWER_NOW] : messages, tools, {
-                signal: aborted,
-                toolChoice: answerOnly ? "none" : "auto",
-            });
+            let response: LlmResponse;
+            try {
+                response = await this.provider.generate(answerOnly ? [...messages, ANSWER_NOW] : messages, tools, {
+                    signal: aborted,
+                    toolChoice: answerOnly ? "none" : "auto",
+                });
+            } catch (error) {
+                throw new ProviderFailed(error);
+            }
 
             logger.debug("Response", {
                 turn,
@@ -445,9 +520,10 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                     );
                     const ran = await this.executeToolCalls(toolCalls, tx, aborted);
                     results.push(...ran.results);
+                    failure ??= ran.failure;
                     if (ran.threw) {
                         // Thrown inside the batch, so its own transaction rolls back.
-                        throw new MessageRolledBack(this.combineResults(results, joinTexts(texts)));
+                        throw new MessageRolledBack(this.combineResults(results, joinTexts(texts), failure));
                     }
 
                     return ran;
@@ -469,7 +545,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             });
         }
 
-        return this.combineResults(results, joinTexts(texts));
+        return this.combineResults(results, joinTexts(texts), failure);
     }
 
     /**
@@ -477,15 +553,17 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      * @param toolCalls - Tool calls to execute
      * @param tx - The batch's transaction
      * @param signal - Fires when the message is cancelled
-     * @returns The result of each tool that ran, and whether one threw, which rolls the message back.
+     * @returns The result of each tool that ran, whether one threw, which rolls the message back,
+     * and why the one that failed failed.
      */
     private async executeToolCalls(
         toolCalls: ToolCall[],
         tx: TransactionScope,
         signal: AbortSignal,
-    ): Promise<{ results: CommandResult[]; threw: boolean }> {
+    ): Promise<{ results: CommandResult[]; threw: boolean; failure?: Outcome }> {
         const results: CommandResult[] = [];
         let threw = false;
+        let failure: Outcome | undefined;
         for (const toolCall of toolCalls) {
             // Cancelled, or undone while the message was going: no further tool runs.
             signal.throwIfAborted();
@@ -502,7 +580,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             });
 
             try {
-                const result = await this.executeToolCall(toolCall, tx);
+                const { result, code } = await this.executeToolCall(toolCall, tx);
 
                 results.push(result);
 
@@ -523,6 +601,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
 
                 // If any command fails, stop executing remaining
                 if (!result.success) {
+                    failure = { code: code ?? "AI_TOOL_FAILED", params: { tool: toolCall.name } };
                     break;
                 }
             } catch (error) {
@@ -544,11 +623,12 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                     success: false,
                 });
                 threw = true;
+                failure = { code: "AI_TOOL_THREW", params: { tool: toolCall.name } };
                 break;
             }
         }
 
-        return { results, threw };
+        return { results, threw, failure };
     }
 
     /**
@@ -565,9 +645,12 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      * Execute a single tool call.
      * @param toolCall - The tool call to execute
      * @param tx - The batch's transaction, handed to the command as `ctx.tx`
-     * @returns Command result
+     * @returns Command result, and the code of a call that never reached the command
      */
-    private async executeToolCall(toolCall: ToolCall, tx: TransactionScope): Promise<CommandResult> {
+    private async executeToolCall(
+        toolCall: ToolCall,
+        tx: TransactionScope,
+    ): Promise<{ result: CommandResult; code?: AiResultCode }> {
         logger.debug("Executing command", { name: this.knownToolName(toolCall.name) });
 
         const command = this.commandRegistry.get(toolCall.name);
@@ -575,8 +658,11 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         if (!command) {
             logger.debug("Command result: FAILED - Unknown command", { nameLength: toolCall.name.length });
             return {
-                success: false,
-                message: `Unknown command: ${toolCall.name}. Command not found in registry.`,
+                result: {
+                    success: false,
+                    message: `Unknown command: ${toolCall.name}. Command not found in registry.`,
+                },
+                code: "AI_TOOL_UNKNOWN",
             };
         }
 
@@ -597,8 +683,11 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 errorType: validationError instanceof Error ? validationError.name : typeof validationError,
             });
             return {
-                success: false,
-                message: `Invalid arguments for ${toolCall.name}: ${errorMessage}`,
+                result: {
+                    success: false,
+                    message: `Invalid arguments for ${toolCall.name}: ${errorMessage}`,
+                },
+                code: "AI_TOOL_INVALID_ARGUMENTS",
             };
         }
 
@@ -629,21 +718,25 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             hasData: result.data !== undefined,
         });
 
-        return result;
+        return { result };
     }
 
     /**
      * Combine multiple command results into a single result.
      * @param results - Results from executed commands
      * @param llmText - Optional text from LLM
+     * @param failure - Why the tool that failed failed, when one did
      * @returns Combined execution result
      */
-    private combineResults(results: CommandResult[], llmText?: string): ExecutionResult {
+    private combineResults(results: CommandResult[], llmText?: string, failure?: Outcome): ExecutionResult {
         if (results.length === 0) {
             return {
                 success: true,
                 message: llmText ?? "No response from AI",
                 llmText,
+                ...(llmText === undefined
+                    ? { code: "AI_NO_RESPONSE", params: {} }
+                    : { code: "AI_COMPLETED", params: { toolCalls: 0 } }),
             };
         }
 
@@ -672,6 +765,9 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             affectedNodes: affectedNodes.length > 0 ? affectedNodes : undefined,
             affectedEdges: affectedEdges.length > 0 ? affectedEdges : undefined,
             llmText,
+            ...(allSucceeded || failure === undefined
+                ? { code: "AI_COMPLETED", params: { toolCalls: results.length } }
+                : failure),
         };
     }
 
@@ -697,6 +793,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      */
     cancel(): void {
         if (this.abortController) {
+            this.cancelled = this.abortController;
             this.abortController.abort();
 
             // Emit cancelled event

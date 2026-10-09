@@ -107,6 +107,11 @@ function selectedProjects(): string[] {
 const projects = selectedProjects();
 /** Whether this run collects coverage, which roughly doubles a worker's processor and memory cost. */
 const coverageRun = process.argv.includes("--coverage") || process.env.COVERAGE_DIR !== undefined;
+// Handed to the test processes (forks inherit this environment), so a test can shrink a CPU reference that coverage
+// slows several-fold: test/algorithms/all-pairs.test.ts sizes its randomBig fixtures by it.
+if (coverageRun) {
+    process.env.GRAPHTY_COVERAGE_RUN = "1";
+}
 /** A coverage run on a runner, where the report is an upload rather than something a person opens. */
 const coverageOnRunner = coverageRun && process.env.CI === "true";
 const thresholdsActive = projects.length === 1 && projects[0] === "node" && process.env.COVERAGE_DIR === undefined;

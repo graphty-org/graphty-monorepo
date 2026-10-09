@@ -349,6 +349,25 @@ describe("sonar-gate: helpers", () => {
         assert.equal(decide({ local: { issues: [at(17)], hotspots: [] }, master, files }).blocking.length, 1);
     });
 
+    it("lets a regex complexity (S5843) through when an edit to the regex lowered it", () => {
+        const files = new Map([
+            ["f.ts", { oldPath: "f.ts", hunks: [{ oldStart: 5, oldCount: 1, newStart: 5, newCount: 1 }], lines: [] }],
+        ]);
+        const master = {
+            issuesByFile: () => [{ rule: "typescript:S5843", line: 5, message: "from 41 to the 20 allowed." }],
+            hotspotsByFile: () => [],
+            lineAt: () => null,
+        };
+        const at = (n) => ({
+            path: "f.ts",
+            line: 5,
+            rule: "typescript:S5843",
+            message: `from ${n} to the 20 allowed.`,
+        });
+        assert.equal(decide({ local: { issues: [at(29)], hotspots: [] }, master, files }).blocking.length, 0);
+        assert.equal(decide({ local: { issues: [at(42)], hotspots: [] }, master, files }).blocking.length, 1);
+    });
+
     it("reads the sonar-project.properties globs", () => {
         const re = globToRegExp("**/*.test.ts");
         assert.ok(re.test("a.test.ts") && re.test("x/y/a.test.ts") && !re.test("a.ts"));

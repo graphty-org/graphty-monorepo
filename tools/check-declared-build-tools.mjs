@@ -96,7 +96,7 @@ function commandsOf(line) {
         let i = 0;
         while (i < words.length) {
             const w = words[i];
-            if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(w) || RUNNERS.has(w) || w.startsWith("-") || /^\d+$/.test(w)) {
+            if (/^[A-Za-z_]\w*=/.test(w) || RUNNERS.has(w) || w.startsWith("-") || /^\d+$/.test(w)) {
                 i++;
             } else if (w === "pnpm" || w === "npm" || w === "yarn") {
                 // `pnpm exec x` / `pnpm x` runs x; `npm run x` runs a script, which is checked on its own

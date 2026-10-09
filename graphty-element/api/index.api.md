@@ -132,6 +132,9 @@ export type AdHocData<KeyType extends string | number = string> = Record<KeyType
     readonly __brand?: "AdHocData";
 };
 
+// @public (undocumented)
+export type AiEventType = AiEvent["type"];
+
 // @public
 abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<string, unknown>> {
     constructor(g: Graph, options?: Partial<TOptions>);
@@ -1381,6 +1384,7 @@ export type EventCallbackType = (evt: GraphEvent | NodeEvent | EdgeEvent | AiEve
 export class EventManager implements Manager {
     addListener(type: EventType, callback: EventCallbackType): symbol;
     dispose(): void;
+    emit(type: EmittableEventType, data: Record<string, unknown>): void;
     emitDataAdded(dataType: "nodes" | "edges", count: number, shouldStartLayout: boolean, shouldZoomToFit: boolean, cause?: HistoryCause): void;
     emitDataCleared(): void;
     emitDataLoadingComplete(format: string, nodesLoaded: number, edgesLoaded: number, duration: number, errors: number, warnings: number, success: boolean, report: ImportReport, loadId?: number): void;
@@ -1397,6 +1401,7 @@ export class EventManager implements Manager {
     emitElementsRemoved(nodes: NodeId[], edges: EdgeId[], cause?: HistoryCause): void;
     emitGraphDataLoaded(graph: Graph | GraphContext, chunksLoaded: number, dataSourceType: string, report: ImportReport, loadId?: number): void;
     emitGraphError(graph: Graph | GraphContext | null, error: Error, context: GraphErrorEvent["context"], details?: Record<string, unknown>): void;
+    // @deprecated
     emitGraphEvent(type: string, data: Record<string, unknown>): void;
     emitGraphSettled(graph: Graph): void;
     emitLayoutInitialized(layoutType: string, shouldZoomToFit: boolean): void;
@@ -1870,7 +1875,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -1899,6 +1904,13 @@ export interface GraphSettledEvent {
     graph: Graph;
     // (undocumented)
     type: "graph-settled";
+}
+
+// @public
+export interface GraphStartedEvent {
+    timestamp: number;
+    // (undocumented)
+    type: "graph-started";
 }
 
 // @public
@@ -2659,6 +2671,31 @@ export { ImageData_2 as ImageData }
 export const INFERNO_COLORS: readonly ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d"];
 
 // @public
+export interface InputEnabledChangedEvent {
+    enabled: boolean;
+    // (undocumented)
+    type: "input-enabled-changed";
+}
+
+// @public
+export interface InputKeyEvent {
+    // (undocumented)
+    altKey: boolean;
+    // (undocumented)
+    code: string;
+    // (undocumented)
+    ctrlKey: boolean;
+    // (undocumented)
+    key: string;
+    // (undocumented)
+    metaKey: boolean;
+    // (undocumented)
+    shiftKey: boolean;
+    // (undocumented)
+    type: "input:key-down" | "input:key-up";
+}
+
+// @public
 export class InputManager implements Manager {
     constructor(context: ManagerContext, config?: InputManagerConfig);
     dispose(): void;
@@ -2695,6 +2732,52 @@ export class InputManager implements Manager {
 }
 
 // @public
+export interface InputPointerEvent {
+    // (undocumented)
+    type: "input:pointer-down" | "input:pointer-move" | "input:pointer-up";
+    x: number;
+    y: number;
+}
+
+// @public
+export interface InputShortcutEvent {
+    // (undocumented)
+    type: "input:undo" | "input:redo" | "input:select-all";
+}
+
+// @public
+export interface InputTouchEndEvent {
+    array: {
+        value: number;
+    }[];
+    // (undocumented)
+    type: "input:touch-end";
+}
+
+// @public
+export interface InputTouchEvent {
+    array: {
+        x: number;
+        y: number;
+    }[];
+    // (undocumented)
+    type: "input:touch-start" | "input:touch-move";
+}
+
+// @public
+export interface InputWheelEvent {
+    deltaMode: number;
+    // (undocumented)
+    deltaX: number;
+    // (undocumented)
+    deltaY: number;
+    // (undocumented)
+    deltaZ: number;
+    // (undocumented)
+    type: "input:wheel";
+}
+
+// @public
 export function isAccelerationPolicy(value: unknown): value is AccelerationPolicy;
 
 // @public
@@ -2705,6 +2788,14 @@ export function isGraphtyErrorCode(value: unknown): value is GraphtyErrorCode;
 
 // @public
 export function isViewMode(value: string): value is ViewMode;
+
+// @public
+export interface LayoutChangedEvent {
+    layoutType: string;
+    options: Record<string, unknown>;
+    // (undocumented)
+    type: "layout-changed";
+}
 
 // @public
 export abstract class LayoutEngine {
@@ -3612,6 +3703,14 @@ export interface NoteTargetStatus {
 export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#000000", "#F0E442"];
 
 // @public
+export interface OperationCancelledEvent {
+    id: string;
+    reason: string;
+    // (undocumented)
+    type: "operation-cancelled";
+}
+
+// @public
 export class OperationQueueManager implements Manager {
     constructor(eventManager: EventManager, options?: {
         concurrency?: number;
@@ -4318,6 +4417,14 @@ export class StatsManager implements Manager {
     totalUpdates: number;
     updateCacheStats(hits: number, misses: number): void;
     updateCounts(nodeCount: number, edgeCount: number): void;
+}
+
+// @public
+export interface StatsUpdateEvent {
+    stats: ReturnType<StatsManager["getStats"]>;
+    totalUpdates: number;
+    // (undocumented)
+    type: "stats-update";
 }
 
 // @public

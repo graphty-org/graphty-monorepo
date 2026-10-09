@@ -293,7 +293,7 @@ export class RenderManager implements Manager {
             window.addEventListener("resize", this.resizeHandler);
 
             // Emit success event
-            this.eventManager.emitGraphEvent("render-initialized", {
+            this.eventManager.emit("render-initialized", {
                 engine: this.engine,
                 scene: this.scene,
             });
@@ -558,9 +558,9 @@ export class RenderManager implements Manager {
             rotateDamping: 0.85,
             rotateMin: null,
             rotateMax: null,
-            mousePanScale: 1.0,
+            mousePanScale: 1,
             mouseWheelZoomSpeed: 1.1,
-            touchPanScale: 1.0,
+            touchPanScale: 1,
             touchPinchMin: 0.1,
             touchPinchMax: 100,
             initialOrthoSize: 5,
@@ -578,9 +578,9 @@ export class RenderManager implements Manager {
             rotateDamping: 0.85,
             rotateMin: null,
             rotateMax: null,
-            mousePanScale: 1.0,
+            mousePanScale: 1,
             mouseWheelZoomSpeed: 1.1,
-            touchPanScale: 1.0,
+            touchPanScale: 1,
             touchPinchMin: 0.1,
             touchPinchMax: 100,
             initialOrthoSize: 5,

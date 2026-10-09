@@ -70,7 +70,7 @@ export function colorAndOpacity(
     value: number,
     colorPalette: (v: number) => string = sequential.viridis,
     minOpacity = 0.1,
-    maxOpacity = 1.0,
+    maxOpacity = 1,
 ): NodeStyle {
     return {
         color: colorPalette(value),
@@ -91,7 +91,7 @@ export function colorAndOpacity(
  * // Community nodes: same color, different importance
  * sizeAndOpacity(0.9) // { size: 4.6, opacity: 0.97 }
  */
-export function sizeAndOpacity(value: number, minSize = 1, maxSize = 5, minOpacity = 0.3, maxOpacity = 1.0): NodeStyle {
+export function sizeAndOpacity(value: number, minSize = 1, maxSize = 5, minOpacity = 0.3, maxOpacity = 1): NodeStyle {
     return {
         size: size.linear(value, minSize, maxSize),
         opacity: opacity.linear(value, minOpacity, maxOpacity),
@@ -119,7 +119,7 @@ export function fullSpectrum(
     minSize = 1,
     maxSize = 5,
     minOpacity = 0.2,
-    maxOpacity = 1.0,
+    maxOpacity = 1,
 ): NodeStyle {
     return {
         color: colorPalette(value),
@@ -222,7 +222,7 @@ export function edgeFlowFull(
     minWidth = 0.5,
     maxWidth = 5,
     minOpacity = 0.1,
-    maxOpacity = 1.0,
+    maxOpacity = 1,
 ): EdgeStyle {
     return {
         color: colorPalette(value),

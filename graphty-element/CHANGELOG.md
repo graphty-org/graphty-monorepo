@@ -1,3 +1,72 @@
+## 3.20.1 (2026-10-09)
+
+### 🩹 Fixes
+
+- **graphty-element:** code the layout recommendation and implementation reasons ([#1593](https://github.com/graphty-org/graphty-monorepo/issues/1593))
+- **graphty-element:** keep the event fix additive ([#1577](https://github.com/graphty-org/graphty-monorepo/issues/1577), [#1441](https://github.com/graphty-org/graphty-monorepo/issues/1441))
+- **graphty-element:** start the animation of a label built while the layout is at rest ([#1554](https://github.com/graphty-org/graphty-monorepo/issues/1554))
+- **graphty-element:** keep a node removed and brought back unplaced under undo ([#583](https://github.com/graphty-org/graphty-monorepo/issues/583))
+- **graphty-element:** ask the data manager for its rows without freezing a snapshot ([#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+- **graphty-element:** declare the twelve emitted events no type covered ([#1441](https://github.com/graphty-org/graphty-monorepo/issues/1441))
+- **graphty-element:** trim slug separators in linear time ([#1141](https://github.com/graphty-org/graphty-monorepo/issues/1141))
+- **graphty-element:** keep the public lane generation counting every write ([#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+- **graphty-element:** an engine writing back the coordinates a node holds moves nothing ([#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+- **graphty-element:** keep a node an edge left behind in an arrangement capture ([#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+- **graphty-element:** keep every node on the plane in 2D under undo, redo and every engine ([#1341](https://github.com/graphty-org/graphty-monorepo/issues/1341), [#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+
+### 🔥 Performance
+
+- **graphty-element:** find a column's median without sorting it ([#1517](https://github.com/graphty-org/graphty-monorepo/issues/1517))
+- **graphty-element:** paint only the rows an add changes; undo a redone import without a rebuild ([#1253](https://github.com/graphty-org/graphty-monorepo/issues/1253))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.41
+- Updated @graphty/remote-logger to 2.0.12
+- Updated graph-samples to 0.1.25
+- Updated graph-format to 1.3.10
+- Updated algorithms to 3.3.12
+- Updated graph-io to 0.3.32
+- Updated layout to 2.2.13
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.20.0 (2026-10-08)
+
+### 🚀 Features
+
+- **graphty-element:** run the LLM regression tests on Google, and always answer ([801e21a9d](https://github.com/graphty-org/graphty-monorepo/commit/801e21a9d))
+
+### 🩹 Fixes
+
+- **graphty-element:** start label animations on the first frame at rest, not a 100 ms timer ([#1422](https://github.com/graphty-org/graphty-monorepo/issues/1422))
+- **graphty-element:** default edge.width encodings to the edge width range ([#1506](https://github.com/graphty-org/graphty-monorepo/issues/1506))
+- **graphty-element:** compact the edge-id index after removals ([#1411](https://github.com/graphty-org/graphty-monorepo/issues/1411))
+- **graphty-element:** run the LLM regression suite on Anthropic and fix what it found ([69d346ebd](https://github.com/graphty-org/graphty-monorepo/commit/69d346ebd))
+
+### 🔥 Performance
+
+- **graphty-element:** remove nodes from the d3 and ngraph layouts touching only their edges ([#1425](https://github.com/graphty-org/graphty-monorepo/issues/1425))
+- **graphty-element:** read a partial rank column through an optional chain ([#1042](https://github.com/graphty-org/graphty-monorepo/issues/1042))
+- **graphty-element:** build a run's result without an id map or a sort ([#1517](https://github.com/graphty-org/graphty-monorepo/issues/1517), [#1042](https://github.com/graphty-org/graphty-monorepo/issues/1042))
+- **graphty-element:** take a draft checkpoint without copying the draft ([#1316](https://github.com/graphty-org/graphty-monorepo/issues/1316))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.40
+- Updated @graphty/remote-logger to 2.0.11
+- Updated graph-samples to 0.1.24
+- Updated graph-format to 1.3.9
+- Updated algorithms to 3.3.11
+- Updated graph-io to 0.3.31
+- Updated layout to 2.2.12
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.19.0 (2026-10-08)
 
 ### 🚀 Features

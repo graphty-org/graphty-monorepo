@@ -352,6 +352,7 @@ class HopReach extends DeclaredAlgorithm<HopReachOptions> {
                 await context.yieldNow();
 
                 if (probe.dawdleMs > 0) {
+                    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
                     await new Promise<void>((settle) => setTimeout(settle, probe.dawdleMs));
                 }
             }
@@ -848,6 +849,7 @@ async function waitFor(predicate: () => boolean, what: string): Promise<void> {
             return;
         }
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise<void>((settle) => setTimeout(settle, 10));
     }
 

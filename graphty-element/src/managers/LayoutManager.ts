@@ -15,7 +15,7 @@ import { type OptionsSchema, toZodSchema } from "../config/OptionsSchema";
 import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
-import type { GraphSnapshotReplacedEvent } from "../events";
+import type { GraphSnapshotReplacedEvent, LayoutChangedEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
 import { LayoutEngine, layoutEngineInternals, StaticLayoutEngine } from "../layout/LayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
@@ -1112,7 +1112,7 @@ export class LayoutManager implements Manager {
             const built = engine;
             snapshotLayoutInternals.connect(built, {
                 progress: (progress) => {
-                    this.eventManager.emitGraphEvent("layout-progress", { layoutType: type, ...progress });
+                    this.eventManager.emit("layout-progress", { layoutType: type, ...progress });
                 },
                 fail: (error) => {
                     if (this.layoutEngine === built) {
@@ -1241,10 +1241,10 @@ export class LayoutManager implements Manager {
             previousEngine?.dispose();
 
             // Emit layout changed event
-            this.eventManager.emitGraphEvent("layout-changed", {
+            this.eventManager.emit("layout-changed", {
                 layoutType: type,
                 options: layoutOpts,
-            });
+            } satisfies Omit<LayoutChangedEvent, "type">);
         } catch (error) {
             // THE ENGINE THAT FAILED IS TOLD TO LET GO. It is discarded here and never used
             // again, and it never became the running layout, so no later switch will reach it --
@@ -2095,7 +2095,7 @@ export class LayoutManager implements Manager {
         if (this.layoutEngine instanceof SimulationLayoutEngine) {
             this.dataManager.getSnapshot();
 
-            this.eventManager.emitGraphEvent("layout-updated", {
+            this.eventManager.emit("layout-updated", {
                 nodeCount: nodes.length,
                 type: "incremental",
             });
@@ -2131,7 +2131,7 @@ export class LayoutManager implements Manager {
         }
 
         // Emit event that layout was updated
-        this.eventManager.emitGraphEvent("layout-updated", {
+        this.eventManager.emit("layout-updated", {
             nodeCount: nodes.length,
             type: "incremental",
         });

@@ -187,6 +187,7 @@ describe("algorithmSlug", () => {
         const long = `a${"-_".repeat(50_000)}a`;
         const start = performance.now();
         assert.strictEqual(algorithmSlug(long), long);
+        // eslint-disable-next-line local/no-test-timing -- the regression it guards is seconds against milliseconds; a counted bound needs the slug's steps exposed, tracked in #1636
         assert.isBelow(performance.now() - start, 200);
     });
 

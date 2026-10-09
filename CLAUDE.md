@@ -211,7 +211,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-io` | `graph-io/` | 0.3.20 | Importers and exporters for 13 formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) for the graph-format snapshot; subpath exports per format |
 | `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
 | `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
-| `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.0 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import (private, not yet published) |
+| `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.4 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import |
 | `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
 | `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
 | `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
@@ -548,11 +548,15 @@ is the order of the migration. Update this paragraph as each step lands.
 still runs on every push. Mark it ready (`gh pr ready <n>`) when the work is done: that starts its
 CI, and Mergify queues only ready pull requests.
 
+**Every pull request description names its issue** (`Fixes #N`, `Closes #N`, `Resolves #N`,
+`Refs #N` or `Part of #N`) **or has a line `No issue`.** The `Link PR Issue` check
+(`pr-issue-link.yml`) fails it otherwise and re-runs when the description is edited.
+
 ### Workflows (`.github/workflows/`)
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build, lint, sharded tests (13 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. On a push to master only the Build job runs; the summaries pass when it does |
+| `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build (the packages, then the Storybooks, Lint, Checks and Docs jobs beside the tests), sharded tests (16 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. The test jobs start as soon as the `Build` job has built and uploaded the packages. On a push to master only the build jobs (Build, Storybooks, Lint, Checks, Docs) run; the summaries pass when they do |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
 | `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), push to master (publishes a merged release pull request), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts and audit on the candidate, then opens the release pull request; on the merge, tags and publishes it with npm trusted publishing. Anything red holds the release and opens one "Release held: <what> failed on <sha>" issue |
 | `deploy-pages.yml` | After every green CI run (the build) on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
@@ -604,16 +608,18 @@ publishing from the builds of the run that tested it. An attempt does nothing wh
 release is pending: a release pull request is open (one that conflicts with master, has a failed
 check or left the merge queue is closed and re-cut from the newest commit; one labelled `hold`
 waits), a "Release held" issue is open, the last release is not tagged yet, or nothing releasable
-changed. A held release restarts itself: after every push to master whose build passes, while a
-"Release held" issue is open, `release.yml` (triggered by `workflow_run` of CI) runs the same full
-attempt on that pushed commit at once; with no held issue it does nothing, and the scheduled
-attempts keep skipping while the issue is open. A failed publish opens a `Release held: publish failed on <sha>` issue; re-running the
-publish run's failed jobs publishes what is missing and closes it. A
-red lane holds the whole release: no pull request, nothing published, and one `Release held: <what>
-failed on <sha>` issue (labels `bug`, `priority:high`, `effort:medium`) that githerd picks up. Its
-fix pull request should say `Refs #<issue>`, not `Fixes #<issue>`: the issue must stay open so the
-fix's merge restarts the release. A passing train closes it; a restart that fails again comments on
-it. Never edit or push to a release branch, and never close one
+changed. There are two kinds of hold, each its own issue, and neither touches the other. A
+red lane holds the whole release: no pull request, nothing published, and one train hold, a
+`Release held: <what> failed on <sha>` issue (labels `bug`, `priority:high`, `effort:medium`) that
+githerd picks up. A held train restarts itself: after every push to master whose build passes,
+while a train hold is open, `release.yml` (triggered by `workflow_run` of CI) runs the same full
+attempt on that pushed commit at once; with no train hold it does nothing. Its fix pull request
+should say `Refs #<issue>`, not `Fixes #<issue>`: the issue must stay open so the fix's merge
+restarts the release. A passing train closes the train hold; a restart that fails again retitles
+and comments on it. A failed publish opens a publish hold, a `Release held: publish failed on
+<sha>` issue that names the run: no train retitles, closes or is restarted for it, and it lasts
+until that run is re-run (`gh run rerun <run id> --failed`), which publishes what is missing and
+closes it. The scheduled attempts skip while either hold is open. Never edit or push to a release branch, and never close one
 unless it must be replaced: while one is open, no new train runs. An ad hoc release cuts the same
 pull request at once, for the owner or an agent the owner asked:
 `gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never
@@ -669,17 +675,18 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 22 test shards on a merge-queue run, a manual dispatch or the release train (a push
+The CI runs 25 test shards on a merge-queue run, a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
-full run is 13 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
+full run is 16 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
 layout, algorithms-default) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
 graphty, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
 - `graph-format`
 - `graph-io`
-- `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
+- `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-node-device-errors`, `webgpu-graph-algorithms-node-no-subgroups`,
+  `webgpu-graph-algorithms-node-no-subgroups-device-errors` (the four node passes, run side by side), `webgpu-graph-algorithms-browser`
 - `graph-samples`
 - `cytoscape-extensions`, `cytoscape-extensions-cytoscape-versions` (the suite on the oldest and newest Cytoscape 3.x)
 - `algorithms-default`, `algorithms-browser`
@@ -856,6 +863,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 ### Testing
 
 - Use `assert` instead of `expect` in layout tests
+- Tests wait on conditions and assert on counted work; the `local/no-test-timing` lint rule enforces it.
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
 - Every `vitest run` on this machine, gate shard or ad hoc, waits for one of the machine-wide test slots
@@ -1038,7 +1046,7 @@ per typed entry point in its package.json `"exports"` (`index` for `.`), written
 @microsoft/api-extractor from the built `.d.ts` files. A pull request that changes the API shows the
 change as a diff of those files.
 
-**"Public API report (graphty-element)"** (ci.yml's Build job and `tools/prepush.sh`) fails when the
+**"Public API report (graphty-element)"** (ci.yml's Checks job and `tools/prepush.sh`) fails when the
 built API differs from the committed report. Build, then run `npm run api:report` in graphty-element
 and commit the report with the change. An agent whose pull request changes the report says so in
 the pull request description: which entry points, what was added, changed or removed, and whether

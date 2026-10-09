@@ -224,6 +224,7 @@ function boxAround(points: readonly Coords[]): { center: Coords; maxDimension: n
  * @returns A promise that resolves after the wait.
  */
 function delay(ms: number): Promise<void> {
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     return new Promise<void>((resolve) => {
         setTimeout(resolve, ms);
     });

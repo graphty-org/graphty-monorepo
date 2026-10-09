@@ -36,6 +36,7 @@ describe("2D/3D Mode Switching", () => {
     }
 
     function delay(ms: number): Promise<void> {
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
@@ -90,6 +91,7 @@ describe("2D/3D Mode Switching", () => {
             await operationQueueOf(graph).waitForCompletion();
 
             // Wait for layout to settle
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(500);
 
             // Store original 3D Z positions (may be non-zero)
@@ -202,6 +204,7 @@ describe("2D/3D Mode Switching", () => {
             await graph.setLayout("ngraph");
             await graph.setViewMode("3d");
             await operationQueueOf(graph).waitForCompletion();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(500); // Let layout settle
             graph.setRunning(false);
 
@@ -223,6 +226,7 @@ describe("2D/3D Mode Switching", () => {
             }
         });
 
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it("should handle multiple round-trips correctly", { timeout: 45000 }, async () => {
             // Setup in 3D mode
             await graph.addNodes(TEST_NODES);
@@ -313,6 +317,7 @@ describe("2D/3D Mode Switching", () => {
     });
 
     describe("Edge Cases", () => {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it("should handle rapid consecutive mode switches", { timeout: 30000 }, async () => {
             // Setup
             await graph.addNodes(TEST_NODES);
@@ -336,10 +341,13 @@ describe("2D/3D Mode Switching", () => {
 
             // Rapid switches without waiting
             void graph.setViewMode("2d");
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(10);
             void graph.setViewMode("3d");
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(10);
             void graph.setViewMode("2d");
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(10);
             void graph.setViewMode("3d");
 

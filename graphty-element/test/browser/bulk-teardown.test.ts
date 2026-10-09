@@ -17,9 +17,9 @@ import { type AbstractActionManager, AbstractMesh, type Scene, type TransformNod
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { assertScalesLinearly } from "../helpers/cost";
 
 const NODES = 300;
-const EDGES = NODES / 2;
 
 let graph: Graph;
 let container: HTMLElement;
@@ -96,22 +96,30 @@ function batchMeshes(): Set<AbstractMesh> {
  * Watch what `scene.removeMesh` has to search while the graph's meshes go.
  * @param scene - The scene.
  * @returns The longest `scene.meshes` and graph-root child list seen while a mesh of the graph
- *     was removed, and a function that stops watching.
+ *     was removed, their lengths summed over every removal, and a function that stops watching.
  */
-function watchRemovals(scene: Scene): { longest: { meshes: number; children: number }; stop: () => void } {
+function watchRemovals(scene: Scene): {
+    longest: { meshes: number; children: number };
+    searched: { meshes: number; children: number };
+    stop: () => void;
+} {
     const root = graphRoot(scene);
     const longest = { meshes: 0, children: 0 };
+    const searched = { meshes: 0, children: 0 };
     const original = scene.removeMesh.bind(scene);
     scene.removeMesh = (mesh: AbstractMesh, recursive?: boolean): number => {
         longest.meshes = Math.max(longest.meshes, scene.meshes.length);
+        searched.meshes += scene.meshes.length;
         if (mesh.parent === root) {
             longest.children = Math.max(longest.children, root.getChildren().length);
+            searched.children += root.getChildren().length;
         }
 
         return original(mesh, recursive);
     };
     return {
         longest,
+        searched,
         stop: () => {
             scene.removeMesh = original;
         },
@@ -134,7 +142,11 @@ describe("tearing many elements down at once", () => {
     let baselineManagers = 0;
     let baselineObservers = 0;
 
-    beforeEach(async () => {
+    /**
+     * Open a graph of `nodes` labelled nodes and half as many edges, with the render loop stopped.
+     * @param nodes - How many nodes.
+     */
+    async function open(nodes: number): Promise<void> {
         container = document.createElement("div");
         container.style.width = "400px";
         container.style.height = "300px";
@@ -160,8 +172,8 @@ describe("tearing many elements down at once", () => {
             type: "json",
             config: {
                 data: JSON.stringify({
-                    nodes: Array.from({ length: NODES }, (_, at) => ({ id: `v${String(at)}` })),
-                    edges: Array.from({ length: EDGES }, (_, at) => ({
+                    nodes: Array.from({ length: nodes }, (_, at) => ({ id: `v${String(at)}` })),
+                    edges: Array.from({ length: nodes / 2 }, (_, at) => ({
                         src: `v${String(2 * at)}`,
                         dst: `v${String(2 * at + 1)}`,
                     })),
@@ -177,12 +189,45 @@ describe("tearing many elements down at once", () => {
         await new Promise<void>((done) => {
             setTimeout(done, 0);
         });
-        assert.strictEqual(session.snapshot().nodeCount, NODES);
+        assert.strictEqual(session.snapshot().nodeCount, nodes);
+    }
+
+    /** Dispose the open graph. */
+    function close(): void {
+        graph.dispose();
+        container.remove();
+    }
+
+    beforeEach(async () => {
+        await open(NODES);
     });
 
     afterEach(() => {
-        graph.dispose();
-        container.remove();
+        close();
+    });
+
+    it("a clear of a graph four times larger searches about four times as many entries", async () => {
+        // The searched list lengths summed over every removal: with the bulk path each removal
+        // searches what is left of the scene outside the graph, so the sum grows with the meshes
+        // removed; one search of the whole scene per mesh grows with their square.
+        await assertScalesLinearly(
+            async (nodes) => {
+                close();
+                await open(nodes);
+                const scene = graph.getScene();
+                const watch = watchRemovals(scene);
+                try {
+                    await graph.getSession().data.clear();
+                    await operationQueueOf(graph).waitForCompletion();
+                } finally {
+                    watch.stop();
+                }
+
+                assert.strictEqual(scene.meshes.length, baselineMeshes, "nothing was left in the scene");
+                return watch.searched.meshes + watch.searched.children;
+            },
+            { sizes: [100, 400], counter: "scene and graph-root entries searched by a clear's removals" },
+        );
     });
 
     it("a clear empties the scene without searching it once per mesh", async () => {

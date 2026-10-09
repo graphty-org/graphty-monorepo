@@ -67,6 +67,7 @@ async function loadedGraph(): Promise<Graph> {
 async function atRest(graph: Graph): Promise<void> {
     await graph.waitForSettled();
     for (let wait = 0; wait < 1000 && graph.getLayoutManager().running; wait++) {
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 10));
     }
 
@@ -134,6 +135,7 @@ function gatePreSteps(): { waiting: () => boolean; open: () => void; published: 
 }
 
 describe("the layout as a step", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "undo brings back the alternate engine that was chosen, with its options",
         async () => {
@@ -153,6 +155,7 @@ describe("the layout as a step", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "3D to 2D and back, and each undone, leaves every reading of the dimension agreeing",
         async () => {
@@ -175,6 +178,7 @@ describe("the layout as a step", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "undo while the pre-steps are in flight publishes nothing and puts the nodes back",
         async () => {
@@ -206,6 +210,7 @@ describe("the layout as a step", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a second layout while the first one's pre-steps are in flight: the first publishes nothing",
         async () => {
@@ -236,6 +241,7 @@ describe("the layout as a step", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a layout that settles inside a transaction is undone to where the nodes were before it",
         async () => {
@@ -258,6 +264,7 @@ describe("the layout as a step", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a failed entry into VR from 2D records nothing and stays 2D",
         async () => {
@@ -278,6 +285,7 @@ describe("the layout as a step", () => {
 });
 
 describe("the layout behaviour's layout type", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "chooses the layout it names, in the same step as the settings beside it",
         async () => {
@@ -303,6 +311,7 @@ describe("the layout behaviour's layout type", () => {
 });
 
 describe("the element's layout properties", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "layout then layoutConfig in one tick is one step",
         async () => {

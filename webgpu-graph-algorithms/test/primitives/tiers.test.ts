@@ -107,6 +107,7 @@ describe("segmentedReduce / spmvPull degree tiers (GPU)", () => {
     }
 
     for (const name of ["hub10k", "rmat14", "star200", "karate"]) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `${name}: every tier equals the f64 oracle (sum / min / max x weight / one), twice bitwise; the tiers compiled are the ones its degrees populate`,
             async (t) => {
@@ -136,6 +137,7 @@ describe("segmentedReduce / spmvPull degree tiers (GPU)", () => {
         );
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "twins in-process: the no-subgroup context is bitwise the same on the TIER 0 and TIER 1 rows and within the bound on the TIER 2 rows (rmat14, sum)",
         async (t) => {
@@ -165,6 +167,7 @@ describe("segmentedReduce / spmvPull degree tiers (GPU)", () => {
     );
 
     for (const name of ["hub10k", "rmat14-directed"]) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `spmvPull over the in-degree tiers of ${name} equals the f64 oracle within the pull's bound, twice bitwise`,
             async (t) => {
@@ -218,6 +221,7 @@ describe("segmentedReduce / spmvPull degree tiers (GPU)", () => {
         ctx.dispose();
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writer: the hub10k-tiers noise fixtures of segmented-reduce and spmv-pull (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {

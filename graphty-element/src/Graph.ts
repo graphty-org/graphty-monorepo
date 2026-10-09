@@ -115,6 +115,7 @@ import {
     type RendererStatus,
 } from "./managers/RenderManager";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
+import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node } from "./Node";
@@ -326,14 +327,6 @@ export class Graph implements GraphContext {
      * framing waits for a style pass on its way, so it can land any number of frames later.
      */
     #initialCameraStateOwed = false;
-
-    /**
-     * True from the end of `init()` until the load's label animations have started. A layout
-     * that runs starts them when it settles; one that is already at rest when the first frame
-     * with nodes is drawn never settles again, so that frame starts them. Paid by the frame loop,
-     * so a graph disposed first starts nothing.
-     */
-    #labelAnimationsOwed = false;
 
     /**
      * Whether the camera was placed explicitly (`setCameraState` and every route through it) since
@@ -719,7 +712,7 @@ export class Graph implements GraphContext {
             const { graph } = this.styles.config;
             if (changed("background")) {
                 this.renderManager.applyBackground(graph.background, (url) => {
-                    this.eventManager.emitGraphEvent("skybox-loaded", { graph: this, url });
+                    this.eventManager.emit("skybox-loaded", { graph: this, url });
                 });
                 this.updateManager.meshesAdded();
             }
@@ -769,7 +762,7 @@ export class Graph implements GraphContext {
             //
             // The detail is COUNTS AND WORDS, never layers: it crosses to listeners that may
             // structure-clone it, and a consumer that wants the stack reads `styles.list()`.
-            this.eventManager.emitGraphEvent("style-changed", {
+            this.eventManager.emit("style-changed", {
                 reason: change.reason,
                 layers: change.layers.length,
                 painted: change.painted,
@@ -1472,7 +1465,7 @@ export class Graph implements GraphContext {
             // The configured background reaches the scene here, whether it was set through
             // `element.background` before the element was attached or left at its default.
             this.renderManager.applyBackground(this.styles.config.graph.background, (url) => {
-                this.eventManager.emitGraphEvent("skybox-loaded", { graph: this, url });
+                this.eventManager.emit("skybox-loaded", { graph: this, url });
             });
 
             // Start the graph system (render loop, etc.)
@@ -1487,7 +1480,6 @@ export class Graph implements GraphContext {
             window.addEventListener("resize", this.resizeHandler);
 
             this.initialized = true;
-            this.#labelAnimationsOwed = true;
         } catch (error) {
             // Emit error event for user handling
             this.eventManager.emitGraphError(this, error instanceof Error ? error : new Error(String(error)), "init", {
@@ -1521,9 +1513,10 @@ export class Graph implements GraphContext {
                 // Only process settlement events if there are nodes - an empty graph
                 // has nothing to settle, so we shouldn't emit events or log
                 if (this.dataManager.nodes.size > 0) {
-                    if (this.#labelAnimationsOwed && !this.layoutManager.running && !this.layoutManager.building) {
-                        // The layout is at rest with nodes to show, so no settlement is coming.
-                        this.#labelAnimationsOwed = false;
+                    // A label built while the layout is at rest -- by the load, a style layer or
+                    // any later write -- has no settlement coming to start its animation, so the
+                    // first frame at rest does. See `oweLabelAnimations`.
+                    if (!this.layoutManager.running && !this.layoutManager.building && payLabelAnimations(this.scene)) {
                         this.dataManager.startLabelAnimations();
                     }
 
@@ -1533,7 +1526,7 @@ export class Graph implements GraphContext {
                         this.layoutManager.running = false;
 
                         // Start label animations after layout has settled
-                        this.#labelAnimationsOwed = false;
+                        payLabelAnimations(this.scene);
                         this.dataManager.startLabelAnimations();
 
                         // Only zoom to fit on FIRST settlement after data load.
@@ -4537,7 +4530,7 @@ export class Graph implements GraphContext {
 
         // Set up progress event handler
         const onProgress = (progress: number): void => {
-            this.eventManager.emitGraphEvent("animation-progress", { progress });
+            this.eventManager.emit("animation-progress", { progress });
         };
 
         try {
@@ -4681,7 +4674,7 @@ export class Graph implements GraphContext {
 
         // Emit cancellation event
         if (cancelled) {
-            this.eventManager.emitGraphEvent("animation-cancelled", {});
+            this.eventManager.emit("animation-cancelled", {});
         }
 
         return cancelled;
@@ -4865,7 +4858,7 @@ export class Graph implements GraphContext {
         if (!options || !options.animate || options.skipQueue) {
             this.applyCameraStateImmediate(resolvedState);
             // Emit event
-            this.eventManager.emitGraphEvent("camera-state-changed", { state: resolvedState });
+            this.eventManager.emit("camera-state-changed", { state: resolvedState });
 
             return;
         }
@@ -4895,7 +4888,7 @@ export class Graph implements GraphContext {
                     } else {
                         // Unknown controller, apply immediately
                         this.applyCameraStateImmediate(resolvedState);
-                        this.eventManager.emitGraphEvent("camera-state-changed", { state: resolvedState });
+                        this.eventManager.emit("camera-state-changed", { state: resolvedState });
                     }
                 } catch (error) {
                     // Check if error is due to cancellation
@@ -4906,7 +4899,7 @@ export class Graph implements GraphContext {
                     console.error("Camera animation failed:", error);
                     // Fallback to immediate
                     this.applyCameraStateImmediate(resolvedState);
-                    this.eventManager.emitGraphEvent("camera-state-changed", { state: resolvedState });
+                    this.eventManager.emit("camera-state-changed", { state: resolvedState });
                 }
             },
             {
@@ -5124,7 +5117,7 @@ export class Graph implements GraphContext {
             });
 
             // Animate the dummy object
-            const animatable = this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1.0, () => {
+            const animatable = this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1, () => {
                 // Cleanup observer
                 this.scene.onBeforeRenderObservable.remove(observer);
 
@@ -5320,7 +5313,7 @@ export class Graph implements GraphContext {
                     }
                 };
 
-                this.scene.beginAnimation(orbitController.pivot, 0, frameCount, false, 1.0, () => {
+                this.scene.beginAnimation(orbitController.pivot, 0, frameCount, false, 1, () => {
                     // Wait for distance animation to complete
                     const finalize = async (): Promise<void> => {
                         if (distanceAnimation) {
@@ -5364,7 +5357,7 @@ export class Graph implements GraphContext {
                         orbitController.updateCameraPosition();
 
                         // Emit completion event
-                        this.eventManager.emitGraphEvent("camera-state-changed", {
+                        this.eventManager.emit("camera-state-changed", {
                             state: targetState,
                         });
 
@@ -5393,7 +5386,7 @@ export class Graph implements GraphContext {
         } else if (distanceAnimation) {
             // Only distance animation
             await distanceAnimation;
-            this.eventManager.emitGraphEvent("camera-state-changed", {
+            this.eventManager.emit("camera-state-changed", {
                 state: targetState,
             });
         }
@@ -5581,7 +5574,7 @@ export class Graph implements GraphContext {
             });
 
             // Animate dummy object
-            const animatable = this.scene.beginDirectAnimation(dummy, animations, 0, frameCount, false, 1.0, () => {
+            const animatable = this.scene.beginDirectAnimation(dummy, animations, 0, frameCount, false, 1, () => {
                 // Apply final values exactly from dummy (already calculated during animation)
                 if (targetState.pan) {
                     twoDController.camera.position.x = dummy.posX;
@@ -5595,7 +5588,7 @@ export class Graph implements GraphContext {
                     twoDController.camera.orthoBottom = dummy.orthoBottom;
                 }
 
-                this.eventManager.emitGraphEvent("camera-state-changed", {
+                this.eventManager.emit("camera-state-changed", {
                     state: targetState,
                 });
 
@@ -6402,13 +6395,13 @@ export class Graph implements GraphContext {
             // and the DOM however it was started.
             adapter.onActiveChange((active, reason) => {
                 if (active) {
-                    this.eventManager.emitGraphEvent("ai-voice-start", {});
+                    this.eventManager.emit("ai-voice-start", {});
                 } else {
-                    this.eventManager.emitGraphEvent("ai-voice-end", { reason });
+                    this.eventManager.emit("ai-voice-end", { reason });
                 }
             });
             adapter.onInput((transcript, isFinal) => {
-                this.eventManager.emitGraphEvent("ai-voice-transcript", { transcript, isFinal });
+                this.eventManager.emit("ai-voice-transcript", { transcript, isFinal });
             });
 
             this.voiceAdapter = adapter;

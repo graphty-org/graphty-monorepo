@@ -1,3 +1,37 @@
+## 0.8.60 (2026-10-09)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.41
+- Updated compact-mantine to 0.9.13
+- Updated graphty-element to 3.20.1
+- Updated graph-samples to 0.1.25
+- Updated graph-format to 1.3.10
+- Updated graph-io to 0.3.32
+
+## 0.8.59 (2026-10-08)
+
+### 🚀 Features
+
+- **graphty-element:** run the LLM regression tests on Google, and always answer ([801e21a9d](https://github.com/graphty-org/graphty-monorepo/commit/801e21a9d))
+
+### 🩹 Fixes
+
+- **graphty-element:** run the LLM regression suite on Anthropic and fix what it found ([69d346ebd](https://github.com/graphty-org/graphty-monorepo/commit/69d346ebd))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.40
+- Updated compact-mantine to 0.9.12
+- Updated graphty-element to 3.20.0
+- Updated graph-samples to 0.1.24
+- Updated graph-format to 1.3.9
+- Updated graph-io to 0.3.31
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.58 (2026-10-08)
 
 ### 🩹 Fixes

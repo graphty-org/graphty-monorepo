@@ -33,6 +33,7 @@ describe("XR Input Switching", () => {
         await graph.addNodes(TEST_NODES);
         await graph.addEdges(TEST_EDGES);
         await operationQueueOf(graph).waitForCompletion();
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
     });
 
@@ -59,6 +60,7 @@ describe("XR Input Switching", () => {
             const initialPos = node1.mesh.position.clone();
 
             // Verify node position is stable
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             const finalPos = node1.mesh.position;
@@ -113,6 +115,7 @@ describe("XR Input Switching", () => {
             // Change view mode (should reset any ongoing interactions)
             await graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             // Node should still exist and have valid position

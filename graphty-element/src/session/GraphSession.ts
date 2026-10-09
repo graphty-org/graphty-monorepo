@@ -42,7 +42,7 @@ import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
 import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
-import { GraphStore } from "../data/GraphStore";
+import { GraphStore, type Renumbering } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
@@ -80,7 +80,7 @@ import {
     type Scheduler,
     type TransactionScope as DispatchScope,
 } from "./project/Dispatcher";
-import { nodeOfKey, ROWS_MOVED } from "./project/graphOps";
+import { EDGES_ADDED, nodeOfKey, NODES_ADDED, ROWS_MOVED } from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
@@ -137,7 +137,7 @@ import {
 } from "./styles";
 import { atStylePath, channelsFor } from "./styles/channels";
 import type { CompiledLayer } from "./styles/Layer";
-import { createLayerRepaint, type ElementPaint, type RepaintEngine } from "./styles/repaint";
+import { createLayerRepaint, type ElementPaint, type ElementRemaps, type RepaintEngine } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
 import { createSelectorSource, edgeEndpointOf, type SessionSelectorSource } from "./styles/sources";
 import type {
@@ -182,6 +182,10 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
     readonly positions: ElementPositions;
     /** Whether structural changes wait for the next read of the graph; see `GraphStore.deferring`. */
     readonly deferring?: boolean;
+    /** How many published freezes renumbered rows; see `GraphStore.renumberCount`. */
+    readonly renumberCount?: number;
+    /** The last of them and its remaps; see `GraphStore.lastRenumbering`. */
+    readonly lastRenumbering?: Renumbering | null;
     /** Whether the next read of the graph would freeze a snapshot; see `GraphStore.stale`. */
     readonly stale?: boolean;
     /** Whether the graph holds no node rows, answered without freezing; see `GraphStore.holdsNoRows`. */
@@ -1682,6 +1686,7 @@ function repaintAgainstCurrentData(
     paint: ElementPaint;
     repaint: RepaintEngine["repaint"];
     repaintElements: RepaintEngine["repaintElements"];
+    repaintMoved: RepaintEngine["repaintMoved"];
     encoding: RepaintEngine["encoding"];
     invalidate: () => void;
 } {
@@ -1740,6 +1745,11 @@ function repaintAgainstCurrentData(
             againstCurrentData();
 
             return engine.repaintElements(stack, dirty, context);
+        },
+        repaintMoved: async (stack, moved, kept, dirty, context, still) => {
+            againstCurrentData();
+
+            return engine.repaintMoved(stack, moved, kept, dirty, context, still);
         },
         // A READ, so it does NOT re-prepare against current data first. Two reasons, and the
         // second is the load-bearing one. `againstCurrentData` would forget what the pass
@@ -2568,6 +2578,17 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // layers that read a field it changed, from the lowest of them up: a record edit the stack does
     // not read paints nothing. A renderer that reconciles its own objects and repaints from there
     // takes this over; see `handGraphPaintToRenderer`.
+    //
+    // A CHANGE TO THE ROWS PAINTS ONLY THE ROWS IT CHANGED when every layer paints each element
+    // from that element alone -- a fixed `set`, selected by everything, a column's presence or
+    // named ids (issue #1253). Then nothing an add or a removal does changes how another element
+    // looks; it only moves where it is. So an existing element keeps its paint, carried to its new
+    // row when a removal's freeze renumbered the rows, and the pass paints the rows nothing was
+    // carried to and the rows whose records changed. At a hundred thousand nodes that is the
+    // difference between one row and a hundred thousand per layer. The default layers are of
+    // this kind, so a session nobody styled takes this path on every add.
+    /** The graph this hook last left painted: renumbering freezes then, and its row counts. */
+    let paintedThrough: { readonly renumbers: number; readonly nodes: number; readonly edges: number } | null = null;
     HEADLESS_GRAPH_PAINT.set(
         dispatcher,
         dispatcher.lane.register("graph", async (_rendered, target, dirty) => {
@@ -2576,10 +2597,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             edited.edge.clear();
             // Undone rows wait to be rebuilt until something reads the graph, so a run of undos
             // rebuilds it once; painting now would read it. The picture catches up at the next
-            // pass over a settled graph.
+            // pass over a settled graph, which paints the whole stack again.
             // ponytail: no pass is owed for it; repaint on the store's next rebuild if a headless
             // reader needs the picture current between an unawaited undo and its next edit.
             if (target.styles.length === 0 || store.store.deferring === true) {
+                paintedThrough = null;
                 return;
             }
 
@@ -2593,6 +2615,29 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 return;
             }
 
+            const graph = snapshot();
+            const now = {
+                renumbers: store.store.renumberCount ?? Number.NaN,
+                nodes: graph.nodeCount,
+                edges: graph.edgeCount,
+            };
+            const moved = rowsMoved(paintedThrough, now, store.store.lastRenumbering ?? null);
+            if (
+                !recordsOnly &&
+                paintedThrough !== null &&
+                moved !== null &&
+                [...dirty].every(changesRowsOnly) &&
+                target.styles.every(paintsRowAlone)
+            ) {
+                const kept = { node: paintedThrough.nodes, edge: paintedThrough.edges };
+                const still = (): boolean => store.store.renumberCount === now.renumbers;
+                await painter.repaintMoved(target.styles, moved, kept, editedRows(graph, dirty), RUNS_PASS, still);
+                // A freeze that renumbered the rows while the pass ran leaves the next pass to
+                // paint everything.
+                paintedThrough = still() ? now : null;
+                return;
+            }
+
             painter.invalidate();
             const edits = readers.map((entry) => ({ previous: entry, next: entry }));
             const fromIndex = target.styles.indexOf(readers[0]);
@@ -2601,7 +2646,16 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 // The layers above paint what the edited field's readers match now; an element the
                 // edit took out of a reader's match is found by its own row, repainted whole.
                 await painter.repaintElements(target.styles, editedRows(snapshot(), dirty), RUNS_PASS);
+                // Only the readers' elements were painted: one that moved with a renumbering and
+                // matches none of them still shows what its old row showed.
+                paintedThrough =
+                    paintedThrough?.renumbers === now.renumbers && store.store.renumberCount === now.renumbers
+                        ? now
+                        : null;
+                return;
             }
+
+            paintedThrough = store.store.renumberCount === now.renumbers ? now : null;
         }),
     );
 
@@ -2680,6 +2734,67 @@ function editedRows(graph: GraphSnapshot, dirty: ReadonlySet<string>): { node: n
     }
 
     return rows;
+}
+
+/**
+ * Whether a dirty key is one an add or a removal of rows marks: a node or edge record, a graph
+ * value, or a rows marker. Anything else -- the direction, say -- can change every element.
+ * @param key - The lane key.
+ * @returns True for such a key.
+ */
+function changesRowsOnly(key: string): boolean {
+    return (
+        key.startsWith("n:") ||
+        key.startsWith("e:") ||
+        // A graph value (the import report an add replaces) is read by no layer.
+        key.startsWith("v:") ||
+        key === ROWS_MOVED ||
+        key === NODES_ADDED ||
+        key === EDGES_ADDED
+    );
+}
+
+/**
+ * Whether a layer paints each element from that element alone: fixed values only, selected by
+ * everything, a column's presence or named ids. Rows appended beside it change nothing it painted.
+ * @param entry - The layer.
+ * @returns True when it does.
+ */
+function paintsRowAlone(entry: CompiledLayer): boolean {
+    const { match } = entry.selector;
+    return entry.layer.encode === undefined && (match === "everything" || match === "has" || match === "ids");
+}
+
+/**
+ * How the rows moved since the graph hook last left the picture current, when the store can say:
+ * not at all, or by the one renumbering freeze since.
+ * @param through - The graph the hook last painted: renumberings then, and its row counts.
+ * @param through.renumbers - The store's renumber count then.
+ * @param through.nodes - Its node count.
+ * @param through.edges - Its edge count.
+ * @param now - The same, now.
+ * @param now.renumbers - The store's renumber count now.
+ * @param now.nodes - The node count now.
+ * @param now.edges - The edge count now.
+ * @param last - The store's last renumbering.
+ * @returns The remaps, null for a kind that kept its rows; or null when the picture cannot follow.
+ */
+function rowsMoved(
+    through: { readonly renumbers: number; readonly nodes: number; readonly edges: number } | null,
+    now: { readonly renumbers: number; readonly nodes: number; readonly edges: number },
+    last: Renumbering | null,
+): ElementRemaps | null {
+    if (through === null) {
+        return null;
+    }
+
+    if (now.renumbers === through.renumbers) {
+        return now.nodes >= through.nodes && now.edges >= through.edges ? { node: null, edge: null } : null;
+    }
+
+    return now.renumbers === through.renumbers + 1 && last?.count === now.renumbers
+        ? { node: last.node, edge: last.edge }
+        : null;
 }
 
 /**

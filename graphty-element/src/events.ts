@@ -7,6 +7,7 @@ import type { NodeIdType } from "./config";
 import type { ImportReport } from "./data/report";
 import type { Edge } from "./Edge";
 import type { Graph } from "./Graph";
+import type { StatsManager } from "./managers/StatsManager";
 import type { Node } from "./Node";
 import type { StyleChange } from "./session/styles/StylesApi";
 import type { HistoryCause } from "./session/types";
@@ -32,7 +33,30 @@ export type EventOfType<K extends EventType> = AnyEvent extends infer E
 export type GraphEventType = GraphEvent["type"];
 export type NodeEventType = NodeEvent["type"];
 export type EdgeEventType = EdgeEvent["type"];
-type AiEventType = AiEvent["type"];
+export type AiEventType = AiEvent["type"];
+
+/**
+ * Event names graphty-element still emits with no declared event type. Each is forwarded to the
+ * DOM as before, as a plain `Event` to a TypeScript listener, and none can be subscribed through
+ * `graph.on`. They wait on the next major release (issue #1577), which stops forwarding the six
+ * input bookkeeping events and gives `layout-updated` its own name back: today its payload's
+ * `type: "incremental"` overwrites the name, so it actually arrives as an event named
+ * `incremental`.
+ *
+ * Listed here only so the element's own emit sites still compile; a new name does not belong here.
+ * @internal
+ */
+export type UndeclaredEventType =
+    | "layout-updated"
+    | "input-initialized"
+    | "input-config-updated"
+    | "input-pointer-lock-changed"
+    | "input-recording-started"
+    | "input-recording-stopped"
+    | "input-playback-completed";
+
+/** Every name the element's own emitter accepts: see `EventManager.emit`. */
+export type EmittableEventType = GraphEventType | AiEventType | UndeclaredEventType;
 
 // graph events
 export type GraphEvent =
@@ -52,7 +76,18 @@ export type GraphEvent =
     | DataLoadingCompleteEvent
     | ElementsRemovedEvent
     | StyleChangedEvent
-    | SelectionChangedEvent;
+    | SelectionChangedEvent
+    | GraphStartedEvent
+    | LayoutChangedEvent
+    | OperationCancelledEvent
+    | StatsUpdateEvent
+    | InputEnabledChangedEvent
+    | InputPointerEvent
+    | InputWheelEvent
+    | InputTouchEvent
+    | InputTouchEndEvent
+    | InputKeyEvent
+    | InputShortcutEvent;
 
 /** A graph event type that stays inside the element: see {@link INTERNAL_EVENT_TYPES}. */
 export type InternalEventType = GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"];
@@ -384,7 +419,108 @@ export interface ElementsRemovedEvent {
     cause?: HistoryCause;
 }
 
+/** Emitted once the render loop has started, after the element finished initializing. */
+export interface GraphStartedEvent {
+    type: "graph-started";
+    /** When the loop started, in milliseconds since the epoch. */
+    timestamp: number;
+}
+
+/** Emitted when a new layout engine has been built and is now the running layout. */
+export interface LayoutChangedEvent {
+    type: "layout-changed";
+    /** The layout type that is now running, as `setLayout` was given it. */
+    layoutType: string;
+    /** The options the layout was built with: the caller's, filled in with the layout's defaults. */
+    options: Record<string, unknown>;
+}
+
+/** Emitted when a queued operation is aborted before it finished. */
+export interface OperationCancelledEvent {
+    type: "operation-cancelled";
+    /** The operation's id, as `operation-start` carried it. */
+    id: string;
+    /**
+     * Why it was aborted, as the queue words it: `"Queue cleared"` when the whole queue was
+     * cleared, `"Manual cancellation"` when this one operation was cancelled.
+     */
+    reason: string;
+}
+
+/** Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns. */
+export interface StatsUpdateEvent {
+    type: "stats-update";
+    /** How many graph updates have run since the counters were last reset. */
+    totalUpdates: number;
+    /** The counters as they stand now. */
+    stats: ReturnType<StatsManager["getStats"]>;
+}
+
+/** Emitted when user input on the canvas is switched on or off, by `setInputEnabled`. */
+export interface InputEnabledChangedEvent {
+    type: "input-enabled-changed";
+    /** Whether the canvas now takes user input. */
+    enabled: boolean;
+}
+
 // Selection events
+/**
+ * Emitted for each pointer press, move and release on the canvas while input is enabled.
+ *
+ * Only the position is carried, not the button or the pointer id.
+ */
+export interface InputPointerEvent {
+    type: "input:pointer-down" | "input:pointer-move" | "input:pointer-up";
+    /** The DOM event's `clientX`. */
+    x: number;
+    /** The DOM event's `clientY`. */
+    y: number;
+}
+
+/** Emitted for each wheel turn over the canvas while input is enabled. */
+export interface InputWheelEvent {
+    type: "input:wheel";
+    deltaX: number;
+    deltaY: number;
+    deltaZ: number;
+    /** The DOM `WheelEvent.deltaMode`: 0 pixels, 1 lines, 2 pages. */
+    deltaMode: number;
+}
+
+/** Emitted when touches start or move on the canvas while input is enabled. */
+export interface InputTouchEvent {
+    type: "input:touch-start" | "input:touch-move";
+    /** One position per touch point: the touch's `clientX` and `clientY`. */
+    array: { x: number; y: number }[];
+}
+
+/** Emitted when touches end on the canvas while input is enabled. */
+export interface InputTouchEndEvent {
+    type: "input:touch-end";
+    /** One entry per touch that ended, holding its touch id. */
+    array: { value: number }[];
+}
+
+/** Emitted for each key press and release on the canvas while input is enabled. */
+export interface InputKeyEvent {
+    type: "input:key-down" | "input:key-up";
+    key: string;
+    code: string;
+    ctrlKey: boolean;
+    shiftKey: boolean;
+    altKey: boolean;
+    metaKey: boolean;
+}
+
+/**
+ * Emitted for the undo, redo and select-all keyboard shortcuts on the canvas while input is enabled.
+ *
+ * Undo is Ctrl+Z, redo Ctrl+Shift+Z or Ctrl+Y, select-all Ctrl+A; Cmd replaces Ctrl on macOS.
+ */
+export interface InputShortcutEvent {
+    type: "input:undo" | "input:redo" | "input:select-all";
+}
+
 export interface SelectionChangedEvent {
     type: "selection-changed";
     previousNode: Node | null;

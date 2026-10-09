@@ -348,6 +348,7 @@ async function rejectionOf(p: Promise<unknown>): Promise<{ code: string; details
 }
 
 function sleep(ms: number): Promise<void> {
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     return new Promise((resolve) => {
         setTimeout(resolve, ms);
     });
@@ -363,6 +364,7 @@ function sleep(ms: number): Promise<void> {
  */
 async function waitForSubmission(s: FakeSim, id: number): Promise<void> {
     while (s.lastSubmittedBatchId < id) {
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await sleep(1);
     }
 }
@@ -871,6 +873,7 @@ describe("ForceSimulation (fake model)", () => {
         s.load(gA, nanPositions(4096));
         // wait until gA's bind is INSIDE the fake's bind() (past the generation guard, sleeping)
         while (fake.calls.bind < 1) {
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await sleep(1);
         }
         expect(fake.boundN).toBeNull();
@@ -1135,6 +1138,7 @@ describe("ForceSimulation (fake model)", () => {
 
         const controller = new AbortController();
         const running = s.run({ maxIter: 100000, batch: 8, signal: controller.signal });
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await sleep(5);
         const doneAtAbort = s.iterationsDone;
         controller.abort();

@@ -1107,7 +1107,7 @@ function jgfIdNotes(
  * @returns true for canonical integer text below 2^32 - 1
  */
 function isArrayIndexKey(text: string): boolean {
-    return /^(0|[1-9][0-9]*)$/.test(text) && Number(text) < 4294967295;
+    return /^(0|[1-9]\d*)$/.test(text) && Number(text) < 4294967295;
 }
 
 // ============================================================ writing

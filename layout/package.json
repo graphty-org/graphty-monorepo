@@ -1,6 +1,6 @@
 {
     "name": "@graphty/layout",
-    "version": "2.2.11",
+    "version": "2.2.13",
     "description": "graph layout algorithms based on networkx",
     "author": "Adam Powers <apowers@ato.ms>",
     "main": "dist/layout.js",

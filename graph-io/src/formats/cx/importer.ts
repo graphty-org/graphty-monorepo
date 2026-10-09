@@ -471,8 +471,8 @@ const UNSET = Symbol("unset");
 
 const I32_MIN = -2147483648;
 const I32_MAX = 2147483647;
-const INTEGER_TEXT = /^-?[0-9]+$/;
-const DECIMAL_TEXT = /^-?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?$/;
+const INTEGER_TEXT = /^-?\d+$/;
+const DECIMAL_TEXT = /^-?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 
 /**
  * Whether a text is Cytoscape's null: the empty string or "null" in any case.
@@ -731,7 +731,7 @@ function aspect(doc: CxDocument, name: string): readonly Held[] {
  * @returns the bits
  */
 function inexactBits(text: string, keys: readonly string[], depth = 1): number {
-    if (!/[0-9][.eE]/.test(text)) {
+    if (!/\d[.eE]/.test(text)) {
         return 0;
     }
     let bits = 0;

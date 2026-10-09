@@ -18,6 +18,8 @@ describe("what the inspector shows", () => {
 
     it("shows an open row over the selection", () => {
         const selection = { nodes: [1], edges: [] };
+        // The Graph place's title opens the graph and keeps the selection.
+        assert.deepEqual(resolveInspected({ kind: "graph" }, selection), { kind: "graph" });
         assert.deepEqual(resolveInspected({ kind: "run-row", id: "louvain" }, selection), {
             kind: "run-row",
             run: "louvain",

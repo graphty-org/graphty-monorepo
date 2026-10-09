@@ -104,6 +104,11 @@ describe("Filters on the real element", () => {
             });
             const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
             await inspector.findByText("On");
+            // The step whose editor is open is marked in the list, as an inspected row is.
+            assert.equal(
+                within(filters()).getByRole("treeitem", { name: "value is at least 9" }).getAttribute("aria-selected"),
+                "true",
+            );
 
             // The checkbox's tooltip says what a click does.
             const tick = screen.getByRole("checkbox", { name: "Apply step: value is at least 9" });

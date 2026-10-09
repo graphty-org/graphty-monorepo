@@ -6,6 +6,7 @@
 import { BUILT_IN_ALGORITHMS, type OptionDescriptor } from "@graphty/graphty-element/catalog";
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
+import React from "react";
 import { afterEach, assert, describe, it } from "vitest";
 
 import { render, screen } from "../../../test/test-utils";
@@ -72,6 +73,49 @@ describe("the options form", () => {
         for (const text of labels()) {
             assert.isFalse(keys.has(text), text);
         }
+    });
+
+    it("draws no reset beside a run's setting at its default, and one that resets it once changed", async () => {
+        const made = createGraphSession();
+        session = made;
+        await made.data.addNodes([{ id: "a" }, { id: "b" }]);
+        const descriptor = BUILT_IN_ALGORITHMS.find((d) => d.key === "pagerank");
+        assert.isDefined(descriptor);
+        const damping = descriptor.options.find((o) => o.name === "dampingFactor");
+        if (damping === undefined) {
+            throw new Error("no damping factor");
+        }
+        assert.strictEqual(damping.default, 0.85);
+        const options = [damping];
+        let last: Record<string, unknown> = {};
+        // A run records the default it used, as a run's Made with section hands it over.
+        function Form(): React.JSX.Element {
+            const [values, setValues] = React.useState<Record<string, unknown>>({ dampingFactor: 0.85 });
+            return (
+                <OptionsForm
+                    session={made}
+                    options={options}
+                    values={values}
+                    words={(option) => optionWords("pagerank", option)}
+                    onChange={(name, value) => {
+                        last = { ...values, [name]: value };
+                        setValues(last);
+                    }}
+                />
+            );
+        }
+        render(<Form />);
+        const user = userEvent.setup();
+        const box = screen.getByRole("spinbutton", { name: "Damping factor" });
+        assert.strictEqual((box as HTMLInputElement).value, "0.85");
+        assert.isNull(screen.queryByRole("button", { name: /reset/i }));
+        await user.clear(box);
+        await user.type(box, "0.9{Enter}");
+        await user.click(screen.getByRole("button", { name: /reset/i }));
+        // The reset puts the default back as the value, so the run reads as unchanged.
+        assert.deepEqual(last, { dampingFactor: 0.85 });
+        assert.strictEqual((box as HTMLInputElement).value, "0.85");
+        assert.isNull(screen.queryByRole("button", { name: /reset/i }));
     });
 
     it("puts Betweenness's sample size behind the Advanced fold", async () => {

@@ -268,7 +268,8 @@ function OptionField({
             return (
                 <StyleNumberInput
                     label={label}
-                    value={num(value)}
+                    // The default is no change of the reader's: no reset to draw.
+                    value={num(value) === num(option.default) ? undefined : num(value)}
                     defaultValue={num(option.default) ?? 0}
                     // A default of no value (a sample size left to every node) is an empty box
                     // that says what empty means, never a 0 the run would not use.
@@ -277,7 +278,10 @@ function OptionField({
                     max={num(option.max)}
                     step={option.step ?? (integer ? 1 : undefined)}
                     decimalScale={integer ? 0 : undefined}
-                    onChange={set}
+                    // A reset sets the default itself, so a run reset to what it used is unchanged.
+                    onChange={(v) => {
+                        set(v === undefined && typeof option.default === "number" ? option.default : v);
+                    }}
                 />
             );
         }

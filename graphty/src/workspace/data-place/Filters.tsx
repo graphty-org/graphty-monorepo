@@ -24,7 +24,7 @@ import React, { useEffect, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
 import {
     applyName,
@@ -112,6 +112,10 @@ export function FiltersSection(): React.JSX.Element {
     const version = useVisibilityVersion(session);
     const outcomes = useOutcomes(session, version);
     const steps = session?.visibility.steps ?? [];
+    // The step whose editor is open is marked, as an inspected row is elsewhere.
+    const open = useWorkspaceState((state) =>
+        state.inspected?.kind === "filter-step" ? state.inspected.id : undefined,
+    );
     // Once the steps changed, the focus a step change asked for (focusNext).
     useEffect(() => {
         if (pendingFocus !== null && focusStep(pendingFocus)) {
@@ -186,7 +190,7 @@ export function FiltersSection(): React.JSX.Element {
                     label="Filters"
                     items={items}
                     multiselect={false}
-                    selected={[]}
+                    selected={open !== undefined && steps.some((s) => s.id === open) ? [open] : []}
                     onSelect={(ids) => {
                         const id = ids.at(-1);
                         if (id !== undefined) {

@@ -154,7 +154,8 @@ export function Inspector(): React.JSX.Element {
     if (resolved.kind === "source") {
         attributeActions.push(...sourceActionsOf());
     }
-    const KindIcon = KIND_GLYPHS[kindId];
+    // A neighborhood is headed by its center node, so it draws the node's glyph.
+    const KindIcon = KIND_GLYPHS[kindId === "neighborhood" ? "node" : kindId];
     // How many notes are about this, as a link to the Notes place; the text stays there.
     const notes = notesAbout(session, resolved);
 
@@ -309,8 +310,9 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
         // A node is named by its id until graphty-element publishes its name (#895).
         case "node":
             return { name: String(resolved.node), swatch: swatchOf(session, { node: resolved.node }) };
+        // The center node's own header: its name and the color it is drawn in.
         case "neighborhood":
-            return { name: String(resolved.node) };
+            return { name: String(resolved.node), swatch: swatchOf(session, { node: resolved.node }) };
         case "edge": {
             const edge = session.data.edge(resolved.edge);
             return {

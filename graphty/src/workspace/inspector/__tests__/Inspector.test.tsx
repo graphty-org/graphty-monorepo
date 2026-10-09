@@ -178,6 +178,26 @@ describe("the inspector", () => {
         });
     });
 
+    it("heads the neighborhood with the node's own header: the same glyph and swatch", async () => {
+        const { session: on } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n0"] });
+        });
+        // The header line's marks: the glyph and the color swatch before the name.
+        const marks = (): string => {
+            const line = screen.getByRole("heading", { level: 2 }).parentElement;
+            return [...(line?.children ?? [])]
+                .filter((child) => child.getAttribute("role") !== "heading")
+                .map((child) => child.outerHTML)
+                .join("");
+        };
+        await screen.findByRole("button", { name: /Degree/ });
+        const node = marks();
+        await userEvent.click(screen.getByRole("button", { name: /Degree/ }));
+        await screen.findByRole("region", { name: "n0 and 3 connections" });
+        assert.equal(marks(), node);
+    });
+
     it("heads the neighbor list as a section, one form at every reach, with a way back to the node", async () => {
         const { session: on } = await renderInspector();
         await act(async () => {

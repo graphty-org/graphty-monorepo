@@ -14,7 +14,7 @@ import type { WorkspaceState } from "../state/store";
 /**
  * Every kind the inspector draws, with the id each one carries in `inspected.id`.
  *
- * - `graph`: nothing selected; no id.
+ * - `graph`: nothing selected, or the Graph place's title opened it; no id.
  * - `node`: one node selected; no id (read from the selection).
  * - `edge`: one edge selected; no id.
  * - `several`: more than one element selected; no id.
@@ -144,6 +144,8 @@ interface SelectionView {
  */
 function fromRow(inspected: WorkspaceState["inspected"]): Resolved | undefined {
     switch (inspected?.kind) {
+        case "graph":
+            return { kind: "graph" };
         case "neighborhood": {
             const parsed = parse(inspected.id);
             const node = idOf(Array.isArray(parsed) ? parsed[0] : parsed);

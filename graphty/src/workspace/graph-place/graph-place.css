@@ -18,6 +18,10 @@
     font-size: 11px;
 }
 
+.ws-graph-title:hover {
+    background: var(--cm-bg-hover);
+}
+
 .ws-graph-title-prefix {
     color: var(--cm-text-secondary);
     font-size: inherit;

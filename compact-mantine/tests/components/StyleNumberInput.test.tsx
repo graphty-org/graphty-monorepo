@@ -1,7 +1,7 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { compactTheme, StyleNumberInput } from "../../src";
@@ -71,6 +71,34 @@ describe("StyleNumberInput", () => {
 
         expect(onChange).toHaveBeenCalledTimes(1);
         expect(onChange.mock.calls[0][0]).toBeUndefined();
+    });
+
+    it("shows the default and no reset once its caller passes undefined again", async () => {
+        const user = userEvent.setup();
+        // A caller that records only what differs from the default: typing the default back
+        // hands undefined down, after a number it had been given.
+        function Caller(): React.JSX.Element {
+            const [size, setSize] = React.useState<number | undefined>(undefined);
+            return (
+                <StyleNumberInput
+                    label="Size"
+                    value={size}
+                    defaultValue={10}
+                    onChange={(next) => {
+                        setSize(next === 10 ? undefined : next);
+                    }}
+                />
+            );
+        }
+        renderInput(<Caller />);
+        const box = screen.getByRole("spinbutton");
+        await user.clear(box);
+        await user.type(box, "20{Enter}");
+        expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
+        await user.clear(box);
+        await user.type(box, "10{Enter}");
+        expect(box).toHaveValue("10");
+        expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
     });
 
     it("has data-is-default attribute when using default", () => {

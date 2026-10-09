@@ -188,22 +188,23 @@ export interface StyleNumberInputProps {
  * />
  * ```
  */
-export function StyleNumberInput({
-    label,
-    value,
-    defaultValue,
-    emptyText,
-    onChange,
-    min,
-    max,
-    step,
-    decimalScale,
-    suffix,
-    disabled = false,
-    disabledReason,
-    onFocus,
-    onBlur,
-}: StyleNumberInputProps): React.JSX.Element {
+export function StyleNumberInput(props: StyleNumberInputProps): React.JSX.Element {
+    const {
+        label,
+        value,
+        defaultValue,
+        emptyText,
+        onChange,
+        min,
+        max,
+        step,
+        decimalScale,
+        suffix,
+        disabled = false,
+        disabledReason,
+        onFocus,
+        onBlur,
+    } = props;
     const labels = useLabels();
 
     // The reason reaches a pointer user as a tooltip and a screen reader as the
@@ -219,12 +220,16 @@ export function StyleNumberInput({
     // Controlled and uncontrolled, the way every state-holding component in
     // this package works. The uncontrolled state starts at undefined, which is
     // this component's word for "the reader has entered nothing".
-    const [committed, setCommitted] = useUncontrolled<number | undefined>({
+    const [own, setCommitted] = useUncontrolled<number | undefined>({
         value,
         defaultValue: undefined,
         finalValue: undefined,
         onChange,
     });
+    // A caller that passes `value` drives the control even while it passes undefined (its
+    // default): Mantine's hook would read that undefined as "uncontrolled" and show a number
+    // typed earlier, with a reset that resets nothing.
+    const committed = "value" in props ? value : own;
 
     const isDefault = committed === undefined;
     // With emptyText, nothing entered is an empty box: no number, its words as the placeholder.

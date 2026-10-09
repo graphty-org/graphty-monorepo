@@ -11,6 +11,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **Panels: the Graph title is the graph's row; an open step's row is marked; the
+  neighborhood wears its node's header; no reset at a default.** `GraphPlace.tsx` title is an
+  UnstyledButton writing `inspected: { kind: "graph" }`, which `fromRow` in `inspector/inspected.ts`
+  now resolves (before, "graph" fell through to the selection), so the Overview opens and the
+  selection stays. `FiltersSection` passes the open `filter-step` id as the Tree's `selected`.
+  The neighborhood header takes the node glyph and `swatchOf` its center. `OptionsForm` passes no
+  `value` when it equals `option.default` and a reset writes the default back (so the run reads
+  unchanged); compact-mantine's `StyleNumberInput` is controlled whenever `value` is passed, even
+  undefined (owner-decisions "for the owner"). Tests: `GraphPlace.test.tsx`, `inspected.test.ts`,
+  `Inspector.test.tsx`, `Filters.real-element.test.tsx`, `OptionsForm.test.tsx`,
+  `StyleNumberInput.test.tsx`. Real app: `tmp/r2-dry1-panels-navigation-and-state/a/14.png`, `22.png`
+  (Enter), `24-26.png` (Damping), `b/hdr-02.png` vs `hdr-03.png`, `b/09.png` (step row).
+
 - (2026-10-09) **A chosen segment is filled, and every control shows the arrow.** compact-mantine's
   panel track fills its chosen option with `--cm-bg-inverse` / `--cm-text-oninverse` (dark in
   light, white in dark; 13:1 and 11:1 against the track) instead of Figma's white face and 1px
@@ -61,16 +74,9 @@ replace/05,replace/07,hood/05}.png`.
   delete buttons carry the note's first line so no two share a name. Test
   `FilterFocus.real-element.test.tsx`; evidence `tmp/t2r1-7/bars.log`.
 
-- (2026-10-09, summarized) **Bars 2, 7, 8 and 9 are scored by script, each check proven on a
-  planted failure** (80fb33e68): `real.mjs` writes `work-start.json`/`work.json` (bar 2);
-  `bars.mjs` with `tool/measure.mjs` scores 7, 8, 9; limits in `tool/bars-limits.json`; `--prove`
-  passed 5 runs in a row. Evidence `tmp/t2r1-2/`.
-
-- (2026-10-09, summarized) **Round 1's tool faults, fixed in the tool:** one machine-wide 4-browser
-  pool (the studio's own `/tmp` pool never saw pre-push gates; load ~158 broke click timing); a
-  shared name is refused with `"<name>#n"` candidates; `--drop` delivers real files over CDP; a
-  `--brief` folder holds only participant files; T17/T18 `--end` gives the follow-up first (exit 3).
-  Evidence `tmp/t2r1-1/`.
+- (2026-10-09, summarized) **Study tool:** bars 2, 7, 8, 9 scored by script (`bars.mjs`, proven on
+  planted failures, 80fb33e68); one machine-wide 4-browser pool; ambiguous names refused with
+  `"<name>#n"`; `--drop` over CDP; `--brief` folders hold participant files only.
 
 - (2026-10-09, summarized) **A live region is in the page, visible, before its words arrive, and
   holds words only.** The status line lives in `Frame.tsx` outside hidden surfaces; `DataPage.load()`
@@ -83,6 +89,17 @@ replace/05,replace/07,hood/05}.png`.
   baselines change and go to visual review.
 
 ## Decisions and reasons
+
+- (2026-10-09) **A reset that resets nothing is not drawn; the fix is split by owner.** The app
+  decides what "default" means for a run setting (equal to the descriptor's default), so
+  `OptionsForm` hands no value then. Making `StyleNumberInput` hide its reset whenever value equals
+  `defaultValue` was rejected: in a style layer an explicit value equal to the default still
+  overrides layers beneath, so its reset does something. The shared component's real defect was
+  that an undefined `value` after typing went uncontrolled and showed the stale number -- fixed
+  there, since every caller passing `value` relies on the documented "undefined shows default".
+- (2026-10-09) **The Graph title opens a "graph" row rather than clearing the selection.** The
+  canvas click reaches the Overview only by emptying the selection; T20 needs the Overview while a
+  node stays picked. A selection change still closes the row, as for every other row.
 
 - (2026-10-09) **A count in a heading is the count the reader can check beside it.** "Ava's 14
   connections" next to "Selection 15" read as a disagreement; naming the center in the heading
@@ -221,6 +238,12 @@ replace/05,replace/07,hood/05}.png`.
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Worked: `real.mjs` `--expect selected=N` counts selected ROWS (aria-selected), not
+  selected nodes -- read the Selection row's count in the screenshot instead. Did not work: one
+  Shift+Tab from the paint tree reaches the find box, not the title; two do.
+- (2026-10-09) Did not work: `assert.isDefined(x)` before a nested `function` declaration -- TS
+  drops narrowing inside hoisted functions; bind a narrowed `const` outside it.
+
 - (2026-10-09) Seen, not mine: T7 in `inspector/__tests__/tasks.real-element.test.tsx` failed once
   in a five-file run ("expected '0.5' to equal '0.85'") and passed alone. Mechanism: after Revert
   it waits for the status bar to empty, then reads the Damping field's `value` attribute outside
@@ -236,45 +259,19 @@ replace/05,replace/07,hood/05}.png`.
 T3 T4 T20 T21 T17-P`). It found the silent Control+O loss on the Data page and the 11 setups
   that opened a data file, neither of which the unit tests saw.
 
-- (2026-10-09) Did not work: adding a second load in a test with a bare `session.data.import`:
-  its default mode is "replace", so Sources still lists one. Pass `{ mode: "merge" }`. In the real
-  app, the Sources "+" is not drawn on this build and a canvas drop lands on an edge and is not
-  taken; Control+O with a project open reaches "Add to <project>".
-- (2026-10-09) Worked: proving "no hint follows" without a sleep (the test-timing rule) by
-  spying `session.scope.count`, waiting until it was called with the typed text, then settling its
-  promises inside `act` before asserting.
-- (2026-10-09) Worked: `--sr` sessions as keyboard walks; their focus lines give the Tab order to
-  script. Did not work: `--expect-not "Filter analyses"` (a placeholder is not on-screen text; it
-  passed on the broken build). Prove every check on the broken build first. A miss ("nothing on
-  screen is called") exits 0, so only `--expect` fails a walk. A build from the shared tree carries
-  other agents' unfinished edits (change 11's style files were in 5ac7ca8f7058): never call it
-  frozen. `montage <dir>/*.png -tile 5x -geometry 576x360` gives one sheet per walk to look at.
-- (2026-10-09) Worked: reading the graders' state lines before coding. Each "starts on None"
-  session says "no Loaded weight row exists", which turned an implementation task into a
-  verification. Did not work: the PathForm suite had one test failing on master of the branch
-  since the weight note was reworded (`Each edge counts as 1. weight's meaning is not set.`);
-  nobody ran the real-element project after that change.
+- (2026-10-09, condensed) **Test and walk lessons.** A second load in a test needs
+  `session.data.import(..., { mode: "merge" })` (default replaces). Prove "nothing follows" by
+  spying the element call and settling it in `act`, never a sleep. `--sr` walks give the Tab
+  order; `--expect-not` on a placeholder proves nothing (prove every check on the broken build);
+  a miss exits 0, only `--expect` fails a walk. A build from the shared tree holds others'
+  unfinished edits. Read graders' state lines before coding (the "starts on None" task was a
+  verification). Prove a test fails without the fix with `git diff -- <mine> > patch; git apply -R`
+  or a one-line sed revert. Focus after a write: a module-level request taken in an effect keyed on
+  the element's change version. Hooks: copy `.husky/_/` AND the top-level hooks into the temp dir
+  (the shim runs `$(dirname $(dirname $0))/<hook>`, else every hook exits 0); commit scope `tools`,
+  not `studio`. Open: a run hidden by an Everything edit shows a blank Style tab
+  (`defaultRow` null on empty bindings; `tmp/t2r1-11/a/06.png`).
 
-- (2026-10-09) Seen, not fixed: after Everything's edge color was set, a new path run showed
-  "Hidden by your layer Everything" and its Style tab was blank (no sections, no words):
-  `defaultRow` returns null when `session.runs.bindings(run)` is empty, and the tab says nothing
-  about why (`tmp/t2r1-11/a/06.png`). Without the Everything edit the same run lists both sides
-  (`c/03.png`). An empty Style tab should say what the run paints and why it is hidden.
-- (2026-10-09) Worked: proving a test fails without the fix with `git diff -- <my files> > patch`,
-  `git apply -R`, run, `git apply` (no stash in a shared worktree).
-
-- (2026-10-09) Worked: a module-level "focus next" request taken in an effect keyed on the
-  element's change version (the Notes place's pattern) -- focus after the row exists, whatever
-  order the editor unmount and the step write land in. For Escape nothing changes in the
-  element, so the handler focuses the row directly before closing. Watch out: other agents in the
-  worktree commit with broad adds; my Filters/Notes source changes landed inside their
-  "repair what merging master broke" commit (9ca8e79c3). Stage and commit own files promptly.
-- (2026-10-09) Did not work: planting a bar 2 removal by `styles.remove()` of the last layer (a
-  locked default layer stays; nothing went). Worked: `session.data.clear()`, listed gone as the
-  source. Did not work: `const WALKS` below a top-level `await outer()` (temporal dead zone); run
-  the entry point last. Did not work: `cp -p .husky/_/*` into a temp hooks dir alone -- the shim
-  runs `$(dirname $(dirname $0))/<hook>`, so without the top-level hook copies beside `_/` every
-  hook silently exits 0; copy both. Commit scope `studio` is refused by commitlint; `tools` passes.
 - (2026-10-09, condensed) The first-save fault: one cause is gone with the picker save; the other
   (ECONNREFUSED, session process gone) is unproven. Two `--prove` runs on the default `tmp/prove`
   end each other's sessions: always set `REAL_PROVE_DIR`.

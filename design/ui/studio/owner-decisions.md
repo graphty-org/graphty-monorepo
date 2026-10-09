@@ -4,6 +4,29 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-09 -- For the owner: a compact-mantine number box given `value` follows it even when it is undefined
+
+**What.** `StyleNumberInput` is controlled whenever its caller passes the `value` prop, including
+`value={undefined}`, which its documentation already defines as "nothing entered: show
+`defaultValue`". Before, Mantine's `useUncontrolled` read an undefined `value` as uncontrolled, so
+once a reader had typed a number while the caller passed undefined, the box kept showing that
+number (with a reset button) after the caller went back to undefined. No prop changes. A caller
+that passes `value` but never updates it from `onChange` now sees the box return to the default
+after a commit, which is what "controlled" means; a caller that omits `value` is unchanged. Listed
+here because it changes what an existing component does. Done on the studio branch; undoing it is
+a one-line revert in `StyleNumberInput.tsx`.
+
+**Why.** The graphty app's run settings pass no value for a setting at its default, so PageRank's
+Damping factor at 0.85 draws no reset. Without this change, typing 0.9 and pressing reset left
+0.9 on screen with the reset still drawn. Test:
+`compact-mantine/tests/components/StyleNumberInput.test.tsx` ("shows the default and no reset
+once its caller passes undefined again").
+
+**Alternatives.** Treat a value equal to `defaultValue` as the default inside the component
+(wrong for a style layer, where an explicit value equal to the default still overrides the layers
+beneath it, so its reset does something); remount the box with a `key` in the app (a workaround
+of the shared component in one caller).
+
 ## 2026-10-09 -- Decided by the team: a bare-number refusal carries the rule rewritten (`suggestion`)
 
 **What.** When a selector is refused with the reason `number-needs-backticks`, the error's

@@ -89,6 +89,22 @@ describe("the Graph place", () => {
         assert.match(place.textContent ?? "", /^GraphLes Miserables/);
     });
 
+    it("opens the graph in the inspector from its title, by pointer and by Enter, keeping the selection", async () => {
+        const user = userEvent.setup();
+        const session = await sessionWithGraph();
+        await session.selection.apply({ nodes: ["a"] });
+        const store = renderPlace(session);
+        store.set({ inspected: { kind: "measure-row", id: "pagerank" } });
+        const title = screen.getByRole("button", { name: "Graph Les Miserables" });
+        await user.click(title);
+        assert.deepEqual(store.get().inspected, { kind: "graph" });
+        store.set({ inspected: null });
+        title.focus();
+        await user.keyboard("{Enter}");
+        assert.deepEqual(store.get().inspected, { kind: "graph" });
+        assert.deepEqual(session.selection.nodes, ["a"]);
+    });
+
     it("shows the graph's name as a tooltip only while the name is cut short", async () => {
         renderPlace(await sessionWithGraph());
         const name = screen.getByText("Les Miserables");

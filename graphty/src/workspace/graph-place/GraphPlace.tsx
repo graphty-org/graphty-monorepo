@@ -1,7 +1,7 @@
 import "./graph-place.css";
 
 import { EllipsizedName } from "@graphty/compact-mantine";
-import { Text } from "@mantine/core";
+import { Text, UnstyledButton } from "@mantine/core";
 import React, { useMemo } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -44,7 +44,7 @@ function Footer({ hasGraph, hasRuns }: Readonly<{ hasGraph: boolean; hasRuns: bo
  * @returns The Graph place
  */
 export function GraphPlace(): React.JSX.Element {
-    const { session } = useWorkspace();
+    const { session, store } = useWorkspace();
     const projectName = useWorkspaceState((state) => state.project?.name ?? "");
     const version = useSessionVersion(session);
 
@@ -61,13 +61,20 @@ export function GraphPlace(): React.JSX.Element {
 
     return (
         <section className="ws-graph-place" aria-label="Graph place">
-            <div className="ws-graph-title">
+            {/* The graph's own row: it opens the graph in the inspector, as a click on empty
+                canvas does, and keeps the selection. */}
+            <UnstyledButton
+                className="ws-graph-title cm-focus-inside"
+                onClick={() => {
+                    store.set({ inspected: { kind: "graph" } });
+                }}
+            >
                 <Text span className="ws-graph-title-prefix">
                     Graph
                 </Text>
                 {/* The whole name as a tooltip only while it is cut short. */}
                 <EllipsizedName name={name} className="ws-graph-title-name" self />
-            </div>
+            </UnstyledButton>
             <div className="ws-graph-treebar">
                 <FindBox />
             </div>

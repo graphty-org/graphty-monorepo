@@ -140,8 +140,8 @@ class FakeModel implements ForceModel<FakeOptions, FakeStats> {
     headerValue: number | null = null;
     /** Extra positions fills per iteration, to make a batch heavy enough to still be in flight when a test acts. */
     workFactor = 1;
-    /** Milliseconds bind() sleeps after entry and before binding (a slow bind, for the superseded-load test). */
-    bindDelayMs = 0;
+    /** When non-null, bind() waits on it after entry and before binding (a held bind, for the superseded-load test). */
+    bindGate: Promise<void> | null = null;
     /** `resources.n` of the last bind() that COMPLETED (null before the first). */
     boundN: number | null = null;
     /** Trace word 0 of every landed batch, in landing order. */
@@ -197,8 +197,8 @@ class FakeModel implements ForceModel<FakeOptions, FakeStats> {
     async bind(resources: ModelResources, _overrides: Readonly<Record<string, number | boolean>>): Promise<void> {
         this.calls.bind++;
         this.res = resources;
-        if (this.bindDelayMs > 0) {
-            await sleep(this.bindDelayMs);
+        if (this.bindGate !== null) {
+            await this.bindGate;
         }
         this.kernel = await resources.pipelines.kernel(FILL_SPEC);
         this.headerKernel = await resources.pipelines.kernel(HEADER_SPEC);
@@ -347,25 +347,29 @@ async function rejectionOf(p: Promise<unknown>): Promise<{ code: string; details
     throw new Error("expected the promise to reject");
 }
 
-function sleep(ms: number): Promise<void> {
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+/**
+ * One turn of the event loop (a zero-delay timer): lets pending promise work and Dawn's callbacks run between two
+ * checks of a condition.
+ * @returns a promise that resolves on the next timer turn
+ */
+function nextTurn(): Promise<void> {
     return new Promise((resolve) => {
-        setTimeout(resolve, ms);
+        setTimeout(resolve, 0);
     });
 }
 
 /**
  * A batch created by step() is submitted on the serialised chain (after the bind promise, which compiles on the
- * first step); a test that must act while it is IN FLIGHT waits for the submission (a 1 ms poll, so the test's
- * continuation runs before any readback callback, which Dawn delivers from a later macrotask) and uses a heavy
- * batch (heavyFake(): heavyN() nodes, 256 iterations, 8 positions fills each) so the GPU cannot have finished
- * inside the poll interval. Every caller asserts the in-flight state explicitly right after the wait (`inFlight`
- * and an empty `fake.seen`) so a batch that landed early fails there, not in a later assertion.
+ * first step); a test that must act while it is IN FLIGHT waits for the submission (a poll every timer turn, about
+ * 1 ms in Node, so the test's continuation runs before any readback callback, which Dawn delivers from a later
+ * macrotask) and uses a heavy batch (heavyFake(): heavyN() nodes, 256 iterations, 8 positions fills each) so the
+ * GPU cannot have finished inside the poll interval. Every caller asserts the in-flight state explicitly right
+ * after the wait (`inFlight` and an empty `fake.seen`) so a batch that landed early fails there, not in a later
+ * assertion.
  */
 async function waitForSubmission(s: FakeSim, id: number): Promise<void> {
     while (s.lastSubmittedBatchId < id) {
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await sleep(1);
+        await nextTurn();
     }
 }
 
@@ -867,26 +871,29 @@ describe("ForceSimulation (fake model)", () => {
         requireGpu(t);
         const ctx = await ctxOf();
         const fake = new FakeModel();
-        fake.bindDelayMs = 50;
+        let releaseBind = (): void => undefined;
+        fake.bindGate = new Promise((resolve) => {
+            releaseBind = resolve;
+        });
         const s = sim(ctx, fake);
         const gA = graph(4096);
         s.load(gA, nanPositions(4096));
-        // wait until gA's bind is INSIDE the fake's bind() (past the generation guard, sleeping)
+        // wait until gA's bind is INSIDE the fake's bind() (past the generation guard, held at the gate)
         while (fake.calls.bind < 1) {
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await sleep(1);
+            await nextTurn();
         }
         expect(fake.boundN).toBeNull();
         const gB = graph(12);
         const posB = nanPositions(12);
         s.load(gB, posB); // resizes: gA's buffers are destroyed while gA's bind is still running
+        fake.bindGate = null;
+        releaseBind();
         await s.step(1); // waits for the serialised chain: gA's bind completes, THEN gB's bind runs and binds
         expect(fake.calls.bind).toBe(2);
         expect(fake.boundN).toBe(12);
         expectRows(posB, 12, 1, 1, 1);
         expect(fake.seen.map(bitsToFloat)).toEqual([1]);
         // the same for a setParams() rebind racing a load(): the last bind to run is the new load's
-        fake.bindDelayMs = 0;
         s.setParams({ law: 1 });
         const gC = graph(12);
         s.load(gC, posB);
@@ -1138,8 +1145,7 @@ describe("ForceSimulation (fake model)", () => {
 
         const controller = new AbortController();
         const running = s.run({ maxIter: 100000, batch: 8, signal: controller.signal });
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await sleep(5);
+        await waitForSubmission(s, before + 1); // a batch of the run is in flight
         const doneAtAbort = s.iterationsDone;
         controller.abort();
         expect((await rejectionOf(running)).code).toBe("E_ABORTED");
@@ -1260,7 +1266,7 @@ describe("ForceSimulation lifecycle on a raw device", () => {
         expect((await rejectionOf(p1)).code).toBe("E_DEVICE_LOST");
         expect((await rejectionOf(p2)).code).toBe("E_DEVICE_LOST");
         await lossCtx.lost;
-        await sleep(0);
+        await nextTurn();
         expect(s.state).toBe("disposed");
         expect(s.inFlight).toBe(0);
         expect((await rejectionOf(s.step(1))).code).toBe("E_DISPOSED");

@@ -43,7 +43,6 @@ import {
 } from "../helpers/se-parity.js";
 import { acquire, adapterSummary, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
 const GRAPHS: readonly ParityGraph[] = ["karate", "grid10", "star200", "path10", "random1k"];
 const DIMS: readonly (2 | 3)[] = [2, 3];
 /** The index of the free count in the partials stage's values. */
@@ -115,128 +114,108 @@ describe("spring-electrical inspect(): every stage against the oracle's (spec 11
     for (const graph of GRAPHS) {
         for (const dim of DIMS) {
             const label = `${graph}/${dim}d`;
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-            it(
-                `${label}: K2, K3, K5 (positions, velocity, displacement, partials), toScene and the K1 fold within their traced tolerances, twice bitwise; the weighted copy identical`,
-                async (t) => {
-                    requireGpu(t);
-                    const s = paritySnapshot(graph, gpuScale(), false);
-                    const weighted = paritySnapshot(graph, gpuScale(), true);
-                    try {
-                        const options: SpringElectricalOptions = { ...SE_BASE_OPTIONS, dim };
-                        const start = startPositions(s, options, false);
-                        const a = await captureSeStages(ctx, s, start, options, null);
-                        const b = await captureSeStages(ctx, s, start, options, null);
-                        const w = await captureSeStages(ctx, weighted, start, options, null);
-                        for (const key of SE_STAGE_KEYS) {
-                            expectBitwiseEqual(a[key].values, b[key].values, `${label}/${key}: run 1 vs run 2`);
-                            expectBitwiseEqual(
-                                a[key].values,
-                                w[key].values,
-                                `${label}/${key}: weighted vs unweighted (the preset ignores weights, PD-11)`,
-                            );
-                            const report = seStageReport(a, key);
-                            console.warn(
-                                `[se-inspect] ${label}/${key} (${SE_STAGE_KERNEL[key]}): error ${a[key].error.toExponential(3)}, ratio ${report.worst.toExponential(3)}`,
-                            );
-                            assertCheckPasses(report);
-                        }
-                        expect(a.k1.values[7], `${label}: S.iteration after step(1) + K1`).toBe(2);
-                        expect(a.partials.values[FREE_COUNT_AT], `${label}: free count`).toBe(s.nodeCount);
-                        expect(
-                            a.partials.values[PARTIALS_KE_AT],
-                            `${label}: kinetic energy in partials B`,
-                        ).toBeGreaterThan(0);
-                        expect(a.k1.values[K1_KE_AT], `${label}: the folded kinetic energy`).toBeGreaterThan(0);
-                        expect(
-                            a.velocity.values.some((v) => v !== 0),
-                            `${label}: the velocity moved off zero`,
-                        ).toBe(true);
-                        if (dim === 2) {
-                            for (let i = 0; i < s.nodeCount; i++) {
-                                expect(a.positions.values[3 * i + 2], `${label}: z of node ${i}`).toBe(0);
-                                expect(a.velocity.values[3 * i + 2], `${label}: vz of node ${i}`).toBe(0);
-                            }
-                        }
-                    } finally {
-                        ctx.release(s);
-                        ctx.release(weighted);
+            it(`${label}: K2, K3, K5 (positions, velocity, displacement, partials), toScene and the K1 fold within their traced tolerances, twice bitwise; the weighted copy identical`, async (t) => {
+                requireGpu(t);
+                const s = paritySnapshot(graph, gpuScale(), false);
+                const weighted = paritySnapshot(graph, gpuScale(), true);
+                try {
+                    const options: SpringElectricalOptions = { ...SE_BASE_OPTIONS, dim };
+                    const start = startPositions(s, options, false);
+                    const a = await captureSeStages(ctx, s, start, options, null);
+                    const b = await captureSeStages(ctx, s, start, options, null);
+                    const w = await captureSeStages(ctx, weighted, start, options, null);
+                    for (const key of SE_STAGE_KEYS) {
+                        expectBitwiseEqual(a[key].values, b[key].values, `${label}/${key}: run 1 vs run 2`);
+                        expectBitwiseEqual(
+                            a[key].values,
+                            w[key].values,
+                            `${label}/${key}: weighted vs unweighted (the preset ignores weights, PD-11)`,
+                        );
+                        const report = seStageReport(a, key);
+                        console.warn(
+                            `[se-inspect] ${label}/${key} (${SE_STAGE_KERNEL[key]}): error ${a[key].error.toExponential(3)}, ratio ${report.worst.toExponential(3)}`,
+                        );
+                        assertCheckPasses(report);
                     }
-                },
-                CASE_TIMEOUT,
-            );
+                    expect(a.k1.values[7], `${label}: S.iteration after step(1) + K1`).toBe(2);
+                    expect(a.partials.values[FREE_COUNT_AT], `${label}: free count`).toBe(s.nodeCount);
+                    expect(a.partials.values[PARTIALS_KE_AT], `${label}: kinetic energy in partials B`).toBeGreaterThan(
+                        0,
+                    );
+                    expect(a.k1.values[K1_KE_AT], `${label}: the folded kinetic energy`).toBeGreaterThan(0);
+                    expect(
+                        a.velocity.values.some((v) => v !== 0),
+                        `${label}: the velocity moved off zero`,
+                    ).toBe(true);
+                    if (dim === 2) {
+                        for (let i = 0; i < s.nodeCount; i++) {
+                            expect(a.positions.values[3 * i + 2], `${label}: z of node ${i}`).toBe(0);
+                            expect(a.velocity.values[3 * i + 2], `${label}: vz of node ${i}`).toBe(0);
+                        }
+                    }
+                } finally {
+                    ctx.release(s);
+                    ctx.release(weighted);
+                }
+            });
         }
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "a pinned node (karate): its force is computed, its velocity is unchanged (still 0) and its displacement exactly zero, the free count excludes it, every stage still within tolerance",
-        async (t) => {
-            requireGpu(t);
-            const s = paritySnapshot("karate", 1, false);
+    it("a pinned node (karate): its force is computed, its velocity is unchanged (still 0) and its displacement exactly zero, the free count excludes it, every stage still within tolerance", async (t) => {
+        requireGpu(t);
+        const s = paritySnapshot("karate", 1, false);
+        try {
+            const pinned = pinIndex(s.nodeCount);
+            const mask = pinMask(s.nodeCount, pinned);
+            const start = startPositions(s, SE_BASE_OPTIONS, false);
+            const a = await captureSeStages(ctx, s, start, SE_BASE_OPTIONS, mask);
+            const b = await captureSeStages(ctx, s, start, SE_BASE_OPTIONS, mask);
+            for (const key of SE_STAGE_KEYS) {
+                expectBitwiseEqual(a[key].values, b[key].values, `pinned/${key}: run 1 vs run 2`);
+                assertCheckPasses(seStageReport(a, key));
+            }
+            expect(a.partials.values[FREE_COUNT_AT], "free count").toBe(s.nodeCount - 1);
+            expect(
+                Math.hypot(a.force.values[3 * pinned], a.force.values[3 * pinned + 1], a.force.values[3 * pinned + 2]),
+                "the pinned node's force",
+            ).toBeGreaterThan(0);
+            for (let k = 0; k < 3; k++) {
+                expect(a.velocity.values[3 * pinned + k], `pinned velocity component ${k}`).toBe(0);
+                expect(a.displacement.values[3 * pinned + k], `pinned displacement component ${k}`).toBe(0);
+                expect(a.positions.values[3 * pinned + k], `pinned position component ${k}`).toBe(
+                    k === 2 ? 0 : start[3 * pinned + k],
+                );
+            }
+        } finally {
+            ctx.release(s);
+        }
+    });
+
+    it("writes this adapter's stage outputs of the UNSCALED random1k and of karate and the f64 reference of each as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        requireGpu(t);
+        const cls = adapterClass(ctx.caps);
+        for (const m of SE_WRITER_MEMBERS) {
+            const s = paritySnapshot(m.graph, 1, false);
             try {
-                const pinned = pinIndex(s.nodeCount);
-                const mask = pinMask(s.nodeCount, pinned);
                 const start = startPositions(s, SE_BASE_OPTIONS, false);
-                const a = await captureSeStages(ctx, s, start, SE_BASE_OPTIONS, mask);
-                const b = await captureSeStages(ctx, s, start, SE_BASE_OPTIONS, mask);
+                const capture = await captureSeStages(ctx, s, start, SE_BASE_OPTIONS, null);
                 for (const key of SE_STAGE_KEYS) {
-                    expectBitwiseEqual(a[key].values, b[key].values, `pinned/${key}: run 1 vs run 2`);
-                    assertCheckPasses(seStageReport(a, key));
+                    const name = m.fixtures[key];
+                    writeNoiseFixture(name.kernel, name.fixture, cls, capture[key].values, "f32");
+                    writeNoiseFixture(name.kernel, name.fixture, ORACLE_F64_CLASS, capture[key].expected, "f32");
                 }
-                expect(a.partials.values[FREE_COUNT_AT], "free count").toBe(s.nodeCount - 1);
-                expect(
-                    Math.hypot(
-                        a.force.values[3 * pinned],
-                        a.force.values[3 * pinned + 1],
-                        a.force.values[3 * pinned + 2],
-                    ),
-                    "the pinned node's force",
-                ).toBeGreaterThan(0);
-                for (let k = 0; k < 3; k++) {
-                    expect(a.velocity.values[3 * pinned + k], `pinned velocity component ${k}`).toBe(0);
-                    expect(a.displacement.values[3 * pinned + k], `pinned displacement component ${k}`).toBe(0);
-                    expect(a.positions.values[3 * pinned + k], `pinned position component ${k}`).toBe(
-                        k === 2 ? 0 : start[3 * pinned + k],
+                for (const key of SE_STAGE_KEYS) {
+                    const report = seStageReport(capture, key);
+                    console.warn(
+                        `[se-inspect] noise/${m.fixtures[key].fixture} (${SE_STAGE_KERNEL[key]}): error ${capture[key].error.toExponential(3)}, ratio ${report.worst.toExponential(3)}`,
                     );
+                    assertCheckPasses(report);
                 }
             } finally {
                 ctx.release(s);
             }
-        },
-        CASE_TIMEOUT,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "writes this adapter's stage outputs of the UNSCALED random1k and of karate and the f64 reference of each as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            requireGpu(t);
-            const cls = adapterClass(ctx.caps);
-            for (const m of SE_WRITER_MEMBERS) {
-                const s = paritySnapshot(m.graph, 1, false);
-                try {
-                    const start = startPositions(s, SE_BASE_OPTIONS, false);
-                    const capture = await captureSeStages(ctx, s, start, SE_BASE_OPTIONS, null);
-                    for (const key of SE_STAGE_KEYS) {
-                        const name = m.fixtures[key];
-                        writeNoiseFixture(name.kernel, name.fixture, cls, capture[key].values, "f32");
-                        writeNoiseFixture(name.kernel, name.fixture, ORACLE_F64_CLASS, capture[key].expected, "f32");
-                    }
-                    for (const key of SE_STAGE_KEYS) {
-                        const report = seStageReport(capture, key);
-                        console.warn(
-                            `[se-inspect] noise/${m.fixtures[key].fixture} (${SE_STAGE_KERNEL[key]}): error ${capture[key].error.toExponential(3)}, ratio ${report.worst.toExponential(3)}`,
-                        );
-                        assertCheckPasses(report);
-                    }
-                } finally {
-                    ctx.release(s);
-                }
-            }
-        },
-        CASE_TIMEOUT,
-    );
+        }
+    });
 });
 
 describe("spring-electrical subgroup twins in-process (spec 11.3)", () => {
@@ -256,68 +235,58 @@ describe("spring-electrical subgroup twins in-process (spec 11.3)", () => {
     });
 
     for (const graph of TWIN_GRAPHS) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(
-            `${graph}: every stage agrees between the twins within the traced tolerances, each twice bitwise; K2's springs bitwise`,
-            async (t) => {
-                requireGpu(t);
-                if (NO_SUBGROUPS_PASS) {
-                    t.skip("GRAPHTY_GPU_NO_SUBGROUPS=1: both contexts are the workgroup twin");
-                    return;
-                }
-                const s = paritySnapshot(graph, gpuScale(), false);
-                try {
-                    const start = startPositions(s, SE_BASE_OPTIONS, false);
-                    const a = await captureSeStages(withSubgroups, s, start, SE_BASE_OPTIONS, null);
-                    const a2 = await captureSeStages(withSubgroups, s, start, SE_BASE_OPTIONS, null);
-                    const b = await captureSeStages(withoutSubgroups, s, start, SE_BASE_OPTIONS, null);
-                    const b2 = await captureSeStages(withoutSubgroups, s, start, SE_BASE_OPTIONS, null);
-                    for (const key of SE_STAGE_KEYS) {
-                        expectBitwiseEqual(a[key].values, a2[key].values, `${graph}/${key}: feature run 1 vs run 2`);
-                        expectBitwiseEqual(b[key].values, b2[key].values, `${graph}/${key}: workgroup run 1 vs run 2`);
-                        const err = stageError(a[key].vector, a[key].values, b[key].values);
-                        const report: CheckReport = {
-                            worst: ratioOf(err.rel, seTolerance(TWIN_TOLERANCE[key]).value),
-                            worstLabel: `${graph}/${key}`,
-                            samples: a[key].values.length,
-                        };
-                        console.warn(
-                            `[se-twins] ${graph}/${key}: rel ${err.rel.toExponential(3)} abs ${err.abs.toExponential(3)} ratio ${report.worst.toExponential(3)}`,
-                        );
-                        assertCheckPasses(report);
-                        if (key === "attraction") {
-                            expectBitwiseEqual(a[key].values, b[key].values, `${graph}/${key}: no twin, bitwise`);
-                        }
+        it(`${graph}: every stage agrees between the twins within the traced tolerances, each twice bitwise; K2's springs bitwise`, async (t) => {
+            requireGpu(t);
+            if (NO_SUBGROUPS_PASS) {
+                t.skip("GRAPHTY_GPU_NO_SUBGROUPS=1: both contexts are the workgroup twin");
+                return;
+            }
+            const s = paritySnapshot(graph, gpuScale(), false);
+            try {
+                const start = startPositions(s, SE_BASE_OPTIONS, false);
+                const a = await captureSeStages(withSubgroups, s, start, SE_BASE_OPTIONS, null);
+                const a2 = await captureSeStages(withSubgroups, s, start, SE_BASE_OPTIONS, null);
+                const b = await captureSeStages(withoutSubgroups, s, start, SE_BASE_OPTIONS, null);
+                const b2 = await captureSeStages(withoutSubgroups, s, start, SE_BASE_OPTIONS, null);
+                for (const key of SE_STAGE_KEYS) {
+                    expectBitwiseEqual(a[key].values, a2[key].values, `${graph}/${key}: feature run 1 vs run 2`);
+                    expectBitwiseEqual(b[key].values, b2[key].values, `${graph}/${key}: workgroup run 1 vs run 2`);
+                    const err = stageError(a[key].vector, a[key].values, b[key].values);
+                    const report: CheckReport = {
+                        worst: ratioOf(err.rel, seTolerance(TWIN_TOLERANCE[key]).value),
+                        worstLabel: `${graph}/${key}`,
+                        samples: a[key].values.length,
+                    };
+                    console.warn(
+                        `[se-twins] ${graph}/${key}: rel ${err.rel.toExponential(3)} abs ${err.abs.toExponential(3)} ratio ${report.worst.toExponential(3)}`,
+                    );
+                    assertCheckPasses(report);
+                    if (key === "attraction") {
+                        expectBitwiseEqual(a[key].values, b[key].values, `${graph}/${key}: no twin, bitwise`);
                     }
-                } finally {
-                    withSubgroups.release(s);
-                    withoutSubgroups.release(s);
                 }
-            },
-            CASE_TIMEOUT,
-        );
+            } finally {
+                withSubgroups.release(s);
+                withoutSubgroups.release(s);
+            }
+        });
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "writes the workgroup twin's K3 force, K5 positions, K5 partials and K1 state of the UNSCALED random1k and of karate as `<class>-no-subgroups` noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            requireGpu(t);
-            const twinClass = `${adapterClass(withoutSubgroups.caps)}${TWIN_SUFFIX}`;
-            for (const m of SE_WRITER_MEMBERS) {
-                const s = paritySnapshot(m.graph, 1, false);
-                try {
-                    const start = startPositions(s, SE_BASE_OPTIONS, false);
-                    const capture = await captureSeStages(withoutSubgroups, s, start, SE_BASE_OPTIONS, null);
-                    for (const key of TWIN_MEMBERS) {
-                        const { kernel, fixture } = m.fixtures[key];
-                        writeNoiseFixture(kernel, fixture, twinClass, capture[key].values, "f32");
-                    }
-                } finally {
-                    withoutSubgroups.release(s);
+    it("writes the workgroup twin's K3 force, K5 positions, K5 partials and K1 state of the UNSCALED random1k and of karate as `<class>-no-subgroups` noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        requireGpu(t);
+        const twinClass = `${adapterClass(withoutSubgroups.caps)}${TWIN_SUFFIX}`;
+        for (const m of SE_WRITER_MEMBERS) {
+            const s = paritySnapshot(m.graph, 1, false);
+            try {
+                const start = startPositions(s, SE_BASE_OPTIONS, false);
+                const capture = await captureSeStages(withoutSubgroups, s, start, SE_BASE_OPTIONS, null);
+                for (const key of TWIN_MEMBERS) {
+                    const { kernel, fixture } = m.fixtures[key];
+                    writeNoiseFixture(kernel, fixture, twinClass, capture[key].values, "f32");
                 }
+            } finally {
+                withoutSubgroups.release(s);
             }
-        },
-        CASE_TIMEOUT,
-    );
+        }
+    });
 });

@@ -74,7 +74,7 @@ describe("grid tier subgroup twins in-process (spec 11.3)", () => {
         expect(adapterClass(withSubgroups.caps)).toBe(adapterClass(withoutSubgroups.caps));
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 10 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "random20k: the build, the pyramid and the far field bitwise between the twins; G7's force within grid-twins.force; K5 and K1 within the P3 twin tolerances",
         async (t) => {
@@ -117,69 +117,59 @@ describe("grid tier subgroup twins in-process (spec 11.3)", () => {
         CASE_TIMEOUT,
     );
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "hubcell: the hub cell's level-0 entry (G4b, the one pyramid kernel with a reduction) agrees between the twins within grid-twins.hubCentroid",
-        async (t) => {
-            requireGpu(t);
-            if (NO_SUBGROUPS_PASS) {
-                t.skip("GRAPHTY_GPU_NO_SUBGROUPS=1: both contexts are the workgroup twin");
-                return;
-            }
-            const a = await hubCentroid(withSubgroups);
-            const b = await hubCentroid(withoutSubgroups);
-            const err = stageError(false, a.values, b.values);
-            const report: CheckReport = {
-                worst: ratioOf(err.rel, gridTolerance("grid-twins.hubCentroid").value),
-                worstLabel: "hubcell/level0",
+    it("hubcell: the hub cell's level-0 entry (G4b, the one pyramid kernel with a reduction) agrees between the twins within grid-twins.hubCentroid", async (t) => {
+        requireGpu(t);
+        if (NO_SUBGROUPS_PASS) {
+            t.skip("GRAPHTY_GPU_NO_SUBGROUPS=1: both contexts are the workgroup twin");
+            return;
+        }
+        const a = await hubCentroid(withSubgroups);
+        const b = await hubCentroid(withoutSubgroups);
+        const err = stageError(false, a.values, b.values);
+        const report: CheckReport = {
+            worst: ratioOf(err.rel, gridTolerance("grid-twins.hubCentroid").value),
+            worstLabel: "hubcell/level0",
+            samples: 4,
+        };
+        console.warn(
+            `[grid-twins] hubcell/level0: rel ${err.rel.toExponential(3)} abs ${err.abs.toExponential(3)} ratio ${report.worst.toExponential(3)}`,
+        );
+        assertCheckPasses(report);
+        // both twins sit on the oracle within the traced stage tolerance
+        for (const [label, side] of [
+            ["subgroups", a],
+            ["no-subgroups", b],
+        ] as const) {
+            assertCheckPasses({
+                worst: ratioOf(
+                    stageError(false, side.values, side.expected).rel,
+                    gridTolerance("grid-inspect.hubCentroid").value,
+                ),
+                worstLabel: `hubcell/level0/${label} vs the oracle`,
                 samples: 4,
-            };
-            console.warn(
-                `[grid-twins] hubcell/level0: rel ${err.rel.toExponential(3)} abs ${err.abs.toExponential(3)} ratio ${report.worst.toExponential(3)}`,
-            );
-            assertCheckPasses(report);
-            // both twins sit on the oracle within the traced stage tolerance
-            for (const [label, side] of [
-                ["subgroups", a],
-                ["no-subgroups", b],
-            ] as const) {
-                assertCheckPasses({
-                    worst: ratioOf(
-                        stageError(false, side.values, side.expected).rel,
-                        gridTolerance("grid-inspect.hubCentroid").value,
-                    ),
-                    worstLabel: `hubcell/level0/${label} vs the oracle`,
-                    samples: 4,
-                });
-            }
-        },
-        CASE_TIMEOUT,
-    );
+            });
+        }
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "writes the workgroup twin's outputs as `<class>-no-subgroups` noise fixtures: grid-near-field / random20k-near and grid-centroid-hub / hubcell-L0 (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            requireGpu(t);
-            const twinClass = `${adapterClass(withoutSubgroups.caps)}${TWIN_SUFFIX}`;
-            const { snapshot: s, start } = gridFixture("random20k", 1, GRID_BASE_OPTIONS);
-            try {
-                const capture = await captureGridStages(withoutSubgroups, s, start, GRID_BASE_OPTIONS, null);
-                const near = GRID_NOISE_FIXTURES.nearField;
-                writeNoiseFixture(
-                    near.kernel,
-                    near.fixture,
-                    twinClass,
-                    sampleNodes(capture.stages.nearField.values, s.nodeCount),
-                    "f32",
-                );
-            } finally {
-                withoutSubgroups.release(s);
-            }
-            const hub = await hubCentroid(withoutSubgroups);
-            const { kernel, fixture } = GRID_NOISE_FIXTURES.hubCentroid;
-            writeNoiseFixture(kernel, fixture, twinClass, hub.values, "f32");
-        },
-        CASE_TIMEOUT,
-    );
+    it("writes the workgroup twin's outputs as `<class>-no-subgroups` noise fixtures: grid-near-field / random20k-near and grid-centroid-hub / hubcell-L0 (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        requireGpu(t);
+        const twinClass = `${adapterClass(withoutSubgroups.caps)}${TWIN_SUFFIX}`;
+        const { snapshot: s, start } = gridFixture("random20k", 1, GRID_BASE_OPTIONS);
+        try {
+            const capture = await captureGridStages(withoutSubgroups, s, start, GRID_BASE_OPTIONS, null);
+            const near = GRID_NOISE_FIXTURES.nearField;
+            writeNoiseFixture(
+                near.kernel,
+                near.fixture,
+                twinClass,
+                sampleNodes(capture.stages.nearField.values, s.nodeCount),
+                "f32",
+            );
+        } finally {
+            withoutSubgroups.release(s);
+        }
+        const hub = await hubCentroid(withoutSubgroups);
+        const { kernel, fixture } = GRID_NOISE_FIXTURES.hubCentroid;
+        writeNoiseFixture(kernel, fixture, twinClass, hub.values, "f32");
+    });
 });

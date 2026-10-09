@@ -484,6 +484,31 @@ One message is one undoable step. A command you register with
 `graph.getAiManager()?.registerCommand(...)` joins that step only through `ctx.tx`; see
 [Undo and History](./undo#commands-you-register-with-the-ai-assistant).
 
+### Building an AI Settings Screen
+
+`@graphty/graphty-element/catalog` describes the providers as plain data, without loading an LLM
+SDK, so a settings screen (or a Node script) can be built from it:
+
+```typescript
+import { AI_PROVIDER_DESCRIPTORS, AI_STAGES, checkApiKeyShape } from "@graphty/graphty-element/catalog";
+
+for (const provider of AI_PROVIDER_DESCRIPTORS) {
+    if (provider.testOnly) continue;
+    // provider.id, provider.plainName, provider.requiresKey, provider.keyShape?.prefix,
+    // provider.defaultModel, provider.models[i].supportsTools
+}
+
+const check = checkApiKeyShape("openai", typedKey);
+if (!check.valid) {
+    // check.code is "E_KEY_EMPTY", "E_KEY_PREFIX" (check.params.prefix) or
+    // "E_KEY_TOO_SHORT" (check.params.minLength); the words are yours.
+}
+```
+
+`AI_STATES`, `AI_STAGES` and `AI_TOOL_CALL_STATUSES` list every value `status.state`,
+`status.stage` and a tool call's `status` can take, for a status display keyed by value. The
+catalogue holds no labels and no order: choose your own.
+
 ### Remembering API Keys
 
 `ApiKeyManager` from `@graphty/graphty-element/ai` holds the reader's provider keys. It

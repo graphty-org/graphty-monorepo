@@ -2,15 +2,12 @@ import { ActionIcon, Box, Group, Paper, Text, Tooltip } from "@mantine/core";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import React from "react";
 
-import type { AiStatus } from "../../types/ai";
-
 /** Chat message structure */
 export interface ChatMessage {
     id: string;
     role: "user" | "assistant" | "system";
     content: string;
     timestamp: number;
-    status?: AiStatus;
     isError?: boolean;
 }
 

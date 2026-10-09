@@ -4,9 +4,10 @@
  */
 
 // Provider factory
+import type { AiProviderId } from "../../catalog/ai";
 import { MockLlmProvider } from "./MockLlmProvider";
 import type { LlmProvider } from "./types";
-import { VercelAiProvider, type VercelProviderType } from "./VercelAiProvider";
+import { VercelAiProvider } from "./VercelAiProvider";
 // NOTE: WebLlmProvider is NOT imported here to avoid Safari compatibility issues.
 // It references @mlc-ai/web-llm which is an optional dependency that may not be installed.
 // Safari fails on dynamic imports of non-existent modules even before the import is called.
@@ -31,8 +32,8 @@ export { VercelAiProvider } from "./VercelAiProvider";
 export type { ProgressCallback, WebLlmModelInfo, WebLlmProviderOptions } from "./WebLlmProvider";
 // NOTE: WebLlmProvider class is NOT exported directly. Use getWebLlmProviderClass() instead.
 
-/** All supported provider types */
-export type ProviderType = VercelProviderType | "mock" | "webllm";
+/** All supported provider types; their facts are `AI_PROVIDER_DESCRIPTORS` in `./catalog`. */
+export type ProviderType = AiProviderId;
 
 /**
  * Dynamically load the WebLlmProvider class.

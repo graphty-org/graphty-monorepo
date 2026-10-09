@@ -81,6 +81,7 @@ import {
 } from "../scope/index";
 // The explicit `/index` matters: `src/session/scope.ts` still exists beside the directory and
 // wins a bare `../scope`. It goes when the resolver behind it is retired.
+import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { sealedSet } from "../sealed";
 import { type DependencySources, visibilityCycle } from "../sets/dependencies";
 import type { SetWatch } from "../sets/notify";
@@ -199,7 +200,9 @@ export interface VisibilityApi {
      *
      * Identity-stable and genuinely read-only: the same object comes back until the membership
      * changes, so `previous === next` is a valid staleness test. A consumer that only needs
-     * membership should call {@link VisibilityApi.isVisible}, which allocates nothing.
+     * membership should call {@link VisibilityApi.isVisible}, which allocates nothing. It yields each
+     * id as the graph holds it, but `has` takes an integer id written either way: on a graph whose
+     * node `34` is visible, `nodes.has("34")` is true.
      */
     readonly nodes: ReadonlySet<NodeId>;
     /** The visible edge ids, on the same terms as {@link VisibilityApi.nodes}. */
@@ -1085,7 +1088,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             if (cachedNodeSet === null || cachedNodeIds !== ids) {
                 cachedNodeIds = ids;
-                cachedNodeSet = sealedSet(ids, VISIBLE_HINT);
+                cachedNodeSet = sealedSet(ids, VISIBLE_HINT, otherIdSpelling);
             }
 
             return cachedNodeSet;

@@ -144,6 +144,7 @@ describe("Automatic Layout Updates", () => {
         );
 
         // Wait for operations and triggers to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         assert.isTrue(layoutUpdateCalled, "layout-update should be triggered when nodes are added to existing layout");
@@ -186,6 +187,7 @@ describe("Automatic Layout Updates", () => {
         );
 
         // Wait for operations to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         assert.isFalse(layoutUpdateCalled, "layout-update should not be triggered when no layout engine exists");
@@ -249,6 +251,7 @@ describe("Automatic Layout Updates", () => {
 
         // Wait for all operations
         await Promise.all(promises);
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         // Each data operation triggers a layout-update, so we expect 3
@@ -319,6 +322,7 @@ describe("Automatic Layout Updates", () => {
         );
 
         // Wait for operations to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         assert.include(operations, "data-add", "data-add should have executed");
@@ -374,6 +378,7 @@ describe("Automatic Layout Updates", () => {
         );
 
         // Wait for operations to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         assert.isTrue(layoutUpdateCalled, "layout-update should be triggered when edges are added");
@@ -417,6 +422,7 @@ describe("Automatic Layout Updates", () => {
         );
 
         // Wait for operations to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         assert.isFalse(layoutUpdateCalled, "layout-update should not be triggered when skipTriggers is true");

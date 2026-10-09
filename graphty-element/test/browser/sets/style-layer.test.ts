@@ -46,6 +46,7 @@ describe("a style layer naming a set, on screen", () => {
         await graph.getSession().styles.settled();
         for (let frame = 0; frame < 10; frame++) {
             graph.scene.render();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 10));
         }
     };

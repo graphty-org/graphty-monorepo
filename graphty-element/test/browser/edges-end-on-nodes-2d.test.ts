@@ -57,8 +57,10 @@ async function mount2D(configure: (element: Graphty) => void): Promise<Graphty> 
     configure(element);
     host.append(element);
 
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 400));
     await operationQueueOf(element.graph).waitForCompletion();
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 1500));
     await operationQueueOf(element.graph).waitForCompletion();
 
@@ -129,6 +131,7 @@ describe("2D edges end on their nodes", () => {
         await element.graph.getSession().positions.set([{ id: "d", x: 1, y: 1, z: 20 }]);
         element.pin("d");
         await element.setViewMode("2d");
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 1500));
         await operationQueueOf(element.graph).waitForCompletion();
 
@@ -146,6 +149,7 @@ describe("2D edges end on their nodes", () => {
         const { history } = element.graph.getSession();
         const steps = history.steps.length;
         await element.graph.getSession().positions.set([{ id: "d", x: 1, y: 1, z: 20 }]);
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 500));
         await operationQueueOf(element.graph).waitForCompletion();
 
@@ -161,6 +165,7 @@ describe("2D edges end on their nodes", () => {
         await operationQueueOf(element.graph).waitForCompletion();
         assert.isTrue(session.canRedo, "undoing the placement leaves it to redo");
         await session.redo();
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 300));
         await operationQueueOf(element.graph).waitForCompletion();
         assertEdgesEndOnNodes(element, "redone in 2D");

@@ -68,6 +68,7 @@ describe("render loop pacing", () => {
         const heldFor = performance.now() - heldAt;
         await frames(5);
         assert.isAbove(drawn, held, "drawing resumes once the GPU has finished the last frame");
+        // eslint-disable-next-line local/no-test-timing -- two readings of one clock in a fixed order, not a duration bound; load cannot break it
         assert.isAtLeast(
             frameTimes[held],
             heldFor,

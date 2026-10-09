@@ -72,11 +72,13 @@ describe("ConsoleCaptureUI Browser Tests", () => {
 
             // Click to open menu
             btn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
             expect(menu?.style.display).toBe("block");
 
             // Click to close menu
             btn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
             expect(menu?.style.display).toBe("none");
         });
@@ -89,11 +91,13 @@ describe("ConsoleCaptureUI Browser Tests", () => {
 
             // Open menu
             btn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
             expect(menu?.style.display).toBe("block");
 
             // Click outside (on document body)
             document.body.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
             expect(menu?.style.display).toBe("none");
         });
@@ -123,11 +127,13 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             // Open menu first
             const btn = document.getElementById("console-capture-btn");
             btn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             // Click Show Logs button
             const showBtn = document.getElementById("cc-show");
             showBtn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             const modal = document.getElementById("console-logs-modal");
@@ -144,10 +150,12 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             // Open menu and show modal
             const btn = document.getElementById("console-capture-btn");
             btn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             const showBtn = document.getElementById("cc-show");
             showBtn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             expect(document.getElementById("console-logs-modal")).not.toBeNull();
@@ -155,6 +163,7 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             // Click close button
             const closeBtn = document.getElementById("close-modal");
             closeBtn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             expect(document.getElementById("console-logs-modal")).toBeNull();
@@ -173,10 +182,12 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             // Open modal
             const btn = document.getElementById("console-capture-btn");
             btn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             const showBtn = document.getElementById("cc-show");
             showBtn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             const textarea = document.getElementById("logs-textarea") as HTMLTextAreaElement;
@@ -198,10 +209,12 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             // Open menu and click clear
             const btn = document.getElementById("console-capture-btn");
             btn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             const clearBtn = document.getElementById("cc-clear");
             clearBtn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             // Original message should be gone
@@ -215,12 +228,14 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             const btn = document.getElementById("console-capture-btn");
             const menu = document.getElementById("console-capture-menu");
             btn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
             expect(menu?.style.display).toBe("block");
 
             // Click clear
             const clearBtn = document.getElementById("cc-clear");
             clearBtn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             expect(menu?.style.display).toBe("none");
@@ -291,10 +306,12 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             // Open modal
             const btn = document.getElementById("console-capture-btn");
             btn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             const showBtn = document.getElementById("cc-show");
             showBtn?.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             expect(document.getElementById("console-logs-modal")).not.toBeNull();

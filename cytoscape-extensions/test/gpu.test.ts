@@ -288,6 +288,7 @@ function fakeProvider(decline?: string): Fake {
                         fake.failNext = false;
                         throw new Error("E_DEVICE_LOST: the device was lost mid-run");
                     }
+                    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
                     await new Promise((resolve) => setTimeout(resolve, delay));
                     assertResident(fake, s);
                     return pageRank(s, o);

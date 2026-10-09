@@ -114,6 +114,7 @@ describe("G5: the spring-electrical preset vs ngraph on the story graph (design 
         ctx = await acquire({ label: "se-settle" });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "settles within 1,000 steps by the shared rule, the same run is bitwise repeatable, and the edge-length quantiles agree with ngraph's within 25%",
         async (t) => {
@@ -215,6 +216,7 @@ describe("issue #97: settled means the spring layout has stopped growing", () =>
     /** Measured 0.60 % on the RTX 4070 SUPER and 0.72 % on lavapipe with the floor (1.63 % / 1.81 % under the relative rule alone). */
     const MAX_GROWTH = 0.01;
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         `a ${N}-node spring layout run to settled grows its rms radius by less than ${MAX_GROWTH * 100} % over the next ${AFTER} iterations`,
         async (t) => {

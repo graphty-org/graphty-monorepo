@@ -60,6 +60,7 @@ describe("VercelAiProvider", () => {
 
         // These tests require actual API keys - run manually or in integration tests
         // Using 30 second timeout for API calls
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it.skipIf(!process.env.OPENAI_API_KEY)(
             "generates text response",
             async () => {
@@ -76,6 +77,7 @@ describe("VercelAiProvider", () => {
             30000,
         );
 
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it.skipIf(!process.env.OPENAI_API_KEY)(
             "handles tool calls",
             async () => {
@@ -113,6 +115,7 @@ describe("VercelAiProvider", () => {
             await expect(provider.generate([{ role: "user", content: "test" }], [])).rejects.toThrow(/API key/);
         });
 
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it.skipIf(!process.env.ANTHROPIC_API_KEY)(
             "generates text response",
             async () => {
@@ -143,6 +146,7 @@ describe("VercelAiProvider", () => {
             await expect(provider.generate([{ role: "user", content: "test" }], [])).rejects.toThrow(/API key/);
         });
 
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it.skipIf(!process.env.GOOGLE_API_KEY)(
             "generates text response",
             async () => {
@@ -248,6 +252,7 @@ describe("VercelAiProvider", () => {
             ).rejects.toThrow(/API key/);
         });
 
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it.skipIf(!process.env.OPENAI_API_KEY)(
             "streams text response",
             async () => {

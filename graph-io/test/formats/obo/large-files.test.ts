@@ -74,6 +74,7 @@ async function bytesOf(file: LargeFile): Promise<Uint8Array> {
 
 describe.runIf(process.env.GRAPH_IO_LARGE_FIXTURES === "1")("the Gene Ontology release files", () => {
     for (const file of FILES) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(`${file.name}: ${file.nodes} nodes and ${file.edges} edges`, async () => {
             const { snapshot, report } = await importGraph(await bytesOf(file), { filename: file.name });
             expect(report.format).toBe(file.format);

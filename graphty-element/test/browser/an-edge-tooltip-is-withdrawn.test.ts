@@ -50,6 +50,7 @@ describe("an edge tooltip, withdrawn in 2.0", () => {
     let graph: Graph;
     let session: GraphSession;
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeAll(async () => {
         container = document.createElement("div");
         container.style.width = `${String(WIDTH)}px`;

@@ -33,6 +33,7 @@ describe("Video Capture - 2D Orthographic Camera", () => {
         setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
 
         // Wait for camera to be activated
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         // Verify 2D mode is active
@@ -110,6 +111,7 @@ describe("Video Capture - 2D Animated Camera", () => {
         setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
 
         // Wait for camera to be activated
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         // Verify 2D mode is active
@@ -254,6 +256,7 @@ describe("Video Capture - 2D Camera Preservation", () => {
         setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
 
         // Wait for camera to be activated
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
     });
 
@@ -285,6 +288,7 @@ describe("Video Capture - 2D Camera Preservation", () => {
         });
 
         // Wait a bit then cancel
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         // Should be capturing

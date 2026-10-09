@@ -124,6 +124,7 @@ async function mount(): Promise<Graphty> {
             throw new Error("the element never finished initialising");
         }
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 20));
     }
 
@@ -167,9 +168,11 @@ async function load(target: Graphty, path: LoadPath): Promise<void> {
  * @param target - The element to wait on.
  */
 async function settle(target: Graphty): Promise<void> {
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, TICK_MS));
     await operationQueueOf(target.graph).waitForCompletion();
     await target.session.styles.settled();
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, TICK_MS));
 }
 
@@ -185,6 +188,7 @@ describe("whatever load path brought a graph in, the style stack has painted it"
 
     for (const path of LOAD_PATHS) {
         for (const timing of TIMINGS) {
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `paints a graph loaded through ${path} ${timing}`,
                 async () => {

@@ -92,6 +92,7 @@ function mount(): Graphty {
  */
 async function settle(element: Graphty): Promise<void> {
     await operationQueueOf(element.graph).waitForCompletion();
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
 }
 
@@ -148,6 +149,7 @@ describe("a request the element supersedes", () => {
 
         // Long enough for the slow operation to have started, so the two below are queued behind
         // it rather than running the moment they are asked for.
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         const superseded = element.graph.setViewMode("2d");
@@ -183,6 +185,7 @@ describe("a request the element supersedes", () => {
 
         const release = blockTheQueue(element);
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         const abandoned = element.graph.setLayout("circular");
@@ -207,6 +210,7 @@ describe("a request the element supersedes", () => {
 
         const release = blockTheQueue(element);
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         const both = Promise.all([element.graph.setViewMode("2d"), element.graph.setViewMode("3d")]);

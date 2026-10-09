@@ -349,6 +349,7 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
     "shortest-path.source": { label: "From" },
     "shortest-path.target": { label: "To" },
     "shortest-path.method": { label: "Method", empty: "Chosen automatically" },
+    "shortest-path.direction": { label: "Follow", choices: { out: "Out", in: "In", all: "All" } },
     "closeness.k": SAMPLE_SIZE,
     "betweenness.k": SAMPLE_SIZE,
     "edge-betweenness.k": SAMPLE_SIZE,
@@ -382,6 +383,17 @@ const SHARED_OPTION_WORDS: Readonly<Record<string, string>> = {
     springLength: "Spring length",
     gravity: "Gravity",
 };
+
+/**
+ * Whether an option is the path's Follow (which way a route may cross an edge), which the Path
+ * form and Made with draw as their own row, and only on a directed graph.
+ * @param algorithm - the algorithm's key.
+ * @param option - the option's name.
+ * @returns true for the path's direction option.
+ */
+export function isPathFollow(algorithm: string, option: string): boolean {
+    return algorithm === "shortest-path" && option === "direction";
+}
 
 /**
  * The words for one option. An option the app has no words for (a third party's algorithm, an

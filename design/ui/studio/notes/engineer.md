@@ -42,15 +42,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   what a screen reader speaks. `real.mjs --read` now prints `valuetext` when present (`axSays`),
   with a `--prove` check. Evidence `tmp/r1-dry4-option-precision/` (`probe.mjs` reads run.params,
   aria-valuenow and the AX node in the built app; `T21A/` is the re-pilot).
-- (2026-10-08) **Shortest path can follow edges one way (element only).** Dijkstra and
-  Bellman-Ford take `direction: "out" | "in" | "all"` (default "all" = today). "out" searches the
-  declared snapshot, "in" its `transpose()` (shared helper `searchFollowing` in
-  `algorithms/utils/routeEdges.ts`, which releases the transpose); `caveats.direction` says
-  directed/undirected. The path catalog entry merges Dijkstra's options, so the app's Made with
-  "Advanced run settings" already shows "Follow Edges: All" with no app code; the Path popover's
-  Follow (Out | All) is still the app's to build. API report unchanged (options types are not
-  exported). Evidence `tmp/r1-dry4-path-direction-element/` (T18A/05 = r1d3 T18A/10 route).
-  Baselines that will change: any story showing a path run's Advanced run settings.
+- (2026-10-08) **Path Follow: element option, app row.** Dijkstra and Bellman-Ford take
+  `direction: "out" | "in" | "all"` (default "all" = undirected search; "in" uses `transpose()`).
+  The app (PathForm.tsx) draws "Follow: Out | All" between To and Weight only when
+  `session.status.directed`, starting on All, and always sends `direction` on a directed graph;
+  Made with shows one "Follow All/Out" row (not again under Advanced run settings) on a directed
+  graph and none on an undirected one. `isPathFollow()` in analyze/words.ts names the option for
+  both. In stays off the form (From and To swapped asks the same). Note: a friends.csv loaded with
+  no Direction choice is DIRECTED. Selection order is insertion order, not apply order. Evidence
+  `tmp/r1-dry4-path-direction-app/` (T18A/02 Follow on All, 05 Made with "Follow All"; T18B no
+  row). Baselines that will change: path popover and Made with stories on directed data.
 - (2026-10-08, condensed) **Style tab: one name style (app only).** Every line's name is `Text xs`
   in one column (`PaintLine` in SetLine.tsx); the paint field sits under it (fixed 156 px). The
   Selection row has Nodes (halo) and Edges (`edgeColor`/`edgeOpacity`/`edgeScale`) parts. Evidence
@@ -184,6 +185,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-08) Worked: path Follow row as `Input.Wrapper label="Follow" labelElement="div"` around
+  the shared SegmentedControl (aria-labelledby the label id) -- reads like From/To/Weight with no
+  bespoke control. Did not work at first: a test picked Lee and Ava expecting From=Lee; the form
+  fills From with the earlier-inserted node, so pick a pair whose insertion order runs against the
+  arrows (Lee, Dev).
 
 - (2026-10-08) Did not work: `focus({ focusVisible: true })` to show a ring after a pointer click
   (Chrome 143 ignores it, and `false` too); the vitest browser test passed with or without it,

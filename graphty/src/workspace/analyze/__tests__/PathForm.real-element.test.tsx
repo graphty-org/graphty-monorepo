@@ -171,6 +171,52 @@ describe("the Path popover, on the real element", () => {
     );
 
     it(
+        "on a directed graph shows Follow on All; Out finds no path against the arrows; Made with says Follow All",
+        async () => {
+            const { session } = await openFriends();
+            // Undirected: no Follow row, since every edge is crossed either way.
+            await act(async () => {
+                await session.config.set({ data: { directed: false } });
+            });
+            await session.selection.apply({ nodes: ["Lee", "Dev"] });
+            await userEvent.keyboard("p");
+            let form = await pathForm();
+            assert.isNull(within(form).queryByRole("radiogroup", { name: "Follow" }));
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("form", { name: "Shortest path" }));
+            });
+
+            await act(async () => {
+                await session.config.set({ data: { directed: true } });
+            });
+            await userEvent.keyboard("p");
+            form = await pathForm();
+            const follow = within(form).getByRole("radiogroup", { name: "Follow" });
+            assert.isTrue(within(follow).getByRole<HTMLInputElement>("radio", { name: "All" }).checked);
+            assert.isNull(within(follow).queryByRole("radio", { name: "In" }));
+            // Lee to Dev runs against two arrows (Ava -> Ben -> Lee, Ava -> Dev).
+            await userEvent.click(within(follow).getByText("Out"));
+            await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
+            await screen.findByText("No path from Lee to Dev.", undefined, { timeout: TIMEOUT_MS });
+            assert.equal(session.runs.list().at(-1)?.params.direction, "out");
+
+            await userEvent.keyboard("p");
+            form = await pathForm();
+            assert.isTrue(within(form).getByRole<HTMLInputElement>("radio", { name: "All" }).checked);
+            await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
+            await screen.findByText("Shortest path added: Lee to Dev, 3 hops", undefined, { timeout: TIMEOUT_MS });
+            const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+            const madeWith = within(await inspector.findByRole("group", { name: "Made with" }));
+            const row = madeWith.getByText("Follow").parentElement;
+            assert.include(row?.textContent, "All");
+            // Shown once: not again under the advanced settings.
+            assert.lengthOf(madeWith.queryAllByText(/Follow/), 1);
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
         "fills From from one selected node and focuses To; two fill both and focus Find path",
         async () => {
             const { session, store } = await openFriends();

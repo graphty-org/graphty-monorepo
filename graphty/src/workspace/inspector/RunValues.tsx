@@ -9,7 +9,7 @@ import {
 import { Button, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect } from "react";
 
-import { ranOptionWords, runName, weightRead, wordsFor } from "../analyze/words";
+import { isPathFollow, ranOptionWords, runName, weightRead, wordsFor } from "../analyze/words";
 import { focusInspectorTitle } from "../frame/focus";
 import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -164,7 +164,9 @@ function MadeWith({
     // them. The weight is one row too, saying what the run read, so it is stated once.
     const options = descriptor?.options ?? [];
     const rows = options.filter((o) => o.type === "node-id" && o.advanced !== true && o.internal !== true);
-    const fields = options.filter((o) => !rows.includes(o) && !(weighted && o.name === "weight"));
+    // A path's Follow is a row, like its ends, and only on a directed graph: undirected, it changes nothing.
+    const follow = options.find((o) => isPathFollow(run.algorithm, o.name));
+    const fields = options.filter((o) => !rows.includes(o) && o !== follow && !(weighted && o.name === "weight"));
     const form = (shown: typeof options, advancedLabel?: string): React.JSX.Element | null =>
         session === null || descriptor === undefined ? null : (
             <OptionsForm
@@ -191,6 +193,15 @@ function MadeWith({
             />
             {date !== null && <DataRow stat name="Ran" value={date} />}
             {form(rows)}
+            {follow !== undefined && session?.status.directed === true && (
+                <DataRow
+                    stat
+                    name={ranOptionWords(run, follow).label}
+                    value={ranOptionWords(run, follow).choice(
+                        typeof settings.direction === "string" ? settings.direction : "all",
+                    )}
+                />
+            )}
             {run.status === "succeeded" && weighted && <WeightRow run={run} />}
             {fields.length > 0 && (
                 <Stack gap={8} px="md">

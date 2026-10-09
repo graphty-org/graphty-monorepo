@@ -1,19 +1,25 @@
 import "./path.css";
 
-import { ResultRow, SearchInput, ToggleIconButton } from "@graphty/compact-mantine";
+import { ResultRow, SearchInput, SegmentedControl, ToggleIconButton } from "@graphty/compact-mantine";
 import type { AlgorithmDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession, NodeId } from "@graphty/graphty-element/session";
-import { Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
+import { Button, Group, Input, Stack, Text, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
 import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { optionWords } from "./words";
+import { isPathFollow, optionWords } from "./words";
 
 /** The algorithm the Path popover runs. */
 export const PATH_ALGORITHM = "shortest-path";
+
+/**
+ * Follow's choices on a directed graph: along the arrows, or either way. In is left to Made with's
+ * advanced settings: From and To swapped asks the same question.
+ */
+const FOLLOW_CHOICES = ["out", "all"] as const;
 
 /** How many nodes a field's list shows. */
 const LIMIT = 8;
@@ -305,9 +311,16 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
     useCanvasPick(picking, onPicked);
     const inputs = { source: useRef<HTMLInputElement>(null), target: useRef<HTMLInputElement>(null) };
     const runButton = useRef<HTMLButtonElement>(null);
+    const followLabel = useId();
 
     // The ends are the form's own fields; every other option goes through the shared form.
-    const options = descriptor.options.filter((o) => o.name !== "source" && o.name !== "target");
+    // Follow is the form's own row too, shown only where edges have a direction.
+    const options = descriptor.options.filter(
+        (o) => o.name !== "source" && o.name !== "target" && !isPathFollow(descriptor.key, o.name),
+    );
+    const followOption = descriptor.options.find((o) => isPathFollow(descriptor.key, o.name));
+    const directed = session.status.directed && followOption !== undefined;
+    const follow = typeof values.direction === "string" ? values.direction : "all";
     // Focus goes to the first thing left to do: From, To, or Find path.
     const focus = (["source", "target", "run"] as const)[Math.min(selected.length, 2)];
 
@@ -370,7 +383,8 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
                     });
                     return;
                 }
-                onRun({ ...values, source, target });
+                // On a directed graph the run records which way it followed, so Made with can say.
+                onRun({ ...values, source, target, ...(directed ? { direction: follow } : {}) });
             }}
         >
             <Stack gap={8}>
@@ -389,6 +403,22 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
                 </Group>
                 {field("source")}
                 {field("target")}
+                {directed && followOption !== undefined && (
+                    <Input.Wrapper label="Follow" labelElement="div" labelProps={{ id: followLabel }}>
+                        <SegmentedControl
+                            aria-labelledby={followLabel}
+                            fullWidth
+                            value={follow}
+                            data={FOLLOW_CHOICES.map((value) => ({
+                                value,
+                                label: optionWords(descriptor.key, followOption).choice(value),
+                            }))}
+                            onChange={(picked) => {
+                                setValues({ ...values, direction: picked });
+                            }}
+                        />
+                    </Input.Wrapper>
+                )}
                 <OptionsForm
                     session={session}
                     options={options}

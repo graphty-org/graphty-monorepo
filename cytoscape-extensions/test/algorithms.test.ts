@@ -508,6 +508,17 @@ describe("communities and clustering", () => {
         expect(sets(e.graphtyLabelPropagationSemiSupervised({ seeds: "seed" }))).toEqual(halves);
     });
 
+    it("teraHAC and hierarchicalClustering refuse more than maxNodes nodes with E_TOO_LARGE", () => {
+        const e = graph(BARBELL).elements();
+        const refusal = expect.objectContaining({
+            code: "E_TOO_LARGE",
+            params: expect.objectContaining({ maxNodes: 5 }),
+        });
+        expect(() => e.graphtyTeraHAC({ maxNodes: 5 })).toThrow(refusal);
+        expect(() => e.graphtyHierarchicalClustering({ maxNodes: 5 })).toThrow(refusal);
+        expect(e.graphtyTeraHAC({ numClusters: 2, maxNodes: 6 }).length).toBe(2);
+    });
+
     it("hierarchicalClustering cuts the dendrogram", () => {
         const cy = graph(BARBELL);
         const h = cy.elements().graphtyHierarchicalClustering({ linkage: "average" });

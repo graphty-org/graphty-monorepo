@@ -1,3 +1,5 @@
+import { fromEdgeArrays } from "@graphty/graph-format";
+import { kamadaKawai } from "@graphty/layout";
 import { afterEach, assert, beforeEach, describe, expect, it } from "vitest";
 
 import { LAYOUT_DESCRIPTORS } from "../../src/catalog/layouts";
@@ -137,6 +139,54 @@ describe("LayoutManager", () => {
             const failure = thrown as GraphtyError;
             assert.strictEqual(failure.code, "E_UNKNOWN_LAYOUT");
             assert.include(failure.details.available as readonly string[], "ngraph", "and it says what is available");
+        });
+
+        it("keeps a layout package's E_TOO_LARGE code and its facts instead of calling it internal", async () => {
+            // The layout package refuses a graph whose n x n tables it cannot hold with a coded
+            // RangeError; the element used to rewrap every uncoded-looking throw as E_INTERNAL.
+            let refusal: unknown;
+            try {
+                kamadaKawai(
+                    fromEdgeArrays({
+                        directed: false,
+                        nodeCount: 3,
+                        src: Uint32Array.of(0, 1),
+                        dst: Uint32Array.of(1, 2),
+                    }),
+                    { maxNodes: 2 },
+                );
+            } catch (error) {
+                refusal = error;
+            }
+
+            graph.setLayoutBehavior({ layout: { preSteps: 1 } });
+            graph.getDataManager().addNodes([{ id: "a" }, { id: "b" }] as Record<string, unknown>[]);
+            const originalGet = LayoutEngine.get;
+            LayoutEngine.get = (type: string, opts: object) => {
+                const engine = originalGet(type, opts);
+                if (engine) {
+                    engine.step = () => {
+                        throw refusal;
+                    };
+                }
+
+                return engine;
+            };
+
+            let thrown: unknown;
+            try {
+                await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
+            } catch (error) {
+                thrown = error;
+            } finally {
+                LayoutEngine.get = originalGet;
+            }
+
+            assert.isTrue(isGraphtyError(thrown));
+            const failure = thrown as GraphtyError;
+            assert.strictEqual(failure.code, "E_TOO_LARGE");
+            assert.strictEqual(failure.source, "layout");
+            assert.include(failure.details, { nodeCount: 3, maxNodes: 2, layout: "ngraph" });
         });
 
         it("should handle zero pre-steps configuration", async () => {

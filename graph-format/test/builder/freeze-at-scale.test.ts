@@ -22,7 +22,6 @@ function makeRandom(seed: number): () => number {
 }
 
 describe("freeze at scale", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("freezes 100k nodes / 1M directed edges pushed from typed arrays", () => {
         const nodeCount = 100_000;
         const edgeCount = 1_000_000;
@@ -53,5 +52,5 @@ describe("freeze at scale", () => {
         undirected.addEdges(src, dst, weights);
         const u = undirected.freeze();
         expect(u.arcCount).toBe(2 * edgeCount - u.selfLoopCount);
-    }, 120_000);
+    });
 });

@@ -542,7 +542,7 @@ export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerS
     const binding = buildBinding(ranged, path, scale, descriptor);
 
     return {
-        name: spec.name ?? `${englishRunLabel(run)} - ${descriptor.plainName}`,
+        name: spec.name ?? englishRunLabel(run),
         target: descriptor.target,
         kind: "encoding",
         selector: { match: "has", path },

@@ -1,11 +1,13 @@
 /**
  * The app words a run's name from the facts graphty-element publishes (`algorithm`,
  * `distinguishedBy`, `siblingsDifferBy`), and the words are the ones the element's deprecated
- * `label` reads (#866). A real headless session, so the facts are the element's own.
+ * `label` reads (#866), with the algorithm's catalog name in the app's own words. A real headless
+ * session, so the facts are the element's own.
  */
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it } from "vitest";
 
+import { wordsFor } from "../analyze/words";
 import { runName } from "../runWords";
 
 const sessions: GraphSession[] = [];
@@ -34,12 +36,20 @@ async function sessionWithGraph(): Promise<GraphSession> {
 }
 
 /**
- * Every listed run's app name beside the element's own label.
+ * Every listed run's app name beside the element's own label, its catalog name put in the app's
+ * words.
  * @param session - the session.
- * @returns [app name, element label] per run.
+ * @returns [app name, element label in the app's words] per run.
  */
 function names(session: GraphSession): [string, string][] {
-    return session.runs.list().map((run) => [runName(session, run), run.label]);
+    return session.runs.list().map((run) => {
+        const descriptor = session.catalog.algorithms().find((each) => each.key === run.algorithm);
+        const label =
+            descriptor !== undefined && run.label.startsWith(descriptor.plainName)
+                ? wordsFor(descriptor).name + run.label.slice(descriptor.plainName.length)
+                : run.label;
+        return [runName(session, run), label];
+    });
 }
 
 describe("runName", () => {
@@ -55,7 +65,7 @@ describe("runName", () => {
         }
         assert.include(
             names(session).map(([name]) => name),
-            "Influence (damping 0.9)",
+            "PageRank (damping 0.9)",
         );
     });
 
@@ -72,7 +82,7 @@ describe("runName", () => {
         }
         assert.include(
             named.map(([name]) => name),
-            "Influence (maxIterations 60, useDelta off)",
+            "PageRank (maxIterations 60, useDelta off)",
         );
         assert.isTrue(named.some(([name]) => name.endsWith("(largest component)")));
     });

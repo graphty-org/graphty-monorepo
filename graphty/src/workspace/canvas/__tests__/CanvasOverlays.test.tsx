@@ -251,7 +251,16 @@ describe("the status line", () => {
     it("announces a run that ended, by the app's name for its method, once", () => {
         const { session, emit } = standIn();
         const store = renderOver(session, { announcement: "PageRank added, running" });
-        const run = { id: "run-1", label: "pagerank #1", algorithm: "pagerank", status: "running" };
+        const run = {
+            id: "run-1",
+            label: "pagerank #1",
+            algorithm: "pagerank",
+            status: "running",
+            params: {},
+            distinguishedBy: null,
+            siblingsDifferBy: null,
+            scope: { spec: "visible" },
+        };
         act(() => {
             emit("run:changed", { run, phase: "start", cause: "command", generation: 1 });
         });

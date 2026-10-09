@@ -175,7 +175,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
  * @param fact - the step's fact.
  * @returns the words.
  */
-export function historyWords(session: GraphSession, fact: CodedFact<HistoryCode>): string {
+function historyWords(session: GraphSession, fact: CodedFact<HistoryCode>): string {
     // A code the element adds in a minor release has no words yet: name it generically.
     const words = WORDS[fact.code] as (typeof WORDS)[HistoryCode] | undefined;
     return stepChange(session, fact) ?? words?.(fact.params, session) ?? "the last change";
@@ -187,7 +187,7 @@ export function historyWords(session: GraphSession, fact: CodedFact<HistoryCode>
  * @param undo - true for Undo, false for Redo.
  * @returns the fact, or null.
  */
-export function nextFact(session: GraphSession, undo: boolean): CodedFact<HistoryCode> | null {
+function nextFact(session: GraphSession, undo: boolean): CodedFact<HistoryCode> | null {
     const { history } = session;
     if (!undo) {
         return history.steps.at(history.position)?.fact ?? null;

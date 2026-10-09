@@ -1112,7 +1112,9 @@ function MatchReport({ page }: PartProps): React.JSX.Element | null {
                     ? rowsLink("nodes", plural(report.counts.nodeRecords, "node row"))
                     : null}
                 {report.counts.nodeRecords > 0 && report.counts.edgeRecords > 0 ? " and " : null}
-                {report.counts.edgeRecords > 0 ? rowsLink("edges", plural(report.counts.edgeRecords, "edge row")) : null}
+                {report.counts.edgeRecords > 0
+                    ? rowsLink("edges", plural(report.counts.edgeRecords, "edge row"))
+                    : null}
                 {` read; the load makes ${plural(report.counts.nodes, "node")} and ${plural(report.counts.edges, "edge")}.`}
             </Text>
             <UnmatchedLine

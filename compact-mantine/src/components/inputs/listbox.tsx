@@ -52,10 +52,14 @@ function anchorBoxes(state: ListState): { anchor: DOMRect; reference: DOMRect } 
  * Measured from the rendered list, so it follows groups, separators and scrolling without being
  * told the selected index.
  *
- * A list that would cross the viewport's edge (less 6px) when aligned is cut there instead of
- * being pushed back inside, as macOS does: its height is capped to the part that fits and its
- * content scrolled, so the selected option still lands on the field. Pushing the whole list back
- * (floating-ui's shift) would move the selected option off the field by the overflow.
+ * A list taller than the viewport (less 6px each side) that would cross its edge when aligned is
+ * cut there instead of being pushed back inside, as macOS does: its height is capped to the part
+ * that fits and its content scrolled, so the selected option still lands on the field. A list
+ * that fits whole is pushed back inside instead (floating-ui's shift), moving the selected option
+ * off the field by the overflow, so every option shows.
+ *
+ * ponytail: a long list on a field near the edge is still cut to whatever fits beside the field,
+ * which can be a few rows; open it toward the room when that shows.
  * @param state - floating-ui's middleware state
  * @returns the offset along the main axis and the alignment axis
  */
@@ -83,10 +87,14 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
     const contentTop =
         anchor.top - (selected.getBoundingClientRect().top - floating.getBoundingClientRect().top + floating.scrollTop);
     // The list is the part of that content inside the viewport less the margin. A field outside
-    // that band cannot have its option both on it and inside it: the list opens unscrolled and
-    // shift pulls it in.
+    // that band cannot have its option both on it and inside it, and a list that fits the band
+    // whole is never cut (cut, a short list on a field at the window's edge shows a strip with no
+    // option): either way the list opens unscrolled and shift pulls it in.
     const viewportBottom = floating.ownerDocument.documentElement.clientHeight - VIEWPORT_MARGIN;
-    const inside = anchor.top >= VIEWPORT_MARGIN && anchor.bottom <= viewportBottom;
+    const inside =
+        anchor.top >= VIEWPORT_MARGIN &&
+        anchor.bottom <= viewportBottom &&
+        floating.scrollHeight > viewportBottom - VIEWPORT_MARGIN;
     const top = inside ? Math.max(contentTop, VIEWPORT_MARGIN) : contentTop;
     const bottom = Math.min(contentTop + floating.scrollHeight, viewportBottom);
     floating.style.maxHeight = inside ? `${String(bottom - top)}px` : "";

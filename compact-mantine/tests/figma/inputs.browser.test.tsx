@@ -651,6 +651,32 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         expect(d.left).toBeGreaterThanOrEqual(6 - 0.5);
     });
 
+    // A short list on a field at the window's bottom edge (the import page's Direction): aligned,
+    // its selected first option on the field, it would be cut to a strip showing no option.
+    it("a list that fits the window whole opens whole, moved up from a field at the bottom", async () => {
+        await page.viewport(600, 300);
+        const { container } = await renderFigma(
+            <div style={{ position: "fixed", left: 20, bottom: 10 }}>
+                <Select
+                    aria-label="Direction"
+                    data={["As the file says", "Directed", "Undirected"]}
+                    defaultValue="As the file says"
+                    style={{ width: 160 }}
+                />
+            </div>,
+        );
+        await drive(part(container, "input"), "open");
+        const dropdown = await listbox();
+        const d = dropdown.getBoundingClientRect();
+        expect(d.bottom).toBeLessThanOrEqual(window.innerHeight - 6 + 0.5);
+        expect(dropdown.scrollHeight - dropdown.clientHeight).toBeLessThanOrEqual(1);
+        for (const option of dropdown.querySelectorAll<HTMLElement>(".cm-listbox-option")) {
+            const o = option.getBoundingClientRect();
+            expect(o.top).toBeGreaterThanOrEqual(d.top - 0.5);
+            expect(o.bottom).toBeLessThanOrEqual(d.bottom + 0.5);
+        }
+    });
+
     // A viewport shorter than the aligned list (Storybook's canvas above its addon panel): the list
     // is cut at the viewport's edges and scrolled, never pushed off the field.
     it.each([

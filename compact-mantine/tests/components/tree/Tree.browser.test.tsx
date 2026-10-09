@@ -268,6 +268,23 @@ describe("Tree: keyboard", () => {
         expect(focused()).toBe("other");
     });
 
+    it("leaves '/' and other punctuation to the page: type-ahead takes letters and digits only", async () => {
+        const seen: boolean[] = [];
+        const onKey = (event: KeyboardEvent): void => {
+            seen.push(event.defaultPrevented);
+        };
+        await renderThemed(<Tree items={ITEMS} />);
+        await tabIn();
+        globalThis.addEventListener("keydown", onKey);
+        try {
+            await userEvent.keyboard("/");
+            expect(focused()).toBe("frame");
+            expect(seen).toEqual([false]);
+        } finally {
+            globalThis.removeEventListener("keydown", onKey);
+        }
+    });
+
     it("opens every sibling with *", async () => {
         await renderThemed(<Tree items={ITEMS} />);
         await tabIn();
@@ -1081,4 +1098,15 @@ describe("Tree: a selected parent stands apart from its children", () => {
             expect(contrastOf(parentFill, band)).toBeGreaterThanOrEqual(1.25);
         });
     }
+});
+
+describe("Tree: childBand={false}", () => {
+    it("draws a selected open parent as a lone selected row, its children with no band", async () => {
+        await renderThemed(
+            <Tree items={ITEMS} defaultExpanded={["frame"]} defaultSelected={["frame"]} childBand={false} />,
+        );
+        expect(row("Frame")).toHaveAttribute("data-tint", "selected");
+        expect(row("Rect")).toHaveAttribute("data-tint", "none");
+        expect(getComputedStyle(row("Rect"), "::before").display).toBe("none");
+    });
 });

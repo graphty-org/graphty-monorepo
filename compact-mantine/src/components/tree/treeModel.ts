@@ -136,9 +136,11 @@ export type TreeRowTint = "none" | "selected" | "first" | "middle" | "last" | "p
  * Work out every row's fill.
  * @param rows - the visible rows
  * @param selected - the selected ids
+ * @param childBand - false draws a selected parent like any selected row and never bands its
+ *   descendants (for trees where selecting a parent does not select its children)
  * @returns one tint per row
  */
-export function rowTints(rows: readonly FlatTreeRow[], selected: ReadonlySet<string>): TreeRowTint[] {
+export function rowTints(rows: readonly FlatTreeRow[], selected: ReadonlySet<string>, childBand = true): TreeRowTint[] {
     const tints: TreeRowTint[] = [];
     // The current row's ancestors; the outermost selected one owns the band.
     const stack: { level: number; selected: boolean }[] = [];
@@ -146,16 +148,16 @@ export function rowTints(rows: readonly FlatTreeRow[], selected: ReadonlySet<str
         while (stack.length > 0 && stack[stack.length - 1].level >= row.level) {
             stack.pop();
         }
-        const band = stack.find((a) => a.selected);
+        const band = childBand ? stack.find((a) => a.selected) : undefined;
         const isSelected = selected.has(row.node.id);
         const next = rows[i + 1] as FlatTreeRow | undefined;
         if (isSelected) {
-            if (row.expanded) {
+            if (childBand && row.expanded) {
                 tints.push("parent");
             } else {
                 const prev = rows[i - 1] as FlatTreeRow | undefined;
                 const prevJoins = prev !== undefined && selected.has(prev.node.id) && tints[i - 1] !== "parent";
-                const nextJoins = next !== undefined && selected.has(next.node.id) && !next.expanded;
+                const nextJoins = next !== undefined && selected.has(next.node.id) && !(childBand && next.expanded);
                 if (prevJoins && nextJoins) {
                     tints.push("middle");
                 } else if (nextJoins) {

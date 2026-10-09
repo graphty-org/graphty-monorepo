@@ -283,7 +283,8 @@ const css = `
     font-size: var(--sc-font-size);
     /* An unchosen option is a choice the reader can make, so its label is drawn in the body
        color: the secondary gray at 10-11px read as a disabled option beside the raised chosen
-       one ("Add" of Add / Leave out). The chosen one is marked by its face and edge. */
+       one ("Add" of Add / Leave out). The chosen one is marked by its face, its edge and the
+       strong weight of its label, so which side is chosen reads without zooming. */
     color: var(--cm-text);
     background-color: transparent;
     outline: 1px solid transparent;
@@ -293,6 +294,8 @@ const css = `
 }
 .cm-sc .cm-sc-label[data-active] {
     color: var(--cm-text);
+    /* 600, not the strong role's 550: at 11px on the dark track 550 beside 450 did not read. */
+    font-weight: 600;
     background-color: var(--cm-bg);
     box-shadow: inset 0 0 0 1px var(--cm-segment-edge);
 }

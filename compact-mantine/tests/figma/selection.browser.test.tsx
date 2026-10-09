@@ -443,9 +443,12 @@ describe.skipIf(!available)("SegmentedControl, panel (5.2)", () => {
         );
     });
 
-    it("text options: 11/16 450, padding 0 8", async () => {
+    // Figma draws every option at 450; the chosen one here takes 600 so which side is chosen
+    // reads without zooming (the face and its 1px edge alone did not).
+    it("text options: 11/16 450, padding 0 8; the chosen option 600", async () => {
         const { container } = await renderFigma(<SegmentedControl data={["Basic", "Dynamic", "Brush"]} />);
-        expectMeasured(part(container, ".cm-sc-label"), {
+        expectMeasured(container.querySelectorAll<HTMLElement>(".cm-sc-label")[0], { fontWeight: "600" });
+        expectMeasured(container.querySelectorAll<HTMLElement>(".cm-sc-label")[1], {
             fontSize: "11px",
             lineHeight: "16px",
             fontWeight: "450",

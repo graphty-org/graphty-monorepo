@@ -18,6 +18,30 @@ the study tool both found the fold twice, and a panel of folds became a list of 
 `compact-mantine/tests/components/ControlSubGroup.test.tsx` ("follows the accordion pattern: an
 expanded button pointing at its content, the only thing of that name").
 
+## 2026-10-08 -- Decided by the team: a tree can leave a selected parent's children unbanded (`childBand`)
+
+**What.** compact-mantine's `Tree` gains an optional `childBand?: boolean`, default `true`. True is
+today's look: a selected, open parent draws a band behind its visible children (Figma's layer
+list). False draws a selected parent like any other selected row and leaves its children plain.
+The graphty app passes `false` on the Sources tree and the paint tree. Additive: the default keeps
+every other caller's look.
+
+**Why.** In Figma, selecting a frame selects its contents, so the band is true. In the app,
+selecting a source or a paint row never selects its children, yet the band painted the three
+rows under "people.csv and messages.csv" so that four rows read as selected; a stronger parent
+tint did not separate them. Test: `compact-mantine/tests/components/tree/Tree.browser.test.tsx`
+("childBand={false}") and `treeModel.test.ts`.
+
+**Alternatives.** Dropping the band for every tree, which changes the look of trees whose parents
+do select their children; a weaker band, already tried.
+
+**Also changed in compact-mantine, with no API change.** A tree's type-ahead takes letters and
+digits only, so "/" on a focused row reaches the page's Find shortcut. The Escape that closes a
+menu is marked as used (`preventDefault`), so the page's "Escape clears the selection" skips it
+and the selection stays; the next Escape clears. A disabled menu row (focusable, with its reason)
+never takes the highlight, and a menu that opens with one first focuses the first enabled row. A
+segmented control's chosen label is drawn at weight 600 (the unchosen stay 450, in the body color).
+
 ## 2026-10-08 -- Decided by the team: a tree row can show its description as a second line (`descriptionVisible`)
 
 **What.** compact-mantine's `TreeNodeData` (and `TreeItem`) gains an optional `descriptionVisible`

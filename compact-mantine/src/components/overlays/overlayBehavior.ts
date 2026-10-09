@@ -227,6 +227,45 @@ function typeAhead(event: KeyboardEvent): void {
 }
 
 /**
+ * The Escape that closes a themed menu is used up there (`preventDefault`), so a page shortcut on
+ * the same key -- "Escape clears the selection" -- skips it, as it skips any key something already
+ * handled. Mantine closes the menu but lets the key go on unmarked, and by the time it reaches the
+ * window the menu is gone, so the page could not tell. Marked in the document's capture phase,
+ * before Mantine's close runs. The next Escape, with the menu shut, reaches the page as usual.
+ * @param event - a keydown anywhere in the document
+ */
+function consumeMenuEscape(event: KeyboardEvent): void {
+    if (event.key === "Escape" && event.target instanceof Element && event.target.closest(".cm-menu")) {
+        event.preventDefault();
+    }
+}
+
+/**
+ * A menu's first focus skips a disabled row: Mantine's focus trap focuses the first focusable
+ * row as the menu opens, and a disabled row that stays focusable to show its reason would be the
+ * one highlighted, the row Enter cannot run (its ArrowDown from the dropdown does the same).
+ * Focus moves on to the first enabled row, or the menu itself when none is. Focus coming from
+ * another row (an arrow, a click on the row to read its reason) stays.
+ * @param event - a focusin anywhere in the document
+ */
+function skipDisabledFirstRow(event: FocusEvent): void {
+    const row = event.target instanceof HTMLElement ? event.target : null;
+    const menu = row?.closest<HTMLElement>(".cm-menu");
+    if (!row || !menu || menuRows(menu).includes(row) || !row.matches('[role^="menuitem"]')) {
+        return;
+    }
+    const from = event.relatedTarget;
+    if (from instanceof Node && from !== menu && menu.contains(from)) {
+        return;
+    }
+    const first = menuRows(menu).at(0);
+    // Mantine's focus trap places its first focus twice (two timers), the second time from the
+    // row this moved to; marked, both land here.
+    first?.setAttribute("data-autofocus", "");
+    (first ?? menu).focus();
+}
+
+/**
  * Mark which ends of a menu can still scroll, so the CSS draws the chevron rows.
  * @param menu - a cm-menu dropdown
  */
@@ -328,7 +367,9 @@ export function installOverlayBehavior(): void {
             stopAutoScroll();
         }
     });
+    document.addEventListener("keydown", consumeMenuEscape, true);
     document.addEventListener("keydown", typeAhead);
+    document.addEventListener("focusin", skipDisabledFirstRow);
     document.addEventListener("pointermove", trackChevronHover, { passive: true });
     document.addEventListener("pointermove", trackPointer, capture);
     document.addEventListener(

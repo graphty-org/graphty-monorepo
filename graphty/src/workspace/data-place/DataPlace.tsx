@@ -317,6 +317,7 @@ export function DataPlace(): React.JSX.Element {
                         selected={inspected?.kind === "source" && inspected.id !== undefined ? [inspected.id] : []}
                         onSelect={openSource}
                         rowMenu={rowMenu}
+                        childBand={false}
                     />
                 )}
             </ControlSection>

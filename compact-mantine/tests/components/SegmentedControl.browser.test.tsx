@@ -61,3 +61,23 @@ describe("SegmentedControl: the unchosen option", () => {
         });
     }
 });
+
+describe("SegmentedControl: the chosen option", () => {
+    it("draws its label in the strong weight, the unchosen ones in the body weight", async () => {
+        await renderThemed(
+            <SegmentedControl
+                size="xs"
+                aria-label="Unmatched ends"
+                defaultValue="leave-out"
+                data={[
+                    { value: "add", label: "Add" },
+                    { value: "leave-out", label: "Leave out" },
+                ]}
+            />,
+        );
+        const weight = (text: string): number =>
+            Number(getComputedStyle(screen.getByText(text).closest("label")!).fontWeight);
+        expect(weight("Leave out")).toBe(600);
+        expect(weight("Add")).toBe(450);
+    });
+});

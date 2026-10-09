@@ -218,6 +218,7 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
             label="Paint tree"
             items={rows.map(toItem)}
             multiselect={false}
+            childBand={false}
             height="100%"
             selected={selected}
             onSelect={(ids) => {

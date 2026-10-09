@@ -11,6 +11,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **Shared tree and menu fixes (compact-mantine + app, team door).** `Tree` takes
+  `childBand?: boolean` (default true, Figma's band); the app passes false on Sources and the paint
+  tree, so a selected source no longer paints its three children as selected (T4A/10, T4B/10).
+  Tree type-ahead takes letters and digits only (`TYPEAHEAD_KEY`), so "/" on a row reaches Find.
+  `overlayBehavior.ts`: a document capture `keydown` marks the Escape inside a `.cm-menu` used
+  (`preventDefault`), so useCommandKeys skips "clear selection" (13 ties stay, second Escape
+  clears); a `focusin` moves a disabled first focus to the first enabled row and marks it
+  `data-autofocus` (Mantine's focus trap focuses twice, two timers). Menu CSS: highlight rules
+  carry `:not([data-disabled], :disabled)`. SegmentedControl chosen label weight 600. Evidence
+  `tmp/r1-dry3-cm-tree-menus/` (T4A/06-10, T4B/10, T22B/03-05, T22B-find/03, sc-compare.png).
+  Baselines that will change: compact-mantine SegmentedControl, Toolbar, Tabs, ToggleRow(Group),
+  AlignmentMatrix stories; graphty CompactControls, CompactOverview, Frame stories.
+
 - (2026-10-08) **A tooltip opens on hover only after the pointer moves onto its target
   (compact-mantine, no API).** Chromium's after-layout hover update is a move that does not move,
   so T21's reset button, sliding under the resting pointer after Load, opened its tooltip over "Its
@@ -57,35 +70,25 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   tertiary == secondary (70% white, the AA floor), so the word "off" carries the state. Evidence
   `tmp/r1-dry2-filters/` (T17A/07-12, T17B/07-12). OPEN: once, T17B's "Attribute actions" click
   timed out with the button "visible, enabled and stable"; the rerun passed. Mechanism not found.
-- (2026-10-08) **Focus after an action goes to the inspector's title (app + element).** A run or a
-  find pick focuses the title (`focusInspectorTitle`, `frame/focus.ts`, `tabIndex -1`, ring class
-  `cm-focus-outside`). The canvas ring after a click: the element's pointerdown focuses the canvas
-  from script, which Chrome marks focus-visible after a key; graphty-element's container now sets
-  `data-pointer-focus` on a press and hides the ring then. Evidence `tmp/r1-dry2-focus-after-actions/`.
-- (2026-10-08) **Import page and Sources tell the truth (element + app + compact-mantine).** A load
-  that leaves rows out wears a warning ("23 rows, 1 left out"), never the green check; a Sources
-  child opens what it names (element `LoadedSource.tableRows`); leaving Data closes its rows. A
-  replace under the seeded layout draws as an open does (`Dispatcher.graphWritesQueued`). Evidence
-  `tmp/r1-dry2-import-page-sources/`. OPEN: after Replace the legend loses "Size: PageRank" (T21A/06).
-- (2026-10-08) **Find confirms what it ran; selections list members (element + app).** After Enter
-  the rule stays in the box and the line under it reads the live count; "Selected edges" lists
-  each edge by its ends' names and each tested column's value (element `selection.originPaths`).
-  Evidence `tmp/r1-dry2-find-and-selection/`. OPEN: `edgePage({ scope: "selection" })` is empty
-  for an edge-only selection (owner door: behavior change).
-- (2026-10-08) **Neighborhood list (app only, no API change).** Heading and status line
-  "Javert's 17 connections" at every hop count (`neighborhoodWords`, inspector/words.ts), named by
-  `session.data.name()` (the old "#895, named by id" note was stale). Every hop count lists by
-  name (one hop: element `sort: { by: "name" }`; two or more: numeric `Intl.Collator` over the
-  selection); a weighted one hop keeps its tie values. "Filter to neighbors": `default` Button at
-  rest, `filled` when on, Tooltip says what it does and, on, "Press again to show every node".
-  Evidence `tmp/r1-dry2-neighborhood-view/` (T23B/04-08, T12RA/04-06, T23A/04, 07, 08).
-- (2026-10-08) Key sections are titled by the run; a run says which method it used (unset ->
-  Dijkstra, Bellman-Ford on a negative weight; OPEN: explicit dijkstra over a negative undirected
-  weight freezes the page). Route color: element default indigo, the app sets black through
-  `session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR)` in both hosts (owner decided).
+- (2026-10-08, condensed) Earlier dry-run fixes: focus after an action goes to the inspector's
+  title (`focusInspectorTitle`; element `data-pointer-focus` hides the click ring); a load that
+  leaves rows out wears a warning, a Sources child opens what it names (`tableRows`); find keeps
+  the rule and the live count, selections list members (`selection.originPaths`; OPEN:
+  `edgePage({ scope: "selection" })` empty for edge-only selections, owner door); neighborhood
+  lists by name at every hop count; key sections titled by the run; route color set by the app.
+  OPEN: after Replace the legend loses "Size: PageRank" (T21A/06); explicit dijkstra over a
+  negative undirected weight freezes the page.
 
 ## Decisions and reasons
 
+- (2026-10-08) **A shared control's defect is fixed in compact-mantine, and an app-specific
+  look is an option with today's look as default.** The child band is right where selecting a
+  parent selects its children (Figma), wrong in this app; so an option, not a removal. Menu
+  Escape is marked in the document's capture phase, not on Menu.Dropdown: React flushes the
+  close after the capture handler, and the dropdown's bubble handler never ran (test proved it).
+  Disabled first row: focus the first enabled row rather than nothing, matching Mantine's
+  keyboard model for button menus (the context menu's "pointer opens with no position" stays).
+  Chosen segment: 550 (the strong role) was invisible at 11 px in a crop compare; 600 reads.
 - (2026-10-08) **A label's ground is the app's choice: a white chip.** Reason: on top keeps the
   letters but not their legibility over a saturated band; a ground separates them. White, not the
   canvas color, so no element constant is copied. No padding: the texture already has margins
@@ -195,6 +198,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Did not work: `MenuDropdown` theme `onKeyDown` to mark Escape (never ran: the
+  capture-phase close unmounts first). Did not work: redirecting a disabled first focus once --
+  Mantine's focus trap refocuses row 1 from a second timer; `data-autofocus` on the target fixes
+  it. Did not work: weight 550 for the chosen segment (crop compare old/new identical to the eye).
+  Worked: "fails without" for a file another agent had dirty by commenting my two listener lines
+  in place, not `git apply -R` (context mismatch); a my-hunks-only patch built from `git show
+  HEAD:` plus my blocks.
 - (2026-10-08) Did not work: Tooltip `vars` installing listeners that must see events before the
   first tooltip (vars run only when the tooltip renders). A same-pixel move after the pointer left
   the window is real (the vitest harness does this between tests). Never revert-and-restore a file

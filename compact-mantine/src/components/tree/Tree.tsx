@@ -26,6 +26,8 @@ import {
 const VIRTUALIZE_AT = 200;
 /** How long a type-ahead run lasts between keys. */
 const TYPEAHEAD_MS = 500;
+/** The keys type-ahead takes: one letter or digit. */
+const TYPEAHEAD_KEY = /^[\p{L}\p{N}]$/u;
 /** How many rows to draw beyond the visible ones when virtualized. */
 const OVERSCAN = 10;
 /** How far a mouse or pen must move with the button down before a row lifts, in px. */
@@ -321,6 +323,12 @@ export interface TreeProps {
      * for half a second, always for the row it happened on.
      */
     rowMenu?: (node: TreeNodeData) => React.ReactNode;
+    /**
+     * Draw a band behind a selected, expanded parent's children (Figma's look). Default true. Pass
+     * false when selecting a parent never selects its children, so the band would read as a
+     * selection: the parent then draws like any selected row and its children stay plain.
+     */
+    childBand?: boolean;
 }
 
 /**
@@ -360,6 +368,7 @@ export interface TreeProps {
  * @param props.onRowKeyDown - Called first for a key pressed on a focused row; preventDefault claims it
  * @param props.canDrop - Where an item may land
  * @param props.rowMenu - The row's context menu
+ * @param props.childBand - Band a selected parent's children (default true)
  * @returns The tree
  * @example
  * A row with a swatch, a count, a running line and its state in words, and a row shortcut.
@@ -395,6 +404,7 @@ export function Tree({
     onRowKeyDown,
     canDrop,
     rowMenu,
+    childBand = true,
 }: TreeProps): React.JSX.Element {
     useCompactStyles();
     const [selection, setSelection] = useUncontrolled<readonly string[]>({
@@ -416,7 +426,7 @@ export function Tree({
     const openSet = useMemo(() => new Set(open), [open]);
     const selectedSet = useMemo(() => new Set(selection), [selection]);
     const rows = useMemo(() => flattenTree(items, openSet), [items, openSet]);
-    const tints = useMemo(() => rowTints(rows, selectedSet), [rows, selectedSet]);
+    const tints = useMemo(() => rowTints(rows, selectedSet, childBand), [rows, selectedSet, childBand]);
     const indexOf = useMemo(() => new Map(rows.map((r, i) => [r.node.id, i])), [rows]);
 
     const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -618,7 +628,8 @@ export function Tree({
                         top = rows[indexOf.get(top.parentId) ?? 0];
                     }
                     moveFocus(top.node.id);
-                } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                } else if (TYPEAHEAD_KEY.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                    // Letters and digits only: "/" and other punctuation stay free for the page's shortcuts.
                     const now = Date.now();
                     const t = typeahead.current;
                     t.text = now - t.at > TYPEAHEAD_MS ? event.key : t.text + event.key;

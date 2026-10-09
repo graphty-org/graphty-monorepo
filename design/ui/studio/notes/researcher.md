@@ -10,51 +10,41 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-08 -- YES, A DRY RUN RAN BEFORE ROUND 1, four times (r1d1 to r1d4), each walking every
-  task half and fixing what it found before any participant session. FOURTH DRY RUN on the study
-  build 946256efb876 (`tier2/rounds/r1d4/pilot/`, 19 of 20 halves; T18 B not reported, still
-  cited from r1d3): every success path landed first try, no script, console or request errors,
-  every reference value held. Participants will not hit implementation faults on the success
-  paths. Key matched to this build (criteria change log, same date).
-- 2026-10-08 -- The r1d4 pilots again found mostly a stale key, not blockers. Fixed by the build:
-  T19 A reopen framing, T23/T12R filter tooltip covering names, T21 "0 node rows", T4 left-out row
-  under "Added" (now its own "Left out" section). Still open, now watch items: T22 Escape clearing
-  the selection (toast, no undo; Control+Z undoes a style); T4 no warning on the Graph page; T4
-  Added counts under a "1 row left out" title; no visible focus after a find pick, Back or Rerun;
-  T20 "Farther" line now says "distance or travel time"; T24 Hana label; T21 stale values at full
-  contrast; T19 graph header "1 note" counting only graph notes.
-- 2026-10-08 -- Fix between rounds, not mid-round: the defects above, plus T12R/T23 two lit controls
-  in the Neighborhood view, focus drawn as underlined text, no focus after Rerun (unconfirmed),
-  T22 menu opening on "Path between...", the "+" Add a table with no words.
-- 2026-10-08 -- Tool: both earlier defects are fixed (`setup:<name>.txt` found from any folder,
-  SETUP FAILED on a missing file; `session.json` "commit" is the served build's). Still: a failed
-  setup step can leave a session running -- check the first screenshot before step 1.
-- 2026-10-08 -- Watch items for graders on this build: T20's "Capacity" ungraded by rule; T20's
-  "such as a longer trail" may echo prompt B; T22 B's example 16 near the task's 10; layout
-  overlaps in friends, Florentine and trails drawings hide dots and labels.
-- 2026-10-08 -- ROUND 1 PLAN on 946256efb876: `tier2/rounds/round-1/plan.md`, 56 sessions, the
-  roster's allocation (checked by `sessions.py`, table matches). It now has a "dry runs" section:
-  the four walks, what each fixed, the r1d4 re-pilot, and what is still on the build (none stops a
-  success path). T21 last of the core four, T19 after T4 (item 2 needs 5 clean `--prove` runs; the
-  change log records one pass). No saved-project starts (tasks.md, frozen). `buildStamp` must read
-  `946256efb876 graphty@0.8.56`.
-- 2026-10-08 -- CRITERIA REVIEW (before freeze): 8 changes proposed to the director (bar 10 for the
-  expert audit; "not scored" fails a round; bar 7 runs every algorithm and meaning; preflight 2 not
-  met). Detail in the decision entry below.
-- 2026-10-08 -- Two tool faults to rule out before blaming a participant: a 3000 ms click timeout
-  with no screen change (cause untraced), and a printed tooltip left from the previous hover
-  (fixed in the study build's tool; still trust screenshots over printed tooltips).
-- 2026-10-08 -- Tier 2 has 11 bars (frozen): bar 2 earlier work kept, bar 7 weight read as
-  loaded, bar 10 expert audit, bar 11 core-four cost. Nine tasks plus T12R; no keyboard-only,
-  screen-reader or touch sessions (owner).
+- 2026-10-09 -- TIER 2 ROUND 1 SCORED (`tier2/rounds/round-1/scores.md`, script
+  `tmp/researcher/t2r1/score.py`). 52 of 55 valid (94.5%); ease 5.25; T22 the only bar 1 failure
+  (3 of 4). Bars 4 and 6 hold; 1, 3, 5, 10, 11 fail; 2, 7, 8, 9 do not hold because their scripts
+  were never built (no `preflight.md`). Bar 3 scored failing on a strict reading -- skeptics test it.
+- 2026-10-09 -- DRY RUN ANSWER: yes, four dry runs plus a re-pilot; in sessions 0 grades were
+  build-decided and every `session.log` is empty. Participants hit 8 build defects OFF the success
+  paths (edge width drawn thin, Edges-panel color landing on Everything, fill hidden by selection
+  tint, key covering a name, selection repainting the path color, Analyze popover not closing,
+  Direction list strip, stacked edge labels). Pilots walk only success paths, so side routes
+  (styling, selection display) are unwalked: next dry run should walk the commonest detours too.
+- 2026-10-09 -- The run's own faults outweighed the build's: preflight scripts not built (open-work
+  lister, weight script, bars.mjs on tier 2), r1-s04 void not re-run, T18 follow-up skipped twice,
+  r1-s03 read the avoided-words list and facilitator notes, five sessions alive at once (load 158,
+  three click timeouts), graders skipped first move / doors / moved nodes. Fix before round 2.
+- 2026-10-09 -- Bar 1 flatters T20: 7 of 7 "success", 0 S, 3 never did the "every calculation"
+  half (per-run route is SD by the key). The headline T20 finding is a sev 3 broken habit: 7 of 7
+  opened the file their usual way and looked for the meaning on the column in Data.
+- 2026-10-09 -- Confirmed sev 3 round 1 (design): weight meaning unreachable from an open graph;
+  Replace only on right-click (1 give-up); stale run looks current (bar 5, two experts); filtering
+  not reachable from the Graph place (1 give-up); find box refusing a condition without "=" (1 F);
+  path not reachable from a person's list or find results; note subject follows the inspector;
+  Leave out preselected and silent after Load; names overlapping; long-name truncation; backticks.
+- 2026-10-09 -- Experts find how a reached screen looks and behaves; sessions find whether a
+  returning user reaches it. Neither alone covers the other (scores.md bar 10 section).
+- 2026-10-09 -- T22 failed, so the pre-decided rule applies: round 2 changes the find box's hint and
+  refusal words first; the dialog only if T22 fails both halves again with 3+ looking in one place.
+- 2026-10-09 -- Doors: P key 0 of 14 path sessions, N 0 of 4, "Filter to..." 0 of 7. Not removal
+  candidates: no keyboard-only sessions in tier 2.
+- 2026-10-08 -- Key matched to the fourth dry run on 946256efb876; still-open watch items (Escape
+  clearing a rule's selection, stale values at full contrast, "1 note" counting graph notes,
+  overlaps) all reappeared in sessions as predicted.
 - 2026-10-07 -- The biggest validity threat in tier 2 is the briefing: a returning user is a fresh
-  agent told a history. A history names only tier 1 places, never a tier 2 control; graders record
-  when a first move came straight from it.
-- 2026-10-07 -- Tier 1 report: bars 1-6 and 9 hold in round 3; 7 fails on missing data, 8 on one
-  contrast color. A sev 4 needs a wrong conclusion a reader would act on.
+  agent told a history. Graders record when a first move came straight from it.
 - 2026-10-07 -- Do not override a grader without new evidence; one skeptic's weakening stands
-  unless the other answers its reason with evidence. Every focus change needs a "where does focus
-  go instead" check.
+  unless the other answers its reason with evidence.
 - 2026-10-06 -- All participants are one model: N alike is not independent. Failure strong, pass
   weak. Solid = a scripted repro or a cause in code.
 - 2026-10-07 -- Real users next after tier 2 (graphty.app with opt-in usage data, 5-8 analysts, a
@@ -99,54 +89,29 @@ reasons, in short:
 
 ## Decisions and reasons
 
-- 2026-10-08 (researcher, round 1 plan moved to 946256efb876) -- Re-pointed the existing plan, not
-  rewritten: header build and folder, a dry-run table (walk, build walked, triage file, build that
-  fixed it), the r1d4 re-pilot (T18 B screenshots but no report), the still-open items as key
-  entries and between-round candidates, the setup lookup from any folder, a first-screenshot check
-  before step 1, and `buildStamp` as the build check (`commit` is the served build's since the tool
-  fix; my older note saying otherwise is stale). Kept: no saved-project starts -- the request said
-  "setup or saved project", but frozen `tasks.md` says no task starts from a project file, and a
-  frozen file wins; the run order and allocation (roster unchanged since the plan). Reason the
-  dry-run section exists: a reader of the plan must see that build faults were removed before the
-  sessions, so session findings are read as what users need, not as polish.
+- 2026-10-09 (researcher, tier 2 round 1 scoring) -- Scored from 55 grades, the transcripts'
+  ease lines and four expert reports; one row per session in `tmp/researcher/t2r1/score.py`
+  (asserts 56 / 55). Choices: (1) steps = screenshots after the start, main prompt only on T17 and
+  T18, because graders counted inconsistently (s36, s45 off by one). (2) Success-path steps from
+  the key's commands (T18 = 4), not graders' "about 5"; T18 bar 11 fails at 4 and holds at 5 --
+  stated both ways. (3) Bar 3 strict: a problem seen by 2+ participants is confirmed, and its
+  severity is the worst outcome it caused (one give-up = 4); the lenient reading is written beside
+  it. Reason: the others recovered only by guesses the screen did not offer. (4) Bar 2: the second
+  path run replacing the first scored `not-kept` by the bar's wording (5 sessions), graders had
+  only flagged it. (5) Bar 5 fails on the stale key after Replace (its value shown without its
+  mark). "Components 1" under a filter left as a candidate (a note labels it). (6) Bar 10
+  confirmations only by two specialists or specialist + session, since the scripted counts did
+  not run; five sev 3 confirmed. (7) Bars 2, 7, 8, 9 "do not hold" for not being scored, per the
+  frozen rule. Rejected: re-counting the void as a failure for T20 (holds either way, said so).
 
-- 2026-10-08 (researcher, key matched to the fourth dry run on 946256efb876) -- Edited
-  `tier2/answers.md` from 19 pilot reports; logged in `criteria.md`; `tasks.md` T20's echo note
-  rewritten for the new "Farther" line. No bar, no prompt. Choices: (1) T23's "count comes out 2
-  short" trap deleted: the tooltip now opens left and covers no name (T23B/17.png). (2) T22 menu
-  highlight: two pilots saw none on a mouse open; the key says so and keeps the earlier keyboard
-  observation as "not checked on this build" rather than guessing. (3) T22 Control+Z: A's
-  screenshot shows the "Undid ..." toast, B's later shot shows none -- both true (it fades);
-  checked both images myself. (4) T21 B new-node positions given without coordinates: the layout
-  is unseeded. (5) T12R's second lit control recorded as a resting-pointer hover (T12RB/09.png),
-  still something a participant sees. (6) Empty tooltips right after a click: kept as an app
-  behavior a participant meets (pointer still), and as a reason to trust screenshots over the
-  printed tooltip. Checked T4A/11.png and T4B/13.png myself.
-
-- 2026-10-08 (researcher, key matched to the third dry run on 8c4eef4722ac) -- Edited
-  `tier2/answers.md` from 20 pilot reports; logged in `criteria.md`; `tasks.md` unchanged (no
-  prompt was wrong). No bar. Choices: (1) a build section listing only what differs across tasks
-  from 909b19b578d4. (2) T12R: 17 read from the find list's "Edges 17" heading is the right count
-  (the screen now states it); 6 from the visible rows stays wrong. Checked 03.png myself. (3) T22:
-  the count now has four places (the Selection layer row is the only "Selection 3"). (4) T22's new
-  Escape route to `not-marked` (focus outside the box) replaces the menu route, same grade. (5)
-  T17's trap kept with "expect fewer" -- the button names the effect, but ticking still turns it
-  off. (6) T4 left-out inspector under "Added": recorded as a misreading, not a grade change.
-  Checked T4A 11.png myself. (7) Control+Z undoing a style in T22: "record", no grade assigned,
-  since grading codes are frozen.
-
-- 2026-10-08 (researcher, key matched to the second dry run on 909b19b578d4, folded) -- Build
-  header section; a new place to read an answer is valid, not a detour; T17 trap rewritten not
-  deleted; T22 menu Escape `not-marked`; T23 Hops 2 header a recorded misreading; T12R 6 from the
-  find list wrong; Pucci removed (the key was wrong). Rejected: retiring a screen defect as a
-  `false-done` risk -- it is the defect to measure.
-
-- 2026-10-08 (researcher, key matched to pilots on 16dcf3494700 and 3dfe7daf9e45, folded) -- A
-  header section per build states cross-task changes once; stale watch notes are deleted, not
-  kept (they prime graders); a citation moves to the newest pilot only where its screen matches;
-  untested choices (T20 "Capacity") graded by end state; T12R has its own section; the find
-  box's list of ties is SD; non-key defects stay in pilot reports. Rejected: changing T20 prompt
-  B for the "longer trail" echo (the line appears only after the choice).
+- 2026-10-08 (researcher, round 1 plan and key matched to dry runs one to four on 946256efb876,
+  folded) -- Plan re-pointed with a dry-run table so readers see build faults were removed before
+  sessions; no saved-project starts (frozen tasks.md wins). Key edits by one python file of
+  (old, new) pairs asserted once each; stale watch notes deleted (they prime graders); citations
+  moved only where the screen matches; untested choices (T20 "Capacity") graded by end state; a
+  new place to read an answer is valid; T22 Escape route `not-marked`; checked cited screenshots
+  myself. Rejected: retiring a screen defect as a `false-done` risk; changing T20 prompt B for the
+  "longer trail" echo.
 
 - 2026-10-08 (researcher, tier 2 criteria review, folded) -- Proposed 8 changes: bar 10 for the
   expert walkthrough and screenshot audit (two specialists or a measurement confirm; 0 sev 3+);
@@ -206,29 +171,19 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
-- 2026-10-08 (key vs fourth dry run) -- Worked again: one python file of (old, new) pairs matched
-  whitespace-insensitively, each asserted once; a paraphrased anchor failed before any write.
-  Did not have: a T18 B report this run, and the T17B setup's 3000 ms click timeout (engineer's:
-  setup steps run without a settle between them; a failed setup leaves the session running).
+- 2026-10-09 (tier 2 round 1 scoring) -- Worked: dumping every grade's Measures section into one
+  scratch file and reading it once (95 KB) instead of 56 opens; counting screenshots for steps and
+  grepping the transcripts' "Ease" line (s24 and s55 needed a look by hand); grepping transcripts
+  for door words. Worked: a whitespace-insensitive regex replace for edits (line breaks in my own
+  file defeated exact anchors). Did not have: an open-work lister, first-move fields, T21 moved
+  nodes -- reconstructed or reported as missing. Lesson: check `preflight.md` exists before scoring;
+  its absence decided four bars.
 
-- 2026-10-08 (key vs dry runs one to three, folded) -- Worked: one python file of (old, new) pairs,
-  each asserted to match once (caught paraphrased anchors before any write); rewriting whole task
-  sections and splicing with a section-count assert instead of 40 anchored edits; grep raw lines
-  for anchors (the Read view's wraps hide indents); grep for the old round's folder to find stale
-  citations, keeping only those whose screen still matches; looking at cited screenshots myself.
-  Never walked: T20's "Capacity".
-
-- 2026-10-08 (round 1 plan) -- Worked: one script (`tier2/rounds/round-1/sessions.py`) holding the
-  run order, asserting it against the roster's per-half sets, and printing both the plan's table
-  and the session JSON, so the two cannot drift. Checked every persona file path exists before
-  listing it. Not done here: preflight items (prove, open-work lister, bars.mjs, bar 7 script);
-  the plan states them as gates, not as met.
-
-- 2026-10-08 (key vs round 1 pilots) -- Worked: one edit script with an exact-count assert per
-  anchor and an ASCII assert on the result (`tmp/researcher/r1-pilot-key/edit.py`); checking each
-  pilot's setup line against `roster.md` showed every `final/` walk started unranked, which
-  explains T24 B's dead click point. Did not check: T18 A's Weight list and Ben-to-Nora chain (no
-  pilot opened or walked them) -- the key says so.
+- 2026-10-08 (key vs dry runs one to four and the round 1 plan, folded) -- Worked: one python file
+  of (old, new) pairs, each asserted to match once; rewriting whole sections with a section-count
+  assert; grep raw lines for anchors; grep for the old round's folder to find stale citations;
+  `sessions.py` holding run order and asserting it against the roster. Never walked: T20
+  "Capacity"; side routes (styling, selection) -- which is where round 1's build defects were.
 
 - 2026-10-07 (tier 2 key correction) -- Worked: checking `git log` and `git status graphty` for
   the dependency fixes before writing "the fixed build" -- they were absent. Worked: a one-file walk
@@ -304,6 +259,13 @@ reasons, in short:
 
 ## Thinking
 
+- **Dry runs walk success paths only (2026-10-09).** Round 1 showed the walks removed every
+  success-path fault, yet participants still met 8 build defects on detours they chose. A dry run
+  that also walks each task's two commonest detours from the previous round (or the pilots' "what
+  would a person try first") would catch these before sessions spend time on them.
+- **Bar 1 can pass a task whose point was missed (2026-10-09).** T20's per-run route is SD by the
+  key, so 7 of 7 passed while 0 did it the way the owner's rule needs. Consider reporting S-only
+  rates beside S+SD for any task whose SD route skips the requirement.
 - **Returning users (2026-10-07).** A simulated returning user is a fresh agent plus a history, so
   it remembers exactly what the history names: expect it faster than a real one on named places,
   no faster elsewhere. The first-move measure separates passes the briefing gave from passes the

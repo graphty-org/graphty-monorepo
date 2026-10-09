@@ -11,6 +11,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **The source's inspector has a "..." ("Source actions") holding the Sources row
+  menu's verbs.** `useSourceActions` in `data-place/sourceActions.ts` gives Edit source... and
+  Replace with file... under `canReplace`; the row menu and `Inspector.tsx` both call it, as
+  attribute verbs share `useAttributeActions`, so the two lists cannot drift. On a graph of two
+  loads neither menu offers anything and no "..." is drawn: the item's acceptance said "Edit
+  source... only", but Edit source replaces the graph's one source, so on two loads it would drop
+  the other load; the row menu never offered it there. Corrected the answer key's T21 round 2
+  route to match. Test `DataPlace.real-element.test.tsx`, "gives the source's inspector a ..."
+  (fails without the change: no "Source actions" button). Real app: `tmp/t2r1-5/a/05.png` (menu),
+  `06.png` (Replace: friends-v2.csv), `14.png` (two loads, no "...").
 - (2026-10-09) **Find answers a condition typed without "=" with how to write it as a rule.**
   When plain text finds nothing, `readsAsRule` in `graph-place/FindBox.tsx` asks
   `session.scope.count({ where: text })`: the line under the box reads "To select by a value,
@@ -57,18 +67,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   delete buttons carry the note's first line so no two share a name. Test
   `FilterFocus.real-element.test.tsx`; evidence `tmp/t2r1-7/bars.log`.
 
-- (2026-10-09) **Bars 2, 7, 8 and 9 are scored by script, each check proven on a planted failure**
-  (commit 80fb33e68). Bar 2: `real.mjs` writes `work-start.json` after setup and `work.json` at
-  `--end` (start, end, `gone` by id; sources by name); `--prove` clears the table and checks it is
-  listed gone. Bars 7, 8, 9: `bars.mjs` (page checks shared with real.mjs in `tool/measure.mjs`).
-  Bar 7 (a): 29 catalog algorithms x {closer, farther, capacity, unset, no column} x {directed,
-  undirected} = 290 runs, 0 wrong readings on builds 946256efb and 1fc173a12. Bar 8 on build
-  1fc173a12: focus FALLS to the page after Add step and after Delete (step), axe serious on the
-  Filters row (target-size) and the find list (scrollable-region-focusable), and the Notes place's
-  target chips are three buttons named "Graph" plus two "Delete note". Bar 9 (b) limits are round
-  1's counts on 946256efb (`tool/bars-limits.json`: rest 53, path 66, neighbors 36, edge 30).
-  `--prove` passed 5 runs in a row on 1fc173a12 (59 checks each, `REAL_PROVE_DIR` private;
-  first-save history under "Tried"). Evidence `tmp/t2r1-2/` (bars-final2/, final-prove-*.log).
+- (2026-10-09, summarized) **Bars 2, 7, 8 and 9 are scored by script, each check proven on a
+  planted failure** (80fb33e68): `real.mjs` writes `work-start.json`/`work.json` (bar 2);
+  `bars.mjs` with `tool/measure.mjs` scores 7, 8, 9; limits in `tool/bars-limits.json`; `--prove`
+  passed 5 runs in a row. Evidence `tmp/t2r1-2/`.
 
 - (2026-10-09, summarized) **Round 1's tool faults, fixed in the tool:** one machine-wide 4-browser
   pool (the studio's own `/tmp` pool never saw pre-push gates; load ~158 broke click timing); a
@@ -223,6 +225,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Did not work: adding a second load in a test with a bare `session.data.import`:
+  its default mode is "replace", so Sources still lists one. Pass `{ mode: "merge" }`. In the real
+  app, the Sources "+" is not drawn on this build and a canvas drop lands on an edge and is not
+  taken; Control+O with a project open reaches "Add to <project>".
 - (2026-10-09) Worked: proving "no hint follows" without a sleep (the test-timing rule) by
   spying `session.scope.count`, waiting until it was called with the typed text, then settling its
   promises inside `act` before asserting.

@@ -194,6 +194,42 @@ describe("the Data place on the real element", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
+        "gives the source's inspector a \"...\" holding the row menu's verbs, and none on two loads",
+        async () => {
+            const { session, store } = await openDataPlace();
+            await importGraphFile(session);
+
+            await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "les-miserables.gml" }));
+            assert.equal(store.get().inspected?.kind, "source");
+            await userEvent.click(await screen.findByRole("button", { name: "Source actions" }));
+            const menu = await screen.findByRole("menu");
+            assert.deepEqual(
+                within(menu)
+                    .getAllByRole("menuitem")
+                    .map((item) => item.textContent),
+                ["Edit source...", "Replace with file..."],
+            );
+            await userEvent.click(within(menu).getByRole("menuitem", { name: "Edit source..." }));
+            assert.equal(store.get().page, "data-page");
+
+            // A second load: neither verb can replace one source among two, so neither menu holds any.
+            store.set({ page: "panels", place: "data" });
+            await session.data.import(
+                { type: "gml", name: "second.gml", config: { data: GRAPH_FILE_GML } },
+                { mode: "merge" },
+            );
+            await waitFor(() => {
+                assert.equal(within(tree("Sources")).getAllByRole("treeitem", { name: /\.gml$/ }).length, 2);
+            });
+            await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "second.gml" }));
+            assert.equal(store.get().inspected?.kind, "source");
+            assert.isNull(screen.queryByRole("button", { name: "Source actions" }));
+        },
+        TIMEOUT_MS,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
         "shows a clicked source table in the table dock on its tab, never the Data page",
         async () => {
             const { session, store } = await openDataPlace(TABLE_BUILT);

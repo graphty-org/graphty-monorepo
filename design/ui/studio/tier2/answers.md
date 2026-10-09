@@ -617,7 +617,8 @@ file..." --upload friends-v2.csv`; `--click "Load"` (the app returns to the Grap
 - **Round 2 route (T21), not walked yet:** on the round 2 build, the source's inspector (shown by a
   left click on the Sources row) has a "..." header menu holding "Edit source..." and "Replace with
   file...", the same items and the same rule as the row's right-click menu (on a graph made of two
-  loads it offers Edit source... only). Steps: `--click "Values"`; `--click "Data"`; `--click
+  loads neither offers anything, and the inspector draws no "..."; its accessible name is "Source
+  actions"). The menu opens with its first item, "Edit source...", highlighted, as every "..." does. Steps: `--click "Values"`; `--click "Data"`; `--click
 "friends.csv"` (a left click; the source's inspector opens); the inspector's "..." (its accessible
   name is the pilot's to record); `--click "Replace with file..." --upload friends-v2.csv`; the
   Replace page's confirm button (Load on 946256efb876; the round 2 build renames it "Replace");

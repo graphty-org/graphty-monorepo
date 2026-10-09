@@ -5,15 +5,14 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { canReplace, editSource, replaceSource } from "../data-page/request";
 import { GLYPHS } from "../glyphs";
 import { runName } from "../runWords";
-import { pickFile } from "../start/open";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useAttributeActions } from "./attributeActions";
 import { FiltersSection } from "./Filters";
 import { stepSource } from "./filterSteps";
 import { AttributeMenuItems, ItemLabel } from "./MenuItems";
+import { useSourceActions } from "./sourceActions";
 import {
     type AttributeRow,
     attributeRows,
@@ -142,48 +141,16 @@ function attributeTree(session: GraphSession | null, needle: string): TreeNodeDa
 }
 
 /**
- * The Data place's row menu, for Tree's rowMenu: when the graph has one source of one table
- * (tier2-design.md section 7), Edit source..., which opens the Data page to replace it on its own
- * files and roles, and Replace with file...; on an attribute, the
- * attribute's verbs (the same as its inspector's "..."). Other rows (the Nodes and Edges
- * subheads) have none.
+ * The Data place's row menu, for Tree's rowMenu: on a source, the source's verbs, and on an
+ * attribute, the attribute's verbs (each the same as its inspector's "..."). Other rows (the
+ * Nodes and Edges subheads) have none.
  * @returns the rowMenu function.
  */
 function useRowMenu(): (node: TreeNodeData) => React.ReactNode {
-    const { store, session } = useWorkspace();
     const actionsOf = useAttributeActions();
+    const sourceActionsOf = useSourceActions();
     return (node) => {
-        if (node.id.startsWith("source")) {
-            // Both verbs replace the graph's one source, so a graph of several loads, or of one
-            // load of several tables, offers neither.
-            const sources = session?.data.sources() ?? [];
-            if (!canReplace(sources)) {
-                return null;
-            }
-            return (
-                <>
-                    <Menu.Item
-                        onClick={() => {
-                            editSource(store, sources[0]);
-                        }}
-                    >
-                        Edit source...
-                    </Menu.Item>
-                    <Menu.Item
-                        onClick={() => {
-                            void pickFile().then((file) => {
-                                if (file !== undefined) {
-                                    replaceSource(store, sources[0], file);
-                                }
-                            });
-                        }}
-                    >
-                        Replace with file...
-                    </Menu.Item>
-                </>
-            );
-        }
-        const actions = actionsOf(columnOf(node.id));
+        const actions = node.id.startsWith("source") ? sourceActionsOf() : actionsOf(columnOf(node.id));
         return actions.length === 0 ? null : <AttributeMenuItems actions={actions} />;
     };
 }

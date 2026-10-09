@@ -8,6 +8,7 @@ import { useAttributeActions } from "../data-place/attributeActions";
 import { FilterStepEditor } from "../data-place/Filters";
 import { stepEditorName } from "../data-place/filterSteps";
 import { AttributeMenuItems } from "../data-place/MenuItems";
+import { useSourceActions } from "../data-place/sourceActions";
 import { SourceValues } from "../data-place/SourceValues";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { loadIndexOf, loadName, sourceRowOf, sourcesWords } from "../data-place/words";
@@ -79,6 +80,7 @@ export function Inspector(): React.JSX.Element {
     const [picked, setPicked] = useState<{ identity: string; tab: "style" | "values" } | null>(null);
     const [draft, setDraft] = useState<{ run: string; values: Draft } | null>(null);
     const attributeActionsOf = useAttributeActions();
+    const sourceActionsOf = useSourceActions();
 
     // The inspector shows the selected thing: a selection change closes an open row.
     useEffect(() => {
@@ -148,6 +150,10 @@ export function Inspector(): React.JSX.Element {
     const attributeActions = attributeActionsOf(
         attribute === undefined ? null : { kind: attribute.kind, name: attribute.name },
     );
+    // A source's verbs are its Sources row's menu's, the same way.
+    if (resolved.kind === "source") {
+        attributeActions.push(...sourceActionsOf());
+    }
     const KindIcon = KIND_GLYPHS[kindId];
     // How many notes are about this, as a link to the Notes place; the text stays there.
     const notes = notesAbout(session, resolved);

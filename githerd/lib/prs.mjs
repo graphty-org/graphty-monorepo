@@ -59,7 +59,7 @@ import { staleRevert } from "./master-fix.mjs";
  *   autoMerge: boolean, mergeable: string | null, mergeState?: string | null, conflictSightings: number,
  *   required: Record<string, CheckState>, failingChecks: string[], failingStartedAt: string | null,
  *   cancelledRuns: CancelledRun[], queueFailing?: string[],
- *   ownerGate: boolean, captureFailed: string[], ownerRejected: boolean, stackedOn: number | null,
+ *   ownerGate: boolean, ownerSteps?: boolean, captureFailed: string[], ownerRejected: boolean, stackedOn: number | null,
  *   underlying?: Underlying | null, inherited?: string[] | null, advisory?: string[],
  *   failureKeys?: string[] | null, shared?: string[] | null, outside?: string[] | null,
  *   lastActivityAt: string, mergeStatus?: MergeStatus | null, [key: string]: unknown,
@@ -70,7 +70,8 @@ import { staleRevert } from "./master-fix.mjs";
  *   when every one is a rented runner refused for its balance, which only the owner can clear;
  *   `advisory` the advisory checks failing on the head, in the board's words (they count as passed);
  *   `queueFailing` the failing checks that are no required check but keep it out of the merge queue
- *   (they are in `required` too, as FAILURE)
+ *   (they are in `required` too, as FAILURE); `ownerSteps` whether the gate check's failed steps
+ *   were all the owner's, whatever else fails beside it
  */
 
 // CANCELLED is not here: a run cancelled because no runner took it (a GitHub outage) is no verdict
@@ -415,6 +416,11 @@ function foldPr(node, prev, config, now, master) {
           };
 
     const captureFailed = captureFailedOf(detail, sameHead ? prev : undefined, checks.required);
+    // Kept apart from `ownerGate`: a check failing beside the gate once must not leave it false for
+    // the rest of the head, since the gate's steps are read only once per gate job.
+    const ownerSteps = detail.failedSteps
+        ? onlyOwnerSteps(config, detail.failedSteps)
+        : sameHead && (prev?.ownerSteps ?? prev?.ownerGate === true);
 
     /** @type {PrRecord} */
     const rec = {
@@ -448,9 +454,8 @@ function foldPr(node, prev, config, now, master) {
         cancelledRuns: checks.cancelledRuns,
         captureFailed,
         // A failed capture is broken, not owner-ready: the owner is never sent such a pull request.
-        ownerGate:
-            captureFailed.length === 0 &&
-            ownerGateOf(config, checks.required, detail, sameHead && prev?.ownerGate === true),
+        ownerGate: captureFailed.length === 0 && ownerGateOf(config, checks, ownerSteps),
+        ownerSteps,
         ownerRejected: kept.ownerRejected,
         stackedOn: null,
         lastActivityAt: node.updatedAt,
@@ -514,20 +519,28 @@ function captureFailedOf(detail, prev, required) {
 }
 
 /**
- * Whether the only failing required check fails only in the owner gate's steps: the PR waits on
- * the owner's visual review, not on a fix.
+ * Whether every failed step is one of the owner gate's steps.
  * @param {Config} config the normalized config
- * @param {Record<string, CheckState>} required the required checks' states
- * @param {Detail} detail what was read for this head
- * @param {boolean} before the answer for this head at the last poll
+ * @param {string[]} failedSteps the gate check's failed steps
+ * @returns {boolean} true when only the owner's steps failed
+ */
+function onlyOwnerSteps(config, failedSteps) {
+    const steps = (config.ownerGate?.steps ?? []).map((s) => new RegExp(s));
+    return failedSteps.length > 0 && failedSteps.every((n) => steps.some((re) => re.test(n)));
+}
+
+/**
+ * Whether the only failing required check fails only in the owner gate's steps: the PR waits on
+ * the owner's visual review, not on a fix. A merge-queue condition check failing beside it (Link PR
+ * Issue) is a fix of its own, asked about by name (`failingWords`), and does not hide the wait.
+ * @param {Config} config the normalized config
+ * @param {{ required: Record<string, CheckState>, queueFailing: string[] }} checks the head's checks
+ * @param {boolean} ownerSteps whether the gate's failed steps were all the owner's
  * @returns {boolean} true when it waits on the owner
  */
-function ownerGateOf(config, required, detail, before) {
-    const failing = Object.keys(required).filter((n) => required[n] === "FAILURE");
-    if (!config.ownerGate || failing.length !== 1) return false;
-    if (!detail.failedSteps) return before;
-    const steps = config.ownerGate.steps.map((s) => new RegExp(s));
-    return detail.failedSteps.length > 0 && detail.failedSteps.every((n) => steps.some((re) => re.test(n)));
+function ownerGateOf(config, { required, queueFailing }, ownerSteps) {
+    const failing = Object.keys(required).filter((n) => required[n] === "FAILURE" && !queueFailing.includes(n));
+    return Boolean(config.ownerGate) && failing.length === 1 && ownerSteps;
 }
 
 /**
@@ -606,7 +619,10 @@ const LINK_CHECK = "Link PR Issue";
  */
 export function failingWords(rec) {
     const queue = rec.queueFailing ?? [];
-    const required = Object.keys(rec.required ?? {}).filter((n) => rec.required[n] === "FAILURE" && !queue.includes(n));
+    // Under the owner gate the one other failing check is the visual review: no fix, so not named.
+    const required = rec.ownerGate
+        ? []
+        : Object.keys(rec.required ?? {}).filter((n) => rec.required[n] === "FAILURE" && !queue.includes(n));
     const words = [];
     if (required.length) words.push(`required check failing: ${required.join(", ")}`);
     if (queue.length) words.push(`kept out of the merge queue: ${queue.join(", ")} failing`);
@@ -671,7 +687,7 @@ function cancelledReasons(rec) {
 function failingReasons(rec, master) {
     const failing = Object.keys(rec.required).filter((n) => rec.required[n] === "FAILURE");
     if (!failing.length) return [];
-    const reasons = rec.ownerGate ? [] : [failingWords(rec)];
+    const reasons = [failingWords(rec)].filter(Boolean);
     if (rec.inherited?.length) reasons.splice(0, reasons.length, `inherited from master: ${rec.inherited.join(", ")}`);
     else if (rec.outside?.length)
         reasons.splice(0, reasons.length, `outside cause, for the owner: ${rec.outside.join(", ")}`);

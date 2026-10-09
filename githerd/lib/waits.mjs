@@ -20,7 +20,7 @@
  */
 
 import { pushedBranches } from "./owners.mjs";
-import { prOf } from "./queue.mjs";
+import { failingRequired, prOf } from "./queue.mjs";
 
 /** @typedef {{branch: string | null, cwd: string, session: string | null}} PushTicket */
 
@@ -67,7 +67,7 @@ function prWait(rec) {
     const checks = Object.values(rec.required ?? {});
     const unsettled = checks.some((c) => c === "PENDING" || c === "MISSING");
     if (unsettled && !checks.includes("FAILURE")) return "ci";
-    if (rec.ownerGate && !rec.ownerRejected) return "owner";
+    if (rec.ownerGate && !rec.ownerRejected && !failingRequired(rec).length) return "owner";
     return checks.length && checks.every((c) => c === "SUCCESS") ? "merge" : null;
 }
 

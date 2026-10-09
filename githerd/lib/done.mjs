@@ -43,7 +43,7 @@ import * as board from "./board.mjs";
 import { updateBranchCommand } from "./prs.mjs";
 import { raiseItem } from "./notify.mjs";
 import { recordVerdict } from "./proposals.mjs";
-import { masterRefs } from "./queue.mjs";
+import { failingRequired, masterRefs } from "./queue.mjs";
 import { run } from "./worktrees.mjs";
 
 /** `githerd/merge` decision lines a worker can fix itself: the `!` title, an unknown package, the issue revision. */
@@ -268,9 +268,9 @@ async function prAnswer(number, pushed, view, issue = null) {
     if (head === null) return null;
     if (head !== true) fix.push(head);
     const required = Object.entries(rec.required ?? {});
-    const failing = required.filter(([, s]) => s === "FAILURE").map(([n]) => n);
+    const failing = failingRequired(rec);
     if (rec.ownerRejected) gaps.push("the owner rejected images: fix the captures he named");
-    else if (failing.length && !rec.ownerGate) gaps.push(`required checks failing: ${failing.join(", ")}`);
+    else if (failing.length) gaps.push(`required checks failing: ${failing.join(", ")}`);
     const gate = rec.mergeStatus;
     if (gate?.state === "failure" && WORKER_LINES.has(gate.line)) gaps.push(`githerd/merge: ${gate.description}`);
     if (gaps.length) return { missing: [...fix, ...gaps] };

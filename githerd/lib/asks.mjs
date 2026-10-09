@@ -645,8 +645,7 @@ function broken(state, n, rec) {
     // A head githerd or GitHub made (an update-branch merge) breaks a pull request as much as any:
     // skipping it left a stale push holding a broken pull request with nobody asked.
     if (!prWork(n, rec, state) || jobOnPr(state, n)) return null;
-    const failing = rec.ownerGate ? [] : failingRequired(rec);
-    if (failing.length) return failingWords(rec);
+    if (failingRequired(rec).length) return failingWords(rec);
     return (rec.conflictSightings ?? 0) >= 2 ? `conflicting with ${rec.baseRef ?? "its base"}` : null;
 }
 

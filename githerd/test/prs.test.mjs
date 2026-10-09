@@ -656,4 +656,38 @@ describe("a check the merge queue's conditions name", () => {
         }
         expect(prWork("704", updatePrs({}, [unlinked()], GREEN, config, NOW)["704"], owner)).toBeNull();
     });
+
+    // #1682: the visual gate and Link PR Issue failed together; the description was then fixed.
+    const gateAndLink = (link = "FAILURE") => {
+        const n = withChecks(node(), [
+            run("All Checks Pass", "FAILURE"),
+            run("Lint PR Title", "SUCCESS"),
+            run("Link PR Issue", link),
+        ]);
+        n.detail = { failedSteps: ["Check visual changes were accepted"] };
+        return n;
+    };
+
+    it("beside the visual gate, asks about the fixable failure only", () => {
+        const rec = updatePrs({}, [gateAndLink()], QUEUED, config, NOW)["704"];
+        expect(rec.ownerGate).toBe(true);
+        expect(askProblems(rec)).toEqual(["Link PR Issue"]);
+        const work = prWork("704", rec, { ...owner, prs: { 704: rec } });
+        expect(work).toMatch(/^kept out of the merge queue: Link PR Issue failing/);
+        expect(work).not.toMatch(/All Checks Pass/);
+    });
+
+    it("once only the visual gate is left, waits on the owner with no question, as on #1682", () => {
+        const first = updatePrs({}, [gateAndLink()], QUEUED, config, NOW);
+        // the same gate job: githerd does not read its steps again
+        const linked = { ...gateAndLink("SUCCESS"), detail: undefined };
+        const rec = updatePrs(first, [linked], QUEUED, config, NOW)["704"];
+        const state = { ...owner, prs: { 704: rec } };
+        expect(rec.ownerGate).toBe(true);
+        expect(askProblems(rec)).toEqual([]);
+        expect(prWork("704", rec, state)).toBeNull();
+        expect(ownerWaitingPrs(state, new Date(NOW))).toEqual([
+            { target: "pr:704", reason: expect.stringMatching(/^waiting on owner: visual review/) },
+        ]);
+    });
 });

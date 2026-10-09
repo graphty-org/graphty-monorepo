@@ -38,11 +38,11 @@ is the option she meant (`03.png` shows the node Chloe selected). The session is
   (`19.png`). The follow-up's success path is about 4 steps, so 5 meets the target of the success
   path + 1. 0 wrong turns on the follow-up.
 - **Wrong turns: 1.**
-  1. Step 6 (`06.png`): typed "link" in the Analyze filter, her own word for "how two people are
-     linked". It returned Degree, Louvain, Leiden and Link prediction ("Which missing edges the
-     shared neighbors suggest"). Shortest path is not among them. She cleared the filter and
-     scrolled at step 7 (`07.png`), steered by the heading "Find paths and edge sets" that showed
-     above Link prediction.
+    1. Step 6 (`06.png`): typed "link" in the Analyze filter, her own word for "how two people are
+       linked". It returned Degree, Louvain, Leiden and Link prediction ("Which missing edges the
+       shared neighbors suggest"). Shortest path is not among them. She cleared the filter and
+       scrolled at step 7 (`07.png`), steered by the heading "Find paths and edge sets" that showed
+       above Link prediction.
 - **First move:** the find box (`02.png`), a place her history names. It was not a broken habit:
   selecting Chloe there filled the Shortest path form's From for her (`08.png`), so the habit led
   on to the task.

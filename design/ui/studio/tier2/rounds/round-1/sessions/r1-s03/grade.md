@@ -40,15 +40,15 @@ answer key.
   12 steps.
 - **Wrong turns: 4**, all but the last spent looking for a load-time setting that this route does
   not have:
-  1. Step 5 (`05.png`): he clicked the minutes column's kind, "Amount", expecting a choice. It is
-     only a label.
-  2. Step 6 (`06.png`): the column's "..." menu offers only "Filter to..." and "Show in table".
-  3. Step 7 (`07.png`): he opened the bus-stops.csv source. Its panel shows only the counts.
-  4. Step 15 (`15.png`): he meant to hover the Follow buttons. His `--click "Shortest path"`
-     matched the edges table's column header first and sorted the table. This one came from how
-     the command matched names, not from the app. It did give him a useful check.
-  Steps 3 and 4, the Data tab and the minutes column, were part of the same search. They are
-  counted with the dead ends above, not separately.
+    1. Step 5 (`05.png`): he clicked the minutes column's kind, "Amount", expecting a choice. It is
+       only a label.
+    2. Step 6 (`06.png`): the column's "..." menu offers only "Filter to..." and "Show in table".
+    3. Step 7 (`07.png`): he opened the bus-stops.csv source. Its panel shows only the counts.
+    4. Step 15 (`15.png`): he meant to hover the Follow buttons. His `--click "Shortest path"`
+       matched the edges table's column header first and sorted the table. This one came from how
+       the command matched names, not from the app. It did give him a useful check.
+       Steps 3 and 4, the Data tab and the minutes column, were part of the same search. They are
+       counted with the dead ends above, not separately.
 - **False "done": none.** At step 15 he said "I have my answer", and the route, the total and the
   Made with row were all on screen. In the debrief he said plainly that he never found a way to
   set how every calculation reads minutes, so he did not claim that part was done.

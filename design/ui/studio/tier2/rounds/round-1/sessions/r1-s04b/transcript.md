@@ -184,7 +184,7 @@ Session ended (no further request from --end).
 **Did I finish?** Mostly. The shortest walk from Trailhead to Summit is Trailhead -> Creek -> Meadow ->
 Ridge -> Summit, 7.5 km in total (4 trails). The program says it used the kilometers in the result panel
 under "Made with": "Weight: km (farther)". I'd screenshot that panel as proof. What I could NOT do is set
-km once so that *every* calculation uses it. I only found it as a per-run choice ("Weight", which
+km once so that _every_ calculation uses it. I only found it as a per-run choice ("Weight", which
 started at None) inside the Shortest path form. So the "every calculation" part of the request is not
 done, or at least I can't show that it is.
 
@@ -193,6 +193,7 @@ straight to the right thing. The result is good: path in order, a total, a "Made
 Yes/No column in the table. I lost points on the hunt for a graph-wide setting, which went nowhere.
 
 **What confused me**
+
 - It never asked about my columns on import, so I didn't know whether km meant anything to it until I
   opened the Weight dropdown. The dropdown then offered "km (farther)", which is right. But who
   decided "farther", and where would I change it if a column meant "closer"?

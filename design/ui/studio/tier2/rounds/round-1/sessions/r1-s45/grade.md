@@ -34,14 +34,14 @@ Shift-click on the row's "12" cell). Neither is a tool fault. The session is not
   both gave only "No match for ...".
 - **Steps:** 24 after the start. The answer key's path is 3.
 - **Wrong turns: 3.**
-  1. Steps 1 to 6 (`02.png` to `08.png`): colored Everything's edges by minutes, then searched the
-     Scale list for a cutoff. A ramp from 2 to 15 does not separate 9 from 10, and no scale offers
-     "above a number".
-  2. Steps 7 to 9 (`09.png` to `11.png`): the find box, `minutes`, then `minutes >= 10`, then
-     Enter. "No match" each time.
-  3. Step 10 (`12.png`): Everything's Values tab, which holds only a summary (10 nodes, 17 edges).
-  Steps 11 to 15 (Data place, the minutes attribute, its "..." menu, Show in table, sort) were the
-  route that worked, not detours. The participant saw "Filter to..." and rightly avoided it.
+    1. Steps 1 to 6 (`02.png` to `08.png`): colored Everything's edges by minutes, then searched the
+       Scale list for a cutoff. A ramp from 2 to 15 does not separate 9 from 10, and no scale offers
+       "above a number".
+    2. Steps 7 to 9 (`09.png` to `11.png`): the find box, `minutes`, then `minutes >= 10`, then
+       Enter. "No match" each time.
+    3. Step 10 (`12.png`): Everything's Values tab, which holds only a summary (10 nodes, 17 edges).
+       Steps 11 to 15 (Data place, the minutes attribute, its "..." menu, Show in table, sort) were the
+       route that worked, not detours. The participant saw "Filter to..." and rightly avoided it.
 - **Places looked for a "select where" control:** the Style tab's color-by popover and its Scale
   list; the find box; Everything's Values tab; the Data place's minutes summary and its "..." menu.
 - **False "done": none.** The closing claim (3 links, those three named, drawn thick red, nothing

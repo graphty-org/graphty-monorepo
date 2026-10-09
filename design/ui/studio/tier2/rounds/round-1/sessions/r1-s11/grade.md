@@ -33,8 +33,7 @@ state and every screenshot matches its command. The session is not void.
   to "turn it on" after saving.
 - **False "done": none.** Every claim matches the screen beside it: 19 and 12 (`09.png`), the
   whole club back (`10.png`), 10 and 5 (`13.png`), all 20 back (`14.png`). He noticed that two
-  dots overlap at the bottom and that a count by eye would come out at 9, and he took the panel's
-  10. truth-on-screen: no wrong claim.
+  dots overlap at the bottom and that a count by eye would come out at 9, and he took the panel's 10. truth-on-screen: no wrong claim.
 - **Earlier work kept:** the PageRank run and its size and color layers are still on the drawing
   at the end (legend "Size: PageRank", "Color: PageRank", `14.png`). The filter step is kept,
   switched off by his choice.

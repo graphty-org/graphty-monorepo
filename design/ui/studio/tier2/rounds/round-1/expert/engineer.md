@@ -8,18 +8,18 @@ screenshot was looked at.
 
 Walks (folders under `engineer/<size>/`, one numbered screenshot per step, steps in `<walk>.log`):
 
-| Walk      | What it covers                                                                                                     |
-| --------- | ------------------------------------------------------------------------------------------------------------------ |
-| start     | Start screen, usage-data card, hover on a start row                                                                 |
-| import    | New from data: one table, role list open, second table, unmatched row, Load, Sources, left-out row inspector         |
-| weight    | Import with a weight column, Higher means, Load, Path popover empty and filled, path result                          |
-| filter    | Style tab of a run, attribute row, Attribute actions menu, new filter step, step on, off, edited, saved              |
-| path      | Path popover by keyboard, path result, legend with a categorical block                                             |
-| notes     | Note form, saved note, note about the graph, Save dialog, Recent projects after reopening, Notes after reopening    |
-| replace   | Run Values (histogram, top 10), Sources menu, Replace page, stale run banner, rerun                                 |
-| select    | Rule in the find box, edge selection inspector, Selection actions menu, refused rule                                |
-| neighbors | Neighborhood list at 1 and 2 hops, Filter to neighbors                                                              |
-| analyze   | Everything's Style tab with labels on, Analyze popover                                                              |
+| Walk      | What it covers                                                                                                                   |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| start     | Start screen, usage-data card, hover on a start row                                                                              |
+| import    | New from data: one table, role list open, second table, unmatched row, Load, Sources, left-out row inspector                     |
+| weight    | Import with a weight column, Higher means, Load, Path popover empty and filled, path result                                      |
+| filter    | Style tab of a run, attribute row, Attribute actions menu, new filter step, step on, off, edited, saved                          |
+| path      | Path popover by keyboard, path result, legend with a categorical block                                                           |
+| notes     | Note form, saved note, note about the graph, Save dialog, Recent projects after reopening, Notes after reopening                 |
+| replace   | Run Values (histogram, top 10), Sources menu, Replace page, stale run banner, rerun                                              |
+| select    | Rule in the find box, edge selection inspector, Selection actions menu, refused rule                                             |
+| neighbors | Neighborhood list at 1 and 2 hops, Filter to neighbors                                                                           |
+| analyze   | Everything's Style tab with labels on, Analyze popover                                                                           |
 | long      | `long-names.csv` (40+ character names, a 30-character column): node inspector, neighborhood, path, Data place, filter, find list |
 
 Severity: 0 cosmetic only if time allows, 1 cosmetic, 2 minor (slows or misleads), 3 major (hides

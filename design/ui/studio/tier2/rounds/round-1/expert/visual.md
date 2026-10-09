@@ -7,16 +7,16 @@ in `visual/<walk>/NN.png` beside this file; each walk folder also holds its `ses
 
 Severity is 0 to 4 (Nielsen). Owner is the package where the fix belongs.
 
-| Walk                 | Start                         | Screens                                                                  |
-| -------------------- | ----------------------------- | ------------------------------------------------------------------------ |
-| `visual/filters/`    | friends.csv, ranked           | Data place, step editor (new and off), step on and off, header chip      |
-| `visual/path/`       | friends.csv, ranked, names on | Path popover, finished path and its Values, neighbor list, filter to it  |
-| `visual/edge/`       | friends.csv, ranked, names on | Edge inspector, its menu, Select endpoints                               |
-| `visual/notes/`      | friends.csv, ranked           | Notes empty, note form, one note, two notes                              |
-| `visual/twotables/`  | empty                         | Import page with two tables and the unmatched row; Data page after Load  |
-| `visual/replace/`    | friends.csv, ranked           | PageRank Values, source menu, "Replace: friends-v2.csv", out-of-date run |
-| `visual/find/`       | bus-stops.csv, ranked         | Find box: column hint, refused rule, accepted rule and its selection     |
-| `visual/longnames/`  | long-names.csv                | Data place, find box and node inspector with 40-character names          |
+| Walk                | Start                         | Screens                                                                  |
+| ------------------- | ----------------------------- | ------------------------------------------------------------------------ |
+| `visual/filters/`   | friends.csv, ranked           | Data place, step editor (new and off), step on and off, header chip      |
+| `visual/path/`      | friends.csv, ranked, names on | Path popover, finished path and its Values, neighbor list, filter to it  |
+| `visual/edge/`      | friends.csv, ranked, names on | Edge inspector, its menu, Select endpoints                               |
+| `visual/notes/`     | friends.csv, ranked           | Notes empty, note form, one note, two notes                              |
+| `visual/twotables/` | empty                         | Import page with two tables and the unmatched row; Data page after Load  |
+| `visual/replace/`   | friends.csv, ranked           | PageRank Values, source menu, "Replace: friends-v2.csv", out-of-date run |
+| `visual/find/`      | bus-stops.csv, ranked         | Find box: column hint, refused rule, accepted rule and its selection     |
+| `visual/longnames/` | long-names.csv                | Data place, find box and node inspector with 40-character names          |
 
 ## Findings
 

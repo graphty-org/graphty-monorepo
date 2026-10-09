@@ -15,20 +15,20 @@ Not covered: the 1280 x 800 width (the tool captures 1440 x 900 only) and light 
 
 ## Screens walked
 
-| Screen                                                | Session folder | Screenshots                    |
-| ----------------------------------------------------- | -------------- | ------------------------------ |
-| Data place, Filters empty, with a step on and off     | `filter/`      | 02, 09, 11, 16                 |
-| Filter step editor (new, edit, from the attribute)    | `filter/`      | 04 to 08, 12 to 15, 19         |
-| Header chip                                           | `filter/`      | 09, 10 (tooltip), 17           |
-| Path popover and the path run's Values and Style      | `path/`        | 04 to 11                       |
-| Notes place, empty and with two notes                 | `notes/`       | 02, 05, 07, 09 to 11           |
-| Data page with two tables and an unmatched row        | `tables/`      | 03, 05, 06, 07, 08             |
-| Data page titled "Replace: ...", the out-of-date run  | `replace/`     | 03, 04, 05, 07, 08, 09         |
-| Neighbor list with Hops and Follow, Filter to neighbors | `neighbors/` | 02, 05 to 08                   |
-| An edge's inspector, Edge actions, canvas menu        | `edge/`        | 02 to 06                       |
-| Find box: column hint, refused rule, accepted rule    | `edge/`        | 08, 09, 11, 13, 14             |
-| Weight meaning at load, Path popover reading it       | `weight/`      | 04, 06, 08                     |
-| Long names (`long-names.csv`)                         | `long/`        | 03, 04, 06, 07, 08             |
+| Screen                                                  | Session folder | Screenshots            |
+| ------------------------------------------------------- | -------------- | ---------------------- |
+| Data place, Filters empty, with a step on and off       | `filter/`      | 02, 09, 11, 16         |
+| Filter step editor (new, edit, from the attribute)      | `filter/`      | 04 to 08, 12 to 15, 19 |
+| Header chip                                             | `filter/`      | 09, 10 (tooltip), 17   |
+| Path popover and the path run's Values and Style        | `path/`        | 04 to 11               |
+| Notes place, empty and with two notes                   | `notes/`       | 02, 05, 07, 09 to 11   |
+| Data page with two tables and an unmatched row          | `tables/`      | 03, 05, 06, 07, 08     |
+| Data page titled "Replace: ...", the out-of-date run    | `replace/`     | 03, 04, 05, 07, 08, 09 |
+| Neighbor list with Hops and Follow, Filter to neighbors | `neighbors/`   | 02, 05 to 08           |
+| An edge's inspector, Edge actions, canvas menu          | `edge/`        | 02 to 06               |
+| Find box: column hint, refused rule, accepted rule      | `edge/`        | 08, 09, 11, 13, 14     |
+| Weight meaning at load, Path popover reading it         | `weight/`      | 04, 06, 08             |
+| Long names (`long-names.csv`)                           | `long/`        | 03, 04, 06, 07, 08     |
 
 ## Findings, most severe first
 
@@ -43,9 +43,9 @@ Not covered: the 1280 x 800 width (the tool captures 1440 x 900 only) and light 
    `filter/16.png` (after the button). Owner: graphty app.
 
 2. **A number in a rule must be wrapped in backticks.** `=minutes >= 10` is refused with "Put
-   numbers in backticks: minutes > `9`"; only `=minutes >= \`10\`` selects. That is the query
-   language's own syntax shown on the success path of "select where". No search field a Figma user
-   knows asks for it. Screen: find box with a refused rule. Evidence: `edge/09.png`, `edge/13.png`.
+   numbers in backticks: minutes > `9`"; only `=minutes >= \`10\``selects. That is the query
+language's own syntax shown on the success path of "select where". No search field a Figma user
+knows asks for it. Screen: find box with a refused rule. Evidence:`edge/09.png`, `edge/13.png`.
    Owner: graphty-element (accept a bare number, or return a neutral refusal code the app words).
 
 3. **Edge names are cut inside the string, so the far end is lost everywhere.** An edge between

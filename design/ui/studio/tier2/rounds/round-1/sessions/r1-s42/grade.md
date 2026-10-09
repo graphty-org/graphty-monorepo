@@ -35,14 +35,14 @@ and the tool named each target it clicked. The session is not void.
 - **Steps:** 18 after the start (`02.png` to `19.png`). The answer key's keyboard path is about
   14 commands; her mouse path with the detour is close to it.
 - **Wrong turns: 2.**
-  1. Step 7 (`07.png`): pressed the Notes "+" with Medici still selected; the form read "About
-     Medici". She saw the label, cancelled (step 8), clicked empty canvas to clear the selection
-     (step 9, `09.png`, inspector shows Graph), and the "+" then read "About Graph" (`10.png`).
-     Three extra steps.
-  2. Step 13 (`13.png`): hovered "Local only" to find out whether her work was saved. Its tooltip,
-     "Nothing is sent. Opens Settings > Privacy", is about privacy, not saving. One extra step.
-  Steps 2 and 3 (clicking Medici, then the inspector "..." to find Add note) are the expected
-  path for a mouse user, not detours.
+    1. Step 7 (`07.png`): pressed the Notes "+" with Medici still selected; the form read "About
+       Medici". She saw the label, cancelled (step 8), clicked empty canvas to clear the selection
+       (step 9, `09.png`, inspector shows Graph), and the "+" then read "About Graph" (`10.png`).
+       Three extra steps.
+    2. Step 13 (`13.png`): hovered "Local only" to find out whether her work was saved. Its tooltip,
+       "Nothing is sent. Opens Settings > Privacy", is about privacy, not saving. One extra step.
+       Steps 2 and 3 (clicking Medici, then the inspector "..." to find Add note) are the expected
+       path for a mouse user, not detours.
 - **False "done": none.** Her final claim (both notes there after the reopen, Medici's on Medici,
   the other on the whole network) is what `19.png` shows. Her remark at step 18 that the right
   side says "1 note" is accurate (the graph's own count); she did not read it as a missing note.

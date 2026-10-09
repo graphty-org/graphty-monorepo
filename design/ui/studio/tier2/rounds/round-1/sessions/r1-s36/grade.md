@@ -3,8 +3,7 @@
 **Grade: S** (success). Both files are in one drawn network, the counts are stated and right for
 the choice he made, and the row that did not fit is named in full. Before loading, the import page
 flagged one pass row whose receiver is not in the squad list; he opened it (line 17, s04 to s11, 3
-passes), chose "Add", and loaded 11 nodes and 18 edges. The answer key accepts either Add (11 and
-18) or Leave out (10 and 17) when the participant says which row did not fit, and he did, in the
+passes), chose "Add", and loaded 11 nodes and 18 edges. The answer key accepts either Add (11 and 18) or Leave out (10 and 17) when the participant says which row did not fit, and he did, in the
 session and in the wrap-up ("line 17, s04 -> s11, 3 passes ... s11 isn't on the squad list").
 
 Build seen: `946256efb876 graphty@0.8.56` (session.json), at 1440 x 900, no uncommitted changes.

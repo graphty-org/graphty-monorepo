@@ -35,19 +35,19 @@ participant action. The session is not void.
   (`18.png`, per-run route); the graded end state at step 40. The load-time success path is about
   10 steps.
 - **Wrong turns: 5.**
-  1. Step 3 (`03.png`): opened the file with "Open project or file...", the route that loads no
-     weight. His history names it as how he opened the class spreadsheet, so this is the returning
-     habit the criteria score; everything up to step 30 follows from it.
-  2. Step 6 (`06.png`): clicked the minutes column's kind, "Amount", expecting a choice. It is only
-     a label.
-  3. Step 7 (`07.png`): the minutes "Attribute actions" menu offers only "Filter to..." and "Show
-     in table".
-  4. Step 9 (`09.png`): typed "quickest" in the Analyze filter: `No analysis matches "quickest"`.
-     Recovered on the next step with "route".
-  5. Step 28 (`28.png`): looked for "New from data" in the main menu; it is not there, so he took
-     "Back to start" and discarded the graph and its two runs (`29.png`, `30.png`).
-  Steps 19 to 27 (Advanced run settings, then running Closeness and reading its Made with) were
-  his check of the task's "every calculation" requirement, not detours.
+    1. Step 3 (`03.png`): opened the file with "Open project or file...", the route that loads no
+       weight. His history names it as how he opened the class spreadsheet, so this is the returning
+       habit the criteria score; everything up to step 30 follows from it.
+    2. Step 6 (`06.png`): clicked the minutes column's kind, "Amount", expecting a choice. It is only
+       a label.
+    3. Step 7 (`07.png`): the minutes "Attribute actions" menu offers only "Filter to..." and "Show
+       in table".
+    4. Step 9 (`09.png`): typed "quickest" in the Analyze filter: `No analysis matches "quickest"`.
+       Recovered on the next step with "route".
+    5. Step 28 (`28.png`): looked for "New from data" in the main menu; it is not there, so he took
+       "Back to start" and discarded the graph and its two runs (`29.png`, `30.png`).
+       Steps 19 to 27 (Advanced run settings, then running Closeness and reading its Made with) were
+       his check of the task's "every calculation" requirement, not detours.
 - **False "done": none.** At step 18 he did not stop: he said he had only told one run and went
   on to check. At step 40 he claimed the setting is now on the file, and the screen supports it
   ("Loaded weight minutes (farther)", `36.png`; "minutes (farther, loaded)", `38.png`). His

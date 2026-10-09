@@ -35,21 +35,21 @@ tool fault, no API error. The session is not void.
 - **First move:** to a place her history names ("Open project or file...", then the Data place).
   It led nowhere for this task: the file loaded with no weight and no place there sets one.
 - **Wrong turns: 6.**
-  1. Step 3 (`03.png`): opened the file with "Open project or file...", the route that loads no
-     weight. Her history names it as how she opens the supplier export; everything up to step 11
-     follows from it. The Overview shows no "Loaded weight" row, and nothing says minutes were
-     ignored.
-  2. Step 6 (`06.png`): clicked the minutes column's kind, "Amount", expecting a choice. It is
-     only a label.
-  3. Step 7 (`07.png`): the minutes "Attribute actions" menu offers only "Filter to..." and "Show
-     in table".
-  4. Step 8 (`08.png`): the bus-stops.csv source panel shows only what was added (10 nodes, 17
-     edges), no reading settings.
-  5. Step 9 (`09.png`): the edge table's "Table options" menu offers only "Export...".
-  6. Step 10 (`10.png`): looked for "New from data" in the main menu; it is not there, so she took
-     "Back to start", which dropped the graph with no prompt (`11.png`).
-  Steps 4 and 5 (Data, then the minutes column) were her history's habit of checking what loaded
-  and are counted with the first wrong turn, not separately.
+    1. Step 3 (`03.png`): opened the file with "Open project or file...", the route that loads no
+       weight. Her history names it as how she opens the supplier export; everything up to step 11
+       follows from it. The Overview shows no "Loaded weight" row, and nothing says minutes were
+       ignored.
+    2. Step 6 (`06.png`): clicked the minutes column's kind, "Amount", expecting a choice. It is
+       only a label.
+    3. Step 7 (`07.png`): the minutes "Attribute actions" menu offers only "Filter to..." and "Show
+       in table".
+    4. Step 8 (`08.png`): the bus-stops.csv source panel shows only what was added (10 nodes, 17
+       edges), no reading settings.
+    5. Step 9 (`09.png`): the edge table's "Table options" menu offers only "Export...".
+    6. Step 10 (`10.png`): looked for "New from data" in the main menu; it is not there, so she took
+       "Back to start", which dropped the graph with no prompt (`11.png`).
+       Steps 4 and 5 (Data, then the minutes column) were her history's habit of checking what loaded
+       and are counted with the first wrong turn, not separately.
 - **Recovery:** yes, from the start screen's "New from data...", which she had never used.
 - **False "done": none.** She claimed done only at the end, and every claim is on screen: the
   route and 14 (`25.png`), "Weight: minutes (farther)" in Made with (`25.png`), "Loaded weight

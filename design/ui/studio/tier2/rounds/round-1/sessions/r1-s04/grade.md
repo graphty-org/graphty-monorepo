@@ -34,9 +34,9 @@
 
 ## Problems
 
-| Severity | Problem | Evidence |
-| --- | --- | --- |
+| Severity   | Problem                                                                                                                                                              | Evidence                                                                  |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | n/a (tool) | A `--step` wrapped in `with-browser.sh` inside a running session waits for a second browser slot and never runs, so the session cannot proceed past its start screen | `transcript.md` step 2; `tool/README.md` "Browsers"; only `01.png` exists |
-| n/a (tool) | The session agent's permission policy refused a bare `node real.mjs --step`, the form the README documents, leaving no working way to take a step | `transcript.md` step 2 |
+| n/a (tool) | The session agent's permission policy refused a bare `node real.mjs --step`, the form the README documents, leaving no working way to take a step                    | `transcript.md` step 2                                                    |
 
 No app problems are recorded: the session produced no evidence about the app.

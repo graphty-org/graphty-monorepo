@@ -31,10 +31,10 @@ void.
 - **Steps:** 10 after the start (`02.png` to `11.png`). The answer first appears at step 10
   (`10.png`); step 11 was a check by hover.
 - **Wrong turns: 1.**
-  1. Step 2 (`02.png`): pointed at the main menu icon by mistake (tooltip "Main menu: open, save,
-     export, settings"); nothing changed and he moved on.
-  Scrolling the Analyze list (step 4) was looking, not a wrong turn: the path entry sits below the
-  visible part of the list.
+    1. Step 2 (`02.png`): pointed at the main menu icon by mistake (tooltip "Main menu: open, save,
+       export, settings"); nothing changed and he moved on.
+       Scrolling the Analyze list (step 4) was looking, not a wrong turn: the path entry sits below the
+       visible part of the list.
 - **False "done": none.** His final answer (Strozzi, Ridolfi, Medici, Salviati, Pazzi) matches the
   Nodes in order on screen. He said he could not check the drawing against the list and chose to
   trust the list; that is stated as a limit, not claimed as checked. truth-on-screen: no wrong

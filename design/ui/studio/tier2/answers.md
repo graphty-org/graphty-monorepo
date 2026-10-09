@@ -537,8 +537,8 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   start screen sends a data file to the same Data page "New from data..." opens, with the file
   already chosen and "Higher means" asked before anything loads (a `.graphty` project still opens
   at once). Steps: `--click "No thanks"`; `--click "Open project or file..." --upload
-  bus-stops.csv` (B: trails.csv); the minutes column's role box; `--click "Weight"`; `--click
-  "Farther"`; `--click "Load"`; `--key p`; From Depot; To Harbor; `--click "Find path"` -- **10
+bus-stops.csv` (B: trails.csv); the minutes column's role box; `--click "Weight"`; `--click
+"Farther"`; `--click "Load"`; `--key p`; From Depot; To Harbor; `--click "Find path"` -- **10
   steps**, one fewer than the success path, since one step opens the page and chooses the file.
   Grade it as the success path: S when it ends right with no detour. Its screens (the page's
   title, where the role box sits) are the round 2 pilot's to record.
@@ -618,7 +618,7 @@ file..." --upload friends-v2.csv`; `--click "Load"` (the app returns to the Grap
   left click on the Sources row) has a "..." header menu holding "Edit source..." and "Replace with
   file...", the same items and the same rule as the row's right-click menu (on a graph made of two
   loads it offers Edit source... only). Steps: `--click "Values"`; `--click "Data"`; `--click
-  "friends.csv"` (a left click; the source's inspector opens); the inspector's "..." (its accessible
+"friends.csv"` (a left click; the source's inspector opens); the inspector's "..." (its accessible
   name is the pilot's to record); `--click "Replace with file..." --upload friends-v2.csv`; the
   Replace page's confirm button (Load on 946256efb876; the round 2 build renames it "Replace");
   `--click "Rerun"` -- **7 steps**, one more than the right-click route because the menu needs
@@ -684,9 +684,9 @@ with "Put numbers in backticks:" with an example from the open data's own column
 the path; Enter on a refused rule changes nothing (`T22A/05.png`, `T22B/04.png`). A lone "="
 lists the columns a rule can use (A: id as a node column, minutes as an edge column; B: id, name
 as node columns, shared_chapters as an edge column; the PageRank values are not listed) above
-  the layer list, with "Type a rule, such as minutes > `9`" (B: "shared_chapters > `16`",
-  `rounds/r1d4/pilot/T22A/03.png`, `T22B/02.png`; on B "Type a rule, such as" sits alone and
-  "shared_chapters > `16`" wraps onto the next line). An accepted rule stays in the box after Enter (with no visible text highlight), and the
+the layer list, with "Type a rule, such as minutes > `9`" (B: "shared_chapters > `16`",
+`rounds/r1d4/pilot/T22A/03.png`, `T22B/02.png`; on B "Type a rule, such as" sits alone and
+"shared_chapters > `16`" wraps onto the next line). An accepted rule stays in the box after Enter (with no visible text highlight), and the
 line under it reads "3 edges selected" (B "13 edges selected"). A second Enter on the accepted rule
 changes nothing and is not a detour. Escape in the box clears the box and keeps the selection; the
 line under the box goes with the text, so the count is then read from the inspector or the
@@ -699,12 +699,12 @@ Selection layer row (`rounds/r1d3/pilot/T22A/09.png`, `T22B/08.png`). On B the e
   monospace (A "minutes > `9`", B "shared_chapters > `16`", as the refusal's example on
   946256efb876; the round 2 pilot records the screen). Text that is no rule (a name with no match)
   still gets "No match". Steps: `--key /`; `--type "minutes >= 10"` (the hint shows); select the
-  text and type the rule, `--key Control+a --type "=minutes >= \`10\`"` (B: `=shared_chapters >=
+  text and type the rule, `--key Control+a --type "=minutes >= \`10\`"`(B:`=shared_chapters >=
   \`10\``); `--key Enter` -- **4 steps**, one more than the success path. Typing only "=" in front
-  (`=minutes >= 10`) gets the bare-number refusal next, and its correction adds one step (5).
-  Following the hint and then the refusal is the path, not a detour: grade S when the end state is
-  right. Record whether the participant used the hint's example as written (A "> `9`" means 10 or
-  more only because minutes are whole numbers; B "> `16`" is the wrong number: `read-wrong` if the
+(`=minutes >= 10`) gets the bare-number refusal next, and its correction adds one step (5).
+Following the hint and then the refusal is the path, not a detour: grade S when the end state is
+right. Record whether the participant used the hint's example as written (A "> `9`" means 10 or
+more only because minutes are whole numbers; B "> `16`" is the wrong number: `read-wrong` if the
   count comes from it).
 - **Other routes, graded by the end state:** clicking each line with Shift held (A: 3 lines; not
   checked on this build); a color on Everything's edges that separates exactly the 10-or-more ties.

@@ -49,18 +49,18 @@ tool fault. The session is not void.
   (`17.png`, and the first command of step 19 ending in `21.png`) were mistyped commands.
 - **Wrong turns: 6**, all spent looking for a place to say what km means for every calculation, on
   a route that has none:
-  1. Step 4 (`05.png`): km's summary in the Data place, "Kind Amount", no meaning or weight
-     setting.
-  2. Step 5 (`06.png`): the trails.csv source. Its panel shows only "Added: Nodes 9, Edges 13", no
-     reading settings.
-  3. Step 16 (`18.png`): the Graph place. Its list shows Selection, "Shortest path 4 hops",
-     Everything; nothing about weight.
-  4. Step 17 (`19.png`): clicking the graph's name, "trails.csv", at the top of the Graph panel.
-     Nothing changed; the graph's Overview did not come back.
-  5. Step 18 (`20.png`, `21.png`): Everything, a place her history names ("color by group from the
-     Style tab of Everything"). It shows only Style (Fill, Shape, Effects, Label, Tooltip).
-  6. Step 19 (`22.png`, `23.png`): km's "Attribute actions" menu offers only "Filter to..." and
-     "Show in table".
+    1. Step 4 (`05.png`): km's summary in the Data place, "Kind Amount", no meaning or weight
+       setting.
+    2. Step 5 (`06.png`): the trails.csv source. Its panel shows only "Added: Nodes 9, Edges 13", no
+       reading settings.
+    3. Step 16 (`18.png`): the Graph place. Its list shows Selection, "Shortest path 4 hops",
+       Everything; nothing about weight.
+    4. Step 17 (`19.png`): clicking the graph's name, "trails.csv", at the top of the Graph panel.
+       Nothing changed; the graph's Overview did not come back.
+    5. Step 18 (`20.png`, `21.png`): Everything, a place her history names ("color by group from the
+       Style tab of Everything"). It shows only Style (Fill, Shape, Effects, Label, Tooltip).
+    6. Step 19 (`22.png`, `23.png`): km's "Attribute actions" menu offers only "Filter to..." and
+       "Show in table".
 - **First move:** "Open project or file..." on the start screen (`03.png`), the place her history
   names ("You open a file from the start screen"). It loaded the file at once with no questions,
   so the habit carried her straight past the only place on this build where the weight's meaning is

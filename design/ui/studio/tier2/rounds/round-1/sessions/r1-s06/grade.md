@@ -33,17 +33,17 @@ its command, so the session is not void.
   steps, one of them the Direction look (`16.png`).
 - **Wrong turns: 7**, all spent looking for a place to say what km means on the "Open project or
   file..." route, which has none:
-  1. Step 3 (`03.png`): the Data place. It lists km under Edges with no meaning or role.
-  2. Step 4 (`04.png`): km's panel shows only facts (Kind Amount, Range 1 to 6).
-  3. Step 5 (`05.png`): km's "Attribute actions" menu offers only "Filter to..." and "Show in
-     table".
-  4. Step 6 (`06.png`): the trails.csv source panel shows only "Added: Nodes 9, Edges 13", no
-     settings for how the file was read.
-  5. Step 7 (`07.png`): clicking the table's km heading sorted the table.
-  6. Step 8 (`08.png`): the km column's options offer only "Move left" and "Move right", both
-     disabled.
-  7. Step 9 (`09.png`): the main menu, which has no "New from data..." entry.
-  Step 10 ("Back to start") was her way out of the dead end, not a wrong turn.
+    1. Step 3 (`03.png`): the Data place. It lists km under Edges with no meaning or role.
+    2. Step 4 (`04.png`): km's panel shows only facts (Kind Amount, Range 1 to 6).
+    3. Step 5 (`05.png`): km's "Attribute actions" menu offers only "Filter to..." and "Show in
+       table".
+    4. Step 6 (`06.png`): the trails.csv source panel shows only "Added: Nodes 9, Edges 13", no
+       settings for how the file was read.
+    5. Step 7 (`07.png`): clicking the table's km heading sorted the table.
+    6. Step 8 (`08.png`): the km column's options offer only "Move left" and "Move right", both
+       disabled.
+    7. Step 9 (`09.png`): the main menu, which has no "New from data..." entry.
+       Step 10 ("Back to start") was her way out of the dead end, not a wrong turn.
 - **False "done": none.** She said "Done" at step 24 with the right route, the right total and
   Made with's "Weight km (farther)" on screen. Her hand sums agree with the rows on screen: 1.5 +
   2 + 2.5 + 1.5 = 7.5, and via Pine Fork 3 + 1 + 2.5 + 1.5 = 8 (rows Trailhead-Pine Fork 3, Pine

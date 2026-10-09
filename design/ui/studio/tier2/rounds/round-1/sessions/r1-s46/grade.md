@@ -47,14 +47,14 @@ reached the app.
 - **Steps:** 15 after the start (`02.png` to `16.png`), against 3 on the answer key's path. One
   of those (step 3) was a hover with no change, and one came from the tool misfire (step 6).
 - **Wrong turns: 3.**
-  1. Steps 2 to 5 (`02.png` to `05.png`): the Style panel's Edges side, then Line, then Color.
-     This added an edge color on Everything, not on the layer she had open.
-  2. Step 8 (`08.png`): ">= 10" in the find box got `No match for ">= 10"`.
-  3. Steps 12 and 13 (`12.png`, `13.png`): "shared_chapters >= 10", then Enter, got "No match"
-     both times.
-  The Data visit (steps 9 to 11) was deliberate research and found the column's name, so it is
-  not counted as a wrong turn. The refusal at step 14 ("Put numbers in backticks") and her fix at
-  step 15 are the answer key's path.
+    1. Steps 2 to 5 (`02.png` to `05.png`): the Style panel's Edges side, then Line, then Color.
+       This added an edge color on Everything, not on the layer she had open.
+    2. Step 8 (`08.png`): ">= 10" in the find box got `No match for ">= 10"`.
+    3. Steps 12 and 13 (`12.png`, `13.png`): "shared_chapters >= 10", then Enter, got "No match"
+       both times.
+       The Data visit (steps 9 to 11) was deliberate research and found the column's name, so it is
+       not counted as a wrong turn. The refusal at step 14 ("Put numbers in backticks") and her fix at
+       step 15 are the answer key's path.
 - **Selection kept:** she pressed no Escape after Enter and no Control+Z, so she did not hit the
   known traps for this task (Escape clearing the selection, Control+Z undoing styling).
 - **False "done": none.** Her claims match the last screen: 13 ties, thick blue lines, nothing

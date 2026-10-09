@@ -46,23 +46,23 @@ after the reader acts. Answer-key changes do not change a bar.
 
 Severity uses Nielsen 0 to 4; a measurement fault that voids a bar is rated 4.
 
-| #   | Sev | Package            | Change                                                                       | Tasks               |
-| --- | --- | ------------------ | ---------------------------------------------------------------------------- | ------------------- |
-| 1   | 4   | study tool         | Four sessions alive at most, exact matches, real file drop, every follow-up  | all                 |
-| 2   | 4   | study tool         | Build the scripts bars 2, 7, 8 and 9 are scored by                           | all                 |
-| 3   | 4   | study tool         | The dry run walks the detours, by pointer and by keyboard                    | all                 |
-| 4   | 3   | graphty app        | Find answers a typed condition with the rule that would read it              | T22                 |
-| 5   | 3   | graphty app        | The source's inspector has the "..." menu with Replace and Edit source       | T21, T20            |
-| 6   | 3   | graphty app        | A data file opened from the start screen goes through the Data page          | T20, T4             |
-| 7   | 3   | graphty app        | Focus and keys in the filter step editor and the find box                    | T17, T22            |
-| 8   | 3   | graphty app        | The words after a load are true and spoken once                              | T4, T21, T18        |
-| 9   | 3   | graphty app        | Long names in the find list end with "..." and show whole on hover           | T18, T22, T23       |
-| 10  | 2-3 | graphty app        | The canvas key says ", out of date" for an out-of-date run                   | T21                 |
-| 11  | 2   | graphty app        | Style lines go only to a layer the row names; no silent Everything           | T22, T24 (detours)  |
-| 12  | 2   | graphty-element    | The selection halo rings a node without tinting it                           | T18, T24 (detours)  |
-| 13  | 2   | graphty app        | The path's Weight list starts on the loaded weight                           | T20, T18            |
-| 14  | 2   | graphty app        | Four word fixes on the path and Replace screens                              | T18, T20, T21       |
-| 15  | --  | tasks-or-answers   | Answer key for the new routes; graders label scripted persona exits          | T20, T21, T22, T18  |
+| #   | Sev | Package          | Change                                                                      | Tasks              |
+| --- | --- | ---------------- | --------------------------------------------------------------------------- | ------------------ |
+| 1   | 4   | study tool       | Four sessions alive at most, exact matches, real file drop, every follow-up | all                |
+| 2   | 4   | study tool       | Build the scripts bars 2, 7, 8 and 9 are scored by                          | all                |
+| 3   | 4   | study tool       | The dry run walks the detours, by pointer and by keyboard                   | all                |
+| 4   | 3   | graphty app      | Find answers a typed condition with the rule that would read it             | T22                |
+| 5   | 3   | graphty app      | The source's inspector has the "..." menu with Replace and Edit source      | T21, T20           |
+| 6   | 3   | graphty app      | A data file opened from the start screen goes through the Data page         | T20, T4            |
+| 7   | 3   | graphty app      | Focus and keys in the filter step editor and the find box                   | T17, T22           |
+| 8   | 3   | graphty app      | The words after a load are true and spoken once                             | T4, T21, T18       |
+| 9   | 3   | graphty app      | Long names in the find list end with "..." and show whole on hover          | T18, T22, T23      |
+| 10  | 2-3 | graphty app      | The canvas key says ", out of date" for an out-of-date run                  | T21                |
+| 11  | 2   | graphty app      | Style lines go only to a layer the row names; no silent Everything          | T22, T24 (detours) |
+| 12  | 2   | graphty-element  | The selection halo rings a node without tinting it                          | T18, T24 (detours) |
+| 13  | 2   | graphty app      | The path's Weight list starts on the loaded weight                          | T20, T18           |
+| 14  | 2   | graphty app      | Four word fixes on the path and Replace screens                             | T18, T20, T21      |
+| 15  | --  | tasks-or-answers | Answer key for the new routes; graders label scripted persona exits         | T20, T21, T22, T18 |
 
 ### 1. Four sessions alive at most, exact matches, real file drop, every follow-up (study tool, severity 4)
 
@@ -125,7 +125,7 @@ Severity uses Nielsen 0 to 4; a measurement fault that voids a bar is rated 4.
 ### 4. Find answers a typed condition with the rule that would read it (graphty app, severity 3)
 
 - **What.** 4 of 4 participants typed a condition into find (`minutes >= 10`, `shared_chapters >=
-  10`) and got only `No match for "..."` (`sessions/r1-s46/12.png`). T22 is the only task below its
+10`) and got only `No match for "..."` (`sessions/r1-s46/12.png`). T22 is the only task below its
   success floor (3 of 4; median 25 steps against 3).
 - **Fix.** When plain text finds nothing, the app asks the element whether `"=" + text` is a rule,
   with the same `session.scope.count({ where })` call `ruleVerdict` already makes. If the element
@@ -172,8 +172,7 @@ Severity uses Nielsen 0 to 4; a measurement fault that voids a bar is rated 4.
   in the main menu: each is a second home for a fact set at load, and the column version needs an
   element API that does not exist. Making "Back to start" undoable: it already asks before
   discarding unsaved changes (`ProjectDialogs.tsx`, `DiscardDialog`); a just-opened file has none.
-- **Risk.** Opening one's own file from the start screen gains one step (Load). The dry run (change
-  3) re-walks tier 1's open-your-own-file task and confirms it still meets its bar.
+- **Risk.** Opening one's own file from the start screen gains one step (Load). The dry run (change 3) re-walks tier 1's open-your-own-file task and confirms it still meets its bar.
 - **Acceptance.** From the start screen, opening `trail.csv` shows the Data page titled for a new
   graph with "Higher means" unanswered; opening a `.graphty` project still opens it directly.
 - **Files.** `graphty/src/workspace/project/actions.ts`, `data-page/request.ts` (`openDataPage`).
@@ -283,16 +282,16 @@ Severity uses Nielsen 0 to 4; a measurement fault that voids a bar is rated 4.
 ### 14. Four word fixes on the path and Replace screens (graphty app, severity 2)
 
 - **What and fix.**
-  - "Total distance 14" has no unit (7 of 7 T20 sessions): name the weight column, "Total minutes
-    14", the existing "Total <column>" rule (`inspector/RunValues.tsx`, about line 394).
-  - The unweighted path's note "Not read -- weight's meaning is not set, and a path needs a
-    distance" read as gibberish (r1-s19): "Each edge counts as 1. weight's meaning is not set", in
-    the form of the existing note (`analyze/words.ts`, `weightRead`).
-  - The Replace page's button says "Load": "Replace", matching the title and the command
-    (`data-page/DataPage.tsx`, about line 1314).
-  - The Analyze filter does not find Shortest path by "chain", "quickest", "link" or "between" (6
-    sessions): add them as aliases, and say "shortest path by weight" in its description, not
-    "route" (`analyze/words.ts`, about line 130).
+    - "Total distance 14" has no unit (7 of 7 T20 sessions): name the weight column, "Total minutes
+      14", the existing "Total <column>" rule (`inspector/RunValues.tsx`, about line 394).
+    - The unweighted path's note "Not read -- weight's meaning is not set, and a path needs a
+      distance" read as gibberish (r1-s19): "Each edge counts as 1. weight's meaning is not set", in
+      the form of the existing note (`analyze/words.ts`, `weightRead`).
+    - The Replace page's button says "Load": "Replace", matching the title and the command
+      (`data-page/DataPage.tsx`, about line 1314).
+    - The Analyze filter does not find Shortest path by "chain", "quickest", "link" or "between" (6
+      sessions): add them as aliases, and say "shortest path by weight" in its description, not
+      "route" (`analyze/words.ts`, about line 130).
 - **Acceptance.** Each string in a unit test; the aliases find Shortest path in the Analyze filter.
 
 ### 15. Answer key for the new routes; graders label scripted persona exits (tasks-or-answers)

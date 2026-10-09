@@ -34,12 +34,12 @@ command. The empty session.log holds no errors. The session is not void.
   (Values, Data, right-click, Replace with upload, Load, Rerun), plus a click on PageRank when the
   run's inspector was not open.
 - **Wrong turns: 1.**
-  1. Step 3 (`04.png`): a left click on "friends.csv" under Sources, expecting a replace option.
-     It opened the source's inspector (Added: Nodes 20, Edges 41) and the edge table, with no
-     replace command. The next step, a right-click, found "Replace with file..." (`05.png`).
-  The click on PageRank at step 7 (`08.png`) is not a wrong turn. The run's inspector was not open
-  when Load returned to the Graph page (the source's inspector was), and the answer key allows
-  this step.
+    1. Step 3 (`04.png`): a left click on "friends.csv" under Sources, expecting a replace option.
+       It opened the source's inspector (Added: Nodes 20, Edges 41) and the edge table, with no
+       replace command. The next step, a right-click, found "Replace with file..." (`05.png`).
+       The click on PageRank at step 7 (`08.png`) is not a wrong turn. The run's inspector was not open
+       when Load returned to the Graph page (the source's inspector was), and the answer key allows
+       this step.
 - **False "done": none.** After Load (`07.png`), Jordan saw that the key still read 0.03779 to
   0.06394, said this was probably last month's ranking, and opened the run instead of reading a
   name. Jordan claimed done only after Rerun, and the claim matches the screen (`09.png`). The

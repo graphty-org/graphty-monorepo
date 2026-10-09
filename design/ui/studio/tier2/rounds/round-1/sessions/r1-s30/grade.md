@@ -37,12 +37,12 @@ The "before" name was read from the run's Values before any change (`02.png`: To
   (`09.png`); steps 9 and 10 were her check of the two new names in the Nodes table. The answer
   key's success path is 6 steps.
 - **Wrong turns: 1.**
-  1. Step 3 (`04.png`): clicked the team.csv row under Sources, expecting it to offer a newer file.
-     The right panel showed only "team.csv, Source; Added: Nodes 12, Edges 16", with no action. She
-     recovered on the next step by right-clicking the row (`05.png`), a guess from spreadsheet
-     habit, not from anything on screen.
-  Step 7 (clicking the PageRank row after Load) is on the success path: the run's inspector was
-  not open at Load, so the answer key lists this click as expected.
+    1. Step 3 (`04.png`): clicked the team.csv row under Sources, expecting it to offer a newer file.
+       The right panel showed only "team.csv, Source; Added: Nodes 12, Edges 16", with no action. She
+       recovered on the next step by right-clicking the row (`05.png`), a guess from spreadsheet
+       habit, not from anything on screen.
+       Step 7 (clicking the PageRank row after Load) is on the success path: the run's inspector was
+       not open at Load, so the answer key lists this click as expected.
 - **False "done": none.** She claimed done only at step 10, after the rerun, with every claim on
   screen. truth-on-screen: her claims that the project, its colors, sizes and ranking row stayed
   and that the rerun used the same settings are supported (`09.png` Made with matches `02.png`:

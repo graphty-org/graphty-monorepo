@@ -1,22 +1,22 @@
 {
- "commit": "946256efb8762ce90b07eb24b2e0728a48012278",
- "toolCommit": "a2fffeea586d3735ffc49fbd4d38576ad38eed87",
- "uncommittedChanges": false,
- "buildStamp": "946256efb876 graphty@0.8.56",
- "url": "/?next",
- "screenReaderMode": true,
- "viewport": {
-  "width": 1440,
-  "height": 900
- },
- "started": "2026-10-09T07:28:47.959Z",
- "setup": [
-  "--click No thanks",
-  "--click New from data...",
-  "--click choose a file...",
-  "--upload people.csv",
-  "--click Add a table",
-  "--click File...",
-  "--upload messages.csv"
- ]
+    "commit": "946256efb8762ce90b07eb24b2e0728a48012278",
+    "toolCommit": "a2fffeea586d3735ffc49fbd4d38576ad38eed87",
+    "uncommittedChanges": false,
+    "buildStamp": "946256efb876 graphty@0.8.56",
+    "url": "/?next",
+    "screenReaderMode": true,
+    "viewport": {
+        "width": 1440,
+        "height": 900
+    },
+    "started": "2026-10-09T07:28:47.959Z",
+    "setup": [
+        "--click No thanks",
+        "--click New from data...",
+        "--click choose a file...",
+        "--upload people.csv",
+        "--click Add a table",
+        "--click File...",
+        "--upload messages.csv"
+    ]
 }

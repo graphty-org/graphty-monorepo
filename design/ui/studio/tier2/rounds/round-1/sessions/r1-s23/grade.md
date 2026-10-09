@@ -44,16 +44,16 @@ follow-up) has no result for this session and must not be counted as a pass.
   it selected a node, and the selected node carried into the Shortest path form's From (`11.png`),
   as it did in r1-s19.
 - **Wrong turns: 2.**
-  1. Steps 4 to 6 (`04.png` to `06.png`): looked up Milo and compared his ties (Kofi, Lena, Nora,
-     Omar) with Chloe's (Ava, Ben, Dev, Farah) to find someone in common, then concluded that "doing
-     this by hand means opening friends of friends of friends" and abandoned the approach. A side
-     effect: Milo, the destination, was the last node selected, so the form opened with From =
-     Milo and she had to clear it (`11.png`, `12.png`); one action, not a separate wrong turn.
-  2. Step 9 (`09.png`): typed "chain" in the Analyze filter: `No analysis matches "chain"`.
-     Recovered on the next step with "shortest", a word she borrowed from the ranking entries'
-     descriptions (`10.png`).
-  Opening the Analyze list and reading past the ranking entries (`08.png`) is the route to the
-  entry, not a detour.
+    1. Steps 4 to 6 (`04.png` to `06.png`): looked up Milo and compared his ties (Kofi, Lena, Nora,
+       Omar) with Chloe's (Ava, Ben, Dev, Farah) to find someone in common, then concluded that "doing
+       this by hand means opening friends of friends of friends" and abandoned the approach. A side
+       effect: Milo, the destination, was the last node selected, so the form opened with From =
+       Milo and she had to clear it (`11.png`, `12.png`); one action, not a separate wrong turn.
+    2. Step 9 (`09.png`): typed "chain" in the Analyze filter: `No analysis matches "chain"`.
+       Recovered on the next step with "shortest", a word she borrowed from the ranking entries'
+       descriptions (`10.png`).
+       Opening the Analyze list and reading past the ranking entries (`08.png`) is the route to the
+       entry, not a detour.
 - **Follow-up (the second time):** not given (see above). No steps or wrong turns to record.
 - **False "done": none.** Her answer at step 16 -- Chloe, Ava, Ivan, Kofi, Milo; three in between;
   four introductions -- matches the Values on screen and the answer key. truth-on-screen: her side

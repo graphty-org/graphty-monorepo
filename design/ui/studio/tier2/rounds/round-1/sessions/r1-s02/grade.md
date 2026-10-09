@@ -35,17 +35,17 @@ matches its command, so the session is not void.
   check of whether other calculations would read km, which is part of the task, not a detour.
 - **Wrong turns: 5**, all spent looking for a place to say what km means, on a route that has
   none:
-  1. Step 6 (`06.png`): she clicked km's kind, "Amount", expecting a choice. It is only a label.
-  2. Step 7 (`07.png`): km's "Attribute actions" menu offers only "Filter to..." and "Show in
-     table".
-  3. Step 9 (`09.png`): she opened the trails.csv source. Its panel shows only "Added: Nodes 9,
-     Edges 13", no reading settings.
-  4. Step 10 (`10.png`): she clicked the table's km header, which sorted the table.
-  5. Step 11 (`11.png`): the km column's options offer only "Move left" and "Move right", both
-     disabled.
-  Her first move after loading, the Data place and the km column (steps 4 and 5), is the
-  returning habit her history names ("Data listed the columns of your file"). It is counted with
-  the dead ends above, not separately; it is the broken habit the criteria score.
+    1. Step 6 (`06.png`): she clicked km's kind, "Amount", expecting a choice. It is only a label.
+    2. Step 7 (`07.png`): km's "Attribute actions" menu offers only "Filter to..." and "Show in
+       table".
+    3. Step 9 (`09.png`): she opened the trails.csv source. Its panel shows only "Added: Nodes 9,
+       Edges 13", no reading settings.
+    4. Step 10 (`10.png`): she clicked the table's km header, which sorted the table.
+    5. Step 11 (`11.png`): the km column's options offer only "Move left" and "Move right", both
+       disabled.
+       Her first move after loading, the Data place and the km column (steps 4 and 5), is the
+       returning habit her history names ("Data listed the columns of your file"). It is counted with
+       the dead ends above, not separately; it is the broken habit the criteria score.
 - **False "done": none.** At step 26 she stopped with the route, the total and the Made with row
   on screen. In the debrief she said plainly she could not do the "every calculation" half and
   did not know whether the meaning held beyond that one form. Her side claims (the other routes

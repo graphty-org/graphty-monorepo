@@ -50,12 +50,12 @@ She read each answer from the screen at the time:
   `12.png`), against about 7 on the answer key's path. Two of the extra steps were wrong turns and
   two came from the tool misfire (steps 7 and 8). The follow-up took 4.
 - **Wrong turns: 2.**
-  1. Step 1 (`02.png`): she hovered the toolbar's second button to look for a way to narrow the
-     drawing. It is Layout.
-  2. Step 2 (`03.png`): she opened Everything, where her history says she styled before. It holds
-     only Style and Values, with nothing about leaving ties out.
-  Step 3 took her to Data to look at her columns, and that is where she found Filters. Steps 7
-  and 8 are not counted as wrong turns, because they came from the tool misfire.
+    1. Step 1 (`02.png`): she hovered the toolbar's second button to look for a way to narrow the
+       drawing. It is Layout.
+    2. Step 2 (`03.png`): she opened Everything, where her history says she styled before. It holds
+       only Style and Values, with nothing about leaving ties out.
+       Step 3 took her to Data to look at her columns, and that is where she found Filters. Steps 7
+       and 8 are not counted as wrong turns, because they came from the tool misfire.
 - **The known trap** (ticking the checkbox after "Save and turn on", which switches the step off):
   she avoided it. After saving, she read the chip at 17, then unticked once to bring everyone back
   (`15.png`, `16.png`).

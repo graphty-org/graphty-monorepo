@@ -34,14 +34,14 @@ The "before" reading is on `02.png`: Top 10 starts "Hal 0.1293", "12 of 12 have 
   (`10.png`). Steps 10 and 11 saved the project, which the task did not ask for. The answer key's
   success path is 6 steps.
 - **Wrong turns: 2.**
-  1. Step 2 (`03.png`): opened the main menu looking for a way to bring in the newer file. It holds
-     New project, Open project or file..., Open sample, Save, Save as..., Export...; nothing about
-     a newer version of a file. He chose not to use "Open project or file..." for fear of losing
-     the styled work, and closed the menu.
-  2. Step 4 (`05.png`): left-clicked the team.csv source row in Data. It shows the source's
-     details ("Added: Nodes 12, Edges 16") and no actions. He recovered on the next step by
-     right-clicking, which opened "Edit source..." and "Replace with file..." (`06.png`).
-  Step 1 (reading Values first) and step 3 (going to Data) are on the success path.
+    1. Step 2 (`03.png`): opened the main menu looking for a way to bring in the newer file. It holds
+       New project, Open project or file..., Open sample, Save, Save as..., Export...; nothing about
+       a newer version of a file. He chose not to use "Open project or file..." for fear of losing
+       the styled work, and closed the menu.
+    2. Step 4 (`05.png`): left-clicked the team.csv source row in Data. It shows the source's
+       details ("Added: Nodes 12, Edges 16") and no actions. He recovered on the next step by
+       right-clicking, which opened "Edit source..." and "Replace with file..." (`06.png`).
+       Step 1 (reading Values first) and step 3 (going to Data) are on the success path.
 - **False "done": none.** Every claim in the debrief is on screen: 14 people (`07.png`,
   `08.png`, `10.png`), Hal first at 0.1293 before (`02.png`), Di 0.1339 and Hal 0.1305 now
   (`10.png`), "weight (read as closer)" on both runs (`02.png`, `10.png`). He did not claim the
@@ -49,18 +49,18 @@ The "before" reading is on `02.png`: Top 10 starts "Hal 0.1293", "12 of 12 have 
   12); he opened the run, saw "Data changed since this run" and reran (`09.png`). truth-on-screen:
   no wrong claim.
 - **Traps the key names, and what happened:**
-  - Stale read after Load: avoided.
-  - "Edit source..." (first in the right-click menu, above "Replace with file..."): not chosen.
-  - New project with team-v2.csv: avoided, deliberately, to keep the styling.
-  - Blue new nodes between Load and Rerun: he read them correctly as "the two new people ... who
-    don't have a ranking yet", though "it looked like a mistake at first". Not read as a
-    selection or a highlight.
-  - Moved drawing read as lost work: no; he said "My colors and sizes are still there".
-  - "Reset Damping factor to default" under the pointer after Load: not clicked (after Load the
-    inspector showed the Graph overview, `08.png`, because his last inspector view was the source
-    details).
-  - "Weight: weight auto" on the Replace page: not remarked on. He stopped on "Higher means",
-    below it.
+    - Stale read after Load: avoided.
+    - "Edit source..." (first in the right-click menu, above "Replace with file..."): not chosen.
+    - New project with team-v2.csv: avoided, deliberately, to keep the styling.
+    - Blue new nodes between Load and Rerun: he read them correctly as "the two new people ... who
+      don't have a ranking yet", though "it looked like a mistake at first". Not read as a
+      selection or a highlight.
+    - Moved drawing read as lost work: no; he said "My colors and sizes are still there".
+    - "Reset Damping factor to default" under the pointer after Load: not clicked (after Load the
+      inspector showed the Graph overview, `08.png`, because his last inspector view was the source
+      details).
+    - "Weight: weight auto" on the Replace page: not remarked on. He stopped on "Higher means",
+      below it.
 - **Self-rating** (5 of 7) was not used in grading.
 
 ## Problems

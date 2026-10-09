@@ -30,11 +30,23 @@ const EDGES = [
 const IDS = NODES.map((node) => node.id);
 
 /**
- * Let the element's own render loop draw a few frames.
+ * Wait until the element's own render loop has drawn a few frames, so the camera and the meshes
+ * have been through a render since the last change.
+ * @param element - The element whose render loop to count.
+ * @param count - How many frames to wait for.
  */
-async function frames(): Promise<void> {
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 200));
+async function frames(element: Graphty, count = 3): Promise<void> {
+    const { scene } = element.graph;
+    await new Promise<void>((resolve) => {
+        let drawn = 0;
+        const observer = scene.onAfterRenderObservable.add(() => {
+            drawn++;
+            if (drawn >= count) {
+                scene.onAfterRenderObservable.remove(observer);
+                resolve();
+            }
+        });
+    });
 }
 
 describe("nodeScreenPosition", () => {
@@ -48,14 +60,14 @@ describe("nodeScreenPosition", () => {
         document.body.appendChild(container);
         element = document.createElement("graphty-element");
         container.appendChild(element);
-        await frames();
+        await frames(element);
 
         await element.graph.addNodes(NODES);
         await element.graph.addEdges(EDGES);
         await element.graph.setLayout("fixed", { dim: 3 });
         await element.graph.waitForSettled();
         element.zoomToFit();
-        await frames();
+        await element.waitForStableFrame();
     });
 
     afterEach(() => {
@@ -85,7 +97,7 @@ describe("nodeScreenPosition", () => {
         await element.setViewMode(mode);
         await element.graph.waitForSettled();
         element.zoomToFit();
-        await frames();
+        await element.waitForStableFrame();
     }
 
     it("returns undefined for an id the graph does not hold", () => {
@@ -124,7 +136,7 @@ describe("nodeScreenPosition", () => {
         it(`${mode}: a node a filter hides is not visible`, async () => {
             await view(mode);
             await element.session.visibility.set({ kind: "degree", min: 2 });
-            await frames();
+            await frames(element);
 
             assert.isFalse(element.nodeScreenPosition("d")?.visible, "the filtered node");
             assert.isTrue(element.nodeScreenPosition("a")?.visible, "a node the filter keeps");
@@ -134,7 +146,7 @@ describe("nodeScreenPosition", () => {
     it("2d: a node panned out of the element is not visible", async () => {
         await view("2d");
         await element.setCameraState({ pan: { x: 100, y: 0 } });
-        await frames();
+        await frames(element);
 
         for (const id of IDS) {
             const at = element.nodeScreenPosition(id);
@@ -147,7 +159,7 @@ describe("nodeScreenPosition", () => {
     it("3d: a node to the side of the view is not visible", async () => {
         await view("3d");
         await element.setCameraState({ position: { x: 50, y: 0, z: -10 }, target: { x: 50, y: 0, z: 0 } });
-        await frames();
+        await frames(element);
 
         for (const id of IDS) {
             const at = element.nodeScreenPosition(id);
@@ -162,7 +174,7 @@ describe("nodeScreenPosition", () => {
         await view("3d");
         // Looking away from the graph: every node is behind the viewer.
         await element.setCameraState({ position: { x: 0, y: 0, z: -10 }, target: { x: 0, y: 0, z: -20 } });
-        await frames();
+        await frames(element);
 
         let mirroredOnScreen = 0;
         for (const id of IDS) {

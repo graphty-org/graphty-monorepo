@@ -5,31 +5,34 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-09 (tier 2 round 1 walkthrough).
+Last updated: 2026-10-09 (tier 2 round 1 critique after the sessions).
 
 ## Top of mind
 
-1. (2026-10-09) Out-of-date is the quietest state on screen: a 9 px gray strip and a gray clock
-   icon, while stale colors, key and values stay at full contrast. Push for a mark at the weight
-   of the thing it qualifies (on the values, the key and the tree row), not a footnote.
-2. (2026-10-09) Drawn names cover each other (Chloe over Farah, Dev over Eli) and a selection halo
-   can ring the dot in front. Label placement is graphty-element's; the overlap question is open,
-   but a hidden name is a severity 3 whatever the layout decision.
-3. (2026-10-09) Selection repaints node fill (black to olive, blue to khaki). Selection should add
-   (a halo) and never replace the encoding color. graphty-element.
-4. (2026-10-09) The chosen segment of compact-mantine's SegmentedControl is an outline on the darker
-   ground; the unchosen ones look filled. Two-option controls (Out / All) are unreadable. Fix once
-   in compact-mantine; the import page's Add / Leave out pair should use the same control.
-5. (2026-10-09) The right panel has four left edges (1217, 1225, 1233, plus wrapped notes). One
-   inset for headings and one for rows.
-6. (2026-10-09) One table, one emphasis rule: label dim, value bright, everywhere (the edge
-   inspector inverts it for From and To).
-7. (2026-10-09) Lists that change shape with a setting (neighbor list at 1 vs 2 hops) and pages that
-   jump (import footer moving 418 px) cost a returning reader their place.
-8. (2026-10-09) Truncation: find results are hard-clipped with a scrollbar; everything else
-   ellipsizes and offers the full text somewhere. Hard clip is the one to remove.
-9. (2026-10-09) Device scale 1 screenshots show broken letter spacing ("Attrib ute"). Confirm at
-   scale 2 before filing anything about the font.
+1. (2026-10-09) The "selection tint" is not a repaint: the halo is a 40% gold sphere that ENCLOSES
+   the node (`graphty-element/src/Node.ts` createOverlay), so the node is seen through it. Fix in the
+   element by drawing only the halo's back faces; no option, no default change. 5 sessions met it.
+2. (2026-10-09) Out-of-date is the quietest state on screen (9 px gray strip, gray clock). Raise
+   the strip to body size in the warning color, put the same mark on the canvas key and the tree
+   row, and dim the Top 10 numbers. Do not dim the drawing from the app (that would be appearance
+   outside style layers).
+3. (2026-10-09) The source inspector is the only inspector with no header "..." menu
+   (`r1-s29/08.png` against `visual/replace/07.png`). Giving it the same menu, with Replace in it,
+   is the smallest fix for "Replace not visible at rest" (8 of 8 hunted).
+4. (2026-10-09) The find box's "No match" line is gray small text; a refused condition deserves a
+   body-size line with the rule example in monospace (fixes backtick legibility too). Words are the
+   content designer's.
+5. (2026-10-09) Drawn names cover each other; label placement is graphty-element's. Severity 3 as
+   a class; which names collide depends on the unseeded layout.
+6. (2026-10-09) compact-mantine SegmentedControl: the chosen segment reads as the empty one. Fix
+   once in compact-mantine (`cm-sc-*` classes).
+7. (2026-10-09) The canvas key does not avoid what is drawn under it; it grows over names.
+8. (2026-10-09) Dry runs walk only the answer key's routes. Every build defect participants met was
+   on a detour (styling, selection). Visual walks must cover the commonest detours too.
+9. (2026-10-09) Do NOT spend round 2 on polish (left edges, ragged digits, emphasis rules,
+   section-header colors): no session was slowed by them.
+10. (2026-10-09) Device scale 1 screenshots break letter spacing; confirm at scale 2 before filing
+    a font fault.
 
 ## Priorities and values
 
@@ -62,6 +65,13 @@ Last updated: 2026-10-09 (tier 2 round 1 walkthrough).
   segment, `compact-mantine/src/theme/components/controls.ts`); owner for the selection halo and
   fill tint is graphty-element (`graphty-element/src/Node.ts`).
 
+- 2026-10-09: Round 2 change list limited to five verified problems (selection halo, stale mark,
+  source inspector menu, find refusal line, segmented control); polish findings held back because
+  no session was slowed by them and each change risks moving what a returning user remembers.
+- 2026-10-09: Selection halo fix belongs in graphty-element's rendering, not in an option: the
+  schema's own words say a scale above 1 "puts a ring around the node", and an enclosing
+  translucent sphere breaks that documented intent. Not an API change.
+
 ## Tried: worked / did not work
 
 - 2026-10-09 worked: walking each task's success path from the answer key with `real.mjs` and a
@@ -70,6 +80,10 @@ Last updated: 2026-10-09 (tier 2 round 1 walkthrough).
   measure left edges; the 1440 x 900 screenshots are at device scale 1.
 - 2026-10-09 did not work: 1280 x 800 is not reachable with `real.mjs` (viewport fixed); leave it
   to the scripted audit.
+
+- 2026-10-09 worked: reading the renderer before naming the fix. "Selection repaints the fill" was
+  wrong as a mechanism; the code showed a see-through sphere around the node, which changes the
+  fix from "stop tinting" to "draw only the back faces".
 
 ## Thinking
 
@@ -84,3 +98,5 @@ Last updated: 2026-10-09 (tier 2 round 1 walkthrough).
 - `design/ui/studio/tier2/criteria.md` (bar 8 screens, bar 10 scoring)
 - `design/ui/studio/tier2/answers.md` (success paths)
 - `design/ui/studio/tier2/rounds/round-1/expert/visual.md` (round 1 findings)
+- `design/ui/studio/tier2/rounds/round-1/insights.md` (what held after the skeptics)
+- `graphty-element/src/Node.ts`, `graphty-element/src/config/GraphStyle.ts` (selection halo)

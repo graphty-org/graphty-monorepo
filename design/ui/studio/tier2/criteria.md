@@ -463,3 +463,34 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   946256efb876 (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d4-946256efb/`), a
   fresh build of the worktree's current commit, which holds the fixes found in the fourth dry run.
   `tool/real.mjs --prove` passed on it. No bar changed.
+- **2026-10-08, before round 1: the answer key matched to the fourth dry run.** Every task half but
+  T18 B was piloted on 946256efb876 from its start (`rounds/r1d4/pilot/`). Every success path
+  landed on the first try with no script errors, console errors or failed requests, and every
+  reference value held. `answers.md` now names this build, cites `rounds/r1d4/` and gives this
+  build's screens where they differ: a section on the build (no visible focus mark after a find
+  pick, after "Back to <name>" or after Rerun, though focus is in the inspector; the "Selection
+  cleared" and "Undid ..." toasts, which fade; tooltips that open only once the pointer enters a
+  control); T4's inspectors with a "Left out" section of their own (first in the "1 row left
+  out" inspector, second in the source's, subtitled "Source"), the header reading "Untitled" until
+  Load, B's file names in the success path, the Add / Leave out choice shown only by an outline
+  and the "+" menu's three items; T17's 10 dots at 5 or more on A, B's overlapping pair (a dot
+  count one short), A's Attributes list also missing PageRank, the checkbox tooltip opening only
+  after the pointer re-enters, "Save and turn on" enabled before an edit and the row's leftover
+  background; T18 A's To list covering the Follow row and the popover closing on Find path; T19's
+  reopen framing (unchanged on A, still shifted on B), Farah as the larger node behind a smaller
+  one, the graph header's "1 note" counting only the graph's notes, landing on the Graph place and
+  the Escape toast; T20's new "Farther" line ("such as a longer distance or travel time"), the
+  "Reset minutes to default" button, A loading directed with Follow and Advanced run settings in
+  Made with, the role list covering its own box, Load moving to the page's bottom, and A's missing
+  arrowhead; T21's footer with no "0 node rows", the Direction select, B's "Weight: weight auto"
+  line, the hidden "..." on the source row, B's post-Rerun screen number and the new people's
+  places given without coordinates (the layout is unseeded); T22's menu reachable by "Selection
+  actions" and opening with no item drawn highlighted, the Escape toast with the rule left in the
+  box, and the Control+Z toast; T23's filter-button tooltip opening to the left and covering no
+  name (the "2 short" trap deleted), the chip tooltip closing on the click, the selection drawn as
+  a halo and tinted fill, and the legend's whole-graph range; T24's Summary heading, A's swatch,
+  the Selection count as the left panel's row, and the menu covering From; T12R's focus with no
+  mark, the second lit control in the Neighborhood view traced to the resting pointer, the filter
+  tooltip no longer hiding a name, the screen reader reading each Hops segment twice, and the end
+  of Javert's find list. `tasks.md` T20 now records the new line ("longer", "distance", "time") as
+  the possible echo. No bar and no prompt changed.

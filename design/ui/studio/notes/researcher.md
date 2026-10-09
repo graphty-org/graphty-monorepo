@@ -10,19 +10,19 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-08 -- YES, A DRY RUN RAN BEFORE ROUND 1, three times (r1d1, r1d2, r1d3), each walking
-  every task half and fixing what it found before any participant session. THIRD DRY RUN on the
-  study build 8c4eef4722ac (`tier2/rounds/r1d3/pilot/`, all 20 halves): every success path landed
-  first try, no script, console or request errors, every reference value held. Participants will
-  not hit implementation faults on the success paths. Key matched to this build (criteria change
-  log, same date).
-- 2026-10-08 -- The r1d3 pilots found mostly that the key was out of date (fixes landed: T4 rows in
-  full, T17 "Save and turn on", T22 menu Escape, T23 "within 2 hops", T12R "Edges 17"), not new
-  blockers. Remaining defects a participant may meet, now watch items: T22 Escape outside the box
-  clearing the selection (and Control+Z undoing a style instead); T20 Escape on the import page
-  dropping the whole import; T4 left-out row filed under "Added"; T23 filter tooltip covering 2
-  names; T18 A chain against drawn arrows; T24 Hana label hiding Ivan's tie end; T21 B new people
-  in unexplained blue; stale T21 values at full contrast until Rerun.
+- 2026-10-08 -- YES, A DRY RUN RAN BEFORE ROUND 1, four times (r1d1 to r1d4), each walking every
+  task half and fixing what it found before any participant session. FOURTH DRY RUN on the study
+  build 946256efb876 (`tier2/rounds/r1d4/pilot/`, 19 of 20 halves; T18 B not reported, still
+  cited from r1d3): every success path landed first try, no script, console or request errors,
+  every reference value held. Participants will not hit implementation faults on the success
+  paths. Key matched to this build (criteria change log, same date).
+- 2026-10-08 -- The r1d4 pilots again found mostly a stale key, not blockers. Fixed by the build:
+  T19 A reopen framing, T23/T12R filter tooltip covering names, T21 "0 node rows", T4 left-out row
+  under "Added" (now its own "Left out" section). Still open, now watch items: T22 Escape clearing
+  the selection (toast, no undo; Control+Z undoes a style); T4 no warning on the Graph page; T4
+  Added counts under a "1 row left out" title; no visible focus after a find pick, Back or Rerun;
+  T20 "Farther" line now says "distance or travel time"; T24 Hana label; T21 stale values at full
+  contrast; T19 graph header "1 note" counting only graph notes.
 - 2026-10-08 -- Fix between rounds, not mid-round: the defects above, plus T12R/T23 two lit controls
   in the Neighborhood view, focus drawn as underlined text, no focus after Rerun (unconfirmed),
   T22 menu opening on "Path between...", the "+" Add a table with no words.
@@ -96,6 +96,19 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-08 (researcher, key matched to the fourth dry run on 946256efb876) -- Edited
+  `tier2/answers.md` from 19 pilot reports; logged in `criteria.md`; `tasks.md` T20's echo note
+  rewritten for the new "Farther" line. No bar, no prompt. Choices: (1) T23's "count comes out 2
+  short" trap deleted: the tooltip now opens left and covers no name (T23B/17.png). (2) T22 menu
+  highlight: two pilots saw none on a mouse open; the key says so and keeps the earlier keyboard
+  observation as "not checked on this build" rather than guessing. (3) T22 Control+Z: A's
+  screenshot shows the "Undid ..." toast, B's later shot shows none -- both true (it fades);
+  checked both images myself. (4) T21 B new-node positions given without coordinates: the layout
+  is unseeded. (5) T12R's second lit control recorded as a resting-pointer hover (T12RB/09.png),
+  still something a participant sees. (6) Empty tooltips right after a click: kept as an app
+  behavior a participant meets (pointer still), and as a reason to trust screenshots over the
+  printed tooltip. Checked T4A/11.png and T4B/13.png myself.
 
 - 2026-10-08 (researcher, key matched to the third dry run on 8c4eef4722ac) -- Edited
   `tier2/answers.md` from 20 pilot reports; logged in `criteria.md`; `tasks.md` unchanged (no
@@ -179,6 +192,11 @@ reasons, in short:
 - 2026-09-28 (owner) -- Simulated personas built from public sources, each checked by a skeptic.
 
 ## Tried: worked / did not work
+
+- 2026-10-08 (key vs fourth dry run) -- Worked again: one python file of (old, new) pairs matched
+  whitespace-insensitively, each asserted once; a paraphrased anchor failed before any write.
+  Did not have: a T18 B report this run, and the T17B setup's 3000 ms click timeout (engineer's:
+  setup steps run without a settle between them; a failed setup leaves the session running).
 
 - 2026-10-08 (key vs third dry run) -- Worked: one python file of (old, new) pairs, each asserted
   to match once; one anchor failed on a paraphrase ("on the reopen" vs "after the reopen") and the

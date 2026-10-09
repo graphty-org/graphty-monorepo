@@ -51,7 +51,8 @@ export function statusComment(outcome, f, notify = "") {
         default:
             throw new Error(`unknown outcome "${outcome}" (opened, held, published, publish-failed)`);
     }
-    return `${notify ? `${notify.trim()} ` : ""}${text}\n\nRun: ${f.run}`;
+    const mention = notify.trim() ? notify.trim() + " " : "";
+    return `${mention}${text}\n\nRun: ${f.run}`;
 }
 
 /**

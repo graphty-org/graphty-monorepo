@@ -23,6 +23,7 @@
  */
 
 import { PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
+import { aiProviderDescriptor, checkApiKeyShape } from "@graphty/graphty-element/catalog";
 import { Box, Button, Checkbox, NativeSelect, PasswordInput } from "@mantine/core";
 import React, { useCallback, useState } from "react";
 
@@ -99,23 +100,23 @@ interface AiProviderConfig {
 }
 
 /**
- * The four providers, in the order Settings.dc.html:791-925 draws them.
+ * The app's own words for each provider, in the order Settings.dc.html:791-925 draws them.
  *
  * Anthropic leads because the artboard draws it connected and expanded; the local
  * runtime is last because it is the only row that asks for nothing.
  */
-const AI_PROVIDERS: readonly AiProviderConfig[] = [
-    { type: "anthropic", name: "Anthropic", family: "Claude", placeholder: "sk-ant-...", requiresKey: true },
-    { type: "openai", name: "OpenAI", family: "GPT", placeholder: "sk-...", requiresKey: true },
-    { type: "google", name: "Google", family: "Gemini", placeholder: "AI...", requiresKey: true },
-    {
-        type: "webllm",
-        name: "Local (WebLLM)",
-        family: "Runs in this browser, no key needed",
-        placeholder: "",
-        requiresKey: false,
-    },
+const PROVIDER_WORDS: readonly Omit<AiProviderConfig, "requiresKey">[] = [
+    { type: "anthropic", name: "Anthropic", family: "Claude", placeholder: "sk-ant-..." },
+    { type: "openai", name: "OpenAI", family: "GPT", placeholder: "sk-..." },
+    { type: "google", name: "Google", family: "Gemini", placeholder: "AI..." },
+    { type: "webllm", name: "Local (WebLLM)", family: "Runs in this browser, no key needed", placeholder: "" },
 ];
+
+/** The four providers: the app's words, and whether graphty-element says each needs a key. */
+const AI_PROVIDERS: readonly AiProviderConfig[] = PROVIDER_WORDS.map((words) => ({
+    ...words,
+    requiresKey: aiProviderDescriptor(words.type).requiresKey,
+}));
 
 /** Where a provider's key test has got to. */
 type TestStatus = "idle" | "testing" | "success" | "error";
@@ -192,7 +193,8 @@ function describeTest(state: TestState, now: number): string {
 
 /**
  * What a key that cannot be verified against the provider's own API still tells us:
- * whether it is even the shape of that provider's keys.
+ * whether it is even the shape of that provider's keys (graphty-element's
+ * `checkApiKeyShape`), in the app's words.
  *
  * The provider module is loaded from graphty-element on demand and can fail to load
  * (Safari, an offline first run), so a failed load must not read as a failed key.
@@ -202,19 +204,22 @@ function describeTest(state: TestState, now: number): string {
  * @returns whether the key has the right shape, and what to say when it does not.
  */
 function checkKeyFormat(provider: ProviderType, key: string): { readonly valid: boolean; readonly message: string } {
-    switch (provider) {
-        case "openai":
-            return key.startsWith("sk-") && key.length > 20
-                ? { valid: true, message: "" }
-                : { valid: false, message: "OpenAI keys start with 'sk-'" };
-        case "anthropic":
-            return key.startsWith("sk-ant-") && key.length > 20
-                ? { valid: true, message: "" }
-                : { valid: false, message: "Anthropic keys start with 'sk-ant-'" };
-        case "google":
-            return key.length > 10 ? { valid: true, message: "" } : { valid: false, message: "That key is too short" };
+    const check = checkApiKeyShape(provider, key);
+
+    if (check.valid) {
+        return { valid: true, message: "" };
+    }
+
+    switch (check.code) {
+        case "E_KEY_EMPTY":
+            return { valid: false, message: "Enter a key first" };
+        case "E_KEY_PREFIX":
+            return {
+                valid: false,
+                message: `${PROVIDER_WORDS.find((entry) => entry.type === provider)?.name ?? provider} keys start with '${check.params.prefix}'`,
+            };
         default:
-            return key.length > 0 ? { valid: true, message: "" } : { valid: false, message: "Enter a key first" };
+            return { valid: false, message: "That key is too short" };
     }
 }
 

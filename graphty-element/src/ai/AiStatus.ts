@@ -3,14 +3,16 @@
  * @module ai/AiStatus
  */
 
-/** Possible states for AI command execution */
-export type AiState = "ready" | "submitted" | "streaming" | "executing" | "error";
+import type { AI_STAGES, AI_STATES, AI_TOOL_CALL_STATUSES } from "../catalog/ai";
 
-/** Possible stages within processing */
-export type AiStage = "processing" | "generating" | "executing";
+/** Possible states for AI command execution (every value is in `AI_STATES`) */
+export type AiState = (typeof AI_STATES)[number];
 
-/** Possible statuses for a tool call */
-export type ToolCallStatusType = "pending" | "executing" | "complete" | "error";
+/** Possible stages within processing (every value is in `AI_STAGES`) */
+export type AiStage = (typeof AI_STAGES)[number];
+
+/** Possible statuses for a tool call (every value is in `AI_TOOL_CALL_STATUSES`) */
+export type ToolCallStatusType = (typeof AI_TOOL_CALL_STATUSES)[number];
 
 /**
  * Status of a tool call being executed.

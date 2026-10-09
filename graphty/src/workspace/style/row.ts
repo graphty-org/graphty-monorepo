@@ -138,14 +138,23 @@ export const LABEL_SIZE_PX = 72;
 
 /**
  * The app's look for a label: the font the app itself is set in, at a size a reader can read,
- * drawn over the graph so a nearer node or a selected edge's band never cuts a name.
- * graphty-element leaves all three to its consumer (its own default face is often missing, and
- * then the browser falls back to a serif; its labels sort by depth), so the app states its choice
- * on every label line it adds.
+ * drawn over the graph on a white chip, so a nearer node or a selected edge's band never cuts a
+ * name. On top alone keeps every letter, but a label's ground is transparent: a selected edge's
+ * blue band showed between the strokes and through a letter's open middle, and "Stadium" read
+ * "Stadi m". The chip is the ground the letters need. graphty-element leaves all of it to its
+ * consumer (its own default face is often missing, and then the browser falls back to a serif;
+ * its labels sort by depth and have no ground), so the app states its choice on every label line
+ * it adds.
  * @returns the label style.
  */
 function appLabelLook(): LabelStyle {
-    return { font: getComputedStyle(document.body).fontFamily, sizePx: LABEL_SIZE_PX, onTop: true };
+    return {
+        font: getComputedStyle(document.body).fontFamily,
+        sizePx: LABEL_SIZE_PX,
+        onTop: true,
+        background: "#FFFFFF",
+        cornerRadius: 4,
+    };
 }
 
 /**

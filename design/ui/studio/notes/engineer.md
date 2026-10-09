@@ -11,6 +11,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **App labels sit on a white chip (app only, no API).** T24B's "Stadi m" was not a
+  draw-order defect: the label IS on top (pixel map of the pilot's 02.png shows every stroke of
+  the "u" over the band), but a label's ground is transparent, so the selected edge's blue band
+  filled the gaps and the "u"'s open middle and the letter vanished at 1x. `appLabelLook`
+  (style/row.ts) adds `background: "#FFFFFF", cornerRadius: 4`. Evidence
+  `tmp/r1-dry3-element-labels-on-top-trace/` (T24B/01-03; frozen/grid4.png, grid5.png). OPEN:
+  the element's label texture is not premultiplied, so a light outline or background edge
+  fringes gray (halo tried, looked outlined); the context menu opened at the click covers the
+  tail of "Stadium" (T24B/03, a menu placement question, not this fix).
+
 - (2026-10-08) **A setup hands over a clean start (study tool).** After setup, `real.mjs` blurs
   focus AND moves the pointer to (-1,-1), so 01.png shows no hover the participant never made
   (`--prove` check "a setup leaves the pointer over nothing", via the prove-only `hovered` op;
@@ -70,45 +80,20 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   selection); a weighted one hop keeps its tie values. "Filter to neighbors": `default` Button at
   rest, `filled` when on, Tooltip says what it does and, on, "Press again to show every node".
   Evidence `tmp/r1-dry2-neighborhood-view/` (T23B/04-08, T12RA/04-06, T23A/04, 07, 08).
-- (2026-10-08) Key sections are titled by the run (`highlightEntry`, `keyNames`); shared rows,
-  lists and menus fixed in compact-mantine (`tmp/r1-dry2-key-words/`, `r1-dry2-rows-shared-controls/`).
-- (2026-10-08) **A run says which method it used (element + app, team door).** Unset `method` ->
-  Dijkstra, Bellman-Ford on a negative read weight; option meta `choiceLabels`; Made with says
-  "Dijkstra, chosen automatically". OPEN: explicit dijkstra over a negative undirected weight
-  freezes the page (`algorithms/src/indexed/dijkstra.ts`). Evidence `tmp/r1-dry2-run-record-method/`.
-- (2026-10-08) **Route color: element default stays indigo, the app sets black (owner decided).**
-  Never change an element default for the app: the app calls `session.styles.setHighlightColor`
-  with `APP_HIGHLIGHT_COLOR` (`graphty/src/constants/highlight.ts`) in BOTH hosts (`ElementHost.tsx`
-  for `?next`, `Graphty.tsx`). Indigo read as ordinary on lit spheres; judge node colors at shaded
-  tones and screenshot pixels (`tmp/r1-dry2-path-color/measure.py`). Cost: black is the 7th group color.
-
-## Priorities and values
-
-- (2026-10-07) Owner: no touch/tablet profile and no keyboard-only study in the tier 2 fix work.
-- The core path works end to end on real wiring first (owner, 2026-10-02/03): a step that looks
-  right but changes nothing visible is worse than a missing one.
-- Fixes land in the package every consumer gets; an app workaround hides an element defect.
-- Small diffs, root causes; one guard in the shared function, not a patch per caller.
-- Evidence over taste: assert on element reports (`runs.painting()`, `styles.explain()`,
-  `labelOf`, `nodeScreenPosition`), not on what a panel claims.
-- Say early when a decision needs element API (owner door if breaking) vs cheap app chrome.
-- Never blame timing or load; find the mechanism.
-
-## Design criteria
-
-- **Visible effect at commit** on canvas and legend (round 8's walk failed 21/21 on panel-only
-  changes). **Live counts only**, read from the element at render time.
-- **No promises:** nothing unbuilt is drawn (no "Coming", no disabled stand-ins).
-- **One door, one command:** registered once, same words at every door, no two controls share an
-  accessible name (also what the study tool clicks by).
-- **Element owns facts, app owns words** (owner, 2026-10-03). **Easy things easy:** a new element
-  API's first example fits in about 15 lines with no internal concept.
-- **Style layers only;** suggested layers scoped to the result. **Exact by default;** cost
-  estimates come from the element. **The app never starts work unasked.**
-- **Accessible by default:** WCAG 2.2 AA; Esc closes the innermost thing; focus never falls to
-  the page body; a ring never sits on a value row the reader did not pick.
+- (2026-10-08) Key sections are titled by the run; a run says which method it used (unset ->
+  Dijkstra, Bellman-Ford on a negative weight; OPEN: explicit dijkstra over a negative undirected
+  weight freezes the page). Route color: element default indigo, the app sets black through
+  `session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR)` in both hosts (owner decided).
 
 ## Decisions and reasons
+
+- (2026-10-08) **A label's ground is the app's choice: a white chip.** Reason: on top keeps the
+  letters but not their legibility over a saturated band; a ground separates them. White, not the
+  canvas color, so no element constant is copied. No padding: the texture already has margins
+  (grid5.png shows no difference), and padding 2 lifted the stacked-label test's giant labels
+  fully above the viewport so declutter skipped them (`StyleTab.real-element` "picking binds it";
+  the fixture frames four nodes on one point). Rejected: a halo (`outline`, gray fringe), an
+  element default (a choice, not a capability).
 
 - (2026-10-08) **The pointer leaves the page after setup, not to a "quiet" spot on it.** Every
   point in the 1440 x 900 window is a control, a panel or the canvas (where a node can light up);
@@ -210,6 +195,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-08) Worked: a text pixel map of a screenshot crop (`#` glyph, `B` band) to tell "drawn
+  under" from "looks cut" -- the pilot's "Stadi m" had every stroke over the band. Worked: a
+  Playwright probe (`tmp/r1-dry3-element-labels-on-top-trace/probe.mjs`) that runs a setup on any
+  build and edits a layer through `document.querySelector("graphty-element").session` to try
+  looks live; an opaque red background proved on top in one shot.
 
 - (2026-10-08) Worked: proving a tool fix by commenting the line out in place, running `--prove`
   with its own `REAL_PROVE_DIR`, restoring (no copy of real.mjs needed for a one-line change).

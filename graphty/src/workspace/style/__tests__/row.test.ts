@@ -42,7 +42,7 @@ describe("a label line the app adds", () => {
         return session;
     }
 
-    it("is drawn in the app's own font at a legible size, in the same step as the binding", async () => {
+    it("is drawn in the app's own font at a legible size, on top on a white chip, in the same step as the binding", async () => {
         const on = await twoNodes();
         const proposal = propose(on, { kind: "column", column: { kind: "node", name: "name" } }, "node.label");
         if (!proposal.ok) {
@@ -55,6 +55,8 @@ describe("a label line the app adds", () => {
             font: getComputedStyle(document.body).fontFamily,
             sizePx: LABEL_SIZE_PX,
             onTop: true,
+            background: "#FFFFFF",
+            cornerRadius: 4,
         });
         assert.equal(on.history.steps.length, before + 1);
     });

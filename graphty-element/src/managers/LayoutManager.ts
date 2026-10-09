@@ -1003,7 +1003,7 @@ export class LayoutManager implements Manager {
      * @param how - The dimension, whether this is a restore, and whether the build is still wanted.
      */
     private async _setLayoutInternal(layout: string, opts: object, how: BuildOptions): Promise<void> {
-        this.logger.info("Setting layout", { type: layout, options: opts });
+        this.logger.info("Setting layout", { type: layout, optionCount: Object.keys(opts).length });
 
         // Everything below -- option validation, dimension options, the stored layout type --
         // sees the ENGINE name, so a catalogue id behaves exactly like the engine it names.

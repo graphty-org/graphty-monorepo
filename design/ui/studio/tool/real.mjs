@@ -492,7 +492,9 @@ async function serve(dir, sr) {
         saved: {},
     };
     await answerPickers(s);
-    if (sr) await s.context.addInitScript(watchLive);
+    // every session records live regions: a notice that times out while a slow step settles is
+    // still reported (goneNotices), as a person would have seen it
+    await s.context.addInitScript(watchLive);
     await newTab(s);
 
     const sock = sockOf(dir);
@@ -762,6 +764,24 @@ async function srRead(s, out) {
     const MAX = 80;
     for (const l of lines.slice(0, MAX)) out.push(`read: ${l}`);
     if (lines.length > MAX) out.push(`read: ... and ${lines.length - MAX} more lines`);
+}
+// A notice shown during the step and gone before its screenshot (the app takes a notice down after
+// 6 s, and a step can take longer to settle): a person watching would have read it
+async function goneNotices(s, out) {
+    const gone = await s.page
+        .evaluate(() => {
+            const shown = [...document.querySelectorAll("[role=alert]")]
+                .filter((r) => r.checkVisibility())
+                .map((r) => r.textContent.replace(/\s+/g, " ").trim());
+            return (window.__srLive || [])
+                .splice(0)
+                .map((l) => /^alert \(\w+\): (".*")$/.exec(l))
+                .filter(Boolean)
+                .map((m) => JSON.parse(m[1]))
+                .filter((t) => !shown.includes(t));
+        })
+        .catch(() => []);
+    for (const t of gone) out.push(`a notice showed and went before this screenshot: "${t}"`);
 }
 async function srLive(s, out) {
     const live = await s.page.evaluate(() => (window.__srLive || []).splice(0)).catch(() => []);
@@ -1566,7 +1586,9 @@ async function run(s, steps, out) {
         if (s.sr) await srReport(s, out);
     }
     await settle(s, out);
-    if (s.sr) await srLive(s, out); // what was announced while the drawing settled
+    // what was announced while the drawing settled
+    if (s.sr) await srLive(s, out);
+    else await goneNotices(s, out);
     await copySaves(s, out);
     // downloads that started during these steps: saved into the session folder and named
     if (s.downloads.length) {

@@ -7,6 +7,7 @@ import { browserProjects, type GraphSession, GraphtyError } from "@graphty/graph
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { page } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
@@ -15,6 +16,7 @@ import { Workspace } from "../../Workspace";
 import { problemSentence, SAVE_AS_DIALOG, saveProblemSentence } from "../actions";
 import { registration } from "../commands";
 import { clearRecent, refreshStored, rememberRecent } from "../recent";
+import { whenWords } from "../words";
 
 const OPEN: Partial<WorkspaceState> = { project: { name: "Les Miserables", id: 1 } };
 
@@ -198,5 +200,40 @@ describe("the Project package", () => {
             saveProblemSentence("Karate", new GraphtyError({ code: "E_TOO_LARGE", message: "x", source: "data" })),
             "Karate could not be saved: this browser's storage for graphty is full.",
         );
+    });
+});
+
+describe("Recent projects' date", () => {
+    it("is written as a note's time, with the year only for another year, and never breaks", () => {
+        const at = new Date(2026, 9, 9, 5, 58).getTime();
+        assert.equal(whenWords(at, new Date(2026, 11, 31).getTime()), "Oct 9, 5:58 AM".replaceAll(" ", "\u00a0"));
+        assert.equal(whenWords(at, new Date(2027, 0, 1).getTime()), "Oct 9, 2026, 5:58 AM".replaceAll(" ", "\u00a0"));
+    });
+
+    it("leaves no word alone on a line of a kept project's row at 1440 wide", async () => {
+        await page.viewport(1440, 900);
+        vi.spyOn(navigator.storage, "persisted").mockResolvedValue(false);
+        await keepInBrowser("friends", 20);
+        render(<Workspace />);
+
+        const row = await screen.findByRole("gridcell", { name: /^friends/ });
+        const line = within(row).getByText(/^In this browser - 20 nodes - /);
+        // Each word's box; words on one line share a top.
+        const text = line.firstChild;
+        assert.isNotNull(text);
+        const tops = new Map<number, number>();
+        const words = /\S+/g;
+        for (
+            let match = words.exec(line.textContent ?? "");
+            match !== null;
+            match = words.exec(line.textContent ?? "")
+        ) {
+            const range = document.createRange();
+            range.setStart(text, match.index);
+            range.setEnd(text, match.index + match[0].length);
+            const top = Math.round(range.getClientRects()[0].top);
+            tops.set(top, (tops.get(top) ?? 0) + 1);
+        }
+        assert.notInclude([...tops.values()], 1, `words per line: ${[...tops.values()].join(", ")}`);
     });
 });

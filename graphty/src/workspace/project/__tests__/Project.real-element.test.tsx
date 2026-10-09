@@ -511,3 +511,79 @@ describe("a reopened project's framing, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 });
+
+/**
+ * Describes the focused element, for a failure message.
+ * @returns its tag, role and name.
+ */
+function focusedWords(): string {
+    const focused = document.activeElement;
+    if (focused === null || focused === document.body) {
+        return "the page itself";
+    }
+    return `${focused.tagName} ${focused.getAttribute("role") ?? ""} "${focused.getAttribute("aria-label") ?? focused.textContent?.slice(0, 40) ?? ""}"`;
+}
+
+/**
+ * The focused control draws its mark once a key is pressed: after a pointer click the browser
+ * draws none until then (`:focus-visible`), as for every control.
+ */
+async function showsMarkOnNextKey(): Promise<void> {
+    await userEvent.keyboard("{Shift}");
+    assert.isTrue(document.activeElement?.matches(":focus-visible"), focusedWords());
+}
+
+describe("focus after Save", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "goes back to the control Save was opened from, from a note by Control+S and from the menu",
+        async () => {
+            const store = createWorkspaceStore();
+            await buildProject(store);
+
+            // As a participant did: a note about the selected node, Escape twice, a note about the
+            // graph, then Control+S, and Save as closed by a pointer click on its Save button.
+            await userEvent.keyboard("n");
+            await userEvent.keyboard("Moving away in May");
+            await userEvent.keyboard("{Control>}{Enter}{/Control}");
+            await userEvent.keyboard("{Escape}{Escape}");
+            await userEvent.keyboard("n");
+            await userEvent.keyboard("Spring list");
+            await userEvent.keyboard("{Control>}{Enter}{/Control}");
+            await waitFor(() => {
+                assert.equal(document.activeElement?.tagName, "LI", focusedWords());
+            });
+            await userEvent.keyboard("{Control>}s{/Control}");
+            let dialog = await screen.findByRole("dialog", { name: "Save Florentine families as" });
+            await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+            await waitFor(
+                () => {
+                    assert.isNull(screen.queryByRole("dialog"));
+                    // Back on the note it was opened from, not on the page.
+                    assert.equal(document.activeElement?.tagName, "LI", focusedWords());
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            await showsMarkOnNextKey();
+
+            // The menu, by pointer: Save as... closed by its Save button.
+            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: /^Save as/ }));
+            dialog = await screen.findByRole("dialog");
+            await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+            await waitFor(
+                () => {
+                    assert.isNull(screen.queryByRole("dialog"));
+                    assert.strictEqual(
+                        document.activeElement,
+                        screen.getByRole("button", { name: "Main menu" }),
+                        focusedWords(),
+                    );
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            await showsMarkOnNextKey();
+        },
+        TIMEOUT_MS,
+    );
+});

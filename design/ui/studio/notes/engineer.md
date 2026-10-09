@@ -11,6 +11,20 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **A missing notice in a pilot screenshot is first a timing question.** T22B's
+  "silent" Escape went through the app's one clear path; its notice was up and gone: the step took
+  about 8 s to settle under load (11.png and 12.png ran back to back, 7.9 s apart) and a notice
+  lasts 6 s (`NOTICE_MS`). Proven with `--key Escape --wait 6500` on the frozen build (same pixels
+  as 12.png). `real.mjs` now prints `a notice showed and went before this screenshot: "..."`
+  (`goneNotices`; live regions watched in every session). Test of both routes
+  `undoWords.real-element.test.tsx`; evidence `tmp/r2-dry1-selection-and-saving/frozen-b4`, `b/05.png`.
+- (2026-10-09) **Focus after Save already returns to what opened it** (the note card, or the Main
+  menu button); after a pointer click on Save the browser draws no mark until the next key
+  (`:focus-visible`), as for every control. No app change. Test "focus after Save" in
+  `Project.real-element.test.tsx`; evidence `tmp/r2-dry1-selection-and-saving/a/save-11-12.png`.
+- (2026-10-09) **Recent projects' date is written as a note's** ("Oct 9, 5:58 AM", the year only
+  for another year), spaces non-breaking (`whenWords`, `project/words.ts`). Test "Recent projects'
+  date" in `project.test.tsx` (word boxes per line); evidence `.../a/13.png`.
 - (2026-10-09) **Find's hints show the reader's own rule, not an example.** graphty-element's
   `number-needs-backticks` refusal now carries `details.suggestion` (the selector with each bare
   number in backticks; `backtickNumbers` in `session/styles/predicate.ts` skips quoted text and
@@ -51,32 +65,28 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (30 walks: success paths, `--sr` keyboard walks, round 1's wrong turns, each with `--expect`;
   report `tier2/dry-run-r2-1.md`). Its fixes: pointerdown no longer canceled (2a236410c), short
   Select lists open whole (ca3f10515), note focus and Control+Enter (55e71f98e, 0e9e329c6).
-- (2026-10-09, condensed) **The path's Weight list already starts on the loaded weight**; "starts on
-  None" came from sessions that loaded none (evidence `tmp/t2r1-13/a/09.png`). No app change.
 - (2026-10-09) **A style line goes only to a layer its row names; nothing falls back to
   Everything.** `writeLine(..., fresh)` in `style/row.ts` takes the layer to add as a required
   argument and throws when there is none; `RowStyle` offers a side only when the row has a layer
   on it or one to add (PageRank: no Nodes | Edges switch). Test `StyleTab.real-element.test.tsx`;
   evidence `tmp/t2r1-11/`.
 
-- (2026-10-09, condensed) **Words true in every case they appear in:** ", out of date" only on
-  `data-changed`; the unused-weight note; "Loaded" not "Added"; "Ava and 14 connections" (tests
-  `legendWords.test.ts`, `words.test.ts`, `neighborhoodWords.test.ts`).
-
-- (2026-10-09, condensed) **Focus and keys in Filters and Notes:** the step editor is a `<form>`;
-  `focusNext`/`focusStep` in `data-place/Filters.tsx`. Test `FilterFocus.real-element.test.tsx`.
-
+- (2026-10-09, summarized) **Smaller standing facts:** the path's Weight list starts on the loaded
+  weight; a live region is in the page before its words arrive (`Frame.tsx`); the selection halo
+  draws only back faces (`createOverlaySource`); ", out of date" only on `data-changed`; the
+  Filters step editor is a `<form>` (`focusNext`/`focusStep`).
 - (2026-10-09, summarized) **Study tool:** bars 2, 7, 8, 9 scored by script (`bars.mjs`, proven on
   planted failures, 80fb33e68); one machine-wide 4-browser pool; ambiguous names refused with
   `"<name>#n"`; `--drop` over CDP; `--brief` folders hold participant files only.
 
-- (2026-10-09, summarized) **A live region is in the page before its words arrive, words only**
-  (status line in `Frame.tsx`; `DataPage.load()` writes `loadedWords(...)`).
-
-- (2026-10-09, condensed) **The selection halo draws only back faces** (`createOverlaySource`,
-  `Node.ts`).
-
 ## Decisions and reasons
+
+- (2026-10-09) **No forced focus ring after a pointer click.** `focus({ focusVisible: true })`
+  after Save would make the note card the one control that rings after a mouse click (spec 2.7,
+  same reason as the cursor rule); a keyboard user sees the mark at the next key.
+- (2026-10-09) **A study tool that hides what a person saw is fixed in the tool, not the app.**
+  Lengthening `NOTICE_MS` would change the product for the tool's sake. Rejected: a screenshot
+  before settling (it would catch half-drawn frames).
 
 - (2026-10-09) **A reset that resets nothing is not drawn; the fix is split by owner.** The app
   decides what "default" means for a run setting (equal to the descriptor's default), so
@@ -94,16 +104,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   ("Ava and 14 ...") keeps the one-hop count equal to Degree and makes the sum match Selection.
   Chosen over "15 nodes: Ava and 14 ..." as the shorter form. A key under a filter names the run's
   own node count rather than nothing, so a reader comparing 19 shown with 20 ranked sees why.
-- (2026-10-09) **Chosen segment fill: the inverse color, not the brand blue.** Measured: brand
-  #0d99ff against the light track #f5f5f5 is 2.7:1 (fails 1.4.11) and white 11px text on dark
-  brand #0c8ce9 is 3.5:1 (fails 1.4.3); inverse passes both in every palette, accent-independent.
-  `--cm-segment-edge` is no longer drawn but stays (removing a published CSS variable would be
-  breaking). Mantine marks no option active in a disabled control, so no disabled variant needed.
-- (2026-10-09) **Cursor rule: arrow on every control, hand only on links.** The pilots' "other
-  controls show the hand" was Mantine's UnstyledButton default (`cursor: pointer`), under the rail
-  and the canvas toolbar; the theme's `cursorType: "default"` covered only inputs. The rule goes
-  to the arrow (the theme's stated convention), not the hand. The VariablePill keeps Figma's
-  pointer: its Figma capture asserts it, and it is not in the app's study paths.
+- (2026-10-09, condensed) **Segment fill = the inverse color** (brand blue failed 1.4.11 and
+  1.4.3); `--cm-segment-edge` kept (removing a published variable is breaking). **Arrow cursor on
+  every control, the hand only on links** (Mantine's UnstyledButton default was the hand).
 
 - (2026-10-09, summarized) **A list that scrolls only up and down passes `scrollbars="y"`;**
   compact-mantine then makes its content as wide as the area (Mantine's Autosize used
@@ -176,19 +179,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-09) **Audit findings name the owning package; the canvas label clipping is the
   element's.** The fit frames spheres only, so any app fix (smaller font, padding) would hide an
   element defect. The legend card's label overlap waits on the same element fact (label bounds).
-- (2026-10-08, summarized 2026-10-09) **Dry-run 3 and 4 calls, with reasons kept short.** The
-  camera stays unsaved (moving the drawing when the legend grows would undo "insets never move the
-  drawing"). A step is named by what changed ("changing Size on PageRank"), not a guessed intent. A
-  reopened load replaces itself, never adds (an add doubled every edge); where it cannot replace,
-  the verb is withheld; Esc exits only an empty import page (no "discard?" dialog). No script focus
-  ring after a pointer action (spec 2.7). Tooltip dismissal follows the pressed control, not a
-  timer. A one-way path searches the transpose. UI: one label style (`Text xs`); scroll lists snap
-  to whole rows; a state-changing button says so before the click ("Save and turn on"); a follow-up
-  choice goes below its cause; a script-focused heading gets an underline. A left-out row opens its
-  load's whole account, what it names first. A shared control's defect is fixed in
-  compact-mantine, an app-specific look is an option. Small: pointer leaves the page after setup; a
-  saved note takes focus; a run's time shows seconds; a label's ground is the app's white chip; a
-  pointer-opened menu has no keyboard position (row 1 read as the suggestion).
+- (2026-10-08, summarized) **Dry-run 3 and 4 calls:** the camera stays unsaved; a step is named
+  by what changed; a reopened load replaces itself, never adds; Esc exits only an empty import
+  page; no script focus ring after a pointer action (spec 2.7); tooltip dismissal follows the
+  pressed control; one label style (`Text xs`); lists snap to whole rows; a shared control's defect
+  is fixed in compact-mantine; a saved note takes focus; a run's time shows seconds.
 - (2026-10-08, condensed) **Element facts over new fields:** a resolved option is the caveat that
   names it (`caveats.method`), never written into params (a rerun would pin it); a left-out row
   says which END is missing (`LeftOutEdge.source/target`, mapped by `draft.resolve`); a label's
@@ -225,6 +220,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-09) Worked: a pilot's exact steps are in its agent transcript under
+  `.claudehistory/<session>/subagents/workflows/<wf>/agent-*.jsonl` (tool_use commands); two
+  steps chained in one shell line give the second step's duration from screenshot mtimes. Worked:
+  `--read` in a non-`--sr` session tells where focus is. Did not work: assuming a missing notice
+  meant a second code path -- the test of the route passed on the first run.
 
 - (2026-10-09) Worked: when a screenshot "shows a scrollbar it should not", measure before fixing:
   a Playwright probe (`tmp/r2-dry1-find-box-hints/probe.mjs`, run under `with-browser.sh`) printed
@@ -286,17 +287,11 @@ T3 T4 T20 T21 T17-P`). It found the silent Control+O loss on the Data page and t
   Enter to check a live line prints once (pick the visible line by `role !== "status"`); finding a
   layout cause in Mantine's CSS first; reading `scores.md` beside `insights.md`; `long-names.csv`
   for truncation audits, with PIL 4x crops for small text. `--click Graph` takes the rail button.
-- (2026-10-08, summarized 2026-10-09) **Older study-tool and test lessons.** Pilot and `--prove`
-  on a `cp -r graphty/dist` copy with `REAL_DIST` (others' rebuilds empty the live dist). A test
-  must fail without the fix (the Florentine reopen test passed without it; the friends graph in a
-  `Workspace` at 1440 x 900 did not). A setup miss can show only in `setup.log`: read it after
-  every `--start`. Format only my own files. Prove "fails without" with no stash: copy my files
-  aside, write `git show HEAD:<file>` over them, run, copy back. Tool idioms: `role=combobox:Role
-of <col>`; an import page needs "New from data..."; step N lands in screenshot N+1; `--sr` focus
-  lines tell "not focused" from "focused, no ring". Probes under `with-browser.sh` split "value
-  wrong" from "reading wrong". Tests: hover tooltips need `{ timeout: 3000 }`; assert
-  `checkVisibility()`; a silent hung browser test is a sync loop (bisect with `-t`); never call a
-  failure a flake. `pgrep -f` matches itself (wait by PID); anchor script edits on a unique line.
+- (2026-10-08, summarized) **Older tool and test lessons.** Pilot on a `cp -r graphty/dist` copy;
+  read `setup.log` after every `--start`; step N lands in screenshot N+1; `--sr` focus lines tell
+  "not focused" from "focused, no ring"; hover tooltips need `{ timeout: 3000 }`; assert
+  `checkVisibility()`; a hung browser test is a sync loop (bisect with `-t`); `pgrep -f` matches
+  itself (wait by PID).
 - (2026-10-06 to 10-08, condensed) Shared worktree: stage only my hunks (`git apply --cached`, or a
   private `GIT_INDEX_FILE`), commit from an empty `git diff --cached`; wait for a clean `tsc` before
   building over others' half-saved files; never commit `api:report` output wholesale. Builds:

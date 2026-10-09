@@ -102,4 +102,23 @@ describe("Undo, Redo and Clear selection words", () => {
         },
         TIMEOUT_MS,
     );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "says what Escape cleared when the Selection row has the focus",
+        async () => {
+            const { session, store } = await openWithGraph();
+            await session.selection.apply({ where: "value > `0`" });
+            const edges = session.selection.edges.length;
+            assert.isAbove(edges, 0);
+
+            await userEvent.click(await screen.findByRole("treeitem", { name: /^Selection/ }));
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.equal(session.selection.size, 0);
+                assert.equal(store.get().notice?.message, `Selection cleared: ${String(edges)} edges`);
+            });
+        },
+        TIMEOUT_MS,
+    );
 });

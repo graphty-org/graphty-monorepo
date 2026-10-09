@@ -23,7 +23,10 @@ node $T/real.mjs --step  rounds/r1/p03-t2 --click-at 702,380     # point at the 
 node $T/real.mjs --end   rounds/r1/p03-t2                        # always end: it frees the browser
 ```
 
-Every command prints what a participant would notice, then the path of the new screenshot.
+Every command prints what a participant would notice, then the path of the new screenshot. A
+notice the app took down before the screenshot (it keeps one for 6 seconds, and a step can take
+longer to settle) is printed as `a notice showed and went before this screenshot: "..."`, since a
+person watching would have read it.
 
 - `--start <folder> empty` opens the app as a first-time visitor sees it.
 - `--start <folder> setup:<file>` runs the setup file's steps first and never shows them: one step

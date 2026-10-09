@@ -63,7 +63,7 @@ describe("sabotage: apsp-init and apsp-fw (spec 11.9 item 1)", () => {
         });
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 13 s on CI's lavapipe, 13 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it("the real kernels pass the check (factor 0)", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "sabotage-all-pairs" });
@@ -78,7 +78,6 @@ describe("sabotage: apsp-init and apsp-fw (spec 11.9 item 1)", () => {
 
     for (const { id } of MEASURED) {
         for (const mutation of SABOTAGE[id] ?? []) {
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(`${id}/${mutation.name}: fails the check by >= ${mutation.minFactor}x`, async (t) => {
                 requireGpu(t);
                 if (SOFTWARE_ONLY.has(mutation.name) && !isSoftware()) {
@@ -88,7 +87,7 @@ describe("sabotage: apsp-init and apsp-fw (spec 11.9 item 1)", () => {
                 console.warn(`[sabotage] ${id}/${mutation.name}: factor ${report.worst} at ${report.worstLabel}`);
                 expect(report.worst).toBeGreaterThanOrEqual(mutation.minFactor);
                 expect(() => assertCheckPasses(report)).toThrow();
-            }, 120_000);
+            });
         }
     }
 

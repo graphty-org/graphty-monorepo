@@ -23,7 +23,6 @@ const SEED = 12345;
 const WEIGHT_RANGE: readonly [number, number] = [0.1, 10];
 
 describe("sssp at 1M nodes / 10M edges (node-limits, P8-T15)", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("random f32 weights: dist bitwise the f32 oracle's, the triangle inequality, reachedCount", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "limits/sssp-1m" });
@@ -58,5 +57,5 @@ describe("sssp at 1M nodes / 10M edges (node-limits, P8-T15)", () => {
         } finally {
             ctx.dispose();
         }
-    }, 600_000);
+    });
 });

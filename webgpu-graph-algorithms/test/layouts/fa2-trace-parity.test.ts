@@ -144,7 +144,7 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
         for (const tuning of MODES) {
             const paper = tuning.compat === "paper";
             const label = `${graph}/${tuning.compat ?? "paper"}`;
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 181 s on the macOS Metal host lane, 138 s on the T4 lane, 118 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
             it(
                 `${label}: twice bitwise; re-synchronised within the traced tolerances${paper ? "; the free-running legs printed (chaotic, G3-F3)" : "; free-running first 10 vs f32 within the spec cap, 50 vs f64 printed (seed-bound, G3-F3 item 2)"}`,
                 async (t) => {
@@ -212,156 +212,141 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
         }
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "writes the karate NETWORKX trace (50 iterations) and its f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
-                // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
-                // ones on every run (issue #455)
-                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
-            }
-            requireGpu(t);
-            const { s, start, options, tuning } = noiseInputs(NETWORKX, "karate");
-            try {
-                const run = await resyncTrace(ctx, s, start, options, tuning, ITERATIONS);
-                const { f64 } = await oracleTraces(s, start, options, tuning);
-                const through50 = {
-                    worst: ratioOf(traceError(run.trace, f64, 0, ITERATIONS), toleranceOf("fa2-trace-parity.f64")),
-                    worstLabel: `noise/karate/networkx: iterations 1-${ITERATIONS} vs f64`,
-                    samples: 6 * ITERATIONS,
-                };
-                const cls = adapterClass(ctx.caps);
-                writeNoiseFixture(
-                    NOISE_FIXTURES.trace50Karate.kernel,
-                    NOISE_FIXTURES.trace50Karate.fixture,
-                    cls,
-                    traceValues(run.trace, 0, ITERATIONS),
-                    "f32",
-                );
-                writeNoiseFixture(
-                    NOISE_FIXTURES.trace50Karate.kernel,
-                    NOISE_FIXTURES.trace50Karate.fixture,
-                    ORACLE_F64_CLASS,
-                    traceValues(f64, 0, ITERATIONS),
-                    "f32",
-                );
-                // the 50-iteration leg is recorded (the floor of fa2-trace-parity.f64), never asserted: G3-F3 item 2
-                console.warn(
-                    `[fa2-trace-parity] noise/karate/networkx: ${ITERATIONS} vs f64 ratio ${through50.worst.toExponential(3)} (informational, G3-F3 item 2)`,
-                );
-            } finally {
-                ctx.release(s);
-            }
-        },
-        CASE_TIMEOUT,
-    );
+    it("writes the karate NETWORKX trace (50 iterations) and its f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+            // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
+            // ones on every run (issue #455)
+            t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+        }
+        requireGpu(t);
+        const { s, start, options, tuning } = noiseInputs(NETWORKX, "karate");
+        try {
+            const run = await resyncTrace(ctx, s, start, options, tuning, ITERATIONS);
+            const { f64 } = await oracleTraces(s, start, options, tuning);
+            const through50 = {
+                worst: ratioOf(traceError(run.trace, f64, 0, ITERATIONS), toleranceOf("fa2-trace-parity.f64")),
+                worstLabel: `noise/karate/networkx: iterations 1-${ITERATIONS} vs f64`,
+                samples: 6 * ITERATIONS,
+            };
+            const cls = adapterClass(ctx.caps);
+            writeNoiseFixture(
+                NOISE_FIXTURES.trace50Karate.kernel,
+                NOISE_FIXTURES.trace50Karate.fixture,
+                cls,
+                traceValues(run.trace, 0, ITERATIONS),
+                "f32",
+            );
+            writeNoiseFixture(
+                NOISE_FIXTURES.trace50Karate.kernel,
+                NOISE_FIXTURES.trace50Karate.fixture,
+                ORACLE_F64_CLASS,
+                traceValues(f64, 0, ITERATIONS),
+                "f32",
+            );
+            // the 50-iteration leg is recorded (the floor of fa2-trace-parity.f64), never asserted: G3-F3 item 2
+            console.warn(
+                `[fa2-trace-parity] noise/karate/networkx: ${ITERATIONS} vs f64 ratio ${through50.worst.toExponential(3)} (informational, G3-F3 item 2)`,
+            );
+        } finally {
+            ctx.release(s);
+        }
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "writes the unscaled random1k NETWORKX traces (10 and 50 iterations) and the f32 / f64 references as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
-                // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
-                // ones on every run (issue #455)
-                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
-            }
-            requireGpu(t);
-            const { s, start, options, tuning } = noiseInputs(NETWORKX);
-            try {
-                const run = await resyncTrace(ctx, s, start, options, tuning, ITERATIONS);
-                const { f32, f64 } = await oracleTraces(s, start, options, tuning);
-                const reports = traceReports(run.trace, f32, f64, "noise/random1k/networkx");
-                // the fixtures are the RAW outputs (never hand-written, spec 11.9 item 3) and are written BEFORE the
-                // check so that test/noise-floor.test.ts can measure the basis rows even when the check fails: a
-                // floor above the spec cap then surfaces through the validation of the noise-floor file (the finding
-                // path of the plan's Step 17d item 1) instead of through missing fixtures
-                const cls = adapterClass(ctx.caps);
-                writeNoiseFixture(
-                    NOISE_FIXTURES.trace10.kernel,
-                    NOISE_FIXTURES.trace10.fixture,
-                    cls,
-                    traceValues(run.trace, 0, TRACE_TIGHT),
-                    "f32",
-                );
-                writeNoiseFixture(
-                    NOISE_FIXTURES.trace10.kernel,
-                    NOISE_FIXTURES.trace10.fixture,
-                    ORACLE_F32_CLASS,
-                    traceValues(f32, 0, TRACE_TIGHT),
-                    "f32",
-                );
-                writeNoiseFixture(
-                    NOISE_FIXTURES.trace50.kernel,
-                    NOISE_FIXTURES.trace50.fixture,
-                    cls,
-                    traceValues(run.trace, 0, ITERATIONS),
-                    "f32",
-                );
-                writeNoiseFixture(
-                    NOISE_FIXTURES.trace50.kernel,
-                    NOISE_FIXTURES.trace50.fixture,
-                    ORACLE_F64_CLASS,
-                    traceValues(f64, 0, ITERATIONS),
-                    "f32",
-                );
-                console.warn(
-                    `[fa2-trace-parity] noise/random1k/networkx: first ${TRACE_TIGHT} vs f32 ratio ${reports.first10.worst.toExponential(3)}; ${ITERATIONS} vs f64 ratio ${reports.through50.worst.toExponential(3)} (informational, G3-F3 item 2)`,
-                );
-                assertCheckPasses(reports.first10);
-            } finally {
-                ctx.release(s);
-            }
-        },
-        CASE_TIMEOUT,
-    );
+    it("writes the unscaled random1k NETWORKX traces (10 and 50 iterations) and the f32 / f64 references as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+            // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
+            // ones on every run (issue #455)
+            t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+        }
+        requireGpu(t);
+        const { s, start, options, tuning } = noiseInputs(NETWORKX);
+        try {
+            const run = await resyncTrace(ctx, s, start, options, tuning, ITERATIONS);
+            const { f32, f64 } = await oracleTraces(s, start, options, tuning);
+            const reports = traceReports(run.trace, f32, f64, "noise/random1k/networkx");
+            // the fixtures are the RAW outputs (never hand-written, spec 11.9 item 3) and are written BEFORE the
+            // check so that test/noise-floor.test.ts can measure the basis rows even when the check fails: a
+            // floor above the spec cap then surfaces through the validation of the noise-floor file (the finding
+            // path of the plan's Step 17d item 1) instead of through missing fixtures
+            const cls = adapterClass(ctx.caps);
+            writeNoiseFixture(
+                NOISE_FIXTURES.trace10.kernel,
+                NOISE_FIXTURES.trace10.fixture,
+                cls,
+                traceValues(run.trace, 0, TRACE_TIGHT),
+                "f32",
+            );
+            writeNoiseFixture(
+                NOISE_FIXTURES.trace10.kernel,
+                NOISE_FIXTURES.trace10.fixture,
+                ORACLE_F32_CLASS,
+                traceValues(f32, 0, TRACE_TIGHT),
+                "f32",
+            );
+            writeNoiseFixture(
+                NOISE_FIXTURES.trace50.kernel,
+                NOISE_FIXTURES.trace50.fixture,
+                cls,
+                traceValues(run.trace, 0, ITERATIONS),
+                "f32",
+            );
+            writeNoiseFixture(
+                NOISE_FIXTURES.trace50.kernel,
+                NOISE_FIXTURES.trace50.fixture,
+                ORACLE_F64_CLASS,
+                traceValues(f64, 0, ITERATIONS),
+                "f32",
+            );
+            console.warn(
+                `[fa2-trace-parity] noise/random1k/networkx: first ${TRACE_TIGHT} vs f32 ratio ${reports.first10.worst.toExponential(3)}; ${ITERATIONS} vs f64 ratio ${reports.through50.worst.toExponential(3)} (informational, G3-F3 item 2)`,
+            );
+            assertCheckPasses(reports.first10);
+        } finally {
+            ctx.release(s);
+        }
+    });
 
     for (const member of ["resync50", "resyncKarate50"] as const) {
         const graph: ParityGraph = member === "resync50" ? "random1k" : "karate";
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(
-            `writes the unscaled ${graph} PAPER re-synchronised trace and its per-adapter f32 / f64 references as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
-            async (t) => {
-                if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
-                    // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
-                    // ones on every run (issue #455)
-                    t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
-                }
-                requireGpu(t);
-                const { s, start, options, tuning } = noiseInputs(PAPER, graph);
-                try {
-                    const run = await resyncTrace(ctx, s, start, options, tuning, ITERATIONS);
-                    const reports = resyncReports(run, `noise/${graph}/paper`);
-                    const cls = adapterClass(ctx.caps);
-                    const { kernel, fixture } = NOISE_FIXTURES[member];
-                    writeNoiseFixture(kernel, fixture, cls, resyncValues(run.gpu), "f32");
-                    writeNoiseFixture(
-                        kernel,
-                        fixture,
-                        resyncOracleClass(ORACLE_F32_CLASS, cls),
-                        resyncValues(run.f32),
-                        "f32",
-                    );
-                    writeNoiseFixture(
-                        kernel,
-                        fixture,
-                        resyncOracleClass(ORACLE_F64_CLASS, cls),
-                        resyncValues(run.f64),
-                        "f32",
-                    );
-                    console.warn(
-                        `[fa2-trace-parity] noise/${graph}/paper: re-synchronised ratio vs f32 ${reports.f32.worst.toExponential(3)}, vs f64 ${reports.f64.worst.toExponential(3)}`,
-                    );
-                    assertCheckPasses(reports.f32);
-                    assertCheckPasses(reports.f64);
-                } finally {
-                    ctx.release(s);
-                }
-            },
-            CASE_TIMEOUT,
-        );
+        it(`writes the unscaled ${graph} PAPER re-synchronised trace and its per-adapter f32 / f64 references as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`, async (t) => {
+            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+                // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
+                // ones on every run (issue #455)
+                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+            }
+            requireGpu(t);
+            const { s, start, options, tuning } = noiseInputs(PAPER, graph);
+            try {
+                const run = await resyncTrace(ctx, s, start, options, tuning, ITERATIONS);
+                const reports = resyncReports(run, `noise/${graph}/paper`);
+                const cls = adapterClass(ctx.caps);
+                const { kernel, fixture } = NOISE_FIXTURES[member];
+                writeNoiseFixture(kernel, fixture, cls, resyncValues(run.gpu), "f32");
+                writeNoiseFixture(
+                    kernel,
+                    fixture,
+                    resyncOracleClass(ORACLE_F32_CLASS, cls),
+                    resyncValues(run.f32),
+                    "f32",
+                );
+                writeNoiseFixture(
+                    kernel,
+                    fixture,
+                    resyncOracleClass(ORACLE_F64_CLASS, cls),
+                    resyncValues(run.f64),
+                    "f32",
+                );
+                console.warn(
+                    `[fa2-trace-parity] noise/${graph}/paper: re-synchronised ratio vs f32 ${reports.f32.worst.toExponential(3)}, vs f64 ${reports.f64.worst.toExponential(3)}`,
+                );
+                assertCheckPasses(reports.f32);
+                assertCheckPasses(reports.f64);
+            } finally {
+                ctx.release(s);
+            }
+        });
     }
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 128 s on the macOS Metal host lane, 41 s on the Windows WARP host lane, 13 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
     it(
         "the networkx free-running 50-vs-f64 leg across seeds 1 .. 8 is seed-bound, not kernel-bound (G3-F3 item 2): printed on every run, the oracle pair recorded (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {

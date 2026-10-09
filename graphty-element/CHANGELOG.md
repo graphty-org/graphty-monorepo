@@ -1,3 +1,13 @@
+## 3.20.2 (2026-10-09)
+
+### 🩹 Fixes
+
+- **graphty-element:** type-check event names where they are emitted and subscribed ([#1592](https://github.com/graphty-org/graphty-monorepo/issues/1592), [#1572](https://github.com/graphty-org/graphty-monorepo/issues/1572))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.20.1 (2026-10-09)
 
 ### 🩹 Fixes

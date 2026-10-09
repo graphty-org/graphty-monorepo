@@ -293,7 +293,7 @@ export class RenderManager implements Manager {
             window.addEventListener("resize", this.resizeHandler);
 
             // Emit success event
-            this.eventManager.emitGraphEvent("render-initialized", {
+            this.eventManager.emit("render-initialized", {
                 engine: this.engine,
                 scene: this.scene,
             });

@@ -16,7 +16,6 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
             emit: vi.fn(),
             once: vi.fn(),
             listenerCount: vi.fn(() => 0),
-            emitGraphEvent: vi.fn(),
             emitGraphError: vi.fn(),
             onGraphEvent: {
                 add: vi.fn(),

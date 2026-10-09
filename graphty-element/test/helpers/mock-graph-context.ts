@@ -192,7 +192,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         addListener(type: string, listener: (event: { type: string }) => void): void {
             listeners.set(type, [...(listeners.get(type) ?? []), listener]);
         },
-        emitGraphEvent(type: string): void {
+        emit(type: string): void {
             announce(type);
         },
     };

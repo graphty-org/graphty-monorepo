@@ -184,6 +184,7 @@ describe("exact vs grid (spec 11.4; PD-19, PD-20)", () => {
 
     for (const name of FIXTURES) {
         for (const dim of [2, 3] as const) {
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `(1) ${name}/${dim}d at two sizes, both measured: twice bitwise, finite; the floored per-node error's RMS and p99 under grid-exact.rms / grid-exact.p99 on the asserted fixtures of a hardware adapter, printed otherwise`,
                 async (t) => {
@@ -252,6 +253,7 @@ describe("exact vs grid (spec 11.4; PD-19, PD-20)", () => {
     }
 
     for (const dim of [2, 3] as const) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `(2) isolated/${dim}d at the strays' equilibrium: every degree-0 node's force after G7 is gravity plus the field of the others (the design's "gravity alone" item, the far and near terms named)`,
             async (t) => {
@@ -310,6 +312,7 @@ describe("exact vs grid (spec 11.4; PD-19, PD-20)", () => {
     }
 
     for (const name of ["random20k", "clumpy100"]) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `(4, 5) ${name} at two sizes: the grid tier's spread after 50 and 200 iterations within grid-expansion of the exact tier's (asserted on a hardware adapter, printed on a software one); layoutMetrics after 200 within grid-distributional at the first size`,
             async (t) => {
@@ -363,6 +366,7 @@ describe("exact vs grid (spec 11.4; PD-19, PD-20)", () => {
     }
 
     for (const dim of [2, 3] as const) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `(6) issue #90, ${dim}D: a core with two outlier groups beyond the extent on opposite sides stays under grid-exact.rms / grid-exact.p99 (each orthant's outliers push from their own side)`,
             async (t) => {
@@ -388,6 +392,7 @@ describe("exact vs grid (spec 11.4; PD-19, PD-20)", () => {
         );
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writes the five approximation members of the UNSCALED random20k / hubcell with their exact-tier references (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {

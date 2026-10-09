@@ -319,6 +319,7 @@ describe("Log Server", () => {
         });
 
         // Give time for file write
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         // Verify file was written

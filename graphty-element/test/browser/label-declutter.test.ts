@@ -91,6 +91,7 @@ describe("node labels do not overlap", () => {
 
         for (let at = 0; at < FRAMES; at++) {
             g.scene.render();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise<void>((done) => {
                 setTimeout(done, FRAME_MS);
             });
@@ -337,6 +338,7 @@ describe("nodeLabelCounts counts the labels drawn and why the rest are not", () 
     async function frames(g: Graph, count = FRAMES): Promise<void> {
         for (let at = 0; at < count; at++) {
             g.scene.render();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise<void>((done) => {
                 setTimeout(done, FRAME_MS);
             });
@@ -575,6 +577,7 @@ describe("waitForStableFrame waits for the label counts to be announced", () => 
  */
 async function waitFor(done: () => boolean): Promise<void> {
     for (let at = 0; at < 200 && !done(); at++) {
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise<void>((resolve) => {
             setTimeout(resolve, 25);
         });

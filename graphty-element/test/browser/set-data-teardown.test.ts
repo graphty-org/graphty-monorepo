@@ -26,6 +26,7 @@ it("disposing a graph while its setData is pending reports no error", async () =
     graph.setData({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ source: "a", target: "b" }] });
     cleanupTestGraph(graph);
     graph = null;
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     assert.deepEqual(

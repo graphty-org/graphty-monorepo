@@ -115,6 +115,7 @@ describe("spring-electrical inspect(): every stage against the oracle's (spec 11
     for (const graph of GRAPHS) {
         for (const dim of DIMS) {
             const label = `${graph}/${dim}d`;
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${label}: K2, K3, K5 (positions, velocity, displacement, partials), toScene and the K1 fold within their traced tolerances, twice bitwise; the weighted copy identical`,
                 async (t) => {
@@ -167,6 +168,7 @@ describe("spring-electrical inspect(): every stage against the oracle's (spec 11
         }
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a pinned node (karate): its force is computed, its velocity is unchanged (still 0) and its displacement exactly zero, the free count excludes it, every stage still within tolerance",
         async (t) => {
@@ -205,6 +207,7 @@ describe("spring-electrical inspect(): every stage against the oracle's (spec 11
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writes this adapter's stage outputs of the UNSCALED random1k and of karate and the f64 reference of each as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {
@@ -253,6 +256,7 @@ describe("spring-electrical subgroup twins in-process (spec 11.3)", () => {
     });
 
     for (const graph of TWIN_GRAPHS) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `${graph}: every stage agrees between the twins within the traced tolerances, each twice bitwise; K2's springs bitwise`,
             async (t) => {
@@ -294,6 +298,7 @@ describe("spring-electrical subgroup twins in-process (spec 11.3)", () => {
         );
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writes the workgroup twin's K3 force, K5 positions, K5 partials and K1 state of the UNSCALED random1k and of karate as `<class>-no-subgroups` noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {

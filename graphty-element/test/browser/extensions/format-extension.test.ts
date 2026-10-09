@@ -698,6 +698,7 @@ async function mountElement(): Promise<Graphty> {
             throw new Error("the element never finished initialising");
         }
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 20));
     }
 
@@ -809,6 +810,7 @@ afterAll(() => {
 });
 
 describe("a third party's file format", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "loads a graph the element then holds, chosen by the format name a host sets",
         async () => {
@@ -826,6 +828,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "loads the same graph through the direct call a host makes for a second dataset",
         async () => {
@@ -837,6 +840,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "does not displace the formats that ship with the element",
         async () => {
@@ -856,6 +860,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "puts the attributes it parsed onto the nodes and edges the element holds",
         async () => {
@@ -876,6 +881,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "passes options only the format knows about from the host straight to the source",
         async () => {
@@ -886,6 +892,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reads its bytes from a string, a File and a URL without implementing any of the three",
         async () => {
@@ -910,6 +917,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "is accepted by loadFromFile when the host names the format",
         async () => {
@@ -923,6 +931,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "streams: each chunk is in the graph before the next one is asked for",
         async () => {
@@ -947,6 +956,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reports progress after every chunk, with the running node and edge counts",
         async () => {
@@ -976,6 +986,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "announces completion under its own format name, with what it loaded",
         async () => {
@@ -994,6 +1005,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "skips the records its own schema rejects and keeps the rest",
         async () => {
@@ -1013,6 +1025,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "stops the load when the host's error limit is reached",
         async () => {
@@ -1033,6 +1046,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "still says why every row was rejected when no row survived, and fails with E_EMPTY_LOAD",
         async () => {
@@ -1051,6 +1065,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "keeps the current graph when a replacing load stops at the error limit",
         async () => {
@@ -1073,6 +1088,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "surfaces a parse failure as an error the host can catch and see",
         async () => {
@@ -1105,6 +1121,7 @@ describe("a third party's file format", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "lets a style layer select on the attributes it loaded, exactly like a built-in format",
         async () => {
@@ -1210,6 +1227,7 @@ describe("a third party's format in the catalogue a picker is built from", () =>
 });
 
 describe("a third party's format being recognised from a file", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "is recognised from a dropped file's name, with no format argument at all",
         async () => {
@@ -1232,6 +1250,7 @@ describe("a third party's format being recognised from a file", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "is recognised from a file's first bytes when its name says nothing",
         async () => {
@@ -1246,6 +1265,7 @@ describe("a third party's format being recognised from a file", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "is recognised from the content of a URL whose address says nothing about the format",
         async () => {
@@ -1265,6 +1285,7 @@ describe("a third party's format being recognised from a file", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "is accepted by loadFromUrl when the host names the format",
         async () => {
@@ -1302,6 +1323,7 @@ describe("a third party's format being recognised from a file", () => {
         );
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "is told apart from another format claiming the same extension by looking at the content",
         async () => {
@@ -1352,6 +1374,7 @@ describe("a third party's format being recognised from a file", () => {
 });
 
 describe("a third party's format being configured", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "takes the default it declared when the host sets nothing",
         async () => {
@@ -1383,6 +1406,7 @@ describe("a third party's format being configured", () => {
         assert.deepStrictEqual(refusal.details.candidates, ["scoreScale"], "and what the host probably meant");
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reports a bad option to a host that went through the element rather than the registry",
         async () => {
@@ -1401,6 +1425,7 @@ describe("a third party's format being configured", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "still receives the facts the element itself adds to an options object",
         async () => {
@@ -1417,6 +1442,7 @@ describe("a third party's format being configured", () => {
 });
 
 describe("a third party's format failing", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reports a file it cannot parse as a coded error carrying the format and the line",
         async () => {
@@ -1442,6 +1468,7 @@ describe("a third party's format failing", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reports a source it cannot fetch as a coded error carrying the address",
         async () => {
@@ -1476,6 +1503,7 @@ describe("a third party's format failing", () => {
 });
 
 describe("a third party's format declaring what its file says", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "declares the direction its file states, and the graph is counted as that kind",
         async () => {
@@ -1491,6 +1519,7 @@ describe("a third party's format declaring what its file says", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "is believed when its file states the opposite direction",
         async () => {
@@ -1502,6 +1531,7 @@ describe("a third party's format declaring what its file says", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "leaves the direction alone when its file states none",
         async () => {
@@ -1516,6 +1546,7 @@ describe("a third party's format declaring what its file says", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "places the nodes its file placed, so the element knows the graph arrived arranged",
         async () => {
@@ -1539,6 +1570,7 @@ describe("a third party's format declaring what its file says", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "carries an edge weight the element reads as a weight rather than as another attribute",
         async () => {

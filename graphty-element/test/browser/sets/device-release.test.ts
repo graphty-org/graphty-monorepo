@@ -82,6 +82,7 @@ afterAll(() => {
 });
 
 describe.skipIf(!GPU_LANE)("scoped runs on a real WebGPU device", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("releases every derived input it uploaded, once", { timeout: 120_000 }, async () => {
         const element = document.createElement("graphty-element");
         element.style.width = "400px";

@@ -667,6 +667,7 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         await waitFor(visibleTip);
         await userEvent.click(one);
         await waitFor(hiddenTip, 50);
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((r) => setTimeout(r, 400));
         expect(visibleTip()).toBeNull();
     });
@@ -730,6 +731,7 @@ describe("8.3 tooltip dismiss and focus delay", () => {
                 unseen
             </div>,
         );
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((r) => setTimeout(r, 50));
         expect(computed(document.querySelector(".cm-tooltip") as HTMLElement).visibility).toBe("hidden");
     });

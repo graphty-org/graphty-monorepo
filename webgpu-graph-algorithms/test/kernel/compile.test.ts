@@ -84,6 +84,7 @@ describe("every registry entry compiles with its defaults (contract 5.5; spec 5.
     for (const lane of LANES) {
         describe(lane.name, () => {
             for (const id of ALL_IDS) {
+                // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
                 it(`${id}: composes for the lane's caps and compiles once through PipelineCache`, async (t) => {
                     requireGpu(t);
                     const ctx = await lane.open();
@@ -122,6 +123,7 @@ describe("every registry entry compiles with its defaults (contract 5.5; spec 5.
                 }, 60_000);
             }
 
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it("warm() over every default spec compiles nothing new once the entries are cached, and keys() lists one key per entry", async (t) => {
                 requireGpu(t);
                 const ctx = await lane.open();

@@ -42,6 +42,7 @@ async function until(predicate: () => boolean, what: string): Promise<void> {
             return;
         }
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 1));
     }
 
@@ -1093,6 +1094,7 @@ describe("AccelerationController: the policy, the threshold and the listeners in
 
         const second = vi.fn(() => Promise.resolve(fakeAccelerator({ name: "second" })));
         registry.register({ name: "second", factory: second });
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 1));
 
         assert.strictEqual(second.mock.calls.length, 0);
@@ -1345,6 +1347,7 @@ describe("AccelerationController: a software adapter outlives only the policy th
         await controller.start();
 
         controller.setPolicy("auto");
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 1));
 
         assert.strictEqual(controller.state, "idle");
@@ -1376,6 +1379,7 @@ describe("AccelerationController: a policy set after dispose", () => {
         assert.doesNotThrow(() => {
             controller.setPolicy("required");
         });
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 5));
 
         assert.strictEqual(factory.mock.calls.length, 0);

@@ -370,14 +370,14 @@ function assertScope(spec: Scope): void {
  * @param mask - The bitmap.
  * @param length - How many indices it covers.
  * @param idOf - The id at an index.
- * @param alias - The other spelling of an id, which `has` also answers for (node ids only).
+ * @param alias - The other spelling of an id, which `has` also answers for.
  * @returns The set.
  */
 function idSetOf<TId>(
     mask: U32,
     length: number,
     idOf: (index: number) => TId,
-    alias?: (id: TId) => TId | undefined,
+    alias?: (id: TId) => unknown,
 ): ReadonlySet<TId> {
     resolveCounters.idSetBuilds++;
     // Sealed: a resolved scope is an answer, and a write into it would change nothing it answers.
@@ -454,7 +454,7 @@ function resolvedScopeOf(resolution: Resolution, graph: GraphSnapshot, spec: Sco
             get: (): ReadonlySet<EdgeId> => {
                 if (edges === null) {
                     const space = edgeSpaceOf(graph);
-                    edges = idSetOf(resolution.edges, graph.edgeCount, (index) => space.idOf(index));
+                    edges = idSetOf(resolution.edges, graph.edgeCount, (index) => space.idOf(index), otherIdSpelling);
                 }
 
                 return edges;

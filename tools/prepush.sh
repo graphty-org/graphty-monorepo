@@ -155,7 +155,9 @@ for p in $(NX_DAEMON=false pnpm exec nx show projects --with-target build --json
     { affected "$p" || [ ! -d "${p#@graphty/}/dist" ]; } && BUILD_LIST="$BUILD_LIST,$p"
 done
 BUILD_LIST="${BUILD_LIST#,}"
-[ -n "$BUILD_LIST" ] && run_step "Build" "pnpm exec nx run-many -t build --projects=$BUILD_LIST --parallel=3"
+# The same 8 GB heap as CI's build steps: the graphty app's build, sourcemaps included, outgrows
+# Node's default heap since it bundles @mlc-ai/web-llm as a lazy chunk.
+[ -n "$BUILD_LIST" ] && run_step "Build" "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run-many -t build --projects=$BUILD_LIST --parallel=3"
 
 # webgpu-graph-algorithms: its lint runs the strict-consumer compile against the d.ts shims that only
 # build:bundle writes (tsc emits none; the package has no root entry file), so bundle it before Lint

@@ -434,3 +434,54 @@ describe("indexed link prediction", () => {
         s.validate({ checksum: true });
     });
 });
+
+describe("indexed link prediction, uniquePairs", () => {
+    const predictions = [commonNeighborsPrediction, adamicAdarPrediction];
+    const asList = (r: LinkPredictionResult): [number, number, number][] =>
+        Array.from(r.scores, (x, k) => [r.sources[k], r.targets[k], x]);
+
+    for (const c of cases()) {
+        it(`${c.name}: the default ranking, each pair once, lower index first`, () => {
+            const s = c.snapshot;
+            for (const predict of predictions) {
+                for (const includeExisting of [false, true]) {
+                    const all = asList(predict(s, { includeExisting }));
+                    const once = asList(predict(s, { includeExisting, uniquePairs: true }));
+                    expect(once).toEqual(all.filter(([u, v]) => u < v));
+                    // topK counts distinct pairs.
+                    expect(asList(predict(s, { includeExisting, uniquePairs: true, topK: 3 }))).toEqual(
+                        once.slice(0, 3),
+                    );
+                    // With `directed: true` each ordered pair is listed once already.
+                    for (const topK of [undefined, 3]) {
+                        expect(
+                            asList(predict(s, { includeExisting, directed: true, uniquePairs: true, topK })),
+                        ).toEqual(asList(predict(s, { includeExisting, directed: true, topK })));
+                    }
+                }
+            }
+            s.validate({ checksum: true });
+        });
+    }
+
+    it("returns topK distinct pairs on an undirected graph", () => {
+        const b = new GraphBuilder({ directed: false });
+        for (const [u, v] of [
+            ["a", "b"],
+            ["a", "c"],
+            ["b", "d"],
+            ["c", "d"],
+            ["d", "e"],
+        ]) {
+            b.addEdge(u, v);
+        }
+        const s = b.freeze({ checksum: true });
+        for (const predict of predictions) {
+            const r = predict(s, { topK: 4, uniquePairs: true });
+            const keys = Array.from(r.sources, (u, k) => `${Math.min(u, r.targets[k])}-${Math.max(u, r.targets[k])}`);
+            expect(keys.length).toBe(4);
+            expect(new Set(keys).size).toBe(4);
+        }
+        s.validate({ checksum: true });
+    });
+});

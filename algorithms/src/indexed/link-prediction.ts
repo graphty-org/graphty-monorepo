@@ -35,10 +35,16 @@ export interface LinkPredictionOptions extends CommonNeighborsOptions {
      * end, so 0 keeps none and -2 drops the last two.
      */
     readonly topK?: number | undefined;
+    /**
+     * List each pair once, lower node index first, so `topK` counts distinct pairs. Default false,
+     * which lists a pair both ways round unless `directed` is true. With `directed: true` each
+     * ordered pair is listed once anyway and this changes nothing.
+     */
+    readonly uniquePairs?: boolean | undefined;
 }
 
 /** Options of the per-node candidate functions. @public */
-export interface CandidateOptions extends LinkPredictionOptions {
+export interface CandidateOptions extends Omit<LinkPredictionOptions, "uniquePairs"> {
     /** The nodes to consider (indices, `{ mask }` or `{ ids }`), in this order; default every node in index order. */
     readonly candidates?: NodeSet | undefined;
 }
@@ -171,9 +177,9 @@ function predict(s: GraphSnapshot, o: LinkPredictionOptions, score: PairScore): 
     const sources: number[] = [];
     const targets: number[] = [];
     const scores: number[] = [];
-    // Each unordered pair is scored once as (u, v), u < v; without `directed` the reverse pair is
-    // listed too with the same score. Existence is tested on the arc u -> v only.
-    const mirror = o.directed !== true;
+    // Each unordered pair is scored once as (u, v), u < v; without `directed` or `uniquePairs` the
+    // reverse pair is listed too with the same score. Existence is tested on the arc u -> v only.
+    const mirror = o.directed !== true && o.uniquePairs !== true;
     for (let u = 0; u < s.nodeCount; u++) {
         for (let v = u + 1; v < s.nodeCount; v++) {
             if (o.includeExisting !== true && s.hasArc(u, v)) {

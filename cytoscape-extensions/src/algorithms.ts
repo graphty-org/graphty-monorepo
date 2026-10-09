@@ -1607,12 +1607,13 @@ const IMPLS = {
         adamicAdarScore(c.s, req(c, o.source, "source"), req(c, o.target, "target"), { directed: c.s.directed }),
     commonNeighborsPrediction: (
         c: Ctx,
-        _o: AlgorithmOptions & Omit<LinkPredictionOptions, "directed"> = {},
-    ): PredictedLink[] => links(c, commonNeighborsPrediction(c.s, { ...c.rest, directed: c.s.directed })),
+        _o: AlgorithmOptions & Omit<LinkPredictionOptions, "directed" | "uniquePairs"> = {},
+    ): PredictedLink[] =>
+        links(c, commonNeighborsPrediction(c.s, { ...c.rest, directed: c.s.directed, uniquePairs: true })),
     adamicAdarPrediction: (
         c: Ctx,
-        _o: AlgorithmOptions & Omit<LinkPredictionOptions, "directed"> = {},
-    ): PredictedLink[] => links(c, adamicAdarPrediction(c.s, { ...c.rest, directed: c.s.directed })),
+        _o: AlgorithmOptions & Omit<LinkPredictionOptions, "directed" | "uniquePairs"> = {},
+    ): PredictedLink[] => links(c, adamicAdarPrediction(c.s, { ...c.rest, directed: c.s.directed, uniquePairs: true })),
     commonNeighborsForPairs: (c: Ctx, o: AlgorithmOptions & PairsOptions): number[] =>
         Array.from(commonNeighborsForPairs(c.s, pairsOf(c, o.pairs, "pairs"), { directed: c.s.directed })),
     adamicAdarForPairs: (c: Ctx, o: AlgorithmOptions & PairsOptions): number[] =>

@@ -145,20 +145,7 @@ function lowestEigenvector(h: number[][]): number[] {
     for (let sweep = 0; sweep < 50; sweep++) {
         for (let i = 0; i < p; i++) {
             for (let j = i + 1; j < p; j++) {
-                if (Math.abs(h[i][j]) < 1e-300) {
-                    continue;
-                }
-                const theta = (h[j][j] - h[i][i]) / (2 * h[i][j]);
-                const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
-                const c = 1 / Math.sqrt(t * t + 1);
-                const s = t * c;
-                // h = J^T h J and v = v J: the columns of both, then the rows of h
-                for (const m of [h, v]) {
-                    for (const r of m) {
-                        [r[i], r[j]] = [c * r[i] - s * r[j], s * r[i] + c * r[j]];
-                    }
-                }
-                [h[i], h[j]] = [h[i].map((a, k) => c * a - s * h[j][k]), h[i].map((a, k) => s * a + c * h[j][k])];
+                rotate(h, v, i, j);
             }
         }
     }
@@ -169,6 +156,30 @@ function lowestEigenvector(h: number[][]): number[] {
         }
     }
     return v.map((r) => r[lowest]);
+}
+
+/**
+ * One Jacobi rotation, zeroing `h[i][j]`: h = J^T h J and v = v J.
+ * @param h - the symmetric matrix's rows, in place
+ * @param v - the accumulated rotations' rows, in place
+ * @param i - the first index
+ * @param j - the second index, above `i`
+ */
+function rotate(h: number[][], v: number[][], i: number, j: number): void {
+    if (Math.abs(h[i][j]) < 1e-300) {
+        return;
+    }
+    const theta = (h[j][j] - h[i][i]) / (2 * h[i][j]);
+    const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+    const c = 1 / Math.sqrt(t * t + 1);
+    const s = t * c;
+    // the columns of both, then the rows of h
+    for (const m of [h, v]) {
+        for (const r of m) {
+            [r[i], r[j]] = [c * r[i] - s * r[j], s * r[i] + c * r[j]];
+        }
+    }
+    [h[i], h[j]] = [h[i].map((a, k) => c * a - s * h[j][k]), h[i].map((a, k) => s * a + c * h[j][k])];
 }
 
 /**
@@ -188,7 +199,7 @@ function orthonormal(v: F64, against: readonly F64[]): boolean {
         }
     }
     const after = norm(v);
-    if (!(after > 1e-8 * before)) {
+    if (after <= 1e-8 * before) {
         return false;
     }
     for (let i = 0; i < v.length; i++) {

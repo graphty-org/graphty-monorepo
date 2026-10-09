@@ -76,7 +76,9 @@ const setups = join(here, "../rounds/tier-2/setups");
 const gate = join(here, "with-browser.sh");
 // The tier 1 workspace is reached with ?next until the Switch-over makes it the default (graphty/src/App.tsx)
 const TIER1 = "/?next";
-const VIEWPORT = { width: 1440, height: 900 };
+// REAL_VIEWPORT=<w>x<h> sets the window for a screenshot audit at other sizes; studies keep 1440 x 900
+const [vw, vh] = (process.env.REAL_VIEWPORT || "1440x900").split("x").map(Number);
+const VIEWPORT = { width: vw, height: vh };
 // A session nobody steps for this long is closed, so one whose agent was stopped before --end frees
 // its browser slot soon (two stopped agents held slots for 45 minutes in round 1, 2026-10-06).
 // REAL_IDLE_SECONDS overrides it (the --prove check uses a few seconds).

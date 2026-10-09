@@ -11,6 +11,22 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **Tier 2 screenshot audit (round 1): the app breaks on long names and narrow
+  windows, not at the study's own size.** Walked every tier 2 screen at 1200x900 and 900x700 on
+  build 946256efb (`tier2/rounds/round-1/expert/engineer.md`, 24 findings). Severity 3: canvas
+  labels cut at the canvas edge and drawn over each other (element: the fit ignores label
+  extents); the find list cuts rows with no ellipsis and scrolls sideways (`FindBox.tsx`
+  ScrollArea); a long name ellipsizes away the neighborhood count, and "Back to ..." is clipped
+  with no ellipsis (`NodeValues.tsx`). Severity 2: at 900 wide both panels keep 240 px and the
+  Analyze/Path popovers overlap the left panel; the Path popover hides the nodes it asks you to
+  pick; the legend card covers labels (refits for nodes only); the path key's black swatch on the
+  dark card (~1.3:1); Everything's Style tab mixes stacked and inline labels. With the study's
+  files at 1440x900 only the popover cover, the swatch, button placement and the two segmented
+  looks show up, so participants should not be meeting the long-name defects.
+- (2026-10-09) **`REAL_VIEWPORT=<w>x<h>` on `real.mjs --start`** sets the window (default 1440x900,
+  recorded in `session.json`). A private walk script (one `walk` per screen, like
+  `tier2/pilot/rewalk.sh`) run at two sizes in parallel took two browser slots and ~25 min.
+
 - (2026-10-08) **A reopened project is framed as a fresh fit of the final state; the legend card
   waits for that fit (app only).** Mechanism (probe `tmp/r1-dry4-reopen-framing/probe.mjs`, logs
   every `viewInsets` set and `zoomToFit`): on a first open the element frames before any legend
@@ -27,29 +43,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   1440 x 900; fails without by 48 px). Florentine cannot be the test: its card hides Pazzi, so the
   in-session refit makes both paths agree with or without the fix.
 
-- (2026-10-08) **Undo, Redo and Escape say what they did (app, plus one element param).** One
-  words table, `graphty/src/workspace/frame/historyWords.ts`, words every `HistoryCode` from its
-  params (filter steps keep their rule words through `stepChange` in `filterSteps.ts`). Undo/Redo
-  tooltips read `Command.tooltip` ("Undo changing Size on PageRank Ctrl+Z"); the accessible name
-  stays "Undo"/"Redo". After running: "Undid changing Size on PageRank." Escape on a non-empty
-  selection: "Selection cleared: 3 edges"; the find box keeps the rule and Enter restores it.
-  The element's `style.update-layer` fact now carries `channels` (additive; a Size binding is a
-  layer UPDATE, not `style.encode`, so the layer name alone said nothing). The fact names a layer
-  by its element name ("Influence"); the app maps it to its run row name ("PageRank") through
-  `runs.bindings`, first layer of that name (ponytail). Evidence `tmp/r1-dry4-undo-escape-words/`
-  (T22A/04 Escape notice, 05 tooltip, 06 Undid, 07 Enter restores; T22B/04, 05, 06).
-- (2026-10-08) **Edit source... is a replace, offered only where Replace with file... is; Esc
-  keeps a chosen file; the match report leaves out a zero kind (app only).** `editSource` opens
-  the Data page with intent "replace" on the load's remembered files and choices, so its Load
-  swaps the source (41 ties stayed 41; the "add" intent made 82). Both source verbs share one
-  `canReplace` guard in `useRowMenu`, so a graph of several loads or one load of two tables gets
-  no source menu. The page's Esc leaves only while `page.source === null`; with a file chosen it
-  is swallowed (still `preventDefault`, so the workspace's Clear selection does not run behind
-  the page) and Cancel is the way out; an open list closes first as before. The match report
-  writes "41 edge rows read; ..." on an edge list. Evidence `tmp/r1-dry4-loads/` (T21A/04 the
-  Replace page and sentence, T21A/06 Sources "20 nodes, 41 edges"; T20B/07 and 11 Esc stays,
-  T20B/12 Cancel leaves). OPEN: a two-table load can no longer be edited at all; it needs
-  replace-of-several-tables (canReplace's limit) before Edit source returns there.
+- (2026-10-08, condensed) **Undo/Redo/Escape say what they did** (`frame/historyWords.ts`;
+  element `style.update-layer` carries `channels`). **Edit source is a replace**, offered only
+  where Replace is (`canReplace` in `useRowMenu`); import page Esc exits only an empty page. OPEN:
+  a two-table load cannot be edited. Evidence `tmp/r1-dry4-undo-escape-words/`, `tmp/r1-dry4-loads/`.
 - (2026-10-08) **A tooltip's position is a request; the theme flips it.** compact-mantine's
   Tooltip default is `bottom` with `flip`; `position="right"` on "Filter to neighbors" lands LEFT
   of the button in the real app, because the inspector sits at the window's right edge. Either side
@@ -86,14 +83,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (`FindResult.totals`); list scroll-snaps to whole rows. Filter controls say what they do ("Save
   and turn on", "within N hop(s) of X"). Evidence `tmp/r1-dry3-app-find-list-graph-title/`,
   `tmp/r1-dry3-app-filters/`.
-- (2026-10-08) **Study tool reads a table row by its cells and clicks a hidden radio by its
-  label.** `--read` printed each histogram row as "row (no name)": a row has no name, its cells
-  carry it; `rowSays` now prints `row "0.03779 to 0.0391: 1 node" | "1"`. `--click role=radio:2`
-  missed ("nothing on screen is called 2"): Mantine's SegmentedControl input is hidden, so the
-  visible-filter dropped it; a role target with no visible match now takes a visible
-  `labels[0]`. Both have `--prove` checks. Earlier: `session.json` `commit` is the served build,
-  `toolCommit` the checkout; `setup:<file>` looks in cwd, `tier2/`, `rounds/tier-2/setups/`.
-  Evidence `tmp/r1-dry4-tool-and-key/` (`T21A-read.log`, `T23A/06.png`, `prove.log`).
+- (2026-10-08, condensed) **Study tool:** `--read` prints a table row by its cells; a role target
+  with no visible match takes a visible `labels[0]` (hidden SegmentedControl radios); `session.json`
+  `commit` is the served build. Evidence `tmp/r1-dry4-tool-and-key/`.
 
 - (2026-10-08, condensed) **Sources and left-out rows (app only).** Counts as a visible second
   line; the left-out child wears `GLYPHS.warning`; a load and its left-out child show "Added" and
@@ -118,6 +110,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-09) **Audit findings name the owning package; the canvas label clipping is the
+  element's.** The fit frames spheres only, so any app fix (smaller font, padding) would hide an
+  element defect. The legend card's label overlap waits on the same element fact (label bounds).
 - (2026-10-08) **The camera stays unsaved; a reopen reproduces only fresh framings.** Making the
   first open move the drawing when the legend grows was rejected (it undoes "insets never move
   the drawing"); delaying the card's inset makes reopen match first open whenever the session's
@@ -229,6 +224,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Worked: `long-names.csv` (with PageRank, Size and every label drawn, setup in the
+  audit's own file) is what surfaced every severity 3 truncation; the study datasets hide them.
+  Did not work: `--click "Add to Shape"` on Everything's Style tab (Shape has fields there, no
+  "+"); `--click Graph` is ambiguous with the inspector heading (the tool takes the rail button).
+  Crop and zoom (PIL, 4x) to judge small text and swatch contrast; `friends .csv` in a 10 px
+  subtitle was font hinting, not a space.
 - (2026-10-08) Did not work first: a reopen-framing test on the Florentine sample passed WITHOUT
   the fix (the card hid Pazzi on the first open, so the session refit with insets and both paths
   agreed). Worked: the friends graph added through `session.data` in a `Workspace` whose store

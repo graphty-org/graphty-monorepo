@@ -44,6 +44,8 @@ Every command prints what a participant would notice, then the path of the new s
   tool that ran the session, not the build), and `uncommittedChanges` says whether this
   checkout's `graphty/` or `graphty-element/` had uncommitted edits; it also holds the URL,
   the start time and the setup steps.
+- `REAL_VIEWPORT=<w>x<h>` on the `--start` command opens the window at another size (a screenshot
+  audit at 1200x900 or 900x700); studies keep the default 1440 x 900. `session.json` records it.
 - A session nobody steps for 15 minutes closes itself, so a forgotten one cannot hold a browser.
 - Call `real.mjs` directly, with your own session folder, for every step. Do not write a helper
   script that wraps it: a script shared between sessions sends one participant's steps into

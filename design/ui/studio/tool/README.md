@@ -34,7 +34,10 @@ person watching would have read it.
   `<file>` is looked up in the folder the command runs in, then `../tier2/`, then
   `../rounds/tier-2/setups/`; a file in none of them prints one `SETUP FAILED: no such setup file`
   line and exits 2, with no session started. A
-  setup step that misses fails the start with `SETUP FAILED`, which is itself a finding. When the
+  setup step that misses fails the start with `SETUP FAILED`, which is itself a finding. A setup
+  click waits up to 20 seconds for its control (a participant's click, 3), since nobody waits on it
+  and a loaded machine can take longer than 3 seconds; a control that never becomes clickable in
+  that time still fails the start. When the
   setup ends, nothing has focus and the pointer is off the page, as when a saved project is
   reopened: the participant does not arrive to a focus ring or a hover on the control the setup
   used last.
@@ -140,11 +143,15 @@ node $T/real.mjs --step $S --click "<project name>"       # reopens the saved fi
 - Only the screenshot path when a step just opens or closes something (a menu, a dialog, a panel)
   and nothing else happened: look at the screenshot.
 - `tooltip: "..."` after every hover, or `tooltip: null`. A tooltip still fading out from the last
-  hover is not this hover's and is never printed.
+  hover is not this hover's and is never printed; one dismissed and hidden by CSS (opacity 0,
+  `visibility: hidden`) or one with no text is no tooltip, so it reads `null`, never `""`.
 - Misses: `nothing on screen is called "..."`, `only 2 controls are called ...`.
 - `could not click "...": ... Timeout 3000ms exceeded.` when a control is there but cannot take the
   click, followed by the browser's own reason, indented (`element is not enabled`, `element is not
 stable`, `<div ...> intercepts pointer events` when something covers it).
+- `slow click (landed): "..." was clicked; the wait after it ran past 3000 ms` when the click was
+  done but Playwright's wait afterwards (for any navigation the click started) ran out the limit,
+  as it does on a loaded machine. The click worked: it is not a miss, and it never fails a setup.
 - `ambiguous: "Enjolras" matches 5 controls, so the step did nothing; name one: "Enjolras#1" row ..., ...` when a name
   is shared. Pick one with `#n` or `role=<role>:<name>`.
 - `at x,y: node "Medici"` (or `empty canvas`, or the control there) for every point step.
@@ -259,12 +266,14 @@ node design/ui/studio/tool/real.mjs --prove
 
 Runs real sessions against the build: a start, clicks by control name and by a node's drawn
 label, a click at a point, a hover tooltip (and one right after another, while the first fades
-out), a click on a disabled control that must print its reason, a client killed mid-step that must
+out), a click on a disabled control that must print its reason, a planted click that lands but whose wait
+after it runs past the limit (reported landed, not missed), a hover over a planted dismissed,
+hidden tooltip (reported `null`), a client killed mid-step that must
 leave the session running, typing, an upload, a download, a name inside an open
 dialog and one behind it, a save, a reopened tab that reopens the save from Recent projects, a
 planted spin (a camera key held on the canvas) that must be reported, typing into an open popover
 whose box keeps repainting over a still drawing, which must not be, setup starts (one that works,
-one that fails), a screen-reader session (nothing focused after its setup, a focus line after every step, a live region's new
+one whose step names nothing, one whose click never becomes clickable), a screen-reader session (nothing focused after its setup, a focus line after every step, a live region's new
 text, the highlighted option of the find box, a planted region that arrives filled marked
 unconfirmed, `--read` in the Export dialog) and an end. It prints `ok` or `FAIL` per check and exits 1 on any failure.
 Its sessions are written under `design/ui/studio/tmp/prove/`, which it clears first; set

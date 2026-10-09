@@ -543,6 +543,7 @@ async function serve(dir, sr) {
                     else if (req.op === "measure") r = await measure(s, req.plant);
                     else if (req.op === "work") r = { out: [], code: 0, data: await s.page.evaluate(openWork) };
                     else if (req.op === "plant-removal") r = await plantRemoval(s);
+                    else if (req.op === "plant-dom") r = await plantDom(s, req.kind);
                     else if (req.op === "end" && s.followUp && !s.followUpGiven) r = await giveFollowUp(s);
                     else if (req.op === "end") r = await opEnd(s);
                     else r = { out: [`unknown request ${req.op}`], code: 2 };
@@ -889,7 +890,7 @@ async function opStart(s, setup) {
         // run before 01.png and never shown to the participant: its lines go to setup.log only,
         // and anything that does not work fails the start loudly
         const said = [];
-        const r = await run(s, setup, said);
+        const r = await run(s, setup, said, SETUP_CLICK_MS);
         // a reopened project has nothing focused: the last setup step's control must not wear a focus ring
         await s.page.evaluate(`${FOCUSED}?.blur()`);
         // nor a hover: the setup's last click left the pointer on a control (a row stays lit in 01.png)
@@ -1025,6 +1026,41 @@ async function plantLive(s) {
         const later = region("");
         setTimeout(() => (later.textContent = "Planted change"), 100);
     });
+    return { out: [], code: 0 };
+}
+
+// --prove only: "slow" adds a button whose click asks for a navigation that answers "204 No Content"
+// (so the page stays) after 4.5 s: Playwright waits for it after the click is done, past the click
+// limit, as it did on a loaded machine. "hidden-tip" adds a tooltip dismissed by CSS (opacity 0) and
+// an empty one.
+async function plantDom(s, kind) {
+    if (kind === "slow")
+        await s.context.route("**/real-planted-slow", (r) =>
+            setTimeout(() => r.fulfill({ status: 204 }).catch(() => {}), 4500),
+        );
+    await s.page.evaluate((kind) => {
+        if (kind === "slow") {
+            const b = document.createElement("button");
+            b.textContent = "Planted slow";
+            Object.assign(b.style, { position: "fixed", left: "600px", top: "10px", zIndex: 99999 });
+            b.onclick = () => {
+                location.href = "/real-planted-slow";
+                b.remove();
+            };
+            document.body.append(b);
+        } else
+            for (const [text, opacity] of [
+                ["Planted dismissed tip", "0"],
+                ["", "1"],
+            ]) {
+                const t = document.createElement("div");
+                t.setAttribute("role", "tooltip");
+                t.textContent = text;
+                Object.assign(t.style, { position: "fixed", left: "10px", top: "10px", opacity });
+                document.body.append(t);
+                setTimeout(() => t.remove(), 10000);
+            }
+    }, kind);
     return { out: [], code: 0 };
 }
 
@@ -1356,8 +1392,12 @@ const callLog = (e) => {
               .slice(-8)
               .map((l) => "    " + l.trim());
 };
-async function act(page, f, verb, opt) {
-    if (f.el) return f.el[verb](Object.assign({ timeout: 3000 }, opt));
+// A participant's click gives up after 3 s; a setup click, which nobody waits on, after 20 s, so a
+// loaded machine (load 90 to 115) does not fail a start whose control was only slow to settle
+const CLICK_MS = 3000,
+    SETUP_CLICK_MS = 20000;
+async function act(page, f, verb, opt, ms = CLICK_MS) {
+    if (f.el) return f.el[verb](Object.assign({ timeout: ms }, opt));
     const [x, y] = f.at;
     if (verb === "hover") return page.mouse.move(x, y);
     for (const m of opt.modifiers || []) await page.keyboard.down(m);
@@ -1373,7 +1413,11 @@ const tipNow = (page, stale = false) =>
     page.evaluate(
         ([tip, stale]) => {
             const t = [...document.querySelectorAll(tip)].find(
-                (e) => (stale || !("realStale" in e.dataset)) && e.checkVisibility(),
+                // one dismissed by CSS (opacity 0, visibility hidden) or empty is no tooltip
+                (e) =>
+                    (stale || !("realStale" in e.dataset)) &&
+                    e.checkVisibility({ opacityProperty: true, visibilityProperty: true }) &&
+                    e.innerText.trim(),
             );
             return t ? t.innerText.replace(/\s+/g, " ").trim() : null;
         },
@@ -1391,7 +1435,7 @@ async function tooltip(page) {
 }
 
 // Runs the steps; pushes what a participant would notice onto out; returns { code, missed }
-async function run(s, steps, out) {
+async function run(s, steps, out, clickMs = CLICK_MS) {
     let { page } = s;
     let code = 0,
         missed = 0;
@@ -1446,7 +1490,15 @@ async function run(s, steps, out) {
             } else {
                 if (f.at) out.push(`${verb === "hover" ? "hovered" : "clicked"} ${f.desc}`);
                 if (verb === "hover") await forgetTips(page);
-                await act(page, f, verb, CLICKS[a]).catch((e) => {
+                await act(page, f, verb, CLICKS[a], clickMs).catch((e) => {
+                    // Playwright counts its wait after the click (for navigations it may have started)
+                    // inside the limit: a click its call log says was done landed, and was only slow
+                    if (callLog(e).some((l) => / action done$/.test(l))) {
+                        out.push(
+                            `slow ${verb} (landed): "${v}" was ${verb}ed; the wait after it ran past ${clickMs} ms`,
+                        );
+                        return;
+                    }
                     // Playwright's call log names the actionability check that failed (covered, not stable, ...)
                     out.push(`could not ${verb} "${v}": ${e.message.split("\n")[0]}`, ...callLog(e));
                     missed++;
@@ -1776,6 +1828,18 @@ async function prove() {
             /could not click "Redo"/.test(x.out) && /not enabled/.test(x.out),
             x.out,
         );
+        // a click that landed while the wait after it ran past the limit is slow, not a miss
+        await ask(A, { op: "plant-dom", kind: "slow" });
+        x = step(A, "--click", "Planted slow");
+        check(
+            "a click that lands but whose wait after it runs past the limit is reported as landed, not missed",
+            /^slow click \(landed\): "Planted slow"/m.test(x.out) && !/could not click/.test(x.out),
+            x.out,
+        );
+        // a tooltip dismissed by CSS, and an empty one, are no tooltip; Everything has none of its own
+        await ask(A, { op: "plant-dom", kind: "hidden-tip" });
+        x = step(A, "--hover", "Everything");
+        check("a hover over a dismissed, hidden tooltip reports tooltip: null", /^tooltip: null$/m.test(x.out), x.out);
         // a client stopped mid-step (its agent was stopped): the session answers the next step
         const gone = spawn(process.execPath, [self, "--step", A, "--wait", "2000"], { stdio: "ignore" });
         await new Promise((ok) => setTimeout(ok, 600));
@@ -1947,6 +2011,20 @@ async function prove() {
         `exit ${r.status} ${r.stdout}`,
     );
     node(["--end", C]);
+    // a setup click on a control that never becomes clickable (Redo, with nothing to redo) fails the start
+    const C2 = join(base, "session-c2");
+    await writeFile(setup, "--click No thanks\n--click Open the Zachary's karate club sample\n--click Redo\n");
+    r = node(["--start", C2, `setup:${setup}`]);
+    node(["--end", C2]);
+    check(
+        "a setup click on a control that never becomes clickable fails the start",
+        r.status === 1 &&
+            /SETUP FAILED/.test(r.stdout) &&
+            /could not click "Redo": .*Timeout 20000ms/.test(r.stdout) &&
+            /not enabled/.test(r.stdout),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+
     // a setup path as tasks.md gives it (relative to tier2/), from a folder that is neither
     const F = join(base, "session-f");
     r = node(["--start", F, "setup:../rounds/tier-2/setups/florentine.txt"], base);

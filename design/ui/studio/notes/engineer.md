@@ -11,6 +11,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **`real.mjs` reports a click by what happened, not by Playwright's timeout.** A
+  click whose call log says "click action done" but whose wait afterwards ran out the limit prints
+  `slow click (landed): "..."` and is not a miss; setup clicks get 20 s (`SETUP_CLICK_MS`, a
+  participant's 3 s is `CLICK_MS`), and a setup click that never performs still fails the start;
+  `tipNow` skips a tooltip hidden by opacity or visibility and one with no text, so it prints
+  `tooltip: null`. Self-tests (planted): a click that asks for a navigation answered 204 after
+  4.5 s (`plant-dom` `slow`, through `context.route`), a setup `--click Redo` on Zachary's karate
+  club, a dismissed and an empty `role=tooltip` (`plant-dom` `hidden-tip`). On the frozen
+  eaea2a75d build both lesmis-ranked setups started clean (Size "1 to 3") and the T17A untick
+  hover reads `tooltip: null`; evidence `tmp/r2-dry3-study-tool-click-report/frozen/`.
+
 - (2026-10-09) **The neighbor list opens at the reach of the filter that is on, and its heading
   wraps.** `selection.neighborhood` (Degree link and `g`, `toolbar/commands.ts`) reads an on
   neighborhood step seeded on the one center (`filteredReach`) and selects and keys the list at
@@ -60,14 +71,10 @@ T21A/05,T4A-hover/05}.png`.
 plainName`; reports quote names at `NAME_CHARS` = 80. Test `tool/measure.test.mjs`. Bars 2, 7, 8, 9 scored by
   `bars.mjs`; one 4-browser pool; ambiguous names refused with `"<name>#n"`.
 
-- (2026-10-09, condensed) **`selection:origin-changed` `{ origin }`** fires when only a
-  selection's origin changes (`selection:changed` stays membership-only); a bare-number
-  `suggestion` is attached only when the rewrite parses. Tests `selection-origin.test.ts`,
-  `selector.test.ts`.
-
-- (2026-10-09, condensed) **A missing notice in a pilot screenshot is first a timing question:**
-  a notice lasts 6 s (`NOTICE_MS`) and a step can take 8 s to settle; `real.mjs` prints `a notice
-showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-element.test.tsx`.
+- (2026-10-09, condensed) **Element and tool facts:** `selection:origin-changed` `{ origin }` fires
+  when only a selection's origin changes; a bare-number `suggestion` only when the rewrite parses
+  (`selection-origin.test.ts`, `selector.test.ts`). A notice lasts 6 s (`NOTICE_MS`); `real.mjs`
+  prints `a notice showed and went before this screenshot` (`goneNotices`).
 - (2026-10-09, condensed) **Save and Recent projects:** focus after Save returns to what opened it
   (no mark after a pointer click, `:focus-visible`); Recent projects' date reads like a note's
   (`whenWords`, non-breaking spaces). Tests in `Project.real-element.test.tsx`, `project.test.tsx`.
@@ -93,6 +100,14 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
   evidence `tmp/t2r1-11/`.
 
 ## Decisions and reasons
+
+- (2026-10-09) **A landed click is read from Playwright's own call log, not by a longer limit for
+  everyone.** Playwright counts its wait for scheduled navigations (a `Page.enable` round trip
+  that stalls while the renderer is busy) inside the click's timeout, so at load 90 to 115 a click
+  that worked reported "could not click". Raising the participant's 3 s would hide real
+  not-clickable controls for longer; "click action done" is the only line that proves the click
+  happened. Setup clicks get 20 s because nobody waits on them and a missed setup click silently
+  changes the start state (T22B began without Size bound to PageRank).
 
 - (2026-10-09, summarized) **Smaller standing facts:** the path's Weight list starts on the loaded
   weight; a live region is in the page before its words arrive (`Frame.tsx`); the selection halo
@@ -145,22 +160,11 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
   Lengthening `NOTICE_MS` would change the product for the tool's sake. Rejected: a screenshot
   before settling (it would catch half-drawn frames).
 
-- (2026-10-09) **A reset that resets nothing is not drawn; the fix is split by owner.** The app
-  decides what "default" means for a run setting (equal to the descriptor's default), so
-  `OptionsForm` hands no value then. Making `StyleNumberInput` hide its reset whenever value equals
-  `defaultValue` was rejected: in a style layer an explicit value equal to the default still
-  overrides layers beneath, so its reset does something. The shared component's real defect was
-  that an undefined `value` after typing went uncontrolled and showed the stale number -- fixed
-  there, since every caller passing `value` relies on the documented "undefined shows default".
-- (2026-10-09) **The Graph title opens a "graph" row rather than clearing the selection.** The
-  canvas click reaches the Overview only by emptying the selection; T20 needs the Overview while a
-  node stays picked. A selection change still closes the row, as for every other row.
-
-- (2026-10-09) **A count in a heading is the count the reader can check beside it.** "Ava's 14
-  connections" next to "Selection 15" read as a disagreement; naming the center in the heading
-  ("Ava and 14 ...") keeps the one-hop count equal to Degree and makes the sum match Selection.
-  Chosen over "15 nodes: Ava and 14 ..." as the shorter form. A key under a filter names the run's
-  own node count rather than nothing, so a reader comparing 19 shown with 20 ranked sees why.
+- (2026-10-09, summarized) **Reset, Graph title, heading counts:** `OptionsForm` passes no value at
+  a run setting's default (a style layer's explicit default still overrides, so `StyleNumberInput`
+  keeps its reset; its real defect, an undefined `value` going uncontrolled, was fixed there); the
+  Graph title opens a "graph" row so a node can stay picked; a heading's count must be checkable
+  beside it ("Ava and 14 ..." matches Selection 15); a key under a filter names the run's own count.
 - (2026-10-09, condensed) **Segment fill = the inverse color** (brand blue failed 1.4.11 and
   1.4.3); `--cm-segment-edge` kept (removing a published variable is breaking). **Arrow cursor on
   every control, the hand only on links** (Mantine's UnstyledButton default was the hand).
@@ -189,21 +193,12 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
 - (2026-10-09) **Audit findings name the owning package; the canvas label clipping is the
   element's.** The fit frames spheres only, so any app fix (smaller font, padding) would hide an
   element defect. The legend card's label overlap waits on the same element fact (label bounds).
-- (2026-10-08, summarized) **Dry-run 3 and 4 calls:** the camera stays unsaved; a step is named
-  by what changed; a reopened load replaces itself, never adds; Esc exits only an empty import
-  page; no script focus ring after a pointer action (spec 2.7); tooltip dismissal follows the
-  pressed control; one label style (`Text xs`); lists snap to whole rows; a shared control's defect
-  is fixed in compact-mantine; a saved note takes focus; a run's time shows seconds.
-- (2026-10-08, condensed) **Element facts over new fields:** a resolved option is the caveat that
-  names it (`caveats.method`), never written into params (a rerun would pin it); a left-out row
-  says which END is missing (`LeftOutEdge.source/target`, mapped by `draft.resolve`); a label's
-  draw order is the style field `onTop` (default depth sorted); a route is told apart by color
-  (black, min Delta E 22; the app sets it); view insets are margins for the next fit, never a
-  reason to move the drawing.
-- (2026-10-08, condensed) **Standing app decisions from the dry runs:** find moves the camera only
-  to an off-screen pick; Made with states the weight the run read (`caveats.weight.assumed`);
-  visible labels stay exact, only accessible names grow; what a rule tested is an element fact
-  (`selection.originPaths`), never parsed; facts are rows, not chips; a stat's reading wraps.
+- (2026-10-08, summarized) **Older dry-run calls and element facts:** camera unsaved; a step named
+  by what changed; a reopened load replaces itself; Esc exits only an empty import page; no script
+  focus ring after a pointer action; shared-control defects fixed in compact-mantine; a resolved
+  option is a caveat (`caveats.method`), never written into params; a left-out row names its
+  missing END; label draw order is `onTop`; what a rule tested is `selection.originPaths`, never
+  parsed; find moves the camera only to an off-screen pick; facts are rows, not chips.
 - (2026-10-07, condensed) **Tier 2 element work (owner doors):** edge pick 5a2b3b605; filter steps
   `setSteps`, counts only in `plan` (8966b0888); stale runs ce34f31f3 (Replace never reruns);
   every load a source f141b1283; edge-attribute filter 559f5dcb2 (`nodes: "ends"`); coded selector
@@ -218,6 +213,12 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-09) Did not work: planting a slow click by blocking the main thread from the click
+  handler -- with `setTimeout(0)` it blocks Playwright's hit-target `stop()` evaluate, so the click
+  never logs "done"; with a 200 ms delay the wait has already passed. Worked: the click sets
+  `location.href` to a path `context.route` answers with 204 after 4.5 s, so the page stays and
+  Playwright's navigation barrier holds past the limit after "click action done".
 
 - (2026-10-09) Did not work: making a section header grow with an inline `minHeight` alone --
   `.cm-section-header` sets `height: 40px` in `chrome.css.ts`, so the header stayed 40 until the
@@ -256,24 +257,11 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
   `--read` in a non-`--sr` session tells where focus is. Did not work: assuming a missing notice
   meant a second code path -- the test of the route passed on the first run.
 
-- (2026-10-09) Worked: when a screenshot "shows a scrollbar it should not", measure before fixing:
-  a Playwright probe (`tmp/r2-dry1-find-box-hints/probe.mjs`, run under `with-browser.sh`) printed
-  scrollHeight 362 vs clientHeight 298 and the rows below the cut -- the list did overflow. Mantine
-  keeps a ScrollArea scrollbar mounted (`forceMount`) and hides it with `data-state="hidden"` +
-  `display: none`, so a test must check computed display, not presence. Did not work: a find
-  test graph whose nodes carry a `name` column -- it adds a Values row and changes the row count.
-
-- (2026-10-09) Worked: when a layout rule "does nothing", log the computed `display` and
-  `gridTemplateRows` of the root in the test. A grid that measured as flex exposed a class-name
-  collision between two places (`.dp`). Grep a new root class across `src/**/*.css` before using
-  it. Seen, not mine: the "Role Menu" and "Unmatched Rows" Data page stories fail (they look for
-  combobox "owner" and text "1 unmatched row"; the page names "Role of owner").
-
-- (2026-10-09) Worked: `real.mjs` `--expect selected=N` counts selected ROWS (aria-selected), not
-  selected nodes -- read the Selection row's count in the screenshot instead. Did not work: one
-  Shift+Tab from the paint tree reaches the find box, not the title; two do.
-- (2026-10-09) Did not work: `assert.isDefined(x)` before a nested `function` declaration -- TS
-  drops narrowing inside hoisted functions; bind a narrowed `const` outside it.
+- (2026-10-09, summarized) **Measure before fixing a look.** A Playwright probe under
+  `with-browser.sh` showed a list really overflowed (Mantine keeps a hidden ScrollArea bar mounted:
+  check computed display); log a root's computed `display` when a rule "does nothing" (a `.dp`
+  class collision made a grid flex; grep new root classes). `--expect selected=N` counts selected
+  rows, not nodes. TS drops narrowing inside hoisted nested functions.
 
 - (2026-10-09, condensed) Seen, not mine: T7 in `tasks.real-element.test.tsx` reads Damping's
   `value` outside its `waitFor` after Revert (the field re-syncs a commit later); read it inside.

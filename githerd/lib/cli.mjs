@@ -256,9 +256,10 @@ function parseArgs(args) {
         )
             flags[a.slice(2)] = true;
         else {
+            const key = a.slice(2);
             const value = rest.shift() ?? "";
-            flags[a.slice(2)] = value;
-            (lists[a.slice(2)] ??= []).push(value);
+            flags[key] = value;
+            lists[key] = [...(lists[key] ?? []), value];
         }
     }
     return { positional, flags, lists };

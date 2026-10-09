@@ -503,6 +503,23 @@ function axSays(n) {
         .filter(Boolean)
         .join(" ");
 }
+// A table row has no name of its own; its cells carry what it says, so it reads as their text
+function rowSays(n, byId) {
+    const textOf = (c) =>
+        c.role?.value === "StaticText"
+            ? c.name?.value || ""
+            : (c.childIds || [])
+                  .map((id) => byId.get(id))
+                  .filter((x) => x && !x.ignored)
+                  .map(textOf)
+                  .join(" ");
+    const cells = (n.childIds || [])
+        .map((id) => byId.get(id))
+        .filter((c) => c && !c.ignored)
+        .map((c) => textOf(c).replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+    return cells.length ? `row ${cells.map((t) => JSON.stringify(t)).join(" | ")}` : axSays(n);
+}
 async function axOf(s, objectId) {
     const { nodes } = await s.cdp.send("Accessibility.getPartialAXTree", { objectId, fetchRelatives: false });
     return nodes[0];
@@ -563,7 +580,11 @@ async function srRead(s, out) {
             flush();
             const level = (n.properties || []).find((p) => p.name === "level")?.value.value;
             lines.push(
-                role === "heading" && level ? axSays(n).replace(/^heading/, `heading level ${level}`) : axSays(n),
+                role === "heading" && level
+                    ? axSays(n).replace(/^heading/, `heading level ${level}`)
+                    : role === "row" && !n.name?.value
+                      ? rowSays(n, byId)
+                      : axSays(n),
             );
             return;
         } else if (role === "InlineTextBox") return;
@@ -1344,6 +1365,18 @@ async function prove() {
             properties: [{ name: "valuetext", value: { value: "0.85" } }],
         }) === 'spinbutton "Damping factor" value "0.85"',
         "it read the 32-bit value",
+    );
+
+    // a nameless table row reads as its cells' text
+    const cell = (id, t) => [
+        { nodeId: id, role: { value: "cell" }, childIds: [`${id}t`] },
+        { nodeId: `${id}t`, role: { value: "StaticText" }, name: { value: t } },
+    ];
+    const rowTree = new Map([...cell("c1", "0.10 - 0.20"), ...cell("c2", "7")].map((x) => [x.nodeId, x]));
+    check(
+        "a nameless table row reads as its cells",
+        rowSays({ role: { value: "row" }, childIds: ["c1", "c2"] }, rowTree) === 'row "0.10 - 0.20" | "7"',
+        "it read the row as (no name)",
     );
 
     // refused before anything opens

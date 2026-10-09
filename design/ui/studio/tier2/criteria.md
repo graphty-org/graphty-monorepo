@@ -1,5 +1,5 @@
-The study runs on build fabc16247403 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d1-fabc16247/`
-(graphty@0.8.61, commit fabc16247), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build d5a3bee20b61 served from `/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tmp/study-builds/tier2-r2d2-d5a3bee20/`
+(graphty@0.8.61, commit d5a3bee20), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -585,3 +585,16 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   the tie's band gone after Select endpoints; and `work.json` naming the run "Influence" and
   cutting a step's rule short. No bar, floor, step limit or prompt changed; bar 11 keeps the
   success paths' counts.
+
+- **2026-10-09, before round 2: the second round 2 dry run build.** The study build moved from
+  fabc16247403 (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d1-fabc16247/`) to
+  d5a3bee20b61 (`design/ui/studio/tmp/study-builds/tier2-r2d2-d5a3bee20/` in the studio worktree,
+  write-protected), a fresh build of graphty-element, compact-mantine and the graphty app with the
+  Sentry variables unset. It carries the fixes the second dry run on fabc16247403 asked for
+  (`dry-run-r2-2.md`): Add and Leave out staying in place, the left-out row's inspector holding only
+  that row, inspector notes at the rows' size and indent, the selection telling the app when only
+  its rule changes and offering only a rewrite that parses, the find box's refusal lined up with its
+  hint, a cut section title shown whole on hover, the neighbor list named once with one filter per
+  node at any reach, and the study tool drawing scrollbars and recording whole rules and the runs'
+  screen names. Every task half was piloted on it, T21B included (`dry-run-r2-3.md`). No bar,
+  floor, step limit or prompt changed.

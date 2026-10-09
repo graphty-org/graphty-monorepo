@@ -11,6 +11,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **Study build is d5a3bee20b61**, frozen write-protected at
+  `design/ui/studio/tmp/study-builds/tier2-r2d2-d5a3bee20/` (inside the worktree: the main
+  checkout's `.study-builds/` is off limits). All 20 task halves were walked on it with
+  `tier2/pilot/repilot.sh` (sessions `tier2/rounds/r2d2/pilot/`, triage `tier2/dry-run-r2-3.md`):
+  every step landed and none of the second dry run's 15 fixed items came back. The answer key's
+  four false claims (Medici scrollbar, Graph title "does nothing", T19 reshaping, T19 ring beside
+  the new form) are rewritten against that build's screenshots; T21B finally has screens.
+
 - (2026-10-09) **Find, neighbor list and inspector notes.** The Find refusal line has the hint's
   padding (`.ws-find-refusal` in `graph-place.css`), so red and gray start at one x. The neighbor
   list's `<section>` carries no name: the `ControlSection` group is the one name (a named section
@@ -28,7 +36,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   only what its title names (`DataPage.real-element.test.tsx`).
 - (2026-10-09, condensed) **Study screenshots draw native scrollbars** (`measure.mjs` `LAUNCH`
   drops `--hide-scrollbars`); `work.json` records whole step rules and runs as `technicalName
-  plainName`; reports quote names at `NAME_CHARS` = 80. Test `tool/measure.test.mjs`. Bars 2, 7, 8, 9 scored by
+plainName`; reports quote names at `NAME_CHARS` = 80. Test `tool/measure.test.mjs`. Bars 2, 7, 8, 9 scored by
   `bars.mjs`; one 4-browser pool; ambiguous names refused with `"<name>#n"`.
 
 - (2026-10-09) **A cut section title shows the shared tooltip.** compact-mantine's
@@ -221,6 +229,12 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-09) Worked: a scripted re-pilot that walks each half's success path plus the exact
+  steps that reach every fixed screen, then contact sheets (`montage *.png -tile 4x -geometry
+720x450`) to scan all 161 screenshots and full-size reads for each fixed item. Did not work at
+  first: hovering a section title as `"<text>#3"` -- after the neighbor list was named once only
+  two controls carry the name, so the span is `#2` now.
 
 - (2026-10-09) Worked: proving a tool test fails without the change by writing `git show HEAD:`
   copies of the tool files into a scratch folder beside the new test and running `node --test`

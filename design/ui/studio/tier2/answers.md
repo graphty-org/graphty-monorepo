@@ -168,8 +168,7 @@ differs, the task's entry below gives it and cites `rounds/r2d1/pilot/`. The not
   (`rounds/r2d1/pilot/T17A/10.png`, `T17B/11.png`).
 - The left panel's graph title (for example "Graph bus-stops.csv") is a button: a click brings
   back the graph's inspector and its Overview, also after a run, with the run still drawn
-  (`rounds/r2d1/pilot/T20A/12.png`). In `rounds/r2d1/pilot/T23B/16.png` the click changed nothing only because the graph's
-  inspector was already open.
+  (`rounds/r2d1/pilot/T20A/12.png`), and with a neighbor list and its filter open (`rounds/r2d2/pilot/T23B/09.png`).
 - No reset button is drawn beside a setting at its default (the PageRank Damping factor after
   Replace and after Rerun, `rounds/r2d1/pilot/T21A/06.png`, `07.png`, `09.png`).
 - The find box's hint and its bare-number refusal quote the participant's own condition as a rule
@@ -540,14 +539,15 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
 - **Watch:** after the reopen, A's drawing is framed as before (about x 450 to 1030, y 110 to 775
   against x 440 to 1040, y 100 to 780, `rounds/r1d4/pilot/T19A/11.png` against `09.png`); B's is
   shifted down (about y 205 to 735 instead of 155 to 735, `rounds/r1d4/pilot/T19B/11.png` against
-  `09.png`), with a toast "Opened Florentine families". On fabc16247403 the nodes move too: on A by a few pixels (top node about 815,125 before, 812,135 after, `rounds/r2d1/pilot/T19A/09.png` against `11.png`), on B every node (top-left about 569,157 before, 590,216 after, `T19B/08.png` against `11.png`), so the drawing's shape is not kept exactly. Colors, sizes and key are unchanged, so
+  `09.png`), with a toast "Opened Florentine families". On d5a3bee20b61 the drawing keeps its shape, framed a little smaller (A) or smaller and lower (B): B's top-left node is at about 569,157 before and 590,216 after, its bottom node at 698,715 and 703,719, with the same nodes beside the same neighbors (`rounds/r2d2/pilot/T19A/11.png` against `13.png`; `T19B/11.png` against `13.png`). How the reopened drawing is framed is the open camera question in `../owner-decisions.md`. Colors, sizes and key are unchanged, so
   this is not `work-lost`. The app reopens on the Graph place, not Notes; the only sign of a note
   there is the inspector's small "1 note" link (`T19A/11.png`). After the graph's note is saved,
   its header reads "From friends.csv 1 note", which counts only the graph's notes, not the
   project's two: record any participant who reads it as the Farah note missing. The first Escape
   after a note shows the toast "Selection cleared: 1 node" (`T19A/05.png`, `T19B/05.png`). After a note is saved, the focus ring stays on its card even after Escape Escape has
-  cleared the selection and the inspector shows the graph (`rounds/r1d3/pilot/T19A/06.png`,
-  `T19B/05.png`). On A, Farah (the largest node, PageRank #1, about 733,744) is half-covered by
+  cleared the selection and the inspector shows the graph (`rounds/r2d2/pilot/T19A/06.png`,
+  `T19B/06.png`); once `n` opens the next note's form, the card has no ring and the form's text
+  box holds the focus (`rounds/r2d2/pilot/T19A/07.png`, `T19B/07.png`). On A, Farah (the largest node, PageRank #1, about 733,744) is half-covered by
   a smaller node in front of her (about 716,744), and the yellow selection halo surrounds both, so
   the drawing does not make clear which is selected (`rounds/r1d4/pilot/T19A/02.png` to
   `04.png`). The start screen lists "Florentine families" twice on B, under
@@ -681,10 +681,10 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
 - **B (team): 14 people now (and 21 ties; were 12 and 16); first before, Hal (0.1293); first now,
   Di (0.1339), then Hal 0.1305, Ed 0.1245.** "Replace: team-v2.csv", "Was 12 nodes, 16 edges; now
   14, 21" (`rounds/r1d3/pilot/T21B/05.png`); after Rerun, Top 10 "Di 0.1339", the key 0.02333 to
-  0.1339, the row 14 and "14 of 14 have a value" (`rounds/r1d4/pilot/T21B/07.png`). B was not walked on fabc16247403 (its pilot never got a browser); its screens are ddf8b3b63039's and earlier. Between Replace and Rerun the two new people, Mo and Nia, are drawn as small dots in a saturated blue unlike
-  every other node, which the key does not explain (two small blue dots; their place changes from
+  0.1339, the row 14 and "14 of 14 have a value" (`rounds/r1d4/pilot/T21B/07.png`). Walked on d5a3bee20b61 with the same values: before, Top 10 "Hal 0.1293" and "12 of 12 have a value" (`rounds/r2d2/pilot/T21B/02.png`); after Rerun, Top 10 "Di 0.1339" and "14 of 14 have a value" (`T21B/07.png`). Between Replace and Rerun the two new people, Mo and Nia, are drawn as small dots in a saturated blue unlike
+  every other node, which the key does not explain (two blue dots, on d5a3bee20b61 about as large as the smallest orange ones; their place changes from
   run to run, since the layout is unseeded), and the drawing is laid out again
-  (`rounds/r1d4/pilot/T21B/06.png`): the visible sign of the out-of-date run. Record
+  (`rounds/r2d2/pilot/T21B/06.png` against `02.png`): the visible sign of the out-of-date run. Record
   any participant who reads the blue as a highlight or a selection.
 - **On both halves between Replace and Rerun,** the inspector's histogram, "<n> of <n> have a value"
   with the old range, and the old Top 10 (Farah first; Hal first) stay on screen at full contrast
@@ -901,7 +901,7 @@ so a pointer left on the Selection row then rests on the PageRank row (`T22B/17.
   is not there (`rounds/r2/pilot/T23A/14.png`, `T23B/13.png`). The ranking is not stale for this task: record any participant who reruns it or
   reads the mark as a problem. On B the Graph inspector (the "showing" counts) opened only after a
   click on empty canvas, which also clears the selection and closes the neighbor list
-  (`T23B/10.png`); on fabc16247403 the left panel's graph title, a button, also opens it (`rounds/r2d1/pilot/T20A/12.png`; in `T23B/16.png` the graph's inspector was already open, so the click changed nothing). The setup hands over
+  (`T23B/10.png`); the left panel's graph title ("Graph Florentine families"), a button, also opens it, with the filter and the neighbors' selection kept (`rounds/r2d2/pilot/T23B/09.png`). The setup hands over
   with the pointer off the page; on both halves the PageRank row is already highlighted on the
   first screen because the setup's last click selected it, not a hover (`T23B/01.png`). Closing the neighbor list and opening it again for the same node while its filter is on brings it back at Hops 1 with "Filter to neighbors" unpressed; only once Hops 2 is chosen again does the button show pressed, and pressing it then removes the filter (`rounds/r2d1/pilot/T23B/17.png` to `19.png`). Record any participant who presses it there expecting to add a filter.
 - **S:** the count read from the screen and the drawing narrowed to exactly those people and the
@@ -1004,8 +1004,10 @@ ArrowDown`; `--key Enter`; `--click "Degree"` (the row's name is "Degree 17", B 
   under "Edges 6" ("Acciaiuoli -- Medici", "Medici -- Barbadori", and so on,
   `rounds/r1d3/pilot/T12RB/03.png`). Typing "Javert" shows him and 6 of his 17 ties in view under
   the heading "Edges 17", with a scrollbar at the list's right edge, so the screen shows that more
-  ties exist (`rounds/r1d3/pilot/T12RA/03.png`). The scrollbar is also drawn when every row fits
-  (Medici), so it is not by itself a sign of more rows. Scrolled to its end, the list shows a "Values" heading with "Select where name is Javert (1)"
+  ties exist (`rounds/r1d3/pilot/T12RA/03.png`). Typing "Medici" draws a scrollbar too, with a longer
+  thumb: below the six ties the list also holds a "Values" group ("Select where name is Medici"),
+  so it does not fit either (`rounds/r2d2/pilot/T12RB/02.png`; Javert's shorter thumb,
+  `T12RA/02.png`). Scrolled to its end, the list shows a "Values" heading with "Select where name is Javert (1)"
   below the 17 ties (`rounds/r1d4/pilot/T12RA/13.png`). Reading the neighbors from
   that list of ties is graded as tier 1's key grades neighbors read from the ties (SD); 6 given as
   Javert's ties from that list is a wrong count, and 17 read from the "Edges 17" heading is the

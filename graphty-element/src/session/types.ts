@@ -1686,6 +1686,15 @@ export interface SessionHistory {
 export interface TransactionOptions {
     /** Where the step came from, such as `{ via: "assistant" }`. Shown in `HistoryStep.provenance`. */
     readonly provenance?: Readonly<Record<string, string>>;
+    /**
+     * A step this transaction continues, so work done in several short transactions can be one
+     * undo step without holding anything open in between. While that step is the newest applied
+     * step, what this transaction changes merges into it. When anything else has been recorded
+     * above it since, or it has been undone, this transaction records as its own step, with
+     * `provenance.after` set to the step it continued. An undo while this transaction is open
+     * cancels it rather than undoing the step it continues.
+     */
+    readonly after?: HistoryStepId;
 }
 
 /**

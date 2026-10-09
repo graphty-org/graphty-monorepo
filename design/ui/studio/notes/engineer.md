@@ -11,6 +11,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **Round 1 critique: the dry runs walked only success paths, so build defects
+  reached participants on detours.** Four dry runs plus a walk of the study build left every
+  success path clean (all `session.log` empty, no grade decided by a defect), but participants took
+  styling and selection detours no walk covered. Verified in code: a run row's Style tab offers
+  Edges, and with no edge layer in the row `writeLine` (`style/row.ts`) falls back to its default
+  `fresh = EVERYTHING_LAYER` (StyleTab.tsx line 112 passes none), so "Edge color" lands on
+  Everything and the open panel stays empty (`r1-s46/05.png`). Smallest fix: a run row offers only
+  the sides its own layers cover. Next dry run must walk each task's commonest detours. Other
+  round 2 proposals: a find-box hint offering the "=" rule when "="+text passes the element's rule
+  check (`FindBox.tsx` ~355); "Replace with file..." as a button in the source's inspector; an
+  out-of-date mark on the legend key from `run.stale`. Do not fix edge width until a script
+  measures the element's units (`EdgeMesh.ts` *20 and /40); do not move Filters.
 - (2026-10-09) **Tier 2 screenshot audit (round 1): the app breaks on long names and narrow
   windows, not at the study's own size.** Walked every tier 2 screen at 1200x900 and 900x700 on
   build 946256efb (`tier2/rounds/round-1/expert/engineer.md`, 24 findings). Severity 3: canvas
@@ -27,21 +39,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   recorded in `session.json`). A private walk script (one `walk` per screen, like
   `tier2/pilot/rewalk.sh`) run at two sizes in parallel took two browser slots and ~25 min.
 
-- (2026-10-08) **A reopened project is framed as a fresh fit of the final state; the legend card
-  waits for that fit (app only).** Mechanism (probe `tmp/r1-dry4-reopen-framing/probe.mjs`, logs
-  every `viewInsets` set and `zoomToFit`): on a first open the element frames before any legend
-  exists; on a reopen the card mounts in the open's own transaction and its inset (top 130, bottom
-  72) reached the element BEFORE its first-settlement fit, so that fit framed smaller and lower
-  (camera distance 85.7 against 65.9). `useReservedMargin` in `LegendCard.tsx` now waits for
-  `graph-frame-stable` while `element.isFrameStable` is false, then reports and does its usual
-  "refit only when the card hides a node". friends (T19A): node centers within 10 px (the rest is
-  the Size binding: the first fit framed smaller spheres). OPEN, owner door: Florentine (T19B)
-  still reopens ~60 px lower, because its session refit for the card at one section tall and the
-  card grew afterwards; only a saved camera can reproduce that, and the owner's rule is that the
-  camera is not saved (`design/undo/undo-design.md`); asked in `owner-decisions.md`. Test:
-  `Project.real-element.test.tsx` "frames the graph where it was when saved..." (friends data,
-  1440 x 900; fails without by 48 px). Florentine cannot be the test: its card hides Pazzi, so the
-  in-session refit makes both paths agree with or without the fix.
+- (2026-10-08, condensed) **A reopen is framed as a fresh fit; the legend card waits for it.**
+  The card's inset reached the element before its first fit on a reopen; `useReservedMargin`
+  (`LegendCard.tsx`) now waits for `graph-frame-stable`. OPEN, owner door: Florentine still
+  reopens ~60 px lower (only a saved camera fixes it; camera is not saved). Test:
+  `Project.real-element.test.tsx` "frames the graph where it was when saved..." (friends, 1440x900).
 
 - (2026-10-08, condensed) **Undo/Redo/Escape say what they did** (`frame/historyWords.ts`;
   element `style.update-layer` carries `channels`). **Edit source is a replace**, offered only
@@ -110,6 +112,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-09) **A run row's Style tab offers only the sides the run's own layers cover.** Reason:
+  `writeLine` adds `EVERYTHING_LAYER` when the row has no layer for the target, so Edges on a
+  node-only run wrote to the whole graph. A node-only result has nothing to say about edges (the
+  algorithm-styles rule), so the segment should not be there; a path run keeps both sides because
+  its layers cover edges. Rejected: a run-named edge layer with an empty selector (paints every edge,
+  breaks the rule).
 - (2026-10-09) **Audit findings name the owning package; the canvas label clipping is the
   element's.** The fit frames spheres only, so any app fix (smaller font, padding) would hide an
   element defect. The legend card's label overlap waits on the same element fact (label bounds).
@@ -224,6 +232,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Worked: reading `scores.md` beside `insights.md` -- the skeptics weakened edge width
+  from severity 3 to 2 (thick after deselect, `r1-s45/26.png`), so scores alone overstates it.
 - (2026-10-09) Worked: `long-names.csv` (with PageRank, Size and every label drawn, setup in the
   audit's own file) is what surfaced every severity 3 truncation; the study datasets hide them.
   Did not work: `--click "Add to Shape"` on Everything's Style tab (Shape has fields there, no

@@ -164,6 +164,16 @@ describe("static layouts", () => {
         ).toThrow(/matches no node/);
     });
 
+    it("graphty-kamada-kawai refuses more than maxNodes nodes with E_TOO_LARGE", () => {
+        const cy = makeCy();
+        const n = cy.nodes().length;
+        expect(() =>
+            cy
+                .layout({ name: "graphty-kamada-kawai", maxNodes: n - 1, boundingBox: BOX } as unknown as LayoutOptions)
+                .run(),
+        ).toThrow(expect.objectContaining({ code: "E_TOO_LARGE", params: expect.objectContaining({ nodeCount: n }) }));
+    });
+
     it("lay out only the collection they are called on", async () => {
         const cy = makeCy();
         const before = cy.$("#n11").position();

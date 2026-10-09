@@ -187,6 +187,26 @@ async function freeze(): Promise<void> {
 }
 
 /**
+ * The status line's words for a failed run: a size refusal (code E_TOO_LARGE, which the packages throw with
+ * `params`) in plain words, anything else its message.
+ * @param e - the error
+ * @returns the words
+ */
+export function failureWords(e: unknown): string {
+    const { code, params } = e as {
+        code?: unknown;
+        params?: { nodeCount: number; maxNodes: number | null; bytes: number };
+    };
+    if (code === "E_TOO_LARGE" && params !== undefined) {
+        const size = `${params.nodeCount.toLocaleString()} nodes need ${Math.ceil(params.bytes / 2 ** 20).toLocaleString()} MB of n x n tables`;
+        return params.maxNodes === null
+            ? `${size}, more than this browser could allocate`
+            : `refused: ${size}, and this demo allows at most ${params.maxNodes.toLocaleString()} nodes for it`;
+    }
+    return (e as Error).message;
+}
+
+/**
  * Reports a failed run: visual-review fails a capture whose console holds "graphty demo failed".
  * @param what - what failed
  * @param e - the error
@@ -287,7 +307,7 @@ export function renderDemo(
                 "ok",
             );
         } catch (e) {
-            setStatus(`${title} failed: ${(e as Error).message}`, "error");
+            setStatus(`${title} failed: ${failureWords(e)}`, "error");
             reportFailure(title, e);
         } finally {
             button.disabled = false;

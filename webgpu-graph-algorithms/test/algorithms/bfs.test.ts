@@ -278,7 +278,7 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
     for (const fixture of FIXTURES) {
         for (const directed of [false, true]) {
             const kind = directed ? "directed" : "undirected";
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 38 s on CI's lavapipe, 23 s on lavapipe on the dev box under load, 15 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
             it(`${fixture.name} (${kind}): depth exact, parent by the smallest-predecessor rule, order grouped and sorted, counts, run twice`, async (t) => {
                 const ctx = await context(t);
                 const s = snapshotOf(fixture.edges, {
@@ -388,7 +388,6 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         ctx.release(grid);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the inspect stage comparison (P8-T15 Step 2): on rmat14 at levelsPerSubmit 1 under the default and under top-down, every submit's frontier is the oracle's next level as a set, frontierCount that level's size, frontierDegreeSum the expanded level's out-degree sum (0 after a bottom-up sweep), and the two unvisited words the oracle's complement of everything claimed through that level", async (t) => {
         const ctx = await context(t);
         const s = snapshotOf(rmatEdges(14, 10, 7), { label: "rmat14-inspect" });
@@ -471,9 +470,8 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
             }
         }
         ctx.release(s);
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the workgroup twin (P8-T15 Step 3): a second context without the subgroups feature reads depth, parent, order and every counters-block word of every submit bitwise equal to the feature context's on rmat16 at cadence 1 (bfs-bottom-up and bfs-unvisited-flags call wg_reduce_u32; arcsScanned and the unvisited words are its sums)", async (t) => {
         const ctx = await context(t);
         const twin = await acquire({ subgroups: false, label: "bfs-twin" });
@@ -502,7 +500,7 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         expect(last.arcsScanned, "arcsScanned (the sweep's sum) is non-zero").toBeGreaterThan(0);
         ctx.release(s);
         twin.release(s);
-    }, 300_000);
+    });
 
     it("the noise-floor fixture (P8-T15 Step 6): depth on rmat14 from 0, written for this adapter class under GRAPHTY_NOISE_FLOOR_WRITE=1 (test/noise-floor.test.ts holds the classes bitwise)", async (t) => {
         const ctx = await context(t);
@@ -591,7 +589,6 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         expect(wrong, `first wrong pred word (${wrong >= 0 ? pred[wrong] : "-"})`).toBe(-1);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the device-side per-level choice (P8-T7): on rmat14 at the default fusedMax, top-down only (P8-T8's bottom-up candidate disabled), the selector picks the fused path and the two-phase path each at least once, fusedLevels equals the number of oracle levels below FUSED_FRONTIER_MAX and twoPhaseLevels the number at or above it, and the choices sum to the level word", async (t) => {
         const ctx = await context(t);
         for (const directed of [false, true]) {
@@ -616,9 +613,8 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
             expectBitwiseEqual(result.depth, bfsOracle(s, 0).depth, `${kind}: depth (the depth buffer) vs the oracle`);
             ctx.release(s);
         }
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the overflow retry (PD-23, P8-T7): with edgeCapacity 4096, the two-phase path forced (fusedMax 0) and top-down only (a retry level doubles frontierDegreeSum, which would flip Beamer's test) the undirected star from the hub overflows on both levels and the directed star on one, rmat14 on at least one; depth stays exact, every fused level is a retry, and the choices sum to the level word (levels - 1 when maxDepth stopped the run)", async (t) => {
         const ctx = await context(t);
         const tuning: BfsTuning = { edgeCapacity: 4096, fusedMax: 0, direction: "top-down" };
@@ -655,9 +651,8 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         expect(capped.block.fusedLevels, "fusedLevels under maxDepth 1 (the hub alone is below the threshold)").toBe(1);
         expectChoicesSumToLevel(capped.block, "star maxDepth 1");
         ctx.release(star);
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("direction-optimizing (P8-T8, design 13 gate item): on rmatEdges(16, 10, 3) the default switches at least once and exactly as the host model of Beamer's rule predicts, reproducibly; top-down only never switches and gives the same depth, parent and order; at levelsPerSubmit 1 the per-level direction, unvisitedCount and unvisitedDegreeSum words equal the model's sequence, unvisitedListLen the oracle's complement and compactCount that word", async (t) => {
         const ctx = await context(t);
         const s = snapshotOf(rmatEdges(16, 10, 3), { label: "rmat16-direction" });
@@ -710,9 +705,8 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
             `[bfs] rmat16 from 0: level sizes ${levelSizesOf(s, 0).join(" ")}; directions ${perLevel.map((b) => b.direction).join("")}; switches ${first.result.switches}`,
         );
         ctx.release(s);
-    }, 300_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the unvisited bookkeeping (P8-T8 Step 5, PD-18): after the first submit on the grid unvisitedCount is n - 1 and unvisitedDegreeSum arcCount minus the in-degrees of the source and its two neighbours (issue #1358); on the ten-leaf star from the hub both words read 0 after the second boundary (cadence 2: the leaves' 10 arcs are subtracted with the leaves themselves, issue #391) and 0 (not 2^32 - 10) at the production cadence; isolated vertices are counted but not listed; compactCount equals unvisitedListLen on every rebuild", async (t) => {
         const ctx = await context(t);
         const grid = snapshotOf(gridEdges(30, 30), { label: "grid-unvisited" });
@@ -775,9 +769,9 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         expect(firstBlocks[0].unvisitedListLen, "isolated: unvisitedListLen after the first rebuild").toBe(n - 1);
         expect(unvisitedListLenAt(isolated, isolatedDepth, 0)).toBe(n - 1);
         ctx.release(isolated);
-    }, 300_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 20 s on CI's lavapipe, 11 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
     it("windowed (P8-T12, DEP-P8-E lifted): at a FAKED 1 MiB binding limit (>= 8 windows, the hub row straddling two) the traversal from the hub and from a leaf gives depth, parent, order and the counts bitwise equal to the unwindowed run's and the oracle's -- at the default cadence, at cadence 1 and with bottom-up forced -- with no ring overrun; a directed snapshot whose reverse adjacency exceeds the binding limit is E_TOO_LARGE before any device work", async (t) => {
         const ctx = await context(t);
         const scale = gpuScale();
@@ -869,7 +863,7 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         ctx.release(directed);
     }, 600_000);
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 14 s on CI's lavapipe, more than a third of the 30 s budget; tracked in #1636
     it("the sabotage check passes on the real kernels (factor 0)", async (t) => {
         const ctx = await context(t);
         const report = await bfsReport(ctx);
@@ -877,7 +871,7 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         assertCheckPasses(report);
     }, 120_000);
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 10 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
     it("gate (PD-7): the scaled 1,000 x 1,000 grid and the 10,000-degree star from the hub map exactly ceil(levels / 32) + 1 staging buffers each, on an adopted device after the self-check", async (t) => {
         requireGpu(t);
         const { device } = await acquireRaw();

@@ -124,7 +124,7 @@ describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitse
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 14 s on lavapipe on the dev box under load, 12 s on the Windows WARP host lane, 11 s on CI's lavapipe, more than a third of the 30 s budget; tracked in #1636
     it("the real kernels pass the check (factor 0)", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "sabotage-bfs" });
@@ -139,7 +139,7 @@ describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitse
 
     for (const { id, rows } of MEASURED) {
         for (const mutation of rows) {
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 17 s on CI's lavapipe, 17 s on the Windows WARP host lane, 13 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
             it(`${id}/${mutation.name}: fails the check by >= ${mutation.minFactor}x`, async (t) => {
                 requireGpu(t);
                 const report = await withSabotage(id, mutation, (ctx) => bfsReport(ctx));

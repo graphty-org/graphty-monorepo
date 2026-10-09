@@ -80,6 +80,12 @@ export default defineConfig({
                 // only inside the visual capture. Its own shard (tools/ci-test-matrix.mjs).
                 extends: true,
                 plugins: [storybookTest({ configDir: path.join(dirname, ".storybook") })],
+                // Pre-bundled up front, with the rest of the app's dependencies. Storybook's renderer
+                // imports react-dom/client only when the first story mounts, so on a cold cache (CI)
+                // Vite found it mid-run, re-bundled and reloaded the page, and the re-bundle deleted
+                // the Babylon shader chunks running stories were importing: their shaders never
+                // compiled and every story waiting on a drawn frame hit the test timeout (as #885).
+                optimizeDeps: { include: ["@mantine/hooks", "react-dom/client"] },
                 test: {
                     name: "storybook",
                     // The size the visual capture draws every story at (visual-review captures a

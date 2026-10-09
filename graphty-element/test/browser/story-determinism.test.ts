@@ -322,21 +322,21 @@ describe("Story Determinism", () => {
         assert.deepStrictEqual(issues, []);
     });
 
-    it("all story files should use deterministic patterns for Chromatic visual testing", async () => {
-        const files = Object.keys(storyModules).sort();
+    // One test per story file: importing a story module reaches Lit, Babylon and the DOM, and all of
+    // them in one test cost about 9 s of its 15 s limit (tools/vitest-time-budget.mjs, #1602).
+    const files = Object.keys(storyModules).sort();
+    const helperSettles = settlingHelperNames(Object.values(helperSources).join("\n"));
+
+    it("finds the package's story files", () => {
         assert.isAbove(files.length, 20, "the glob must find the package's story files");
+    });
 
-        const helperSettles = settlingHelperNames(Object.values(helperSources).join("\n"));
-        const issues: string[] = [];
-
-        for (const file of files) {
-            const source = storySources[file];
-            const settlingHelpers = new Set([...helperSettles, ...settlingHelperNames(source)]);
-            const stories = composedStories(await storyModules[file]());
-            const relative = file.replace("../../", "");
-
-            issues.push(...unseededRandomIssues(relative, source), ...layoutIssues(relative, stories, settlingHelpers));
-        }
+    it.each(files)("%s uses deterministic patterns for Chromatic visual testing", async (file) => {
+        const source = storySources[file];
+        const settlingHelpers = new Set([...helperSettles, ...settlingHelperNames(source)]);
+        const stories = composedStories(await storyModules[file]());
+        const relative = file.replace("../../", "");
+        const issues = [...unseededRandomIssues(relative, source), ...layoutIssues(relative, stories, settlingHelpers)];
 
         assert.deepStrictEqual(
             issues,

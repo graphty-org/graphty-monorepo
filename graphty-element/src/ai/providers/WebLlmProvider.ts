@@ -60,13 +60,13 @@ const WEBLLM_PACKAGE = "@mlc-ai/web-llm";
 export async function requireWebLlmPackage(): Promise<void> {
     try {
         await import("@mlc-ai/web-llm");
-    } catch (cause) {
+    } catch (error_) {
         throw new GraphtyError({
             code: "E_MISSING_PACKAGE",
             message: `The in-browser AI provider needs the optional package ${WEBLLM_PACKAGE}.`,
             source: "config",
             details: { package: WEBLLM_PACKAGE, feature: "webllm" },
-            cause,
+            cause: error_,
         });
     }
 }

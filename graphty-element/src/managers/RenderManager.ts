@@ -214,11 +214,12 @@ export class RenderManager implements Manager {
     /**
      * Stands in for Babylon's own pointer handling, which calls preventDefault and then
      * `canvas.focus()` on every pointer down and up. That focus call scrolls the host page to the
-     * canvas. This one does the same thing without scrolling.
-     * @param evt - The pointer down or up event on the canvas
+     * canvas; this one focuses without scrolling. It does not cancel the event: a canceled
+     * pointerdown suppresses the browser's mousedown and mouseup, so a host page's popover or menu
+     * that closes on a mouse press outside it never saw a press on the drawing. The canvas's
+     * `user-select: none` keeps a drag from selecting page text instead.
      */
-    private focusOnPointer = (evt: PointerEvent): void => {
-        evt.preventDefault();
+    private focusOnPointer = (): void => {
         this.canvas.focus({ preventScroll: true });
     };
 

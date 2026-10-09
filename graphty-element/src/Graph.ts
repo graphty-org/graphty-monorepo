@@ -1495,6 +1495,8 @@ export class Graph implements GraphContext {
         canvas.style.width = "100%";
         canvas.style.height = "100%";
         canvas.style.touchAction = "none";
+        // A drag on the drawing never starts a text selection on the host page.
+        canvas.style.userSelect = "none";
         return canvas;
     }
 

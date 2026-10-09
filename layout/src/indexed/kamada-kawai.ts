@@ -28,6 +28,32 @@ export interface KamadaKawaiOptions extends CommonLayoutOptions {
     readonly pos?: F32 | null | undefined;
     /** true (the default): the snapshot's weights; a string: that numeric edge column; false / null: every edge is 1. */
     readonly weight?: boolean | string | null | undefined;
+    /**
+     * Refuse a graph of more nodes than this before allocating its n x n matrices (about 24 n^2 bytes), with a
+     * RangeError of code `E_TOO_LARGE` and `params` `{ nodeCount, maxNodes, bytes }`. Default: no bound.
+     */
+    readonly maxNodes?: number | undefined;
+}
+
+/** The bytes of the n x n distance matrices: the f64 matrix and the solver's two row-array copies of it. */
+const BYTES_PER_PAIR = 24;
+
+/**
+ * The `E_TOO_LARGE` RangeError: refused by `maxNodes`, or (maxNodes null) an n x n allocation the runtime refused.
+ * @param n - the node count
+ * @param maxNodes - the caller's bound, or null when the allocation itself failed
+ * @returns the error, to throw
+ */
+function tooLarge(n: number, maxNodes: number | null): RangeError {
+    const bytes = BYTES_PER_PAIR * n * n;
+    const message =
+        maxNodes === null
+            ? `kamadaKawai: ${n} nodes need about ${bytes} bytes of n x n memory, more than this runtime could allocate. Pass a maxNodes to refuse such graphs up front.`
+            : `kamadaKawai: ${n} nodes exceeds maxNodes ${maxNodes}; it would allocate about ${bytes} bytes. Pass a larger maxNodes to allow it.`;
+    return Object.assign(new RangeError(message), {
+        code: "E_TOO_LARGE",
+        params: { nodeCount: n, maxNodes, bytes },
+    });
 }
 
 /**
@@ -76,7 +102,12 @@ export function idealDistances(s: GraphSnapshot, options: KamadaKawaiOptions): n
         d = options.dist;
     } else {
         const w = arcDistances(s, options.weight ?? true);
-        const m = new Float64Array(n * n).fill(Number.POSITIVE_INFINITY);
+        let m: Float64Array;
+        try {
+            m = new Float64Array(n * n).fill(Number.POSITIVE_INFINITY);
+        } catch (error) {
+            throw error instanceof RangeError ? tooLarge(n, null) : error;
+        }
         const { rowPtr, colIdx } = s;
         for (let u = 0; u < n; u++) {
             m[u * n + u] = 0;
@@ -155,12 +186,17 @@ function startPositions(s: GraphSnapshot, options: KamadaKawaiOptions, dim: 2 | 
  * @returns `dim` values per node
  * @throws RangeError when `dist` does not hold n * n values, or (for two or more nodes) has no finite distance
  * between two different nodes, as a matrix computed from a graph without edges has; when a weight is negative; when
- * `pos` does not hold `dim` values per node
+ * `pos` does not hold `dim` values per node; with code `E_TOO_LARGE` when n is above `maxNodes` or the n x n
+ * distance matrix cannot be allocated
  */
 export function kamadaKawai(g: GraphSnapshot, options: KamadaKawaiOptions = {}): LayoutResult {
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);
     const n = s.nodeCount;
+    // Written negated so a NaN maxNodes refuses rather than switching the bound off.
+    if (options.maxNodes !== undefined && !(n <= options.maxNodes)) {
+        throw tooLarge(n, options.maxNodes);
+    }
     if (n <= 1) {
         const positions = new Float32Array(dim * n);
         if (n === 1) {

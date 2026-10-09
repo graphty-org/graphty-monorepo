@@ -26,16 +26,18 @@ made and evidence comes in.
 - 2026-10-08 -- Fix between rounds, not mid-round: the defects above, plus T12R/T23 two lit controls
   in the Neighborhood view, focus drawn as underlined text, no focus after Rerun (unconfirmed),
   T22 menu opening on "Path between...", the "+" Add a table with no words.
-- 2026-10-08 -- Tool defects (engineer's): `real.mjs` resolves `setup:<file>` from the cwd and
-  throws an uncaught ENOENT instead of SETUP FAILED (tasks.md now says use an absolute path);
-  `session.json` "commit" is the worktree HEAD, not the build (grade by "buildStamp").
+- 2026-10-08 -- Tool: both earlier defects are fixed (`setup:<name>.txt` found from any folder,
+  SETUP FAILED on a missing file; `session.json` "commit" is the served build's). Still: a failed
+  setup step can leave a session running -- check the first screenshot before step 1.
 - 2026-10-08 -- Watch items for graders on this build: T20's "Capacity" ungraded by rule; T20's
   "such as a longer trail" may echo prompt B; T22 B's example 16 near the task's 10; layout
   overlaps in friends, Florentine and trails drawings hide dots and labels.
-- 2026-10-08 -- ROUND 1 PLAN: `tier2/rounds/round-1/plan.md`, 56 sessions, roster's allocation
-  (checked by `sessions.py`). T21 last of the core four, T19 after T4 (save-and-reopen waits on
-  `--prove`). No saved-project starts. Grades record first move, doors, follow-up cost, T20 route,
-  T21 moved nodes, T22 rule use, open-work diff.
+- 2026-10-08 -- ROUND 1 PLAN on 946256efb876: `tier2/rounds/round-1/plan.md`, 56 sessions, the
+  roster's allocation (checked by `sessions.py`, table matches). It now has a "dry runs" section:
+  the four walks, what each fixed, the r1d4 re-pilot, and what is still on the build (none stops a
+  success path). T21 last of the core four, T19 after T4 (item 2 needs 5 clean `--prove` runs; the
+  change log records one pass). No saved-project starts (tasks.md, frozen). `buildStamp` must read
+  `946256efb876 graphty@0.8.56`.
 - 2026-10-08 -- CRITERIA REVIEW (before freeze): 8 changes proposed to the director (bar 10 for the
   expert audit; "not scored" fails a round; bar 7 runs every algorithm and meaning; preflight 2 not
   met). Detail in the decision entry below.
@@ -96,6 +98,17 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-08 (researcher, round 1 plan moved to 946256efb876) -- Re-pointed the existing plan, not
+  rewritten: header build and folder, a dry-run table (walk, build walked, triage file, build that
+  fixed it), the r1d4 re-pilot (T18 B screenshots but no report), the still-open items as key
+  entries and between-round candidates, the setup lookup from any folder, a first-screenshot check
+  before step 1, and `buildStamp` as the build check (`commit` is the served build's since the tool
+  fix; my older note saying otherwise is stale). Kept: no saved-project starts -- the request said
+  "setup or saved project", but frozen `tasks.md` says no task starts from a project file, and a
+  frozen file wins; the run order and allocation (roster unchanged since the plan). Reason the
+  dry-run section exists: a reader of the plan must see that build faults were removed before the
+  sessions, so session findings are read as what users need, not as polish.
 
 - 2026-10-08 (researcher, key matched to the fourth dry run on 946256efb876) -- Edited
   `tier2/answers.md` from 19 pilot reports; logged in `criteria.md`; `tasks.md` T20's echo note
@@ -198,23 +211,12 @@ reasons, in short:
   Did not have: a T18 B report this run, and the T17B setup's 3000 ms click timeout (engineer's:
   setup steps run without a settle between them; a failed setup leaves the session running).
 
-- 2026-10-08 (key vs third dry run) -- Worked: one python file of (old, new) pairs, each asserted
-  to match once; one anchor failed on a paraphrase ("on the reopen" vs "after the reopen") and the
-  assert caught it before any write. Then grep for the old round's folder to find citations left
-  behind, keeping only those whose screen still matches. Not walked: T20's "Capacity", T17's "On"
-  editor header, B's T17 follow-up trap, T21 focus with a screen reader.
-
-- 2026-10-08 (key vs second dry run) -- Worked: rewriting whole task sections from drafts and
-  splicing them with a script that asserts the section count, instead of 40 anchored edits;
-  wrapped lines in the Read view hid the two-space indent, so anchors copied from it failed --
-  grep the raw lines first. Looked at T17A 11.png and T4A 12.png myself before rewriting the two
-  grading changes. Not walked: T18 A's Ben-to-Nora chain, T20's "Capacity".
-
-- 2026-10-08 (key vs dry-run pilots) -- Worked: one python replace per entry with an assert on
-  each anchor, then a grep for `rounds/r1/pilot` to find citations still pointing at the old
-  build; checking `git diff` after an "edited on disk" notice confirmed only my edits were there.
-  Did not walk: T20's "Capacity", T18 A's Ben-to-Nora chain, T21 A on this build -- the key says
-  so.
+- 2026-10-08 (key vs dry runs one to three, folded) -- Worked: one python file of (old, new) pairs,
+  each asserted to match once (caught paraphrased anchors before any write); rewriting whole task
+  sections and splicing with a section-count assert instead of 40 anchored edits; grep raw lines
+  for anchors (the Read view's wraps hide indents); grep for the old round's folder to find stale
+  citations, keeping only those whose screen still matches; looking at cited screenshots myself.
+  Never walked: T20's "Capacity".
 
 - 2026-10-08 (round 1 plan) -- Worked: one script (`tier2/rounds/round-1/sessions.py`) holding the
   run order, asserting it against the roster's per-half sets, and printing both the plan's table

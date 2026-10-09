@@ -5,8 +5,8 @@ core path (open a file, rank, color and size by the ranking, save) a few times a
 narrow the picture, trace a chain, keep notes, join two spreadsheets, read a tie's number the right
 way round, redo work on a newer file, mark what meets a condition, see who is a step or two away,
 and ask about one tie on the drawing. It runs on the frozen build named at the top of
-`../../criteria.md`: build 16dcf3494700 (graphty@0.8.56, commit 16dcf3494), served from
-`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1-16dcf3494/` with
+`../../criteria.md`: build 946256efb876 (graphty@0.8.56, commit 946256efb), served from
+`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d4-946256efb/` with
 `REAL_DIST=<that folder>` on every `tool/real.mjs` command. The bars, how they are scored and the
 stop rules are in `../../criteria.md`; this plan changes none of them.
 
@@ -24,8 +24,39 @@ sessions directly:
   notes, filter steps and sources at each session's start and end. The lister runs on every
   session folder after `--end`; a session without both lists cannot be scored on bar 2.
 
-Every task half was piloted from its ranked start on this build (`../r1/pilot/`) and reached its
-end state; the answer key (`../../answers.md`) was matched to those screens.
+## The dry runs before this round
+
+The sessions are for learning what a returning user needs, not for finding build faults, so every
+task was walked on both datasets before any session, four times, and each walk's faults were fixed
+before the next build was frozen:
+
+| Walk   | Build walked | Problems found, sorted                                   | Fixed in     |
+| ------ | ------------ | -------------------------------------------------------- | ------------ |
+| First  | 16dcf3494700 | `../../dry-run-r1-1.md`                                  | 3dfe7daf9e45 |
+| Second | 3dfe7daf9e45 | `../../dry-run-r1-2.md`                                  | 909b19b578d4 |
+| Third  | 909b19b578d4 | `../../dry-run-r1-3.md`                                  | 8c4eef4722ac |
+| Fourth | 8c4eef4722ac | `../../dry-run-r1-4.md` (97 items: 25 fixed, 39 left in) | 946256efb876 |
+
+Each walk sorted every problem three ways: an implementation or polish fault a participant could
+hit (fixed before the round: a tooltip covering the names being counted, an Escape that threw away
+a whole import, an "Edit source" that doubled every tie), an open design question the sessions
+exist to answer (left in: names not drawn by default, overlapping nodes and labels in the 3D
+drawing, how a stale run is marked, where the path form lives, a saved-state mark), or no change.
+The early sessions started before the first walk were stopped, read only as input to that walk
+(`../discarded-round-1-before-dry-run/`) and are not counted.
+
+Then every task half was piloted again from its start on the build under study, 946256efb876
+(`../r1d4/pilot/`, preflight item 3). Every success path landed on the first try with no script
+errors, console errors or failed requests, and every reference value held; T18 B's walk has
+screenshots but no written report, and its key entries are still cited from the third walk's
+build. The answer key (`../../answers.md`) is matched to those screens. What that walk still
+found is in the key, so a grader recognizes it, and none of it stops a success path: Escape
+clearing a selection a rule made (a toast says so, with no undo); T4's "1 row left out" shown only
+on the Data place, with the load's counts under its title; no visible focus mark after a find
+pick, "Back to <name>" or Rerun (focus is there; tier 2 has no keyboard-only sessions); stale run
+values drawn at full contrast after Rerun; the graph header's "1 note" counting only the graph's
+own notes; and overlaps that hide dots and labels in the friends, Florentine and trails drawings.
+Each is a candidate fix between rounds, never during one.
 
 ## The questions round 1 answers
 
@@ -81,8 +112,11 @@ per-persona totals and the graduate share).
   (`../../../tool/README.md`, "A session" and "Steps"). Nothing else: no notes, answer key,
   design documents, source, pilots or other personas' histories.
 - **Start:** `REAL_DIST=<frozen build> node tool/real.mjs --start sessions/<id> <start>` with the
-  start in the table (`empty`, or `setup:<file>` from `../../../rounds/tier-2/setups/`). A start
-  that prints `SETUP FAILED` is a tool or build finding, not a session: record it and re-run.
+  start in the table (`empty`, or `setup:<file>`; `real.mjs` finds the file in
+  `../../../rounds/tier-2/setups/` from any folder). A start that prints `SETUP FAILED` is a tool
+  or build finding, not a session: record it and re-run from a new folder. Before the first step,
+  check the start's first screenshot against the setup (a failed setup step can leave the session
+  running).
 - **Steps:** before every step the participant writes one or two sentences (what they see, what
   they will try next). No step cap: the session ends when the participant says they are done,
   gives up, or keeps repeating without progress. Always `--end`.
@@ -91,8 +125,9 @@ per-persona totals and the graduate share).
   whether or not the runner thinks the first answer was right; graders decide success.
 - **Slots:** at most 4 participants alive at once, all browsers through `tool/with-browser.sh`; a
   participant starts only when a slot is free, so no clock runs while it waits.
-- **Records:** `session.json` holds the build stamp, the start and the model that ran the
-  participant. A session that ends on a model API error is voided and re-run from a new folder
+- **Records:** `session.json` holds the build stamp (`buildStamp`, which must read
+  `946256efb876 graphty@0.8.56`), the start
+  and the model that ran the participant. A session that ends on a model API error is voided and re-run from a new folder
   with the same persona and prompt; the round report lists every retry and its reason.
 - **Ease:** asked at the end, 1 to 7, read from the transcript; never used for a grade.
 

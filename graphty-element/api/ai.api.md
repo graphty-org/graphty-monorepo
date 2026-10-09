@@ -239,6 +239,9 @@ export function createSystemPromptBuilder(): SystemPromptBuilder;
 export function createWebLlmProvider(): Promise<LlmProvider>;
 
 // @public
+export function deriveKeyFromPassphrase(passphrase: string, salt?: string): Promise<string>;
+
+// @public
 export const describeProperty: GraphCommand;
 
 // @public

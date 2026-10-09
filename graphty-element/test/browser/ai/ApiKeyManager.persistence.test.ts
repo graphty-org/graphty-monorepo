@@ -5,7 +5,7 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { ApiKeyManager } from "../../../src/ai/keys/ApiKeyManager";
+import { ApiKeyManager, deriveKeyFromPassphrase } from "../../../ai";
 
 describe("ApiKeyManager Persistence", () => {
     // Use unique prefixes for each test to avoid interference
@@ -348,6 +348,45 @@ describe("ApiKeyManager Persistence", () => {
             // encrypt-storage stores with format: prefix:keyName
             const storedValue = localStorage.getItem(`${customPrefix}:keys`);
             assert.ok(storedValue !== null);
+        });
+    });
+
+    describe("deriveKeyFromPassphrase", () => {
+        it("saves under a passphrase that a later page unlocks and a wrong one does not", async () => {
+            const right = await deriveKeyFromPassphrase("correct horse battery staple", "reader-1");
+            assert.strictEqual(right, await deriveKeyFromPassphrase("correct horse battery staple", "reader-1"));
+            assert.match(right, /^[0-9a-f]{64}$/);
+
+            const saver = new ApiKeyManager({ prefix: testPrefix });
+            saver.enablePersistence({ encryptionKey: right });
+            saver.setKey("openai", "sk-secret");
+            assert.notInclude(localStorage.getItem(`${testPrefix}:keys`) ?? "", "sk-secret");
+            sessionStorage.clear(); // the tab closed: the derived key is gone
+
+            const wrong = new ApiKeyManager({ prefix: testPrefix });
+            assert.isFalse(wrong.isPersistenceEnabled(), "nothing restores without the passphrase");
+            wrong.enablePersistence({ encryptionKey: await deriveKeyFromPassphrase("wrong guess", "reader-1") });
+            assert.isUndefined(wrong.getKey("openai"), "a wrong passphrase decrypts nothing");
+            sessionStorage.clear();
+
+            const otherSalt = new ApiKeyManager({ prefix: testPrefix });
+            otherSalt.enablePersistence({
+                encryptionKey: await deriveKeyFromPassphrase("correct horse battery staple", "reader-2"),
+            });
+            assert.isUndefined(otherSalt.getKey("openai"), "another reader's salt decrypts nothing");
+            sessionStorage.clear();
+
+            const later = new ApiKeyManager({ prefix: testPrefix });
+            later.enablePersistence({ encryptionKey: right });
+            assert.strictEqual(later.getKey("openai"), "sk-secret", "the stored keys survived the wrong tries");
+        });
+
+        it("refuses an empty passphrase", async () => {
+            let refused: unknown;
+            await deriveKeyFromPassphrase("").catch((error: unknown) => {
+                refused = error;
+            });
+            assert.instanceOf(refused, Error);
         });
     });
 });

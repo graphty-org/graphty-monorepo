@@ -17,7 +17,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   real-element "draws every sample row" test now waits for "All 12 rows". The "Add a table"
   tooltip opens `position="left"` of its "+", over the empty Tables heading row, so it no longer
   covers "Each row is". Evidence `tmp/r2-dry3-import-page-caption-and-tooltip/{T20A/05,T20B/06,
-  T21A/05,T4A-hover/05}.png`.
+T21A/05,T4A-hover/05}.png`.
 
 - (2026-10-09) **A menu opened by a click highlights no row, whatever its first row is.**
   compact-mantine `overlayBehavior.ts` (`skipDisabledFirstRow`): the row Mantine's focus trap

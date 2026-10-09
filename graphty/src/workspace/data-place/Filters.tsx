@@ -415,7 +415,7 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
             component="form"
             gap="xs"
             p="md"
-            onSubmit={(event: React.FormEvent) => {
+            onSubmit={(event: React.SyntheticEvent) => {
                 event.preventDefault();
                 if (!unchanged) {
                     void commit();

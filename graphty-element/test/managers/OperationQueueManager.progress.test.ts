@@ -131,6 +131,7 @@ describe("Progress Tracking", () => {
         await queueManager.waitForCompletion();
 
         // Wait for cleanup timeout (1000ms as per implementation)
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 1100));
 
         // Try to emit another progress event - it should not appear in events

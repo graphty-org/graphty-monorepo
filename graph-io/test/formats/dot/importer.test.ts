@@ -509,7 +509,7 @@ describe("dot importer: the grammar", () => {
         expect(codes(report)).toEqual([DOT_ISSUE.POS_DIMS, DOT_ISSUE.BAD_POS]);
         const position = snapshot.nodes.byRole("position");
         expect(position?.meta.name).toBe("pos");
-        expect(position?.dtype).toBe("f32");
+        expect(position?.dtype).toBe("f64");
         expect(position?.meta.components).toBe(3);
         expect(position?.meta.mutable).toBe(true);
         expect(position?.meta.extra).toEqual({ sourceDims: 2, units: "file" });
@@ -544,7 +544,7 @@ describe("dot importer: the grammar", () => {
                 continue;
             }
             expect(codes(report), text).toEqual([]);
-            expect(Array.from(position?.value(0) as ArrayLike<number>), text).toEqual(point.map((v) => Math.fround(v)));
+            expect(Array.from(position?.value(0) as ArrayLike<number>), text).toEqual(point);
             expect(nodeCell(snapshot, "a", "pin"), text).toBe(pinned ? true : null);
         }
     });

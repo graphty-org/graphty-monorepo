@@ -151,7 +151,7 @@ export const xrConfigSchema = z
                  * will move the node 1.0 units in Z
                  * @default 10.0
                  */
-                zAxisAmplification: z.number().positive().default(10.0),
+                zAxisAmplification: z.number().positive().default(10),
 
                 /**
                  * Enable Z-axis amplification in desktop mode

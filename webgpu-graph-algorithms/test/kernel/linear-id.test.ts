@@ -58,6 +58,7 @@ describe("test/helpers/linear-id.ts (the constants the node and browser 17M-item
 });
 
 describe("fill mode 1 over LINEAR_ID_ITEMS words: the 2D dispatch and the prelude's linear_id (spec 5.2, 11.5)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("writes i + LINEAR_ID_VALUE at every sampled index, produces the pinned checksum, and is bitwise stable across two runs", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "linear-id" });

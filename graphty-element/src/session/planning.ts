@@ -59,6 +59,7 @@ import {
     type ScopeCandidate,
 } from "./cost";
 import type { Caveats, ResolvedScope } from "./runs";
+import { noted } from "./runs/caveatFacts";
 import type { GraphStatistics } from "./types";
 import type { StepCounts } from "./visibility/VisibilityApi";
 
@@ -646,7 +647,7 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
             sampleSize: decision.sampleSize,
             seed: decision.seeded ? (command.seed ?? null) : null,
             method: decision.method,
-            notes: decision.notes,
+            ...noted(decision.facts),
         }),
     });
 }

@@ -79,7 +79,7 @@ import {
     type ResultIdentity,
     type RunIdentity,
 } from "./runId";
-import { suggestRunName } from "./suggestedName";
+import { type RunName, suggestRunName } from "./suggestedName";
 import {
     type BatchResult,
     type BatchStep,
@@ -382,6 +382,7 @@ const DEFAULT_CAVEATS: Caveats = Object.freeze({
     weight: null,
     precision: "f64",
     method: "exact",
+    facts: Object.freeze([]),
     notes: Object.freeze([]),
 });
 
@@ -638,7 +639,7 @@ interface ResolvedRun {
     readonly id: RunId;
     readonly derived: boolean;
     /** The name the algorithm suggested, for a run the caller did not name. */
-    readonly name?: SuggestedName;
+    readonly name?: RunName;
 }
 
 /** Starting runs, finding them, and taking them away. */
@@ -665,7 +666,7 @@ class Runs implements SessionRunsApi {
     private readonly derivedIds = new Set<RunId>();
 
     /** The name each minted id was suggested as: the id it tried first, and the run's label. */
-    private readonly names = new Map<RunId, SuggestedName>();
+    private readonly names = new Map<RunId, RunName>();
 
     /** The command each run was started with, which a re-run dispatches again. */
     private readonly commands = new Map<RunId, AlgorithmRunCommand>();
@@ -1175,6 +1176,8 @@ class Runs implements SessionRunsApi {
         };
         const surroundings: RunSurroundings = {
             label: () => this.labelOf(id),
+            distinguishedBy: () => this.names.get(id)?.distinguishedBy ?? null,
+            siblingsDifferBy: () => this.siblingsDifferBy(id),
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
             resolveScope: () => refuseEmptySet(spec, this.options.resolveScope(spec)),
@@ -1778,19 +1781,18 @@ class Runs implements SessionRunsApi {
         }
 
         const base = this.baseLabelOf(run);
-        const siblings = [...this.runs.values()].filter(
-            (other) =>
-                other.algorithm === run.algorithm &&
-                other.id !== id &&
-                this.listed(other) &&
-                this.baseLabelOf(other) === base,
-        );
+        const differing = this.siblingsDifferBy(id);
 
-        if (siblings.length === 0) {
+        if (differing === null) {
             return base;
         }
 
-        return `${base} (${this.qualifierFor(run, siblings)})`;
+        const qualifier =
+            differing.length === 0
+                ? describeScope(run.scope.spec, this.options.setName)
+                : differing.map((name) => `${name} ${formatParamValue(run.params[name])}`).join(", ");
+
+        return `${base} (${qualifier})`;
     }
 
     /**
@@ -1804,13 +1806,32 @@ class Runs implements SessionRunsApi {
     }
 
     /**
-     * What tells one run apart from its siblings: the parameters that differ, or failing that the
-     * scope it ran over.
-     * @param run - The run being labelled.
-     * @param siblings - The other runs of the same algorithm.
-     * @returns The qualifier, without its parentheses.
+     * What tells one run apart from the other listed runs of its algorithm that go by the same
+     * name: the parameters that differ, or failing that the scope it ran over.
+     * @param id - The run id.
+     * @returns The differing parameter names, sorted; an empty list when only the scope differs;
+     *   null while no other run shares the name.
      */
-    private qualifierFor(run: ManagedRun, siblings: readonly ManagedRun[]): string {
+    private siblingsDifferBy(id: RunId): readonly string[] | null {
+        const run = this.runs.get(id);
+
+        if (run === undefined) {
+            return null;
+        }
+
+        const base = this.baseLabelOf(run);
+        const siblings = [...this.runs.values()].filter(
+            (other) =>
+                other.algorithm === run.algorithm &&
+                other.id !== id &&
+                this.listed(other) &&
+                this.baseLabelOf(other) === base,
+        );
+
+        if (siblings.length === 0) {
+            return null;
+        }
+
         const differing = new Set<string>();
 
         for (const sibling of siblings) {
@@ -1821,14 +1842,7 @@ class Runs implements SessionRunsApi {
             }
         }
 
-        if (differing.size === 0) {
-            return describeScope(run.scope.spec, this.options.setName);
-        }
-
-        return [...differing]
-            .sort((left, right) => (left < right ? -1 : 1))
-            .map((name) => `${name} ${formatParamValue(run.params[name])}`)
-            .join(", ");
+        return Object.freeze([...differing].sort((left, right) => (left < right ? -1 : 1)));
     }
 
     // -- the catalogue ------------------------------------------------------------------------
@@ -1999,7 +2013,14 @@ class Runs implements SessionRunsApi {
             return {
                 result: Object.freeze({ label, total: specs.length, completed, partial, steps: Object.freeze(steps) }),
                 partial,
-                ...(partial ? { partialReason: `${completed} of ${specs.length} members finished.` } : {}),
+                ...(partial
+                    ? {
+                          partialCause: {
+                              code: "partial.batch-incomplete" as const,
+                              params: { completed, total: specs.length },
+                          },
+                      }
+                    : {}),
             };
         };
     }

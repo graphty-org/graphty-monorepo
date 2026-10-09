@@ -99,6 +99,7 @@ import {
     type StyleEncodeCommand,
     type StylePatchCommand,
 } from "../commands/style";
+import { englishRunLabel } from "../english";
 import { Dispatcher } from "../project/Dispatcher";
 import type { ProjectState } from "../project/state";
 import { nearestNames } from "../results/ResultsApi";
@@ -874,6 +875,7 @@ const EDIT_CAVEATS: Caveats = Object.freeze({
     direction: "as-loaded",
     exact: true,
     method: "layer-stack",
+    facts: [],
     notes: NO_NOTES,
     precision: "f64",
     seed: null,
@@ -2049,7 +2051,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         const path = resultPath(run.id, field);
-        const called = spec.name ?? run.label;
+        const called = spec.name ?? englishRunLabel(run);
         const id = minter();
         const added: CompiledLayer[] = [];
         const unresolved = new Set<Path>();

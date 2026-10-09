@@ -225,12 +225,8 @@ export function computeColumnStatistics(column: NumericColumnSource): ColumnStat
         sum = total;
     }
 
-    const sorted = finite.slice(0, measured).sort();
-    const median = sorted[Math.floor((measured - 1) / 2)];
-    let tiedAtMin = 0;
-    while (tiedAtMin < measured && sorted[tiedAtMin] === min) {
-        tiedAtMin++;
-    }
+    const tiedAtMin = countEqual(finite, measured, min);
+    const median = selectAscending(finite, measured, Math.floor((measured - 1) / 2));
 
     return {
         length,
@@ -242,6 +238,139 @@ export function computeColumnStatistics(column: NumericColumnSource): ColumnStat
         tiedAtMin,
         smallestPositive: Number.isFinite(smallestPositive) ? smallestPositive : null,
     };
+}
+
+/**
+ * Find the value at one position of the ascending order of some finite numbers, without sorting.
+ *
+ * A quickselect: Hoare partitions around a median-of-three pivot, keeping only the side that
+ * holds the position, so it reads each value a constant number of times on average. Ties split
+ * evenly between the two sides, so a column of one repeated value is no worse than any other.
+ * The answer is the value a numeric sort would put there, down to the sign of a zero: a sort
+ * orders -0 before 0, and a comparison cannot tell them apart, so a zero answer is settled by
+ * counting the values that sort before it.
+ * @param values - The numbers, all finite, in their first `count` entries. They are reordered.
+ * @param count - How many entries are in play.
+ * @param position - The position wanted, from 0 to `count - 1`.
+ * @returns The value at that position of the ascending order.
+ */
+function selectAscending(values: Float64Array, count: number, position: number): number {
+    let left = 0;
+    let right = count - 1;
+    // Median-of-three falls to quadratic only on inputs built to defeat it. Past this many rounds
+    // the rest is sorted, which bounds the worst case at a sort's cost; ordinary data never gets here.
+    let rounds = 4 * Math.ceil(Math.log2(count + 1)) + 8;
+
+    while (right > left) {
+        if (rounds-- === 0) {
+            values.subarray(left, right + 1).sort();
+            break;
+        }
+
+        const [high, low] = partition(values, left, right);
+        if (position <= high) {
+            right = high;
+        } else if (position >= low) {
+            left = low;
+        } else {
+            break;
+        }
+    }
+
+    const value = values[position];
+
+    return value === 0 ? signedZeroAt(values, count, position) : value;
+}
+
+/**
+ * Split a range around a median-of-three pivot, Hoare's way.
+ * @param values - The array.
+ * @param left - The first entry of the range.
+ * @param right - The last entry of the range.
+ * @returns `[high, low]`: afterwards `[left, high]` holds values no greater than the pivot,
+ * `[low, right]` values no less, and every entry strictly between the two equals the pivot.
+ */
+function partition(values: Float64Array, left: number, right: number): [number, number] {
+    const middle = (left + right) >>> 1;
+    orderPair(values, left, middle);
+    orderPair(values, middle, right);
+    orderPair(values, left, middle);
+    const pivot = values[middle];
+
+    let low = left;
+    let high = right;
+    while (low <= high) {
+        while (values[low] < pivot) {
+            low++;
+        }
+
+        while (values[high] > pivot) {
+            high--;
+        }
+
+        if (low <= high) {
+            const swap = values[low];
+            values[low] = values[high];
+            values[high] = swap;
+            low++;
+            high--;
+        }
+    }
+
+    return [high, low];
+}
+
+/**
+ * Tell which zero a numeric sort would put at a position known to hold a zero.
+ *
+ * A sort puts every negative value first, then every -0, then every 0.
+ * @param values - The numbers, in their first `count` entries, in any order.
+ * @param count - How many entries are in play.
+ * @param position - The position, whose value is a zero.
+ * @returns -0 or 0.
+ */
+function signedZeroAt(values: Float64Array, count: number, position: number): number {
+    let beforeZero = 0;
+    for (let index = 0; index < count; index++) {
+        const entry = values[index];
+        if (entry < 0 || Object.is(entry, -0)) {
+            beforeZero++;
+        }
+    }
+
+    return position < beforeZero ? -0 : 0;
+}
+
+/**
+ * Count the entries equal to a value.
+ * @param values - The numbers, in their first `count` entries.
+ * @param count - How many entries are in play.
+ * @param target - The value to count.
+ * @returns How many of the entries equal it (-0 and 0 count as equal).
+ */
+function countEqual(values: Float64Array, count: number, target: number): number {
+    let equal = 0;
+    for (let index = 0; index < count; index++) {
+        if (values[index] === target) {
+            equal++;
+        }
+    }
+
+    return equal;
+}
+
+/**
+ * Put two entries of an array in ascending order.
+ * @param values - The array.
+ * @param first - The entry that should hold the smaller value.
+ * @param second - The entry that should hold the larger value.
+ */
+function orderPair(values: Float64Array, first: number, second: number): void {
+    if (values[first] > values[second]) {
+        const swap = values[first];
+        values[first] = values[second];
+        values[second] = swap;
+    }
 }
 
 /**

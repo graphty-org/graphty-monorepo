@@ -80,6 +80,7 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         ctx.release(s);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "fixed nodes never move: a random mask set between steps keeps every pinned row bitwise where it was",
         async (t) => {
@@ -146,6 +147,7 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "setPosition is visible in the next readback and never clobbered by an older batch (the override list, spec 7.12)",
         async (t) => {
@@ -195,6 +197,7 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "settled within maxIter: run({ batch: 1 }) stops at maxIter exactly and stats.iteration agrees",
         async (t) => {
@@ -240,6 +243,7 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "speed is NOT reset by setPosition (D8): speed / speedEfficiency untouched at the call, and the next iteration continues from them (re-synchronised, PLAN DECISIONS 13 / 17)",
         async (t) => {
@@ -286,6 +290,7 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A is still fixed",
         async (t) => {
@@ -365,6 +370,7 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "2D writes z === center.z whatever z was uploaded, for random z and random center.z",
         async (t) => {
@@ -396,6 +402,7 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "per-node displacement never exceeds speed |F| / (1 + sqrt(speed swing_i)) (equality up to f32 rounding in the first iteration)",
         async (t) => {

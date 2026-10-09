@@ -557,6 +557,7 @@ describe("fuzz audit: mutated corpus files import to a valid snapshot or throw I
             if (bytes.byteLength > MAX_FUZZED_BYTES) {
                 continue;
             }
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(`${format}/${entry.path}: 60 fast-check mutation sets`, async () => {
                 await fc.assert(
                     fc.asyncProperty(mutationArb(format, bytes.byteLength), async (mutations) => {
@@ -588,6 +589,7 @@ describe("fuzz audit: mutated corpus files, looking past the pinned E_DUPLICATE_
     ];
     for (const { format, path } of affected) {
         const bytes = readCorpusBytes(format, path);
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(`${format}/${path}: 60 fast-check mutation sets`, async () => {
             await fc.assert(
                 fc.asyncProperty(mutationArb(format, bytes.byteLength), async (mutations) => {
@@ -791,6 +793,7 @@ describe("fuzz audit: structural attacks", () => {
             ]),
         };
         for (const format of CORPUS_FORMATS) {
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(`${format}: completes with a snapshot or an ImportError`, async () => {
                 const outcome = await expectSnapshotOrImportError(format, documents[format]);
                 expect(outcome.kind).toBe("snapshot");
@@ -1058,6 +1061,7 @@ describe("fuzz audit: structural attacks", () => {
     });
 
     describe("wide and repetitive input", () => {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it("GraphML: 100k attributes on one element and 20k declared keys", async () => {
             const attrs = Array.from({ length: 100_000 }, (_, i) => `a${i}="v"`).join(" ");
             await expectSnapshotOrImportError("graphml", xmlGraphml(`<node id="a" ${attrs}/>`));

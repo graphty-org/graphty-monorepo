@@ -20,7 +20,8 @@ import type {
     LegendSwatch,
 } from "@graphty/graphty-element/session";
 
-import { highlightEntry, runName } from "../analyze/words";
+import { highlightEntry } from "../analyze/words";
+import { runName } from "../runWords";
 
 /** The property word each channel a legend shows goes by ("Color: PageRank"). */
 const PROPERTY_WORDS: Partial<Record<Channel, string>> = {

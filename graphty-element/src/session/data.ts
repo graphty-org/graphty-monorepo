@@ -1628,7 +1628,7 @@ export function recordsInRowOrder(
 }
 
 /** A JMESPath expression that is nothing but a top-level property name. */
-const PLAIN_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const PLAIN_KEY = /^[A-Za-z_]\w*$/;
 
 /** A JMESPath quoted identifier: a top-level property name written as a JSON string. */
 const QUOTED_KEY = /^"(?:[^"\\]|\\.)*"$/;

@@ -38,7 +38,8 @@
  * 202 and moves its download to the front of the queue. What GitHub says about a finished run
  * (its jobs and artifacts) is asked once and kept beside its downloads. Grid tiles load
  * thumbnails (`GET /api/thumb/...`), scaled down in worker threads as soon as a capture lands and
- * kept on disk.
+ * kept on disk; with Spotlight all or Zoom to changes on, a changed item's tile
+ * (`GET /api/spot/...`) is made the same way, after every plain thumbnail.
  *
  * Safe filters (filters.mjs): an item whose capture is an image the owner already approved for the
  * same story and mode, in a review record on the default branch or an open pull request's branch,
@@ -81,7 +82,7 @@ import {
     decisionProblem,
     finish,
     isPreviewOf,
-    legacyApprovals,
+    legacyApprovalsAsync,
     newerOnMaster,
     prepareRecord,
     proposeKey,
@@ -105,7 +106,7 @@ import { CONFIG_FILE } from "./config.mjs";
 import { approvalIndex, clusters, isNoise, knownNoise, observations } from "./filters.mjs";
 import { coupledGroups, inboxOf, readyKey, writeJson } from "./inbox.mjs";
 import { isSkipMarker, NOT_AFFECTED, SKIPPED_FILE, validateResults } from "./results.mjs";
-import { scaled } from "./thumbs.mjs";
+import { SPOT_KINDS, scaled } from "./thumbs.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STATIC = {
@@ -113,6 +114,7 @@ const STATIC = {
     "/review.js": ["../page/review.js", "text/javascript; charset=utf-8"],
     "/review.css": ["../page/review.css", "text/css; charset=utf-8"],
     "/pixelmatch.mjs": ["../vendor/pixelmatch.mjs", "text/javascript; charset=utf-8"],
+    "/spot.js": ["../page/spot.js", "text/javascript; charset=utf-8"],
     "/passkey.js": ["../page/passkey.js", "text/javascript; charset=utf-8"],
     "/manifest.webmanifest": ["../page/manifest.webmanifest", "application/manifest+json"],
     "/icon.svg": ["../page/icon.svg", "image/svg+xml"],
@@ -304,6 +306,7 @@ async function loadResults(dir, name) {
  *     and finished like a CI capture. CI's capture replaces it project by project as it lands.
  * @param {number} [options.patience] how long, in milliseconds, a page load waits for a run's
  *     captures before listing the target as downloading; Infinity waits for them
+ * @param {number[]} [options.retryDelays] milliseconds before each retry of a Finish's network call
  * @returns {(req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse) => void}
  *     the handler, for node:https in the CLI and node:http in the tests
  */
@@ -320,6 +323,7 @@ export function createApp({
     warm,
     previews = null,
     patience = PATIENCE,
+    retryDelays,
 }) {
     const stateDir = join(tmp, "state");
     const { projects, defaultBranch } = config;
@@ -1090,6 +1094,9 @@ export function createApp({
             await readApprovals([...next.values()]);
             recordNoise([...next.values()]);
         }
+        for (const t of next.values()) {
+            await legacyFor(t);
+        }
         signer = await signingIdentity(repo);
         targets = next;
         save();
@@ -1604,28 +1611,48 @@ export function createApp({
     /**
      * A pull request's approvals from before passkeys (legacyApprovals): what a signed Finish
      * signs again and which unsigned records it removes. Cached per captured head and default
-     * branch tip; null when there are none or they cannot be read here.
+     * branch tip; null when there are none or they cannot be read here. Read in a child process,
+     * one at a time, never on a request: a refresh reads them before it lists the targets, and a
+     * key it missed (a restored list) is read in the background while the list shows the last
+     * value. Finish and its preview wait for the current one (legacyFor).
      */
     const legacyCache = new Map();
-    const legacyOf = (t) => {
-        if (t.local || t.pr === null || !t.headSha) {
-            return null;
-        }
+    let legacyQueue = Promise.resolve();
+    const legacyKey = (t) => {
         // The tip the last refresh (or the restore of a kept list) read.
         const tip = tips.get(defaultBranch);
-        if (tip === undefined) {
+        return t.local || t.pr === null || !t.headSha || tip === undefined ? null : { key: `${t.headSha}:${tip}`, tip };
+    };
+    const legacyFor = (t) => {
+        const k = legacyKey(t);
+        if (k === null) {
+            return Promise.resolve(null);
+        }
+        const entry = legacyCache.get(t.id);
+        if (entry?.key === k.key) {
+            return entry.pending;
+        }
+        const input = { repo, pr: t.pr, head: t.headSha, base: k.tip, config };
+        legacyQueue = legacyQueue.then(() =>
+            legacyApprovalsAsync(input).catch((err) => {
+                console.error(`visual-review: could not read the approvals of #${t.pr}: ${err.message}`);
+                return null;
+            }),
+        );
+        const pending = legacyQueue.then((value) => {
+            if (legacyCache.get(t.id)?.pending === pending) {
+                legacyCache.set(t.id, { key: k.key, pending, value });
+            }
+            return value;
+        });
+        legacyCache.set(t.id, { key: k.key, pending, value: entry?.value ?? null });
+        return pending;
+    };
+    const legacyOf = (t) => {
+        if (legacyKey(t) === null) {
             return null;
         }
-        const key = `${t.headSha}:${tip}`;
-        if (!legacyCache.has(t.id) || legacyCache.get(t.id).key !== key) {
-            let value = null;
-            try {
-                value = legacyApprovals({ repo, pr: t.pr, head: t.headSha, base: tip, config });
-            } catch (err) {
-                console.error(`visual-review: could not read the approvals of #${t.pr}: ${err.message}`);
-            }
-            legacyCache.set(t.id, { key, value });
-        }
+        legacyFor(t);
         return legacyCache.get(t.id).value;
     };
     // How many things a signed Finish of the old approvals publishes: the files it signs again,
@@ -1640,84 +1667,136 @@ export function createApp({
             t.projects.filter((p) => p.results).map((p) => [p.project, { dir: p.dir, results: p.results }]),
         );
 
-    /** Thumbnails being made, by the file they are kept in, and whether a tile is waiting for one. */
+    /** Tiles being made, by the first file they are kept in, and whether a tile is waiting for them. */
     const making = new Map();
 
     /**
-     * An image's thumbnail, made in a worker thread unless it is on disk already. A tile waiting
-     * for one (`urgent`) goes ahead of those made in advance, even of its own made in advance.
+     * Grid tiles made in a child process (`scaled`) unless on disk already, and kept there, one
+     * file per image the child makes. A tile waiting for one (`when` "now") goes ahead of those
+     * made in advance, even of its own made in advance.
+     * @param {Record<string, string>} kept where each image the child makes is kept, by its name
+     * @param {string} want the name of the one to answer with
+     * @param {"now" | "ahead" | "last"} when see `scaled`
+     * @param {() => Promise<unknown>} load what the child works on; an error carrying an `answer`
+     *     is answered with it
+     * @returns {Promise<Array<unknown>>} the answer: the PNG, or why not
+     */
+    async function keptOnce(kept, want, when, load) {
+        const urgent = when === "now";
+        // Made in advance, it was just found missing: reading here, for a thousand items at once,
+        // would fill Node's file thread pool and stall every other request's file reads.
+        const cached = urgent ? await readFile(kept[want]).catch(() => null) : null;
+        if (cached) {
+            return [200, cached, "image/png"];
+        }
+        const id = Object.values(kept)[0];
+        const was = making.get(id);
+        let done = was && (was.urgent || !urgent) ? was.done : null;
+        if (!done) {
+            done = (async () => {
+                let images;
+                try {
+                    images = await scaled(load, when);
+                } catch (err) {
+                    if (err.answer) {
+                        return err.answer;
+                    }
+                    throw err;
+                }
+                try {
+                    for (const [name, path] of Object.entries(kept)) {
+                        // Its own temporary name: the advance copy and a tile's may be written at once.
+                        const part = `${path}.${urgent ? "tile" : "ahead"}.tmp`;
+                        mkdirSync(dirname(path), { recursive: true });
+                        writeFileSync(part, images[name]);
+                        renameSync(part, path);
+                    }
+                } catch (err) {
+                    warnOnce(`could not keep thumbnails in ${dirname(id)}: ${err.message}`);
+                }
+                return images;
+            })().finally(() => {
+                if (making.get(id)?.done === done) {
+                    making.delete(id);
+                }
+            });
+            making.set(id, { urgent, done });
+        }
+        const made = await done;
+        return Array.isArray(made) ? made : [200, made[want], "image/png"];
+    }
+
+    // Reads an image for a child process, or throws with the answer to send instead.
+    const imageFor = async (where) => {
+        const full = await readImage(where);
+        if (full[0] !== 200) {
+            throw Object.assign(new Error(full[1].error), { answer: full });
+        }
+        return full[1];
+    };
+
+    /**
+     * An image's thumbnail, kept by the image's hash.
      * @param {{ path: string, hash: string, file: string, dir: string }} where the image
      * @param {boolean} urgent a tile is waiting for it
      * @returns {Promise<Array<unknown>>} the answer: the PNG, or why not
      */
-    function thumbOf(where, urgent) {
-        const kept = join(tmp, "thumbs", `${where.hash}.png`);
-        const was = making.get(kept);
-        if (was && (was.urgent || !urgent)) {
-            return was.done;
-        }
-        const done = (async () => {
-            // Made in advance, it was just found missing: reading here, for a thousand items at once,
-            // would fill Node's file thread pool and stall every other request's file reads.
-            const cached = urgent ? await readFile(kept).catch(() => null) : null;
-            if (cached) {
-                return [200, cached, "image/png"];
-            }
-            let small;
-            try {
-                small = await scaled(async () => {
-                    const full = await readImage(where);
-                    if (full[0] !== 200) {
-                        throw Object.assign(new Error(full[1].error), { answer: full });
-                    }
-                    return full[1];
-                }, urgent);
-            } catch (err) {
-                if (err.answer) {
-                    return err.answer;
-                }
-                throw err;
-            }
-            // Its own temporary name: the advance copy and a tile's may be written at once.
-            const part = `${kept}.${urgent ? "tile" : "ahead"}.tmp`;
-            try {
-                mkdirSync(dirname(kept), { recursive: true });
-                writeFileSync(part, small);
-                renameSync(part, kept);
-            } catch (err) {
-                warnOnce(`could not keep thumbnails in ${dirname(kept)}: ${err.message}`);
-            }
-            return [200, small, "image/png"];
-        })().finally(() => {
-            if (making.get(kept)?.done === done) {
-                making.delete(kept);
-            }
-        });
-        making.set(kept, { urgent, done });
-        return done;
-    }
+    const thumbOf = (where, urgent) =>
+        keptOnce({ png: join(tmp, "thumbs", `${where.hash}.png`) }, "png", urgent ? "now" : "ahead", () =>
+            imageFor(where),
+        );
+
+    // Where a changed item's spotlit tiles are kept: by both images' hashes and the diff's settings.
+    const spotFiles = (baseline, capture, { threshold, includeAA }) =>
+        Object.fromEntries(
+            SPOT_KINDS.map((k) => [
+                k,
+                join(tmp, "spots", `${baseline}-${capture}-${threshold}-${includeAA ? 1 : 0}-${k}.png`),
+            ]),
+        );
+
+    /**
+     * A changed item's spotlit tile of one kind, its pair's three tiles made at once.
+     * @param {{ path: string, hash: string, file: string, dir: string }} a where the baseline is
+     * @param {{ path: string, hash: string, file: string, dir: string }} b where the capture is
+     * @param {{ threshold: number, includeAA: boolean }} item the item's diff settings
+     * @param {string} kind one of SPOT_KINDS
+     * @param {"now" | "last"} when see `scaled`
+     * @returns {Promise<Array<unknown>>} the answer: the PNG, or why not
+     */
+    const spotOf = (a, b, { threshold, includeAA }, kind, when) =>
+        keptOnce(spotFiles(a.hash, b.hash, { threshold, includeAA }), kind, when, async () => ({
+            baseline: await imageFor(a),
+            capture: await imageFor(b),
+            threshold,
+            includeAA,
+        }));
 
     /**
      * Makes, in the background, the grid thumbnail of every item of a capture that needs a
-     * decision, so a grid opens with its tiles ready.
+     * decision, so a grid opens with its tiles ready; and, after all of them, the spotlit tiles of
+     * every changed one.
      * @param {string} dir the capture's directory
      * @param {{ items: object[] }} r its results.json
      */
     function prewarm(dir, r) {
-        for (const item of r.items) {
+        const warn = (path) => (err) => warnOnce(`could not make the thumbnail of ${path}: ${err.message}`);
+        for (const item of r.items.filter((i) => REVIEWABLE.has(i.status) && i.status !== "failed")) {
             const kind = item.capture ? "capture" : "baseline";
             const hash = item[kind];
+            const own = kind === "capture" || item.baseline === item.capture;
+            const path = own ? join(dir, item.file) : join(dir, "baselines", item.file);
+            if (hash && !existsSync(join(tmp, "thumbs", `${hash}.png`))) {
+                thumbOf({ path, hash, file: item.file, dir }, false).catch(warn(path));
+            }
             if (
-                REVIEWABLE.has(item.status) &&
-                item.status !== "failed" &&
-                hash &&
-                !existsSync(join(tmp, "thumbs", `${hash}.png`))
+                item.baseline &&
+                item.capture &&
+                item.baseline !== item.capture &&
+                !existsSync(spotFiles(item.baseline, item.capture, item).both)
             ) {
-                const own = kind === "capture" || item.baseline === item.capture;
-                const path = own ? join(dir, item.file) : join(dir, "baselines", item.file);
-                thumbOf({ path, hash, file: item.file, dir }, false).catch((err) =>
-                    warnOnce(`could not make the thumbnail of ${path}: ${err.message}`),
-                );
+                const a = { path: join(dir, "baselines", item.file), hash: item.baseline, file: item.file, dir };
+                spotOf(a, { path, hash, file: item.file, dir }, item, "both", "last").catch(warn(path));
             }
         }
     }
@@ -1732,7 +1811,7 @@ export function createApp({
      * @param {string} name the project
      * @param {string} kind "capture" or "baseline"
      * @param {string} file the image's file name
-     * @returns {Promise<Array<unknown> | { path: string, hash: string, file: string, dir: string }>}
+     * @returns {Promise<Array<unknown> | { path: string, hash: string, file: string, dir: string, item: any }>}
      *     where the image is, or the answer to send instead
      */
     async function imageOf(id, name, kind, file) {
@@ -1749,7 +1828,7 @@ export function createApp({
         // A moved item's baseline is its capture's bytes, so the artifact holds only the capture.
         const own = kind === "capture" || item.baseline === item.capture;
         const path = own ? join(p.dir, file) : join(p.dir, "baselines", file);
-        return { path, hash, file, dir: p.dir };
+        return { path, hash, file, dir: p.dir, item };
     }
 
     async function readImage({ path, hash, file, dir }) {
@@ -1819,7 +1898,11 @@ export function createApp({
             if (!t) {
                 return gone(id);
             }
-            return [200, query?.get("finish") === "1" ? { ...summary(t), finish: finishPreview(t) } : summary(t)];
+            if (query?.get("finish") === "1") {
+                await legacyFor(t);
+                return [200, { ...summary(t), finish: finishPreview(t) }];
+            }
+            return [200, summary(t)];
         },
         "GET /api/pr": async ([id, name]) => {
             const { t, p } = await projectOf(id, name);
@@ -1902,6 +1985,24 @@ export function createApp({
                 return where;
             }
             return thumbOf(where, true);
+        },
+        // A changed item's grid tile spotlit ("spot"), cropped toward its change ("zoom") or both.
+        "GET /api/spot": async ([id, name, kind, file]) => {
+            if (!SPOT_KINDS.includes(kind)) {
+                return [404, { error: "no such tile" }];
+            }
+            const a = await imageOf(id, name, "baseline", file);
+            if (Array.isArray(a)) {
+                return a;
+            }
+            const b = await imageOf(id, name, "capture", file);
+            if (Array.isArray(b)) {
+                return b;
+            }
+            if (a.hash === b.hash) {
+                return [404, { error: "nothing changed" }];
+            }
+            return spotOf(a, b, b.item, kind, "now");
         },
         "POST /api/decide": async (_, body) => {
             const { p, t } = await projectOf(String(body.id), body.project);
@@ -2220,8 +2321,8 @@ export function createApp({
                     },
                 ];
             }
+            const legacy = await legacyFor(t);
             const work = finishWork(t);
-            const legacy = legacyOf(t);
             let prepared;
             try {
                 prepared = await prepareRecord({
@@ -2332,6 +2433,7 @@ export function createApp({
                 undecided,
                 unloaded: work.unloaded,
                 config,
+                retryDelays,
                 ...(approval && { approval, legacy, now: new Date(approval.record.reviewedAt) }),
             });
             return [202, { job }];

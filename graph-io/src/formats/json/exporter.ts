@@ -648,7 +648,7 @@ function plan(snapshot: GraphSnapshot, resolved: Resolved): Plan {
     // plain attributes and read back without their role)
     const notes = checkCapabilities(snapshot, caps, resolved.common, {
         roles: SLOT_ROLES[dialect],
-        positionDtype: "f32",
+        positionDtype: "f64",
     }).filter((n) => n.code !== LOSS.POSITIONS && n.code !== LOSS.EDGE_IDS_DROPPED);
     const note: NoteFn = (code, message, column = null, count = null): void => {
         notes.push(Object.freeze({ code, message, column, count }));
@@ -1107,7 +1107,7 @@ function jgfIdNotes(
  * @returns true for canonical integer text below 2^32 - 1
  */
 function isArrayIndexKey(text: string): boolean {
-    return /^(0|[1-9][0-9]*)$/.test(text) && Number(text) < 4294967295;
+    return /^(0|[1-9]\d*)$/.test(text) && Number(text) < 4294967295;
 }
 
 // ============================================================ writing

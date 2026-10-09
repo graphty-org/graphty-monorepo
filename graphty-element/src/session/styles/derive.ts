@@ -40,6 +40,7 @@
  */
 
 import type { Channel, FieldDescriptor } from "../../catalog/types";
+import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import { resultShapeContract } from "../results/types";
 import type { RunStyle } from "../runs/types";
 import type { EncodingRun, EncodingSpec } from "./EncodingSpec";
@@ -97,6 +98,25 @@ const NOTHING: readonly StyleSuggestion[] = Object.freeze([]);
  */
 export const DEFAULT_SIZE_RANGE: readonly [number, number] = Object.freeze([1, 3]);
 
+/**
+ * The edge width range `style: { size: true }` uses on an edge measurement.
+ *
+ * It starts at the default edge width for the reason {@link DEFAULT_SIZE_RANGE} starts at the
+ * default node size: the edge the run ranks lowest looks exactly as it did, and the encoding only
+ * ever makes edges wider. It stops at twice the default, which keeps the widest edge clear of the
+ * nodes it joins at the element's default sizes.
+ */
+export const DEFAULT_EDGE_WIDTH_RANGE: readonly [number, number] = Object.freeze([
+    EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+    EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 2,
+]);
+
+/** The channel `style: { size }` paints on each half, and the range `size: true` means there. */
+const SIZE_CHANNEL = {
+    node: { channel: "node.size", range: DEFAULT_SIZE_RANGE, shape: "node-metric" },
+    edge: { channel: "edge.width", range: DEFAULT_EDGE_WIDTH_RANGE, shape: "edge-metric" },
+} as const satisfies Record<SelectorTarget, { channel: Channel; range: readonly [number, number]; shape: string }>;
+
 /** The colour channel that paints one half of the graph. */
 const COLOR_CHANNEL = {
     node: "node.color",
@@ -138,7 +158,7 @@ function halvesCarrying(fields: readonly FieldDescriptor[], name: string): reado
  * asks the same question the same way.
  *
  * `style` adds to the suggestions and never takes from them: `{ size }` appends a node size over
- * the same field for a node measurement, and everything else -- `true`, `false`, left off --
+ * the same field for a node measurement, or an edge width for an edge measurement, and everything else -- `true`, `false`, left off --
  * suggests the colour alone. Whether to paint at all is the auto-apply policy's question.
  * @param run - The run, read for its shape and the fields it published.
  * @param style - The run's style option, read only for `size`.
@@ -168,11 +188,14 @@ export function suggestStyles(run: EncodingRun, style: RunStyle = true): readonl
 }
 
 /**
- * The node size a run started with `style: { size }` asks for.
+ * The size a run started with `style: { size }` asks for: a node size for a node measurement, an
+ * edge width for an edge measurement.
  *
- * Only a node measurement has a size to give: a group id is not an amount, and an edge has no
- * node to size. Anything else is ignored rather than refused, the same way the colour suggestion
- * depends on the shape.
+ * Only a measurement has an amount to give: a group id is not an amount, and a chosen subset is
+ * "these ones", not "this much". Anything else is ignored rather than refused, the same way the
+ * colour suggestion depends on the shape. The encoding names the run and the field and nothing
+ * else, so `planEncoding` scopes it to exactly the elements carrying the value, as it does the
+ * colour.
  * @param run - The run.
  * @param field - Its primary field.
  * @param halves - The halves carrying it.
@@ -186,17 +209,19 @@ function sizeOf(
     style: RunStyle,
 ): EncodingSuggestion | null {
     const size = typeof style === "object" ? style.size : undefined;
+    const half = halves.find((each) => SIZE_CHANNEL[each].shape === run.shape);
 
-    if (size === undefined || size === false || run.shape !== "node-metric" || !halves.includes("node")) {
+    if (size === undefined || size === false || half === undefined) {
         return null;
     }
 
-    const [min, max] = size === true ? DEFAULT_SIZE_RANGE : size;
+    const { channel, range } = SIZE_CHANNEL[half];
+    const [min, max] = size === true ? range : size;
 
     return {
         as: "encoding",
-        channels: Object.freeze(["node.size"] as const),
-        spec: { run: run.id, field, channel: "node.size", range: [min, max] },
+        channels: Object.freeze([channel]),
+        spec: { run: run.id, field, channel, range: [min, max] },
     };
 }
 

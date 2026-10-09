@@ -629,6 +629,29 @@ export function restoresNodes(log: readonly OpLogEntry[]): boolean {
 }
 
 /**
+ * The nodes an op log created rows for: a node the graph held no row for, and an endpoint an edge
+ * brought in. Each starts unplaced.
+ * @param log - The op log.
+ * @returns Their ids, in the order they were created.
+ */
+export function createdNodes(log: readonly OpLogEntry[]): NodeId[] {
+    const out: NodeId[] = [];
+    for (const entry of log) {
+        if (entry instanceof GraphEntry) {
+            for (const op of entry.ops) {
+                if (op.kind === "node" && !op.existed) {
+                    out.push(op.id);
+                } else if (op.kind === "edge") {
+                    out.push(...op.created);
+                }
+            }
+        }
+    }
+
+    return out;
+}
+
+/**
  * Whether an op log added or removed nodes or edges, or changed an edge's weight: what sets a
  * running layout moving. A record or value edit does not.
  * @param log - The op log.

@@ -5,7 +5,7 @@ import type { GraphSession, ScopeInput, SummaryGroup } from "@graphty/graphty-el
 import { ActionIcon, Button, Menu, Pill, Tabs, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { runName } from "../analyze/words";
+import { runName } from "../runWords";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { columnChoices, countOf, type RecordKind, sortCaption, type TableColumnChoice } from "./columns";

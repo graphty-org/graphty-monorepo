@@ -336,6 +336,7 @@ describe("CLI", () => {
                 sigintHandlers[0]();
 
                 // Wait for shutdown promise to resolve
+                // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
                 await new Promise((resolve) => setTimeout(resolve, 10));
 
                 expect(mockShutdown).toHaveBeenCalled();

@@ -2417,8 +2417,11 @@ export interface SessionRunsOptions {
     readonly engine?: EngineVersions;
     /** What a call that names no scope gets. Defaults to the visible graph. */
     readonly defaultScope?: Scope;
-    /** The caveats a run starts from, before the work refines them. */
-    readonly defaultCaveats?: Caveats;
+    /**
+     * The caveats a run starts from, before the work refines them. `facts` may be left out: a run
+     * starts with none.
+     */
+    readonly defaultCaveats?: Caveats | Omit<Caveats, "facts">;
     /** The cap and the memory budget the cost gate compares a run against. */
     readonly limits?: Readonly<CostGateLimits>;
     /** Reads this machine's measured throughput, when the host has measured it. */

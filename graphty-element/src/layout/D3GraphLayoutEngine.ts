@@ -148,6 +148,7 @@ export class D3GraphEngine extends LayoutEngine {
     static getOptionsForDimension(dimension: 2 | 3): object {
         return { dim: dimension };
     }
+
     d3ForceLayout: ReturnType<typeof forceSimulation>;
     d3AlphaMin: number;
     d3AlphaTarget: number;
@@ -159,7 +160,11 @@ export class D3GraphEngine extends LayoutEngine {
     edgeMapping = new Map<Edge, D3Edge>();
     newNodeMap = new Map<Node, D3InputNode>();
     newEdgeMap = new Map<Edge, D3InputEdge>();
+    /** Each node id's edges, so removing a node visits only its own edges (issue #1425). */
+    private readonly edgesByNode = new Map<Edge["srcId"], Set<Edge>>();
     reheat = false;
+    /** 2 or 3: in 2D d3 moves nodes in X and Y only, and every node stays at Z = 0. */
+    private readonly dim: number;
 
     /**
      * Check if there are pending nodes or edges to be processed
@@ -324,6 +329,15 @@ export class D3GraphEngine extends LayoutEngine {
             source: e.srcId,
             target: e.dstId,
         });
+        for (const id of [e.srcId, e.dstId]) {
+            let incident = this.edgesByNode.get(id);
+            if (!incident) {
+                incident = new Set();
+                this.edgesByNode.set(id, incident);
+            }
+
+            incident.add(e);
+        }
     }
 
     /**
@@ -350,13 +364,10 @@ export class D3GraphEngine extends LayoutEngine {
     getNodePosition(n: Node): Position {
         const d3node = this._getMappedNode(n);
 
-        // Publish first, then answer from the array, so a caller reading one node at a time sees
-        // the same coordinates as a caller reading the array in bulk. A node with no row in the
-        // graph falls through to the simulation's own numbers.
-        const out = { x: 0, y: 0, z: 0 };
-        this.writeNodePosition(n, d3node.x, d3node.y, d3node.z);
-        if (this.readNodePosition(n, out)) {
-            return out;
+        // A node whose row is unplaced or missing falls through to the simulation's own numbers.
+        const published = this.publishOnRead(n, d3node.x, d3node.y, d3node.z);
+        if (published !== null) {
+            return published;
         }
 
         return {
@@ -487,29 +498,15 @@ export class D3GraphEngine extends LayoutEngine {
      * @param n - the node leaving the graph
      */
     override removeNode(n: Node): void {
-        for (const edge of this.nodeEdges(n)) {
+        // removeEdge deletes the visited edge from this set, which Set iteration allows.
+        for (const edge of this.edgesByNode.get(n.id) ?? []) {
             this.removeEdge(edge);
         }
 
+        this.edgesByNode.delete(n.id);
         this.nodeMapping.delete(n);
         this.newNodeMap.delete(n);
         this.reheat = true;
-    }
-
-    /**
-     * Every edge this engine holds that touches one node.
-     * @param n - the node
-     * @returns the incident edges, as a fresh array so the caller may delete while it walks
-     */
-    private nodeEdges(n: Node): Edge[] {
-        const incident: Edge[] = [];
-        for (const edge of [...this.edgeMapping.keys(), ...this.newEdgeMap.keys()]) {
-            if (edge.srcId === n.id || edge.dstId === n.id) {
-                incident.push(edge);
-            }
-        }
-
-        return incident;
     }
 
     /**
@@ -519,6 +516,8 @@ export class D3GraphEngine extends LayoutEngine {
     override removeEdge(e: Edge): void {
         this.edgeMapping.delete(e);
         this.newEdgeMap.delete(e);
+        this.edgesByNode.get(e.srcId)?.delete(e);
+        this.edgesByNode.get(e.dstId)?.delete(e);
         this.reheat = true;
     }
 

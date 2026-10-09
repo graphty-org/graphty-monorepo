@@ -314,6 +314,7 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         const hovers = !matchMedia("(hover: none)").matches;
         expectMeasured(hide, { x: figLock.box[0] - 57 + 20, opacity: hovers ? "0" : "1" }, { origin: a });
         await drive(a, "hover");
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 150));
         expectMeasured(hide, { opacity: "1" });
     });

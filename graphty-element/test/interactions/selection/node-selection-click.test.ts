@@ -40,11 +40,13 @@ async function dragOnNode(graph: Graph, nodeId: string): Promise<void> {
 
     send(PointerEventTypes.POINTERDOWN, at.x, at.y, 1);
     for (let step = 1; step <= 4; step++) {
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 16));
         send(PointerEventTypes.POINTERMOVE, at.x + step * 10, at.y, 1);
     }
 
     send(PointerEventTypes.POINTERUP, at.x + 40, at.y, 0);
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 50));
 }
 

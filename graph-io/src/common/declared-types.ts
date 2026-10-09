@@ -136,8 +136,8 @@ const TABLES: Readonly<Record<DeclaringFormat, Readonly<Record<string, ScalarEnt
     neo4j: NEO4J_SCALARS,
 };
 
-const INTEGER_TEXT = /^[+-]?[0-9]+$/;
-const DECIMAL_TEXT = /^[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?$/;
+const INTEGER_TEXT = /^[+-]?\d+$/;
+const DECIMAL_TEXT = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 const I32_MIN = -2147483648;
 const I32_MAX = 2147483647;
 

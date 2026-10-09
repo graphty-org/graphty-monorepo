@@ -349,6 +349,11 @@ describe("the time box", () => {
         assert.strictEqual(run.partial, true);
         assert.isDefined(run.caveats.partialReason);
         assert.include(run.caveats.partialReason ?? "", "15 ms");
+        assert.deepStrictEqual(run.caveats.partialCause, { code: "partial.time-box", params: { ms: 15 } });
+        assert.strictEqual(
+            run.caveats.partialReason,
+            "Stopped after the 15 ms time box and published what was computed.",
+        );
         assert.strictEqual(run.record.partial, true);
     });
 
@@ -367,8 +372,27 @@ describe("the time box", () => {
 
         assert.strictEqual(run.status, "succeeded");
         assert.strictEqual(run.caveats.partialReason, "iteration cap reached");
+        assert.isUndefined(run.caveats.partialCause, "a reason given only in words has no code");
         assert.strictEqual(run.partial, true, "the caveats and the flag never disagree");
         assert.strictEqual(run.record.partial, true);
+    });
+
+    it("words the reason from a cause the work gives as a code (#866)", async () => {
+        const { run, queue } = makeRun(async (context) => {
+            await settle(1);
+
+            return {
+                result: stubResult(context.runId),
+                caveats: { exact: false, partialCause: { code: "partial.iteration-cap", params: {} } },
+            };
+        });
+
+        run.start();
+        await queue.runLatest();
+
+        assert.strictEqual(run.partial, true);
+        assert.deepStrictEqual(run.caveats.partialCause, { code: "partial.iteration-cap", params: {} });
+        assert.strictEqual(run.caveats.partialReason, "iteration cap reached");
     });
 
     it("leaves the work's own signal alone, so stopping early is not an abort", async () => {

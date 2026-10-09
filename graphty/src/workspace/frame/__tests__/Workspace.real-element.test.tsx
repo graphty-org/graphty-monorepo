@@ -41,6 +41,7 @@ async function openWorkspace(): Promise<GraphSession> {
 }
 
 describe("the workspace frame on the real element", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "undoes and redoes the element's own steps from the header and the keys",
         async () => {
@@ -72,6 +73,7 @@ describe("the workspace frame on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "clears the element's selection with Esc",
         async () => {

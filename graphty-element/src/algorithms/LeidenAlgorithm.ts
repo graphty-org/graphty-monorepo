@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -19,7 +20,7 @@ import type { OptionsSchema } from "./types/OptionSchema";
  */
 const leidenOptionsSchema = defineOptions({
     resolution: {
-        schema: z.number().min(0.1).max(5.0).default(1.0),
+        schema: z.number().min(0.1).max(5).default(1),
         meta: {
             label: "Resolution",
             description: "Controls community granularity",
@@ -82,11 +83,11 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
     static optionsSchema: OptionsSchema = {
         resolution: {
             type: "number",
-            default: 1.0,
+            default: 1,
             label: "Resolution",
             description: "Controls community granularity",
             min: 0.1,
-            max: 5.0,
+            max: 5,
             step: 0.1,
         },
         randomSeed: {
@@ -172,7 +173,7 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
                 ...this.weightCaveats(),
                 precision,
                 iterations: result.iterations,
-                notes: [`Resolution ${String(resolution)}.`],
+                facts: [caveat("community.resolution", { resolution })],
             }),
         };
     }

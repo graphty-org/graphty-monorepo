@@ -89,6 +89,7 @@ describe("a seeded layout draws the same graph every load", () => {
         element.layout = "spring";
         element.layoutConfig = { seed: 42 };
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 400));
         await operationQueueOf(element.graph).waitForCompletion();
 

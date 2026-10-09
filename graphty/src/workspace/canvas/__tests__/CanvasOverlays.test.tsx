@@ -57,9 +57,21 @@ function standIn(facts: StandInFacts = {}): {
         },
         catalog: { algorithms: () => [{ key: "pagerank", technicalName: "PageRank" }] },
         runs: {
-            get: (id: string) => (facts.runs?.[id] === undefined ? undefined : { id, label: facts.runs[id] }),
+            // No catalog entry, so the app names the run by its algorithm: the fact's name.
+            get: (id: string) =>
+                facts.runs?.[id] === undefined
+                    ? undefined
+                    : {
+                          id,
+                          algorithm: facts.runs[id],
+                          params: {},
+                          distinguishedBy: null,
+                          siblingsDifferBy: null,
+                          scope: { spec: "visible" },
+                      },
             painting: () => facts.painting,
         },
+        catalog: { algorithms: () => [] },
         data: { statistics: () => ({ nodeCount: facts.nodeCount ?? 77, edgeCount: facts.edgeCount ?? 254 }) },
         selection: { nodes: [], edges: [] },
     } as unknown as GraphSession;

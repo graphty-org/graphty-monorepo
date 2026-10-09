@@ -130,6 +130,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         await page.viewport(1366, 768);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T6: the graph's Overview shows the element's counts for karate",
         async () => {
@@ -158,6 +159,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T12: a picked node opens on Values, and Degree lists its neighbors in name order, each with its tie",
         async () => {
@@ -183,6 +185,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T12 from the Neighborhood command: one node selected opens the same neighbor list by name",
         async () => {
@@ -239,6 +242,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T12 from the find box: a pick moves focus to the inspector's title, not a value row",
         async () => {
@@ -347,6 +351,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T8: Louvain's row shows its groups, a group its members, and Why this look names it for Color",
         async () => {
@@ -392,6 +397,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "an edge, an attribute, the Everything row and a group's members each show the element's values",
         async () => {

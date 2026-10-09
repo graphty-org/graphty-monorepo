@@ -949,7 +949,7 @@ export class UpdateManager implements Manager {
         }
 
         this.drawnFrameIsFinished = true;
-        this.eventManager.emitGraphEvent("graph-frame-stable", { frames: this.frameCount });
+        this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
     }
 
     /**
@@ -1549,10 +1549,17 @@ export class UpdateManager implements Manager {
             // built was missing from the list and was not drawn. A layer taken off an edge lost
             // the edge's rebuilt line that way (test/browser/a-late-freeze-does-not-hide-a-rebuilt-mesh.test.ts).
             // A freeze that lands after a change withdrew it is undone at once.
+            //
+            // AND ITS WALK IS RETIRED WITH IT. The freeze asked for after the change waits on the
+            // same poll and walks the scene right after the withdrawn one, under the same render
+            // id -- into the list the withdrawn walk just filled -- so the frozen frames after it
+            // drew instances twice (test/browser/frozen-frame-draws-each-instance-once.test.ts).
+            // A new render id gives the next walk a list of its own.
             const request = ++this.freezeRequest;
             scene.freezeActiveMeshes(false, () => {
                 if (request !== this.freezeRequest) {
                     scene.unfreezeActiveMeshes();
+                    scene.incrementRenderId();
                 }
             });
         }
@@ -1695,7 +1702,7 @@ export class UpdateManager implements Manager {
         }
 
         // Emit zoom complete event
-        this.eventManager.emitGraphEvent("zoom-to-fit-complete", {
+        this.eventManager.emit("zoom-to-fit-complete", {
             boundingBoxMin,
             boundingBoxMax,
         });

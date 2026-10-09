@@ -6,7 +6,7 @@
 
 import type { GraphSession, NoteTarget, NoteTargetInput, NoteTargetStatus } from "@graphty/graphty-element/session";
 
-import { runName } from "../analyze/words";
+import { runName } from "../runWords";
 import type { Resolved } from "../inspector/inspected";
 import { count, edgeName } from "../inspector/words";
 

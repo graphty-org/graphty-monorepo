@@ -187,7 +187,7 @@ export const defaultXRConfig: XRConfig = {
         controllers: true,
         nearInteraction: true,
         physics: false,
-        zAxisAmplification: 10.0,
+        zAxisAmplification: 10,
         enableZAmplificationInDesktop: false,
     },
     teleportation: {

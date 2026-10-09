@@ -59,6 +59,7 @@ describe("inputComponentExtensions", () => {
     it("exports all 16 input components", () => {
         const components = Object.keys(inputComponentExtensions);
         expect(components).toHaveLength(16);
+        expect(components).toContain("InputWrapper");
         expect(components).toContain("NativeSelect");
         expect(components).toContain("TextInput");
         expect(components).toContain("NumberInput");

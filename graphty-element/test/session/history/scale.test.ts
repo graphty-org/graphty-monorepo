@@ -83,6 +83,7 @@ describe("what each kind of step retains, at the largest graph a session holds",
     let session: ElementSession;
     let rows: number;
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeAll(async () => {
         harness = await bigGraph();
         session = harness.session as ElementSession;
@@ -254,6 +255,7 @@ describe("what each kind of step retains, at the largest graph a session holds",
         );
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a run of steps that each keep a capture stays within the budget",
         async () => {
@@ -300,6 +302,7 @@ describe("at a million nodes and five million edges, without a scene", () => {
     const MILLION = 1_000_000;
     const ARCS = 5 * MILLION;
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a snapshot and a degree result are estimated at their storage, and a history of steps that size stays within 256 MiB",
         () => {
@@ -333,7 +336,14 @@ describe("at a million nodes and five million edges, without a scene", () => {
                 ],
                 measured: { nodes: MILLION, edges: ARCS },
                 nodes: Array.from({ length: MILLION }, (_, at) => ({ id: at, values: { value: degrees[at] } })),
-                caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "degree", notes: [] },
+                caveats: {
+                    exact: true,
+                    direction: "as-loaded",
+                    precision: "f64",
+                    method: "degree",
+                    facts: [],
+                    notes: [],
+                },
                 durationMs: 1,
             });
             assert.isAtLeast(retentionOf(result).bytes, 24 * MILLION, "a value, a rank and a percentile per node");

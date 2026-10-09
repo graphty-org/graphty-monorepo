@@ -278,6 +278,7 @@ describe("compile matrix on Dawn (real device and backend=null)", () => {
     }
 
     for (const id of Object.keys(KERNELS) as KernelId[]) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(`compiles every case of ${id} on the real device and on backend=null (both twins where the entry has one)`, async (t) => {
             const { real: r, realTwin: rt, nul: n, nulTwin: nt } = await contexts(t);
             const cases = OVERRIDE_MATRIX.filter((c) => c.id === id);

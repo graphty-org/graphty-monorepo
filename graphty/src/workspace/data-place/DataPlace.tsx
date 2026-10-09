@@ -8,6 +8,7 @@ import React, { useEffect, useState } from "react";
 import { canReplace, editSource, replaceSource } from "../data-page/request";
 import { GLYPHS } from "../glyphs";
 import { pickFile } from "../start/open";
+import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useAttributeActions } from "./attributeActions";
 import { FiltersSection } from "./Filters";
@@ -126,7 +127,10 @@ function attributeItem(row: AttributeRow): TreeNodeData {
  */
 function attributeTree(session: GraphSession | null, needle: string): TreeNodeData[] {
     const attributes = session?.data.attributes() ?? [];
-    const runLabel = (runId: string): string | undefined => session?.runs.get(runId)?.label;
+    const runLabel = (runId: string): string | undefined => {
+        const run = session?.runs.get(runId);
+        return session === null || run === undefined ? undefined : runName(session, run);
+    };
     const subheads = [
         { id: "nodes", name: "Nodes", label: "Node attributes", kind: "node" },
         { id: "edges", name: "Edges", label: "Edge attributes", kind: "edge" },

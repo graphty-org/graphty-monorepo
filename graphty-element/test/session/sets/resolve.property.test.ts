@@ -56,7 +56,10 @@ const idOf = (i: number): NodeId => (i % 3 === 0 ? i : `n${i}`);
 
 const CASE: fc.Arbitrary<Case> = fc
     .record({
-        nodeCount: fc.integer({ min: 1, max: 300 }),
+        // Up to two 32-bit mask words, so a membership crosses a word boundary. fast-check's
+        // default size keeps the edge and id arrays to about ten entries, so a small graph is
+        // what makes those few edges land inside the listed and fixed sets.
+        nodeCount: fc.integer({ min: 1, max: 64 }),
         directed: fc.boolean(),
         edges: fc.integer({ min: 0, max: 600 }),
     })
@@ -156,11 +159,13 @@ interface Model {
 /** The naive model of one specification. */
 function model(scope: Scope | SetDefinition, c: Case, snapshot: GraphSnapshot, labels: ComponentLabels): Model {
     const all = Array.from({ length: snapshot.nodeCount }, (_, i) => i);
+    // Each row's id, read back row by row: a Map keeps `1` and `"1"` apart, as `===` does.
+    const rowOf = new Map(all.map((i) => [snapshot.ids.idOf(i), i]));
     const lookup = (ids: readonly NodeId[]): { found: Set<number>; missing: number } => {
         const found = new Set<number>();
         let missing = 0;
         for (const id of ids) {
-            const index = all.find((i) => snapshot.ids.idOf(i) === id);
+            const index = rowOf.get(id);
             if (index === undefined) {
                 missing++;
             } else {
@@ -237,11 +242,25 @@ function maskOf<TId>(flags: readonly boolean[], length: number, space: () => Mas
     return mask;
 }
 
-/** A membership as a comparable key. */
+/** A membership as a comparable key; the type prefix keeps `1` and `"1"` apart. */
 function keyOf(nodes: Iterable<NodeId>, edges: Iterable<EdgeId>): string {
-    const sort = (ids: Iterable<NodeId>): string => JSON.stringify([...ids].map((id) => [typeof id, id]).sort());
+    const sort = (ids: Iterable<NodeId>): string =>
+        JSON.stringify(Array.from(ids, (id) => `${typeof id}:${id}`).sort());
 
     return `${sort(nodes)}|${sort(edges)}`;
+}
+
+/**
+ * Assert two sets hold the same members. The common, equal case is a size and a lookup per
+ * member; only a mismatch pays for chai's deep comparison, for its diff.
+ * @param actual - The set the resolver produced.
+ * @param expected - The set the model produced.
+ * @param message - The assertion label.
+ */
+function assertSameSet<T>(actual: ReadonlySet<T>, expected: ReadonlySet<T>, message: string): void {
+    if (actual.size !== expected.size || [...actual].some((member) => !expected.has(member))) {
+        assert.deepStrictEqual(actual, expected, message);
+    }
 }
 
 describe("the resolver against a naive model", () => {
@@ -277,8 +296,8 @@ describe("the resolver against a naive model", () => {
                     const expected = model(spec, c, snapshot, labels);
                     const expectedNodes = new Set([...expected.nodes].map((i) => snapshot.ids.idOf(i)));
                     const expectedEdges = new Set([...expected.edges].map((e) => edgeSpace.idOf(e)));
-                    assert.deepStrictEqual(nodes, expectedNodes, `${label} nodes`);
-                    assert.deepStrictEqual(edges, expectedEdges, `${label} edges`);
+                    assertSameSet(nodes, expectedNodes, `${label} nodes`);
+                    assertSameSet(edges, expectedEdges, `${label} edges`);
                     if (resolution !== null) {
                         assert.strictEqual(resolution.missingNodes, expected.missing, `${label} missing`);
                         assert.strictEqual(resolution.nodeCount, expected.nodes.size);
@@ -342,7 +361,9 @@ describe("the resolver against a naive model", () => {
                     check(`fixed ${reading}`, resolution, definition, digestOf(resolution, snapshot), nodes, edgeIds);
                 }
             }),
-            fcParams(1000),
+            // Every case checks all ten forms. On graphs of up to 64 nodes, 600 cases hold as many
+            // with an edge inside the fixed set as 1000 cases on graphs of up to 300 nodes did.
+            fcParams(600),
         );
     });
 });
@@ -648,8 +669,8 @@ describe("the resolver against a naive model, for edge members and paths", () =>
                 ): void => {
                     const gotNodes = new Set(maskToIndices(resolution.nodes, snapshot.nodeCount));
                     const gotEdges = new Set(maskToIndices(resolution.edges, snapshot.edgeCount));
-                    assert.deepStrictEqual(gotNodes, nodes, `${label} nodes`);
-                    assert.deepStrictEqual(gotEdges, edges, `${label} edges`);
+                    assertSameSet(gotNodes, nodes, `${label} nodes`);
+                    assertSameSet(gotEdges, edges, `${label} edges`);
                     assert.strictEqual(resolution.missingNodes, missingNodes, `${label} missing nodes`);
                     assert.strictEqual(resolution.missingEdges, missingEdges, `${label} missing edges`);
                     assert.strictEqual(resolution.ambiguousEdges, ambiguous, `${label} ambiguous`);

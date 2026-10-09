@@ -389,7 +389,8 @@ Algorithm.register(MyAlgorithm);
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Store temporary files (screenshots, debug scripts) in `./tmp`
 - Don't create `__screenshots__` directories under `./test` unless intended for commit. Vitest's browser-mode failure screenshots used to land there; `vitest.config.ts` now sends them to `tmp/vitest-screenshots` instead, so a failing run leaves `test/` alone
-- Don't increase Playwright timeouts to fix timeout issues - find the root cause
+- Tests wait on conditions and assert on counted work; the `local/no-test-timing` lint rule enforces it.
+- A new public method is classified in `test/cost-coverage/method-classes.ts`; a mutating one needs a counted-work test (`assertScalesLinearly` in `test/helpers/cost.ts`) registered in `test/cost-coverage/counted-work.ts`, or `test/cost-coverage/cost-coverage.test.ts` fails
 
 ## A story is a test, and a capability must never lose its last door quietly
 

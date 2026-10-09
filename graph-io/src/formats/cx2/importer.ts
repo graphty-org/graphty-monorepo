@@ -79,7 +79,6 @@ import {
     CxStructure,
     declareFresh,
     ExactInteger,
-    fitsF32,
     flipY,
     headText,
     inexactLiteral,
@@ -532,7 +531,7 @@ interface Cx2Document {
  * @returns the bits
  */
 function inexactBits(text: string, keys: readonly string[], depth = 1): number {
-    if (!/[0-9][.eE]/.test(text)) {
+    if (!/\d[.eE]/.test(text)) {
         return 0;
     }
     let bits = 0;
@@ -1638,11 +1637,11 @@ class Cx2Reader {
                 `${CX2_ISSUE.PARTIAL_LAYOUT}:z`,
             );
         }
-        if (x !== null && y !== null && (!fitsF32(x) || !fitsF32(y))) {
+        if (x !== null && y !== null && (!Number.isFinite(x) || !Number.isFinite(y))) {
             this.report.error(
                 "validation-error",
                 BAD_VALUE_CODE,
-                `${element}: the coordinates ${String(x)}, ${String(y)} are beyond what the f32 position column holds; the position is unset`,
+                `${element}: the coordinates ${String(x)}, ${String(y)} are not both finite; the position is unset`,
                 { line, element },
             );
         } else if (x !== null && y !== null) {

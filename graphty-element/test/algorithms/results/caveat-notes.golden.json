@@ -1,0 +1,186 @@
+{
+    "degree": [
+        "Counted over the graph as the records declared it, so a node's total is its incoming edges plus its outgoing ones."
+    ],
+    "betweenness": [
+        "Every shortest path is counted exactly, over the graph read as undirected.",
+        "The raw counts are halved, because an undirected shortest path is reached from both ends.",
+        "Path lengths count edges; edge weights are not read."
+    ],
+    "betweenness sampled": [
+        "Estimated from the shortest paths of 2 sampled sources of 6 nodes, over the graph read as undirected, unscaled: multiply by 6 / 2 to estimate the exact count.",
+        "The raw counts are halved, because an undirected shortest path is reached from both ends.",
+        "Path lengths count edges; edge weights are not read."
+    ],
+    "closeness": [
+        "Distances are exact, measured over the graph read as undirected.",
+        "Distance counts edges; edge weights are not read.",
+        "A score is the reciprocal of the total distance to the nodes this one can reach, with no correction for how many that is, so a node in a small component scores as though it reached the whole graph."
+    ],
+    "closeness sampled": [
+        "Estimated from 2 sampled sources of 6 nodes, over the graph read as undirected: each node's distances are summed to those sources only, unscaled, so multiply by 2 / 6 to estimate the exact score.",
+        "Distance counts edges; edge weights are not read.",
+        "A score is the reciprocal of the total distance to the nodes this one can reach, with no correction for how many that is, so a node in a small component scores as though it reached the whole graph."
+    ],
+    "pagerank": [
+        "A reader follows a link with probability 0.85 and jumps to a random node otherwise.",
+        "The ranks sum to 1 across the graph.",
+        "Edge weights are not read."
+    ],
+    "pagerank personalized": [
+        "A reader follows a link with probability 0.85 and jumps to a random node otherwise.",
+        "The ranks sum to 1 across the graph.",
+        "The random jump lands on the personalization vector's nodes, in proportion to their values.",
+        "1 personalization entry names a node outside this graph, left out of the random jump.",
+        "Edge weights are not read."
+    ],
+    "pagerank personalization unmatched": [
+        "A reader follows a link with probability 0.85 and jumps to a random node otherwise.",
+        "The ranks sum to 1 across the graph.",
+        "No personalization entry gives a node of this graph a positive share, so the random jump lands on any node.",
+        "2 personalization entries name nodes outside this graph, left out of the random jump.",
+        "Edge weights are not read."
+    ],
+    "eigenvector": [
+        "Power iteration reached a tolerance of 0.000001 within 1000 passes.",
+        "Edge weights are not read."
+    ],
+    "katz": [
+        "Every node starts with a base influence of 1, and a path of length k contributes 0.1 to the power k.",
+        "Paths were counted over the graph read as undirected, so an edge carries influence both ways.",
+        "Iteration stops at a tolerance of 0.000001 or after 100 passes, whichever comes first.",
+        "Edge weights are not read."
+    ],
+    "katz capped": [
+        "Every node starts with a base influence of 1, and a path of length k contributes 0.1 to the power k.",
+        "Paths were counted over the graph read as undirected, so an edge carries influence both ways.",
+        "Iteration stops at a tolerance of 0.000001 or after 1 passes, whichever comes first.",
+        "It stopped at the 1-pass cap without reaching the tolerance.",
+        "Edge weights are not read."
+    ],
+    "hits": [
+        "The published value is the average of this node's hub score and its authority score.",
+        "The hub and authority vectors each have unit length, which is how the iteration leaves them.",
+        "Iteration stops at a tolerance of 0.000001 or after 100 passes, whichever comes first.",
+        "Edge weights are not read."
+    ],
+    "hits capped": [
+        "The published value is the average of this node's hub score and its authority score.",
+        "The hub and authority vectors each have unit length, which is how the iteration leaves them.",
+        "Iteration stops at a tolerance of 0.000001 or after 1 passes, whichever comes first.",
+        "It stopped at the 1-pass cap without reaching the tolerance.",
+        "Edge weights are not read."
+    ],
+    "k-core": [
+        "Counted over the graph read as undirected; edge weights are not read.",
+        "A self-loop does not count toward its node's core number, and parallel edges count once."
+    ],
+    "eigenvector in": [
+        "Power iteration reached a tolerance of 0.000001 within 1000 passes.",
+        "A node is scored by the nodes whose edges point at it.",
+        "Edge weights are not read."
+    ],
+    "eigenvector out": [
+        "Power iteration reached a tolerance of 0.000001 within 1000 passes.",
+        "A node is scored by the nodes its edges point at.",
+        "Edge weights are not read."
+    ],
+    "katz in": [
+        "Every node starts with a base influence of 1, and a path of length k contributes 0.1 to the power k.",
+        "Paths were counted arriving at each node, along the direction each edge was declared in.",
+        "Iteration stops at a tolerance of 0.000001 or after 100 passes, whichever comes first.",
+        "Edge weights are not read."
+    ],
+    "katz out": [
+        "Every node starts with a base influence of 1, and a path of length k contributes 0.1 to the power k.",
+        "Paths were counted leaving each node, along the direction each edge was declared in.",
+        "Iteration stops at a tolerance of 0.000001 or after 100 passes, whichever comes first.",
+        "Edge weights are not read."
+    ],
+    "hits authority unscaled": [
+        "The published value is this node's authority score: how well the nodes pointing at it point.",
+        "The hub and authority vectors were each divided by their own highest score.",
+        "Iteration stops at a tolerance of 0.000001 or after 100 passes, whichever comes first.",
+        "Edge weights are not read."
+    ],
+    "hits hub": [
+        "The published value is this node's hub score: how well the nodes it points at are pointed at.",
+        "The hub and authority vectors each have unit length, which is how the iteration leaves them.",
+        "Iteration stops at a tolerance of 0.000001 or after 100 passes, whichever comes first.",
+        "Edge weights are not read."
+    ],
+    "louvain": ["Resolution 1."],
+    "leiden": ["Resolution 1."],
+    "label propagation": ["Label propagation does not score its own partition, so it reports no modularity."],
+    "girvan-newman": ["Kept the best of 3 successive cuts."],
+    "connected components": ["Strength: weak. An edge joins its two nodes whichever way it was declared."],
+    "strongly connected components": [
+        "Strength: strong. Two nodes share a piece only when a directed path runs each way."
+    ],
+    "dijkstra": ["Route from A to F."],
+    "dijkstra no route": ["No route runs from A to D."],
+    "bellman-ford": ["Route from A to F."],
+    "floyd-warshall": [
+        "Every pair was measured. Each node's value is its eccentricity: the distance to the furthest node it can reach."
+    ],
+    "bfs": ["Walked outwards from A, which is level 0."],
+    "bfs reached": ["Walked outwards from A, which is level 0.", "The walk stopped at F."],
+    "bfs unreached": [
+        "Walked outwards from A, which is level 0.",
+        "The walk never reached D, so it covered everything reachable."
+    ],
+    "dfs": ["Walked from A, recording each node as it was reached."],
+    "dfs post-order": ["Walked from A, recording each node as it was left."],
+    "kruskal": ["The tree joins the graph with 5 edges."],
+    "prim": ["The tree joins the graph with 5 edges."],
+    "bipartite matching": ["The graph does not have two sides, so nothing could be paired up."],
+    "bipartite matching paired": ["2 of the two sides' nodes found a partner."],
+    "max flow": ["Flow from A to F."],
+    "max flow none": ["Flow from A to D.", "There is no directed path from A to D, so no flow can run."],
+    "max flow chosen": [
+        "Flow from A to F.",
+        "The source or sink was chosen automatically (the first and last node); set the source and sink options to measure between the nodes you mean."
+    ],
+    "min cut": ["The cut separates 1 nodes from 5."],
+    "min cut karger": [
+        "Karger's method is randomised: it finds the cheapest cut with high probability, not certainty."
+    ],
+    "strongly connected components undirected": [
+        "Strength: strong. Two nodes share a piece only when a directed path runs each way.",
+        "The graph is undirected: every edge runs both ways, so the pieces are its connected ones."
+    ],
+    "a-star steered": [
+        "Route from A to F.",
+        "Steered by the straight-line distance between the nodes' current positions: the route is the cheapest only when every edge weighs at least the distance it spans."
+    ],
+    "min cut one end": [
+        "The cut separates 1 nodes from 5.",
+        "Only one end was set, so the other was chosen automatically (cut between A and F); set both source and sink to cut between the nodes you mean."
+    ],
+    "clustering coefficient": [
+        "Each node's value is its local clustering coefficient: the share of the pairs of its neighbours that are joined by an edge. A node with fewer than two neighbours scores 0.",
+        "The graph is read as simple and undirected: direction is ignored, parallel edges count once and self-loops not at all."
+    ],
+    "link prediction": ["Only pairs that are not already joined, and that share at least one neighbour, are scored."],
+    "markov clustering": ["Markov clustering does not score its own partition, so it reports no modularity."],
+    "spectral clustering": ["Spectral clustering does not score its own partition, so it reports no modularity."],
+    "hierarchical clustering": [
+        "Distances are hop counts; edge weights are not read.",
+        "Hierarchical clustering does not score its own partition, so it reports no modularity."
+    ],
+    "hierarchical clustering fewer": [
+        "Distances are hop counts; edge weights are not read.",
+        "Hierarchical clustering does not score its own partition, so it reports no modularity.",
+        "5 clusters were asked for; the graph allows 4."
+    ],
+    "a-star": ["Route from A to F."],
+    "a-star no route": ["No route runs from A to D."],
+    "edge betweenness": [
+        "Every shortest path is counted exactly, over the graph read as undirected.",
+        "Path lengths count edges; edge weights are not read."
+    ],
+    "edge betweenness sampled": [
+        "Estimated from the shortest paths of 2 sampled sources of 6 nodes, unscaled.",
+        "Path lengths count edges; edge weights are not read."
+    ]
+}

@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import { GraphtyError } from "../errors";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -20,7 +21,7 @@ import type { OptionsSchema } from "./types/OptionSchema";
  */
 const louvainOptionsSchema = defineOptions({
     resolution: {
-        schema: z.number().min(0.1).max(5.0).default(1.0),
+        schema: z.number().min(0.1).max(5).default(1),
         meta: {
             label: "Resolution",
             description: "Higher = more communities, lower = fewer larger communities",
@@ -85,11 +86,11 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
     static optionsSchema: OptionsSchema = {
         resolution: {
             type: "number",
-            default: 1.0,
+            default: 1,
             label: "Resolution",
             description: "Higher = more communities, lower = fewer larger communities",
             min: 0.1,
-            max: 5.0,
+            max: 5,
             step: 0.1,
         },
         maxIterations: {
@@ -176,7 +177,7 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
                 direction: "undirected",
                 ...this.weightCaveats(),
                 precision,
-                notes: [`Resolution ${String(resolution)}.`],
+                facts: [caveat("community.resolution", { resolution })],
             }),
         };
     }

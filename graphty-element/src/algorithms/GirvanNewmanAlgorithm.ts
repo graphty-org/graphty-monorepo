@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -180,10 +181,11 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
                 direction: "undirected",
                 ...this.weightCaveats(),
                 precision,
-                notes:
+                facts: [
                     levels.length === 1
-                        ? ["No edge could be cut, so every node is its own community."]
-                        : [`Kept the best of ${String(levels.length)} successive cuts.`],
+                        ? caveat("girvan-newman.no-cut")
+                        : caveat("girvan-newman.best-of", { cuts: levels.length }),
+                ],
             }),
         };
     }

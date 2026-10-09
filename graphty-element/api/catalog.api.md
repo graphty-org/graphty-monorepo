@@ -241,6 +241,15 @@ export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
 export type ChannelValueKind = "color" | "number" | "text" | "boolean" | "enum" | "labelStyle" | "nothing";
 
 // @public
+export interface CodedFact<Code extends string = string> {
+    readonly code: Code;
+    readonly params: Readonly<Record<string, CodedFactParam>>;
+}
+
+// @public
+export type CodedFactParam = string | number | boolean | null | readonly (string | number | boolean | null)[];
+
+// @public
 export interface ColorValue extends Rgba {
     readonly hex: string;
 }
@@ -315,8 +324,10 @@ export type Encoding = Partial<Record<Channel, Binding>>;
 export interface FieldBand {
     above?: number;
     atLeast?: number;
+    // @deprecated
     description: string;
     id: string;
+    // @deprecated
     plainName: string;
 }
 
@@ -346,6 +357,7 @@ export interface FieldDescriptor {
 export interface FieldInterpretation {
     bands: readonly FieldBand[];
     source: string;
+    // @deprecated
     summary: string;
 }
 
@@ -987,6 +999,7 @@ export function layoutIdForEngine(engine: string): LayoutId | undefined;
 // @public
 export interface LayoutImplementation {
     engine: string;
+    fact: CodedFact<LayoutImplementationCode>;
     honoursWeights: boolean;
     isDefault: boolean;
     // (undocumented)
@@ -997,6 +1010,7 @@ export interface LayoutImplementation {
     options: readonly OptionDescriptor[];
     // (undocumented)
     plainName: string;
+    // @deprecated
     reason: string;
     requires?: {
         accelerator?: boolean;
@@ -1005,6 +1019,9 @@ export interface LayoutImplementation {
     // (undocumented)
     technicalName: string;
 }
+
+// @public
+export type LayoutImplementationCode = "implementation.only" | "implementation.only-uncrossed-rows" | "implementation.default-processor" | "implementation.d3-tuning" | "implementation.gephi-look" | "implementation.seed-reproducible" | "implementation.accelerator-only" | "implementation.distance-faithful" | "implementation.two-dimensional";
 
 // @public
 export interface LegacyAlgorithmKey {

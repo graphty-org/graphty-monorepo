@@ -166,6 +166,7 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
 
         for (let frame = 0; frame < FRAMES; frame++) {
             graph.scene.render();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise<void>((done) => {
                 setTimeout(done, FRAME_MS);
             });

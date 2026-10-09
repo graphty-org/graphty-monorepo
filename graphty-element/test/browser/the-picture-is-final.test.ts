@@ -155,6 +155,7 @@ describe("knowing the picture is final", () => {
                 {
                     ...(options as object),
                     extraInitializationsAsync: async () => {
+                        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
                         await new Promise((resolve) => setTimeout(resolve, SHADER_DELAY_MS));
                         await initialise();
                     },
@@ -178,6 +179,7 @@ describe("knowing the picture is final", () => {
         container.remove();
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "does not call the picture final at the moment the layout settles",
         async () => {
@@ -219,6 +221,7 @@ describe("knowing the picture is final", () => {
         CASE_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "resolves only once nothing moves again",
         async () => {
@@ -228,6 +231,7 @@ describe("knowing the picture is final", () => {
 
             const before = picture();
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, TAIL_MS));
 
             const after = picture();
@@ -238,6 +242,7 @@ describe("knowing the picture is final", () => {
         CASE_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "announces the final picture once, on an event any consumer can subscribe to",
         async () => {
@@ -260,6 +265,7 @@ describe("knowing the picture is final", () => {
         CASE_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "does not call the picture final while a style edit is still waiting to be drawn",
         async () => {
@@ -297,6 +303,7 @@ describe("knowing the picture is final", () => {
         CASE_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "does not call the picture final while a mesh's shader is still arriving",
         async () => {
@@ -319,6 +326,7 @@ describe("knowing the picture is final", () => {
 
             const final = await histogram();
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, SHADER_DELAY_MS + TAIL_MS));
 
             const later = await histogram();
@@ -332,6 +340,7 @@ describe("knowing the picture is final", () => {
         CASE_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "does not call the picture final while a glow's shaders are still arriving",
         async () => {
@@ -355,6 +364,7 @@ describe("knowing the picture is final", () => {
 
             const final = await histogram();
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, SHADER_DELAY_MS + TAIL_MS));
 
             const later = await histogram();
@@ -368,6 +378,7 @@ describe("knowing the picture is final", () => {
         CASE_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "fails out loud rather than handing back a moving picture",
         async () => {
@@ -449,6 +460,7 @@ describe("the helper every story captures through", () => {
         container.remove();
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "does not hand a story back until the element says the picture is final",
         async () => {

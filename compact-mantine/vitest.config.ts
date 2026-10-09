@@ -122,9 +122,25 @@ const mouseUp: BrowserCommand<[]> = async (ctx) => {
     await ctx.page.mouse.up();
 };
 
+/**
+ * Node-side helpers for the measurement harness (tests/harness) and tests/setup.browser.ts. Both
+ * browser projects load that setup file, so both register the same commands.
+ */
+const browserCommands = {
+    figmaAvailable,
+    readFigmaCapture,
+    mouseAway,
+    mouseDown,
+    mouseUp,
+    touchDrag,
+    emulateReducedMotion,
+};
+
 export default defineConfig({
     plugins: [react()],
     test: {
+        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
+        globalSetup: ["../tools/test-slots.mjs"],
         reporters: ["default", ...ciJunitReporter()],
         projects: [
             // Default project - runs in JSDOM
@@ -136,8 +152,9 @@ export default defineConfig({
                     setupFiles: ["./tests/setup.ts"],
                     include: ["tests/**/*.test.{ts,tsx}", "src/**/*.test.{ts,tsx}"],
                     exclude: [
-                        // Browser tests run in separate project
+                        // Browser tests run in separate projects
                         "tests/**/*.browser.test.{ts,tsx}",
+                        "tests/**/*.storybook.test.{ts,tsx}",
                         // Standard excludes
                         "**/node_modules/**",
                         "**/dist/**",
@@ -165,16 +182,26 @@ export default defineConfig({
                         instances: [{ browser: "chromium" }],
                         // Disable file parallelism to prevent race conditions
                         fileParallelism: false,
-                        // Node-side helpers for the measurement harness (tests/harness).
-                        commands: {
-                            figmaAvailable,
-                            readFigmaCapture,
-                            mouseAway,
-                            mouseDown,
-                            mouseUp,
-                            touchDrag,
-                            emulateReducedMotion,
-                        },
+                        commands: browserCommands,
+                    },
+                },
+            },
+            // Storybook project - every story rendered and its play function run, in Chromium
+            {
+                optimizeDeps: { include: ["react/jsx-dev-runtime"] },
+                test: {
+                    name: "storybook",
+                    setupFiles: ["./tests/setup.browser.ts"],
+                    include: ["tests/**/*.storybook.test.{ts,tsx}"],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        provider: playwright(),
+                        instances: [{ browser: "chromium" }],
+                        commands: browserCommands,
+                        // addon-vitest's default story viewport (DEFAULT_VIEWPORT_DIMENSIONS).
+                        viewport: { width: 1200, height: 900 },
                     },
                 },
             },

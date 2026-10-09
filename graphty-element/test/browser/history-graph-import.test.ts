@@ -84,6 +84,7 @@ function ids(element: Graphty): unknown[] {
 }
 
 describe("loading data into the element, under undo", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a data source in the markup is the baseline: Undo is off once it has loaded",
         async () => {
@@ -102,6 +103,7 @@ describe("loading data into the element, under undo", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "node and edge data declared before the first update are the baseline too",
         async () => {
@@ -117,6 +119,7 @@ describe("loading data into the element, under undo", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a load after the element is up is one step, and the two source properties in one tick are one load",
         async () => {
@@ -144,6 +147,7 @@ describe("loading data into the element, under undo", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a declared load that fails leaves nothing to undo, and a later edit is a step",
         async () => {
@@ -167,6 +171,7 @@ describe("loading data into the element, under undo", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "setData is one step, and so is assigning the edges",
         async () => {
@@ -196,6 +201,7 @@ describe("loading data into the element, under undo", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a pin does not outlive its node: pin 1, clear, load a graph reusing 1, and nothing is pinned",
         async () => {

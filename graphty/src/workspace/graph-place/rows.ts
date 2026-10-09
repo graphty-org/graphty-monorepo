@@ -7,9 +7,11 @@
 import type { Channel, LayerId, RunId } from "@graphty/graphty-element/catalog";
 import { type GraphSession, RESULT_SHAPE_CONTRACTS, type Run, type StaleNote } from "@graphty/graphty-element/session";
 
-import { runName } from "../analyze/words";
+import { runName } from "../runWords";
 import { count } from "../inspector/words";
 import { colorBlockOf, EVERYTHING_KEY, groupHidden, runColorOf } from "../style/row";
+
+import { runName } from "../runWords";
 
 /** The kind of a row, which is also the inspected kind a click on it opens (the inspector's kinds). */
 export type RowKind = "selection-row" | "measure-row" | "run-row" | "group-row" | "layer-row" | "everything-row";

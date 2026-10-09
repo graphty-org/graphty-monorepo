@@ -239,6 +239,9 @@ export function createSystemPromptBuilder(): SystemPromptBuilder;
 export function createWebLlmProvider(): Promise<LlmProvider>;
 
 // @public
+export function deriveKeyFromPassphrase(passphrase: string, salt?: string): Promise<string>;
+
+// @public
 export const describeProperty: GraphCommand;
 
 // @public
@@ -307,6 +310,7 @@ export interface LlmProvider {
     configure(options: ProviderOptions): void;
     generate(messages: Message[], tools: ToolDefinition[], options?: {
         signal?: AbortSignal;
+        toolChoice?: "auto" | "none";
     }): Promise<LlmResponse>;
     generateStream(messages: Message[], tools: ToolDefinition[], callbacks: StreamCallbacks, signal?: AbortSignal): Promise<void>;
     readonly name: string;
@@ -540,6 +544,7 @@ export class VercelAiProvider implements LlmProvider {
     configure(options: ProviderOptions): void;
     generate(messages: Message[], tools: ToolDefinition[], options?: {
         signal?: AbortSignal;
+        toolChoice?: "auto" | "none";
     }): Promise<LlmResponse>;
     generateStream(messages: Message[], tools: ToolDefinition[], callbacks: StreamCallbacks, signal?: AbortSignal): Promise<void>;
     // (undocumented)
@@ -575,9 +580,11 @@ export type VoiceStartCallback = (started: boolean, error?: string) => void;
 // @public
 export interface WebLlmModelInfo {
     description?: string;
+    downloadMB?: number;
     id: string;
     name: string;
     size: string;
+    supportsTools?: boolean;
 }
 
 // @public

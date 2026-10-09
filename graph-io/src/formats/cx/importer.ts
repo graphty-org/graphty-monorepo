@@ -86,7 +86,6 @@ import {
     CxStructure,
     declareFresh,
     ExactInteger,
-    fitsF32,
     flipY,
     headText,
     inexactLiteral,
@@ -472,8 +471,8 @@ const UNSET = Symbol("unset");
 
 const I32_MIN = -2147483648;
 const I32_MAX = 2147483647;
-const INTEGER_TEXT = /^-?[0-9]+$/;
-const DECIMAL_TEXT = /^-?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?$/;
+const INTEGER_TEXT = /^-?\d+$/;
+const DECIMAL_TEXT = /^-?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 
 /**
  * Whether a text is Cytoscape's null: the empty string or "null" in any case.
@@ -732,7 +731,7 @@ function aspect(doc: CxDocument, name: string): readonly Held[] {
  * @returns the bits
  */
 function inexactBits(text: string, keys: readonly string[], depth = 1): number {
-    if (!/[0-9][.eE]/.test(text)) {
+    if (!/\d[.eE]/.test(text)) {
         return 0;
     }
     let bits = 0;
@@ -2445,11 +2444,11 @@ class CxReader {
                 );
                 continue;
             }
-            if (!fitsF32(value.x) || !fitsF32(value.y)) {
+            if (!Number.isFinite(value.x) || !Number.isFinite(value.y)) {
                 this.report.error(
                     "validation-error",
                     BAD_VALUE_CODE,
-                    `a cartesianLayout element for node ${shown(value.node)} has the coordinates ${String(value.x)}, ${String(value.y)}, beyond what the f32 position column holds; skipped`,
+                    `a cartesianLayout element for node ${shown(value.node)} has the coordinates ${String(value.x)}, ${String(value.y)}, which are not both finite; skipped`,
                     { line, element: "cartesianLayout" },
                 );
                 continue;

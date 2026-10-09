@@ -150,6 +150,7 @@ async function setupCamera(page: PageLike, position: CameraPosition): Promise<vo
     await page.mouse.up();
 
     // Wait for camera to settle
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await page.waitForTimeout(500);
 }
 
@@ -216,6 +217,7 @@ async function enableAxesViewer(page: PageLike): Promise<void> {
     });
 
     // Wait for axes to be created and rendered
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await page.waitForTimeout(500);
 }
 
@@ -245,6 +247,7 @@ async function captureScreenshots(storyId: string, showAxes = false): Promise<vo
         console.log("Component loaded");
 
         // Wait for initial render to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await page.waitForTimeout(2000);
 
         const timestamp = getTimestamp();

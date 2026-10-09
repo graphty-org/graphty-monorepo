@@ -11,9 +11,9 @@
  * Copied from packages/graph-io/scripts/bundle-types.js; the code is unchanged, only this header differs.
  */
 
-import { existsSync, writeFileSync } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { existsSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { ACQUIRE_SHIM, declarationSpecifier, ENTRIES } from "./entries.js";
 

@@ -675,6 +675,8 @@ function field(
 const BETWEENNESS: EncodingRun = {
     id: "betweenness",
     label: "Betweenness",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "betweenness",
     params: { normalized: true },
     shape: "node-metric",
@@ -690,6 +692,8 @@ const BETWEENNESS: EncodingRun = {
 const LOUVAIN: EncodingRun = {
     id: "louvain",
     label: "Communities",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "louvain",
     params: {},
     shape: "community",
@@ -700,6 +704,8 @@ const LOUVAIN: EncodingRun = {
 const FLOW: EncodingRun = {
     id: "flow",
     label: "Flow",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "max-flow",
     params: {},
     shape: "edge-metric",
@@ -710,6 +716,8 @@ const FLOW: EncodingRun = {
 const ROUTE: EncodingRun = {
     id: "route",
     label: "Shortest Path",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "shortest-path",
     params: {},
     shape: "path",
@@ -720,6 +728,8 @@ const ROUTE: EncodingRun = {
 const CUT: EncodingRun = {
     id: "cut",
     label: "Weakest link",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "min-cut",
     params: {},
     shape: "edge-set",
@@ -730,6 +740,8 @@ const CUT: EncodingRun = {
 const PAIRS: EncodingRun = {
     id: "pairs",
     label: "Link Prediction",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "link-prediction",
     params: {},
     shape: "pair-list",

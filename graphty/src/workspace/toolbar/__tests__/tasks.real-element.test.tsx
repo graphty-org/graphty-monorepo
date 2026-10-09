@@ -99,6 +99,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await page.viewport(1366, 768);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T7: Analyze > PageRank runs, lands painted, and Analyze then offers to update its row",
         async () => {
@@ -140,6 +141,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Analyze picks and runs from the keyboard alone: a single match on Enter, Arrow keys otherwise",
         async () => {
@@ -186,6 +188,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T11: the Layout popover shows the recommended layout and choosing another lays out again, one undo step",
         async () => {
@@ -225,6 +228,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "names the view mode on the View tool and offers 2D, 3D and VR or AR from its menu",
         async () => {

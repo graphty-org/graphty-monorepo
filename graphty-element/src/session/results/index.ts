@@ -11,7 +11,7 @@
  * Nothing in this module's import graph reaches Babylon.js, Lit or the DOM.
  */
 
-export { defaultReading } from "./reading";
+export { englishReading } from "./reading";
 export { createResultsApi, type ResultsRunEntry } from "./ResultsApi";
 export { createRunResult, type ResultElementValues } from "./RunResult";
 export {
@@ -23,6 +23,7 @@ export {
     type Normalization,
     type NumericColumnView,
     type RankingEntry,
+    type ReadingCode,
     type ReadingOptions,
     RESULT_FIELD_NAMES,
     RESULT_PATH_RUN_PLACEHOLDER,

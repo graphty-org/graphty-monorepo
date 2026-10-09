@@ -3,7 +3,8 @@ import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { ActionIcon, Anchor, Box, ColorSwatch, Group, Menu, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { runName, wordsFor } from "../analyze/words";
+import { wordsFor } from "../analyze/words";
+import { runName } from "../runWords";
 import { useAttributeActions } from "../data-place/attributeActions";
 import { FilterStepEditor } from "../data-place/Filters";
 import { stepEditorName } from "../data-place/filterSteps";

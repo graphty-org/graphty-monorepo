@@ -142,6 +142,7 @@ describe("the cost of drawing a whole graph", () => {
     for (const [nodeCount, edgeCount] of GRAPHS) {
         const name = `${String(nodeCount)} nodes, ${String(edgeCount)} edges`;
 
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `stays within its baseline for ${name}`,
             async () => {

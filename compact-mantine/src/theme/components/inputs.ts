@@ -81,6 +81,16 @@ function fieldLook(variant: string | undefined, fallback: "filled" | "outlined")
 }
 
 /**
+ * The label, description and error of every field and of a bare `Input.Wrapper` (a label above
+ * a SegmentedControl): one set on InputWrapper, so a form's labels cannot drift apart.
+ */
+const FIELD_TEXT_CLASS_NAMES = {
+    label: "cm-field-label",
+    description: "cm-field-description",
+    error: "cm-field-error",
+};
+
+/**
  * The classNames every field shares.
  * @param fallback - the look of a variant this family does not name
  * @param extra - classes the wrapper also takes (`cm-select`, `cm-pills-field`, ...)
@@ -99,9 +109,6 @@ function fieldClassNames(fallback: "filled" | "outlined", extra = "") {
             wrapper,
             input: "cm-input",
             section: "cm-input-section",
-            label: "cm-field-label",
-            description: "cm-field-description",
-            error: "cm-field-error",
         };
     };
 }
@@ -184,15 +191,9 @@ function listVars(
 }
 
 export const inputComponentExtensions = {
-    // A bare `Input.Wrapper` (around a SegmentedControl, a Slider, a group of checkboxes) takes the
-    // fields' label, description and error. Without it Mantine sizes the description from the
-    // wrapper's size minus 2px: 7px at `size="xs"`, too small to read.
-    InputWrapper: InputWrapper.extend({
-        classNames: (_theme, props) =>
-            props.variant === "unstyled"
-                ? {}
-                : { label: "cm-field-label", description: "cm-field-description", error: "cm-field-error" },
-    }),
+    // Every field's wrapper is also styled under this name (Mantine's useStyles names it
+    // ["InputWrapper", "Select"]), so this one entry themes the label of every field.
+    InputWrapper: InputWrapper.extend({ classNames: FIELD_TEXT_CLASS_NAMES }),
 
     TextInput: TextInput.extend({
         defaultProps: { size: "sm", variant: "filled" },

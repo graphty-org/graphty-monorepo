@@ -1,3 +1,48 @@
+## 0.9.13 (2026-10-09)
+
+### 🩹 Fixes
+
+- **compact-mantine:** register the browser commands for the storybook test project ([#1566](https://github.com/graphty-org/graphty-monorepo/issues/1566), [#1480](https://github.com/graphty-org/graphty-monorepo/issues/1480))
+- **compact-mantine:** theme Input.Wrapper labels like every field label ([#877](https://github.com/graphty-org/graphty-monorepo/issues/877))
+- **compact-mantine:** make dimmed text meet AA under the high-contrast tokens ([#2](https://github.com/graphty-org/graphty-monorepo/issues/2), [#1405](https://github.com/graphty-org/graphty-monorepo/issues/1405))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.12 (2026-10-08)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.11 (2026-10-08)
+
+### 🩹 Fixes
+
+- **compact-mantine:** anchor pop-out panels inside transformed ancestors ([#433](https://github.com/graphty-org/graphty-monorepo/issues/433))
+
+### 🔥 Performance
+
+- **compact-mantine:** skip the pop-out scale probe when there is no layout ([#433](https://github.com/graphty-org/graphty-monorepo/issues/433))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.10 (2026-10-08)
+
+### 🩹 Fixes
+
+- **compact-mantine:** a key press warms only a focus that moves after it ([76d3b0636](https://github.com/graphty-org/graphty-monorepo/commit/76d3b0636))
+- **compact-mantine:** announce QuickActions' empty result in an output element ([aeab315b6](https://github.com/graphty-org/graphty-monorepo/commit/aeab315b6))
+- **compact-mantine:** clear the ARIA violations axe reports on ten components' stories ([#430](https://github.com/graphty-org/graphty-monorepo/issues/430))
+- **compact-mantine:** the accent follows the theme's primaryColor ([#0](https://github.com/graphty-org/graphty-monorepo/issues/0), [#437](https://github.com/graphty-org/graphty-monorepo/issues/437))
+- **compact-mantine:** settle the SplitButton keyboard story before capture ([#1305](https://github.com/graphty-org/graphty-monorepo/issues/1305), [#1317](https://github.com/graphty-org/graphty-monorepo/issues/1317))
+- **compact-mantine:** hide a tooltip until its hold is decided ([#1294](https://github.com/graphty-org/graphty-monorepo/issues/1294))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.9 (2026-10-07)
 
 ### 🩹 Fixes

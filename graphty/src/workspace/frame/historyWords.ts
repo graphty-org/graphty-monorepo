@@ -11,7 +11,8 @@ import {
     isRunId,
 } from "@graphty/graphty-element/session";
 
-import { runName, wordsFor } from "../analyze/words";
+import { wordsFor } from "../analyze/words";
+import { runName } from "../runWords";
 import { stepChange } from "../data-place/filterSteps";
 import { count } from "../inspector/words";
 import { channelWord } from "../style/words";

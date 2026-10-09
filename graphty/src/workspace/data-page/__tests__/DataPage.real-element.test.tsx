@@ -180,6 +180,7 @@ function assertInOrder(...elements: HTMLElement[]): void {
 }
 
 describe("the Data page on the real element", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T3: opens a graph file with every check green and focus on Load, and Enter loads it",
         async () => {
@@ -216,6 +217,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T4: loads a node CSV and an edge CSV as one network with the match report",
         async () => {
@@ -256,6 +258,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a table with a row the load leaves out wears a warning with the count, and only the way back shows",
         async () => {
@@ -358,6 +361,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T5: refuses a file that does not parse, naming the format it was read as",
         async () => {
@@ -371,6 +375,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "names the columns when no column links the edges, and loads once the reader sets From, To and Weight",
         async () => {
@@ -417,6 +422,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reads the file again when File settings change",
         async () => {
@@ -641,6 +647,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Add data... adds to the open project without renaming it",
         async () => {
@@ -678,6 +685,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reads a new-graph door inside a project as Add to the project",
         async () => {
@@ -693,6 +701,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Cancel and Esc return to where the reader came from",
         async () => {

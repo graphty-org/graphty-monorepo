@@ -12,7 +12,7 @@ import {
     type RunResult,
 } from "@graphty/graphty-element/session";
 
-import { runName } from "../analyze/words";
+import { runName } from "../runWords";
 
 /** A finished run with its result, and the field its result is read by. */
 interface FinishedRun {

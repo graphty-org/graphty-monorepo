@@ -13,7 +13,7 @@ import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Binding, Channel, ChannelValue, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
 import type { ColumnRef, GraphSession, Layer } from "@graphty/graphty-element/session";
 
-import { runName } from "../analyze/words";
+import { runName } from "../runWords";
 import { resultWord } from "./words";
 
 /** Which side of the Style tab: nodes or edges. */

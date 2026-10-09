@@ -34,6 +34,7 @@ function unweightedSnapshotOf(edges: EdgeArrays, label: string): GraphSnapshot {
 }
 
 describe("breadthFirstSearch at the gate's unscaled sizes (node-limits, P8-T15)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the 1000 x 1000 grid from the corner: 1,999 levels, depth exact, ceil(levels / 32) + 1 mapAsync calls after the self-check", async (t) => {
         requireGpu(t);
         const { device } = await acquireRaw();
@@ -62,6 +63,7 @@ describe("breadthFirstSearch at the gate's unscaled sizes (node-limits, P8-T15)"
         counter.restore();
     }, 600_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the 1M / 10M R-MAT tier from node 0: an 84 MB edge queue, depth exact, order grouped, at least one direction switch", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "limits/bfs-1m" });

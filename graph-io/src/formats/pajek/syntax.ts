@@ -15,7 +15,7 @@
 export const LABEL_COLUMN = "label";
 
 /**
- * The node column holding the vertex coordinates (role position, f32 x 3, units "file").
+ * The node column holding the vertex coordinates (role position, f64 x 3, units "file").
  * @category Plugin helpers
  */
 export const POSITION_COLUMN = "position";
@@ -143,9 +143,8 @@ const SECTION_KINDS: ReadonlyMap<string, SectionKind> = new Map([
     ["vector", "vector"],
 ]);
 
-const INTEGER_TEXT = /^[+-]?[0-9]+$/;
-const TIME_POINT =
-    /^(\*|[+-]?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)(?:-(\*|[+-]?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?))?$/;
+const INTEGER_TEXT = /^[+-]?\d+$/;
+const TIME_POINT = /^(\*|[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:-(\*|[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?))?$/;
 
 /**
  * What tokenize() noticed in a line beyond its tokens, for the importer to report.

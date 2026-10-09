@@ -200,6 +200,7 @@ afterEach(() => {
 });
 
 describe("T14: save and reopen, on the real element", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "keeps the project in this browser, saves again without asking, and reopens it from Recent projects",
         async () => {
@@ -301,6 +302,7 @@ describe("T14: save and reopen, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "leaves an unsaved project unsaved after Save local copy...",
         async () => {
@@ -322,6 +324,7 @@ describe("T14: save and reopen, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "renames through the element: the new name is unsaved and survives an edit",
         async () => {
@@ -384,6 +387,7 @@ describe("T14: save and reopen, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "asks before Back to start or New project throws away unsaved changes",
         async () => {

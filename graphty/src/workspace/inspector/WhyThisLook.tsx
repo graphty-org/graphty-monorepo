@@ -3,7 +3,7 @@ import type { Channel, ExplainTarget, LayerSource } from "@graphty/graphty-eleme
 import { Anchor, ColorSwatch, Group, Text } from "@mantine/core";
 import type React from "react";
 
-import { runName } from "../analyze/words";
+import { runName } from "../runWords";
 import { useWorkspace } from "../state/WorkspaceContext";
 import type { Resolved } from "./inspected";
 import { hexOf } from "./reads";

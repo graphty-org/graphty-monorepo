@@ -262,7 +262,7 @@ export class ScreenshotCapture {
             let enhancementStartTime: number | undefined;
             if (finalOptions.enhanceQuality) {
                 enhancementStartTime = Date.now();
-                this.graph.eventManager.emitGraphEvent("screenshot-enhancing", {});
+                this.graph.eventManager.emit("screenshot-enhancing", {});
 
                 // Normalize enhanceQuality to options object
                 const enhancementOptions: QualityEnhancementOptions =
@@ -336,7 +336,7 @@ export class ScreenshotCapture {
 
                 // Emit screenshot-ready event with enhancement info
                 if (finalOptions.enhanceQuality) {
-                    this.graph.eventManager.emitGraphEvent("screenshot-ready", { enhancementTime });
+                    this.graph.eventManager.emit("screenshot-ready", { enhancementTime });
                 }
 
                 return {
@@ -785,7 +785,7 @@ export class ScreenshotCapture {
             state.pipeline = pipeline;
         } else if (useFxaa) {
             // FXAA only, no pipeline needed
-            const fxaa = new FxaaPostProcess("screenshotFxaa", 1.0, camera);
+            const fxaa = new FxaaPostProcess("screenshotFxaa", 1, camera);
             state.fxaaPostProcess = fxaa;
         }
 

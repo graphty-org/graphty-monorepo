@@ -10,6 +10,7 @@ const defaultProps = {
 };
 
 const wait = (ms: number) =>
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     new Promise((resolve) => {
         setTimeout(resolve, ms);
     });

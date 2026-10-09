@@ -168,6 +168,7 @@ describe("framing the graph", () => {
      * @returns A promise that resolves once that long has passed.
      */
     async function draw(ms: number): Promise<void> {
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         return new Promise<void>((done) => {
             setTimeout(done, ms);
         });
@@ -208,6 +209,7 @@ describe("framing the graph", () => {
         return worst;
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "frames the graph the layout has produced, not the one it produced a step earlier",
         async () => {
@@ -227,6 +229,7 @@ describe("framing the graph", () => {
         CASE_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "honours a zoomToFit() asked for after the layout has stopped",
         async () => {

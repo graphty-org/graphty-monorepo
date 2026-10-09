@@ -14,7 +14,7 @@ export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "
 export { browserProjects } from "./browserProjects";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
-export type { LayoutRecommendation, LayoutRecommendationOptions } from "./layout";
+export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
 export type { DefaultableLimits } from "./limits";
 export { DEFAULT_LIMITS } from "./limits";

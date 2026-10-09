@@ -6,7 +6,8 @@
 
 import type { CostEstimate, GraphSession } from "@graphty/graphty-element/session";
 
-import { runName, wordsFor } from "../analyze/words";
+import { wordsFor } from "../analyze/words";
+import { runName } from "../runWords";
 
 /** The algorithm the app points a reader to when a layout needs groups and none exist. */
 const GROUPING_ALGORITHM = "louvain";

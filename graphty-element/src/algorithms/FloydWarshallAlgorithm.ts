@@ -2,6 +2,7 @@ import { APSP_DEFAULT_MAX_NODES } from "@graphty/algorithms";
 
 import { GraphtyError } from "../errors";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { SimplifyPolicy } from "./input/derivedInputs";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
@@ -76,10 +77,7 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
         const { dist, n, hasNegativeCycle } = value;
         const { ids } = snapshot;
 
-        const notes = [
-            "Every pair was measured. Each node's value is its eccentricity: the distance to the " +
-                "furthest node it can reach.",
-        ];
+        const facts = [caveat("floyd-warshall.eccentricity")];
 
         // Under a negative cycle no distance is defined -- the matrix is all NaN -- so there is no
         // eccentricity, diameter or radius to publish, only the fact of the cycle.
@@ -87,7 +85,7 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
         let diameter = 0;
         let radius = Infinity;
         if (hasNegativeCycle) {
-            notes.push("The graph has a negative cycle, so no distance is defined and none was published.");
+            facts.push(caveat("negative-cycle.no-distance"));
         } else {
             // Eccentricity: how far the furthest reachable node is, read along the node's row.
             // Unreachable nodes are skipped rather than counted as infinitely far, which is what
@@ -123,7 +121,7 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
                 direction: "undirected",
                 ...this.weightCaveats(),
                 precision,
-                notes,
+                facts,
             }),
         };
     }

@@ -23,6 +23,7 @@ export const CAVEATS: Caveats = Object.freeze({
     weight: null,
     precision: "f64",
     method: "test",
+    facts: [],
     notes: [],
 });
 
@@ -268,6 +269,7 @@ export function stubResult(runId: RunId): RunResult {
         groupSizes: () => ({ bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" }),
         summary: stubSummary,
         reading: () => "A stub result.",
+        readingFact: () => ({ code: "reading.metric-empty", params: { field: "value" } }),
         band: () => undefined,
     };
 }
@@ -300,5 +302,6 @@ export function spyExecutor(body?: (context: RunExecutionContext) => Promise<voi
 
 /** Wait for the microtask and timer queues to turn over. */
 export async function settle(ms = 0): Promise<void> {
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, ms));
 }

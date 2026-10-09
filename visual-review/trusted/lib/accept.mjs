@@ -26,7 +26,17 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { PASSKEYS_FILE, parsePasskeys, recordHash, verifyApproval } from "./approval.mjs";
-import { commentOnPullRequest, createIssue, createPullRequest, exec, postStatus } from "./github.mjs";
+import {
+    commentOnPullRequest,
+    createIssue,
+    createPullRequest,
+    exec,
+    NETWORK,
+    postStatus,
+    RETRY_DELAYS,
+    retryOnNetwork,
+    UNSENT,
+} from "./github.mjs";
 import { isLfsPointer, sha256 } from "./compare.mjs";
 import { reviewGaps } from "../gate.mjs";
 
@@ -68,6 +78,13 @@ const git = (cwd, args, input) =>
         input,
         env: { ...process.env, HUSKY: "0", GIT_LFS_SKIP_SMUDGE: "1", GIT_TERMINAL_PROMPT: "0" },
     });
+
+/**
+ * git's options for work that moves LFS pointer files between commits and never reads an image
+ * (update from master): no LFS filter, so a pointer stays a pointer, and no checkout, merge, diff
+ * or commit starts git-lfs, which starts eight git processes of its own every time.
+ */
+const NO_LFS = ["process=", "smudge=", "clean=", "required=false"].flatMap((v) => ["-c", `filter.lfs.${v}`]);
 
 /** Images per `git lfs push --object-id`, so a large seed reports its upload as it goes. */
 const LFS_BATCH = 50;
@@ -236,7 +253,9 @@ function check(projects, decisions, pr) {
  * @param {number} [input.undecided] how many reviewable items are left undecided, for the status
  * @param {string[]} [input.unloaded] the projects whose capture did not load, so nobody reviewed them
  * @param {Date} [input.now] the review time
- * @param {(step: string) => void} [input.progress] told each step as it starts, for the page
+ * @param {(step: string) => void} [input.progress] told each step as it starts, for the page, and
+ *     again with "(retrying after a network error, attempt n of N)" when a step's network call failed
+ * @param {number[]} [input.retryDelays] milliseconds before each retry of a network call
  * @param {ReturnType<typeof import("./config.mjs").normalizeConfig>} input.config the settings
  * @param {{ record: object, pendingKeys?: object[], origin: string } | null} [input.approval] the
  *     record prepareRecord built, with the owner's `approval`, the keys registered but not yet on
@@ -260,11 +279,28 @@ export async function finish({
     undecided = 0,
     unloaded = [],
     now = new Date(),
-    progress = () => {},
+    progress: tell = () => {},
+    retryDelays = RETRY_DELAYS,
     config,
     approval = null,
     legacy = null,
 }) {
+    let current = "starting";
+    const progress = (step) => {
+        current = step;
+        tell(step);
+    };
+    // Each network call is tried again while it fails on the network (a DNS lookup that failed,
+    // say), and the page's step says so. A write GitHub may have applied is retried only when the
+    // failure means it never reached GitHub (`unsentOnly`). A call exec stopped for running too
+    // long is not retried: it already took the whole timeout.
+    const net = (label, run, unsentOnly = false) =>
+        retryOnNetwork(run, {
+            label,
+            delays: retryDelays,
+            on: unsentOnly ? UNSENT : NETWORK,
+            onRetry: (w) => tell(`${current} (retrying after a network error, attempt ${w.attempt} of ${w.of})`),
+        });
     progress("checking");
     const { accepts, rejects } = check(projects, decisions, target.pr);
     // Approvals from before passkeys are signed again only with a passkey.
@@ -291,6 +327,7 @@ export async function finish({
             first,
             now,
             progress,
+            net,
             config,
             approval,
             legacy,
@@ -298,12 +335,17 @@ export async function finish({
         if (isMaster) {
             progress("opening the pull request");
             try {
-                pullRequest = await createPullRequest(gh, {
-                    title: `${config.commitPrefix}: seed visual baselines`,
-                    head: branch,
-                    base: config.defaultBranch,
-                    body: seedBody(first, accepts, rejects, notes, config.defaultBranch),
-                });
+                pullRequest = await net(
+                    "opening the pull request",
+                    () =>
+                        createPullRequest(gh, {
+                            title: `${config.commitPrefix}: seed visual baselines`,
+                            head: branch,
+                            base: config.defaultBranch,
+                            body: seedBody(first, accepts, rejects, notes, config.defaultBranch),
+                        }),
+                    true,
+                );
             } catch (err) {
                 const e = new AcceptError(
                     `${branch} was pushed as ${commit.slice(0, 10)}, but opening its pull request failed: ` +
@@ -334,13 +376,18 @@ export async function finish({
                 commit === null ? { record: approval?.record } : { recordFile: record, commit },
             );
             if (isMaster) {
-                issue = await createIssue(gh, {
-                    title: `Visual review: ${rejects.length} ${rejects.length === 1 ? "story" : "stories"} rejected on ${config.defaultBranch}`,
-                    body,
-                    labels: config.issueLabels,
-                });
+                issue = await net(
+                    "opening the issue",
+                    () =>
+                        createIssue(gh, {
+                            title: `Visual review: ${rejects.length} ${rejects.length === 1 ? "story" : "stories"} rejected on ${config.defaultBranch}`,
+                            body,
+                            labels: config.issueLabels,
+                        }),
+                    true,
+                );
             } else {
-                await commentOnPullRequest(gh, target.pr, body);
+                await net("posting the comment", () => commentOnPullRequest(gh, target.pr, body), true);
             }
         } catch (err) {
             if (commit === null) {
@@ -384,7 +431,9 @@ export async function finish({
     let statusError = null;
     progress("posting the status");
     try {
-        await postStatus(gh, commit ?? (isMaster ? first.commit : first.headSha), { state, description: status });
+        // Posting the same status again replaces it, so every network failure is retried.
+        const sha = commit ?? (isMaster ? first.commit : first.headSha);
+        await net("posting the status", () => postStatus(gh, sha, { state, description: status }));
     } catch (err) {
         statusError = err.message;
     }
@@ -488,6 +537,22 @@ export function legacyApprovals({ repo, pr, head, base, config }) {
         .filter((m) => m.path !== PASSKEYS_FILE && covered.has(m.path))
         .map((m) => ({ path: m.path, from: m.from, to: m.to, reason: "approved before passkeys; signed again" }));
     return items.length + drop.length > 0 ? { items, drop } : null;
+}
+
+// The child legacyApprovalsAsync runs: this module's legacyApprovals on its input, as JSON.
+const LEGACY_CHILD =
+    "import(process.argv[1]).then((m) => process.stdout.write(JSON.stringify(m.legacyApprovals(JSON.parse(process.argv[2])))))";
+
+/**
+ * legacyApprovals in a child process. It runs a git call per changed baseline, synchronously: a
+ * pull request changing hundreds of baselines takes seconds, and the server's own thread would
+ * answer no request meanwhile.
+ * @param {Parameters<typeof legacyApprovals>[0]} input as in legacyApprovals
+ * @returns {Promise<ReturnType<typeof legacyApprovals>>} what legacyApprovals returns
+ */
+export async function legacyApprovalsAsync(input) {
+    const out = await exec(process.execPath, ["-e", LEGACY_CHILD, import.meta.url, JSON.stringify(input)]);
+    return JSON.parse(out);
 }
 
 /**
@@ -619,6 +684,8 @@ async function keysAt(repo, ref) {
  * @param {object} input.first the results.json of the first decided project
  * @param {Date} input.now the review time
  * @param {(step: string) => void} input.progress as in finish
+ * @param {(label: string, run: (attempt: number) => Promise<any>) => Promise<any>} input.net runs
+ *     a network call, again while it fails on the network
  * @param {object} input.config as in finish
  * @param {{ record: object, pendingKeys?: object[], origin: string } | null} input.approval as in finish
  * @param {{ items: object[], drop: string[] } | null} [input.legacy] as in finish
@@ -633,6 +700,7 @@ async function commitAccepts({
     first,
     now,
     progress,
+    net,
     config,
     approval,
     legacy = null,
@@ -641,7 +709,10 @@ async function commitAccepts({
     // Finish fetches into refs of its own, never the remote-tracking refs a page reload fetches
     // into at the same time (two fetches of one ref fail on its lock).
     const own = (b) => `refs/visual-review/origin/${b}`;
-    const fetch = (b) => git(repo, ["fetch", "-q", "--no-write-fetch-head", "origin", `+refs/heads/${b}:${own(b)}`]);
+    const fetch = (b) =>
+        net(`git fetch ${b}`, () =>
+            git(repo, ["fetch", "-q", "--no-write-fetch-head", "origin", `+refs/heads/${b}:${own(b)}`]),
+        );
     const tracking = own(defaultBranch);
     const isMaster = target.pr === null;
     const lfs = await lfsProblem(repo);
@@ -680,7 +751,7 @@ async function commitAccepts({
 
     await fetch(defaultBranch);
     if (isMaster) {
-        if ((await git(repo, ["ls-remote", "--heads", "origin", branch])) !== "") {
+        if ((await net("git ls-remote", () => git(repo, ["ls-remote", "--heads", "origin", branch]))) !== "") {
             // A seed this tool pushed whose pull request failed to open is used as it is.
             // ponytail: assumes the decisions did not change since that push; compare the trees if
             // they can.
@@ -791,12 +862,20 @@ async function commitAccepts({
         const oids = [...new Set(writes.filter((w) => w.bytes).map((w) => w.item.capture))];
         for (let i = 0; i < oids.length; i += LFS_BATCH) {
             progress(`uploading images to LFS (${i} of ${oids.length} done)`);
-            await git(tree, ["lfs", "push", "--object-id", "origin", ...oids.slice(i, i + LFS_BATCH)]);
+            const batch = oids.slice(i, i + LFS_BATCH);
+            await net("git lfs push", () => git(tree, ["lfs", "push", "--object-id", "origin", ...batch]));
         }
         progress("uploading images to LFS (checking the commit has them all)");
-        await git(tree, ["lfs", "push", "origin", "HEAD"]);
+        await net("git lfs push", () => git(tree, ["lfs", "push", "origin", "HEAD"]));
         progress("pushing");
-        await git(tree, ["push", "-q", "--no-verify", "origin", `HEAD:refs/heads/${branch}`]).catch((err) => {
+        const head = await git(tree, ["rev-parse", "HEAD"]);
+        await net("git push", async (attempt) => {
+            // A push whose connection dropped may have landed: a later attempt checks before pushing.
+            const tip = attempt > 1 ? await git(tree, ["ls-remote", "origin", `refs/heads/${branch}`]) : "";
+            if (tip.split("\t")[0] !== head) {
+                await git(tree, ["push", "-q", "--no-verify", "origin", `HEAD:refs/heads/${branch}`]);
+            }
+        }).catch((err) => {
             // git's own advice ("git pull") is wrong here: the capture no longer matches the branch.
             throw /\[rejected\].*\((fetch first|non-fast-forward)\)/.test(err.message)
                 ? new AcceptError(
@@ -804,7 +883,7 @@ async function commitAccepts({
                   )
                 : err;
         });
-        return { commit: await git(tree, ["rev-parse", "HEAD"]), branch, record };
+        return { commit: head, branch, record };
     } catch (err) {
         throw err instanceof AcceptError ? err : new AcceptError(err.message);
     } finally {
@@ -965,14 +1044,14 @@ export async function updateFromMaster({ repo, pr, branch, config, progress = ()
         }
         const tree = join(repo, config.workDir, "worktrees", `update-${pr}`);
         await removeWorktree(repo, tree);
-        await git(repo, ["worktree", "add", "-q", "--detach", tree, head]);
+        await git(repo, [...NO_LFS, "worktree", "add", "-q", "--detach", tree, head]);
+        const work = (args, input) => git(tree, [...NO_LFS, ...args], input);
+        const workOk = (args) => gitOk(tree, [...NO_LFS, ...args]);
         try {
             progress("merging");
             let conflicts = [];
-            await git(tree, ["merge", "-q", "--no-ff", "--no-commit", master]).catch(async (err) => {
-                conflicts = (await git(tree, ["diff", "--name-only", "-z", "--diff-filter=U"]))
-                    .split("\0")
-                    .filter(Boolean);
+            await work(["merge", "-q", "--no-ff", "--no-commit", master]).catch(async (err) => {
+                conflicts = (await work(["diff", "--name-only", "-z", "--diff-filter=U"])).split("\0").filter(Boolean);
                 if (conflicts.length === 0) {
                     throw err;
                 }
@@ -985,11 +1064,11 @@ export async function updateFromMaster({ repo, pr, branch, config, progress = ()
                 );
             }
             for (const path of conflicts) {
-                await ((await gitOk(tree, ["cat-file", "-e", `${master}:${path}`]))
-                    ? git(tree, ["checkout", master, "--", path])
-                    : git(tree, ["rm", "-q", "--", path]));
+                await ((await workOk(["cat-file", "-e", `${master}:${path}`]))
+                    ? work(["checkout", master, "--", path])
+                    : work(["rm", "-q", "--", path]));
             }
-            const recapture = (await git(tree, ["diff", "--cached", "--name-only", "-z", head, "--", `${baselines}/`]))
+            const recapture = (await work(["diff", "--cached", "--name-only", "-z", head, "--", `${baselines}/`]))
                 .split("\0")
                 .filter((p) => p && !p.startsWith(`${baselines}/reviews/`));
             progress("committing");
@@ -1009,14 +1088,14 @@ export async function updateFromMaster({ repo, pr, branch, config, progress = ()
                 ...taken,
                 "",
             ].join("\n");
-            await git(tree, ["commit", "-q", "--no-verify", "-F", "-"], message);
+            await work(["commit", "-q", "--no-verify", "-F", "-"], message);
             progress("pushing");
-            await git(tree, ["push", "-q", "--no-verify", "origin", `HEAD:refs/heads/${branch}`]).catch((err) => {
+            await work(["push", "-q", "--no-verify", "origin", `HEAD:refs/heads/${branch}`]).catch((err) => {
                 throw /\[rejected\].*\((fetch first|non-fast-forward)\)/.test(err.message)
                     ? new AcceptError(`${branch} moved while it was being updated; nothing was pushed: update again`)
                     : err;
             });
-            return { commit: await git(tree, ["rev-parse", "HEAD"]), branch, taken: conflicts, recapture };
+            return { commit: await work(["rev-parse", "HEAD"]), branch, taken: conflicts, recapture };
         } finally {
             await removeWorktree(repo, tree).catch((err) =>
                 console.error(`visual-review: could not remove the update worktree ${tree}: ${err.message}`),

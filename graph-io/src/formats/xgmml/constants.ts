@@ -108,7 +108,7 @@ export const LABEL_COLUMN = "label";
 export const EDGE_ID_COLUMN = "id";
 
 /**
- * The node position (f32 x3, role position, y up).
+ * The node position (f64 x3, role position, y up).
  * @category Plugin helpers
  */
 export const POSITION_COLUMN = "position";

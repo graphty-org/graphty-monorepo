@@ -16,7 +16,7 @@ import {
     type SummaryGroup,
 } from "@graphty/graphty-element/session";
 
-import { runName } from "../analyze/words";
+import { runName } from "../runWords";
 
 /** Which records a table holds. */
 export type RecordKind = "node" | "edge";

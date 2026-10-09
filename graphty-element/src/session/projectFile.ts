@@ -1135,6 +1135,8 @@ async function readProject(
                     problems.push({ code: "W_DATA_DIFFERS", params: { slice: "runs", id: run.id } });
                 }
 
+                // A file written before caveats carried facts has none to read back.
+                const caveats: Caveats = { facts: [], ...run.caveats };
                 const result = createRunResult({
                     runId: run.id,
                     shape: run.shape,
@@ -1150,12 +1152,12 @@ async function readProject(
                               (at) => edgeIds[at],
                           )
                         : [],
-                    caveats: run.caveats,
+                    caveats,
                     durationMs: run.durationMs,
                 });
                 // The summary too, as a fresh execution hands it over: the run's record (its count,
                 // its groups) is read from it.
-                canned.set(run.id, { result, summary: result.summary(), caveats: run.caveats, fields: run.fields });
+                canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
                 const { algorithm, params, scope, seed, sample, exact } = remap(run);
                 try {
                     await tx.runs.start(algorithm, params, {
@@ -1231,7 +1233,7 @@ interface SavedRun {
     readonly fields: readonly FieldDescriptor[];
     readonly measured: { readonly nodes: number; readonly edges: number };
     readonly graph: Readonly<Record<string, unknown>>;
-    readonly caveats: Caveats;
+    readonly caveats: Caveats | Omit<Caveats, "facts">;
     readonly durationMs: number;
     readonly nodes: { readonly ids: readonly NodeId[]; readonly columns: Readonly<Record<string, unknown>> };
     readonly edges: { readonly columns: Readonly<Record<string, unknown>> };

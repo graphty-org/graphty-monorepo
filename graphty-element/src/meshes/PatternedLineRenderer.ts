@@ -60,45 +60,45 @@ export interface PatternDefinition {
 
 export const PATTERN_DEFINITIONS: Record<PatternType, PatternDefinition> = {
     dot: {
-        shapes: [{ type: "circle", size: 1.0 }],
-        spacing: { min: 0.2, ideal: 0.5, max: 1.0 },
+        shapes: [{ type: "circle", size: 1 }],
+        spacing: { min: 0.2, ideal: 0.5, max: 1 },
         connected: false,
     },
     star: {
-        shapes: [{ type: "star", size: 1.0, points: 5 }],
+        shapes: [{ type: "star", size: 1, points: 5 }],
         spacing: { min: 0.3, ideal: 0.6, max: 1.2 },
         connected: false,
     },
     box: {
-        shapes: [{ type: "box", size: 1.0, aspectRatio: 1.0 }],
-        spacing: { min: 0.2, ideal: 0.5, max: 1.0 },
+        shapes: [{ type: "box", size: 1, aspectRatio: 1 }],
+        spacing: { min: 0.2, ideal: 0.5, max: 1 },
         connected: false,
     },
     dash: {
-        shapes: [{ type: "box", size: 1.0, aspectRatio: 3.0 }],
+        shapes: [{ type: "box", size: 1, aspectRatio: 3 }],
         spacing: { min: 0.2, ideal: 0.4, max: 0.8 },
         connected: false,
     },
     diamond: {
-        shapes: [{ type: "diamond", size: 1.0 }],
-        spacing: { min: 0.2, ideal: 0.5, max: 1.0 },
+        shapes: [{ type: "diamond", size: 1 }],
+        spacing: { min: 0.2, ideal: 0.5, max: 1 },
         connected: false,
     },
     "dash-dot": {
         shapes: [
-            { type: "box", size: 1.0, aspectRatio: 3.0 },
+            { type: "box", size: 1, aspectRatio: 3 },
             { type: "circle", size: 0.6 },
         ],
         spacing: { min: 0.15, ideal: 0.3, max: 0.6 },
         connected: false,
     },
     sinewave: {
-        shapes: [{ type: "sinewave-segment", size: 1.0, periods: 0.5 }],
+        shapes: [{ type: "sinewave-segment", size: 1, periods: 0.5 }],
         spacing: { min: 0, ideal: 0, max: 0 },
         connected: true,
     },
     zigzag: {
-        shapes: [{ type: "zigzag-segment", size: 1.0, angle: 90 }],
+        shapes: [{ type: "zigzag-segment", size: 1, angle: 90 }],
         spacing: { min: 0, ideal: 0, max: 0 },
         connected: true, // Connected pattern - no gaps between segments
     },
@@ -289,7 +289,7 @@ export class PatternedLineRenderer {
                 return this.createZigzagSegmentGeometry(segmentLength, amplitude, thickness);
             case "sinewave":
                 // Use 1.0 period per segment for seamless tiling
-                return this.createSinewaveSegmentGeometry(segmentLength, amplitude, 1.0, thickness);
+                return this.createSinewaveSegmentGeometry(segmentLength, amplitude, 1, thickness);
             default:
                 throw new Error(`Unknown connected pattern: ${pattern}`);
         }
@@ -307,15 +307,15 @@ export class PatternedLineRenderer {
             case "star":
                 return this.createStarGeometry();
             case "box":
-                return this.createBoxGeometry(1.0); // aspect ratio 1:1 (square)
+                return this.createBoxGeometry(1); // aspect ratio 1:1 (square)
             case "dash":
-                return this.createBoxGeometry(3.0); // aspect ratio 3:1
+                return this.createBoxGeometry(3); // aspect ratio 3:1
             case "diamond":
                 return this.createDiamondGeometry();
             case "dash-dot":
                 // Phase 3: For dash-dot, default to box (first shape)
                 // Actual alternation is handled via the shapeType parameter of createPatternElement
-                return this.createBoxGeometry(3.0);
+                return this.createBoxGeometry(3);
             case "sinewave":
                 return this.createSinewaveSegmentGeometry();
             case "zigzag":
@@ -340,7 +340,7 @@ export class PatternedLineRenderer {
             case "star":
                 return this.createStarGeometry();
             case "box":
-                return this.createBoxGeometry(3.0);
+                return this.createBoxGeometry(3);
             case "diamond":
                 return this.createDiamondGeometry();
             case "sinewave-segment":
@@ -395,7 +395,7 @@ export class PatternedLineRenderer {
      * @param outerRadius - Outer radius of the star
      * @returns VertexData for a star
      */
-    private static createStarGeometry(points = 5, innerRadius = 0.4, outerRadius = 1.0): VertexData {
+    private static createStarGeometry(points = 5, innerRadius = 0.4, outerRadius = 1): VertexData {
         const positions: number[] = [0, 0, 0]; // Center
         const indices: number[] = [];
         const totalPoints = points * 2;
@@ -428,8 +428,8 @@ export class PatternedLineRenderer {
      * @param aspectRatio - Aspect ratio (length/width)
      * @returns VertexData for a box
      */
-    private static createBoxGeometry(aspectRatio = 1.0): VertexData {
-        const length = 1.0;
+    private static createBoxGeometry(aspectRatio = 1): VertexData {
+        const length = 1;
         const width = length / aspectRatio;
         const halfLength = length / 2;
         const halfWidth = width / 2;
@@ -471,7 +471,7 @@ export class PatternedLineRenderer {
      * @returns VertexData for a diamond
      */
     private static createDiamondGeometry(): VertexData {
-        const length = 1.0;
+        const length = 1;
         const width = 0.8;
 
         // XZ plane (Y=0), centered at origin like other shapes
@@ -521,9 +521,9 @@ export class PatternedLineRenderer {
      * @returns VertexData with positions and indices for quad strip
      */
     private static createSinewaveSegmentGeometry(
-        segmentLength = 1.0,
+        segmentLength = 1,
         amplitude = 0.3,
-        periods = 1.0, // Changed from 0.5 to 1.0 for proper tiling!
+        periods = 1, // Changed from 0.5 to 1.0 for proper tiling!
         thickness = amplitude * 0.2,
     ): VertexData {
         const positions: number[] = [];
@@ -677,7 +677,7 @@ export class PatternedLineRenderer {
 
         const amplitude = 0.3;
         const periods = 0.5; // Half period per unit length
-        const thickness = amplitude * 1.0; // Same as amplitude for visibility
+        const thickness = amplitude * 1; // Same as amplitude for visibility
         const segments = Math.max(20, Math.ceil(lineLength * 10)); // More segments for longer lines
 
         // Generate sine wave vertices
@@ -712,7 +712,7 @@ export class PatternedLineRenderer {
      * @param thickness - Line thickness (quad strip width), default 0.05
      * @returns VertexData with positions and indices for quad strip
      */
-    private static createZigzagSegmentGeometry(segmentLength = 1.0, amplitude = 0.5, thickness = 0.05): VertexData {
+    private static createZigzagSegmentGeometry(segmentLength = 1, amplitude = 0.5, thickness = 0.05): VertexData {
         const positions: number[] = [];
         const indices: number[] = [];
 
@@ -774,7 +774,7 @@ export class PatternedLineRenderer {
 
         // Find the shape definition to get aspectRatio
         const shapeDef = patternDef.shapes.find((s) => s.type === shape) ?? patternDef.shapes[0];
-        const aspectRatio = shapeDef.aspectRatio ?? 1.0;
+        const aspectRatio = shapeDef.aspectRatio ?? 1;
 
         switch (shape) {
             case "circle":
@@ -785,20 +785,20 @@ export class PatternedLineRenderer {
                 // Fixed: Circle geometry uses Math.cos/sin(angle) * 1.0, so extent is 2.0
                 // But createCircleGeometry in PatternedLineRenderer uses radius=1.0 for unit circle
                 // Actual extent is from -1.0 to +1.0 = 2.0
-                return 2.0;
+                return 2;
             case "box":
                 // Box has length=1.0, width=1.0/aspectRatio
                 // Perpendicular dimension (width) = 1.0 / aspectRatio
-                return 1.0 / aspectRatio;
+                return 1 / aspectRatio;
             case "diamond":
             case "sinewave-segment":
                 // These have diameter=1.0
-                return 1.0;
+                return 1;
             case "zigzag-segment":
                 // Zigzag with 90-degree corners: amplitude=0.25, diameter=0.5
                 return 0.5;
             default:
-                return 1.0;
+                return 1;
         }
     }
 

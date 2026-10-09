@@ -35,6 +35,7 @@ import {
     revertBody,
     revertTitle,
 } from "./master-guard.mjs";
+import { linksIssue, skipReason } from "./pr-issue-link.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { strayChanges } from "./release-diff.mjs";
@@ -56,11 +57,11 @@ const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 13 jobs", () => {
+    it("runs every shard exactly once on a full run, in 16 jobs", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 13);
+        assert.equal(include.length, 16);
     });
 
     it("puts only the affected members into a group's job", () => {
@@ -141,7 +142,7 @@ describe("the pre-push gate matches CI", () => {
             /vitest|test:run|test:prepush|nx run-many -t test|:coverage/,
         );
         const ci = workflow("ci.yml");
-        assert.match(job(ci, "build"), /node tools\/ci-test-matrix.mjs "\$all" "\$affected"/);
+        assert.match(job(ci, "packages"), /node tools\/ci-test-matrix.mjs "\$all" "\$affected"/);
         assert.match(job(ci, "test"), /run: \$\{\{ matrix.test-command \}\}/);
     });
 
@@ -224,12 +225,59 @@ describe("the pre-push gate matches CI", () => {
         assert.match(code(tool("run-tests.sh")), /export FONTCONFIG_FILE="\$ROOT\/visual-fonts\/fonts.conf"/);
         assert.match(code(tool("prepush-tests.mjs")), /"bash", "tools\/run-tests.sh", shard.shard/);
         for (const s of SHARDS) {
-            const shared = SHARDS.filter((x) => x.package === s.package && / --coverage/.test(x["test-command"]));
+            // A shard that names its own COVERAGE_DIR (webgpu-graph-algorithms' device-error pass) writes
+            // where no other shard does.
+            const shared = SHARDS.filter(
+                (x) =>
+                    x.package === s.package &&
+                    / --coverage/.test(x["test-command"]) &&
+                    !/COVERAGE_DIR=/.test(x["test-command"]),
+            );
             assert.deepEqual(
                 shardEnv(s),
                 shared.length > 1 ? { COVERAGE_DIR: `.coverage-parts/${s.shard}` } : {},
                 s.shard,
             );
+        }
+    });
+
+    it("ends non-zero when a shard fails, even after its log stream ended and while another shard runs", () => {
+        // A copy of the runner beside a fake matrix and a fake run-tests.sh, in a throwaway repository:
+        // "broken" closes its output (so the log stream has finished) and then fails; "slow" is still
+        // running then and is stopped. The stopped shard closing last must still end the stage.
+        const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            copyFileSync(new URL("./prepush-tests.mjs", import.meta.url), join(dir, "tools/prepush-tests.mjs"));
+            // The runner wraps every shard in the machine-wide test slot (it imports only node builtins).
+            copyFileSync(new URL("./test-slots.mjs", import.meta.url), join(dir, "tools/test-slots.mjs"));
+            const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
+            writeFileSync(
+                join(dir, "tools/ci-test-matrix.mjs"),
+                `export const SHARDS = ${JSON.stringify([shard("broken"), shard("slow")])};\n`,
+            );
+            writeFileSync(
+                join(dir, "tools/run-tests.sh"),
+                'if [ "$1" = broken ]; then echo broken output; exec >&- 2>&-; sleep 1; exit 1; fi\nexec sleep 60\n',
+            );
+            assert.equal(spawnSync("git", ["init", "-q"], { cwd: dir }).status, 0);
+            const run = spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["broken","slow"]'], {
+                cwd: dir,
+                encoding: "utf8",
+                timeout: 60_000,
+                // Its own slot directory, with a slot per shard: never waits on, or holds up, the real slots.
+                env: {
+                    ...process.env,
+                    GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
+                    GRAPHTY_TEST_SLOTS: "2",
+                    GRAPHTY_TEST_SLOT_HELD: "",
+                },
+            });
+            assert.match(run.stdout, /\[FAIL\] broken \(exit 1/);
+            assert.match(run.stdout, /Stopped after broken failed/);
+            assert.equal(run.status, 1, run.stdout + run.stderr);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
         }
     });
 
@@ -321,6 +369,14 @@ fi
 case " $* " in
     *" lfs "*) exit 0 ;;
     *" merge-tree "*) [ -n "$STUB_MERGE_TREE_RC" ] && exit "$STUB_MERGE_TREE_RC" ;;
+    *" fetch "*)
+        # A concurrent fetch holding origin/master's ref lock, for the first STUB_FETCH_LOCKED fetches:
+        # real git then fails exactly as it does when it loses the race.
+        n=$(( $(cat "$2/fetches" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$2/fetches"
+        if [ "$n" -le "\${STUB_FETCH_LOCKED:-0}" ]; then
+            lock="$2/.git/refs/remotes/origin/master.lock"
+            touch "$lock"; ${realGit} "$@"; rc=$?; rm -f "$lock"; exit $rc
+        fi ;;
 esac
 exec ${realGit} "$@"
 `,
@@ -374,7 +430,16 @@ exec ${realGit} "$@"
                         encoding: "utf8",
                         timeout: 60_000,
                     });
-                fn({ run, head, local: join(main, "tmp/visual-review/local") });
+                // Master moves on the remote (pushed by URL, so origin/master here is not updated), so
+                // the next fetch must lock and write refs/remotes/origin/master.
+                const origin = join(t, "origin.git");
+                git(
+                    "push",
+                    "-q",
+                    origin,
+                    `${git("commit-tree", "master^{tree}", "-p", "master", "-m", "m2")}:refs/heads/master`,
+                );
+                fn({ run, head, origin, local: join(main, "tmp/visual-review/local") });
             } finally {
                 rmSync(t, { recursive: true, force: true });
             }
@@ -402,6 +467,29 @@ exec ${realGit} "$@"
                 const r = run({ STUB_STATUS: "failed" }, "--head", head);
                 assert.equal(r.status, 1);
                 assert.match(r.stderr, /stories failed to capture/);
+            });
+        });
+
+        it("retries a fetch that lost a ref-lock race with another fetch (#1548)", () => {
+            sandbox(({ run, head }) => {
+                const r = run({ STUB_STATUS: "changed", STUB_FETCH_LOCKED: "2" }, "--head", head);
+                assert.equal(r.status, 0, r.stdout + r.stderr);
+            });
+        });
+
+        it("fails a fetch that keeps failing with git's own message", () => {
+            sandbox(({ run, head, local, origin }) => {
+                rmSync(origin, { recursive: true, force: true });
+                const r = run({ STUB_STATUS: "changed" }, "--head", head);
+                assert.equal(r.status, 1);
+                assert.match(
+                    r.stderr,
+                    /cannot fetch master: fatal: '.*origin\.git' does not appear to be a git repository/,
+                );
+                const status = JSON.parse(readFileSync(join(local, `.pending-${head}/status.json`), "utf8"));
+                assert.equal(status.state, "failed");
+                assert.equal(status.step, "fetching origin/master");
+                assert.match(status.log, /does not appear to be a git repository/);
             });
         });
 
@@ -435,7 +523,7 @@ describe("ci.yml", () => {
     it("starts a run when a draft is marked ready, and skips drafts except the merge queue's", () => {
         assert.match(ci, /types: \[opened, synchronize, reopened, ready_for_review\]/);
         assert.ok(
-            job(ci, "build").includes(
+            job(ci, "packages").includes(
                 `if: github.event_name != 'pull_request' || !github.event.pull_request.draft || (${QUEUE})\n`,
             ),
         );
@@ -470,10 +558,13 @@ describe("ci.yml", () => {
     });
 
     it("runs the full suite on a merge-queue branch", () => {
-        const step = job(ci, "build");
+        const step = job(ci, "packages");
         assert.match(step, /"\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true"/);
         assert.match(step, /if: steps.plan.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t build/);
-        assert.match(step, /if: steps.plan.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t lint/);
+        assert.match(
+            job(ci, "lint"),
+            /if: needs.packages.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t lint/,
+        );
     });
 
     it("holds the merge queue to master's rule that every job succeeds", () => {
@@ -490,7 +581,7 @@ describe("ci.yml", () => {
     it("gates every pull request that affects graphty-element on the cost estimates", () => {
         assert.match(
             job(ci, "cost-accuracy"),
-            /if: contains\(fromJSON\(needs.build.outputs.affected\), 'graphty-element'\)/,
+            /if: contains\(fromJSON\(needs.packages.outputs.affected\), 'graphty-element'\)/,
         );
         assert.match(job(ci, "all-checks"), /\n\s+cost-accuracy,\n/);
     });
@@ -520,17 +611,17 @@ describe("ci.yml", () => {
     });
 
     it("runs no test, screenshot, link or cost job on a push to master, and still builds every package", () => {
-        const build = job(ci, "build");
+        const build = job(ci, "packages");
         // the plan: a push tests nothing (affected is empty, so the matrix is empty) and is marked light
         assert.match(
             build,
             /if \[\[ "\$EVENT" == "push" \]\]; then\n.*\n\s+\{ echo "full=true"; echo "light=true"; \} >> "\$GITHUB_OUTPUT"\n\s+affected='\[\]'\n/,
         );
         assert.equal(plan([]).length, 0, "an empty affected list runs no shard");
-        assert.match(job(ci, "test"), /if: needs.build.outputs.test-count != '0'\n/);
+        assert.match(job(ci, "test"), /if: needs.packages.outputs.test-count != '0'\n/);
         assert.match(
             job(ci, "cost-accuracy"),
-            /if: contains\(fromJSON\(needs.build.outputs.affected\), 'graphty-element'\)/,
+            /if: contains\(fromJSON\(needs.packages.outputs.affected\), 'graphty-element'\)/,
         );
         for (const name of ["links", "visual"]) {
             assert.match(
@@ -541,24 +632,32 @@ describe("ci.yml", () => {
         }
         // the benchmarks need the test job, so they are skipped with it
         assert.match(job(ci, "performance"), /needs: test\n/);
-        assert.match(build, /- name: CI workflow tests\n\s+if: steps.plan.outputs.light != 'true'\n/);
+        assert.match(job(ci, "checks"), /- name: CI workflow tests\n\s+if: needs.packages.outputs.light != 'true'\n/);
         // the build still runs, every project, with the uploads deploy-pages.yml reads
         assert.match(build, /if: steps.plan.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t build/);
-        assert.match(build, /name: build-docs\n/);
-        // the summary checks pass a light run whose skipped jobs were skipped on purpose, and Build must succeed
-        assert.match(job(ci, "all-checks"), /LIGHT: \$\{\{ needs.build.outputs.light \}\}/);
-        assert.match(job(ci, "all-checks"), /\(.key == "build" and \$r != "success"\)/);
+        assert.match(job(ci, "docs"), /name: build-docs\n/);
+        assert.match(job(ci, "build"), /name: build-storybook-element\n/);
+        for (const name of ["build", "lint", "checks", "docs"]) {
+            assert.match(job(ci, name), /\n {8}needs: packages\n {8}runs-on:/, `${name} runs on master too`);
+        }
+        // the summary checks pass a light run whose skipped jobs were skipped on purpose, and the build
+        // jobs must succeed
+        assert.match(job(ci, "all-checks"), /LIGHT: \$\{\{ needs.packages.outputs.light \}\}/);
+        assert.match(
+            job(ci, "all-checks"),
+            /\(\(.key \| IN\("packages", "build", "lint", "checks", "docs"\)\) and \$r != "success"\)/,
+        );
         assert.match(job(ci, "queue-checks"), /"\$ALL_CHECKS" != "success"/);
     });
 
     it("still runs every test job on pull requests, merge-queue runs, dispatches and the release train", () => {
-        const build = job(ci, "build");
+        const build = job(ci, "packages");
         // light is set only on a push; every other event takes the affected (pull request) or full path
         assert.equal(build.match(/echo "light=true"/g).length, 1);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 13, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, 16, "a full run is every shard");
         // no test-type job is limited to pushes or to master
-        for (const name of ["test", "links", "visual", "cost-accuracy", "performance"]) {
+        for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);
         }
         assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request'\n/);
@@ -626,6 +725,9 @@ const requiredChecks = (jobs) => {
 };
 
 const DAY = 86_400_000;
+// The job that lists the advisory checks (its "List advisory checks" step) and that every other job
+// reads them from.
+const LIST_JOB = "packages";
 const idOf = (a) => (a.step === undefined ? a.job : `${a.job}/${a.step}`);
 
 // What is wrong with tools/ci-advisory-checks.json against ci.yml and against the base branch's copies of
@@ -653,12 +755,15 @@ const advisoryProblems = ({ ci, registry, baseCi, baseRegistry, today }) => {
             registry.required.includes(job) || registry.advisory.some((a) => a.job === job && a.step === undefined),
             `${job}: unregistered: a new job goes into "advisory" first`,
         );
+    // A job that only holds steps the base branch already requires (a required job split in two) is not
+    // a new check: its steps were required yesterday, so they stay required without a warning period.
+    const baseSteps = new Set(Object.values(baseChecks).flat());
     for (const job of registry.required) {
         check(job in checks, `${job}: in "required" but not a required job of ci.yml`);
         if (baseRegistry && !baseRegistry.required.includes(job))
             check(
-                job in baseChecks,
-                `${job}: "required" only grows by jobs the base branch already runs; a new one goes into "advisory" first`,
+                job in baseChecks || (job in checks && checks[job].every((step) => baseSteps.has(step))),
+                `${job}: "required" only grows by jobs the base branch already runs, or jobs made of steps it already requires; a new one goes into "advisory" first`,
             );
     }
 
@@ -680,10 +785,13 @@ const advisoryProblems = ({ ci, registry, baseCi, baseRegistry, today }) => {
         }
         const j = jobs[a.job];
         if (!check(a.job in checks, `${id}: a job "All Checks Pass" needs`)) continue;
-        const list = a.job === "build" ? "steps.advisory.outputs.checks" : "needs.build.outputs.advisory-checks";
+        const list = a.job === LIST_JOB ? "steps.advisory.outputs.checks" : `needs.${LIST_JOB}.outputs.advisory-checks`;
         const coe = `\${{ contains(fromJSON(${list}), '${id}') }}`;
-        if (a.job !== "build")
-            check(j.needs.includes("build"), `${id}: the job needs build directly (it lists the advisory checks)`);
+        if (a.job !== LIST_JOB)
+            check(
+                j.needs.includes(LIST_JOB),
+                `${id}: the job needs ${LIST_JOB} directly (it lists the advisory checks)`,
+            );
         let warn;
         if (a.step === undefined) {
             check(!registry.required.includes(a.job), `${id}: a job in "required" is not new`);
@@ -695,7 +803,7 @@ const advisoryProblems = ({ ci, registry, baseCi, baseRegistry, today }) => {
             const s = j.steps[i];
             check(s.coe === coe, `${id}: continue-on-error: ${coe}`);
             check(s.id !== undefined, `${id}: has an id`);
-            if (a.job === "build")
+            if (a.job === LIST_JOB)
                 check(i > j.steps.findIndex((x) => x.id === "advisory"), `${id}: comes after "List advisory checks"`);
             warn = { if: `\${{ steps.${s.id}.outcome == 'failure' }}`, step: j.steps[i + 1] };
         }
@@ -720,7 +828,8 @@ describe("new required checks start as warnings", () => {
 
     it("finds the required jobs and steps", () => {
         const checks = requiredChecks(parseJobs(ci));
-        assert.ok(checks.build.includes("Install dependencies"));
+        assert.ok(checks.packages.includes("Install dependencies"));
+        assert.ok(checks.lint.includes("Lint all (master, a manual dispatch or the merge queue)"));
         assert.ok(checks["all-checks"].includes("Check visual changes were accepted"));
         assert.ok(!("visual" in checks) && !("performance" in checks), "continue-on-error jobs never block");
         assert.ok(!checks["all-checks"].includes("Download visual captures"));
@@ -744,7 +853,7 @@ describe("new required checks start as warnings", () => {
     describe("the registry rules, on a small workflow", () => {
         const BASE_CI = `on: push
 jobs:
-    build:
+    packages:
         steps:
             - name: List advisory checks
               id: advisory
@@ -752,12 +861,12 @@ jobs:
             - name: Lint
               run: x
     test:
-        needs: build
+        needs: packages
         steps:
             - name: Unit
               run: x
     all-checks:
-        needs: [build, test]
+        needs: [packages, test]
         steps:
             - name: Check
               run: x
@@ -768,15 +877,15 @@ jobs:
               run: x
             - name: Types
               id: types
-              continue-on-error: \${{ contains(fromJSON(needs.build.outputs.advisory-checks), 'test/Types') }}
+              continue-on-error: \${{ contains(fromJSON(needs.packages.outputs.advisory-checks), 'test/Types') }}
               run: x
             - name: Warn that Types failed
               if: \${{ steps.types.outcome == 'failure' }}
               continue-on-error: true
               run: echo "::warning::advisory check test/Types failed"
     links:
-        needs: build
-        continue-on-error: \${{ contains(fromJSON(needs.build.outputs.advisory-checks), 'links') }}
+        needs: packages
+        continue-on-error: \${{ contains(fromJSON(needs.packages.outputs.advisory-checks), 'links') }}
         steps:
             - name: Check links
               run: x
@@ -785,8 +894,8 @@ jobs:
               continue-on-error: true
               run: echo "::warning::advisory check links failed"
 `,
-        ).replace("needs: [build, test]", "needs: [build, test, links]");
-        const REQUIRED = ["build", "test", "all-checks"];
+        ).replace("needs: [packages, test]", "needs: [packages, test, links]");
+        const REQUIRED = ["packages", "test", "all-checks"];
         const entry = (job, step) => ({ job, step, added: "2026-10-01", enforce: "2026-10-15", issue: 1 });
         const ADVISORY = [entry("test", "Types"), entry("links")];
         const run = ({ ci = HEAD_CI, required = REQUIRED, advisory = ADVISORY, today = "2026-10-05" } = {}) =>
@@ -820,15 +929,34 @@ jobs:
         });
 
         it("refuses to put a check the base branch requires back into a warning period", () => {
-            const { problems } = run({ advisory: [...ADVISORY, entry("build", "Lint")] });
-            assert.ok(problems.some((p) => p.startsWith("build/Lint: the base branch already requires it")));
-            const job = run({ advisory: [...ADVISORY, entry("test")], required: ["build", "all-checks"] });
+            const { problems } = run({ advisory: [...ADVISORY, entry("packages", "Lint")] });
+            assert.ok(problems.some((p) => p.startsWith("packages/Lint: the base branch already requires it")));
+            const job = run({ advisory: [...ADVISORY, entry("test")], required: ["packages", "all-checks"] });
             assert.ok(job.problems.some((p) => p.startsWith("test: the base branch already requires it")));
         });
 
         it("refuses a new job that skips its warning period", () => {
             const { problems } = run({ required: [...REQUIRED, "links"], advisory: [entry("test", "Types")] });
             assert.ok(problems.some((p) => p.startsWith('links: "required" only grows')));
+        });
+
+        it("accepts a new job made only of steps the base branch already requires", () => {
+            // a required job split in two: the Lint step moves from packages into a job of its own
+            const split = BASE_CI.replace("            - name: Lint\n              run: x\n", "").replace(
+                "    all-checks:\n        needs: [packages, test]",
+                "    lint:\n        needs: packages\n        steps:\n            - name: Lint\n              run: x\n    all-checks:\n        needs: [packages, test, lint]",
+            );
+            const ok = run({ ci: split, required: [...REQUIRED, "lint"], advisory: [] });
+            assert.deepEqual(ok, { problems: [], warnings: [] });
+            const added = split.replace(
+                "            - name: Lint\n              run: x\n",
+                "            - name: Lint\n              run: x\n            - name: Types\n              run: x\n",
+            );
+            assert.ok(
+                run({ ci: added, required: [...REQUIRED, "lint"], advisory: [] }).problems.some((p) =>
+                    p.startsWith('lint: "required" only grows'),
+                ),
+            );
         });
 
         it("refuses an unregistered job and a stale entry", () => {
@@ -849,8 +977,8 @@ jobs:
                 ),
             );
             assert.ok(
-                unwired("    links:\n        needs: build", "    links:\n        needs: test").some((p) =>
-                    p.includes("needs build directly"),
+                unwired("    links:\n        needs: packages", "    links:\n        needs: test").some((p) =>
+                    p.includes("needs packages directly"),
                 ),
             );
             assert.ok(
@@ -866,7 +994,9 @@ jobs:
     });
 
     it("lists the entries before their enforce date, from the base branch on a pull request", () => {
-        const step = /- name: List advisory checks\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(job(ci, "build"))[1];
+        const step = /- name: List advisory checks\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(
+            job(ci, "packages"),
+        )[1];
         assert.match(step, /base=HEAD\^1/, "a pull request cannot loosen the list that judges it");
         const program = /jq -c --arg today "\$\(date -u \+%F\)" '([^']+)'/.exec(step);
         assert.ok(program, "the build job lists the advisory checks");
@@ -903,6 +1033,53 @@ jobs:
         assert.match(warned.stdout, /::warning::advisory check links: failure/);
         assert.equal(verdict("[]").status, 1);
         assert.equal(verdict('["build"]').status, 1);
+    });
+});
+
+describe("the summary checks fail as soon as a required job fails", () => {
+    const ci = workflow("ci.yml");
+    const jobs = parseJobs(ci);
+    // The jobs "All Checks Pass" fails on: every job it needs but the opt-in Chromatic jobs and the
+    // visual job, whose results the gate step judges at the end.
+    const deciding = jobs["all-checks"].needs.filter((n) => !n.startsWith("chromatic-") && n !== "visual");
+
+    it("ends every job whose failure fails them with the early-verdict step, on pull requests only", () => {
+        assert.deepEqual([...deciding].sort(), [
+            "build",
+            "checks",
+            "cost-accuracy",
+            "docs",
+            "links",
+            "lint",
+            "packages",
+            "test",
+        ]);
+        for (const name of deciding) {
+            const last = jobs[name].steps.at(-1);
+            assert.equal(last.uses, "./.github/actions/early-verdict", name);
+            assert.equal(last.if, "failure() && github.event_name == 'pull_request'", name);
+            assert.equal(last.coe, "true", `${name}: a failure to post never changes the job's result`);
+            assert.match(job(ci, name), new RegExp(`\\n {18}job: ${name}\\n`), name);
+        }
+        assert.match(ci, /\npermissions:\n {4}contents: read\n {4}checks: write\n/);
+        assert.match(
+            job(workflow("release.yml"), "ci"),
+            /permissions:\n(?: {12}.*\n)*? {12}checks: write\n(?: {12}#.*\n| {12}.*\n)*? {8}uses: \.\/\.github\/workflows\/ci\.yml/,
+            "a called workflow cannot ask for more than its caller grants",
+        );
+    });
+
+    it("only ever reports a failure, and never for a job in its warning period", () => {
+        const action = readFileSync(new URL("../.github/actions/early-verdict/action.yml", import.meta.url), "utf8");
+        assert.match(action, /for check in "All Checks Pass" "Queue Checks Pass"; do/);
+        assert.equal(action.match(/conclusion=/g).length, 1);
+        assert.match(action, /-f status=completed -f conclusion=failure/);
+        const program = /if jq -e --arg job "\$JOB" '([^']+)'/.exec(action)[1];
+        const advisory = (list, name) =>
+            spawnSync("jq", ["-e", "--arg", "job", name, program], { input: list, encoding: "utf8" }).status === 0;
+        assert.equal(advisory('["links"]', "links"), true);
+        assert.equal(advisory('["links"]', "lint"), false);
+        assert.equal(advisory("[]", "test"), false);
     });
 });
 
@@ -973,11 +1150,13 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
     });
 
     it("is switched off in ci.yml until master's gate accepts the not-affected marker", () => {
-        const build = job(ci, "build");
+        const build = job(ci, "packages");
         assert.match(build, /\n {18}SKIP_UNAFFECTED_CAPTURES: "false"\n/);
         assert.match(build, /LABELS: \$\{\{ toJSON\(github\.event\.pull_request\.labels\.\*\.name\) \}\}/);
         assert.match(build, /node tools\/visual-capture-plan\.mjs "\$all" "\$affected" \| tee -a "\$GITHUB_OUTPUT"/);
         assert.match(build, /visual-skip: \$\{\{ steps\.plan\.outputs\.visual-skip \}\}/);
+        // the visual job needs build (the Storybooks), which hands the plan on
+        assert.match(job(ci, "build"), /visual-skip: \$\{\{ needs\.packages\.outputs\.visual-skip \}\}/);
     });
 
     it("writes the marker in place of a capture and skips every other step but the upload and the summary", () => {
@@ -1020,6 +1199,66 @@ describe("pr-title.yml", () => {
     it("is never cancelled by a later run, so Mergify's body edits cannot interrupt the required check", () => {
         // A concurrency group cancels superseded runs even without cancel-in-progress.
         assert.doesNotMatch(workflow("pr-title.yml"), /^concurrency:/m);
+    });
+});
+
+describe("pr-issue-link.yml", () => {
+    it("passes a closing keyword, in any case, with or without a colon, for #N or owner/repo#N", () => {
+        for (const kw of ["close", "closes", "closed", "fix", "fixes", "fixed", "resolve", "resolves", "resolved"]) {
+            for (const text of [`${kw} #12`, `${kw.toUpperCase()}: #12`, `${kw} graphty-org/graphty-monorepo#12`]) {
+                assert.ok(linksIssue(`Some change.\n\n${text}.`), text);
+            }
+        }
+    });
+    it("passes Refs, Ref and Part of", () => {
+        for (const text of ["Refs #12", "ref: #12", "Part of #12", "part  of #12"]) assert.ok(linksIssue(text), text);
+    });
+    it("passes a line that is only No issue, in any case", () => {
+        assert.ok(linksIssue("Bumps a dependency.\n\n  no ISSUE  \n"));
+        assert.ok(linksIssue("No issue\r\nmore"));
+        assert.ok(!linksIssue("There is no issue for this yet."));
+    });
+    it("fails an empty description, a bare number, and a keyword with no issue", () => {
+        for (const body of [
+            undefined,
+            "",
+            "Filed as #12 and not changed here.",
+            "Fixes 12",
+            "prefixes #12",
+            "Fixes the bug",
+        ]) {
+            assert.ok(!linksIssue(body), String(body));
+        }
+    });
+    it("skips Dependabot and the release train, and only those", () => {
+        assert.ok(skipReason({ headRef: "dependabot/npm/x", author: "dependabot[bot]", sameRepo: true }));
+        assert.ok(skipReason({ headRef: "release/train-1", author: "github-actions[bot]", sameRepo: true }));
+        assert.equal(skipReason({ headRef: "release/train-1", author: "someone", sameRepo: true }), null);
+        assert.equal(skipReason({ headRef: "release/train-1", author: "github-actions[bot]", sameRepo: false }), null);
+        assert.equal(skipReason({ headRef: "fix/x", author: "someone", sameRepo: true }), null);
+    });
+    it("skips the whole job for Mergify's own merge-queue draft, and re-runs on a description edit", () => {
+        const wf = workflow("pr-issue-link.yml");
+        assert.ok(wf.includes(`        name: Link PR Issue\n`));
+        assert.ok(wf.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
+        assert.match(wf, /types: \[opened, edited, synchronize, reopened\]/);
+        assert.doesNotMatch(wf, /^concurrency:/m);
+        assert.match(wf, /PR_BODY: \$\{\{ github\.event\.pull_request\.body \}\}\n/);
+    });
+    it("fails with the message that says what to add, and a failing one blocks Mergify", () => {
+        const run = (env) =>
+            spawnSync(process.execPath, [new URL("pr-issue-link.mjs", import.meta.url).pathname], {
+                encoding: "utf8",
+                env: { ...process.env, HEAD_REF: "fix/x", PR_AUTHOR: "someone", SAME_REPO: "true", ...env },
+            });
+        const bad = run({ PR_BODY: "" });
+        assert.equal(bad.status, 1);
+        assert.match(bad.stderr, /Add 'Fixes #123' \(or Closes\/Resolves\), 'Refs #123'.*a line 'No issue'/);
+        assert.equal(run({ PR_BODY: "Fixes #1611" }).status, 0);
+        assert.equal(run({ PR_BODY: "", PR_AUTHOR: "dependabot[bot]" }).status, 0);
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        assert.match(mergify, /- -check-failure=Link PR Issue\n/);
+        assert.doesNotMatch(mergify, /check-success=Link PR Issue/);
     });
 });
 
@@ -1248,20 +1487,21 @@ describe("gpu.yml", () => {
         assert.doesNotMatch(gpu, /gpu-lane-needed|T4 GPU gate/);
     });
 
-    it("runs on a spot T4 by default, the release train included, with on-demand and hosted as dispatch options", () => {
-        // owner decision, 2026-10-04; a workflow_call declares no runner input, so the train takes the default
+    it("runs on an on-demand T4 by default, the release train included, with spot and hosted as dispatch options", () => {
+        // owner decision, 2026-10-08 (spot reclaims held releases); a workflow_call declares no runner input, so the
+        // train takes the default
         assert.match(
             job(gpu, "test-gpu"),
-            /runs-on: \$\{\{ inputs\.runner \|\| 'machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=spot' \}\}/,
+            /runs-on: \$\{\{ inputs\.runner \|\| 'machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=on_demand' \}\}/,
         );
-        assert.match(gpu, /default: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=spot\n/);
-        for (const option of ["gpu-linux-t4", "machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand"]) {
+        assert.match(gpu, /default: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=on_demand\n/);
+        for (const option of ["gpu-linux-t4", "machine/gpu=t4/cpu=4/ram=16/tenancy=spot"]) {
             assert.ok(gpu.includes(`- ${option}\n`), option);
         }
         assert.doesNotMatch(triggers(gpu).split("workflow_dispatch:")[0], /runner:/);
         assert.match(
             job(workflow("gpu-weekly-paired.yml"), "paired"),
-            /runs-on: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=spot\n/,
+            /runs-on: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=on_demand\n/,
         );
     });
 
@@ -1641,6 +1881,7 @@ describe("release.yml", () => {
     const t4 = job(release, "t4");
     const audit = job(release, "audit");
     const hosts = job(release, "hosts");
+    const llm = job(release, "llm");
     const coverage = job(release, "coverage");
     const held = job(release, "held");
     const train = job(release, "train");
@@ -1748,10 +1989,10 @@ describe("release.yml", () => {
         assert.match(audit, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(audit, /run: pnpm audit --prod --audit-level=high/);
         assert.doesNotMatch(audit, /continue-on-error/, "a high advisory holds the release");
-        assert.match(train, /needs: \[pick, ci, t4, hosts, audit\]/);
+        assert.match(train, /needs: \[pick, ci, t4, hosts, audit, llm\]/);
         assert.match(
             train,
-            /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' \}\}/,
+            /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' \}\}/,
         );
         // the release ships the builds of its own CI call, not a master run's
         assert.match(train, /pattern: "build-\{graph-format,[^"]*\}"\n\s+path: \$\{\{ runner.temp \}\}\/builds\n\n/);
@@ -1772,8 +2013,42 @@ describe("release.yml", () => {
         assert.match(cov, /git-commit: \$\{\{ inputs.ref \}\}\n\s+git-branch: master/);
     });
 
+    it("runs the LLM regression tests on the candidate with the Google secret, failing when it is missing", () => {
+        assert.match(llm, /needs: pick\n\s+if: \$\{\{ needs.pick.outputs.release == 'true' \}\}/);
+        assert.match(llm, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
+        assert.match(llm, /run: pnpm exec nx run graphty-element:build/);
+        assert.match(llm, /VITE_LLM_REGRESSION_PROVIDER: google\n/);
+        assert.match(llm, /VITE_GOOGLE_API_KEY: \$\{\{ secrets.GOOGLE_API_KEY \}\}/);
+        // the tests skip without a key; the job must fail instead, naming the secret, before vitest runs
+        const check = llm.indexOf('if [ -z "${VITE_GOOGLE_API_KEY}" ]; then');
+        assert.ok(check > 0, "checks the key is non-empty");
+        assert.match(
+            llm.slice(check),
+            /^\s+echo "owner_item=[^\n]*\n\s+echo "::error::the GOOGLE_API_KEY repository secret[^\n]*\n\s+exit 1\n/m,
+        );
+        assert.ok(check < llm.indexOf("npx vitest run --project llm-regression"), "before the tests run");
+        assert.doesNotMatch(llm, /continue-on-error/, "a failure holds the release");
+        // the job fails with vitest's own status, and a provider refusing the account marks an owner item
+        assert.match(llm, /status=\$\{PIPESTATUS\[0\]\}/);
+        assert.match(llm, /exit "\$status"\n/);
+        assert.match(llm, /grep -q '\\\[llm-regression\\\] provider refused the account'/);
+        assert.match(llm, /owner_item: \$\{\{ steps.llm.outputs.owner_item \}\}/);
+        const harness = readFileSync(
+            new URL("../graphty-element/test/helpers/llm-regression-harness.ts", import.meta.url),
+            "utf8",
+        );
+        assert.ok(
+            harness.includes('ACCOUNT_REFUSED_MARKER = "[llm-regression] provider refused the account"'),
+            "the marker the job reads is the one the harness prints",
+        );
+        // paid calls: never on a pull request, the merge queue or a master push
+        for (const file of ["ci.yml", "gpu.yml", "hosts.yml", "coverage.yml"]) {
+            assert.doesNotMatch(workflow(file), /llm-regression|ANTHROPIC_API_KEY|OPENAI_API_KEY|GOOGLE_API_KEY/, file);
+        }
+    });
+
     it("holds the whole release when anything fails: no pull request, no builds kept, nothing published, one issue", () => {
-        assert.match(held, /needs: \[pick, ci, t4, hosts, audit, train\]/);
+        assert.match(held, /needs: \[pick, ci, t4, hosts, audit, llm, train\]/);
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
         // the publish job finds only builds the train kept, and only the train keeps them
         assert.equal(release.match(/name: release-builds-/g).length, 2);
@@ -1792,6 +2067,14 @@ describe("release.yml", () => {
         ]) {
             assert.ok(held.includes(`"${name}=$${result}_RESULT"`), name);
         }
+        // the LLM lane is named an owner item when the provider refused the account
+        assert.ok(held.includes('"$llm_lane=$LLM_RESULT"'), "LLM regression");
+        assert.match(held, /\[ -z "\$LLM_OWNER_ITEM" \] \|\| llm_lane="LLM regression \(owner item: Google account\)"/);
+        assert.match(held, /LLM_OWNER_ITEM: \$\{\{ needs.llm.outputs.owner_item \}\}/);
+        assert.match(
+            held,
+            /if \[ -n "\$LLM_OWNER_ITEM" \]; then\n\s+echo\n\s+echo "The LLM regression job did not fail on code: [^\n]*it is an owner item/,
+        );
         assert.match(held, /title="Release held: \$\{what\} failed on \$\{SHA:0:7\}"/);
         assert.match(held, /open=\$\(tools\/release-held.sh open "\$title" "\$RUNNER_TEMP\/body.md"\)/);
         const helper = readFileSync(new URL("./release-held.sh", import.meta.url), "utf8");
@@ -1822,7 +2105,7 @@ describe("release.yml", () => {
                 `return ${condition.replace(/\balways\(\)/g, "true").replace(/!cancelled\(\)/g, "true")};`,
             )(
                 Object.fromEntries(
-                    ["pick", "ci", "t4", "hosts", "audit", "train"].map((j) => [
+                    ["pick", "ci", "t4", "hosts", "audit", "llm", "train"].map((j) => [
                         j,
                         { result: results[j] ?? "success", outputs: { release: j === "pick" ? release : undefined } },
                     ]),
@@ -1832,7 +2115,7 @@ describe("release.yml", () => {
         const NOT_SUCCESS = ["failure", "cancelled", "skipped", "abandoned", "timed_out", "a-result-not-yet-invented"];
 
         it("needs every job the train needs, and the train", () => {
-            assert.deepEqual(trainNeeds, ["pick", "ci", "t4", "hosts", "audit"]);
+            assert.deepEqual(trainNeeds, ["pick", "ci", "t4", "hosts", "audit", "llm"]);
             assert.match(held, new RegExp(`needs: \\[${[...trainNeeds, "train"].join(", ")}\\]`));
         });
 
@@ -1863,6 +2146,7 @@ describe("release.yml", () => {
                             t4: "skipped",
                             hosts: "skipped",
                             audit: "skipped",
+                            llm: "skipped",
                             train: "skipped",
                         },
                         "",
@@ -1880,6 +2164,7 @@ describe("release.yml", () => {
                         t4: "skipped",
                         hosts: "skipped",
                         audit: "skipped",
+                        llm: "skipped",
                         train: "skipped",
                     },
                     "",
@@ -1890,7 +2175,14 @@ describe("release.yml", () => {
 
         it("stays quiet when the train opened its pull request, or the pick found nothing to release", () => {
             assert.equal(runs({}), false);
-            const none = { ci: "skipped", t4: "skipped", hosts: "skipped", audit: "skipped", train: "skipped" };
+            const none = {
+                ci: "skipped",
+                t4: "skipped",
+                hosts: "skipped",
+                audit: "skipped",
+                llm: "skipped",
+                train: "skipped",
+            };
             assert.equal(runs(none, "false"), false);
         });
 
@@ -1934,6 +2226,8 @@ describe("release.yml", () => {
                         T4_RESULT: "success",
                         HOSTS_RESULT: "success",
                         AUDIT_RESULT: "success",
+                        LLM_RESULT: "success",
+                        LLM_OWNER_ITEM: "",
                         TRAIN_RESULT: "skipped",
                         ...env,
                     },
@@ -1986,10 +2280,30 @@ describe("release.yml", () => {
                     T4_RESULT: "skipped",
                     HOSTS_RESULT: "skipped",
                     AUDIT_RESULT: "skipped",
+                    LLM_RESULT: "skipped",
                 },
                 [],
             );
             assert.equal(title, "Release held: candidate pick failed on 44ab26d\n");
+        });
+
+        it("names a failed LLM lane, and an owner item as one", () => {
+            assert.equal(
+                issue({ LLM_RESULT: "failure" }, []).title,
+                "Release held: LLM regression failed on 44ab26d\n",
+            );
+            assert.equal(
+                issue({ LLM_RESULT: "cancelled" }, []).title,
+                "Release held: LLM regression failed on 44ab26d\n",
+            );
+            const { title, body } = issue(
+                { LLM_RESULT: "failure", LLM_OWNER_ITEM: "the provider refused the account (credit balance too low)" },
+                [],
+            );
+            assert.equal(title, "Release held: LLM regression (owner item: Google account) failed on 44ab26d\n");
+            assert.match(body, /LLM regression \(owner item: Google account\) failure/);
+            assert.match(body, /The LLM regression job did not fail on code: the provider refused the account/);
+            assert.doesNotMatch(body, /githubstatus/);
         });
 
         it("names a failed train, and holds the outage hint back when a job failed on its own", () => {
@@ -2011,9 +2325,10 @@ describe("release.yml", () => {
     describe("restarts a held release on a master push whose build passed", () => {
         // The pick job's "Skip while the previous release is pending" step, run in a scratch directory with
         // stubs for gh (no release pull request, or one still pending), git (no release yet) and
-        // tools/release-held.sh (the held issue, or none). `trigger` is the workflow's TRIGGER: "schedule" for a
-        // scheduler dispatch (scheduled=true), "workflow_dispatch" for one by hand.
-        const pending = (trigger, heldIssue, trainPr = false) => {
+        // tools/release-held.sh (the held train issue, or none; `publishHold` an open publish hold, which only a
+        // plain `find` returns). `trigger` is the workflow's TRIGGER: "schedule" for a scheduler dispatch
+        // (scheduled=true), "workflow_dispatch" for one by hand.
+        const pending = (trigger, heldIssue, trainPr = false, publishHold = "") => {
             const script = /- name: Skip while the previous release is pending[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
                 pick,
             )[1];
@@ -2026,7 +2341,11 @@ describe("release.yml", () => {
                 writeFileSync(join(dir, "bin", "gh"), `#!/bin/sh\n${gh}\n`, { mode: 0o755 });
                 // no release commit yet, so no tag to wait for
                 writeFileSync(join(dir, "bin", "git"), "#!/bin/sh\n", { mode: 0o755 });
-                writeFileSync(join(dir, "tools", "release-held.sh"), `#!/bin/sh\necho ${heldIssue}\n`, { mode: 0o755 });
+                writeFileSync(
+                    join(dir, "tools", "release-held.sh"),
+                    `#!/bin/sh\nif [ "$2" = --train ]; then echo ${heldIssue}; else echo ${heldIssue || publishHold}; fi\n`,
+                    { mode: 0o755 },
+                );
                 const output = join(dir, "output");
                 writeFileSync(output, "");
                 const run = spawnSync("bash", ["-c", script.replace(/^ {18}/gm, "")], {
@@ -2075,6 +2394,15 @@ describe("release.yml", () => {
             assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\n");
             assert.equal(pending("schedule", "1234"), "pending=true\n");
             assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\n");
+        });
+
+        it("never restarts a train for a publish hold, which only a re-run publish clears; the schedule still skips", () => {
+            assert.equal(pending("workflow_run", "", false, "1440"), "pending=true\n");
+            assert.equal(pending("schedule", "", false, "1440"), "pending=true\n");
+            // a train hold beside it still restarts
+            assert.equal(pending("workflow_run", "1234", false, "1440"), "pending=false\nsha=abc123\n");
+            assert.match(pick, /\[ -z "\$\(tools\/release-held.sh find --train\)" \]/);
+            assert.match(pick, /held=\$\(tools\/release-held.sh find\)\n/);
         });
 
         it("skips a scheduler dispatch while a train pull request or a held issue is open; runs one by hand", () => {
@@ -2229,6 +2557,110 @@ describe("release.yml", () => {
             assert.doesNotMatch(body, /OWNER ITEM/);
             assert.match(body, /^The publish job failed on master /);
         }
+    });
+
+    // tools/release-held.sh itself, against a stub gh whose open issues are `issues` (the real --jq runs over
+    // them with jq) and which records every other call. #1440: a train that failed during a publish hold
+    // retitled the publish issue, and the next passing train closed it before the owner had acted.
+    describe("keeps a publish hold separate from train holds", () => {
+        const PUBLISH = { number: 1440, title: "Release held: publish failed on ecb1ba1" };
+        const TRAIN = { number: 1500, title: "Release held: T4 GPU failed on 719db7f" };
+        const held = (issues, ...args) => {
+            const dir = mkdtempSync(join(tmpdir(), "release-held-sh-"));
+            try {
+                mkdirSync(join(dir, "bin"));
+                writeFileSync(join(dir, "issues.json"), JSON.stringify(issues));
+                writeFileSync(join(dir, "body.md"), "body\n");
+                writeFileSync(
+                    join(dir, "bin", "gh"),
+                    [
+                        "#!/bin/sh",
+                        `if [ "$1 $2" = "issue list" ]; then`,
+                        '    while [ $# -gt 0 ]; do [ "$1" = --jq ] && exec jq -r "$2" "' +
+                            join(dir, "issues.json") +
+                            '"; shift; done',
+                        "fi",
+                        'printf "%s\\n" "$*" >> "' + join(dir, "calls") + '"',
+                        '[ "$1 $2" != "issue create" ] || echo https://github.com/o/r/issues/99',
+                        "",
+                    ].join("\n"),
+                    { mode: 0o755 },
+                );
+                const run = spawnSync(
+                    "bash",
+                    [
+                        new URL("./release-held.sh", import.meta.url).pathname,
+                        ...args.map((a) => a.replace("BODY", join(dir, "body.md"))),
+                    ],
+                    {
+                        encoding: "utf8",
+                        env: {
+                            ...process.env,
+                            PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+                            GITHUB_REPOSITORY: "o/r",
+                        },
+                    },
+                );
+                assert.equal(run.status, 0, run.stderr);
+                const calls = existsSync(join(dir, "calls")) ? readFileSync(join(dir, "calls"), "utf8") : "";
+                return { out: run.stdout.trim(), calls: calls.replaceAll(join(dir, "body.md"), "BODY") };
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        };
+
+        it("opens a separate train issue when a train fails during a publish hold, leaving the publish issue alone", () => {
+            const { out, calls } = held([PUBLISH], "open", "Release held: CI failed on 44ab26d", "BODY");
+            assert.equal(out, "https://github.com/o/r/issues/99");
+            assert.match(calls, /^issue create -R o\/r --title Release held: CI failed on 44ab26d /);
+            assert.doesNotMatch(calls, /1440/);
+        });
+
+        it("retitles and comments on the train issue, never the publish issue, when both are open", () => {
+            const { out, calls } = held([PUBLISH, TRAIN], "open", "Release held: CI failed on 44ab26d", "BODY");
+            assert.equal(out, "1500");
+            assert.equal(
+                calls,
+                "issue edit 1500 -R o/r --title Release held: CI failed on 44ab26d\nissue comment 1500 -R o/r --body-file BODY\n",
+            );
+        });
+
+        it("closes only the train hold when a train passes", () => {
+            assert.equal(held([PUBLISH, TRAIN], "close", "passed").calls, "issue close 1500 -R o/r --comment passed\n");
+            assert.equal(held([PUBLISH], "close", "passed").calls, "");
+        });
+
+        it("finds a publish hold for the schedule but not for the restart gate", () => {
+            assert.equal(held([PUBLISH], "find").out, "1440");
+            assert.equal(held([PUBLISH], "find", "--train").out, "");
+            assert.equal(held([PUBLISH, TRAIN], "find", "--train").out, "1500");
+        });
+
+        it("comments on an open publish hold without retitling it when the publish fails again", () => {
+            const prefix = "Release held: publish failed";
+            const title =
+                "Release held: publish failed on ecb1ba1: owner must create the npm trusted publisher for @graphty/x";
+            const { out, calls } = held([TRAIN, PUBLISH], "open", title, "BODY", prefix);
+            assert.equal(out, "1440");
+            assert.equal(calls, "issue comment 1440 -R o/r --body-file BODY\n");
+            // with none open, it opens one; the passing re-run closes it and leaves the train hold
+            assert.match(
+                held([TRAIN], "open", title, "BODY", prefix).calls,
+                /^issue create -R o\/r --title Release held: publish failed/,
+            );
+            assert.equal(
+                held([TRAIN, PUBLISH], "close", "published", prefix).calls,
+                "issue close 1440 -R o/r --comment published\n",
+            );
+        });
+
+        it("is wired that way in release.yml", () => {
+            assert.match(
+                publish,
+                /tools\/release-held.sh open "\$title" "\$RUNNER_TEMP\/body.md" "Release held: publish failed"\)/,
+            );
+            assert.match(publish, /until that run is re-run and passes/);
+        });
     });
 
     it("lets Mergify take the release pull request alone, ahead of the default rule", () => {
@@ -2460,19 +2892,81 @@ describe("the commit and push hooks", () => {
     });
 });
 
+// The test files under `root` (tracked, or untracked and not ignored) that run git without
+// isolateGit() or isolatedGitEnv().
+function bareGitTests(root) {
+    const runsGit = /\b(?:spawnSync|spawn|execFileSync|execFile|execSync|exec|execa)\(\s*["'`]git\b/;
+    const isTest = /(^|\/)(test|tests|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
+    const files = spawnSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
+        cwd: root,
+        encoding: "utf8",
+    }).stdout.split("\0");
+    return files
+        .filter((f) => isTest.test(f) && /\.[cm]?[jt]sx?$/.test(f))
+        .filter((f) => {
+            const text = readFileSync(join(root, f), "utf8");
+            return runsGit.test(text) && !/\b(isolateGit|isolatedGitEnv)\b/.test(text);
+        });
+}
+
 describe("tests that run git", () => {
     it("run it with the developer's own git config isolated (tools/isolated-git-env.mjs)", () => {
-        const runsGit = /\b(?:spawnSync|spawn|execFileSync|execFile|execSync|exec|execa)\(\s*["'`]git\b/;
-        const isTest = /(^|\/)(test|tests|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
         const root = new URL("..", import.meta.url).pathname;
-        const files = spawnSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" }).stdout.split("\0");
-        const bare = files
-            .filter((f) => isTest.test(f) && /\.[cm]?[jt]sx?$/.test(f))
-            .filter((f) => {
-                const text = readFileSync(join(root, f), "utf8");
-                return runsGit.test(text) && !/\b(isolateGit|isolatedGitEnv)\b/.test(text);
-            });
-        assert.deepEqual(bare, [], "these run git without isolateGit() or isolatedGitEnv()");
+        assert.deepEqual(bareGitTests(root), [], "these run git without isolateGit() or isolatedGitEnv()");
         assert.match(readFileSync(join(root, "visual-review/vitest.config.mjs"), "utf8"), /isolate-git\.setup\.mjs/);
+    });
+
+    it("the check also covers a new test file git does not track yet", () => {
+        const dir = mkdtempSync(join(tmpdir(), "bare-git-test-"));
+        try {
+            spawnSync("git", ["init", "-q"], { cwd: dir });
+            writeFileSync(join(dir, "new.test.mjs"), 'spawnSync("git", ["status"]);\n');
+            assert.deepEqual(bareGitTests(dir), ["new.test.mjs"]);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("a failed pre-push test shard (#1562)", () => {
+    it("keeps its test name and error where the next push does not overwrite them", () => {
+        // A copy of the runner and test-slots.mjs in a throwaway repository, beside a one-shard matrix
+        // and a run-tests.sh that prints tmp/fake-output and fails. The second run overwrites
+        // tmp/prepush-tests/fake.log; the first run's copy under tmp/push-gate-logs/ must survive.
+        const dir = mkdtempSync(join(tmpdir(), "prepush-kept-log-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            mkdirSync(join(dir, "tmp"));
+            for (const f of ["prepush-tests.mjs", "test-slots.mjs"]) {
+                copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
+            }
+            const shard = { shard: "fake", package: "fake", "test-command": "true", "needs-browser": false };
+            writeFileSync(join(dir, "tools/ci-test-matrix.mjs"), `export const SHARDS = ${JSON.stringify([shard])};\n`);
+            writeFileSync(join(dir, "tools/run-tests.sh"), "cat tmp/fake-output; exit 1\n");
+            assert.equal(spawnSync("git", ["init", "-q"], { cwd: dir }).status, 0);
+            const run = (output) => {
+                writeFileSync(join(dir, "tmp/fake-output"), output);
+                return spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["fake"]'], {
+                    cwd: dir,
+                    encoding: "utf8",
+                    timeout: 60_000,
+                });
+            };
+
+            const first = run(" FAIL  src/a.test.ts > draws the edge\nError: Test timed out in 5000ms.\n");
+            assert.equal(first.status, 1, first.stdout + first.stderr);
+            const kept = /\[FAIL\] fake: its whole log is kept in (\S+)/.exec(first.stdout)?.[1];
+            assert.ok(kept?.startsWith(join(dir, "tmp/push-gate-logs/")), first.stdout);
+
+            assert.equal(run(" FAIL  src/b.test.ts > another test\nError: fetch failed\n").status, 1);
+            assert.match(readFileSync(join(dir, "tmp/prepush-tests/fake.log"), "utf8"), /fetch failed/);
+
+            const firstLog = readFileSync(kept, "utf8");
+            assert.match(firstLog, /FAIL {2}src\/a\.test\.ts > draws the edge/);
+            assert.match(firstLog, /Test timed out in 5000ms/);
+            assert.equal(readdirSync(join(dir, "tmp/push-gate-logs")).length, 2);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 });

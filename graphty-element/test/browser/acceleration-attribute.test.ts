@@ -76,6 +76,7 @@ function registerFake(): void {
  * @returns A promise that settles after the wait.
  */
 function wait(ms: number): Promise<void> {
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -90,6 +91,7 @@ async function until(predicate: () => boolean, what: string): Promise<void> {
             return;
         }
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await wait(10);
     }
 

@@ -49,6 +49,7 @@ const containers: HTMLDivElement[] = [];
  * @returns A promise that settles after the wait.
  */
 function wait(ms: number): Promise<void> {
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 

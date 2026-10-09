@@ -184,7 +184,7 @@ export const NODE_DECLS: Readonly<Record<keyof typeof NODE_COLUMNS, ColumnDecl>>
     },
     position: {
         name: NODE_COLUMNS.position,
-        dtype: "f32",
+        dtype: "f64",
         components: 3,
         role: "position",
         mutable: true,

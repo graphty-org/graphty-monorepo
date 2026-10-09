@@ -44,7 +44,7 @@ import { trimTrailingZeros } from "./text.js";
  * A run of 16 digits not inside a fraction: the shortest integer literal that can exceed 2^53 (9007199254740992).
  * @category Plugin helpers
  */
-export const MAYBE_UNSAFE_INTEGER = /(?<![0-9.])[0-9]{16}/;
+export const MAYBE_UNSAFE_INTEGER = /(?<![0-9.])\d{16}/;
 
 /**
  * A literal the double read for may not equal: an exponent of 15 or more (`9.007199254740993e15`,
@@ -80,7 +80,7 @@ const NONSTANDARD_TOKENS: readonly (readonly [string, number])[] = [
 ];
 
 /** A JSON integer literal (no fraction, no exponent, no leading zero), as CANONICAL_INTEGER in common/ids.ts. */
-const INTEGER_LITERAL = /^-?(0|[1-9][0-9]*)$/;
+const INTEGER_LITERAL = /^-?(0|[1-9]\d*)$/;
 
 /** A JSON number literal, split into sign, integer digits, fraction digits and exponent. */
 const NUMBER_PARTS = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/;
@@ -1552,7 +1552,7 @@ interface CxId {
     readonly note: CxIdNote;
 }
 
-const DECIMAL_INTEGER_TEXT = /^-?(0|[1-9][0-9]*)$/;
+const DECIMAL_INTEGER_TEXT = /^-?(0|[1-9]\d*)$/;
 
 /**
  * Apply the CX id rule (design section 1.0.2) to a parsed value: a safe integer is the id; an
@@ -1655,7 +1655,7 @@ export const POSITION_COLUMN = "position";
 const Z_COLUMN = "z";
 
 /**
- * The position column of a Cytoscape-family importer: f32 x3, y-up, 2 source dimensions.
+ * The position column of a Cytoscape-family importer: f64 x3, y-up, 2 source dimensions.
  * @param format - the importer's format name
  * @param sourceDims - 3 when z goes into the position (zAs "position")
  * @returns the declaration
@@ -1664,7 +1664,7 @@ const Z_COLUMN = "z";
 export function positionDecl(format: string, sourceDims = 2): ColumnDecl {
     return {
         name: POSITION_COLUMN,
-        dtype: "f32",
+        dtype: "f64",
         components: 3,
         role: "position",
         mutable: true,
@@ -1688,17 +1688,6 @@ export function zDecl(format: string): ColumnDecl {
         origin: { format, id: null, namespace: "cytoscape" },
         extra: { cytoscape: "z" },
     };
-}
-
-/**
- * Whether a coordinate fits the f32 position column: finite once rounded to f32 (1e39 and the
- * Infinity of a literal like 1e400 do not, nor does NaN).
- * @param value - the coordinate
- * @returns true when the column can hold it
- * @category Plugin helpers
- */
-export function fitsF32(value: number): boolean {
-    return Number.isFinite(Math.fround(value));
 }
 
 /**

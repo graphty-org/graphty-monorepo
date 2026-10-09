@@ -59,6 +59,7 @@ async function loadedGraph(mode: "2d" | "3d"): Promise<Graph> {
     await graph.waitForSettled();
     // The views frame the laid-out box, so wait for the nodes to be where the layout put them.
     for (let wait = 0; wait < 1000 && graph.getLayoutManager().running; wait++) {
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 10));
     }
 
@@ -177,6 +178,7 @@ async function compare(
 
 describe("camera doors", () => {
     for (const mode of ["3d", "2d"] as const) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `zoomStep moves the ${mode} camera as the app's zoom buttons do`,
             async () => {
@@ -194,6 +196,7 @@ describe("camera doors", () => {
         );
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "zoomToSelection centres the camera on the selected node as the app's helper does",
         async () => {
@@ -209,6 +212,7 @@ describe("camera doors", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "zoomToSelection centres the camera on a selected edge's ends",
         async () => {
@@ -233,6 +237,7 @@ describe("camera doors", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "applyCameraView with the selection scope frames a selected edge's ends",
         async () => {
@@ -265,6 +270,7 @@ describe("camera doors", () => {
     );
 
     for (const mode of ["3d", "2d"] as const) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `zoomToNodes frames only the named nodes on the ${mode} camera`,
             async () => {
@@ -284,6 +290,7 @@ describe("camera doors", () => {
     }
 
     for (const mode of ["3d", "2d"] as const) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `zoomToNodes frames a single node on the ${mode} camera, with the camera still in front of it`,
             async () => {
@@ -315,6 +322,7 @@ describe("camera doors", () => {
         );
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "zoomToNodes with no node it knows leaves the camera where it is",
         async () => {
@@ -327,6 +335,7 @@ describe("camera doors", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "loadCameraPreset answers the app's Top, Front and Side rows with the element's view names",
         async () => {

@@ -199,19 +199,18 @@ and `0` and CSV without its node table loses node fields.
 
 | Format    | Edge ids | Parents | Positions | Lists | Direction |
 | --------- | -------- | ------- | --------- | ----- | --------- |
-| `gexf`    | kept     | kept    | 32-bit    | text  | kept      |
+| `gexf`    | kept     | kept    | kept      | text  | kept      |
 | `graphml` | kept     | kept    | lost      | text  | kept      |
 | `gml`     | kept     | lost    | kept      | kept  | kept      |
-| `dot`     | kept     | kept    | 32-bit    | lost  | kept      |
-| `pajek`   | new      | lost    | 32-bit    | lost  | kept      |
+| `dot`     | kept     | kept    | kept      | lost  | kept      |
+| `pajek`   | new      | lost    | kept      | lost  | kept      |
 | `csv`     | kept     | lost    | lost      | text  | kept      |
-| `json`    | kept     | kept    | 32-bit    | kept  | directed  |
+| `json`    | kept     | kept    | kept      | kept  | directed  |
 | `neo4j`   | new      | lost    | `[x, -y]` | text  | directed  |
-| `xgmml`   | kept     | kept    | 32-bit    | text  | kept      |
-| `cx2`     | new      | lost    | 32-bit    | text  | directed  |
+| `xgmml`   | kept     | kept    | kept      | text  | kept      |
+| `cx2`     | new      | lost    | kept      | text  | directed  |
 
-"32-bit" positions return `0.1` as `0.10000000149011612`. "new" edge ids come from Cytoscape (CX2:
-`"0"`, `"1"`). With `[x, -y]` the node sits at the origin and the array is in `data.position`.
+"new" edge ids come from Cytoscape (CX2: `"0"`, `"1"`). With `[x, -y]` the node sits at the origin and the array is in `data.position`.
 "text" lists read back as JSON text (`'["x","y"]'`). "directed" formats have no
 undirected form; import Cytoscape JSON with `{ defaultDirected: false }` to read it as undirected.
 CX2 writes a node's `label` to `name`, which reads back as `data.name`.

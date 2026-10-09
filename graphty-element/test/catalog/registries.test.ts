@@ -187,6 +187,14 @@ describe("layout catalogue", () => {
                     [implementation.engine, implementation.reason.length > 20],
                     [implementation.engine, true],
                 );
+                assert.deepEqual(
+                    [
+                        implementation.engine,
+                        implementation.fact.code.startsWith("implementation."),
+                        implementation.fact.params,
+                    ],
+                    [implementation.engine, true, { engine: implementation.engine }],
+                );
             }
         }
     });

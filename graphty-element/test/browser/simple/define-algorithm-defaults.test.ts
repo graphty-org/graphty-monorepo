@@ -111,6 +111,7 @@ describe("the caveats a run is filled in with", () => {
         assert.strictEqual(run.caveats.iterations, 7);
         assert.isFalse(run.caveats.exact, "stopping at the cap publishes what the run has, marked inexact");
         assert.strictEqual(run.caveats.partialReason, "iteration cap reached");
+        assert.deepStrictEqual(run.caveats.partialCause, { code: "partial.iteration-cap", params: {} });
         assert.isTrue(run.partial, "a result that stopped at its cap is partial, as its caveats say (#933)");
     });
 
@@ -199,6 +200,7 @@ describe("cancelling a whole-graph function", () => {
         assert.strictEqual(run.status, "canceled");
         const deadline = Date.now() + 5000;
         while (!stopped && Date.now() < deadline) {
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((settle) => setTimeout(settle, 10));
         }
         assert.isTrue(stopped, "the author's own loop unwound");

@@ -229,6 +229,9 @@ export function laneStoreOf(manager: DataManager): LaneStore {
         get stale() {
             return manager.snapshotStale;
         },
+        get holdsNoRows() {
+            return manager.holdsNoRows;
+        },
         get inputs() {
             return inputCountersOf(manager);
         },
@@ -515,6 +518,15 @@ export class DataManager implements Manager {
      */
     get snapshotStale(): boolean {
         return this.store.stale;
+    }
+
+    /**
+     * Whether the graph holds no node rows, answered without freezing a snapshot.
+     * @returns True when it holds none.
+     * @internal
+     */
+    get holdsNoRows(): boolean {
+        return this.store.holdsNoRows;
     }
 
     /**

@@ -144,6 +144,7 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
         for (const tuning of MODES) {
             const paper = tuning.compat === "paper";
             const label = `${graph}/${tuning.compat ?? "paper"}`;
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${label}: twice bitwise; re-synchronised within the traced tolerances${paper ? "; the free-running legs printed (chaotic, G3-F3)" : "; free-running first 10 vs f32 within the spec cap, 50 vs f64 printed (seed-bound, G3-F3 item 2)"}`,
                 async (t) => {
@@ -211,9 +212,15 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
         }
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writes the karate NETWORKX trace (50 iterations) and its f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {
+            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+                // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
+                // ones on every run (issue #455)
+                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+            }
             requireGpu(t);
             const { s, start, options, tuning } = noiseInputs(NETWORKX, "karate");
             try {
@@ -250,9 +257,15 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writes the unscaled random1k NETWORKX traces (10 and 50 iterations) and the f32 / f64 references as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {
+            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+                // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
+                // ones on every run (issue #455)
+                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+            }
             requireGpu(t);
             const { s, start, options, tuning } = noiseInputs(NETWORKX);
             try {
@@ -305,9 +318,15 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
 
     for (const member of ["resync50", "resyncKarate50"] as const) {
         const graph: ParityGraph = member === "resync50" ? "random1k" : "karate";
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `writes the unscaled ${graph} PAPER re-synchronised trace and its per-adapter f32 / f64 references as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
             async (t) => {
+                if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+                    // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
+                    // ones on every run (issue #455)
+                    t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+                }
                 requireGpu(t);
                 const { s, start, options, tuning } = noiseInputs(PAPER, graph);
                 try {
@@ -342,6 +361,7 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
             CASE_TIMEOUT,
         );
     }
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the networkx free-running 50-vs-f64 leg across seeds 1 .. 8 is seed-bound, not kernel-bound (G3-F3 item 2): printed on every run, the oracle pair recorded (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {

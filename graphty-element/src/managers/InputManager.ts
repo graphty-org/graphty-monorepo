@@ -1,6 +1,7 @@
 import type { Vector2 } from "@babylonjs/core/Maths/math.vector";
 import { Observable } from "@babylonjs/core/Misc/observable";
 
+import type { GraphEventType, InputEnabledChangedEvent } from "../events";
 import { BabylonInputSystem } from "../input/babylon-input-system";
 import { MockDeviceInputSystem } from "../input/mock-device-input-system";
 import type { KeyboardInfo, MouseButton, PointerInfo, TouchPoint, WheelInfo } from "../input/types";
@@ -122,7 +123,7 @@ export class InputManager implements Manager {
             }
 
             // Emit initialization event
-            this.context.eventManager.emitGraphEvent("input-initialized", {
+            this.context.eventManager.emit("input-initialized", {
                 inputManager: this,
                 config: this.config,
             });
@@ -163,7 +164,10 @@ export class InputManager implements Manager {
             this.inputSystem.attach(this.context.canvas);
         }
 
-        this.context.eventManager.emitGraphEvent("input-enabled-changed", { enabled });
+        this.context.eventManager.emit("input-enabled-changed", { enabled } satisfies Omit<
+            InputEnabledChangedEvent,
+            "type"
+        >);
     }
 
     /**
@@ -210,7 +214,7 @@ export class InputManager implements Manager {
     startRecording(): void {
         this.config.recordInput = true;
         this.recordedEvents = [];
-        this.context.eventManager.emitGraphEvent("input-recording-started", {});
+        this.context.eventManager.emit("input-recording-started", {});
     }
 
     /**
@@ -219,7 +223,7 @@ export class InputManager implements Manager {
      */
     stopRecording(): RecordedInputEvent[] {
         this.config.recordInput = false;
-        this.context.eventManager.emitGraphEvent("input-recording-stopped", {
+        this.context.eventManager.emit("input-recording-stopped", {
             eventCount: this.recordedEvents.length,
         });
         return [...this.recordedEvents];
@@ -259,7 +263,7 @@ export class InputManager implements Manager {
      */
     private setupEventBridges(): void {
         // Only bridge events if enabled
-        const createBridge = <T>(observable: Observable<T>, eventName: string, shouldRecord = true): void => {
+        const createBridge = <T>(observable: Observable<T>, eventName: GraphEventType, shouldRecord = true): void => {
             observable.add((data) => {
                 if (!this.enabled) {
                     return;
@@ -276,7 +280,7 @@ export class InputManager implements Manager {
 
                 // Emit through event manager
                 const eventData = this.serializeEventData(data);
-                this.context.eventManager.emitGraphEvent(eventName, eventData);
+                this.context.eventManager.emit(eventName, eventData);
             });
         };
 
@@ -306,19 +310,19 @@ export class InputManager implements Manager {
             const key = info.key.toLowerCase();
             const history = this.config.historyKeys === false ? undefined : this.config.history;
             if (key === "z" && !info.shiftKey) {
-                this.context.eventManager.emitGraphEvent("input:undo", {});
+                this.context.eventManager.emit("input:undo", {});
                 if (history !== undefined) {
                     info.preventDefault?.();
                     void history.undo();
                 }
             } else if (key === "y" || (key === "z" && info.shiftKey)) {
-                this.context.eventManager.emitGraphEvent("input:redo", {});
+                this.context.eventManager.emit("input:redo", {});
                 if (history !== undefined) {
                     info.preventDefault?.();
                     void history.redo();
                 }
             } else if (key === "a") {
-                this.context.eventManager.emitGraphEvent("input:select-all", {});
+                this.context.eventManager.emit("input:select-all", {});
             }
             // Add more shortcuts as needed
         });
@@ -418,7 +422,7 @@ export class InputManager implements Manager {
             this.playbackIndex++;
         }
 
-        this.context.eventManager.emitGraphEvent("input-playback-completed", {});
+        this.context.eventManager.emit("input-playback-completed", {});
     }
 
     /**
@@ -464,7 +468,7 @@ export class InputManager implements Manager {
         // Handle specific config changes
         if ("touchEnabled" in config || "keyboardEnabled" in config) {
             // These would affect input system behavior
-            this.context.eventManager.emitGraphEvent("input-config-updated", config);
+            this.context.eventManager.emit("input-config-updated", config);
         }
     }
 
@@ -475,7 +479,7 @@ export class InputManager implements Manager {
         if (this.config.pointerLockEnabled) {
             try {
                 await this.context.canvas.requestPointerLock();
-                this.context.eventManager.emitGraphEvent("input-pointer-lock-changed", {
+                this.context.eventManager.emit("input-pointer-lock-changed", {
                     locked: true,
                 });
             } catch (error) {
@@ -490,7 +494,7 @@ export class InputManager implements Manager {
     exitPointerLock(): void {
         if (document.pointerLockElement === this.context.canvas) {
             document.exitPointerLock();
-            this.context.eventManager.emitGraphEvent("input-pointer-lock-changed", {
+            this.context.eventManager.emit("input-pointer-lock-changed", {
                 locked: false,
             });
         }

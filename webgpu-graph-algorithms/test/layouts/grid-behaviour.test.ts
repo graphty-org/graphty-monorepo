@@ -161,6 +161,7 @@ describe("FA2 grid tier behaviour (spec 7.7, 7.8, 11.4)", () => {
 
     for (const name of ["karate", "random1k", "rmat14"] as const satisfies readonly ParityGraph[]) {
         for (const dim of [2, 3] as const) {
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `(1) repulsion: "grid" on ${name} in ${dim}D: 50 iterations finite, the grid stats, run twice bitwise`,
                 async (t) => {
@@ -219,6 +220,7 @@ describe("FA2 grid tier behaviour (spec 7.7, 7.8, 11.4)", () => {
         }
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "(3) deterministic: true is bitwise reproducible through the radix sort; deterministic: false runs the counting sort and is finite",
         async (t) => {
@@ -257,6 +259,7 @@ describe("FA2 grid tier behaviour (spec 7.7, 7.8, 11.4)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "(4) nearMax: 4 on onecell1025 and hubcell is finite; an all-coincident start puts every node in one cell (maxCellOccupancy === n)",
         async (t) => {
@@ -293,6 +296,7 @@ describe("FA2 grid tier behaviour (spec 7.7, 7.8, 11.4)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "(5) gridMax2D: 32 on random20k (the software saturation case) is finite with an occupancy max",
         async (t) => {

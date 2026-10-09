@@ -60,6 +60,7 @@
 // ---------------------------------------------------------------------------------------------
 
 import type { RuleTree, SelectionDirection } from "./src/catalog/types";
+import { englishReading, type ReadingOptions, type RunResult } from "./src/session/results";
 import type { SelectionOp } from "./src/session/selection";
 
 export type {
@@ -172,7 +173,7 @@ export type { ReadonlyElementPositions } from "./src/session";
 // Which arrangement suits a graph
 // ---------------------------------------------------------------------------------------------
 
-export type { LayoutRecommendation, LayoutRecommendationOptions } from "./src/session";
+export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./src/session";
 export { recommendLayout } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
@@ -188,8 +189,10 @@ export { LOAD_ROLES } from "./src/session";
 export type {
     BatchResult,
     BatchStep,
+    CaveatCode,
     Caveats,
     EngineVersions,
+    PartialCode,
     Precision,
     Progress,
     QueueEntry,
@@ -198,6 +201,7 @@ export type {
     Run,
     RunChange,
     RunDirection,
+    RunDistinction,
     RunExecutionContext,
     RunExecutor,
     RunOptions,
@@ -249,6 +253,7 @@ export type {
     Normalization,
     NumericColumnView,
     RankingEntry,
+    ReadingCode,
     ReadingOptions,
     ResultsApi,
     ResultSummary,
@@ -258,13 +263,19 @@ export type {
     SummaryGroup,
     TopRanking,
 } from "./src/session/results";
-export {
-    defaultReading,
-    RESULT_FIELD_NAMES,
-    RESULT_ROOT,
-    RESULT_SHAPE_CONTRACTS,
-    resultPath,
-} from "./src/session/results";
+export { RESULT_FIELD_NAMES, RESULT_ROOT, RESULT_SHAPE_CONTRACTS, resultPath } from "./src/session/results";
+
+/**
+ * Write one English sentence saying what a result means: the sentence `result.reading()` returns,
+ * worded from `result.readingFact()`.
+ * @param result - The result to read.
+ * @param options - The locale to print numbers in, and whether to use plain or technical words.
+ * @returns The sentence.
+ * @deprecated Read `result.readingFact()` and word it yourself. Removed in the next major.
+ */
+export function defaultReading(result: RunResult, options: ReadingOptions): string {
+    return englishReading(result, options);
+}
 
 // ---------------------------------------------------------------------------------------------
 // Which elements a piece of work is allowed to look at

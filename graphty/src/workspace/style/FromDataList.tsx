@@ -3,7 +3,7 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import type React from "react";
 
-import { runName } from "../analyze/words";
+import { runName } from "../runWords";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataChoice, propose, type Target } from "./row";
 import { useStyleVersion } from "./useStyleVersion";

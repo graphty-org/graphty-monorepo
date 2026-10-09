@@ -63,7 +63,7 @@ function withDegree(): { harness: Harness; calls: () => number } {
             measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
             nodes,
             edges,
-            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "degree", notes: [] },
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "degree", facts: [], notes: [] },
             durationMs: 1,
         });
         // The summary rides along, as the element's own executor hands it over.

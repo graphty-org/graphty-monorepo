@@ -9,9 +9,11 @@ import {
 import { Button, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect } from "react";
 
-import { isPathFollow, ranOptionWords, runName, weightRead, wordsFor } from "../analyze/words";
+import { isPathFollow, ranOptionWords, weightRead, wordsFor } from "../analyze/words";
 import { focusInspectorTitle } from "../frame/focus";
 import { OptionsForm } from "../options/OptionsForm";
+import { modularityBandName } from "../../components/shell/readings/readingFormat";
+import { runName } from "../runWords";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
@@ -333,7 +335,7 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
                         value={
                             band === undefined
                                 ? formatNumber(modularity)
-                                : `${formatNumber(modularity)}, ${band.plainName}`
+                                : `${formatNumber(modularity)}, ${modularityBandName(band)}`
                         }
                     />
                 )}

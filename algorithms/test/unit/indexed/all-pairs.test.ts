@@ -439,53 +439,80 @@ describe("indexed.allPairsShortestPath -- per-source strategies and the rule", (
     });
 });
 
-/** Every reachable pair's path walks from i to j over real edges and weighs exactly `dist`. */
-function expectPathsMatchDist(s: GraphSnapshot, r: ApspResult, arcWeights: NumericVector | null, label: string): void {
+/**
+ * Every reachable pair's path walks from i to j over real edges and weighs exactly `dist`; returns
+ * one line per pair that does not. Plain comparisons, not one `expect` per pair: the fixtures hold
+ * about 19,000 pairs, and an `expect` per check (about 750,000 of them over the fixtures,
+ * strategies and weightings) was what made the test take 5 s alone and over 30 s under load.
+ */
+function pathMismatches(s: GraphSnapshot, r: ApspResult, arcWeights: NumericVector | null): string[] {
     const el = s.edgeList();
     // one weight per logical edge, read through the edge's first arc
     const edgeWeight = new Float64Array(s.edgeCount);
     for (let a = 0; a < s.arcCount; a++) {
         edgeWeight[s.arcToEdge[a]] = arcWeights === null ? 1 : arcWeights[a];
     }
+    const bad: string[] = [];
     const { n } = r;
     for (let i = 0; i < n; i++) {
         for (let j = 0; j < n; j++) {
-            const nodes = r.pathTo(i, j);
-            const edges = r.pathEdges(i, j);
-            const d = r.dist[i * n + j];
-            if (d === Infinity) {
-                expect(nodes.length, label).toBe(0);
-                expect(edges.length, label).toBe(0);
-                continue;
+            const problem = pairMismatch(s, el, edgeWeight, r, i, j);
+            if (problem !== null) {
+                bad.push(`${String(i)}->${String(j)}: ${problem}`);
             }
-            expect(nodes[0], label).toBe(i);
-            expect(nodes[nodes.length - 1], label).toBe(j);
-            expect(edges.length, label).toBe(nodes.length - 1);
-            let sum = 0;
-            for (let e = 0; e < edges.length; e++) {
-                const [u, v] = [nodes[e], nodes[e + 1]];
-                const [a, b] = [el.src[edges[e]], el.dst[edges[e]]];
-                expect(a === u && b === v ? true : !s.directed && a === v && b === u, label).toBe(true);
-                sum += edgeWeight[edges[e]];
-            }
-            expect(sum, `${label} ${String(i)}->${String(j)}`).toBe(d);
         }
     }
+    return bad;
+}
+
+function pairMismatch(
+    s: GraphSnapshot,
+    el: ReturnType<GraphSnapshot["edgeList"]>,
+    edgeWeight: Float64Array,
+    r: ApspResult,
+    i: number,
+    j: number,
+): string | null {
+    const nodes = r.pathTo(i, j);
+    const edges = r.pathEdges(i, j);
+    const d = r.dist[i * r.n + j];
+    if (d === Infinity) {
+        return nodes.length === 0 && edges.length === 0 ? null : "a path to an unreachable node";
+    }
+    if (nodes[0] !== i || nodes[nodes.length - 1] !== j) {
+        return `path [${Array.from(nodes).join(",")}] has the wrong ends`;
+    }
+    if (edges.length !== nodes.length - 1) {
+        return `${String(edges.length)} edges for ${String(nodes.length)} nodes`;
+    }
+    let sum = 0;
+    for (let e = 0; e < edges.length; e++) {
+        const [u, v] = [nodes[e], nodes[e + 1]];
+        const [a, b] = [el.src[edges[e]], el.dst[edges[e]]];
+        if (!((a === u && b === v) || (!s.directed && a === v && b === u))) {
+            return `edge ${String(edges[e])} does not join ${String(u)} and ${String(v)}`;
+        }
+        sum += edgeWeight[edges[e]];
+    }
+    return sum === d ? null : `path weighs ${String(sum)}, dist is ${String(d)}`;
 }
 
 describe("indexed.allPairsShortestPath -- paths", () => {
-    it("walks every reachable pair on every fixture and strategy", () => {
-        for (const { name, graph } of allFixtures()) {
-            const s = checksummedSnapshot(graph);
-            for (const method of ["floyd-warshall", "per-source"] as const) {
-                const own = allPairsShortestPath(s, { method, paths: true });
-                expectPathsMatchDist(s, own, s.weights, `${name} ${method}`);
-                const twos = allTwos(s);
-                const viaTwos = allPairsShortestPath(s, { method, paths: true, weights: twos });
-                expectPathsMatchDist(s, viaTwos, twos, `${name} ${method} all-2`);
-            }
-            s.validate({ checksum: true });
-        }
+    // One case per fixture and strategy. Measured at load average 70: the slowest case (the 90-node
+    // directed fixture) took 36 ms alone and 127 ms with --coverage; all 24 took 0.27 s and 0.53 s.
+    // The 10 s limit is about 80 times the slowest case, room for a machine far busier than that.
+    const cases = allFixtures().flatMap(({ name, graph }) =>
+        (["floyd-warshall", "per-source"] as const).map((method) => ({ name, graph, method })),
+    );
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it.each(cases)("walks every reachable pair: $name, $method", { timeout: 10_000 }, ({ graph, method }) => {
+        const s = checksummedSnapshot(graph);
+        const own = allPairsShortestPath(s, { method, paths: true });
+        expect(pathMismatches(s, own, s.weights), "own weights").toEqual([]);
+        const twos = allTwos(s);
+        const viaTwos = allPairsShortestPath(s, { method, paths: true, weights: twos });
+        expect(pathMismatches(s, viaTwos, twos), "all-2").toEqual([]);
+        s.validate({ checksum: true });
     });
 
     it("gives [i] and no edges on the diagonal, nothing when unreachable", () => {

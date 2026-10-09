@@ -93,7 +93,6 @@ reasons, in short:
   and the T21 menu route's "Added" as ddf8b3b63039's (not walked) and said so. Graders take both
   old and new heading wordings. No prompt was wrong, so `tasks.md` unchanged; no bar moved.
 
-
 - 2026-10-09 (researcher, key matched to the round 2 pilots) -- Re-pointed `answers.md` at
   ddf8b3b63039 with a build section (legend "out of date" under filter/replace; Summary heading;
   halo-only selection; no focus mark after Find path/Rerun/Save) and per-task fixes; marked the
@@ -198,7 +197,6 @@ reasons, in short:
   whitespace-insensitively inside the task's section with an assert per triple, plus an ASCII
   assert before writing: 65 edits applied on the first run (`tmp/researcher/r2d1-key/`). Worked:
   when two pilots disagree about a control, look at the screen BEFORE the click, not after.
-
 
 - 2026-10-09 (round 2 key) -- Worked: applying each task's edits as (old, new) pairs scoped to the
   task's section with an assert per pair; viewing the two screenshots where pilots disagreed

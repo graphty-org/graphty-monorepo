@@ -188,7 +188,7 @@ export class AiController {
      * @returns Promise resolving to the execution result
      */
     async execute(input: string): Promise<ExecutionResult> {
-        logger.debug("User input", { input });
+        logger.debug("User input", { inputLength: input.length });
 
         if (this.disposed) {
             return {
@@ -379,7 +379,11 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         // Get tool definitions from registry
         const tools = this.commandRegistry.toToolDefinitions();
 
-        logger.debug("Request", { messages, tools: tools.map((t) => t.name) });
+        logger.debug("Request", {
+            messageCount: messages.length,
+            promptLength: messages.reduce((sum, m) => sum + m.content.length, 0),
+            tools: tools.map((t) => t.name),
+        });
 
         // Transition to streaming state
         this.statusManager.startStreaming();
@@ -404,8 +408,8 @@ When the user asks you to perform an action, use the appropriate tool. If no too
 
             logger.debug("Response", {
                 turn,
-                text: response.text || "(no text)",
-                toolCalls: response.toolCalls.map((tc) => ({ name: tc.name, arguments: tc.arguments })),
+                textLength: response.text.length,
+                toolCalls: response.toolCalls.map((tc) => this.knownToolName(tc.name)),
             });
 
             // Append any text response and emit stream chunk event
@@ -548,18 +552,28 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     }
 
     /**
+     * A tool name safe to log: a registered command's name, never a name the model made up,
+     * which is model output and may carry anything.
+     * @param name - The name the model called.
+     * @returns The name when a command is registered under it, otherwise "(unknown)".
+     */
+    private knownToolName(name: string): string {
+        return this.commandRegistry.get(name) ? name : "(unknown)";
+    }
+
+    /**
      * Execute a single tool call.
      * @param toolCall - The tool call to execute
      * @param tx - The batch's transaction, handed to the command as `ctx.tx`
      * @returns Command result
      */
     private async executeToolCall(toolCall: ToolCall, tx: TransactionScope): Promise<CommandResult> {
-        logger.debug("Executing command", { name: toolCall.name, arguments: toolCall.arguments });
+        logger.debug("Executing command", { name: this.knownToolName(toolCall.name) });
 
         const command = this.commandRegistry.get(toolCall.name);
 
         if (!command) {
-            logger.debug("Command result: FAILED - Unknown command", { name: toolCall.name });
+            logger.debug("Command result: FAILED - Unknown command", { nameLength: toolCall.name.length });
             return {
                 success: false,
                 message: `Unknown command: ${toolCall.name}. Command not found in registry.`,
@@ -572,10 +586,16 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         let validatedArguments: Record<string, unknown>;
         try {
             validatedArguments = command.parameters.parse(toolCall.arguments);
-            logger.debug("Validated arguments", { arguments: validatedArguments });
+            logger.debug("Validated arguments", {
+                name: command.name,
+                argumentCount: Object.keys(validatedArguments).length,
+            });
         } catch (validationError) {
             const errorMessage = validationError instanceof Error ? validationError.message : String(validationError);
-            logger.debug("Command result: FAILED - Invalid arguments", { error: errorMessage });
+            logger.debug("Command result: FAILED - Invalid arguments", {
+                name: command.name,
+                errorType: validationError instanceof Error ? validationError.name : typeof validationError,
+            });
             return {
                 success: false,
                 message: `Invalid arguments for ${toolCall.name}: ${errorMessage}`,
@@ -587,10 +607,10 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             graph: this.graph,
             tx,
             abortSignal: this.abortController?.signal ?? new AbortController().signal,
-            emitEvent: (type: string, data: unknown) => {
+            emitEvent: (type: string, _data: unknown) => {
                 // Bridge from string-based events to AiEvent
                 // Commands can emit events using simple type/data format
-                logger.debug("Command emitted event", { type, data });
+                logger.debug("Command emitted event", { name: command.name, type });
             },
             updateStatus: (updates) => {
                 if (updates.stageMessage) {
@@ -603,9 +623,10 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         const result = await command.execute(this.graph, validatedArguments, context);
 
         logger.debug("Command result", {
+            name: command.name,
             success: result.success,
-            message: result.message,
-            data: result.data,
+            messageLength: result.message.length,
+            hasData: result.data !== undefined,
         });
 
         return result;

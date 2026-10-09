@@ -32,15 +32,31 @@ async function loadRing(canvasElement: HTMLElement): Promise<GraphtyElement> {
 }
 
 /**
+ * Clicks the inspector's Style tab: the inspector opens a row on Values.
+ * @param canvasElement - the story's root.
+ */
+async function openStyleTab(canvasElement: HTMLElement): Promise<void> {
+    const inspector = within(canvasElement).getByRole("complementary", { name: "Inspector" });
+    await userEvent.click(await within(inspector).findByRole("tab", { name: "Style" }));
+}
+
+/**
  * Runs PageRank and shows its row in the Style tab, as selecting the measure row would.
+ * @param canvasElement - the story's root.
  * @param element - the story's element.
  * @param store - the story's store.
  */
-async function inspectPageRank(element: GraphtyElement, store: WorkspaceStore): Promise<void> {
+async function inspectPageRank(
+    canvasElement: HTMLElement,
+    element: GraphtyElement,
+    store: WorkspaceStore,
+): Promise<void> {
     const { runId } = await element.session.runs.start("pagerank");
     await element.session.styles.settled();
     // As the paint tree opens a run's row: the row's kind and the run id.
     store.set({ inspected: { kind: "measure-row", id: runId } });
+    // The tab is rebuilt for the new row, on Values again.
+    await openStyleTab(canvasElement);
     await element.waitForStableFrame();
 }
 
@@ -73,6 +89,10 @@ function styleStory(
         play: async ({ canvasElement }) => {
             store.set({ inspected: null });
             const element = await loadRing(canvasElement);
+            // As the reader gets here: the Everything row in the paint tree, then the inspector's
+            // Style tab (it opens on Values).
+            await userEvent.click(await within(canvasElement).findByText("Everything"));
+            await openStyleTab(canvasElement);
             await play?.(canvasElement, element, store);
         },
     };
@@ -87,13 +107,13 @@ export const Edges: Story = styleStory(async (canvasElement) => {
 });
 
 /** A measure row, PageRank, its Color bound (`#/inspector-measure-row/style`). */
-export const MeasureRow: Story = styleStory(async (_canvas, element, store) => {
-    await inspectPageRank(element, store);
+export const MeasureRow: Story = styleStory(async (canvasElement, element, store) => {
+    await inspectPageRank(canvasElement, element, store);
 });
 
 /** Shape "+" on the measure row: the menu of what the row does not set (`#/style-pickers/plus-menu`). */
 export const PlusMenu: Story = styleStory(async (canvasElement, element, store) => {
-    await inspectPageRank(element, store);
+    await inspectPageRank(canvasElement, element, store);
     await userEvent.click(await tab(canvasElement).findByRole("button", { name: "Add to Shape" }));
 });
 
@@ -133,7 +153,7 @@ export const Palette: Story = styleStory(async (canvasElement) => {
 });
 
 /** A binding whose attribute is not in the data: the line says it reads nothing (`#/style-pickers/binding-unknown-path`). */
-export const BindingUnknownPath: Story = styleStory(async (_canvas, element, store) => {
+export const BindingUnknownPath: Story = styleStory(async (canvasElement, element, store) => {
     const layer = await element.session.styles.add({
         name: "Missing",
         target: "node",
@@ -141,6 +161,7 @@ export const BindingUnknownPath: Story = styleStory(async (_canvas, element, sto
         encode: { "node.color": { by: "data.department", scale: "ordinal" } },
     });
     store.set({ inspected: { kind: "layer-row", id: layer.id } });
+    await openStyleTab(canvasElement);
 });
 
 /** The Label "+": an empty line at Above, its attribute list open (`#/style-pickers/label-new-line`). */

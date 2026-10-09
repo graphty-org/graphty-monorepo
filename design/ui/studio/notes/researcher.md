@@ -10,39 +10,36 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-09 -- TIER 2 ROUND 1 SCORED (`tier2/rounds/round-1/scores.md`, script
-  `tmp/researcher/t2r1/score.py`). 52 of 55 valid (94.5%); ease 5.25; T22 the only bar 1 failure
-  (3 of 4). Bars 4 and 6 hold; 1, 3, 5, 10, 11 fail; 2, 7, 8, 9 do not hold because their scripts
-  were never built (no `preflight.md`). Bar 3 scored failing on a strict reading -- skeptics test it.
-- 2026-10-09 -- DRY RUN ANSWER: yes, four dry runs plus a re-pilot; in sessions 0 grades were
-  build-decided and every `session.log` is empty. Participants hit 8 build defects OFF the success
-  paths (edge width drawn thin, Edges-panel color landing on Everything, fill hidden by selection
-  tint, key covering a name, selection repainting the path color, Analyze popover not closing,
-  Direction list strip, stacked edge labels). Pilots walk only success paths, so side routes
-  (styling, selection display) are unwalked: next dry run should walk the commonest detours too.
-- 2026-10-09 -- The run's own faults outweighed the build's: preflight scripts not built (open-work
-  lister, weight script, bars.mjs on tier 2), r1-s04 void not re-run, T18 follow-up skipped twice,
-  r1-s03 read the avoided-words list and facilitator notes, five sessions alive at once (load 158,
-  three click timeouts), graders skipped first move / doors / moved nodes. Fix before round 2.
-- 2026-10-09 -- Bar 1 flatters T20: 7 of 7 "success", 0 S, 3 never did the "every calculation"
-  half (per-run route is SD by the key). The headline T20 finding is a sev 3 broken habit: 7 of 7
-  opened the file their usual way and looked for the meaning on the column in Data.
-- 2026-10-09 -- Confirmed sev 3 round 1 (design): weight meaning unreachable from an open graph;
-  Replace only on right-click (1 give-up); stale run looks current (bar 5, two experts); filtering
-  not reachable from the Graph place (1 give-up); find box refusing a condition without "=" (1 F);
-  path not reachable from a person's list or find results; note subject follows the inspector;
-  Leave out preselected and silent after Load; names overlapping; long-name truncation; backticks.
-- 2026-10-09 -- Experts find how a reached screen looks and behaves; sessions find whether a
-  returning user reaches it. Neither alone covers the other (scores.md bar 10 section).
-- 2026-10-09 -- T22 failed, so the pre-decided rule applies: round 2 changes the find box's hint and
-  refusal words first; the dialog only if T22 fails both halves again with 3+ looking in one place.
-- 2026-10-09 -- Doors: P key 0 of 14 path sessions, N 0 of 4, "Filter to..." 0 of 7. Not removal
-  candidates: no keyboard-only sessions in tier 2.
-- 2026-10-08 -- Key matched to the fourth dry run on 946256efb876; still-open watch items (Escape
-  clearing a rule's selection, stale values at full contrast, "1 note" counting graph notes,
-  overlaps) all reappeared in sessions as predicted.
-- 2026-10-07 -- The biggest validity threat in tier 2 is the briefing: a returning user is a fresh
-  agent told a history. Graders record when a first move came straight from it.
+- 2026-10-09 -- TIER 2 ROUND 1 INSIGHTS WRITTEN (`tier2/rounds/round-1/insights.md`) after two
+  skeptics. Bar 3 now HOLDS (each give-up one participant; 2 of 3 were Tom's persona file's
+  scripted two-attempt exit). Still failing: 1 (T22), 5 (stale key, sev 2-3), 10 (truncation,
+  overlap class, stale run), 11 (T20); 2, 7, 8, 9 not scored.
+- 2026-10-09 -- DRY RUN ANSWER (owner asked): yes -- 5 early sessions discarded, 4 dry runs on
+  successive builds, a 5th walk on 946256efb876 (T18 B walked, report missing). Success paths
+  clean (every session.log empty, 0 build-decided grades). But dry runs walk ONLY the key's
+  routes; participants met defects on detours (Edges color landing on Everything, confirmed;
+  selection display overriding fill/path color, now a sev 2 design finding; edge width split and
+  partly refuted). Next dry run walks each task's commonest detours.
+- 2026-10-09 -- The study TOOL reached participants more than the build: 5+ sessions alive (load
+  158, click timeouts), wrong-row matches (r1-s44, s30), synthetic drop silent (r1-s29), void not
+  re-run, T18 follow-up skipped twice, r1-s03 read facilitator notes, preflight scripts never
+  built. Fix all before round 2.
+- 2026-10-09 -- Confirmed sev 3 design problems after skeptics: find box answers a condition
+  with only "No match" (T22, 4 of 4); Replace not visible at rest (T21, 8 of 8; hover "..." NOT
+  shown); plain open ignores a weight's meaning and Back to start drops the graph (T20); drawn
+  names overlap (class only; layout unseeded); filtering not reachable from Graph (T17).
+- 2026-10-09 -- Weakened to sev 2: note subject follows inspector, Leave out preselected,
+  left-out row after Load, backticks. T18 "connections lead nowhere" not confirmed (two places).
+- 2026-10-09 -- Persona scripts can decide outcomes: read the persona FILE, not just the roster
+  briefing, before calling a give-up the screen's fault (Tom: `recipe-recipient.md` 157-162).
+- 2026-10-09 -- Histories steer first moves: "7 of 7 opened with Open" and "4 of 4 typed in the
+  find box" are the briefings, not habits. Count the SECOND place looked as the real signal.
+- 2026-10-09 -- The unseeded default layout makes overlap instances non-deterministic; report the
+  class, never "once per dataset", unless the setup passes a seed.
+- 2026-10-09 -- T22 failed: round 2 changes the find box's hint and refusal words first; the dialog
+  only if T22 fails both halves again with 3+ looking in one place.
+- 2026-10-09 -- Experts find how a reached screen behaves; sessions find whether a user reaches
+  it. Bar 10's "specialist + session" rule was mine, not the criteria's -- state it as a deviation.
 - 2026-10-07 -- Do not override a grader without new evidence; one skeptic's weakening stands
   unless the other answers its reason with evidence.
 - 2026-10-06 -- All participants are one model: N alike is not independent. Failure strong, pass
@@ -88,6 +85,15 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-09 (researcher, tier 2 round 1 skeptic verdicts) -- Wrote `rounds/round-1/insights.md`.
+  Applied: two weakens = weakened; one drop + one weaken = weakened; a split resolved by checking
+  the evidence myself. Checked: Tom's persona file does script the exit (skeptic 2 read only the
+  roster briefing) -- so bar 3 holds; `r1-s45/26.png` shows width 30 thick after deselect --
+  "thick only while selected" refuted; T18 B pilot screenshots exist with no report; no "..."
+  drawn at rest or after a left click (`r1-s29/08.png`). Kept the defects but not the habits in
+  T20; demoted fill tint / selection mark to one sev 2 design finding. Rejected: calling the
+  popover a build defect from one session at load 158 without a script.
 
 - 2026-10-09 (researcher, tier 2 round 1 scoring) -- Scored from 55 grades, the transcripts'
   ease lines and four expert reports; one row per session in `tmp/researcher/t2r1/score.py`
@@ -170,6 +176,11 @@ reasons, in short:
 - 2026-09-28 (owner) -- Simulated personas built from public sources, each checked by a skeptic.
 
 ## Tried: worked / did not work
+
+- 2026-10-09 (skeptic verdicts) -- Worked: grepping the persona FILE named in the roster (the `P/`
+  path) to settle a skeptic split; viewing the two disputed screenshots myself. Did not work:
+  my scoring read a persona-scripted give-up as a screen failure and took first moves the
+  histories named as habits -- check persona files and briefings before calling a habit.
 
 - 2026-10-09 (tier 2 round 1 scoring) -- Worked: dumping every grade's Measures section into one
   scratch file and reading it once (95 KB) instead of 56 opens; counting screenshots for steps and
@@ -259,10 +270,10 @@ reasons, in short:
 
 ## Thinking
 
-- **Dry runs walk success paths only (2026-10-09).** Round 1 showed the walks removed every
-  success-path fault, yet participants still met 8 build defects on detours they chose. A dry run
-  that also walks each task's two commonest detours from the previous round (or the pilots' "what
-  would a person try first") would catch these before sessions spend time on them.
+- **Dry runs must walk detours, and the tool must be dry-run too (2026-10-09).** The answer key's
+  route is the one route participants are least likely to stray from; round 1's defects and tool
+  faults sat on the routes they chose. Seed each dry run with the previous round's wrong turns.
+
 - **Bar 1 can pass a task whose point was missed (2026-10-09).** T20's per-run route is SD by the
   key, so 7 of 7 passed while 0 did it the way the owner's rule needs. Consider reporting S-only
   rates beside S+SD for any task whose SD route skips the requirement.

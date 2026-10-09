@@ -268,9 +268,11 @@ describe("the Graph place", () => {
         const box = screen.getByRole("combobox", { name: "Find" });
 
         await userEvent.type(box, "minutes >= 10");
-        const example = await screen.findByText("=minutes > `12`");
+        // The reader's own rule, with the element's backticks, on a line of its own.
+        const example = await screen.findByText("=minutes >= `10`");
         const hint = example.parentElement as HTMLElement;
-        assert.equal(hint.textContent, "To select by a value, start with =, such as =minutes > `12`");
+        assert.equal(hint.textContent, "Start with = to select by a value: =minutes >= `10`");
+        assert.equal(getComputedStyle(example).display, "block");
         assert.include(box.getAttribute("aria-describedby") ?? "", hint.id);
         assert.notEqual(hint.id, "");
         assert.isNull(screen.queryByText('No match for "minutes >= 10"'));
@@ -286,7 +288,7 @@ describe("the Graph place", () => {
         await act(async () => {
             await Promise.allSettled(count.mock.results.map((r) => r.value as Promise<unknown>));
         });
-        assert.isNull(screen.queryByText(/To select by a value/));
+        assert.isNull(screen.queryByText(/to select by a value/));
         assert.isNotNull(screen.queryByText('No match for "zzz"'));
     });
 
@@ -321,7 +323,8 @@ describe("the Graph place", () => {
         assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
 
         await userEvent.type(box, "minutes >= 10");
-        assert.isNotNull(await screen.findByText("Put numbers in backticks: minutes > `12`"));
+        // The reader's own rule, not an example from other numbers, which would get copied.
+        assert.isNotNull(await screen.findByText("Put numbers in backticks: minutes >= `10`"));
         assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
         assert.equal(session.selection.size, 0);
 
@@ -360,10 +363,12 @@ describe("the Graph place", () => {
 
         await userEvent.type(box, "=weight > 3{Enter}");
         // The line under the box, not the status region that speaks it.
-        const line = (await screen.findAllByText("Put numbers in backticks: weight > `5`")).find(
+        const line = (await screen.findAllByText("Put numbers in backticks: weight > `3`")).find(
             (each) => each.getAttribute("role") !== "status",
         );
         assert.isDefined(line);
+        // The rule takes a line of its own.
+        assert.equal(getComputedStyle(line).whiteSpace, "pre-line");
         assert.equal(box.getAttribute("aria-invalid"), "true");
         assert.notEqual(line.id, "");
         assert.include(box.getAttribute("aria-describedby") ?? "", line.id);
@@ -492,6 +497,45 @@ describe("the Graph place", () => {
         }
     });
 
+    it("draws the list's scrollbar only while its rows overflow", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        await session.config.set({ data: { directed: false } });
+        // "M" lists 20 rows; "Medici" then lists the node and its 6 edges, which fit.
+        await session.data.addNodes([
+            { id: "Medici" },
+            ...Array.from({ length: 24 }, (_, i) => ({ id: `Ma${String(i)}` })),
+        ]);
+        await session.data.addEdges(
+            Array.from({ length: 6 }, (_, i) => ({ source: "Medici", target: `Ma${String(i)}` })),
+        );
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+        // Mantine keeps the scrollbar mounted and hides it with display: none while nothing overflows.
+        const scrollbar = (): Element | null => {
+            const bar = document.querySelector(
+                ".ws-find-list .mantine-ScrollArea-scrollbar[data-orientation=vertical]",
+            );
+            return bar !== null && getComputedStyle(bar).display !== "none" ? bar : null;
+        };
+
+        await userEvent.type(box, "M");
+        await waitFor(() => {
+            assert.isNotNull(scrollbar());
+        });
+        await userEvent.type(box, "edici");
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        await waitFor(() => {
+            assert.lengthOf(within(list).getAllByRole("option"), 7);
+        });
+        const viewport = list.closest<HTMLElement>(".ws-find-viewport");
+        assert.isNotNull(viewport);
+        assert.isAtMost(viewport.scrollHeight, viewport.clientHeight);
+        await waitFor(() => {
+            assert.isNull(scrollbar());
+        });
+    });
+
     it("words any other refused rule with where it went wrong", async () => {
         renderPlace(await sessionWithGraph());
         await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "=side == 'law' ~{Enter}");
@@ -503,7 +547,7 @@ describe("the Graph place", () => {
         await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
         renderPlace(session);
         const box = screen.getByRole("combobox", { name: "Find" });
-        const words = "Put numbers in backticks: minutes > `12`";
+        const words = "Put numbers in backticks:\nminutes >= `10`";
         const spoken = (): string[] => screen.queryAllByRole("status").map((status) => status.textContent ?? "");
 
         await userEvent.type(box, "=minutes >= 10");

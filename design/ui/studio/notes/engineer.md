@@ -11,6 +11,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **Find's hints show the reader's own rule, not an example.** graphty-element's
+  `number-needs-backticks` refusal now carries `details.suggestion` (the selector with each bare
+  number in backticks; `backtickNumbers` in `session/styles/predicate.ts` skips quoted text and
+  names such as `col2`). `FindBox.tsx` shows it: "Put numbers in backticks:" with the rule on its
+  own line (`\n` + `.ws-find-refusal { white-space: pre-line }`), and for a condition typed
+  without "=" "Start with = to select by a value:" then `=<rule>` as a block line
+  (`.ws-find-example`). `exampleRule` stays only for a lone "=". The find list's scrollbar was
+  already right: Medici lists 8 rows, not 7 (a "Values" heading and "Select where name is Medici"
+  sit below the cut; content 362 px in a 298 px scroller), so nothing changed there; a test now
+  pins "scrollbar only on overflow". Tests: `selector.test.ts` (suggestion), `GraphPlace.test.tsx`.
+  Evidence `tmp/r2-dry1-find-box-hints/{bus,lesmis}/*.png`, `probe.mjs` (scroller numbers).
 - (2026-10-09) **The Data page's footer is pinned by its own grid again; the format has its own
   place.** Root cause of "Load jumps when Higher means appears": the Data page and the Data place
   both used the root class `.dp`, so `data-place.css`'s `display: flex` replaced the page's grid
@@ -21,30 +32,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Test: "keeps the file's format apart from 'Each row is', and Load in place..." in
   `DataPage.real-element.test.tsx` (failed at 519 vs 457 before the rename). Evidence
   `tmp/r2-dry1-import-page-layout/{bus/04,bus/06,trails/04,trails/08}.png`.
-- (2026-10-09) **Panels: the Graph title is the graph's row; an open step's row is marked; the
-  neighborhood wears its node's header; no reset at a default.** `GraphPlace.tsx` title is an
-  UnstyledButton writing `inspected: { kind: "graph" }`, which `fromRow` in `inspector/inspected.ts`
-  now resolves (before, "graph" fell through to the selection), so the Overview opens and the
-  selection stays. `FiltersSection` passes the open `filter-step` id as the Tree's `selected`.
-  The neighborhood header takes the node glyph and `swatchOf` its center. `OptionsForm` passes no
-  `value` when it equals `option.default` and a reset writes the default back (so the run reads
-  unchanged); compact-mantine's `StyleNumberInput` is controlled whenever `value` is passed, even
-  undefined (owner-decisions "for the owner"). Tests: `GraphPlace.test.tsx`, `inspected.test.ts`,
-  `Inspector.test.tsx`, `Filters.real-element.test.tsx`, `OptionsForm.test.tsx`,
-  `StyleNumberInput.test.tsx`. Real app: `tmp/r2-dry1-panels-navigation-and-state/a/14.png`, `22.png`
-  (Enter), `24-26.png` (Damping), `b/hdr-02.png` vs `hdr-03.png`, `b/09.png` (step row).
-
-- (2026-10-09) **A chosen segment is filled, and every control shows the arrow.** compact-mantine's
-  panel track fills its chosen option with `--cm-bg-inverse` / `--cm-text-oninverse` (dark in
-  light, white in dark; 13:1 and 11:1 against the track) instead of Figma's white face and 1px
-  edge, so "Add" / "Leave out" and "a node" / "an edge" read without hovering. One cursor rule in
-  `00-foundation.css.ts`: `.mantine-UnstyledButton-root` (doubled class) gets `cursor: default`,
-  so the rail, the toolbar and app buttons match Button, Checkbox and segments; only Anchor
-  (text drawn as a link) keeps the hand. The filter chip was already the shared Button: no change
-  in `Filters.tsx`. Tests: `SegmentedControl.browser.test.tsx` (3:1 fill in both schemes),
-  `shared-controls.browser.test.tsx` (one pointer); both fail on the old CSS. Real app:
-  `tmp/r2-dry1-shared-chosen-segment-and-cursor/b/03.png`, `04-crop.png`. Visual baselines of the
-  segmented stories change; the owner reviews them on the pull request.
+- (2026-10-09, condensed) **Panels:** the Graph title opens the graph's Overview (`fromRow` in
+  `inspector/inspected.ts` resolves "graph"); the open filter step's row is marked; the
+  neighborhood wears its node's header; `OptionsForm` passes no `value` at a default. Tests in
+  `GraphPlace.test.tsx`, `inspected.test.ts`, `Filters.real-element.test.tsx`, `OptionsForm.test.tsx`.
+- (2026-10-09, condensed) **A chosen segment is filled** (`--cm-bg-inverse`) and every control shows
+  the arrow cursor (one rule in compact-mantine `00-foundation.css.ts`; only Anchor keeps the hand).
 - (2026-10-09, condensed) **A data file opened from the start screen goes through the Data page**
   (`openInSession`, `project/actions.ts`); Control+O while the page is open lands as a drop
   (`whileDataPageOpen`). Test `StartScreen.real-element.test.tsx`; evidence `tmp/t2r1-6/a/`.
@@ -232,6 +225,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-09) Worked: when a screenshot "shows a scrollbar it should not", measure before fixing:
+  a Playwright probe (`tmp/r2-dry1-find-box-hints/probe.mjs`, run under `with-browser.sh`) printed
+  scrollHeight 362 vs clientHeight 298 and the rows below the cut -- the list did overflow. Mantine
+  keeps a ScrollArea scrollbar mounted (`forceMount`) and hides it with `data-state="hidden"` +
+  `display: none`, so a test must check computed display, not presence. Did not work: a find
+  test graph whose nodes carry a `name` column -- it adds a Values row and changes the row count.
 
 - (2026-10-09) Worked: when a layout rule "does nothing", log the computed `display` and
   `gridTemplateRows` of the root in the test. A grid that measured as flex exposed a class-name

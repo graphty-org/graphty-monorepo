@@ -575,6 +575,18 @@ describe("every selector refusal says why, as a code", () => {
         assert.strictEqual(refusal.details.position, 9);
     });
 
+    it("suggests the rule with each bare number between backticks, and only for a bare number", () => {
+        const suggestionOf = (where: string): unknown =>
+            refusalOf(() => compileSelector({ match: "expression", where }, "node", harness.source)).details.suggestion;
+
+        assert.strictEqual(suggestionOf("minutes >= 10"), "minutes >= `10`");
+        assert.strictEqual(
+            suggestionOf("col2 > 1.5 && 'a 3' == data.b || `4` < -2e3"),
+            "col2 > `1.5` && 'a 3' == data.b || `4` < `-2e3`",
+        );
+        assert.strictEqual(suggestionOf("data.a == #"), undefined);
+    });
+
     it("gives each expression mistake its own reason", () => {
         const cases: readonly [string, string][] = [
             ["data.a == `1", "unclosed-quote"],

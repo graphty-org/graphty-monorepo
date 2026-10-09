@@ -2277,7 +2277,9 @@ export type GraphtyErrorCode =
 * A style layer's selector does not parse. `details.reason` is a stable code naming the
 * mistake (such as `number-needs-backticks`), so a consumer writes its own words without
 * reading the message; an expression's refusal also carries the character offset
-* (`details.position`). The caller corrects the selector; the layer is not added.
+* (`details.position`). A `number-needs-backticks` refusal also carries `details.suggestion`,
+* the selector with every bare number put between backticks (`` minutes >= `10` ``). The
+* caller corrects the selector; the layer is not added.
 */
 | "E_BAD_SELECTOR"
 /**

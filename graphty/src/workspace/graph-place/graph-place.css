@@ -73,6 +73,16 @@
     padding: 6px 8px 0;
 }
 
+.ws-find-refusal {
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+}
+
+.ws-find-example {
+    display: block;
+    overflow-wrap: anywhere;
+}
+
 .ws-nowrap {
     white-space: nowrap;
 }

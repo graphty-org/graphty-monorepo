@@ -374,7 +374,8 @@ function badSelector(
  * - `unsupported-syntax`: a JMESPath construct the subset does not read (`details.construct`).
  * - `pipe-not-supported`: a single `|`.
  * - `expression-reference-not-supported`: a single `&`.
- * - `number-needs-backticks`: a bare number, such as `weight > 3`, where `` `3` `` is meant.
+ * - `number-needs-backticks`: a bare number, such as `weight > 3`, where `` `3` `` is meant
+ *   (`details.suggestion`: the expression with every bare number put between backticks).
  * - `bad-character`: a character no selector can contain (`details.character`).
  * - `dot-needs-name`: a `.` with no attribute name after it.
  * - `name-contains-dot`: a quoted attribute name holding a `.` (`details.segment`).
@@ -484,6 +485,42 @@ function findClose(where: Query, from: number, delimiter: string): number {
     }
 
     throw badSelector("unclosed-quote", `A ${delimiter} is opened and never closed`, where, from, { delimiter });
+}
+
+/**
+ * The expression with every bare number put between backticks, the rewrite a
+ * `number-needs-backticks` refusal suggests. Quoted text and names such as `col2` are left as
+ * they are; an unclosed quote leaves the rest as it is.
+ * @param where - The expression being lexed.
+ * @returns The rewritten expression.
+ */
+function backtickNumbers(where: Query): string {
+    let out = "";
+    let at = 0;
+    while (at < where.length) {
+        const character = where.charAt(at);
+        let end = at + 1;
+        if (character === "`" || character === "'" || character === '"') {
+            while (end < where.length && where.charAt(end) !== character) {
+                end += where.charAt(end) === "\\" ? 2 : 1;
+            }
+            end = Math.min(end + 1, where.length);
+        } else if (startsIdentifier(character)) {
+            while (end < where.length && continuesIdentifier(where.charAt(end))) {
+                end++;
+            }
+        } else {
+            const number = /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(where.slice(at))?.[0];
+            if (number !== undefined) {
+                out += `\`${number}\``;
+                at += number.length;
+                continue;
+            }
+        }
+        out += where.slice(at, end);
+        at = end;
+    }
+    return out;
 }
 
 /**
@@ -657,6 +694,7 @@ function tokenize(where: Query): readonly Token[] {
                 at,
                 {
                     character,
+                    suggestion: backtickNumbers(where),
                 },
             );
         }

@@ -23,8 +23,8 @@ const LIMIT = 20;
 const LIST_MAX_PX = 320;
 
 /**
- * An example rule over the open data: a number column from the file (else any number column),
- * compared with a value inside its range, such as minutes > `5`.
+ * An example rule over the open data, for a box that holds only "=": a number column from the
+ * file (else any number column), compared with a value inside its range, such as minutes > `5`.
  * @param session - the element's session.
  * @returns the example.
  */
@@ -39,18 +39,35 @@ function exampleRule(session: GraphSession): string {
 }
 
 /**
- * One line wording why the element refused a typed rule, from the refusal's reason code.
- * @param session - the element's session, whose data gives the example.
- * @param error - what `selection.apply` threw.
- * @returns the line, or null when the error is not a refused rule.
+ * The reader's own rule with its bare numbers in backticks, from a refusal for a bare number.
+ * @param error - what the element threw.
+ * @returns the element's suggestion, or null for any other error.
  */
-function ruleRefusalWords(session: GraphSession, error: unknown): string | null {
+function backtickSuggestion(error: unknown): string | null {
     if (!isGraphtyError(error) || error.code !== "E_BAD_SELECTOR") {
         return null;
     }
-    const details = (error.details ?? {}) as { reason?: unknown; position?: unknown };
-    if (details.reason === "number-needs-backticks") {
-        return `Put numbers in backticks: ${exampleRule(session)}`;
+    const details = (error.details ?? {}) as { reason?: unknown; suggestion?: unknown };
+    return details.reason === "number-needs-backticks" && typeof details.suggestion === "string"
+        ? details.suggestion
+        : null;
+}
+
+/**
+ * One line wording why the element refused a typed rule, from the refusal's reason code.
+ * @param error - what `selection.apply` threw.
+ * @returns the line, or null when the error is not a refused rule.
+ */
+function ruleRefusalWords(error: unknown): string | null {
+    if (!isGraphtyError(error) || error.code !== "E_BAD_SELECTOR") {
+        return null;
+    }
+    const details = (error.details ?? {}) as { position?: unknown };
+    // The reader's own rule, rewritten by the element (an example from other numbers gets copied),
+    // on a line of its own so the sentence never wraps around it.
+    const suggestion = backtickSuggestion(error);
+    if (suggestion !== null) {
+        return `Put numbers in backticks:\n${suggestion}`;
     }
     // The element counts from 0 after the "="; the reader counts from 1 including it.
     return typeof details.position === "number"
@@ -77,28 +94,25 @@ async function ruleVerdict(session: GraphSession, typed: string): Promise<string
         return "ok";
     } catch (error) {
         // An error that is not a refused rule is left for Enter, which reports it as before.
-        return ruleRefusalWords(session, error);
+        return ruleRefusalWords(error);
     }
 }
 
 /**
- * Whether plain text that found nothing reads as a rule once "=" is put before it: the element
- * accepts it and it matches something, or the element refuses it only for a bare number. A word
- * the element reads as a column that holds nothing, such as a name, is not one.
+ * The rule plain text that found nothing reads as once "=" is put before it: the text itself when
+ * the element accepts it and it matches something, or the element's rewrite when it is refused
+ * only for a bare number. A word the element reads as a column that holds nothing, such as a
+ * name, is not one.
  * @param session - the element's session.
  * @param typed - the box's text, with no "=".
- * @returns true when the reader most likely typed a condition.
+ * @returns the rule to show after "=", or null when the reader most likely did not type a condition.
  */
-async function readsAsRule(session: GraphSession, typed: string): Promise<boolean> {
+async function ruleFromText(session: GraphSession, typed: string): Promise<string | null> {
     try {
         const { nodes, edges } = await session.scope.count({ where: typed });
-        return nodes + edges > 0;
+        return nodes + edges > 0 ? typed : null;
     } catch (error) {
-        return (
-            isGraphtyError(error) &&
-            error.code === "E_BAD_SELECTOR" &&
-            (error.details as { reason?: unknown } | undefined)?.reason === "number-needs-backticks"
-        );
+        return backtickSuggestion(error);
     }
 }
 
@@ -219,8 +233,8 @@ export function FindBox(): React.JSX.Element {
     const [refusal, setRefusal] = useState<string | null>(null);
     // What the element said of the typed rule: "ok", "empty", or null while unchecked.
     const [ruleCheck, setRuleCheck] = useState<"ok" | "empty" | null>(null);
-    // Plain text that found nothing and that the element reads as a condition once "=" leads it.
-    const [looksLikeRule, setLooksLikeRule] = useState(false);
+    // The rule plain text that found nothing reads as once "=" leads it, or null.
+    const [textAsRule, setTextAsRule] = useState<string | null>(null);
     const listId = useId();
     // A change to the data, a run or the selection asks again, so a count or a hit is never stale.
     const version = useSessionVersion(session);
@@ -277,15 +291,15 @@ export function FindBox(): React.JSX.Element {
     const foundNothing =
         found !== null && found.notSearchable === undefined && found.records.length === 0 && found.values.length === 0;
     useEffect(() => {
-        setLooksLikeRule(false);
+        setTextAsRule(null);
         if (session === null || !foundNothing) {
             return undefined;
         }
         let current = true;
         const timer = setTimeout(() => {
-            void readsAsRule(session, text).then((yes) => {
+            void ruleFromText(session, text).then((rule) => {
                 if (current) {
-                    setLooksLikeRule(yes);
+                    setTextAsRule(rule);
                 }
             });
         }, CHECK_DELAY_MS);
@@ -348,7 +362,7 @@ export function FindBox(): React.JSX.Element {
         try {
             await current.selection.apply({ text: typed });
         } catch (error) {
-            const words = ruleRefusalWords(current, error);
+            const words = ruleRefusalWords(error);
             if (words === null) {
                 throw error;
             }
@@ -432,11 +446,11 @@ export function FindBox(): React.JSX.Element {
                 ),
         } as const;
         emptyLine = ruleCheck === null ? null : ruleLines[ruleCheck];
-    } else if (looksLikeRule && session !== null) {
+    } else if (textAsRule !== null) {
+        // The example gets its own line, so the sentence never wraps around it.
         emptyLine = (
             <>
-                To select by a value, start with =, such as{" "}
-                <span className="ws-nowrap ws-mono">={exampleRule(session)}</span>
+                Start with = to select by a value: <span className="ws-find-example ws-mono">={textAsRule}</span>
             </>
         );
     } else if (found?.notSearchable === "regex") {
@@ -465,6 +479,7 @@ export function FindBox(): React.JSX.Element {
                 aria-activedescendant={active >= 0 ? optionId(active) : undefined}
                 // Mantine ties its error line and the line under the box to it with aria-describedby.
                 error={refusal}
+                errorProps={{ className: "ws-find-refusal" }}
                 description={showLine ? emptyLine : undefined}
                 descriptionProps={{ role: "status", className: "ws-find-empty" }}
                 inputWrapperOrder={["label", "input", "error", "description"]}

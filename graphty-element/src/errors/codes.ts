@@ -323,6 +323,13 @@ export type GraphtyErrorCode =
      */
     | "E_NO_WEBGL"
     /**
+     * A feature the caller asked for needs an optional peer package that is not installed.
+     * `details.package` names the package to install and `details.feature` the feature that
+     * needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
+     * picks a feature that does not need it.
+     */
+    | "E_MISSING_PACKAGE"
+    /**
      * The operation is well formed but this build or this host cannot perform it: a
      * worker-hosted session asked for `snapshot()`, a mutating command asked to jump the queue,
      * an export format the platform has no encoder for. `details.reason` says which. The caller
@@ -443,6 +450,7 @@ const CODE_TABLE = {
     E_DEVICE_INCORRECT: "E_DEVICE_INCORRECT",
     E_DEVICE_LOST: "E_DEVICE_LOST",
     E_NO_WEBGL: "E_NO_WEBGL",
+    E_MISSING_PACKAGE: "E_MISSING_PACKAGE",
     E_UNSUPPORTED: "E_UNSUPPORTED",
     E_READONLY: "E_READONLY",
     E_DISPOSED: "E_DISPOSED",

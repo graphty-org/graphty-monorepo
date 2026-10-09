@@ -4051,8 +4051,13 @@ export class Graphty extends LitElement {
 
     /**
      * Enable AI control for the graph.
+     *
+     * `provider: "webllm"` runs a model in the browser: install the optional package
+     * `@mlc-ai/web-llm`; the model downloads on the first command.
      * @param config - AI manager configuration
      * @returns Promise that resolves when AI is enabled
+     * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when `provider` is `"webllm"` and
+     * `@mlc-ai/web-llm` is not installed.
      * @since 1.5.0
      * @example
      * ```typescript

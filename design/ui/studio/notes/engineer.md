@@ -21,7 +21,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Filters row (target-size) and the find list (scrollable-region-focusable), and the Notes place's
   target chips are three buttons named "Graph" plus two "Delete note". Bar 9 (b) limits are round
   1's counts on 946256efb (`tool/bars-limits.json`: rest 53, path 66, neighbors 36, edge 30).
-  Five clean `--prove` runs: see "Tried". Evidence `tmp/t2r1-2/` (bars-final2/, final-*.log).
+  `--prove` passed 5 runs in a row on 1fc173a12 (59 checks each, `REAL_PROVE_DIR` private;
+  first-save history under "Tried"). Evidence `tmp/t2r1-2/` (bars-final2/, final-prove-*.log).
 
 - (2026-10-09) **The study tool reached participants more than the build; fixed in the tool.**
   (1) Round 1's overrun: `with-browser.sh` kept its own 4-slot pool in `/tmp` while pre-push gates
@@ -45,7 +46,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the element's load-end event, before the page renamed the project ("Untitled: ..."). Now the
   region lives in `Frame.tsx` outside every hidden surface; the canvas skips a load while
   `page === "data-page"`, and `DataPage.load()` writes `loadedWords(header name, size, leftOut of
-  the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nodes, 22 edges, 1
+the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nodes, 22 edges, 1
   row left out" once. Same rule for the run state bar (status on its words, buttons outside, kept
   mounted empty) and the find box refusal (a persistent `VisuallyHidden role="status"` that keeps
   its words across keystrokes; no `role="alert"`). Add page summary: "friends: 20 nodes, 41
@@ -105,6 +106,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   analyze `words.test.ts`, `PathRun.real-element.test.tsx` "names the total by the weight column",
   `Replace.real-element.test.tsx`. Real app: `design/ui/studio/tmp/t2r1-14/s1/13.png`, `16-19.png`,
   `s2/10.png`, `s2/14.png`.
+
 ## Decisions and reasons
 
 - (2026-10-08, summarized 2026-10-09) **Dry-run 4 fixes, still standing:** a reopen is framed as
@@ -225,7 +227,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   "labels are turned on" failed with ECONNREFUSED on the session socket: the session process was
   gone. Mechanism not proven; two `--prove` runs on the default `tmp/prove` folder end each
   other's sessions (`finish()` ends every session folder it knows), so always set
-  `REAL_PROVE_DIR`. Five runs in a row on 1fc173a12 with a private folder: see Top of mind.
+  `REAL_PROVE_DIR`. Five runs in a row on 1fc173a12 with a private folder all passed.
 
 - (2026-10-09) Did not work: leaving my edits uncommitted while another agent committed in the
   same files. Their commit (`17bf87085`) swept my `RunValues.tsx`, `DataPage.tsx` and Replace test
@@ -267,7 +269,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `Workspace` at 1440 x 900 did not). A setup miss can show only in `setup.log`: read it after
   every `--start`. Format only my own files. Prove "fails without" with no stash: copy my files
   aside, write `git show HEAD:<file>` over them, run, copy back. Tool idioms: `role=combobox:Role
-  of <col>`; an import page needs "New from data..."; step N lands in screenshot N+1; `--sr` focus
+of <col>`; an import page needs "New from data..."; step N lands in screenshot N+1; `--sr` focus
   lines tell "not focused" from "focused, no ring". Probes under `with-browser.sh` split "value
   wrong" from "reading wrong". Tests: hover tooltips need `{ timeout: 3000 }`; assert
   `checkVisibility()`; a silent hung browser test is a sync loop (bisect with `-t`); never call a

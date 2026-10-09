@@ -55,7 +55,13 @@ export function judge(tests, allowlist) {
     const over = [];
     const removable = [];
     for (const t of tests) {
-        if (t.state !== "passed" || !(t.limit > 0) || EXEMPT_PROJECT.test(t.project) || EXEMPT_FILE.test(t.file)) {
+        if (
+            t.state !== "passed" ||
+            typeof t.limit !== "number" ||
+            t.limit <= 0 ||
+            EXEMPT_PROJECT.test(t.project) ||
+            EXEMPT_FILE.test(t.file)
+        ) {
             continue;
         }
         const ratio = t.duration / t.limit;
@@ -70,8 +76,9 @@ export function judge(tests, allowlist) {
 }
 
 const seconds = (ms) => `${(ms / 1000).toFixed(2)} s`;
+const projectTag = (t) => (t.project ? " [" + t.project + "]" : "");
 const line = (t) =>
-    `  ${t.file} > ${t.name}${t.project ? ` [${t.project}]` : ""}\n` +
+    `  ${t.file} > ${t.name}${projectTag(t)}\n` +
     `    took ${seconds(t.duration)} of its ${seconds(t.limit)} limit (${Math.round(t.ratio * 100)}%, budget ${BUDGET * 100}%)`;
 
 /**

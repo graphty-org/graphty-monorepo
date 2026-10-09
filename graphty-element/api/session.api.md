@@ -2835,7 +2835,7 @@ export interface RunsApi {
 
 // @public
 export interface RunScopeRecord {
-    readonly data?: string;
+    readonly dataDigest?: string;
     readonly digest: string;
     readonly edges: number;
     readonly nodes: number;

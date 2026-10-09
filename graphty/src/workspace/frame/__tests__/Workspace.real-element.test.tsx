@@ -88,31 +88,27 @@ describe("the workspace frame on the real element", () => {
         TIMEOUT_MS,
     );
 
-    it(
-        "opens the shortcuts sheet with ? while a closed Select's list is mounted on the page",
-        async () => {
-            // The inspector has room at the design's width, and its Layout group holds a Select.
-            await page.viewport(1366, 768);
-            const session = await openWorkspace();
-            await session.data.addNodes([{ id: "a" }, { id: "b" }]);
-            await session.data.addEdges([{ src: "a", dst: "b" }]);
-            // Mantine keeps a closed Select's options mounted, hidden: the case that once switched
-            // every single-key shortcut off.
-            await waitFor(
-                () => {
-                    const lists = [...document.querySelectorAll('[role="listbox"]')];
-                    assert.isTrue(
-                        lists.some((list) => !list.checkVisibility()),
-                        "a hidden list is on the page",
-                    );
-                },
-                { timeout: TIMEOUT_MS },
-            );
+    it("opens the shortcuts sheet with ? while a closed Select's list is mounted on the page", async () => {
+        // The inspector has room at the design's width, and its Layout group holds a Select.
+        await page.viewport(1366, 768);
+        const session = await openWorkspace();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        await session.data.addEdges([{ src: "a", dst: "b" }]);
+        // Mantine keeps a closed Select's options mounted, hidden: the case that once switched
+        // every single-key shortcut off.
+        await waitFor(
+            () => {
+                const lists = [...document.querySelectorAll('[role="listbox"]')];
+                assert.isTrue(
+                    lists.some((list) => !list.checkVisibility()),
+                    "a hidden list is on the page",
+                );
+            },
+            { timeout: TIMEOUT_MS },
+        );
 
-            await realInput.keyboard("?");
+        await realInput.keyboard("?");
 
-            await screen.findByRole("region", { name: "Keyboard shortcuts" });
-        },
-        TIMEOUT_MS,
-    );
+        await screen.findByRole("region", { name: "Keyboard shortcuts" });
+    });
 });

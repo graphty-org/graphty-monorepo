@@ -361,21 +361,18 @@ async function compareStepByStep(
 }
 
 describe("the simulation bridge against the Fruchterman-Reingold reference", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("runs the whole cooling schedule in 3D, iteration by iteration, over a graph that arrived after its layout", async () => {
         const rig = await springOverArrivingData(3);
 
         await compareStepByStep(rig, 3, [1, 5, 10, 20, 50], []);
-    }, 180_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("runs the admitted horizons in 2D, where the third axis is held at the centre", async () => {
         const rig = await springOverArrivingData(2);
 
         await compareStepByStep(rig, 2, [1, 5], [10]);
-    }, 180_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("spends the whole pre-step budget on the first frame, and lands where the reference does", async () => {
         // THE PRE-STEP BUDGET IS NOT THE BRIDGE'S. `LayoutManager` owns it, spends it in chunks
         // it decides, and knows nothing about which layout it is stepping -- so the two cases
@@ -406,5 +403,5 @@ describe("the simulation bridge against the Fruchterman-Reingold reference", () 
             CAP,
             "the arrangement the first frame draws is the reference's after the same budget",
         );
-    }, 180_000);
+    });
 });

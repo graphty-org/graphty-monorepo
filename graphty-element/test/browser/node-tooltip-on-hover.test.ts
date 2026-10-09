@@ -27,6 +27,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import type { LayerSpec } from "../../src/catalog/types";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { Node } from "../../src/Node";
+import { nextFrame } from "../helpers/real-input";
 
 /** Two nodes far enough apart that a pointer over one is nowhere near the other. */
 const NODES = [{ id: "alpha" }, { id: "omega" }];
@@ -42,9 +43,6 @@ const HEIGHT = 480;
 
 /** How many frames to render before reading anything back. */
 const FRAMES = 20;
-
-/** How long to leave between frames so the work a frame started can land. */
-const FRAME_MS = 10;
 
 /** A layer that gives one node a tooltip and says nothing else. */
 const TOOLTIP_LAYER: LayerSpec = {
@@ -80,12 +78,10 @@ describe("a tooltip a layer asks for", () => {
      * Render a few frames so a texture upload and a shader compile can land.
      */
     async function settle(): Promise<void> {
+        await graph.waitForSettled();
         for (let frame = 0; frame < FRAMES; frame++) {
             graph.scene.render();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
+            await nextFrame();
         }
     }
 

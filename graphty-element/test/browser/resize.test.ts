@@ -2,6 +2,9 @@ import "../../src/graphty-element";
 
 import { expect, test } from "vitest";
 
+/** How long the element may take to connect and finish `Graph.init()`: the test's own budget. */
+const INIT_BUDGET_MS = 10_000;
+
 test("canvas resizes when container element dimensions change", async () => {
     // Create a container with initial dimensions
     const container = document.createElement("div");
@@ -13,6 +16,7 @@ test("canvas resizes when container element dimensions change", async () => {
     // Create graphty-element
     const graphtyElement = document.createElement("graphty-element") as HTMLElement & {
         graph: {
+            initialized: boolean;
             engine: { resize: () => void };
             addNodes: (nodes: { id: string }[]) => Promise<void>;
             addEdges: (edges: { src: string; dst: string }[]) => Promise<void>;
@@ -24,8 +28,7 @@ test("canvas resizes when container element dimensions change", async () => {
     container.appendChild(graphtyElement);
 
     // Wait for element to be connected and initialized
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await expect.poll(() => graphtyElement.graph.initialized, { timeout: INIT_BUDGET_MS }).toBe(true);
 
     // Add some test data
     await graphtyElement.graph.addNodes([{ id: "1" }, { id: "2" }, { id: "3" }]);
@@ -33,10 +36,6 @@ test("canvas resizes when container element dimensions change", async () => {
         { src: "1", dst: "2" },
         { src: "2", dst: "3" },
     ]);
-
-    // Wait for initial render
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 300));
 
     // Get the canvas element - it's in the shadow root
     const canvas = graphtyElement.shadowRoot?.querySelector("canvas");
@@ -58,9 +57,9 @@ test("canvas resizes when container element dimensions change", async () => {
     container.style.width = "1200px";
     container.style.height = "900px";
 
-    // Wait for ResizeObserver to trigger and for resize to complete
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Wait for the canvas to take the new size
+    await expect.poll(() => canvas.getBoundingClientRect().width).toBeGreaterThan(initialCanvasRect.width);
+    await expect.poll(() => canvas.getBoundingClientRect().height).toBeGreaterThan(initialCanvasRect.height);
 
     // Check that canvas dimensions have updated
     const newCanvasRect = canvas.getBoundingClientRect();
@@ -96,6 +95,7 @@ test("canvas resizes in flexbox layout", async () => {
     // Add graphty-element that should flex to fill remaining space
     const graphtyElement = document.createElement("graphty-element") as HTMLElement & {
         graph: {
+            initialized: boolean;
             addNodes: (nodes: { id: string }[]) => Promise<void>;
             addEdges: (edges: { src: string; dst: string }[]) => Promise<void>;
         };
@@ -105,16 +105,11 @@ test("canvas resizes in flexbox layout", async () => {
     container.appendChild(graphtyElement);
 
     // Wait for element to be connected and initialized
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await expect.poll(() => graphtyElement.graph.initialized, { timeout: INIT_BUDGET_MS }).toBe(true);
 
     // Add some test data
     await graphtyElement.graph.addNodes([{ id: "1" }, { id: "2" }]);
     await graphtyElement.graph.addEdges([{ src: "1", dst: "2" }]);
-
-    // Wait for render
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Get the canvas element
     const canvas = graphtyElement.shadowRoot?.querySelector("canvas") ?? graphtyElement.querySelector("canvas");
@@ -139,9 +134,8 @@ test("canvas resizes in flexbox layout", async () => {
     // Change header height
     header.style.height = "100px";
 
-    // Wait for layout and ResizeObserver
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    // Wait for the canvas to give up the space the taller header took
+    await expect.poll(() => canvas.getBoundingClientRect().height).toBeLessThan(canvasRect.height);
 
     // Check that canvas adjusted to new available space
     const newCanvasRect = canvas.getBoundingClientRect();

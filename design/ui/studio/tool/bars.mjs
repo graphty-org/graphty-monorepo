@@ -32,7 +32,7 @@ import { connect } from "node:net";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { AXE_TAGS, axeViolations, serious, wordsOnScreen } from "./measure.mjs";
+import { AXE_TAGS, axeViolations, LAUNCH, serious, wordsOnScreen } from "./measure.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const self = fileURLToPath(import.meta.url);
@@ -199,7 +199,7 @@ async function inner() {
     });
     await new Promise((ok) => http.listen(0, "127.0.0.1", ok));
     const origin = `http://127.0.0.1:${http.address().port}`;
-    const browser = await chromium.launch();
+    const browser = await chromium.launch(LAUNCH);
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const fresh = async () => {
         const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });

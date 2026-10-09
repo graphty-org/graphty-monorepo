@@ -11,6 +11,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **Study screenshots now draw native scrollbars.** Playwright's headless Chromium
+  adds `--hide-scrollbars`; `measure.mjs` exports `LAUNCH = { ignoreDefaultArgs: ["--hide-scrollbars"] }`
+  and both `real.mjs` and `bars.mjs` launch with it, so a plain `overflow: auto` pane (the import
+  preview) no longer looks cut. `work.json` records a step's whole rule and a run as
+  `pagerank PageRank (label Influence)` (catalog `technicalName`, as the app's fallback names it;
+  the element's `plainName` for PageRank is "Influence"). Reports quote control names at one
+  length, `NAME_CHARS` = 80 (a Recent row is ~65). Test `tool/measure.test.mjs` (`node --test`).
+  Evidence `tmp/r2-dry2-tool-scrollbars-and-record/{T4B/05,T20B/05,06}.png`, `T17A/work.json`,
+  T19B's two reports. A Mantine dropdown with 1 px of overflow now shows a small native thumb too
+  (Add a table menu, `T4B/03.png`), as desktop Chrome on Linux or Windows would.
+
 - (2026-10-09) **A cut section title shows the shared tooltip.** compact-mantine's
   `ControlSection` draws its title through `EllipsizedName` (as tree rows do) in place of the native
   `title` attribute: the themed tooltip only while the header cuts the title, none when it fits; the
@@ -34,12 +45,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 - (2026-10-09, condensed) **A missing notice in a pilot screenshot is first a timing question:**
   a notice lasts 6 s (`NOTICE_MS`) and a step can take 8 s to settle; `real.mjs` prints `a notice
-  showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-element.test.tsx`.
+showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-element.test.tsx`.
 - (2026-10-09, condensed) **Save and Recent projects:** focus after Save returns to what opened it
   (no mark after a pointer click, `:focus-visible`); Recent projects' date reads like a note's
   (`whenWords`, non-breaking spaces). Tests in `Project.real-element.test.tsx`, `project.test.tsx`.
 - (2026-10-09, condensed) **Find's hints show the reader's own rule** (`details.suggestion` from the
-  element, only when it parses; "Start with = to select by a value:"). Tests `selector.test.ts`,
+  element, only when it parses; "Start with = to select by a value:"); a condition typed without
+  "=" gets how to write it (`readsAsRule` in `FindBox.tsx`). Tests `selector.test.ts`,
   `GraphPlace.test.tsx`.
 - (2026-10-09, condensed) **The Data page's root is `.dp-page`** (sharing `.dp` with the Data place
   let `display: flex` replace its grid, so Load moved); the format button sits on the file heading's
@@ -56,9 +68,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-09, condensed) **The source's inspector "..." holds the Sources row menu's verbs** through
   one hook, `useSourceActions`; on two loads neither offers anything (Edit source would drop the
   other load). Test `DataPlace.real-element.test.tsx`; evidence `tmp/t2r1-5/a/`.
-- (2026-10-09, condensed) **Find answers a condition typed without "=" with how to write it**
-  (`readsAsRule` in `FindBox.tsx`, asked of `session.scope.count`), as the field's description.
-  Test `GraphPlace.test.tsx`; evidence `tmp/t2r1-4/a/`.
 - (2026-10-09, condensed) **The dry run walks the detours as a script: `tier2/pilot/detours.sh all`**
   (30 walks: success paths, `--sr` keyboard walks, round 1's wrong turns, each with `--expect`;
   report `tier2/dry-run-r2-1.md`). Its fixes: pointerdown no longer canceled (2a236410c), short
@@ -148,14 +157,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   reads it, None when the meaning is unset because the plan skips it). Reason: showing an unread
   weight as chosen would misstate what the run reads. Evidence above.
 
-- (2026-10-08, summarized 2026-10-09) **Dry-run 4 fixes, still standing:** a reopen is framed as
-  a fresh fit (`useReservedMargin` waits for `graph-frame-stable`; OPEN owner door: Florentine
-  reopens ~60 px lower, camera not saved); Undo/Redo/Escape say what they did
-  (`frame/historyWords.ts`); Edit source is a replace, offered only where Replace is; a tooltip's
-  side is a request the theme flips; the inspector title takes focus with no mark and Rerun/Back
-  keep focus off the page; a click keeps its trigger's tooltips closed until the pointer leaves
-  (compact-mantine `overlayBehavior.ts`); check what a finding measured before fixing the code it
-  names (Damping 0.85 was Chromium's 32-bit value; `--read` prints `valuetext`).
+- (2026-10-08, summarized 2026-10-09) **Dry-run 4 fixes, still standing:** reopen framed as a
+  fresh fit (OPEN owner door: camera not saved); Undo/Redo/Escape say what they did; a click keeps
+  its trigger's tooltips closed until the pointer leaves; measure a finding before fixing it.
 
 - (2026-10-09) **A skipped weight's note leads with what the run did, then why** ("Each edge counts
   as 1." first). Dropping "a path needs a distance" when the meaning was unset (an earlier call)
@@ -169,15 +173,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (ops `measure`, `work`; checks in `measure.mjs`), each move with an `--expect`. Focus fell = body
   or null (shadow-root focus is kept); shared names count reachable controls, not list items; bar
   7 seeds 42; bar 9 limits are round 1's counts on round 1's frozen build.
-- (2026-10-08, summarized 2026-10-09) **Older dry-run fixes, still standing:** study tool `--read`
-  prints table rows by cell, takes a visible `labels[0]` for a role target, records the served
-  build in `session.json`; sources show counts and "Added"/"Left out" sections
-  (`SourceValues.tsx`); compact-mantine `Tree childBand?`, letter/digit type-ahead, capture-phase
-  menu Escape, disabled rows skipped, hover tooltips open only after a pointer move (open delay
-  1000 ms, so tests wait longer); focus after an action goes to the inspector title. OPEN: Columns
-  after "=" omit run results; `edgePage({ scope: "selection" })` empty for edge-only selections
-  (owner door); legend loses "Size: PageRank" after Replace; explicit dijkstra over a negative
-  undirected weight freezes the page.
+- (2026-10-08, summarized 2026-10-09) **Older dry-run fixes, still standing:** `--read` prints rows
+  by cell; sources show "Added"/"Left out"; compact-mantine Tree type-ahead and menu Escape. OPEN:
+  Columns after "=" omit run results; edge-only `edgePage` selection (owner door); dijkstra over a
+  negative undirected weight freezes the page.
 
 - (2026-10-09) **A run row's Style tab offers only the sides the run's own layers cover** (built,
   see Top of mind). A node-only result has nothing to say about edges (the algorithm-styles rule).
@@ -197,35 +196,29 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (black, min Delta E 22; the app sets it); view insets are margins for the next fit, never a
   reason to move the drawing.
 - (2026-10-08, condensed) **Standing app decisions from the dry runs:** find moves the camera only
-  to an off-screen pick (`zoomToSelection` swung the drawing away); Made with states the weight the
-  run read (`caveats.weight.assumed`, not `data.loadedWeight()`); visible labels stay exact ("From"),
-  only accessible names grow; after a surface comes up focus goes to the open place's rail button;
-  the app states its label look (body font) on every label line it adds, in one transaction; what
-  a rule tested is an element fact (`selection.originPaths`), never parsed from the text; facts are
-  rows, not chips; a filter step's outcome is a second line and saving a step turns it on; a stat's
-  reading wraps, never cut; a canned run outcome carries every field a live one does; a selected
-  edge has flat settings (`edgeColor`, `edgeScale`, `edgeOpacity`).
-- (2026-10-07, condensed) **Tier 2 element work (owner doors, hold + needs-decision):** edge pick
-  5a2b3b605; filter steps `setSteps` with counts only in `plan` (8966b0888; rejected live counts,
-  OR/NOT); stale runs ce34f31f3 (Replace reads `run.stale`, never reruns; Rerun passes
-  `stale.scopeSpec`); every load a source f141b1283; runs read the loaded weight through one
-  resolver, "is it read?" answered by `plan()` only; edge-attribute filter 559f5dcb2 (`halvesOf`,
-  `nodes: "ends"`); coded selector refusals 3d89d43c3; focus after a control goes (element
-  `delegatesFocus`; open: WebGPU canvas swap may drop a focused canvas); force publishes ngraph's
-  defaults, `depthIndependentSize`, `fitToGraph keepAngle`, `viewInsets`; a covered legend block is
-  dropped by `styles.legend()`. Next: run results typed per field; several node types last.
+  to an off-screen pick; Made with states the weight the run read (`caveats.weight.assumed`);
+  visible labels stay exact, only accessible names grow; what a rule tested is an element fact
+  (`selection.originPaths`), never parsed; facts are rows, not chips; a stat's reading wraps.
+- (2026-10-07, condensed) **Tier 2 element work (owner doors):** edge pick 5a2b3b605; filter steps
+  `setSteps`, counts only in `plan` (8966b0888); stale runs ce34f31f3 (Replace never reruns);
+  every load a source f141b1283; edge-attribute filter 559f5dcb2 (`nodes: "ends"`); coded selector
+  refusals 3d89d43c3. Next: run results typed per field; several node types last.
 - (2026-10-07, condensed) **App-only (no door):** edge click opens the edge inspector (e666ae17d);
-  "the selection" frames edge ends at the camera door only (not `resolve.ts`, which would widen
-  scoped runs); Direction row "Undirected, from the file"; Export warnings worded by the app
-  (`export/lossWords.ts`); notes are one command (`notes.add`); a run's Values view comes from its
-  shape (`viewOf()`). Element English still on screen (estimate reasons, layout descriptions,
-  partition labels): codes from the element are an owner door.
+  Export warnings worded by the app (`export/lossWords.ts`); a run's Values view comes from its
+  shape (`viewOf()`). Element English still on screen (estimate reasons, layout descriptions):
+  codes from the element are an owner door.
 - (2026-09-13 to 10-07) Older standing decisions: no default layout seed in the element (the app
   seeds, `LAYOUT_SEED`); any new site showing a run calls `runName`; test the element before the
   app; a run paints when it finishes; group-row color fallback in `graph-place/rows.ts` stays until
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-09) Worked: proving a tool test fails without the change by writing `git show HEAD:`
+  copies of the tool files into a scratch folder beside the new test and running `node --test`
+  there (no stash, no checkout). Did not work as a check: eslint on `design/ui/studio/tool/` --
+  it flags every Node global (`process`, `URL`) because that folder has no lint config; prettier is
+  the check that applies.
 
 - (2026-10-09) Worked: proving a test fails without the fix by copying the changed sources aside,
   writing `git show HEAD:<file>` over them, running the test, and copying them back (no stash).

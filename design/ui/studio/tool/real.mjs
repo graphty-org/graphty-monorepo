@@ -69,6 +69,8 @@ import { PNG } from "pngjs";
 import {
     axeViolations,
     focusOnPage,
+    LAUNCH,
+    NAME_CHARS,
     openWork,
     plant,
     sameNames,
@@ -477,7 +479,7 @@ async function serve(dir, sr) {
     });
     await new Promise((ok) => http.listen(0, "127.0.0.1", ok));
     const origin = `http://127.0.0.1:${http.address().port}`;
-    const browser = await chromium.launch();
+    const browser = await chromium.launch(LAUNCH);
     const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1, acceptDownloads: true });
     const s = {
         dir,
@@ -1215,31 +1217,34 @@ async function find(page, raw, out) {
                     )
                 ).filter(Boolean);
             for (const el of handles) {
-                const [key, desc, control] = await el.evaluate((e, tip) => {
-                    // a tooltip bubble, hidden text and the graph's canvas are not controls
-                    if (e.closest(`${tip}, [aria-hidden=true], graphty-element, canvas`)) return [null];
-                    // with a modal dialog open, only it (and a list or menu it opened) can be used
-                    const modal = [...document.querySelectorAll("[aria-modal=true]")]
-                        .filter((m) => m.checkVisibility())
-                        .pop();
-                    if (modal && !modal.contains(e) && !e.closest("[role=listbox],[role=menu]")) return ["behind"];
-                    const found = e.closest(
-                        "button,a[href],input,select,textarea,label,tr,[tabindex],[role=button],[role=link],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=tab],[role=treeitem],[role=switch],[role=option],[role=row],[role=checkbox],[role=radio],[role=combobox]",
-                    );
-                    const hit = found || e;
-                    // a label and the control it labels are one control to a person
-                    const c = hit.tagName === "LABEL" && hit.control ? hit.control : hit;
-                    c.dataset.tryKey ??= String((window.__tryKeys = (window.__tryKeys || 0) + 1));
-                    const said = (c.getAttribute("aria-label") || c.innerText || c.value || "")
-                        .trim()
-                        .replace(/\s+/g, " ")
-                        .slice(0, 40);
-                    return [
-                        c.dataset.tryKey,
-                        `${c.getAttribute("role") || c.tagName.toLowerCase()} "${said}"`,
-                        found !== null,
-                    ];
-                }, TIP);
+                const [key, desc, control] = await el.evaluate(
+                    (e, [tip, chars]) => {
+                        // a tooltip bubble, hidden text and the graph's canvas are not controls
+                        if (e.closest(`${tip}, [aria-hidden=true], graphty-element, canvas`)) return [null];
+                        // with a modal dialog open, only it (and a list or menu it opened) can be used
+                        const modal = [...document.querySelectorAll("[aria-modal=true]")]
+                            .filter((m) => m.checkVisibility())
+                            .pop();
+                        if (modal && !modal.contains(e) && !e.closest("[role=listbox],[role=menu]")) return ["behind"];
+                        const found = e.closest(
+                            "button,a[href],input,select,textarea,label,tr,[tabindex],[role=button],[role=link],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=tab],[role=treeitem],[role=switch],[role=option],[role=row],[role=checkbox],[role=radio],[role=combobox]",
+                        );
+                        const hit = found || e;
+                        // a label and the control it labels are one control to a person
+                        const c = hit.tagName === "LABEL" && hit.control ? hit.control : hit;
+                        c.dataset.tryKey ??= String((window.__tryKeys = (window.__tryKeys || 0) + 1));
+                        const said = (c.getAttribute("aria-label") || c.innerText || c.value || "")
+                            .trim()
+                            .replace(/\s+/g, " ")
+                            .slice(0, chars);
+                        return [
+                            c.dataset.tryKey,
+                            `${c.getAttribute("role") || c.tagName.toLowerCase()} "${said}"`,
+                            found !== null,
+                        ];
+                    },
+                    [TIP, NAME_CHARS],
+                );
                 if (key === "behind") behind++;
                 else if (key && !seen.has(key)) seen.set(key, { el, desc, control });
             }
@@ -1294,7 +1299,7 @@ async function nodesNamed(page, name, exact) {
 // What is at a point of the window: a node (graphty-element's elementAt), empty canvas, or a control
 async function whatIsAt(page, x, y) {
     return page.evaluate(
-        ([x, y]) => {
+        ([x, y, chars]) => {
             const el = document.querySelector("graphty-element");
             const top = document.elementFromPoint(x, y);
             if (
@@ -1315,10 +1320,13 @@ async function whatIsAt(page, x, y) {
             }
             if (!top) return "nothing (outside the window)";
             const c = top.closest("button,a[href],input,select,textarea,label,[role]") || top;
-            const said = (c.getAttribute("aria-label") || c.innerText || "").trim().replace(/\s+/g, " ").slice(0, 50);
+            const said = (c.getAttribute("aria-label") || c.innerText || "")
+                .trim()
+                .replace(/\s+/g, " ")
+                .slice(0, chars);
             return `${c.getAttribute("role") || c.tagName.toLowerCase()}${said ? ` "${said}"` : ""}`;
         },
-        [x, y],
+        [x, y, NAME_CHARS],
     );
 }
 // The pointer's shape at a point (a screenshot never draws the pointer), through open shadow roots
@@ -1506,7 +1514,7 @@ async function run(s, steps, out) {
             await page.keyboard.press(v);
             await page.waitForTimeout(400);
         } else if (a === "--type") {
-            const into = await page.evaluate(() => {
+            const into = await page.evaluate((chars) => {
                 const e = document.activeElement;
                 if (
                     e &&
@@ -1518,8 +1526,8 @@ async function run(s, steps, out) {
                     return null;
                 return !e || e === document.body
                     ? "the page"
-                    : `${e.getAttribute("role") || e.tagName.toLowerCase()} "${(e.getAttribute("aria-label") || e.textContent || "").trim().slice(0, 40)}"`;
-            });
+                    : `${e.getAttribute("role") || e.tagName.toLowerCase()} "${(e.getAttribute("aria-label") || e.textContent || "").trim().replace(/\s+/g, " ").slice(0, chars)}"`;
+            }, NAME_CHARS);
             if (into) {
                 out.push(`nothing that takes text has focus (focus is on ${into}); typed nothing, not "${v}"`);
                 code = 1;

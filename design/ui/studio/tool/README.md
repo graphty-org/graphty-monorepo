@@ -53,8 +53,15 @@ person watching would have read it.
   end does not (a renamed run, an edited note or a step turned off is not gone). Graders judge
   only whether each item in `gone` was the participant's choice. The participant never sees
   either file.
+  A filter step is recorded with its whole rule (`step-1 off {"kind":"range",...,"min":5,...}`),
+  and a run with the name the screen gives it, its algorithm, then the element's own label:
+  `pagerank PageRank (label Influence)`.
 - `REAL_VIEWPORT=<w>x<h>` on the `--start` command opens the window at another size (a screenshot
   audit at 1200x900 or 900x700); studies keep the default 1440 x 900. `session.json` records it.
+- Scrollbars are drawn as a person's desktop Chrome draws them: Playwright's headless Chromium
+  hides them by default (`--hide-scrollbars`), and the tool turns that off, so a pane that
+  scrolls shows its scrollbar in the screenshot. A report quotes a control's name up to 80
+  characters, the same length everywhere.
 - A session nobody steps for 15 minutes closes itself, so a forgotten one cannot hold a browser.
 - Call `real.mjs` directly, with your own session folder, for every step. Do not write a helper
   script that wraps it: a script shared between sessions sends one participant's steps into

@@ -6,9 +6,17 @@ import { fileURLToPath } from "node:url";
 const AXE = join(resolve(dirname(fileURLToPath(import.meta.url)), "../../../.."), "node_modules/axe-core/axe.min.js");
 export const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 export const serious = (v) => v.impact === "serious" || v.impact === "critical";
+// Playwright's headless Chromium starts with --hide-scrollbars, so a scrolling pane looked cut in
+// every screenshot; a person's desktop Chrome draws the scrollbar, so the studio's does too
+export const LAUNCH = { ignoreDefaultArgs: ["--hide-scrollbars"] };
+// how much of a control's name a report quotes: one length everywhere, long enough for a Recent
+// projects row (its name, when it was saved and its size)
+export const NAME_CHARS = 80;
 
 // Bar 2: the open work a returning user keeps -- runs, style layers, notes, filter steps, sources --
-// each "<key> <what it is>" (a filter step: "<id> on|off <its rule>"); null when no graph is open
+// each "<key> <what it is>" (a filter step: "<id> on|off <its whole rule>"; a run: "<id> <its algorithm's
+// technical name> (label <the element's label>)", since the screen names a run by its algorithm); null
+// when no graph is open
 export function openWork() {
     const s = document.querySelector("graphty-element")?.session;
     if (!s) return null;
@@ -18,10 +26,15 @@ export function openWork() {
             .trim()
             .slice(0, 60);
     return {
-        runs: s.runs.list().map((r) => `${r.id} ${short(r.label)}`),
+        runs: s.runs.list().map((r) => {
+            // the app names a run by the algorithm's technical name ("PageRank"), not its plainName
+            const a = s.catalog?.algorithms?.().find((d) => d.key === r.algorithm);
+            const algorithm = a?.technicalName ?? a?.plainName ?? r.algorithm;
+            return `${r.id} ${short(algorithm)} (label ${short(r.label)})`;
+        }),
         layers: s.styles.list().map((l) => `${l.id} ${short(l.name)}`),
         notes: s.notes.list().map((n) => `${n.id} ${short(n.text)}`),
-        steps: s.visibility.steps.map((f) => `${f.id} ${f.on ? "on" : "off"} ${short(JSON.stringify(f.rule))}`),
+        steps: s.visibility.steps.map((f) => `${f.id} ${f.on ? "on" : "off"} ${JSON.stringify(f.rule)}`),
         sources: s.data.sources().map((x) => short(x.name ?? (x.tables ?? []).join(" and "))),
     };
 }

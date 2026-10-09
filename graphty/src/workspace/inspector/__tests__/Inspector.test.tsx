@@ -155,7 +155,7 @@ describe("the inspector", () => {
         assert.include(degree.textContent, "3");
         await userEvent.click(degree);
 
-        const list = await screen.findByRole("region", { name: "n0 and 3 connections" });
+        const list = await screen.findByRole("group", { name: "n0 and 3 connections" });
         const names = within(list)
             .getAllByRole("button")
             .map((row) => row.textContent)
@@ -194,7 +194,7 @@ describe("the inspector", () => {
         await screen.findByRole("button", { name: /Degree/ });
         const node = marks();
         await userEvent.click(screen.getByRole("button", { name: /Degree/ }));
-        await screen.findByRole("region", { name: "n0 and 3 connections" });
+        await screen.findByRole("group", { name: "n0 and 3 connections" });
         assert.equal(marks(), node);
     });
 
@@ -204,13 +204,15 @@ describe("the inspector", () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
         await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
-        const list = await screen.findByRole("region", { name: "n0 and 3 connections" });
-        // The heading is the section title, as the node's Summary is.
-        assert.isNotNull(within(list).getByRole("group", { name: "n0 and 3 connections" }));
+        const list = await screen.findByRole("group", { name: "n0 and 3 connections" });
+        // The heading is the section title, as the node's Summary is, and names the list once:
+        // one group, no region around it under the same words.
+        assert.lengthOf(screen.getAllByRole("group", { name: "n0 and 3 connections" }), 1);
+        assert.isNull(screen.queryByRole("region"));
 
         await userEvent.click(within(list).getByRole("radio", { name: "2" }));
         // Past one hop the heading says how far: only the one-hop count is direct ties.
-        const wider = await screen.findByRole("region", { name: "n0 and 7 connections within 2 hops" });
+        const wider = await screen.findByRole("group", { name: "n0 and 7 connections within 2 hops" });
         // Two hops list the same way one hop does: by name.
         const names = within(wider)
             .getAllByRole("button")
@@ -218,7 +220,7 @@ describe("the inspector", () => {
             .filter((name) => name !== "Filter to neighbors" && name !== "Back to n0");
         assert.deepEqual(names, ["n1", "n2", "n4", "n5", "n6", "n7", "n11"]);
 
-        await userEvent.click(within(wider).getByRole("button", { name: "Back to n0" }));
+        await userEvent.click(screen.getByRole("button", { name: "Back to n0" }));
         await waitFor(() => {
             assert.deepEqual([...on.selection.nodes], ["n0"]);
         });
@@ -255,6 +257,44 @@ describe("the inspector", () => {
         assert.isNotNull(await screen.findByText(/Press again to show every node/));
     });
 
+    it("shows Filter to neighbors pressed at any reach of this center's filter, and never adds a second", async () => {
+        const { session: on } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n0"] });
+        });
+        await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
+        await userEvent.click(
+            within(await screen.findByRole("radiogroup", { name: "Hops" })).getByRole("radio", { name: "2" }),
+        );
+        await screen.findByRole("group", { name: "n0 and 7 connections within 2 hops" });
+        await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
+        await waitFor(() => {
+            assert.deepEqual(
+                on.visibility.steps.map((step) => step.rule),
+                [{ kind: "neighborhood", seeds: ["n0"], depth: 2 }],
+            );
+        });
+
+        // Back at one hop, the 2-hop filter on the same node still reads as on, and says how far.
+        await userEvent.click(
+            within(screen.getByRole("radiogroup", { name: "Hops" })).getByRole("radio", { name: "1" }),
+        );
+        await screen.findByRole("group", { name: "n0 and 3 connections" });
+        const toggle = screen.getByRole("button", { name: "Filter to neighbors" });
+        await waitFor(() => {
+            assert.equal(toggle.getAttribute("aria-pressed"), "true");
+        });
+        await userEvent.hover(toggle);
+        assert.isNotNull(await screen.findByText(/neighborhood 2 hops out/));
+
+        // Pressed, it takes that step away rather than stacking a second one.
+        await userEvent.click(toggle);
+        await waitFor(() => {
+            assert.lengthOf(on.visibility.steps, 0);
+            assert.equal(toggle.getAttribute("aria-pressed"), "false");
+        });
+    });
+
     it("draws an attribute's kind and origin as rows, the kind's meaning in a tooltip", async () => {
         const { store } = await renderInspector();
         act(() => {
@@ -277,7 +317,7 @@ describe("the inspector", () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
         await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
-        await screen.findByRole("region", { name: "n0 and 3 connections" });
+        await screen.findByRole("group", { name: "n0 and 3 connections" });
 
         await act(async () => {
             await on.selection.apply({ nodes: [...on.selection.nodes, "n3"] });
@@ -285,7 +325,7 @@ describe("the inspector", () => {
         await waitFor(() => {
             assert.isNull(store.get().inspected);
         });
-        assert.isNull(screen.queryByRole("region"));
+        assert.isNull(screen.queryByRole("group", { name: "n0 and 3 connections" }));
     });
 
     it("leaves out a Summary row that says nothing: no selected edges, a value only one node holds", async () => {

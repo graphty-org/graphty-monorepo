@@ -82,6 +82,19 @@ function assertEndsOnRow(viewport: HTMLElement, list: HTMLElement): void {
     );
 }
 
+/**
+ * Where an element's first line of text starts on screen.
+ * @param element - the element.
+ * @returns the left edge of its text, in pixels.
+ */
+function textLeft(element: Element | null): number {
+    const range = document.createRange();
+    if (element !== null) {
+        range.selectNodeContents(element);
+    }
+    return range.getClientRects()[0]?.left ?? Number.NaN;
+}
+
 describe("the Graph place", () => {
     it("titles the graph with a quiet Graph prefix and its name", async () => {
         renderPlace(await sessionWithGraph());
@@ -361,12 +374,19 @@ describe("the Graph place", () => {
         renderPlace(session);
         const box = screen.getByRole("combobox", { name: "Find" });
 
+        // Where the gray hint's words start, to hold the refusal to.
+        await userEvent.type(box, "=");
+        const hintLeft = textLeft(await screen.findByText(/^Type a rule/));
+        await userEvent.clear(box);
+
         await userEvent.type(box, "=weight > 3{Enter}");
         // The line under the box, not the status region that speaks it.
         const line = (await screen.findAllByText("Put numbers in backticks: weight > `3`")).find(
             (each) => each.getAttribute("role") !== "status",
         );
         assert.isDefined(line);
+        // It starts where the hint does.
+        assert.closeTo(textLeft(line), hintLeft, 1);
         // The rule takes a line of its own.
         assert.equal(getComputedStyle(line).whiteSpace, "pre-line");
         assert.equal(box.getAttribute("aria-invalid"), "true");

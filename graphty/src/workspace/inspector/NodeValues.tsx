@@ -24,7 +24,16 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, neighborhoodKey, nodeKey } from "./inspected";
 import { finishedRuns, selectNode, takeNodeValuesFocus } from "./reads";
-import { count, edgeName, formatNumber, groupName, NEIGHBOR_FILTER_WORDS, neighborhoodWords, valueText } from "./words";
+import {
+    count,
+    edgeName,
+    formatNumber,
+    groupName,
+    NEIGHBOR_FILTER_WORDS,
+    neighborFilterOnWords,
+    neighborhoodWords,
+    valueText,
+} from "./words";
 
 /** How many of a node's attributes show before "N more attributes". */
 const ATTRIBUTES_SHOWN = 6;
@@ -324,19 +333,22 @@ export function NeighborList({
             />
         ));
     }
-    // The step this neighborhood's Filter to neighbors added, if it is still there.
-    const filtered = session.visibility.steps.find(
-        (s) =>
-            s.rule.kind === "neighborhood" &&
-            s.rule.depth === reach &&
-            s.rule.seeds.length === 1 &&
-            s.rule.seeds[0] === center,
+    // The neighborhood step seeded on this center, at any reach: one center has one such step, so
+    // a 2-hop filter shows pressed at Hops 1 too, and pressing never adds a second. The step at
+    // this reach wins, then an on one.
+    const seeded = session.visibility.steps.filter(
+        (s) => s.rule.kind === "neighborhood" && s.rule.seeds.length === 1 && s.rule.seeds[0] === center,
     );
+    const filtered =
+        seeded.find((s) => s.rule.kind === "neighborhood" && s.rule.depth === reach) ??
+        seeded.find((s) => s.on) ??
+        seeded.at(0);
+    const filteredDepth = filtered?.rule.kind === "neighborhood" ? filtered.rule.depth : reach;
     const hopsLabel = `neighbor-hops-${nodeKey(center)}`;
     const followLabel = `neighbor-follow-${nodeKey(center)}`;
 
     return (
-        <section ref={heading} aria-label={words}>
+        <section ref={heading}>
             {/* The way back to the node's own Values, for a pointer; Esc is the keyboard's. */}
             <Button
                 variant="subtle"
@@ -390,7 +402,14 @@ export function NeighborList({
                     {follow === "all" && (
                         // Beside the button (the theme flips it left at the window's edge): below, it would cover
                         // the first neighbor's name, part of the answer.
-                        <Tooltip position="right" label={NEIGHBOR_FILTER_WORDS[filtered?.on === true ? "on" : "off"]}>
+                        <Tooltip
+                            position="right"
+                            label={
+                                filtered?.on === true
+                                    ? neighborFilterOnWords(filteredDepth === reach ? undefined : filteredDepth)
+                                    : NEIGHBOR_FILTER_WORDS.off
+                            }
+                        >
                             <Button
                                 variant={filtered?.on === true ? "filled" : "default"}
                                 size="compact-xs"
@@ -412,7 +431,16 @@ export function NeighborList({
                                     } else if (filtered.on) {
                                         next = steps.filter((s) => s.id !== filtered.id);
                                     } else {
-                                        next = steps.map((s) => (s.id === filtered.id ? { ...s, on: true } : s));
+                                        // Turned back on at the reach shown.
+                                        next = steps.map((s) =>
+                                            s.id === filtered.id
+                                                ? {
+                                                      ...s,
+                                                      on: true,
+                                                      rule: { kind: "neighborhood", seeds: [center], depth: reach },
+                                                  }
+                                                : s,
+                                        );
                                     }
                                     void writeSteps(session, store, next);
                                 }}
@@ -528,7 +556,7 @@ function SelectedEdges({ session }: Readonly<{ session: GraphSession }>): React.
                 />
             ))}
             {ids.length > records.length && (
-                <Text size="xs" c="dimmed" px="md" py={2}>
+                <Text size="sm" c="dimmed" pl={PANEL_GRID.PAD_LEFT} pr={PANEL_GRID.PAD_RIGHT} py={2}>
                     {count(ids.length - records.length, "more edge")}
                 </Text>
             )}

@@ -189,6 +189,18 @@ export const NEIGHBOR_FILTER_WORDS = {
 } as const;
 
 /**
+ * What Filter to neighbors says while on, when the filter reaches further or nearer than the
+ * hops shown ("Showing only the neighborhood 2 hops out. ...").
+ * @param hops - the filter's own reach, or undefined when it is the reach shown.
+ * @returns the words.
+ */
+export function neighborFilterOnWords(hops?: number): string {
+    return hops === undefined
+        ? NEIGHBOR_FILTER_WORDS.on
+        : `Showing only the neighborhood ${count(hops, "hop")} out. Press again to show every node`;
+}
+
+/**
  * A selection's size, leaving out a zero half ("2 nodes selected", "3 nodes, 1 edge selected").
  * @param nodes - how many nodes are selected.
  * @param edges - how many edges are selected.

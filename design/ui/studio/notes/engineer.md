@@ -11,23 +11,25 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-09) **Nothing on the Data page moves when a link goes, and a Sources row shows only what
-  its title names.** The match report's "Show the N unmatched rows" link now follows Add | Leave out
-  (it was inside the sentence, so hiding it slid the control ~150 px left); the "N rows left out"
-  child's inspector shows only "Left out", the load's own row keeps "Loaded" and "Left out". Tests
-  in `DataPage.real-element.test.tsx` (control's left edge before and after; no Loaded/Nodes/Edges
-  under the child), both fail without the change. Evidence
-  `tmp/r2-dry2-app-import-and-left-out/{T4A,T4B}/{06,07,10,11}.png`, `walk.sh`.
-- (2026-10-09) **Study screenshots now draw native scrollbars.** Playwright's headless Chromium
-  adds `--hide-scrollbars`; `measure.mjs` exports `LAUNCH = { ignoreDefaultArgs: ["--hide-scrollbars"] }`
-  and both `real.mjs` and `bars.mjs` launch with it, so a plain `overflow: auto` pane (the import
-  preview) no longer looks cut. `work.json` records a step's whole rule and a run as
-  `pagerank PageRank (label Influence)` (catalog `technicalName`, as the app's fallback names it;
-  the element's `plainName` for PageRank is "Influence"). Reports quote control names at one
-  length, `NAME_CHARS` = 80 (a Recent row is ~65). Test `tool/measure.test.mjs` (`node --test`).
-  Evidence `tmp/r2-dry2-tool-scrollbars-and-record/{T4B/05,T20B/05,06}.png`, `T17A/work.json`,
-  T19B's two reports. A Mantine dropdown with 1 px of overflow now shows a small native thumb too
-  (Add a table menu, `T4B/03.png`), as desktop Chrome on Linux or Windows would.
+- (2026-10-09) **Find, neighbor list and inspector notes.** The Find refusal line has the hint's
+  padding (`.ws-find-refusal` in `graph-place.css`), so red and gray start at one x. The neighbor
+  list's `<section>` carries no name: the `ControlSection` group is the one name (a named section
+  was a second "region" under the same words; tests now find the list by `group`). Filter to
+  neighbors matches any neighborhood step seeded on this center, at any reach: pressed at Hops 1
+  under a 2-hop filter, tooltip "Showing only the neighborhood 2 hops out...", pressing removes it,
+  pressing an off one turns it on at the reach shown; never a second step. Inspector notes under a
+  row (Made with's weight note, the histogram summary, "N more edges", the Overview's whole-graph
+  line) are `size="sm"` with `pl={PANEL_GRID.PAD_LEFT}` -- the DataRow name's 16 px, not
+  `px="md"` (8 px in compact-mantine). Tests: `GraphPlace.test.tsx` (refusal left = hint left),
+  `Inspector.test.tsx` (named once; toggle across reaches), `PathForm.real-element.test.tsx`
+  (note size and left = row name's); all fail without the change. Evidence
+  `tmp/r2-dry2-app-find-neighbors-notes/{T22B/crop03,crop04,T23B/06,08,09,T18A/03}.png`.
+- (2026-10-09, condensed) **Nothing on the Data page moves when a link goes;** a Sources row shows
+  only what its title names (`DataPage.real-element.test.tsx`).
+- (2026-10-09, condensed) **Study screenshots draw native scrollbars** (`measure.mjs` `LAUNCH`
+  drops `--hide-scrollbars`); `work.json` records whole step rules and runs as `technicalName
+  plainName`; reports quote names at `NAME_CHARS` = 80. Test `tool/measure.test.mjs`. Bars 2, 7, 8, 9 scored by
+  `bars.mjs`; one 4-browser pool; ambiguous names refused with `"<name>#n"`.
 
 - (2026-10-09) **A cut section title shows the shared tooltip.** compact-mantine's
   `ControlSection` draws its title through `EllipsizedName` (as tree rows do) in place of the native
@@ -39,16 +41,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Note for `real.mjs`: a section heading's text matches 4 things (section, group, span, status);
   hover it as `"<text>#3"`, the span.
 
-- (2026-10-09) **A selection's origin changing alone now has its own event,
-  `selection:origin-changed` `{ origin }`**; `selection:changed` stays membership-only. Root cause of
-  "Enter on a second rule that selects the same edges keeps 'press Enter'": `applyNow` set `#origin` but
-  notified only on a member move (`#delta`). Now `#delta` takes the origin before the call and calls
-  the new source hook `onOriginChange` when no member moved and the origin differs (`deepEquals`);
-  `GraphSession` notifies the scope notifier and publishes the event; the app's graph-place
-  `useSessionVersion` listens. And the bare-number `suggestion` is attached only when the rewrite
-  parses (`suggestBackticks` in `predicate.ts`; `x >= 10x` gets none). Tests
-  `selection-origin.test.ts`, `selector.test.ts` (both fail without the change). Evidence
-  `tmp/r2-dry2-element-selection-origin-and-suggestion/{A/06,B/03,B/04}.png`, `walk.sh`.
+- (2026-10-09, condensed) **`selection:origin-changed` `{ origin }`** fires when only a
+  selection's origin changes (`selection:changed` stays membership-only); a bare-number
+  `suggestion` is attached only when the rewrite parses. Tests `selection-origin.test.ts`,
+  `selector.test.ts`.
 
 - (2026-10-09, condensed) **A missing notice in a pilot screenshot is first a timing question:**
   a notice lasts 6 s (`NOTICE_MS`) and a step can take 8 s to settle; `real.mjs` prints `a notice
@@ -87,12 +83,15 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
   weight; a live region is in the page before its words arrive (`Frame.tsx`); the selection halo
   draws only back faces (`createOverlaySource`); ", out of date" only on `data-changed`; the
   Filters step editor is a `<form>` (`focusNext`/`focusStep`).
-- (2026-10-09, summarized) **Study tool:** bars 2, 7, 8, 9 scored by script (`bars.mjs`, proven on
-  planted failures, 80fb33e68); one machine-wide 4-browser pool; ambiguous names refused with
-  `"<name>#n"`; `--drop` over CDP; `--brief` folders hold participant files only.
 
 ## Decisions and reasons
 
+- (2026-10-09) **One neighborhood filter per center, whatever the reach.** The toggle is about
+  "this node's neighbors are filtered", so a 2-hop step answers it at Hops 1 too; matching only the
+  reach shown made the button lie and stack a second step. The tooltip names the other reach so
+  the pressed state is not read as "1 hop". The OptionsForm unread note needed no change: it is
+  already 11 px and starts under its label (the popover's Weight); the inspector's Advanced run
+  settings form sits at 8 px, left of the rows' 16 px -- a form-layout question, not a note.
 - (2026-10-09) **Move the link, not the control.** Putting the link after the segmented control
   keeps the sentence, the control and the link in reading order and is the smallest diff; a
   reserved-width link slot would leave a gap while the unmatched rows show. A row's inspector

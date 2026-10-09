@@ -84,6 +84,17 @@ async function pathForm(): Promise<HTMLElement> {
     return screen.findByRole("form", { name: "Shortest path" });
 }
 
+/**
+ * Where an element's first line of text starts on screen.
+ * @param element - the element.
+ * @returns the left edge of its text, in pixels.
+ */
+function textLeft(element: Element): number {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    return range.getClientRects()[0]?.left ?? Number.NaN;
+}
+
 describe("the Path popover, on the real element", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
@@ -375,7 +386,11 @@ describe("the Path popover, on the real element", () => {
             }
             // A short value in the row, the reason on a line of its own.
             assert.include(text, "WeightNone");
-            assert.isNotNull(within(madeWith).getByText(why));
+            // The note is the rows' size and starts under their names.
+            const note = within(madeWith).getByText(why);
+            const name = within(within(madeWith).getByRole("group", { name: "Weight" })).getByText("Weight");
+            assert.equal(getComputedStyle(note).fontSize, getComputedStyle(name).fontSize);
+            assert.closeTo(textLeft(note), textLeft(name), 1);
             assert.notInclude(text, "Source");
             assert.notInclude(text, "Target");
             assert.isNull(within(madeWith).queryByRole("combobox", { name: "Weight" }));

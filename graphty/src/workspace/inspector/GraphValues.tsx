@@ -1,4 +1,4 @@
-import { CompactColorInput, ControlSection, DataRow } from "@graphty/compact-mantine";
+import { CompactColorInput, ControlSection, DataRow, PANEL_GRID } from "@graphty/compact-mantine";
 import type { ScopeInput } from "@graphty/graphty-element/session";
 import { Stack, Text, Tooltip } from "@mantine/core";
 import type React from "react";
@@ -53,7 +53,7 @@ export function Overview(): React.JSX.Element | null {
                 <>
                     <DataRow stat name="Nodes showing" value={ofWords(showing.visibleNodes, showing.totalNodes)} />
                     <DataRow stat name="Edges showing" value={ofWords(showing.visibleEdges, showing.totalEdges)} />
-                    <Text size="sm" c="dimmed" px="md" py={2}>
+                    <Text size="sm" c="dimmed" pl={PANEL_GRID.PAD_LEFT} pr={PANEL_GRID.PAD_RIGHT} py={2}>
                         The counts below are for the whole graph.
                     </Text>
                 </>

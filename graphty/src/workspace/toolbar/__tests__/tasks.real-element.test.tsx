@@ -371,7 +371,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             });
             const grown = session.selection.nodes.length - 1;
             const words = `${session.data.name(node) ?? String(node)} and ${String(grown)} connections within 2 hops`;
-            await screen.findByRole("region", { name: words });
+            await screen.findByRole("group", { name: words });
             await waitFor(() => {
                 assert.include(
                     screen.getAllByRole("status").map((status) => status.textContent),

@@ -1,4 +1,4 @@
-import { ControlSection, DataRow, DataRowHeader, HistogramRow } from "@graphty/compact-mantine";
+import { ControlSection, DataRow, DataRowHeader, HistogramRow, PANEL_GRID } from "@graphty/compact-mantine";
 import {
     type GraphSession,
     RESULT_SHAPE_CONTRACTS,
@@ -234,7 +234,7 @@ function WeightRow({ run }: Readonly<{ run: Run }>): React.JSX.Element {
         <>
             <DataRow stat name="Weight" value={value} />
             {note !== null && (
-                <Text size="xs" c="dimmed" px="md" pb={8}>
+                <Text size="sm" c="dimmed" pl={PANEL_GRID.PAD_LEFT} pr={PANEL_GRID.PAD_RIGHT} pb={8}>
                     {note}
                 </Text>
             )}
@@ -286,7 +286,7 @@ function MeasureValues({
                     />
                 )}
                 {summary.min !== null && summary.max !== null && summary.median !== null && (
-                    <Text size="xs" c="dimmed" px="md">
+                    <Text size="sm" c="dimmed" pl={PANEL_GRID.PAD_LEFT} pr={PANEL_GRID.PAD_RIGHT}>
                         {`${formatNumber(summary.measured)} of ${formatNumber(summary.count)} have a value, ${formatNumber(summary.min)} to ${formatNumber(summary.max)}, median ${formatNumber(summary.median)}`}
                     </Text>
                 )}

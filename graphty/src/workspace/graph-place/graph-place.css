@@ -74,6 +74,8 @@
 }
 
 .ws-find-refusal {
+    /* Starts where the gray hint does. */
+    padding: 6px 8px 0;
     overflow-wrap: anywhere;
     white-space: pre-line;
 }

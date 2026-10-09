@@ -6,8 +6,8 @@
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 
-import { runName } from "../runWords";
 import { count } from "../data-place/words";
+import { runName } from "../runWords";
 
 /** The neutral facts of one loss: what the export could not carry. */
 export interface LossFacts {

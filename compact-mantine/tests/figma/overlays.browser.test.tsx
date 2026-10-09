@@ -727,6 +727,7 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         const mounted = tooltipMount("Showing only these");
         await userEvent.click(filter);
         const tip = await mounted;
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((r) => setTimeout(r, 300));
         expect(isVisible(tip)).toBe(false);
         // Left and hovered again, it opens as usual.
@@ -888,6 +889,7 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         await userEvent.click(getByRole("button", { name: "Load" }));
         // Chromium's hover update after the layout change opens the tooltip with the pointer still.
         const tip = await mounted;
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((r) => setTimeout(r, 300));
         expect(tip.hasAttribute("data-cm-still")).toBe(true);
         expect(isVisible(tip)).toBe(false);

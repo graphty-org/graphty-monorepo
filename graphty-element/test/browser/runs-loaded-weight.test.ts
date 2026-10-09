@@ -101,6 +101,7 @@ async function run(
 }
 
 describe("every run reads the loaded weight", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a strength reader reads the loaded weight with no option; a distance reader counts hops and says why",
         async () => {
@@ -129,6 +130,7 @@ describe("every run reads the loaded weight", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reads a weight as a distance when told so, at load or for one run",
         async () => {
@@ -159,6 +161,7 @@ describe("every run reads the loaded weight", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "weight null reads none, and an algorithm with no weighted form reads none",
         async () => {
@@ -173,6 +176,7 @@ describe("every run reads the loaded weight", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "plan() says before a run which weight it would read, as the run then does",
         async () => {

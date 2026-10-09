@@ -410,7 +410,7 @@ function partitionSix(context: RunExecutionContext): Promise<RunOutcome> {
             measured: { nodes: 6, edges: 0 },
             graph: {},
             nodes: Object.entries(groups).map(([id, group]) => ({ id, values: { group } })),
-            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "louvain", notes: [] },
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "louvain", facts: [], notes: [] },
             durationMs: 1,
         }),
     });

@@ -54,6 +54,17 @@ function openTarget(session: GraphSession, note: Note, index: number, openRun: (
     }
 }
 
+/**
+ * How a note is named inside its controls' names, so two notes' controls never share a name:
+ * its first line, cut at 40 characters.
+ * @param text - the note's text.
+ * @returns the words.
+ */
+function noteName(text: string): string {
+    const line = text.trim().split("\n")[0] ?? "";
+    return line.length > 40 ? `${line.slice(0, 39).trimEnd()}...` : line;
+}
+
 /** Props for Chips. */
 interface ChipsProps {
     readonly session: GraphSession;
@@ -64,6 +75,8 @@ interface ChipsProps {
     readonly onOpen?: (index: number) => void;
     /** Whether the chips are in the Tab order. */
     readonly tabbable?: boolean;
+    /** The note's text, which each chip's name ends with; absent for the editor's targets. */
+    readonly note?: string;
 }
 
 /**
@@ -75,9 +88,10 @@ interface ChipsProps {
  * @param props.states - What each target points at now, in words or null
  * @param props.onOpen - Opens a target
  * @param props.tabbable - Whether the chips are in the Tab order
+ * @param props.note - The note's text, which each chip's name ends with
  * @returns The chips
  */
-function Chips({ session, targets, states, onOpen, tabbable = true }: ChipsProps): React.JSX.Element {
+function Chips({ session, targets, states, onOpen, tabbable = true, note }: ChipsProps): React.JSX.Element {
     return (
         <Group gap={4}>
             {targets.map((target, index) => {
@@ -94,6 +108,7 @@ function Chips({ session, targets, states, onOpen, tabbable = true }: ChipsProps
                                 size="compact-xs"
                                 variant="light"
                                 tabIndex={tabbable ? 0 : -1}
+                                aria-label={note === undefined ? undefined : `${words}, in note: ${noteName(note)}`}
                                 onClick={() => {
                                     onOpen(index);
                                 }}
@@ -308,6 +323,7 @@ export function NotesPlace(): React.JSX.Element {
                                                 targets={note.targets}
                                                 states={status.targets.map((target) => targetStateWords(target.state))}
                                                 tabbable={tabbable}
+                                                note={note.text}
                                                 onOpen={(target) => {
                                                     openTarget(session, note, target, openRun);
                                                 }}
@@ -320,7 +336,7 @@ export function NotesPlace(): React.JSX.Element {
                                                     <ActionIcon
                                                         variant="subtle"
                                                         size="sm"
-                                                        aria-label="Delete note"
+                                                        aria-label={`Delete note: ${noteName(note.text)}`}
                                                         tabIndex={tabbable ? 0 : -1}
                                                         onClick={() => {
                                                             remove(index);

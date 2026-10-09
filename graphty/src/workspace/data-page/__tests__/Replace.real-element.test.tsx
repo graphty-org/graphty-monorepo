@@ -55,6 +55,7 @@ describe("Replace with file...", () => {
         assert.equal(replacedWords("friends.csv", { nodes: 1, edges: 1 }, 0), "friends.csv replaced: 1 node, 1 edge.");
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "marks the PageRank run out of date with its reason, and Rerun brings it up to date",
         async () => {

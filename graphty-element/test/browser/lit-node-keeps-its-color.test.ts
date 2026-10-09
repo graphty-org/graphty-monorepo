@@ -214,6 +214,7 @@ for (const [name, color] of [
         let graph: Graph;
         let reading: Reading;
 
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         beforeAll(async () => {
             let frame: Frame;
             ({ container, graph, frame } = await mount(color));

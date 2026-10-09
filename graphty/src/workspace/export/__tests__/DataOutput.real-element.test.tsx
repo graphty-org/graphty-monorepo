@@ -62,6 +62,7 @@ async function warningsFor(
 }
 
 describe("Export > Data: what a format cannot hold, in the app's words", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "words the warnings for CSV edges and adjacency, GraphML and Graphty JSON from their codes",
         async () => {

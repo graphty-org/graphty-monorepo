@@ -73,6 +73,7 @@ describe("load draft on the element", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "draws the nodes an edge table names when the load has no node rows",
         async () => {

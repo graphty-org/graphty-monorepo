@@ -53,6 +53,7 @@ function MenuWithDialog({ tooltip = false }: Readonly<{ tooltip?: boolean }>): R
 
 /** Wait past Mantine's 10 ms focus return, so a late refocus would have happened. */
 async function settle(): Promise<void> {
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 100));
 }
 

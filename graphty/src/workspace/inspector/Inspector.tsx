@@ -4,7 +4,6 @@ import { ActionIcon, Anchor, Box, ColorSwatch, Group, Menu, Stack, Tabs, Text, T
 import React, { useEffect, useState } from "react";
 
 import { wordsFor } from "../analyze/words";
-import { runName } from "../runWords";
 import { useAttributeActions } from "../data-place/attributeActions";
 import { FilterStepEditor } from "../data-place/Filters";
 import { stepEditorName } from "../data-place/filterSteps";
@@ -18,6 +17,7 @@ import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { runRowKind } from "../graph-place/rows";
 import { LayoutGroup } from "../layout/LayoutForm";
 import { notesAbout } from "../notes/words";
+import { runName } from "../runWords";
 import { tabFor } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { GroupStyle, SelectionRowStyle, SelectionStyle, StyleTab } from "../style/StyleTab";

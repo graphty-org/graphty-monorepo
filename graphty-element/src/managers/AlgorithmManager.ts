@@ -2,7 +2,6 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { Algorithm } from "../algorithms/Algorithm";
 import { DijkstraAlgorithm } from "../algorithms/DijkstraAlgorithm";
-import type { SimplifyPolicy } from "../algorithms/input/derivedInputs";
 import { checkNodeOptions } from "../algorithms/input/maskBack";
 import { type ResolvedInputScope, withRunInput } from "../algorithms/input/ScopedInput";
 import type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey } from "../catalog/algorithms";

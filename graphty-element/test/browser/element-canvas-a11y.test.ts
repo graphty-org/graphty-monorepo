@@ -127,6 +127,7 @@ test("a pointer press focuses the canvas without the keyboard ring, even after a
     mounted.push(before);
     const { host, canvas } = await mount({ "aria-label": "Network drawing" });
     // The handlers that focus the canvas on a press are attached once the scene is up.
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // A key press last: Chrome's script focus then counts as keyboard focus.

@@ -294,6 +294,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Add and Leave out read at the body size and each says what it does on hover",
         async () => {
@@ -321,6 +322,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the match report's verb agrees with several unmatched edge rows",
         async () => {
@@ -334,6 +336,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T5: refuses an empty file with one problem block, and the app stays usable",
         async () => {
@@ -443,6 +446,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Edit source... reopens the one source on its own roles, and its Load replaces the source rather than adding a copy",
         async () => {
@@ -494,6 +498,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 3,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Sources says a load left a row out; the source's inspector counts it and lists the row",
         async () => {
@@ -587,6 +592,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 3,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Sources says nothing was left out when a load kept every row",
         async () => {
@@ -616,6 +622,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "an edge table added to a graph lists the unmatched rows its report counts",
         async () => {
@@ -722,6 +729,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Esc keeps a chosen file on the page: Cancel is the way out",
         async () => {
@@ -739,6 +747,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "says what a CSV's weight means under Higher means, and the graph inspector reads it back",
         async () => {
@@ -776,6 +785,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "draws the unset weight's hint at the fields' 11px and at 4.5:1 contrast (WCAG 1.4.3)",
         async () => {
@@ -792,6 +802,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "words the summary line, and its direction follows the Direction choice",
         async () => {
@@ -812,6 +823,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "shows the table the reader just added, not the first one",
         async () => {
@@ -827,6 +839,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "draws every sample row and each name whole when the page has room",
         async () => {
@@ -847,6 +860,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "names each role box after its column, says what a weight's meaning is in a sentence, and shows it in the summary",
         async () => {
@@ -876,6 +890,7 @@ describe("the Data page on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "says an edge table with no weight counts each edge 1",
         async () => {

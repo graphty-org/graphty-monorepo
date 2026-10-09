@@ -217,6 +217,7 @@ describe("the Data place on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "opens the edge table when the source row of an edge list, which has no children, is clicked",
         async () => {
@@ -239,6 +240,7 @@ describe("the Data place on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Add label line binds a new layer's node label to the attribute and selects it, as one undoable step",
         async () => {
@@ -294,6 +296,7 @@ describe("the Data place on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Show in table brings a column off the right edge into view",
         async () => {
@@ -318,6 +321,7 @@ describe("the Data place on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the attribute inspector's ... holds the same Add label line, Filter to... and Show in table",
         async () => {
@@ -347,6 +351,7 @@ describe("the Data place on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "opens the table dock on the nodes tab from Node table and on the edges tab from Edge table",
         async () => {

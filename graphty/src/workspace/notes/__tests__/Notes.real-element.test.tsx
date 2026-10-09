@@ -64,6 +64,7 @@ beforeEach(async () => {
 });
 
 describe("Notes, on the real element", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writes a note about the selected node with N and brings it back after save and reopen",
         async () => {
@@ -83,7 +84,7 @@ describe("Notes, on the real element", () => {
 
             const list = await screen.findByRole("list", { name: "Notes" });
             const note = within(list).getByRole("listitem", { name: "Ask about the bank" });
-            assert.isNotNull(within(note).getByRole("button", { name }));
+            assert.isNotNull(within(note).getByRole("button", { name: `${name}, in note: Ask about the bank` }));
             assert.equal(store.get().announcement, `Note added about ${name}`);
             assert.isNull(screen.queryByRole("textbox", { name: "Note" }));
             // The saved note takes focus, and no tooltip ("Add note") opens over it.
@@ -92,7 +93,7 @@ describe("Notes, on the real element", () => {
             });
             assert.isNull(screen.queryByRole("tooltip"));
             // Its delete control is the trash glyph, not the minus that reads as collapse.
-            const remove = within(note).getByRole("button", { name: "Delete note" });
+            const remove = within(note).getByRole("button", { name: "Delete note: Ask about the bank" });
             assert.isNotNull(remove.querySelector("svg.lucide-trash-2"));
             assert.deepEqual(
                 session.notes.list().map((saved) => ({ text: saved.text, targets: saved.targets })),
@@ -133,6 +134,7 @@ describe("Notes, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "moves focus to the next note after a delete, and to Add note when none is left",
         async () => {
@@ -153,6 +155,18 @@ describe("Notes, on the real element", () => {
                 items.map((item) => item.tabIndex),
                 [0, -1, -1],
             );
+            // Each note's chip and delete button is named after its note: no two share a name.
+            const names = within(list)
+                .getAllByRole("button")
+                .map((button) => button.getAttribute("aria-label"));
+            assert.deepEqual(names, [
+                "Graph, in note: three",
+                "Delete note: three",
+                "Graph, in note: two",
+                "Delete note: two",
+                "Graph, in note: one",
+                "Delete note: one",
+            ]);
             items[0].focus();
             await userEvent.keyboard("{ArrowDown}");
             assert.strictEqual(document.activeElement, items[1]);

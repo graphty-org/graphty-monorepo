@@ -85,6 +85,7 @@ function maxDepth(session: GraphSession): number {
 }
 
 describe("a flat force layout", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reads force-2d as force drawn by arf, flat in the 3D view",
         async () => {
@@ -106,6 +107,7 @@ describe("a flat force layout", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "draws flat in the 2D view even when dim: 3 was asked for",
         async () => {
@@ -125,6 +127,7 @@ describe("a flat force layout", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "draws force flat in the 3D view with dim: 2",
         async () => {
@@ -140,6 +143,7 @@ describe("a flat force layout", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "draws the d3 engine flat with dim: 2",
         async () => {
@@ -154,6 +158,7 @@ describe("a flat force layout", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "warns once about an option name the engine does not declare",
         async () => {

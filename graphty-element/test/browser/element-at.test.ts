@@ -188,6 +188,7 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
         assert.isAtLeast(empty, 1, "some points landed on empty canvas");
     }, 60_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("names the edge drawn at an edge's midpoint, and a click there selects it", async () => {
         const element = await mounted(viewMode);
         const ab = edgeBetween(element, "a", "b");
@@ -216,6 +217,7 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
         assert.strictEqual(element.session.selection.edges.length, 0);
     }, 60_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("shows the pointer cursor over a node and over a line, and not over empty canvas", async () => {
         const element = await mounted(viewMode);
         const canvas = element.graph.scene.getEngine().getInputElement();
@@ -232,6 +234,7 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
         assert.strictEqual(await cursorAt({ x: 2, y: 2 }), "", "back on empty canvas");
     }, 60_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("draws a selected edge with a solid band of the edge selection color behind the line", async () => {
         const element = await mounted(viewMode);
         const ab = edgeBetween(element, "a", "b");

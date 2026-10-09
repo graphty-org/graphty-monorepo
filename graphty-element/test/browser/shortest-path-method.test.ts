@@ -58,6 +58,7 @@ async function methodOf(element: Graphty, params: Record<string, unknown> = {}):
 }
 
 describe("the shortest path's method", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "left unset, is Dijkstra over weights of zero and above",
         async () => {
@@ -66,6 +67,7 @@ describe("the shortest path's method", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "left unset, is Bellman-Ford when a weight is negative",
         async () => {
@@ -74,6 +76,7 @@ describe("the shortest path's method", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "set, is the one asked for",
         async () => {

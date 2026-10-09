@@ -92,6 +92,7 @@ function assertOneValueEach(
 }
 
 describe("grouping nodes by an attribute", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "puts each Louvain community of Les Miserables on its own ring and in its own column",
         async () => {
@@ -121,6 +122,7 @@ describe("grouping nodes by an attribute", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "splits a two-valued attribute into two columns, and refuses three without changing anything",
         async () => {

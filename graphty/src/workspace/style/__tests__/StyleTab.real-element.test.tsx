@@ -333,6 +333,7 @@ describe("the Style tab on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T9: a new Size line's list offers Fixed size first, one Enter away; the bind icon stays",
         async () => {
@@ -421,6 +422,7 @@ describe("the Style tab on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Glow is one line: added as its strength alone, edited in a titled popover, removed in one undo step",
         async () => {
@@ -472,6 +474,7 @@ describe("the Style tab on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "lists an edge's arrows as Head arrow and Tail arrow, and Pattern's count and animation in its popover",
         async () => {
@@ -647,6 +650,7 @@ describe("focus after a pick on the real element", () => {
         });
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a + pick, a single +, a Size by attribute pick and a label pick each focus the line they made",
         async () => {
@@ -805,6 +809,7 @@ describe("editing lines on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a drag across the Color picker is one undo step",
         async () => {
@@ -827,6 +832,7 @@ describe("editing lines on the real element", () => {
             // A slow drag: the reader pauses between moves, as a finger does.
             for (const f of [0.3, 0.5, 0.7, 0.9]) {
                 document.dispatchEvent(new MouseEvent("mousemove", at(f, f)));
+                // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
                 await new Promise((done) => setTimeout(done, PAUSE_MS));
             }
             document.dispatchEvent(new MouseEvent("mouseup", at(0.9, 0.9)));
@@ -841,6 +847,7 @@ describe("editing lines on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Palette, Reverse and Values from write the binding; Detach puts the element's default back",
         async () => {
@@ -1017,6 +1024,7 @@ describe("the selection's own row on the real element", () => {
         return readerLayers(session).filter((l) => l.selector.match === "ids");
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a node's first edit adds its row and selects it; selecting it again edits that row",
         async () => {
@@ -1047,6 +1055,7 @@ describe("the selection's own row on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "several selected share one row, named by their count, and Undo takes it away",
         async () => {
@@ -1084,6 +1093,7 @@ describe("one look for names and headings on the real element", () => {
         return `${style.fontSize} ${style.fontWeight} ${style.color} ${String(Math.round(element.getBoundingClientRect().left))}`;
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a Color line's name is drawn as the Size and Shape lines' names, and the Label heading as Fill's",
         async () => {
@@ -1118,6 +1128,7 @@ describe("the Selection row's highlight on the real element", () => {
         await page.viewport(1366, 768);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "shows the edge band beside the node halo, and writes the band's color and size back to the element",
         async () => {

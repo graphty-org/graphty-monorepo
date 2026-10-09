@@ -4,10 +4,11 @@ import type { GraphSession, LegendBlock, ProgressChange, RunStatus } from "@grap
 import { Button, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { pathAnnouncement, wordsFor } from "../analyze/words";
+import { pathAnnouncement } from "../analyze/words";
 import { SampleItems } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
+import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
 import { keyBlocks } from "./legendWords";
@@ -88,10 +89,7 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
                 }
                 const ended = ENDED[change.run.status];
                 if (ended !== undefined) {
-                    const descriptor = session.catalog
-                        .algorithms()
-                        .find((algorithm) => algorithm.key === change.run.algorithm);
-                    const name = descriptor === undefined ? change.run.label : wordsFor(descriptor).name;
+                    const name = runName(session, change.run);
                     // The event carries the run's record; its result is on the live run.
                     const run = session.runs.get(change.run.id);
                     const path =

@@ -27,6 +27,7 @@ const EDGES = [
 ];
 
 describe("a path run's Values", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "lists the route's nodes in order and its size",
         async () => {
@@ -71,6 +72,7 @@ describe("a path run's Values", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "names the total by the weight column it read, so it carries its unit",
         async () => {
@@ -117,6 +119,7 @@ describe("a path run's Values", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "opens on Values as a Path, and its tree row gives the path's size, not every element it measured",
         async () => {

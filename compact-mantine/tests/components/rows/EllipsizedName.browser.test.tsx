@@ -32,6 +32,7 @@ describe("a name that ellipsizes", () => {
             </div>,
         );
         await userEvent.hover(screen.getByTestId("data-row-name"));
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 1500));
         expect(screen.queryByRole("tooltip")).toBeNull();
     });
@@ -170,6 +171,7 @@ describe("a name that ellipsizes", () => {
             </div>,
         );
         await userEvent.hover(screen.getByRole("checkbox", { name: "Apply step" }));
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 1500));
         expect(screen.queryByRole("tooltip")).toBeNull();
     });

@@ -9,10 +9,10 @@ import {
 import { Button, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect } from "react";
 
+import { modularityBandName } from "../../components/shell/readings/readingFormat";
 import { isPathFollow, ranOptionWords, weightRead, wordsFor } from "../analyze/words";
 import { focusInspectorTitle } from "../frame/focus";
 import { OptionsForm } from "../options/OptionsForm";
-import { modularityBandName } from "../../components/shell/readings/readingFormat";
 import { runName } from "../runWords";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";

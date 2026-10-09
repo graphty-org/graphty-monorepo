@@ -2,6 +2,7 @@ import { BUILT_IN_ALGORITHMS, RESULT_SHAPES } from "@graphty/graphty-element/cat
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
+import { runName } from "../../runWords";
 import {
     costLine,
     groupAlgorithms,
@@ -12,7 +13,6 @@ import {
     meaningGloss,
     optionWords,
     ranOptionWords,
-    runName,
     weightName,
     weightRead,
     wordsFor,
@@ -130,18 +130,16 @@ describe("the Analyze popover's words", () => {
         assert.equal(costLine(Number.POSITIVE_INFINITY), "Time cannot be estimated");
     });
 
-    it("names a run by its method, keeping the qualifier that tells sibling runs apart", () => {
+    it("names a run by its method in the app's words, and an unknown one by its key", () => {
         const session = { catalog: { algorithms: () => BUILT_IN_ALGORITHMS } } as unknown as GraphSession;
-        const pagerank = BUILT_IN_ALGORITHMS.find((descriptor) => descriptor.key === "pagerank");
-        assert.isDefined(pagerank);
-        const plain = pagerank?.plainName ?? "";
-        assert.equal(runName(session, { algorithm: "pagerank", label: plain }), "PageRank");
-        assert.equal(
-            runName(session, { algorithm: "pagerank", label: `${plain} (selection)` }),
-            "PageRank (selection)",
-        );
-        assert.equal(runName(session, { algorithm: "pagerank", label: "My ranking" }), "My ranking");
-        assert.equal(runName(session, { algorithm: "plugin-x", label: "Plugin X run" }), "Plugin X run");
+        const facts = {
+            params: {},
+            distinguishedBy: null,
+            siblingsDifferBy: null,
+            scope: { spec: "visible" as const },
+        };
+        assert.equal(runName(session, { algorithm: "pagerank", ...facts }), "PageRank");
+        assert.equal(runName(session, { algorithm: "plugin-x", ...facts }), "plugin-x");
     });
 
     it("finds Shortest path by chain, quickest, link and between, and says it goes by weight", () => {

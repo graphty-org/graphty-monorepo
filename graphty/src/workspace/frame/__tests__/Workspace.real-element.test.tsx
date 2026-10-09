@@ -88,6 +88,7 @@ describe("the workspace frame on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "gives no two reachable controls one name with a graph and nothing run",
         async () => {
@@ -112,6 +113,7 @@ describe("the workspace frame on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "keeps Method inside the inspector's padding on the graph's Style tab",
         async () => {
@@ -130,6 +132,7 @@ describe("the workspace frame on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "paints a shortest path in the app's own highlight colour, not the element's indigo",
         async () => {

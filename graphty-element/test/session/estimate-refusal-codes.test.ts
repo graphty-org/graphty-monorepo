@@ -47,7 +47,7 @@ async function threeGroups(context: RunExecutionContext): Promise<RunOutcome> {
                 { id: "c", values: { group: 1 } },
                 { id: "d", values: { group: 2 } },
             ],
-            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "louvain", notes: [] },
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "louvain", facts: [], notes: [] },
             durationMs: 1,
         }),
     };

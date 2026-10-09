@@ -113,6 +113,7 @@ describe("UndoSplitButton", () => {
             const touch = { pointerType: "touch", pointerId: 7, isPrimary: true, clientX: 5, clientY: 5 };
 
             fireEvent.pointerDown(undoHalf, touch);
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await wait(600);
 
             expect(onOpenHistory).toHaveBeenCalledTimes(1);

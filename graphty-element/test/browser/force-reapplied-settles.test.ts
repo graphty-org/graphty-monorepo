@@ -105,6 +105,7 @@ function edgeToPairRatio(session: GraphSession): number {
 }
 
 describe("force applied again with a longer spring length", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "moves the drawing and settles into groups",
         async () => {

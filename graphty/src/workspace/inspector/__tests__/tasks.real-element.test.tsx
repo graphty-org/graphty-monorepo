@@ -204,6 +204,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T12 by keyboard only: Degree, the neighbor names, and Esc back to the node",
         async () => {
@@ -270,6 +271,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T7: a measure row shows its top 10, a node its rank, and Rerun revises the same row",
         async () => {
@@ -472,6 +474,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "every fixed row has a Style: the Selection's highlight, a group's color and eye, a run opening on Style",
         async () => {

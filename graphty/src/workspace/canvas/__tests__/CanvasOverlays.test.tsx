@@ -71,7 +71,6 @@ function standIn(facts: StandInFacts = {}): {
                       },
             painting: () => facts.painting,
         },
-        catalog: { algorithms: () => [] },
         data: { statistics: () => ({ nodeCount: facts.nodeCount ?? 77, edgeCount: facts.edgeCount ?? 254 }) },
         selection: { nodes: [], edges: [] },
     } as unknown as GraphSession;

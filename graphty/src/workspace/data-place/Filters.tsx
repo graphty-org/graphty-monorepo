@@ -23,6 +23,7 @@ import {
 import React, { useEffect, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
+import { isPanelEscape } from "../keys/keys";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
 import {
@@ -42,6 +43,33 @@ import { useVisibilityVersion } from "./useVisibilityVersion";
 interface Outcomes {
     readonly start: number;
     readonly after: ReadonlyMap<string, number>;
+}
+
+/** Where focus goes once the Filters section draws the steps next: a step's row, or `PLUS` for "+". */
+const PLUS = "+";
+let pendingFocus: string | null = null;
+
+/**
+ * Asks the Filters section to focus a step's row, or "+" (`PLUS`), once it has drawn the steps
+ * that change brings, so focus never falls to the page when the editor closes or a row goes
+ * (WCAG 2.4.3).
+ * @param target - a step id, or `PLUS`.
+ */
+function focusNext(target: string): void {
+    pendingFocus = target;
+}
+
+/**
+ * Focuses a step's row in the Filters section, or its "+".
+ * @param target - a step id, or `PLUS`.
+ * @returns whether that control is on the page.
+ */
+function focusStep(target: string): boolean {
+    const control = document.querySelector<HTMLElement>(
+        target === PLUS ? "[data-filters-plus]" : `[role=tree][aria-label="Filters"] [data-id="${CSS.escape(target)}"]`,
+    );
+    control?.focus();
+    return control !== null;
 }
 
 /**
@@ -84,6 +112,12 @@ export function FiltersSection(): React.JSX.Element {
     const version = useVisibilityVersion(session);
     const outcomes = useOutcomes(session, version);
     const steps = session?.visibility.steps ?? [];
+    // Once the steps changed, the focus a step change asked for (focusNext).
+    useEffect(() => {
+        if (pendingFocus !== null && focusStep(pendingFocus)) {
+            pendingFocus = null;
+        }
+    }, [version]);
 
     const setOn = (step: FilterStep, on: boolean): void => {
         if (session !== null) {
@@ -133,6 +167,7 @@ export function FiltersSection(): React.JSX.Element {
     const plus = (
         <Tooltip label="Add filter step">
             <ActionIcon
+                data-filters-plus=""
                 variant="subtle"
                 aria-label="Add filter step"
                 onClick={() => {
@@ -162,6 +197,10 @@ export function FiltersSection(): React.JSX.Element {
                         <Menu.Item
                             onClick={() => {
                                 if (session !== null) {
+                                    // The next row takes focus, or the one above when the last
+                                    // goes, or "+" when none is left.
+                                    const at = steps.findIndex((s) => s.id === node.id);
+                                    focusNext(steps[at + 1]?.id ?? steps[at - 1]?.id ?? PLUS);
                                     void writeSteps(
                                         session,
                                         store,
@@ -352,20 +391,45 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
             return;
         }
         // A saved step is on: the reader edited it to use it (Undo restores it as it was).
+        const added = step === undefined ? newId(steps) : step.id;
         const next =
             step === undefined
-                ? [...steps, { id: newId(steps), on: true, rule }]
+                ? [...steps, { id: added, on: true, rule }]
                 : steps.map((s) => (s.id === step.id ? { ...s, rule, on: true } : s));
-        if (await writeSteps(session, store, next)) {
-            store.set({
-                inspected: null,
-                ...(step === undefined ? {} : { announcement: savedWords(stepWords(session, { ...step, rule })) }),
-            });
+        // The editor closes; focus goes to the step's row.
+        focusNext(added);
+        if (!(await writeSteps(session, store, next))) {
+            pendingFocus = null;
+            return;
         }
+        store.set({
+            inspected: null,
+            ...(step === undefined ? {} : { announcement: savedWords(stepWords(session, { ...step, rule })) }),
+        });
     };
 
+    // Enter commits (the form's submit); Escape no inner control took closes the editor and
+    // returns focus to the step's row, or to "+" for a new step.
     return (
-        <Stack gap="xs" p="md">
+        <Stack
+            component="form"
+            gap="xs"
+            p="md"
+            onSubmit={(event: React.FormEvent) => {
+                event.preventDefault();
+                if (!unchanged) {
+                    void commit();
+                }
+            }}
+            onKeyDown={(event: React.KeyboardEvent) => {
+                if (isPanelEscape(event.nativeEvent)) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    focusStep(step?.id ?? PLUS);
+                    store.set({ inspected: null });
+                }
+            }}
+        >
             <Select
                 label="Keep"
                 data={keepChoices}
@@ -441,13 +505,7 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                 </>
             )}
             <Group gap="xs">
-                <Button
-                    size="xs"
-                    disabled={rule === null || unchanged}
-                    onClick={() => {
-                        void commit();
-                    }}
-                >
+                <Button size="xs" type="submit" disabled={rule === null || unchanged}>
                     {step === undefined ? "Add step" : saveLabel(step.on)}
                 </Button>
             </Group>

@@ -85,6 +85,7 @@ function override(target: object, key: string, value: unknown): void {
 }
 
 describe("browserProjects", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "saves a session, lists it, opens it again with its data, styles and results, and removes it",
         async () => {
@@ -130,11 +131,13 @@ describe("browserProjects", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "lists the newest first",
         async () => {
             const session = (await threeInARow()).getSession();
             const first = await browserProjects.save(session);
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 5));
             const second = await browserProjects.save(session);
             assert.deepStrictEqual(
@@ -145,6 +148,7 @@ describe("browserProjects", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "leaves the project dirty and rejects with a GraphtyError when the write fails",
         async () => {

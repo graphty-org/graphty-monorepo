@@ -65,6 +65,7 @@ describe("Menu keys", () => {
         await userEvent.click(screen.getByRole("button", { name: "Selection actions" }));
         const menu = await screen.findByRole("menu");
         // Mantine's focus trap places its first focus on a timer: wait past both placements.
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((r) => setTimeout(r, 100));
         expect(menu).toHaveFocus();
         expect(highlighted()).toEqual([]);

@@ -49,6 +49,7 @@ describe("Filters on the real element", () => {
         await page.viewport(1366, 768);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "adds an edge-attribute step from Filter to..., and the row, chip and status agree with the element",
         async () => {
@@ -172,6 +173,7 @@ describe("Filters on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "adds a largest-component step from the section's +",
         async () => {

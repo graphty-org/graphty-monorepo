@@ -94,6 +94,7 @@ describe("the Graph place", () => {
         const name = screen.getByText("Les Miserables");
         await userEvent.hover(name);
         // Past the theme's 1000 ms open delay: a whole name has no tooltip.
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 1300));
         assert.isNull(screen.queryByRole("tooltip"));
         await userEvent.unhover(name);

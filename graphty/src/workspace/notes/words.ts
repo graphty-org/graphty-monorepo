@@ -6,9 +6,9 @@
 
 import type { GraphSession, NoteTarget, NoteTargetInput, NoteTargetStatus } from "@graphty/graphty-element/session";
 
-import { runName } from "../runWords";
 import type { Resolved } from "../inspector/inspected";
 import { count, edgeName } from "../inspector/words";
+import { runName } from "../runWords";
 
 /** The most targets one note may name (graphty-element's limit). */
 export const MAX_TARGETS = 64;

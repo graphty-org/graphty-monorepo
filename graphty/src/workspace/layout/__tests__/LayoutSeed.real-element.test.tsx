@@ -27,6 +27,7 @@ describe("the app's layout seed", () => {
         await page.viewport(1366, 768);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "starts every project on the seeded force layout, and keeps the seed on a method change",
         async () => {

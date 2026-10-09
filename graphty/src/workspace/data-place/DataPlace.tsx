@@ -7,8 +7,8 @@ import React, { useEffect, useState } from "react";
 
 import { canReplace, editSource, replaceSource } from "../data-page/request";
 import { GLYPHS } from "../glyphs";
-import { pickFile } from "../start/open";
 import { runName } from "../runWords";
+import { pickFile } from "../start/open";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useAttributeActions } from "./attributeActions";
 import { FiltersSection } from "./Filters";

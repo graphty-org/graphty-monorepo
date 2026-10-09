@@ -397,6 +397,7 @@ describe("session.capabilities.xr", () => {
         }, WAIT);
 
         assert.isAbove(askedAt, 0, "the browser was never asked");
+        // eslint-disable-next-line local/no-test-timing -- an upper bound on the probe's own timer, to become a fake-timer check, tracked in #1636
         assert.isAtMost(settledAt - askedAt, 1500 + 250, "the probe was not bounded");
         assert.deepEqual(element.session.capabilities.xr.reasons, { vr: "unsupported", ar: "unsupported" });
     });
@@ -418,6 +419,7 @@ describe("session.capabilities.xr", () => {
         assert.isNull(xrControl(".xr-button-overlay"), "the canvas has an XR overlay by default");
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     test(
         "view.immersive from 2D switches to 3D in the same step, and one undo returns to 2D",
         async () => {
@@ -440,6 +442,7 @@ describe("session.capabilities.xr", () => {
         TEST_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     test(
         "announces the headset ending the session itself",
         async () => {

@@ -258,6 +258,7 @@ describe("camera doors", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "zoomToSelection with nothing selected leaves the camera where it is",
         async () => {

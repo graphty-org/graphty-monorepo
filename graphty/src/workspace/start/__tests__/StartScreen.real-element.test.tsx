@@ -135,6 +135,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
 });
 
 describe("a file that cannot be read, on the real element", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "leaves the start screen showing, adds nothing to Recent projects, and keeps the reason",
         async () => {
@@ -211,6 +212,7 @@ describe("Open project or file... and a dropped file, on the real element", () =
         vi.restoreAllMocks();
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "opens a project file from the start screen under the project's own name, chosen or dropped",
         async () => {
@@ -242,6 +244,7 @@ describe("Open project or file... and a dropped file, on the real element", () =
         TIMEOUT_MS * 3,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "adds a data file to the open project through the Data page, and asks before a project file replaces unsaved changes",
         async () => {

@@ -48,6 +48,7 @@ describe("Undo, Redo and Clear selection words", () => {
         await page.viewport(1366, 768);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "names a style step in the Undo tooltip and in the status line after Undo and Redo",
         async () => {
@@ -78,6 +79,7 @@ describe("Undo, Redo and Clear selection words", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "says what Escape cleared, and nothing when the selection was empty",
         async () => {

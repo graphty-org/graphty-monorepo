@@ -90,7 +90,7 @@ async function twoGroups(context: RunExecutionContext): Promise<RunOutcome> {
             ],
             measured: { nodes: 7, edges: 5 },
             nodes: ["a", "b", "c", "d", "e", "f", "g"].map((id, i) => ({ id, values: { group: i < 4 ? 0 : 1 } })),
-            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "louvain", notes: [] },
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "louvain", facts: [], notes: [] },
             durationMs: 1,
         }),
     };

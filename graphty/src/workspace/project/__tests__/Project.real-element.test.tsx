@@ -361,6 +361,7 @@ describe("T14: save and reopen, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "keeps the old name and still asks before Close when the browser cannot keep the project",
         async () => {
@@ -463,6 +464,7 @@ describe("a reopened project's framing, on the real element", () => {
         await page.viewport(1440, 900);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "frames the graph where it was when saved, though the legend card comes up with the graph",
         async () => {

@@ -67,7 +67,6 @@ function sessionOf(parts: {
                 parts.layers.filter((l) => l.source.by === "run" && l.source.runId === id).map((l) => l.id),
         },
         selection: { size: parts.selected ?? 0 },
-        catalog: { algorithms: () => [] },
     } as unknown as GraphSession;
 }
 

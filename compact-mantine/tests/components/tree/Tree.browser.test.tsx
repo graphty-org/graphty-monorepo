@@ -593,6 +593,7 @@ describe("Tree: pointer drag (touch, mouse)", () => {
     const FLAT: TreeNodeData[] = ["A", "B", "C", "D"].map((n) => ({ id: n.toLowerCase(), name: n }));
     const HOLD = 600;
     const wait = (ms: number): Promise<void> =>
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         new Promise((resolve) => {
             setTimeout(resolve, ms);
         });

@@ -165,6 +165,7 @@ describe("the Graph place on the real element", () => {
                     assert.isTrue(session.selection.has(id));
                 });
                 // Long enough for a camera turn to have landed.
+                // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
                 await new Promise((resolve) => setTimeout(resolve, 300));
             };
 
@@ -186,6 +187,7 @@ describe("the Graph place on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "says when nothing matches, and offers the value rows",
         async () => {
@@ -345,6 +347,7 @@ describe("the Graph place on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "moves a run row as one undo step from its menu and Alt+Arrow, never past Selection or Everything",
         async () => {
@@ -399,6 +402,7 @@ describe("the Graph place on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "draws a group run with its groups as children, each with the size the element reports",
         async () => {

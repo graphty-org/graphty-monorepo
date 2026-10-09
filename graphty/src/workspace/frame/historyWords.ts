@@ -12,9 +12,9 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { wordsFor } from "../analyze/words";
-import { runName } from "../runWords";
 import { stepChange } from "../data-place/filterSteps";
 import { count } from "../inspector/words";
+import { runName } from "../runWords";
 import { channelWord } from "../style/words";
 
 /** A fact's params, read as the element documents them. */

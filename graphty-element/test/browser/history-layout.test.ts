@@ -347,6 +347,7 @@ describe("the element's layout properties", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a catalogue id names the layout and its default engine draws it",
         async () => {

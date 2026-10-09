@@ -29,6 +29,7 @@ function csv(chord: number): string {
  * @returns settles after the wait.
  */
 async function wait(ms = 300): Promise<void> {
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -43,6 +44,7 @@ async function load(element: Graphty, data: string): Promise<void> {
     await draft.load({ mode: "replace" });
     const layoutManager = element.graph.getLayoutManager();
     for (let tries = 0; tries < 100 && !(layoutManager.isSettled && !layoutManager.running); tries++) {
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await wait(100);
     }
     await wait();
@@ -90,6 +92,7 @@ describe("a replacing load", () => {
         return element;
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("draws the new data as opening it does, and frames it", { timeout: 60000 }, async () => {
         const opened = await mount();
         await load(opened, csv(10));

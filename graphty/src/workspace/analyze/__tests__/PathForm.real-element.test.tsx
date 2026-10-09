@@ -89,6 +89,7 @@ describe("the Path popover, on the real element", () => {
         await page.viewport(1366, 768);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "P with nothing selected: type From and To, Find path adds a row, selects it and says so",
         async () => {
@@ -137,6 +138,7 @@ describe("the Path popover, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Enter on a typed name picks it and moves on: From to To, To to Find path",
         async () => {
@@ -157,6 +159,7 @@ describe("the Path popover, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "says when no path joins the two nodes",
         async () => {
@@ -170,6 +173,7 @@ describe("the Path popover, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "on a directed graph shows Follow on All; Out finds no path against the arrows; Made with says Follow All",
         async () => {
@@ -216,6 +220,7 @@ describe("the Path popover, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "fills From from one selected node and focuses To; two fill both and focus Find path",
         async () => {
@@ -243,6 +248,7 @@ describe("the Path popover, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "keeps Tab inside the popover, and Esc closes it and returns focus to the opener",
         async () => {
@@ -268,6 +274,7 @@ describe("the Path popover, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a pick button takes the next node clicked on the canvas, without changing the selection",
         async () => {
@@ -314,6 +321,7 @@ describe("the Path popover, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the Weight box shows None before the run when a loaded weight with no meaning is not read, and Made with agrees",
         async () => {
@@ -380,6 +388,7 @@ describe("the Path popover, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a run that read a weight nobody gave a meaning says so in Made with, as the Data page does",
         async () => {
@@ -401,6 +410,7 @@ describe("the Path popover, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "names the popover's Advanced fold and the right panel's apart, and keeps the chevron in the popover",
         async () => {
@@ -424,6 +434,7 @@ describe("the Path popover, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the Weight box reads a loaded distance as used",
         async () => {
@@ -442,6 +453,7 @@ describe("the Path popover, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "P does nothing while focus is in a text field",
         async () => {
@@ -454,6 +466,7 @@ describe("the Path popover, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "opens from Analyze > Shortest path with a way back to the list",
         async () => {

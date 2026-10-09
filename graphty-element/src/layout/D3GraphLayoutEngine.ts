@@ -163,8 +163,6 @@ export class D3GraphEngine extends LayoutEngine {
     /** Each node id's edges, so removing a node visits only its own edges (issue #1425). */
     private readonly edgesByNode = new Map<Edge["srcId"], Set<Edge>>();
     reheat = false;
-    /** 2 or 3: in 2D d3 moves nodes in X and Y only, and every node stays at Z = 0. */
-    private readonly dim: number;
 
     /**
      * Check if there are pending nodes or edges to be processed

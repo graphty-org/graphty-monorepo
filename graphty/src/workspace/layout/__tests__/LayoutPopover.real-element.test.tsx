@@ -69,6 +69,7 @@ describe("the Layout popover", () => {
         await page.viewport(1024, 768);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "offers Rings by group once a community run has finished, grouped by that run",
         async () => {
@@ -101,6 +102,7 @@ describe("the Layout popover", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "lists every layout, opens a form that runs nothing until Apply, and draws Force flat with Shape 2D",
         async () => {
@@ -174,6 +176,7 @@ describe("the Layout popover", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reads a project saved with the old flat force as Shape 2D",
         async () => {

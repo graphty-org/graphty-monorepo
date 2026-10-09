@@ -171,6 +171,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T8: after Betweenness, Analyze > Find groups > Louvain runs and paints",
         async () => {
@@ -275,6 +276,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "frames a selected edge's two ends with Frame selection, and disables it with nothing selected",
         async () => {
@@ -331,6 +333,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "switches to 2D with 5, and opens a node's neighborhood from its Degree row, reaches two hops and filters to it",
         async () => {

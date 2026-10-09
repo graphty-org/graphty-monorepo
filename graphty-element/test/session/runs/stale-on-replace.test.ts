@@ -32,7 +32,7 @@ async function execute(context: RunExecutionContext): Promise<RunOutcome> {
             measured: { nodes: ids.length, edges: 4 },
             nodes: ids.map((id, index) => ({ id, values: { value: index / 10 } })),
             edges: [],
-            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "test", notes: [] },
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "test", facts: [], notes: [] },
             durationMs: 1,
         }),
     };

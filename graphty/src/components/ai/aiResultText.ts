@@ -24,9 +24,11 @@ export function aiResultText(result: ExecutionResult & { readonly error?: Error 
         return result.error.message;
     }
 
+    // A result with no code (one the app did not get from the element) keeps the general text.
+    const words = result.code === undefined ? undefined : WORDS[result.code];
     if (result.success) {
-        return WORDS[result.code] ?? (result.message || result.llmText || "Done.");
+        return words ?? (result.message || result.llmText || "Done.");
     }
 
-    return WORDS[result.code] ?? "The assistant could not answer.";
+    return words ?? "The assistant could not answer.";
 }

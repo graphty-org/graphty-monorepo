@@ -122,10 +122,13 @@ export interface AiControllerOptions {
 export interface ExecutionResult extends CommandResult {
     /** Raw response text from LLM (if any) */
     llmText?: string;
-    /** What happened, as a stable code to switch on; `AI_RESULT_CODES` in `./catalog` lists them all. */
-    code: AiResultCode;
+    /**
+     * What happened, as a stable code to switch on; `AI_RESULT_CODES` in `./catalog` lists them all.
+     * Every result the element returns sets it.
+     */
+    code?: AiResultCode;
     /** The facts behind the code (a provider id, a tool name, an HTTP status); empty when there are none. */
-    params: AiResultParams;
+    params?: AiResultParams;
 }
 
 /** A result's code and its facts. */

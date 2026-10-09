@@ -244,9 +244,9 @@ export const describeProperty: GraphCommand;
 
 // @public
 export interface ExecutionResult extends CommandResult {
-    code: AiResultCode;
+    code?: AiResultCode;
     llmText?: string;
-    params: AiResultParams;
+    params?: AiResultParams;
 }
 
 // @public

@@ -29,6 +29,8 @@ const reached = new Set<string>();
  * @returns The result.
  */
 function seen(result: ExecutionResult): ExecutionResult {
+    assert.isDefined(result.code, "every result carries a code");
+    assert.isDefined(result.params, "every result carries params");
     reached.add(result.code);
     return result;
 }

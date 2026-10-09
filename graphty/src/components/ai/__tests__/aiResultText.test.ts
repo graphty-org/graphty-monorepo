@@ -17,6 +17,11 @@ describe("aiResultText", () => {
         );
     });
 
+    it("falls back to the general text for a result with no code", () => {
+        expect(aiResultText({ success: false, message: "x" })).toBe("The assistant could not answer.");
+        expect(aiResultText({ success: true, message: "Laid out." })).toBe("Laid out.");
+    });
+
     it("shows the error when the request itself threw", () => {
         const error = new Error("AI Manager not initialized");
         expect(aiResultText({ success: false, message: "", code: "AI_NOT_ENABLED", params: {}, error })).toBe(

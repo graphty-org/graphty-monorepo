@@ -23,7 +23,7 @@ describe("AlgorithmManager", () => {
         // Create mock event manager
         mockEventManager = {
             emitGraphError: vi.fn(),
-            emitGraphEvent: vi.fn(),
+            emit: vi.fn(),
         } as unknown as EventManager;
 
         // A mock graph over a real headless session: a 1.10 run is an `algo.legacy` command, which

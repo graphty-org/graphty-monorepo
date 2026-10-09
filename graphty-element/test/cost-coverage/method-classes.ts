@@ -408,6 +408,7 @@ export const READ_ONLY: readonly string[] = [
     "ErrorAggregator.hasReachedLimit",
     "EventManager.addListener",
     "EventManager.dispose",
+    "EventManager.emit",
     "EventManager.emitDataAdded",
     "EventManager.emitDataCleared",
     "EventManager.emitDataLoadingComplete",

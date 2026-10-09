@@ -638,3 +638,23 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   row, a section name shown whole in the shared tooltip) and master's element changes merged since
   (a disposed graph's WebGL context released, the AI provider catalog, the spring-electrical
   layout's maxIter). No bar, floor, step limit or prompt changed.
+
+- **2026-10-09, before round 2: the answer key matched to the pilots on 2dcea6dd5bba.** Every task
+  half was piloted on the round 2 study build from its start (`rounds/r2d3/pilot/`). Every success
+  path landed on the first try with no script errors, console errors or failed requests, every
+  reference value held, and nothing was lost: participants meet no implementation fault on the
+  key's routes. `answers.md` now names this build, gives a section on it, and corrects what the key
+  still said about eaea2a75d95b: a whole-table import preview captioned "All N rows" (T4, T20, the
+  Replace page of T21) with rows still cut off below the pane; the "Add a table" tooltip opening
+  to the left of the "+" and covering nothing; the summary line's row counts being link-blue
+  buttons that switch the table shown and close the unmatched-row view (T4, T20); the "1 row left
+  out" inspector's plain document icon (T4); the Overview after "Save and turn on" and the step
+  checkbox's tooltip appearing only after the pointer moves away and back (T17); the Ravi-Pia path
+  tie drawn through Quinn on A's follow-up (T18); this build's reopen framing citations (T19); T20's
+  "Each row is" row, the role boxes' and Higher means' coordinates, A's status line and a picked
+  endpoint left unmarked on the drawing; "Measure ran" as PageRank's subtitle (T21); B's toast on
+  Escape clearing the selection (T22); the Hops 2 heading wrapped with no tooltip and the reopened
+  list at Hops 2 matching the pressed filter button, so the Hops 1 trap note no longer applies
+  (T23 B); and the Edge actions menu opening with no item filled, a click on a drawn name doing
+  nothing, the find box's title result without the minutes, and a visible click point on B's line
+  (T24). No bar, floor, step limit or prompt changed.

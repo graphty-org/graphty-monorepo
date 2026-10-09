@@ -10,16 +10,18 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-09 -- DRY RUNS DONE: four before round 1, three before round 2 (fabc16247403,
-  d5a3bee20b61, then a pilot of all 20 halves on the frozen study build eaea2a75d95b,
-  `tier2/rounds/r2d2/pilot/`). On eaea2a75d95b every success path landed first try, 0
-  script/console/request errors, every value held, nothing lost: participants meet no
-  implementation fault on the key's routes. What remains is design (known, recorded in the key)
-  and key drift, now fixed in `answers.md`.
+- 2026-10-09 -- YES, DRY RUNS WERE DONE, and the last one is clean: four before round 1, then
+  four rounds of dry run/pilot before round 2, the last a pilot of all 20 halves on the frozen
+  study build 2dcea6dd5bba (`tier2/rounds/r2d3/pilot/`). Every success path landed first try,
+  0 script/console/request errors, every value held, nothing lost. Participants will NOT hit
+  implementation faults on the key's routes; what is left is known design risk (in the key) and
+  key drift, fixed in `answers.md` the same day.
+- 2026-10-09 -- New on 2dcea6dd5bba that graders must watch: the import page's row counts are
+  link-blue BUTTONS that switch the table and close the unmatched-row view (T4, T20); a click on a
+  drawn name does nothing (T24 B); Ravi-Pia path tie drawn through Quinn (T18 A follow-up).
 - 2026-10-09 -- Round 2 UX risks to watch (design, not build faults): legend "PageRank on 20
   nodes" beside chip "19 of 20" (T17, T23); T18's "A path needs a distance" line may push a weight
-  set as distance (`meaning-wrong`); T23's reopened list shows Hops 1 while the button is pressed
-  for the 2-hop filter (pressing it un-filters); T4 Load enabled with one file and no edges;
+  set as distance (`meaning-wrong`); T4 Load enabled with one file and no edges;
   nodes have no hover tooltip and no names drawn (T18, T20, T24).
 - 2026-10-09 -- Tool risk under load (load avg 90-115): a setup click that times out may or may
   not have landed, and `setup.log` says "could not click" either way (T22 B, T12R A). Check each
@@ -88,28 +90,20 @@ reasons, in short:
 
 ## Decisions and reasons
 
-- 2026-10-09 (researcher, key matched to the eaea2a75d95b pilots) -- Re-pointed `answers.md` at
-  the study build with a build section and about 40 edits. The key still held fabc16247403 claims
-  the d5a3bee20b61 dry run had already disproved (left-out inspector counts, Add/Leave out moving,
-  no scrollbar, same-set Enter silent, red line 8 px left, Hops 1 button unpressed); deleted those
-  notes instead of keeping "record any participant who..." lines for screens that no longer
-  exist. Re-pointed d5a3bee citations whose folders the new pilots overwrote to
-  `-old-build-d5a3bee/`. Cited only T12R A for eaea (T12R B's new walk was not in my evidence).
-  Viewed `T4A/15.png` before deleting the Loaded-misread note. No prompt wrong; no bar moved.
+- 2026-10-09 (researcher, key matched to the 2dcea6dd5bba pilots) -- Added a build section and
+  about 20 scoped edits from 14 pilot reports. Kept older-build sentences as "on earlier builds"
+  only where a grader may meet a citation to them; deleted T23's Hops 1 trap note as no longer on
+  screen (reopened list now at Hops 2, matching the pressed button). Added newly seen traps
+  graders need (row-count buttons, click on a drawn name, Quinn overlap) even though the pilots
+  called some "defects", because a participant can land on them. No prompt wrong; no bar moved.
+  Did not have reports for T17 A, T18 B, T21 B, T23 A, T12R: left their entries untouched.
 
-- 2026-10-09 (researcher, key matched to the fabc16247403 dry run) -- Build section plus 65
-  scoped edits; settled a pilot conflict (graph title is a button) from the screen before the
-  click. Graders take both old and new heading wordings. No prompt or bar changed.
-
-- 2026-10-09 (researcher, key matched to the round 2 pilots) -- Re-pointed `answers.md` at
-  ddf8b3b63039 with a build section (legend "out of date" under filter/replace; Summary heading;
-  halo-only selection; no focus mark after Find path/Rerun/Save) and per-task fixes; marked the
-  three round 2 routes walked with real counts (T21 8, not 7); marked T12R "not yet walked" rather
-  than leaving 946256efb876 notes unlabeled. Told graders `work.json` "gone" for the replaced file
-  (T21) and "step-1 off" (T17) are tool artifacts, not lost work. Checked conflicting pilot claims
-  myself (T20 bottom bar: A stays at y 876, B moves 824 -> 876 -- both true, preview length).
-  Kept tasks.md unchanged: no prompt was wrong; "Total minutes"/"Total km" echo only the data's
-  own column words. Rejected: fixing `with-browser.sh` myself (tool owner's file; reported).
+- 2026-10-09 (researcher, earlier key matches: ddf8b3b63039, fabc16247403, eaea2a75d95b, folded)
+  -- Each time: build section plus scoped edits; delete notes for screens no longer drawn rather
+  than leave "record any participant" lines (they prime graders); re-point citations whose folders
+  a newer pilot overwrote; settle pilot conflicts from the screen before the click; marked the
+  three round 2 routes with walked counts (T21 8); told graders `work.json` "gone" for T21's
+  replaced file and "step-1 off" are tool records, not lost work. No prompt or bar changed.
 
 - 2026-10-09 (researcher, round 2 key and grading wording) -- Added "Round 2 route" entries to T20
   (start-screen Open through the Data page, 10), T21 (source inspector "...", 7), T22 (find hint to
@@ -200,6 +194,11 @@ reasons, in short:
 - 2026-09-28 (owner) -- Simulated personas built from public sources, each checked by a skeptic.
 
 ## Tried: worked / did not work
+
+- 2026-10-09 (2dcea key) -- Worked: one scratch python of exact (old, new) pairs, each asserted
+  once, then grep for non-ASCII. Worked: reading the build's own change-log entry first -- it
+  listed the fixes ("All N rows", tooltip left, no filled menu item, Hops reach) that explained
+  most mismatches before I opened any report.
 
 - 2026-10-09 (eaea key) -- Worked again: one script of exact (old, new) pairs, each asserted to
   match a stated count, then an ASCII grep. Did not work earlier: a dry run's fixes were recorded

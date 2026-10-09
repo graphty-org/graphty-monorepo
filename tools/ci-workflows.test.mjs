@@ -1550,7 +1550,15 @@ describe("the re-run of a T4 run whose spot runner was lost", () => {
             `if [ "$GITHUB_RUN_ATTEMPT" = 1 ] && tools/gpu-runner-lost.sh "$GITHUB_RUN_ID" 1; then`,
         );
         assert.ok(skip > 0, "the held job asks the same question");
-        assert.match(held.slice(skip), /^[^\n]*\n\s+echo "::warning::[^\n]*\n\s+exit 0\n/);
+        assert.match(
+            held.slice(skip),
+            /^[^\n]*\n\s+echo "::warning::[^\n]*\n\s+echo "reclaimed=true" >> "\$GITHUB_OUTPUT"\n\s+exit 0\n/,
+        );
+        // and announces nothing: the re-run attempt announces its own outcome
+        assert.match(
+            held,
+            /- name: Announce the held release\n\s+if: \$\{\{ always\(\) && steps.hold.outputs.reclaimed != 'true' \}\}/,
+        );
         assert.ok(skip < held.indexOf("tools/release-held.sh open"), "before the issue is opened");
         // the train still requires a green T4: the re-run attempt must pass it
         assert.match(job(workflow("release.yml"), "train"), /needs.t4.result == 'success'/);
@@ -2190,7 +2198,8 @@ describe("release.yml", () => {
         // shape: CI's "All Checks Pass" never ran, "Queue Checks Pass" failed on it) and tools/release-held.sh
         // records the issue it would open.
         const issue = (env, jobs) => {
-            const script = /- name: Open or update the held-release issue\n\s+run: \|\n([\s\S]*?)\n\n/.exec(held)[1];
+            const script =
+                /- name: Open or update the held-release issue\n\s+id: hold\n\s+run: \|\n([\s\S]*?)\n\n/.exec(held)[1];
             const dir = mkdtempSync(join(tmpdir(), "release-held-"));
             try {
                 mkdirSync(join(dir, "tools"));
@@ -2218,6 +2227,7 @@ describe("release.yml", () => {
                         GITHUB_REPOSITORY: "o/r",
                         GITHUB_RUN_ID: "37635516841",
                         GITHUB_RUN_ATTEMPT: "1",
+                        GITHUB_OUTPUT: join(dir, "output"),
                         RUNNER_TEMP: dir,
                         TRIGGER: "schedule",
                         SHA: "44ab26d10658f95c66025ab391219e2865b94aa8",
@@ -2449,7 +2459,7 @@ describe("release.yml", () => {
         assert.match(publish, /issues: write/);
         assert.match(
             publish,
-            /- name: Report a failed publish\n\s+if: \$\{\{ failure\(\) \}\}[\s\S]*title="Release held: publish failed on \$\{GITHUB_SHA:0:7\}"[\s\S]*tools\/release-held.sh open "\$title"/,
+            /- name: Report a failed publish\n\s+id: report\n\s+if: \$\{\{ failure\(\) \}\}[\s\S]*title="Release held: publish failed on \$\{GITHUB_SHA:0:7\}"[\s\S]*tools\/release-held.sh open "\$title"/,
         );
         assert.match(
             publish,
@@ -2457,11 +2467,31 @@ describe("release.yml", () => {
         );
     });
 
+    it("announces every outcome on the Release status issue: held, release pull request, published or failed", () => {
+        // tools/release-status.mjs mentions RELEASE_NOTIFY; a run the owner did not start notifies nobody otherwise
+        for (const [j, outcome] of [
+            [held, "held"],
+            [train, "opened"],
+        ]) {
+            assert.match(j, new RegExp(`node tools/release-status.mjs ${outcome} `));
+            assert.match(j, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
+        }
+        assert.match(held, /tools\/release-status.mjs\n/, "in the held job's sparse checkout");
+        // the last step of the publish job, whatever happened above it, so a re-run (--failed) announces again
+        assert.match(
+            publish,
+            /- name: Announce the publish outcome\n\s+if: \$\{\{ always\(\) \}\}[\s\S]*OUTCOME: \$\{\{ job.status == 'success' && 'published' \|\| 'publish-failed' \}\}[\s\S]*node tools\/release-status.mjs "\$OUTCOME"[^\n]*\n[^\n]*\n$/,
+        );
+        assert.match(publish, /echo "tags=\$\(IFS=,; echo "\$\{tags\[\*\]\}"\)" >> "\$GITHUB_OUTPUT"/);
+    });
+
     // The failed-publish report, run in a scratch directory with stubs: the publish step's output (run
     // 37691314850's shape, colors and all), `pnpm exec nx show project` answering each project's root, and
     // tools/release-held.sh recording the issue it would open.
     const publishReport = (log) => {
-        const script = /- name: Report a failed publish\n\s+if: [^\n]*\n\s+run: \|\n([\s\S]*?)\n\n/.exec(publish)[1];
+        const script = /- name: Report a failed publish\n\s+id: report\n\s+if: [^\n]*\n\s+run: \|\n([\s\S]*?)\n\n/.exec(
+            publish,
+        )[1];
         const dir = mkdtempSync(join(tmpdir(), "release-publish-"));
         try {
             mkdirSync(join(dir, "tools"));
@@ -2487,6 +2517,7 @@ describe("release.yml", () => {
                     GITHUB_REPOSITORY: "graphty-org/graphty-monorepo",
                     GITHUB_RUN_ID: "37691314850",
                     GITHUB_SHA: "e140ea5c8358785f46e6a671172c30a361c6ded4",
+                    GITHUB_OUTPUT: join(dir, "output"),
                     RUNNER_TEMP: dir,
                 },
             });

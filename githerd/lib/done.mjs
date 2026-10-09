@@ -13,9 +13,9 @@
  * goes through the propose, confirm and grace path of proposals.mjs, and `done` is checked per kind:
  *
  * - `pr` and `issue`: the pull request is based on master, not a draft, and its head on GitHub (the
- *   polled record, confirmed with `git ls-remote`) is the pushed commit, or extends it only by merges
- *   from master (the ancestor rule: the daemon's update-branch call, Mergify's update and the review
- *   tool's `update` all add such a merge). Its required checks are green, or the only failing one is
+ *   polled record, confirmed with `git ls-remote`) contains the pushed commit (the ancestor rule:
+ *   merges from master by the daemon, Mergify or the review tool, and other sessions' commits on a
+ *   shared branch, all land on top of it without undoing it; a rewritten branch does not contain it). Its required checks are green, or the only failing one is
  *   the owner's visual review, and `githerd/merge` does not fail on a line the worker can fix. An
  *   `issue` job's pull request must reference the issue. An `issue` job whose fix rides in a pull
  *   request it did not push (another session's, such as a feature branch its fix branch merged
@@ -73,8 +73,8 @@ const BOOT = randomUUID();
  * @typedef {object} DoneIo what verification reads, outside the state
  * @property {(ref: string) => Promise<string>} remoteHead `git ls-remote` of a branch: its sha, or
  *   "" when the branch is gone
- * @property {(pushed: string, head: string, ref: string) => Promise<boolean>} extendedByMerges
- *   whether `head` is `pushed` plus only merges from master (the ancestor rule)
+ * @property {(pushed: string, head: string, ref: string) => Promise<boolean>} headContains
+ *   whether `pushed` is an ancestor of (or is) `head`, the head of branch `ref` (the ancestor rule)
  * @property {(commit: string, sha: string) => Promise<boolean>} contains whether `commit` is an
  *   ancestor of (or is) `sha`
  * @property {(commit: string, n: number, sha: string) => Promise<boolean>} pullContains whether
@@ -146,8 +146,8 @@ async function headIsPushed(rec, pushed, io) {
     const remote = await io.remoteHead(rec.headRef);
     if (remote === "") return `branch ${rec.headRef} is gone from GitHub`;
     if (remote !== rec.headSha) return null;
-    if (remote === pushed || (await io.extendedByMerges(pushed, remote, rec.headRef))) return true;
-    return `GitHub's head of ${rec.headRef} is ${remote.slice(0, 9)}, not the pushed ${pushed.slice(0, 9)} or a merge from master on top of it`;
+    if (remote === pushed || (await io.headContains(pushed, remote, rec.headRef))) return true;
+    return `GitHub's head of ${rec.headRef} is ${remote.slice(0, 9)}, which does not contain the pushed ${pushed.slice(0, 9)}: push it, or name the commit you pushed`;
 }
 
 /**
@@ -178,7 +178,9 @@ async function mergedAnswer(number, view, issue) {
 }
 
 /** How a session names a fix that rides in a pull request it did not push. */
-const COMMITS_HINT = "if your fix is in it, call githerd_done again with commits set to the fix commit(s) it contains";
+const COMMITS_HINT =
+    "if your fix is in it, call githerd_done again with commits set to the fix commit(s) it contains " +
+    "(if your githerd_done tool has no commits field, run `githerd done <job> --outcome done --pr <n> --commits <sha,...>`)";
 
 /**
  * The done-condition of an issue job whose fix rides in a pull request the session did not push:
@@ -266,7 +268,7 @@ async function prAnswer(number, pushed, view, issue = null) {
     }
     const head = await headIsPushed(rec, pushed, view.io);
     if (head === null) return null;
-    if (head !== true) fix.push(head);
+    if (head !== true) fix.push(issue === null ? head : `${head}; or, ${COMMITS_HINT}`);
     const required = Object.entries(rec.required ?? {});
     const failing = failingRequired(rec);
     if (rec.ownerRejected) gaps.push("the owner rejected images: fix the captures he named");
@@ -1232,20 +1234,9 @@ export function doneIo({
     };
     return {
         remoteHead,
-        async extendedByMerges(pushed, head, ref) {
-            const master = await remoteHead(branch);
-            await fetchRefs([ref, branch]);
-            if (!(await known(pushed)) || !(await ancestor(pushed, head))) return false;
-            const r = await git(["rev-list", "--first-parent", "--parents", `${pushed}..${head}`]);
-            if (r.code !== 0) throw new Error(`git rev-list failed: ${r.stderr.trim()}`);
-            // ponytail: a merge is recognized by its shape (a first-parent merge whose other parents
-            // are on master), not by who made it; read the committer if a worker ever hides work in one.
-            for (const line of r.stdout.trim().split("\n").filter(Boolean)) {
-                const others = line.split(" ").slice(2);
-                if (!others.length) return false;
-                for (const p of others) if (!(await ancestor(p, master))) return false;
-            }
-            return true;
+        async headContains(pushed, head, ref) {
+            await fetchRefs([ref]);
+            return (await known(pushed)) && (await known(head)) && ancestor(pushed, head);
         },
         async contains(commit, sha) {
             if (!(await known(sha))) await fetchRefs([branch]);

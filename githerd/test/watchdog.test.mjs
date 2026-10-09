@@ -519,7 +519,7 @@ describe("watchPass", () => {
                 },
                 master: { branch: "master" },
             };
-            const io = { remoteHead: async () => HEAD, extendedByMerges: async () => false };
+            const io = { remoteHead: async () => HEAD, headContains: async () => false };
             const ctx = { state, config: {}, now: T0, io, commit: async () => {} };
             return { state, ctx };
         }

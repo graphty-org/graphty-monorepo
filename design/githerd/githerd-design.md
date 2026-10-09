@@ -1172,9 +1172,10 @@ githerd_done: { job: string, outcome: "done"|"split"|"not-needed"|"failed",
 // ReviewResult: { verdict: "pass"|"loosened"|"breaking-unmarked"|"does-not-address"|"security"|"other",
 //                 patchId, notes }
 // "not-needed" goes through the same propose, confirm and grace path as an obsolete issue.
-// A pushedHead that is an ancestor of GitHub's head is accepted when every later commit is a
-// merge from master (the daemon's update-branch call, Mergify's update and the review tool all add
-// one). A merge is recognized by its shape: on the first-parent line, its other parents on master.
+// A pushedHead that is an ancestor of GitHub's head is accepted, whatever lands on top of it:
+// merges from master (the daemon's update-branch call, Mergify's update, the review tool) and other
+// sessions' commits on a shared branch leave the worker's commit on the branch. A rewritten branch
+// that no longer contains it is refused.
 // -> { verified: true, attempts } | { verified: false, missing: string[], ended?: true, attempts }
 // An issue job whose fix rides in a pull request the worker did not push (another session's
 // branch its fix merged into) names that pr and the fix `commits`: accepted when the pull request,

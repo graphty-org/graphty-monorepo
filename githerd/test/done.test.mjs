@@ -61,7 +61,7 @@ function fakeIo(over = {}) {
     });
     return {
         remoteHead: async () => HEAD,
-        extendedByMerges: async () => false,
+        headContains: async () => false,
         contains: async (/** @type {string} */ a, /** @type {string} */ b) => a === FIX && b === GREEN,
         issue: async (/** @type {number} */ n) => issues[n] ?? null,
         commitExists: async (/** @type {string} */ sha) => sha === FIX,
@@ -170,7 +170,16 @@ const FALSE_CLAIMS = [
     ["pr based on a branch", "pr", "7", {}, {}, { prs: { 7: pr({ baseRef: "feat/base" }) } }, {}, "based on feat/base"],
     ["pr draft", "pr", "7", {}, {}, { prs: { 7: pr({ draft: true }) } }, {}, "draft"],
     ["no pushed head", "pr", "7", {}, { pushedHead: undefined }, {}, {}, "pushedHead"],
-    ["head moved by another", "pr", "7", {}, { pushedHead: OTHER }, {}, {}, "not the pushed"],
+    [
+        "head does not contain the pushed commit",
+        "pr",
+        "7",
+        {},
+        { pushedHead: OTHER },
+        {},
+        {},
+        "does not contain the pushed",
+    ],
     ["branch deleted", "pr", "7", {}, {}, {}, { remoteHead: async () => "" }, "gone"],
     [
         "check failing",
@@ -466,16 +475,24 @@ describe("verifyClaim", () => {
         for (const [job, rep] of cases) expect(await verifyClaim(job, rep, view(s, io))).toEqual({ holds: true });
     });
 
-    it("accepts a head the daemon or Mergify extended by merges from master (the ancestor rule)", async () => {
+    it("accepts a head that contains the pushed commit: a merge or another session's commit on top (the ancestor rule)", async () => {
         const io = fakeIo({
             remoteHead: async () => OTHER,
-            extendedByMerges: async (/** @type {string} */ p) => p === HEAD,
+            headContains: async (/** @type {string} */ p) => p === HEAD,
         });
         expect(
             await verifyClaim(working("pr", "7"), report(), view(state({ prs: { 7: pr({ headSha: OTHER }) } }), io)),
         ).toEqual({
             holds: true,
         });
+    });
+
+    it("points an issue job refused on the head at the commits field and its CLI fallback", async () => {
+        const io = fakeIo({ pull: async () => ({ state: "open", body: "Fixes #6" }) });
+        const r = await verifyClaim(working("issue", "6"), report({ pr: 7, pushedHead: OTHER }), view(state(), io));
+        expect(r).toMatchObject({ fixable: true });
+        expect(r?.missing?.[0]).toContain("does not contain the pushed");
+        expect(r?.missing?.[0]).toContain("githerd done <job> --outcome done --pr <n> --commits");
     });
 
     it("accepts an issue job's pull request that names the issue in its description, leaving it open", async () => {
@@ -1244,6 +1261,9 @@ describe("doneIo", () => {
         sha.merged = git(root, "rev-parse", "HEAD");
         put(join(root, "b.txt"), "more\n");
         sha.extra = commitAll(root, "fix: b", { sign: false });
+        git(root, "checkout", "-q", "-b", "rewritten", sha.base);
+        put(join(root, "a.txt"), "rewritten fix\n");
+        sha.rewritten = commitAll(root, "fix: a, rewritten", { sign: false });
         git(root, "checkout", "-q", "master");
     });
 
@@ -1253,10 +1273,12 @@ describe("doneIo", () => {
         const io = doneIo({ root: repo.root, repo: "o/r", github: {} });
         expect(await io.remoteHead("fix/x")).toBe(sha.pushed);
         expect(await io.remoteHead("nope")).toBe("");
-        expect(await io.extendedByMerges(sha.pushed, sha.merged, "fix/x")).toBe(true);
-        expect(await io.extendedByMerges(sha.pushed, sha.extra, "fix/x")).toBe(false);
-        expect(await io.extendedByMerges(sha.merged, sha.pushed, "fix/x")).toBe(false);
-        expect(await io.extendedByMerges("e".repeat(40), sha.merged, "fix/x")).toBe(false);
+        expect(await io.headContains(sha.pushed, sha.pushed, "fix/x")).toBe(true); // exact head
+        expect(await io.headContains(sha.pushed, sha.merged, "fix/x")).toBe(true); // a merge from master on top
+        expect(await io.headContains(sha.pushed, sha.extra, "fix/x")).toBe(true); // another session's commit on top
+        expect(await io.headContains(sha.merged, sha.pushed, "fix/x")).toBe(false); // pushed commit not contained
+        expect(await io.headContains(sha.pushed, sha.rewritten, "fix/x")).toBe(false); // branch rewritten
+        expect(await io.headContains("e".repeat(40), sha.merged, "fix/x")).toBe(false);
         expect(await io.contains(sha.base, sha.master)).toBe(true);
         expect(await io.contains(sha.pushed, sha.master)).toBe(false);
         expect(await io.contains("e".repeat(40), sha.master)).toBe(false);

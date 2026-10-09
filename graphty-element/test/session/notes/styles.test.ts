@@ -260,7 +260,14 @@ describe("bound label values are drawn as written", () => {
                     ],
                     measured: { nodes: 1, edges: 0 },
                     nodes: [{ id: "a", values: { group: "<bold>g</bold>" } }],
-                    caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "test", notes: [] },
+                    caveats: {
+                        exact: true,
+                        direction: "as-loaded",
+                        precision: "f64",
+                        method: "test",
+                        facts: [],
+                        notes: [],
+                    },
                     durationMs: 1,
                 }),
             });

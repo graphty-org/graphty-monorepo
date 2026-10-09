@@ -146,6 +146,10 @@ export const AfterLouvain: Story = {
         await userEvent.click(await body().findByRole("button", { name: "Run" }));
         await Promise.all(element.session.runs.list());
         await element.waitForStableFrame();
+        // Run closes the popover and hands focus back to Analyze. The play's clicks are synthetic,
+        // so the browser counts that focus as keyboard focus, and Analyze's tooltip shows after
+        // its 1000 ms keyboard-focus delay: wait for it, or the capture lands either side of it.
+        await body().findByRole("tooltip", { name: /^Analyze/ }, { timeout: 5000 });
     },
 };
 

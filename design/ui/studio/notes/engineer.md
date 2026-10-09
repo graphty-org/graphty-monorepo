@@ -11,6 +11,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **Sources rows and left-out rows (app only, no API).** A Sources row passes its
+  counts as `description` + `descriptionVisible` (two-line row) instead of `count`, so
+  "people.csv and messages.csv" and "12 nodes, 22 edges" both show whole. The left-out child's
+  glyph is `GLYPHS.warning` in `var(--cm-text-danger)`, as the import page's. Its inspector is
+  subtitled "Left out of <load name>" (`leftOutOf`, header `kind` override) and shows the whole
+  load (Added Nodes/Edges, sentence, rows); left-out lines are wrapping `Text size="sm"`, not
+  `DataRow` names. Evidence `tmp/r1-dry3-app-sources-left-out/` (T4A/08-10, T4B/09). Shared worktree trap: Inspector.tsx and
+  words.ts held another agent's uncommitted edits (an "Edge actions" Tooltip, runRowKind); `git
+  add` took them, so I rebuilt the index from HEAD~1 plus my hunks and amended. Stage by hunk.
 - (2026-10-08) **Shared tree and menu fixes (compact-mantine + app, team door).** `Tree` takes
   `childBand?: boolean` (default true, Figma's band); the app passes false on Sources and the paint
   tree, so a selected source no longer paints its three children as selected (T4A/10, T4B/10).
@@ -33,21 +42,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   when the theme loads. Evidence `tmp/r1-dry3-cm-tooltip-pointer-move/` (T21A/06, 08, 12; T21B/06).
   OPEN: an `opened`-prop tooltip under a resting pointer would stay hidden until a move (none).
 
-- (2026-10-08) **A setup hands over a clean start (study tool).** After setup, `real.mjs` blurs
-  focus AND moves the pointer to (-1,-1), so 01.png shows no hover the participant never made
-  (`--prove` check "a setup leaves the pointer over nothing", via the prove-only `hovered` op;
-  fails without the move: the pointer sat on the canvas). Ranked setups end on the PageRank run's
-  inspector (Style); the names setups end on Everything (Style); answers.md says so once, up top.
-  T24B tie point 752,170 selects edge 15 on the local and the frozen build; 753,258 is empty
-  canvas. Evidence `tmp/r1-dry2-study-tool-handover/` (T23A/01-05, T12RB/01, T24B/01-03).
-- (2026-10-08) **A saved note takes focus; delete note is a trash glyph (app only, no API).**
-  `Editor.onSaved(id)` -> `focusWhenDrawn(id)` (NotesPlace.tsx): Control+Enter focuses the new note
-  (index 0, newest first), so no "Add note N" tooltip opens over it. `GLYPHS.delete` = lucide
-  `Trash2`; `GLYPHS.remove` (Minus) stays for taking a value out of a list. The "tooltip drawn under
-  the key" was a misreading: the dark tooltip sits ABOVE the dark legend card (z 1200 at body vs the
-  overlays' 2) and covers its first digit, so ".03779" and an "N" at the card edge looked clipped.
-  No stacking change. Evidence `tmp/r1-dry2-notes-polish/` (T19A/05, 09, T19B/05, 09,
-  probe-before-crop vs probe-after-crop.png). Test: Notes.real-element (fails on the old code).
+- (2026-10-08, condensed) Study tool: after setup `real.mjs` blurs focus and moves the pointer
+  off the page (`--prove` checks it). Notes: a saved note takes focus (`focusWhenDrawn`); delete
+  note is `GLYPHS.delete` (trash). Evidence `tmp/r1-dry2-study-tool-handover/`, `tmp/r1-dry2-notes-polish/`.
 - (2026-10-08) **Path form and Made with (app + compact-mantine, no element API).** A panel's
   Escape (Path, Analyze, Layout popovers) waits for inner controls: `isPanelEscape` (keys.ts) is
   false when `defaultPrevented` or the target has `data-expanded`, so one Escape closes only the
@@ -81,6 +78,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **A left-out row opens its load's whole account, not a "Left out" section alone.**
+  The task asks how many arrived AND what was dropped; the small inspector hid the counts (T4A/12).
 - (2026-10-08) **A shared control's defect is fixed in compact-mantine, and an app-specific
   look is an option with today's look as default.** The child band is right where selecting a
   parent selects its children (Figma), wrong in this app; so an option, not a removal. Menu
@@ -198,6 +197,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Worked: re-piloting T4 from answers.md's success path (no session.json setup list
+  for an `empty` start) on a dist copy in my tmp folder.
 - (2026-10-08) Did not work: `MenuDropdown` theme `onKeyDown` to mark Escape (never ran: the
   capture-phase close unmounts first). Did not work: redirecting a disabled first focus once --
   Mantine's focus trap refocuses row 1 from a second timer; `data-autofocus` on the target fixes

@@ -36,6 +36,15 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     source: "Source",
 };
 
+/**
+ * The kind line of a Sources row's left-out child, which names its load rather than "Source".
+ * @param load - the load's name.
+ * @returns such as "Left out of people.csv and messages.csv".
+ */
+export function leftOutOf(load: string): string {
+    return `Left out of ${load}`;
+}
+
 /** The kind word of a path run's row, which is a measure row by shape but not a measure to a reader. */
 export const PATH_WORD = "Path";
 

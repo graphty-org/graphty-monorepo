@@ -470,6 +470,9 @@ describe("the Data page on the real element", () => {
             const sources = await screen.findByRole("tree", { name: "Sources" });
             const row = within(sources).getByRole("treeitem", { name: "people.csv and passes.csv" });
             assert.include(row.textContent, "3 nodes, 2 edges");
+            // The counts are a second line, never sharing (and cutting) the name's line.
+            assert.isNotNull(row.querySelector(".cm-tree-description"));
+            assert.isNull(row.querySelector("[data-testid='tree-count']"));
             // Its own row under the source, so a narrow panel cannot cut it off.
             assert.isNotNull(within(sources).getByRole("treeitem", { name: "1 row left out" }));
             assert.equal(store.get().project?.name, "people and passes", "named after both files");
@@ -480,14 +483,17 @@ describe("the Data page on the real element", () => {
             // The row itself, kept by the element with the load: no file to reopen.
             await within(inspector).findByText("Line 4: z has no node row; source c, target z, weight 1");
 
-            // A child opens what it names, not its load: the left-out row only the rows left out,
-            // a table its own count and its table in the dock.
+            // The left-out child names its load, not "Source", and shows what the load added above
+            // the rows it left out; a table child its own count and its table in the dock.
             await userEvent.click(within(sources).getByText("1 row left out"));
             await waitFor(() => {
                 assert.equal(document.getElementById(INSPECTOR_TITLE_ID)?.textContent, "1 row left out");
             });
-            await within(inspector).findByText("Left out");
-            assert.isNull(within(inspector).queryByText("Added"));
+            await within(inspector).findByText("Left out of people.csv and passes.csv");
+            assert.isNull(within(inspector).queryByText("Source"));
+            await within(inspector).findByText("Added");
+            assert.isNotNull(within(inspector).getByText("Nodes"));
+            assert.isNotNull(within(inspector).getByText("Edges"));
             await within(inspector).findByText("Line 4: z has no node row; source c, target z, weight 1");
             await userEvent.click(within(sources).getByText("passes.csv"));
             await waitFor(() => {

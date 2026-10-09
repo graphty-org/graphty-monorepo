@@ -27,7 +27,7 @@ import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValue
 import { type Draft, rowKindOf, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
-import { count, edgeName, groupName, KIND_WORDS, PATH_WORD, runTime, selectionWords } from "./words";
+import { count, edgeName, groupName, KIND_WORDS, leftOutOf, PATH_WORD, runTime, selectionWords } from "./words";
 
 /** A kind's two tab bodies, or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
@@ -35,6 +35,8 @@ type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode 
 /** The header's two lines. */
 interface Header {
     readonly name: string;
+    /** The second line's kind word, when it is not the kind's own (a left-out row's load). */
+    readonly kind?: string;
     /** The color the element drew it in, for a node or an edge. */
     readonly swatch?: string;
     /** The provenance link: its words and what it opens. */
@@ -198,9 +200,9 @@ export function Inspector(): React.JSX.Element {
                     </Group>
                     <Group gap={6} wrap="nowrap">
                         {/* The built-in rows' kind is their name: one "Everything", not two. */}
-                        {kindWord !== header.name && (
+                        {(header.kind ?? kindWord) !== header.name && (
                             <Text size="xs" c="dimmed">
-                                {kindWord}
+                                {header.kind ?? kindWord}
                             </Text>
                         )}
                         {header.from?.open === undefined ? (
@@ -352,7 +354,14 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
                 resolved.row.split(":").length > 2
                     ? sourceRowOf(sources, session.data.lastImport(), resolved.row)
                     : undefined;
-            return { name: load === undefined ? "Gone" : (child?.name ?? loadName(load)) };
+            if (load === undefined) {
+                return { name: "Gone" };
+            }
+            // The left-out row is not a source of its own: its subtitle names the load it came from.
+            return {
+                name: child?.name ?? loadName(load),
+                ...(child?.kind === "left-out" ? { kind: leftOutOf(loadName(load)) } : {}),
+            };
         }
         default: {
             const column = session.data.attributes().find((candidate) => candidate.path === resolved.path);

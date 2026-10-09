@@ -28,7 +28,8 @@ const SOURCE_GLYPHS: Record<SourceKind, React.ReactNode> = {
     file: <GLYPHS.file size={14} aria-hidden />,
     nodes: <GLYPHS.node size={14} aria-hidden />,
     edges: <GLYPHS.edge size={14} aria-hidden />,
-    "left-out": <GLYPHS.warning size={14} aria-hidden />,
+    // The warning the import page draws for the same rows.
+    "left-out": <GLYPHS.warning size={14} color="var(--cm-text-danger)" aria-hidden />,
 };
 
 const TYPE_GLYPHS: Record<TypeGlyph, React.ReactNode> = {
@@ -89,8 +90,8 @@ function sourceItem(row: SourceRow): TreeNodeData {
         name: row.name,
         icon: SOURCE_GLYPHS[row.kind],
         strong: false,
-        // The quiet text is the row's count: drawn, read after the name, and in a cut row's tooltip.
-        ...(row.quiet === "" ? {} : { count: row.quiet }),
+        // The quiet text is a second line, so a long name and "12 nodes, 22 edges" each show whole.
+        ...(row.quiet === "" ? {} : { description: row.quiet, descriptionVisible: true }),
         ...(row.children === undefined ? {} : { children: row.children.map(sourceItem) }),
     };
 }

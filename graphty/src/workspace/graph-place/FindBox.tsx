@@ -352,7 +352,7 @@ export function FindBox(): React.JSX.Element {
     // A rule run with Enter is the selection's origin until anything else changes the selection.
     const origin = session?.selection.origin;
     const ran = isRule && origin !== null && origin !== undefined && "text" in origin && origin.text === text;
-    let emptyLine: string | null = `No match for "${text}"`;
+    let emptyLine: React.ReactNode = `No match for "${text}"`;
     if (ran && session !== null) {
         const { nodes, edges } = session.selection;
         emptyLine =
@@ -363,7 +363,15 @@ export function FindBox(): React.JSX.Element {
         // The press-Enter hint is only for a rule the element accepts.
         const ruleLines = {
             ok: "Rule: press Enter to select matches",
-            empty: session === null ? "" : `Type a rule, such as ${exampleRule(session)}`,
+            // The example rule never breaks: the sentence wraps before it.
+            empty:
+                session === null ? (
+                    ""
+                ) : (
+                    <>
+                        Type a rule, such as <span className="ws-nowrap">{exampleRule(session)}</span>
+                    </>
+                ),
         } as const;
         emptyLine = ruleCheck === null ? null : ruleLines[ruleCheck];
     } else if (found?.notSearchable === "regex") {

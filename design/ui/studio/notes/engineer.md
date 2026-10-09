@@ -11,6 +11,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **A tooltip's position is a request; the theme flips it.** compact-mantine's
+  Tooltip default is `bottom` with `flip`; `position="right"` on "Filter to neighbors" lands LEFT
+  of the button in the real app, because the inspector sits at the window's right edge. Either side
+  keeps the neighbor list clear, so the test asserts "not below the button" (tip top < button
+  bottom), not "right of". A wrapped example in a hint: wrap the example in a `ws-nowrap` span
+  (graph-place.css) so the sentence breaks before it. Re-pilot on a PRIVATE copy of graphty/dist:
+  other agents rebuild graphty/dist in the shared worktree mid-session ("no production build").
+  Evidence `tmp/r1-dry4-words-placement/` (T20A/07, T22B/02, T12RA/05, T12RB/05).
+
 - (2026-10-08) **The inspector title takes focus with no mark; Rerun and Back keep focus off the
   page (app only).** The title (`INSPECTOR_TITLE_ID`, tabIndex -1 heading) has `outline: none` and
   no underline: a heading focused so a screen reader starts there is not a control (a box read as
@@ -35,13 +44,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   first row is ENABLED likely still highlights it (Mantine's focus trap focuses the first row; the
   theme turns the placeholder off for axe); not seen in a pilot yet. Evidence `tmp/r1-dry4-shared-tooltip-menu/` (`probe.mjs`,
   T23A/05-07, T23B/05, T22B/03-04, 07).
-- (2026-10-08) **Check what a finding measured before fixing the code it names.** "Damping factor
-  exposes 0.8500000238418579" was the study tool, not graphty-element: `run.params` holds 0.85
-  exactly and the DOM has `aria-valuenow="0.85"`; Chromium keeps a range's value as a 32-bit float,
-  so CDP's AX `value` is `Math.fround(0.85)`. The node's `valuetext` property is "0.85", which is
-  what a screen reader speaks. `real.mjs --read` now prints `valuetext` when present (`axSays`),
-  with a `--prove` check. Evidence `tmp/r1-dry4-option-precision/` (`probe.mjs` reads run.params,
-  aria-valuenow and the AX node in the built app; `T21A/` is the re-pilot).
+- (2026-10-08, condensed) **Check what a finding measured before fixing the code it names.**
+  "Damping 0.8500000238418579" was the study tool reading Chromium's 32-bit range value; the DOM
+  and `valuetext` say 0.85. `real.mjs --read` now prints `valuetext`. Evidence
+  `tmp/r1-dry4-option-precision/`.
 - (2026-10-08) **Path Follow: element option, app row.** Dijkstra and Bellman-Ford take
   `direction: "out" | "in" | "all"` (default "all" = undirected search; "in" uses `transpose()`).
   The app (PathForm.tsx) draws "Follow: Out | All" between To and Weight only when
@@ -185,6 +191,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-08) Did not work: waiting for the shared build with `pgrep -f "graphty.*vite build"` in
+  the same command line -- it matches itself and never ends (the background-chaining trap). Copy
+  `graphty/dist` once it has `index.html` and serve the copy.
 
 - (2026-10-08) Worked: path Follow row as `Input.Wrapper label="Follow" labelElement="div"` around
   the shared SegmentedControl (aria-labelledby the label id) -- reads like From/To/Weight with no

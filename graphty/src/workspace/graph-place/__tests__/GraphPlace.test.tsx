@@ -264,7 +264,11 @@ describe("the Graph place", () => {
         const box = screen.getByRole("combobox", { name: "Find" });
 
         await userEvent.type(box, "=");
-        const hint = await screen.findByText("Type a rule, such as minutes > `12`");
+        const example = await screen.findByText("minutes > `12`");
+        const hint = example.parentElement as HTMLElement;
+        assert.equal(hint.textContent, "Type a rule, such as minutes > `12`");
+        // The example rule never breaks; the sentence wraps before it.
+        assert.equal(getComputedStyle(example).whiteSpace, "nowrap");
         // The theme's field hint (11px, secondary ink), not a 9px caption.
         assert.isTrue(hint.classList.contains("cm-field-description"));
         assert.equal(getComputedStyle(hint).fontSize, "11px");

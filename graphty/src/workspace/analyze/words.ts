@@ -432,7 +432,8 @@ const MEANING_WORDS: Readonly<Record<WeightMeaning["meaning"], string>> = {
  */
 const MEANING_GLOSS: Readonly<Record<WeightMeaning["meaning"] | "unset", string>> = {
     strength: "A higher weight means a closer tie, such as more emails between two people.",
-    distance: "A higher weight means farther apart, such as a longer trail; a path takes the smallest total.",
+    distance:
+        "A higher weight means farther apart, such as a longer distance or travel time; a path takes the smallest total.",
     capacity: "A higher weight means more can flow along the edge.",
     unset: "Choose what a higher weight means. Until you do, a path counts every edge as one step, and PageRank and communities read a higher weight as closer.",
 };

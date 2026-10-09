@@ -388,7 +388,9 @@ export function NeighborList({
                         </Group>
                     )}
                     {follow === "all" && (
-                        <Tooltip label={NEIGHBOR_FILTER_WORDS[filtered?.on === true ? "on" : "off"]}>
+                        // Beside the button (the theme flips it left at the window's edge): below, it would cover
+                        // the first neighbor's name, part of the answer.
+                        <Tooltip position="right" label={NEIGHBOR_FILTER_WORDS[filtered?.on === true ? "on" : "off"]}>
                             <Button
                                 variant={filtered?.on === true ? "filled" : "default"}
                                 size="compact-xs"

@@ -218,7 +218,12 @@ describe("the inspector", () => {
         assert.equal(toggle.getAttribute("data-variant"), "default");
         assert.equal(toggle.getAttribute("aria-pressed"), "false");
         await userEvent.hover(toggle);
-        assert.isNotNull(await screen.findByText("Hide every node outside this neighborhood"));
+        const tip = await screen.findByText("Hide every node outside this neighborhood");
+        // Beside the button (right, or left where the window ends), never below it over the first
+        // neighbor's name.
+        await waitFor(() => {
+            assert.isBelow(tip.getBoundingClientRect().top, toggle.getBoundingClientRect().bottom);
+        });
 
         await userEvent.click(toggle);
         await waitFor(() => {

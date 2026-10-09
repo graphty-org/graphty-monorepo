@@ -130,7 +130,7 @@ function Chips({ session, targets, states, onOpen, tabbable = true, note }: Chip
 
 /**
  * The editor at the top of the list: what the note is about, the text, Save and Cancel. Mod+Enter
- * saves; Esc closes an empty one and leaves a written one open with its text.
+ * saves from anywhere in it; Esc closes an empty one and leaves a written one open with its text.
  * @param props - Component props
  * @param props.onSaved - Called with the new note's id once it is saved
  * @returns The editor, or null when no note is being written
@@ -169,7 +169,19 @@ function Editor({ onSaved }: Readonly<{ onSaved: (id: string) => void }>): React
         onSaved(id);
     };
     return (
-        <Stack gap={6} px="md" py="xs" className="nt-editor">
+        <Stack
+            gap={6}
+            px="md"
+            py="xs"
+            className="nt-editor"
+            // Mod+Enter saves from anywhere in the editor, its buttons too.
+            onKeyDown={(event) => {
+                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                    event.preventDefault();
+                    save();
+                }
+            }}
+        >
             <Group gap={4}>
                 <Text size="xs" c="dimmed">
                     About
@@ -189,10 +201,7 @@ function Editor({ onSaved }: Readonly<{ onSaved: (id: string) => void }>): React
                     store.set({ noteDraft: { ...draft, text: event.currentTarget.value } });
                 }}
                 onKeyDown={(event) => {
-                    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                        event.preventDefault();
-                        save();
-                    } else if (event.key === "Escape" && draft.text.trim() === "") {
+                    if (event.key === "Escape" && draft.text.trim() === "") {
                         event.preventDefault();
                         close();
                     }

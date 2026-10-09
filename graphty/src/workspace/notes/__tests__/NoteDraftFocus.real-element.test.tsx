@@ -78,4 +78,23 @@ describe("Add note with a note already being written", () => {
         });
         assert.equal((document.activeElement as HTMLTextAreaElement).value, "Check the 1434 return");
     });
+
+    it("saves with Control+Enter from the editor's buttons too", async () => {
+        const store = createWorkspaceStore();
+        const session = await openSample(store);
+        await userEvent.click(screen.getByRole("button", { name: "Notes" }));
+        await userEvent.click(screen.getByRole("button", { name: "Add note" }));
+        const field = await screen.findByRole("textbox", { name: "Note" });
+        await userEvent.type(field, "Marriages only");
+        await userEvent.tab();
+        assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Cancel" }));
+
+        await userEvent.keyboard("{Control>}{Enter}{/Control}");
+        await waitFor(() => {
+            assert.deepEqual(
+                session.notes.list().map((note) => note.text),
+                ["Marriages only"],
+            );
+        });
+    });
 });

@@ -2605,7 +2605,7 @@ class GraphmlReader implements XmlHandler {
  * @returns the count, or null when absent or not a non-negative integer
  */
 function hint(text: string | undefined): number | null {
-    if (text === undefined || !/^[0-9]+$/.test(text)) {
+    if (text === undefined || !/^\d+$/.test(text)) {
         return null;
     }
     const n = Number(text);

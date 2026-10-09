@@ -311,11 +311,9 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             await userEvent.clear(field);
             await userEvent.type(field, "0.5{Enter}");
             // Revert drops the change: the bar goes and the field shows the run's value again.
-            await userEvent.click(
-                within(await inspector().findByRole("status")).getByRole("button", { name: "Revert" }),
-            );
+            await userEvent.click(await inspector().findByRole("button", { name: "Revert" }));
             await waitFor(() => {
-                assert.isNull(inspector().queryByRole("status"));
+                assert.equal(inspector().getByRole("status").textContent, "");
             });
             assert.equal(
                 within(inspector().getByRole("group", { name: "Made with" }))
@@ -331,7 +329,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             await userEvent.type(again, "0.5{Enter}");
             const bar = await inspector().findByRole("status");
             assert.include(bar.textContent, "Settings changed since the run");
-            await userEvent.click(within(bar).getByRole("button", { name: "Rerun" }));
+            await userEvent.click(inspector().getByRole("button", { name: "Rerun" }));
 
             await waitFor(
                 () => {
@@ -342,7 +340,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 },
                 { timeout: TIMEOUT_MS },
             );
-            assert.isNull(inspector().queryByRole("status"));
+            assert.equal(inspector().getByRole("status").textContent, "");
             // The bar and its Rerun are gone; focus is on the inspector's title, not the page.
             assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
         },

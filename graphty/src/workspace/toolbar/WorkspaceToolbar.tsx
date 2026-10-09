@@ -2,7 +2,7 @@ import "./toolbar.css";
 
 import { MenuCheckItem, MenuItemDescription, Toolbar, ToolButton } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Menu, Popover, VisuallyHidden } from "@mantine/core";
+import { Menu, Popover } from "@mantine/core";
 import React, { forwardRef, useRef } from "react";
 
 import { AnalyzePopover } from "../analyze/AnalyzePopover";
@@ -213,7 +213,6 @@ export function WorkspaceToolbar(): React.JSX.Element {
     const { session, store } = useWorkspace();
     useSessionVersion(session);
     const dialog = useWorkspaceState((state) => state.dialog);
-    const announcement = useWorkspaceState((state) => state.announcement);
     // The button each popover opened from. Mantine's own returnFocus records the element focused
     // when the popover opens, but the Filter box and the Quick actions search focus themselves as
     // they mount, before Mantine records it, so it would hand focus back to a box that is gone.
@@ -247,98 +246,89 @@ export function WorkspaceToolbar(): React.JSX.Element {
         }) as const;
 
     return (
-        <>
-            <Toolbar aria-label="Canvas tools">
-                <Popover
-                    {...popoverProps("analyze")}
-                    // Path between... (P, a node's menu) opens the same popover on its Path form.
-                    opened={dialog === "analyze" || dialog === "path"}
-                    onChange={(opened) => {
-                        if (!opened) {
-                            store.set((state) =>
-                                state.dialog === "analyze" || state.dialog === "path" ? { dialog: null } : {},
-                            );
-                        }
-                    }}
-                    onClose={() => {
-                        if (document.activeElement === null || document.activeElement === document.body) {
-                            (openers.path ?? anchors.current.analyze)?.focus();
-                        }
-                        delete openers.path;
-                    }}
-                    closeOnEscape={false}
-                    width={380}
-                >
-                    <Popover.Target>
-                        <CommandTool
-                            ref={anchor("analyze")}
-                            command="analyze.open"
-                            icon={<GLYPHS.analyze size={20} />}
+        <Toolbar aria-label="Canvas tools">
+            <Popover
+                {...popoverProps("analyze")}
+                // Path between... (P, a node's menu) opens the same popover on its Path form.
+                opened={dialog === "analyze" || dialog === "path"}
+                onChange={(opened) => {
+                    if (!opened) {
+                        store.set((state) =>
+                            state.dialog === "analyze" || state.dialog === "path" ? { dialog: null } : {},
+                        );
+                    }
+                }}
+                onClose={() => {
+                    if (document.activeElement === null || document.activeElement === document.body) {
+                        (openers.path ?? anchors.current.analyze)?.focus();
+                    }
+                    delete openers.path;
+                }}
+                closeOnEscape={false}
+                width={380}
+            >
+                <Popover.Target>
+                    <CommandTool ref={anchor("analyze")} command="analyze.open" icon={<GLYPHS.analyze size={20} />} />
+                </Popover.Target>
+                <Popover.Dropdown aria-label="Analyze">
+                    {(dialog !== "analyze" && dialog !== "path") || session === null ? null : (
+                        <AnalyzePopover
+                            session={session}
+                            path={dialog === "path"}
+                            onClose={close}
+                            onStarted={(name) => {
+                                store.set({ announcement: `${name} added, running` });
+                            }}
+                            onPathStarted={(run) => {
+                                // The new row is selected, so the inspector shows its path, and
+                                // focus goes to the route's first node once it is drawn.
+                                focusPathValuesNext(run.id);
+                                store.set({ inspected: { kind: "measure-row", id: run.id } });
+                            }}
                         />
-                    </Popover.Target>
-                    <Popover.Dropdown aria-label="Analyze">
-                        {(dialog !== "analyze" && dialog !== "path") || session === null ? null : (
-                            <AnalyzePopover
-                                session={session}
-                                path={dialog === "path"}
-                                onClose={close}
-                                onStarted={(name) => {
-                                    store.set({ announcement: `${name} added, running` });
-                                }}
-                                onPathStarted={(run) => {
-                                    // The new row is selected, so the inspector shows its path, and
-                                    // focus goes to the route's first node once it is drawn.
-                                    focusPathValuesNext(run.id);
-                                    store.set({ inspected: { kind: "measure-row", id: run.id } });
-                                }}
-                            />
-                        )}
-                    </Popover.Dropdown>
-                </Popover>
-                <Toolbar.Divider />
-                <Popover
-                    {...popoverProps("layout")}
-                    closeOnEscape={false}
-                    width={380}
-                    // Capped to the room above the toolbar in the visual viewport, so a touch
-                    // keyboard never hides the field being typed into; the body scrolls.
-                    middlewares={{ flip: false, shift: true, size: { padding: 8 } }}
-                >
-                    <Popover.Target>
-                        <CommandTool ref={anchor("layout")} command="layout.open" icon={<GLYPHS.layout size={20} />} />
-                    </Popover.Target>
-                    <Popover.Dropdown aria-label="Layout" style={{ overflowY: "auto" }}>
-                        {dialog !== "layout" || session === null ? null : (
-                            <LayoutPopover session={session} onClose={close} />
-                        )}
-                    </Popover.Dropdown>
-                </Popover>
-                <Menu {...popoverProps("view")}>
-                    <Menu.Target>
-                        <CommandTool ref={anchor("view")} command="view.open" icon={<ViewFace session={session} />} />
-                    </Menu.Target>
-                    <Menu.Dropdown aria-label="View">
-                        <ViewMenuRows session={session} />
-                        <ShowMenuRows />
-                    </Menu.Dropdown>
-                </Menu>
-                <Toolbar.Divider />
-                <Popover {...popoverProps("quick-actions")}>
-                    <Popover.Target>
-                        <CommandTool
-                            ref={anchor("quick-actions")}
-                            command="quick-actions.open"
-                            icon={<GLYPHS.quickActions size={20} />}
-                        />
-                    </Popover.Target>
-                    <Popover.Dropdown p={0}>
-                        {dialog === "quick-actions" ? <QuickActionsPalette onClose={close} /> : null}
-                    </Popover.Dropdown>
-                </Popover>
-            </Toolbar>
-            <VisuallyHidden role="status" aria-live="polite">
-                {announcement}
-            </VisuallyHidden>
-        </>
+                    )}
+                </Popover.Dropdown>
+            </Popover>
+            <Toolbar.Divider />
+            <Popover
+                {...popoverProps("layout")}
+                closeOnEscape={false}
+                width={380}
+                // Capped to the room above the toolbar in the visual viewport, so a touch
+                // keyboard never hides the field being typed into; the body scrolls.
+                middlewares={{ flip: false, shift: true, size: { padding: 8 } }}
+            >
+                <Popover.Target>
+                    <CommandTool ref={anchor("layout")} command="layout.open" icon={<GLYPHS.layout size={20} />} />
+                </Popover.Target>
+                <Popover.Dropdown aria-label="Layout" style={{ overflowY: "auto" }}>
+                    {dialog !== "layout" || session === null ? null : (
+                        <LayoutPopover session={session} onClose={close} />
+                    )}
+                </Popover.Dropdown>
+            </Popover>
+            <Menu {...popoverProps("view")}>
+                <Menu.Target>
+                    <CommandTool ref={anchor("view")} command="view.open" icon={<ViewFace session={session} />} />
+                </Menu.Target>
+                <Menu.Dropdown aria-label="View">
+                    <ViewMenuRows session={session} />
+                    <ShowMenuRows />
+                </Menu.Dropdown>
+            </Menu>
+            <Toolbar.Divider />
+            <Popover {...popoverProps("quick-actions")}>
+                <Popover.Target>
+                    <CommandTool
+                        ref={anchor("quick-actions")}
+                        command="quick-actions.open"
+                        icon={<GLYPHS.quickActions size={20} />}
+                    />
+                </Popover.Target>
+                <Popover.Dropdown p={0}>
+                    {dialog === "quick-actions" ? <QuickActionsPalette onClose={close} /> : null}
+                </Popover.Dropdown>
+            </Popover>
+        </Toolbar>
     );
 }

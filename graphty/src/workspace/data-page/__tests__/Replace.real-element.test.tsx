@@ -50,7 +50,7 @@ describe("Replace with file...", () => {
         );
         assert.equal(
             replacedWords("friends.csv", { nodes: 22, edges: 74 }, 3),
-            "friends.csv replaced: 22 nodes, 74 edges. 3 rows out of date",
+            "friends.csv replaced: 22 nodes, 74 edges. 3 runs out of date",
         );
         assert.equal(replacedWords("friends.csv", { nodes: 1, edges: 1 }, 0), "friends.csv replaced: 1 node, 1 edge.");
     });
@@ -86,8 +86,8 @@ describe("Replace with file...", () => {
             await screen.findByRole("heading", { name: "Replace: friends-v2.csv" });
             const report = await screen.findByTestId("replace-report", {}, { timeout: TIMEOUT_MS });
             assert.equal(report.textContent, "Was 4 nodes, 4 edges; now 4, 4");
-            // Every column matches, so Load has focus and one Enter replaces.
-            const load = screen.getByRole("button", { name: "Load" });
+            // Every column matches, so Replace has focus and one Enter replaces.
+            const load = screen.getByRole("button", { name: "Replace" });
             await waitFor(() => {
                 assert.strictEqual(document.activeElement, load);
             });
@@ -95,7 +95,7 @@ describe("Replace with file...", () => {
 
             await waitFor(
                 () => {
-                    assert.equal(store.get().announcement, "friends.csv replaced: 4 nodes, 4 edges. 1 row out of date");
+                    assert.equal(store.get().announcement, "friends.csv replaced: 4 nodes, 4 edges. 1 run out of date");
                 },
                 { timeout: TIMEOUT_MS },
             );

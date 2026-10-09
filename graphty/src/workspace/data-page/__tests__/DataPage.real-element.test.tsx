@@ -495,6 +495,14 @@ describe("the Data page on the real element", () => {
             const { store } = await openFromEmptyApp();
             await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "passes.csv"));
             await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+            // Every sentence the status line is given from Load on.
+            const said: string[] = [];
+            const stop = store.subscribe(() => {
+                const { announcement } = store.get();
+                if (announcement !== "" && announcement !== said.at(-1)) {
+                    said.push(announcement);
+                }
+            });
             // Leave out is the default: the row naming z is left out.
             await userEvent.click(loadButton());
             await waitFor(
@@ -503,6 +511,14 @@ describe("the Data page on the real element", () => {
                 },
                 { timeout: TIMEOUT_MS },
             );
+            stop();
+            // The line is said once, under the header's name, with the row the load left out; its
+            // region is in the page already, outside what the Data page hid, so it is spoken.
+            const words = "people and passes: 3 nodes, 2 edges, 1 row left out";
+            assert.deepEqual(said, [words]);
+            const region = screen.getAllByRole("status").find((status) => status.textContent === words);
+            assert.isDefined(region);
+            assert.isNull(region?.closest("[hidden]"));
 
             act(() => {
                 store.set({ place: "data" });
@@ -642,7 +658,11 @@ describe("the Data page on the real element", () => {
             const report = await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
             await userEvent.click(await within(report).findByText("Add", {}, { timeout: TIMEOUT_MS }));
             await waitFor(() => {
-                assert.equal(screen.getByTestId("model-strip").textContent, "people and ties: 4 nodes, 3 edges");
+                // The graph and the file each under their own name, never the total under the file's.
+                assert.equal(
+                    screen.getByTestId("model-strip").textContent,
+                    "Ring: 2 nodes, 0 edges; people and ties adds 2 nodes, 3 edges",
+                );
             });
             await userEvent.click(loadButton());
             await waitFor(
@@ -653,6 +673,7 @@ describe("the Data page on the real element", () => {
             );
             assert.equal(session.data.statistics().nodeCount, 4, "a, b and c kept or added, and z added");
             assert.equal(store.get().project?.name, "Ring");
+            assert.equal(store.get().announcement, "Ring: 4 nodes, 3 edges");
         },
         TIMEOUT_MS * 2,
     );

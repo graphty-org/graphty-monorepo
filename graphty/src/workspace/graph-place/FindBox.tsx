@@ -1,7 +1,7 @@
 import { ResultRow, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
 import { type GraphSession, isGraphtyError, quotePath } from "@graphty/graphty-element/session";
-import { Input, ScrollArea, Text } from "@mantine/core";
+import { Input, ScrollArea, Text, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -250,6 +250,20 @@ export function FindBox(): React.JSX.Element {
             clearTimeout(timer);
         };
     }, [session, text, isRule, version]);
+    // The refusal is spoken from a region that stays mounted and keeps its words while the reader
+    // types, so a refusal is said once, politely, not again on every keystroke; it empties only
+    // once the box holds no rule or a rule Find can read.
+    const [spoken, setSpoken] = useState("");
+    useEffect(() => {
+        if (refusal !== null) {
+            setSpoken(refusal);
+        }
+    }, [refusal]);
+    useEffect(() => {
+        if (!isRule || ruleCheck !== null) {
+            setSpoken("");
+        }
+    }, [isRule, ruleCheck]);
     const optionId = (i: number): string => `${listId}-${String(i)}`;
 
     const pick = async (option: Option): Promise<void> => {
@@ -398,7 +412,6 @@ export function FindBox(): React.JSX.Element {
                 aria-activedescendant={active >= 0 ? optionId(active) : undefined}
                 // Mantine ties its error line to the box with aria-invalid and aria-describedby.
                 error={refusal}
-                errorProps={{ role: "alert" }}
                 disabled={session === null}
             />
             {found !== null && options.length > 0 ? (
@@ -523,6 +536,7 @@ export function FindBox(): React.JSX.Element {
                     {emptyLine}
                 </Input.Description>
             ) : null}
+            <VisuallyHidden role="status">{spoken}</VisuallyHidden>
         </div>
     );
 }

@@ -11,6 +11,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **A live region must be in the page, visible, before its words arrive; and it
+  holds words only.** The app status line sat in the toolbar under `<main hidden>` while the Data
+  page showed, so after Load it reappeared already filled (not spoken), and the canvas wrote it at
+  the element's load-end event, before the page renamed the project ("Untitled: ..."). Now the
+  region lives in `Frame.tsx` outside every hidden surface; the canvas skips a load while
+  `page === "data-page"`, and `DataPage.load()` writes `loadedWords(header name, size, leftOut of
+  the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nodes, 22 edges, 1
+  row left out" once. Same rule for the run state bar (status on its words, buttons outside, kept
+  mounted empty) and the find box refusal (a persistent `VisuallyHidden role="status"` that keeps
+  its words across keystrokes; no `role="alert"`). Add page summary: "friends: 20 nodes, 41
+  edges; friends-v2 adds 0 nodes, 41 edges" (`addWords`, counts = report total minus the graph at
+  page open). Evidence `tmp/t2r1-8/sr-t4/14.png`, `tmp/t2r1-8/s29-add/03.png`.
+
 - (2026-10-09) **A list that scrolls only up and down says so: `scrollbars="y"`, and
   compact-mantine makes such content as wide as the area.** Mantine's ScrollArea.Autosize sizes
   its content to `min-content` (the widest row), so a long find result widened the list and it
@@ -89,20 +102,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   "Damping 0.8500000238418579" was the study tool reading Chromium's 32-bit range value; the DOM
   and `valuetext` say 0.85. `real.mjs --read` now prints `valuetext`. Evidence
   `tmp/r1-dry4-option-precision/`.
-- (2026-10-08, condensed) **Path Follow: element option, app row.** Dijkstra and Bellman-Ford
-  take `direction: "out" | "in" | "all"` (default "all"); PathForm.tsx shows "Follow: Out | All"
-  only on a directed graph and always sends it there; Made with shows one Follow row.
-  friends.csv loaded with no Direction choice is DIRECTED. Evidence `tmp/r1-dry4-path-direction-app/`.
-- (2026-10-08, condensed) **Style tab: one name style (app only).** Every line's name is `Text xs`
-  in one column (`PaintLine` in SetLine.tsx); the paint field sits under it (fixed 156 px). The
-  Selection row has Nodes (halo) and Edges (`edgeColor`/`edgeOpacity`/`edgeScale`) parts. Evidence
-  `tmp/r1-dry3-app-style-tab/`. Baselines: StyleTab, Inspector selection stories.
-- (2026-10-08, condensed) **Find list and filters.** Headings count each kind
-  (`FindResult.totals`); list scroll-snaps to whole rows. Filter controls say what they do ("Save
-  and turn on", "within N hop(s) of X"). Evidence `tmp/r1-dry3-app-find-list-graph-title/`,
-  `tmp/r1-dry3-app-filters/`.
+- (2026-10-08, condensed) Path Follow is the element's `direction` option, shown by the app only on
+  a directed graph; the Style tab uses one label style (`PaintLine`); find headings count each
+  kind (`FindResult.totals`) and the list snaps to whole rows. Evidence `tmp/r1-dry3-*`,
+  `tmp/r1-dry4-path-direction-app/`.
 
 ## Decisions and reasons
+
+- (2026-10-09) **The page that names the graph announces its load.** Rejected: having the canvas
+  read the header name at load end (the rename comes after `page.load()` resolves), and writing
+  the line on a timer after the place mounts (a timer is a guess; a region that is always present
+  needs none). An Add counts the file by what it adds (report total minus the graph at page open),
+  so an edge list that names only known people reads "adds 0 nodes, 41 edges": true, where the
+  file's own row count would hide repeated edges. Replace says "runs out of date".
 
 - (2026-10-08, summarized 2026-10-09) **Older dry-run fixes, still standing:** study tool `--read`
   prints table rows by cell, takes a visible `labels[0]` for a role target, records the served
@@ -140,24 +152,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   undo outranks a one-key exit, so Esc exits only an empty page. Rejected: a "discard changes?"
   confirm (a dialog for a key press; Cancel already exists).
 
-- (2026-10-08) **No script ring after a pointer action.** Back to <name> returns focus to Degree
-  but shows no ring after a click: the ring is keyboard-only everywhere (spec 2.7), and
-  `focus({ focusVisible: true })` does nothing in Chrome 143 (probe: `optionSupported=false`).
-  Forcing one would need a compact-mantine attribute ring, a second ring rule for one control.
-- (2026-10-08, condensed) **Tooltip dismissal follows the pressed control** (found with
-  `closest(...)`), not the tooltip element, which can mount late or remount. Rejected: a timed
-  dismissal, and a per-app `opened` prop.
-
-- (2026-10-08) **A study tool reads a range as a screen reader speaks it, not as Chromium stores
-  it.** ARIA has assistive technology prefer `aria-valuetext`; Chromium derives it from the
-  spinbutton's text. Rejected: setting `aria-valuetext` in compact-mantine's `useNumberField`
-  (Chromium already exposes the text; nothing a reader hears changes) and narrowing anything in
-  PageRank (nothing there narrows: the dispatch gets a fresh options object).
-
-- (2026-10-08) **A one-way path searches the transpose, not a swapped source and target.** Swapping
-  ends would give the right route but wrong per-node distances (distance TO the source, not from
-  it); the transpose keeps node and edge spaces, so the result loop and `edgeRemap` are unchanged.
-  Same pattern Katz uses for "out". "all" keeps the exact old code path (undirected input).
+- (2026-10-08, condensed) No script focus ring after a pointer action (keyboard-only, spec 2.7;
+  `focusVisible: true` does nothing in Chrome 143); tooltip dismissal follows the pressed control,
+  not a timer; a study tool reads a range as `aria-valuetext`; a one-way path searches the
+  transpose (swapping ends gives wrong per-node distances).
 - (2026-10-08, condensed) **UI polish calls from the third dry run:** one label style (`Text xs`
   in one column) beats a wider field, and the Selection row's parts are Nodes and Edges; a scroll
   list ends on a whole row at every rest (scroll-snap), per-kind counts are the element's fact; a
@@ -220,6 +218,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-09) Worked: `real.mjs --sr` with the two-tables setup, then `--key Tab` from Cancel to
+  Load and `--key Enter`: the live line printed once with no "unconfirmed" mark. Typing a refused
+  rule printed the refusal once; a further digit kept the same words and printed nothing. Did not
+  work first: a `findByText` on the refusal once its words were in two places (visible line and
+  status region); pick the line by `role !== "status"`. TableDock's export preview test failed in
+  the full real-element run and passed alone: its `waitFor` keeps the 1 s default while the export
+  preview is written asynchronously under 168 parallel files (not touched by this change).
 
 - (2026-10-09) Worked: finding the sideways-scrolling find list's cause in Mantine's CSS
   (`.m_d57069b5:where([data-autosize]) .m_b1336c6 { min-width: min-content }`) before touching the

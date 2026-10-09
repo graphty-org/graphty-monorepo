@@ -353,7 +353,9 @@ describe("the inspector", () => {
         await waitFor(() => {
             assert.include(screen.getByRole("status").textContent, "Running");
         });
-        await userEvent.click(within(screen.getByRole("status")).getByRole("button", { name: "Cancel" }));
+        // The live region holds the words alone: "Running", not "RunningCancel".
+        assert.equal(screen.getByRole("status").textContent, "Running");
+        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
         await waitFor(() => {
             assert.equal(on.runs.get(first.id)?.status, "canceled");
         });

@@ -52,11 +52,13 @@ import {
 import { rememberLoad, takeDataPageRequest } from "./request";
 import { type LoadDraftState, type PageSource, type RowFilter, sourceName, useLoadDraft } from "./useLoadDraft";
 import {
+    addWords,
     baseName,
     count,
     formatName,
     graphName,
     leftOutWords,
+    loadedWords,
     modelWords,
     plural,
     READABLE_FORMATS,
@@ -154,6 +156,14 @@ export function DataPage(): React.JSX.Element {
         };
     });
     useCarriedMeaning(page, was?.meaning ?? null);
+    // The graph an addition joins, so the summary gives it and the file each their own counts.
+    const [joins] = useState(() => {
+        if (session === null || request.intent !== "add") {
+            return null;
+        }
+        const { nodeCount, edgeCount } = session.data.statistics();
+        return { name: projectName, nodes: nodeCount, edges: edgeCount };
+    });
 
     const titles = {
         new: "Open as a new graph",
@@ -196,14 +206,6 @@ export function DataPage(): React.JSX.Element {
         if (session !== null && source?.kind === "files") {
             rememberLoad(session, { files: source.files, choices: page.choices });
         }
-        if (session !== null && was !== null) {
-            // Nothing reruns by itself: the status line says how many runs now need it.
-            const { nodeCount, edgeCount } = session.data.statistics();
-            const outOfDate = session.runs.list().filter((run) => run.status === "succeeded" && run.stale !== null);
-            store.set({
-                announcement: replacedWords(was.name, { nodes: nodeCount, edges: edgeCount }, outOfDate.length),
-            });
-        }
         // A loaded new graph is named after every file it read; inside a project nothing is renamed.
         const named = session === null ? undefined : graphName(session.data.sources());
         store.set((state) => ({
@@ -213,6 +215,22 @@ export function DataPage(): React.JSX.Element {
                 request.intent === "new" && state.project !== null && source?.kind === "files"
                     ? { ...state.project, name: named ?? baseName(source.files[0].name) }
                     : state.project,
+        }));
+        if (session === null) {
+            return;
+        }
+        // The status line, written once the place is showing and the header has its name: the
+        // graph as the header names it, its size and the rows the load left out. Nothing reruns
+        // by itself after a replace, so that line says how many runs now need it.
+        const { nodeCount, edgeCount } = session.data.statistics();
+        const now = { nodes: nodeCount, edges: edgeCount };
+        const outOfDate = session.runs.list().filter((run) => run.status === "succeeded" && run.stale !== null);
+        const leftOut = session.data.sources().at(-1)?.leftOut?.rows ?? 0;
+        store.set((state) => ({
+            announcement:
+                was === null
+                    ? loadedWords(state.project?.name ?? "Untitled", now, leftOut)
+                    : replacedWords(was.name, now, outOfDate.length),
         }));
     };
 
@@ -310,6 +328,7 @@ export function DataPage(): React.JSX.Element {
                     <section className="dp-main" aria-label="Table">
                         <MainView
                             page={page}
+                            joins={joins}
                             onChooseFiles={() => {
                                 chooseFiles(false);
                             }}
@@ -319,6 +338,7 @@ export function DataPage(): React.JSX.Element {
                 <MatchReport page={page} />
                 <Footer
                     page={page}
+                    action={request.intent === "replace" ? "Replace" : "Load"}
                     onCancel={cancel}
                     onLoad={() => {
                         void load();
@@ -614,15 +634,23 @@ function ProblemBlock({
     );
 }
 
+/** The graph an addition joins, its name and size; null when the load makes a new graph. */
+type Joins = { readonly name: string; readonly nodes: number; readonly edges: number } | null;
+
 /**
  * The selected table: model strip, header strip, roles and the sample grid; or the empty, reading
  * and refused states.
  * @param props - Component props
  * @param props.page - The page state
+ * @param props.joins - The graph an addition joins, or null
  * @param props.onChooseFiles - Opens the file picker
  * @returns The view
  */
-function MainView({ page, onChooseFiles }: PartProps & { onChooseFiles: () => void }): React.JSX.Element {
+function MainView({
+    page,
+    joins,
+    onChooseFiles,
+}: PartProps & { joins: Joins; onChooseFiles: () => void }): React.JSX.Element {
     const { draft, source } = page;
     if (source === null) {
         return (
@@ -661,7 +689,7 @@ function MainView({ page, onChooseFiles }: PartProps & { onChooseFiles: () => vo
     }
     return (
         <Stack p="md" gap="sm">
-            <ModelStrip page={page} draft={draft} />
+            <ModelStrip page={page} draft={draft} joins={joins} />
             {problem === null ? null : <ProblemBlock refusal={problem} onChooseFiles={onChooseFiles} />}
             {table === undefined ? null : <TableView page={page} draft={draft} table={table} />}
         </Stack>
@@ -669,13 +697,15 @@ function MainView({ page, onChooseFiles }: PartProps & { onChooseFiles: () => vo
 }
 
 /**
- * The model strip (section 2.10, item 2), read-only, from the report's counts.
+ * The model strip (section 2.10, item 2), read-only, from the report's counts. An addition gives
+ * the graph it joins and the new file each their own counts, never the total under the file's name.
  * @param props - Component props
  * @param props.page - The page state
  * @param props.draft - The draft
+ * @param props.joins - The graph an addition joins, or null
  * @returns The line
  */
-function ModelStrip({ page, draft }: PartProps & { draft: LoadDraft }): React.JSX.Element | null {
+function ModelStrip({ page, draft, joins }: PartProps & { draft: LoadDraft; joins: Joins }): React.JSX.Element | null {
     const { report, source } = page;
     if (report === null || source === null) {
         return null;
@@ -689,7 +719,18 @@ function ModelStrip({ page, draft }: PartProps & { draft: LoadDraft }): React.JS
         fixed || draft.tables.some((table) => rowsAreOf(draft, table, page.choices) === "edges")
             ? report.counts.edges
             : null;
-    const text = modelWords(names, report.counts.nodes, edges, page.choices.directed);
+    const { nodes } = report.counts;
+    const text =
+        joins === null
+            ? modelWords(names, nodes, edges, page.choices.directed)
+            : addWords(
+                  joins.name,
+                  joins,
+                  names,
+                  { nodes: nodes - joins.nodes, edges: report.counts.edges - joins.edges },
+                  edges !== null,
+                  page.choices.directed,
+              );
     return (
         <Text size="sm" fw={600} data-testid="model-strip">
             {text}
@@ -1237,15 +1278,17 @@ function loadBlocked(page: LoadDraftState): string | null {
  * The footer (section 2.10, item 6): Direction, Cancel and Load.
  * @param props - Component props
  * @param props.page - The page state
+ * @param props.action - The load button's word: "Replace" on a replace, matching the title
  * @param props.onCancel - Returns to where the reader came from
  * @param props.onLoad - Loads
  * @returns The footer
  */
 function Footer({
     page,
+    action,
     onCancel,
     onLoad,
-}: PartProps & { onCancel: () => void; onLoad: () => void }): React.JSX.Element {
+}: PartProps & { action: "Load" | "Replace"; onCancel: () => void; onLoad: () => void }): React.JSX.Element {
     const blocked = loadBlocked(page);
     const loadButton = useRef<HTMLButtonElement>(null);
     // A clean file opens with every check green and focus on Load, so a clean drop is one Enter.
@@ -1311,7 +1354,7 @@ function Footer({
                         onLoad();
                     }}
                 >
-                    Load
+                    {action}
                 </Button>
             </Group>
         </footer>

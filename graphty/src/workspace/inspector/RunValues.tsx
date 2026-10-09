@@ -45,7 +45,7 @@ const TOP = 10;
  * @param props.run - The run
  * @param props.draft - The reader's changes to its settings
  * @param props.onDraft - Replaces the changes
- * @returns The bar, or nothing when nothing needs saying
+ * @returns The bar: its words alone are the live region, and it draws nothing when nothing needs saying
  */
 export function RunStateBar({
     run,
@@ -117,22 +117,28 @@ export function RunStateBar({
             </Button>
         );
     } else {
-        return null;
+        words = "";
     }
+    // The words are the live region, and it stays mounted while the run is shown, so a change of
+    // state is spoken once, without its buttons; with no state the bar draws nothing.
+    const showing = words !== "";
     return (
         <Group
-            role="status"
             gap={6}
-            px="md"
-            py={4}
+            px={showing ? "md" : 0}
+            py={showing ? 4 : 0}
             justify="space-between"
             wrap="nowrap"
-            bg="var(--mantine-color-default-hover)"
+            bg={showing ? "var(--mantine-color-default-hover)" : undefined}
         >
-            <Text size="xs">{words}</Text>
-            <Group gap={4} wrap="nowrap">
-                {buttons}
-            </Group>
+            <Text size="xs" role="status">
+                {words}
+            </Text>
+            {buttons ? (
+                <Group gap={4} wrap="nowrap">
+                    {buttons}
+                </Group>
+            ) : null}
         </Group>
     );
 }
@@ -359,8 +365,8 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
 }
 
 /**
- * A path run's values: how big the path is, its total distance when it read a distance weight,
- * then its nodes from source to target, each selecting that node.
+ * A path run's values: how big the path is, its total named by the weight column when it read a
+ * distance weight ("Total minutes"), then its nodes from source to target, each selecting that node.
  * @param props - Component props
  * @param props.session - The session
  * @param props.run - The run
@@ -384,14 +390,18 @@ function PathValues({ session, run }: Readonly<{ session: GraphSession; run: Run
         .ranking("order")
         .filter((entry) => Number.isFinite(entry.value))
         .sort((a, b) => a.value - b.value);
-    const distance = run.caveats.weight?.meaning === "distance" && typeof cost === "number";
+    const { weight } = run.caveats;
+    // Named by its column, so the total carries its unit: "Total minutes 14", not "Total distance".
+    const total = weight?.meaning === "distance" && typeof cost === "number" ? cost : null;
     return (
         <>
             <ControlSection label="Summary" defaultOpened>
                 {typeof length === "number" && typeof hops === "number" && (
                     <DataRow stat name="Path" value={routeWords(length, hops)} />
                 )}
-                {distance && <DataRow stat name="Total distance" value={formatNumber(cost)} />}
+                {total !== null && (
+                    <DataRow stat name={`Total ${weight?.attribute ?? ""}`} value={formatNumber(total)} />
+                )}
             </ControlSection>
             <ControlSection label="Nodes in order" defaultOpened>
                 {nodes.map((entry) => (

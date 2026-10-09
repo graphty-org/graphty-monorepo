@@ -313,7 +313,11 @@ describe("the Graph place", () => {
         const box = screen.getByRole("combobox", { name: "Find" });
 
         await userEvent.type(box, "=weight > 3{Enter}");
-        const line = await screen.findByText("Put numbers in backticks: weight > `5`");
+        // The line under the box, not the status region that speaks it.
+        const line = (await screen.findAllByText("Put numbers in backticks: weight > `5`")).find(
+            (each) => each.getAttribute("role") !== "status",
+        );
+        assert.isDefined(line);
         assert.equal(box.getAttribute("aria-invalid"), "true");
         assert.notEqual(line.id, "");
         assert.include(box.getAttribute("aria-describedby") ?? "", line.id);
@@ -445,10 +449,32 @@ describe("the Graph place", () => {
     it("words any other refused rule with where it went wrong", async () => {
         renderPlace(await sessionWithGraph());
         await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "=side == 'law' ~{Enter}");
-        assert.match(
-            (await screen.findByRole("alert")).textContent ?? "",
-            /^Not a rule Find can read \(at character \d+\)$/,
-        );
+        assert.isNotEmpty(await screen.findAllByText(/^Not a rule Find can read \(at character \d+\)$/));
+    });
+
+    it("says a refused rule once, politely, and not again on each keystroke", async () => {
+        const session = await sessionWithGraph();
+        await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+        const words = "Put numbers in backticks: minutes > `12`";
+        const spoken = (): string[] => screen.queryAllByRole("status").map((status) => status.textContent ?? "");
+
+        await userEvent.type(box, "=minutes >= 10");
+        await waitFor(() => {
+            assert.include(spoken(), words);
+        });
+        assert.isNull(screen.queryByRole("alert"));
+        const region = screen.getAllByRole("status").find((status) => status.textContent === words);
+        // A keystroke clears the line under the box until the rule is checked again; the region
+        // keeps its words, so nothing new is said.
+        await userEvent.type(box, " ");
+        assert.equal(region?.textContent, words);
+        await userEvent.clear(box);
+        await userEvent.type(box, "=minutes >= `10`");
+        await waitFor(() => {
+            assert.notInclude(spoken(), words);
+        });
     });
 
     it("focuses the find box from the find.focus command, moving to the Graph place", async () => {

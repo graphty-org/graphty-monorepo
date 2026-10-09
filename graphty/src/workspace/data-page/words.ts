@@ -93,7 +93,41 @@ export function modelWords(
     directed: boolean | "auto",
 ): string {
     const made = edges === null ? plural(nodes, "node") : `${plural(nodes, "node")}, ${plural(edges, "edge")}`;
-    const text = `${AND.format(names)}: ${made}`;
+    return withDirection(`${AND.format(names)}: ${made}`, edges, directed);
+}
+
+/**
+ * The Add page's summary line: the graph as it is and what the file adds, each under its own
+ * name, so the combined total is never read as the new file's.
+ * @param graph - the open project's name.
+ * @param was - the graph now.
+ * @param names - what the new tables are called, without extensions.
+ * @param added - what the load adds.
+ * @param edges - whether the load makes edges.
+ * @param directed - the Direction choice.
+ * @returns "friends: 20 nodes, 41 edges; friends-v2 adds 0 nodes, 41 edges".
+ */
+export function addWords(
+    graph: string,
+    was: Size,
+    names: readonly string[],
+    added: Size,
+    edges: boolean,
+    directed: boolean | "auto",
+): string {
+    const adds = edges ? `${plural(added.nodes, "node")}, ${plural(added.edges, "edge")}` : plural(added.nodes, "node");
+    const text = `${graph}: ${plural(was.nodes, "node")}, ${plural(was.edges, "edge")}; ${AND.format(names)} adds ${adds}`;
+    return withDirection(text, edges ? added.edges : null, directed);
+}
+
+/**
+ * A summary line with the Direction choice after it, when there are edges for it to be about.
+ * @param text - the line.
+ * @param edges - the edges it speaks of, or null for none.
+ * @param directed - the Direction choice.
+ * @returns the line, with "; each edge goes one way" or "both ways" when the choice is made.
+ */
+function withDirection(text: string, edges: number | null, directed: boolean | "auto"): string {
     if (edges === null || edges === 0 || directed === "auto") {
         return text;
     }
@@ -101,15 +135,28 @@ export function modelWords(
 }
 
 /**
+ * The status line after a load: the graph's name as the header shows it, its size, and the
+ * edge rows the load left out.
+ * @param name - the project's name.
+ * @param now - the graph after the load.
+ * @param leftOut - the edge rows the load left out (`LoadedSource.leftOut.rows`), or 0.
+ * @returns "people and messages: 12 nodes, 22 edges, 1 row left out".
+ */
+export function loadedWords(name: string, now: Size, leftOut: number): string {
+    const size = `${name}: ${plural(now.nodes, "node")}, ${plural(now.edges, "edge")}`;
+    return leftOut === 0 ? size : `${size}, ${leftOutWords(leftOut)}`;
+}
+
+/**
  * The status line after a replacing load.
  * @param name - the source that was replaced.
  * @param now - the graph after the load.
  * @param outOfDate - how many runs went out of date.
- * @returns "friends.csv replaced: 22 nodes, 74 edges. 3 rows out of date".
+ * @returns "friends.csv replaced: 22 nodes, 74 edges. 3 runs out of date".
  */
 export function replacedWords(name: string, now: Size, outOfDate: number): string {
     const size = `${name} replaced: ${plural(now.nodes, "node")}, ${plural(now.edges, "edge")}.`;
-    return outOfDate === 0 ? size : `${size} ${plural(outOfDate, "row")} out of date`;
+    return outOfDate === 0 ? size : `${size} ${plural(outOfDate, "run")} out of date`;
 }
 
 /**

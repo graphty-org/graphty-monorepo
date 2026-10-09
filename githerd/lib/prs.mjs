@@ -46,9 +46,11 @@ import { staleRevert } from "./master-fix.mjs";
  * @typedef {{
  *   verdict: "green" | "red" | "unknown", branch: string,
  *   fixedAt?: string | null, redKeys?: string[], advisory?: import("./advisory.mjs").Advisory | null,
+ *   queueChecks?: string[],
  * }} MasterView `branch` is the default branch; `fixedAt` when
  *   the commit that ended the last incident was made; `redKeys` the failure keys red on it now;
- *   `advisory` the default branch's advisory checks (advisory.mjs)
+ *   `advisory` the default branch's advisory checks (advisory.mjs); `queueChecks` the checks
+ *   `.mergify.yml` keeps a pull request out of the merge queue on (merge-status.mjs `queueChecks`)
  * @typedef {{
  *   headSha: string, headRef: string, baseRef: string, draft: boolean, fork?: boolean, readyAt: string | null, author: string | null,
  *   title: string, createdAt: string | null, references: number[], labels: string[], headChangedAt: string, headCommittedAt: string | null, headCommitter: string | null,
@@ -56,7 +58,7 @@ import { staleRevert } from "./master-fix.mjs";
  *   touchesProtected: boolean,
  *   autoMerge: boolean, mergeable: string | null, mergeState?: string | null, conflictSightings: number,
  *   required: Record<string, CheckState>, failingChecks: string[], failingStartedAt: string | null,
- *   cancelledRuns: CancelledRun[],
+ *   cancelledRuns: CancelledRun[], queueFailing?: string[],
  *   ownerGate: boolean, captureFailed: string[], ownerRejected: boolean, stackedOn: number | null,
  *   underlying?: Underlying | null, inherited?: string[] | null, advisory?: string[],
  *   failureKeys?: string[] | null, shared?: string[] | null, outside?: string[] | null,
@@ -66,7 +68,9 @@ import { staleRevert } from "./master-fix.mjs";
  *   `failureKeys` the keys of those failures when only summary checks fail; `shared` the board's
  *   words for them when every one is shared across pull requests (shared.mjs); `outside` their keys
  *   when every one is a rented runner refused for its balance, which only the owner can clear;
- *   `advisory` the advisory checks failing on the head, in the board's words (they count as passed)
+ *   `advisory` the advisory checks failing on the head, in the board's words (they count as passed);
+ *   `queueFailing` the failing checks that are no required check but keep it out of the merge queue
+ *   (they are in `required` too, as FAILURE)
  */
 
 // CANCELLED is not here: a run cancelled because no runner took it (a GitHub outage) is no verdict
@@ -203,17 +207,21 @@ function runOpen(r) {
  * The checks of a node's head commit.
  * @param {any} node a GraphQL pullRequest node
  * @param {string[]} requiredChecks the required context names
- * @returns {{ required: Record<string, CheckState>, failing: string[], startedAt: string | null,
+ * @param {string[]} queueChecks the merge queue's condition checks: one failing counts as a failing
+ *   required check, since it keeps the pull request out of the queue just the same
+ * @returns {{ required: Record<string, CheckState>, failing: string[], queueFailing: string[], startedAt: string | null,
  *   committedAt: string | null, committer: string | null, cancelledRuns: CancelledRun[] }} required
  *   verdicts, every failing context, the latest start of a failing required check run, the head
  *   commit's date and committer email, and the runs whose required checks were only cancelled
  */
-function readChecks(node, requiredChecks) {
+function readChecks(node, requiredChecks, queueChecks) {
     const commit = node.commits?.nodes?.[0]?.commit;
     const allContexts = commit?.statusCheckRollup?.contexts?.nodes ?? [];
     /** @type {Record<string, CheckState>} */
     const required = Object.fromEntries(requiredChecks.map((n) => [n, "MISSING"]));
     const failing = [];
+    /** @type {string[]} */
+    const queueFailing = [];
     let startedAt = null;
     // A name reported twice (a re-run) counts by its newest check run, as GitHub's own
     // required-check rule does.
@@ -230,6 +238,10 @@ function readChecks(node, requiredChecks) {
         const state = contextState(ctx);
         if (state === "FAILURE") failing.push(name);
         noteRun(runs, ctx, state, Object.hasOwn(required, name));
+        if (state === "FAILURE" && queueChecks.includes(name) && !Object.hasOwn(required, name)) {
+            required[name] = state;
+            queueFailing.push(name);
+        }
         if (!Object.hasOwn(required, name)) continue;
         required[name] = state;
         if (state === "FAILURE" && ctx.startedAt && (!startedAt || ctx.startedAt > startedAt)) {
@@ -239,6 +251,7 @@ function readChecks(node, requiredChecks) {
     return {
         required,
         failing,
+        queueFailing,
         startedAt,
         committedAt: commit?.committedDate ?? null,
         committer: commit?.committer?.email ?? null,
@@ -293,7 +306,7 @@ export function updatePrs(saved, nodes, master, config, now = new Date().toISOSt
     const out = {};
     const byHead = new Map(nodes.map((n) => [n.headRefName, n.number]));
     for (const node of nodes) {
-        const rec = foldPr(node, saved[node.number], config, now);
+        const rec = foldPr(node, saved[node.number], config, now, master);
         const read = warnAdvisory(rec, master.advisory, utcDay(now));
         // A job the rented runner refused for its balance is no pull request's to fix (classify.mjs).
         const own = read && { ...read, failures: read.failures.filter((f) => !balanceRefusal(f)) };
@@ -381,13 +394,14 @@ function summaryKeys(required, underlying) {
  * @param {PrRecord | undefined} prev its record from the last poll
  * @param {Config} config the normalized config
  * @param {string} now the poll time, ISO
+ * @param {MasterView} master the default branch's verdict
  * @returns {PrRecord} the record, `stackedOn` still null
  */
-function foldPr(node, prev, config, now) {
+function foldPr(node, prev, config, now, master) {
     const sameHead = prev?.headSha === node.headRefOid;
     /** @type {Detail} */
     const detail = node.detail ?? {};
-    const checks = readChecks(node, config.requiredChecks);
+    const checks = readChecks(node, config.requiredChecks, master.queueChecks ?? []);
     // What a new head resets; the same head keeps what was decided for it.
     const kept = sameHead
         ? /** @type {PrRecord} */ (prev)
@@ -430,6 +444,7 @@ function foldPr(node, prev, config, now) {
         required: checks.required,
         failingChecks: checks.failing,
         failingStartedAt: checks.startedAt,
+        queueFailing: checks.queueFailing,
         cancelledRuns: checks.cancelledRuns,
         captureFailed,
         // A failed capture is broken, not owner-ready: the owner is never sent such a pull request.
@@ -580,6 +595,28 @@ function pullRequestReasons(rec, master) {
     return reasons;
 }
 
+/** The check that fails a pull request whose description names no issue (.github/workflows). */
+const LINK_CHECK = "Link PR Issue";
+
+/**
+ * A pull request's failing checks in the board's words: the required ones, and those that keep it
+ * out of the merge queue. A failing Link PR Issue says what to add to the description.
+ * @param {PrRecord} rec the record
+ * @returns {string} the words, empty when none fails
+ */
+export function failingWords(rec) {
+    const queue = rec.queueFailing ?? [];
+    const required = Object.keys(rec.required ?? {}).filter((n) => rec.required[n] === "FAILURE" && !queue.includes(n));
+    const words = [];
+    if (required.length) words.push(`required check failing: ${required.join(", ")}`);
+    if (queue.length) words.push(`kept out of the merge queue: ${queue.join(", ")} failing`);
+    if (queue.includes(LINK_CHECK))
+        words.push(
+            'add to the pull request\'s description "Fixes #N" (or "Refs #N" when the issue stays open) for the issue it is for, or a line "No issue"; editing the description re-runs the check, so no push or CI re-run is needed',
+        );
+    return words.join("; ");
+}
+
 /** The label Mergify puts on a pull request it took out of its queue. */
 export const DEQUEUED = "dequeued";
 
@@ -634,7 +671,7 @@ function cancelledReasons(rec) {
 function failingReasons(rec, master) {
     const failing = Object.keys(rec.required).filter((n) => rec.required[n] === "FAILURE");
     if (!failing.length) return [];
-    const reasons = rec.ownerGate ? [] : [`required check failing: ${failing.join(", ")}`];
+    const reasons = rec.ownerGate ? [] : [failingWords(rec)];
     if (rec.inherited?.length) reasons.splice(0, reasons.length, `inherited from master: ${rec.inherited.join(", ")}`);
     else if (rec.outside?.length)
         reasons.splice(0, reasons.length, `outside cause, for the owner: ${rec.outside.join(", ")}`);

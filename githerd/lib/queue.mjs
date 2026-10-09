@@ -19,6 +19,7 @@
 import { byOwner, TERMINAL } from "./board.mjs";
 import { staleRevert } from "./master-fix.mjs";
 import { orderPosition } from "./owner.mjs";
+import { failingWords } from "./prs.mjs";
 
 const DAY = 24 * 60 * 60 * 1000;
 /**
@@ -192,8 +193,7 @@ export function prWork(number, rec, state) {
     // So is one shared by several pull requests (shared.mjs): its one shared job fixes it.
     // A rented runner refused for its balance is the owner's to top up (classify.mjs): no job.
     const notOwn = rec.inherited?.length || rec.shared?.length || rec.outside?.length;
-    if (failing.length && !rec.ownerGate && !notOwn)
-        return rec.knownFlake ?? `required check failing: ${failing.join(", ")}`;
+    if (failing.length && !rec.ownerGate && !notOwn) return rec.knownFlake ?? failingWords(rec);
     return conflict;
 }
 

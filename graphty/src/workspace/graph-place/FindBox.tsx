@@ -1,7 +1,7 @@
 import { ResultRow, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
 import { type GraphSession, isGraphtyError, quotePath } from "@graphty/graphty-element/session";
-import { Input, ScrollArea, Text, VisuallyHidden } from "@mantine/core";
+import { ScrollArea, Text, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -78,6 +78,27 @@ async function ruleVerdict(session: GraphSession, typed: string): Promise<string
     } catch (error) {
         // An error that is not a refused rule is left for Enter, which reports it as before.
         return ruleRefusalWords(session, error);
+    }
+}
+
+/**
+ * Whether plain text that found nothing reads as a rule once "=" is put before it: the element
+ * accepts it and it matches something, or the element refuses it only for a bare number. A word
+ * the element reads as a column that holds nothing, such as a name, is not one.
+ * @param session - the element's session.
+ * @param typed - the box's text, with no "=".
+ * @returns true when the reader most likely typed a condition.
+ */
+async function readsAsRule(session: GraphSession, typed: string): Promise<boolean> {
+    try {
+        const { nodes, edges } = await session.scope.count({ where: typed });
+        return nodes + edges > 0;
+    } catch (error) {
+        return (
+            isGraphtyError(error) &&
+            error.code === "E_BAD_SELECTOR" &&
+            (error.details as { reason?: unknown } | undefined)?.reason === "number-needs-backticks"
+        );
     }
 }
 
@@ -198,6 +219,8 @@ export function FindBox(): React.JSX.Element {
     const [refusal, setRefusal] = useState<string | null>(null);
     // What the element said of the typed rule: "ok", "empty", or null while unchecked.
     const [ruleCheck, setRuleCheck] = useState<"ok" | "empty" | null>(null);
+    // Plain text that found nothing and that the element reads as a condition once "=" leads it.
+    const [looksLikeRule, setLooksLikeRule] = useState(false);
     const listId = useId();
     // A change to the data, a run or the selection asks again, so a count or a hit is never stale.
     const version = useSessionVersion(session);
@@ -250,6 +273,27 @@ export function FindBox(): React.JSX.Element {
             clearTimeout(timer);
         };
     }, [session, text, isRule, version]);
+    // Plain text that finds nothing is asked of the element as a rule once typing pauses.
+    const foundNothing =
+        found !== null && found.notSearchable === undefined && found.records.length === 0 && found.values.length === 0;
+    useEffect(() => {
+        setLooksLikeRule(false);
+        if (session === null || !foundNothing) {
+            return undefined;
+        }
+        let current = true;
+        const timer = setTimeout(() => {
+            void readsAsRule(session, text).then((yes) => {
+                if (current) {
+                    setLooksLikeRule(yes);
+                }
+            });
+        }, CHECK_DELAY_MS);
+        return () => {
+            current = false;
+            clearTimeout(timer);
+        };
+    }, [session, text, foundNothing, version]);
     // The refusal is spoken from a region that stays mounted and keeps its words while the reader
     // types, so a refusal is said once, politely, not again on every keystroke; it empties only
     // once the box holds no rule or a rule Find can read.
@@ -388,9 +432,18 @@ export function FindBox(): React.JSX.Element {
                 ),
         } as const;
         emptyLine = ruleCheck === null ? null : ruleLines[ruleCheck];
+    } else if (looksLikeRule && session !== null) {
+        emptyLine = (
+            <>
+                To select by a value, start with =, such as{" "}
+                <span className="ws-nowrap ws-mono">={exampleRule(session)}</span>
+            </>
+        );
     } else if (found?.notSearchable === "regex") {
         emptyLine = `Press Enter to select "${text}"`;
     }
+
+    const showLine = found !== null && (options.length === 0 || isRule) && refusal === null && emptyLine !== null;
 
     return (
         <div className="ws-find">
@@ -410,8 +463,11 @@ export function FindBox(): React.JSX.Element {
                 aria-expanded={open && options.length > 0}
                 aria-controls={open ? listId : undefined}
                 aria-activedescendant={active >= 0 ? optionId(active) : undefined}
-                // Mantine ties its error line to the box with aria-invalid and aria-describedby.
+                // Mantine ties its error line and the line under the box to it with aria-describedby.
                 error={refusal}
+                description={showLine ? emptyLine : undefined}
+                descriptionProps={{ role: "status", className: "ws-find-empty" }}
+                inputWrapperOrder={["label", "input", "error", "description"]}
                 disabled={session === null}
             />
             {found !== null && options.length > 0 ? (
@@ -529,12 +585,6 @@ export function FindBox(): React.JSX.Element {
                         ) : null}
                     </div>
                 </ScrollArea.Autosize>
-            ) : null}
-            {found !== null && (options.length === 0 || isRule) && refusal === null && emptyLine !== null ? (
-                // The theme's hint under a field: the size and color of every other field hint.
-                <Input.Description role="status" className="ws-find-empty">
-                    {emptyLine}
-                </Input.Description>
             ) : null}
             <VisuallyHidden role="status">{spoken}</VisuallyHidden>
         </div>

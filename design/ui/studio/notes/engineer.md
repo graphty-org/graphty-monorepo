@@ -11,6 +11,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **Find answers a condition typed without "=" with how to write it as a rule.**
+  When plain text finds nothing, `readsAsRule` in `graph-place/FindBox.tsx` asks
+  `session.scope.count({ where: text })`: the line under the box reads "To select by a value,
+  start with =, such as =minutes > `9`" (example in monospace, from `exampleRule`) when the element
+  accepts the text and it matches something, or refuses it only for `number-needs-backticks`.
+  Anything else stays "No match". The line is now Mantine's field `description` (below the error,
+  `inputWrapperOrder`), so it is in the box's `aria-describedby`. Test: `GraphPlace.test.tsx`,
+  "answers a condition typed without = ..." (fails without the change). Real app:
+  `tmp/t2r1-4/a/02.png` (hint), `05.png` ("Zebra": No match), `06.png` (=rule selects 3 edges).
+  Walk T22-D1 should now pass on a build with this.
 - (2026-10-09) **The dry run now walks the detours, as a script: `tier2/pilot/detours.sh all`.**
   30 walks: each task's success path, a keyboard walk in `--sr` mode (pointer steps refused), and
   round 1's commonest wrong turns, each checking its screens with `--expect`. Report
@@ -33,36 +43,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 - (2026-10-09) **A style line goes only to a layer its row names; nothing falls back to
   Everything.** `writeLine(..., fresh)` in `style/row.ts` takes the layer to add as a required
-  argument (`EVERYTHING_LAYER` is exported for the Everything row, `selectionLayer` for a
-  selection, `undefined` for a run's or a layer's row) and throws when the row has no layer the
-  reader may edit and no layer to add. `RowStyle` offers a side only when the row has a layer on it
-  or a layer to add, so a PageRank run shows no Nodes | Edges switch, a path run keeps both, and a
-  node-only reader layer no longer offers Edges. `SetLine` and `CompoundSetLine` pass `fresh` too
-  (editing a base line on Everything still adds the Everything layer). Test:
-  `StyleTab.real-element.test.tsx`, "a PageRank run paints only nodes..." (fails without the fix)
-  and "Everything's edge Color goes to the Everything layer...". Real app: `tmp/t2r1-11/a/02.png`
-  (PageRank, no switch), `04.png` (Everything edges red, key "Edge color: Everything"),
-  `c/03.png` (path run, both sides).
+  argument and throws when there is none; `RowStyle` offers a side only when the row has a layer
+  on it or one to add (PageRank: no Nodes | Edges switch). Test `StyleTab.real-element.test.tsx`;
+  evidence `tmp/t2r1-11/`.
 
 - (2026-10-09) **The canvas key names a stale run as the run list does: "Size: PageRank, out of
-  date".** `rowName` in `canvas/legendWords.ts` appends ", out of date" when the block's run has
-  `status === "succeeded"` and `run.stale !== null` (the paint tree's own test), so the key, its
-  section's accessible name and the exported image's key all carry it. One mark only: no color, no
-  dimming of the drawing. The legend re-reads on `run:changed`, so Replace adds it and Rerun drops
-  it with no extra wiring. Checked on a fresh build: `tmp/t2r1-10/a/06.png` (after Replace, both
-  sections marked), `07.png` (after Rerun, plain). Test: `legendWords.test.ts`, "marks a section
-  whose run is out of date".
+  date"** (`rowName` in `canvas/legendWords.ts`, from `run.stale`; one mark, no color). Test
+  `legendWords.test.ts`; evidence `tmp/t2r1-10/a/06.png`, `07.png`.
 
 - (2026-10-09) **Focus and keys in the Filters section, the step editor and the Notes place.**
-  The step editor is a `<form>`: Enter adds or saves, Escape (`isPanelEscape`) closes it to the
-  step's row, or to "+" for a new step. After Add/Save focus goes to the step's row, after a
-  delete to the next row, the one above for the last, or "+" (`focusNext`/`focusStep` in
-  `data-place/Filters.tsx`, run on the visibility version). Note chips are named
-  "<target>, in note: <first line>" and delete buttons "Delete note: <first line>" (cut at 40), so
-  no two controls share a name. The find box needed nothing: compact-mantine `SearchInput` already
-  refocuses after the clearing Escape (GraphPlace.test.tsx asserts it; bars "kept"). Test:
-  `data-place/__tests__/FilterFocus.real-element.test.tsx`; Notes test asserts the unique names.
-  Evidence `tmp/t2r1-7/bars.log`.
+  The step editor is a `<form>` (Enter saves, Escape closes to the step's row or "+"); focus after
+  Add/Save/Delete is placed by `focusNext`/`focusStep` in `data-place/Filters.tsx`; note chips and
+  delete buttons carry the note's first line so no two share a name. Test
+  `FilterFocus.real-element.test.tsx`; evidence `tmp/t2r1-7/bars.log`.
 
 - (2026-10-09) **Bars 2, 7, 8 and 9 are scored by script, each check proven on a planted failure**
   (commit 80fb33e68). Bar 2: `real.mjs` writes `work-start.json` after setup and `work.json` at
@@ -97,9 +90,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `graphty-element/test/browser/selection-halo-rings-without-tinting.test.ts`). Selection story
   baselines change and go to visual review.
 - (2026-10-09) **Tier 2 screenshot audit (round 1): the app breaks on long names and narrow
-  windows, not at the study's size** (`tier2/rounds/round-1/expert/engineer.md`, 24 findings:
-  canvas labels cut at the edge, "Back to ..." clipped, popovers over the left panel at 900 wide).
-- (2026-10-09) **`REAL_VIEWPORT=<w>x<h>` on `real.mjs --start`** sets the window (default 1440x900).
+  windows, not at the study's size** (`tier2/rounds/round-1/expert/engineer.md`, 24 findings).
+  `REAL_VIEWPORT=<w>x<h>` on `real.mjs --start` sets the window (default 1440x900).
 
 - (2026-10-09, summarized) **Four word fixes on the path and Replace screens:** the path total
   named by its weight column (`PathValues`), an unread weight says why (`weightRead`), Replace's
@@ -107,6 +99,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-09) **"Accepted" alone is not enough to call plain text a condition.** The element
+  reads a bare word ("zzz", a name) as a column reference and accepts it, so the hint would have
+  shown for every unmatched name. The app adds one neutral fact the element already returns: the
+  accepted rule must match at least one node or edge. No rule syntax is read in the app. Rejected:
+  passing `aria-describedby` to SearchInput -- Mantine's Input spreads its own `aria-describedby`
+  after the consumer's props and clobbers it; Mantine's `description` prop links it natively.
+  Side effect: the line now sits under the box, above the list, where the refusal error already
+  sat (a rule with column suggestions shows its line above the Columns list).
 - (2026-10-09) **The element no longer cancels pointerdown on its canvas.** A canceled pointerdown
   suppresses the page's mousedown, which Mantine's click-outside listens for. Fixed in the element
   so every consumer gets it; a compact-mantine `clickOutsideEvents` default would have hidden the
@@ -223,6 +223,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Worked: proving "no hint follows" without a sleep (the test-timing rule) by
+  spying `session.scope.count`, waiting until it was called with the typed text, then settling its
+  promises inside `act` before asserting.
 - (2026-10-09) Worked: `--sr` sessions as keyboard walks; their focus lines give the Tab order to
   script. Did not work: `--expect-not "Filter analyses"` (a placeholder is not on-screen text; it
   passed on the broken build). Prove every check on the broken build first. A miss ("nothing on

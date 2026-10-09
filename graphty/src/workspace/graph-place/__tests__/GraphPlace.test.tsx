@@ -6,9 +6,9 @@
  */
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry, type WorkspaceRegistration } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -243,6 +243,35 @@ describe("the Graph place", () => {
         renderPlace(await sessionWithGraph());
         await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "zzz");
         assert.isNotNull(await screen.findByText('No match for "zzz"'));
+    });
+
+    it("answers a condition typed without = with how to write it as a rule, and a name with No match", async () => {
+        const session = await sessionWithGraph();
+        await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+
+        await userEvent.type(box, "minutes >= 10");
+        const example = await screen.findByText("=minutes > `12`");
+        const hint = example.parentElement as HTMLElement;
+        assert.equal(hint.textContent, "To select by a value, start with =, such as =minutes > `12`");
+        assert.include(box.getAttribute("aria-describedby") ?? "", hint.id);
+        assert.notEqual(hint.id, "");
+        assert.isNull(screen.queryByText('No match for "minutes >= 10"'));
+
+        const count = vi.spyOn(session.scope, "count");
+        await userEvent.clear(box);
+        await userEvent.type(box, "zzz");
+        assert.isNotNull(await screen.findByText('No match for "zzz"'));
+        // The element reads "zzz" as a column that holds nothing, so once it has answered no hint follows.
+        await waitFor(() => {
+            assert.isTrue(count.mock.calls.some(([spec]) => JSON.stringify(spec) === '{"where":"zzz"}'));
+        });
+        await act(async () => {
+            await Promise.allSettled(count.mock.results.map((r) => r.value as Promise<unknown>));
+        });
+        assert.isNull(screen.queryByText(/To select by a value/));
+        assert.isNotNull(screen.queryByText('No match for "zzz"'));
     });
 
     it("runs a pattern only on Enter", async () => {

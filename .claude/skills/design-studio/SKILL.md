@@ -222,3 +222,8 @@ Each rule below exists because breaking it cost a run.
   model agrees with leading questions and invents text on narrow strips.
 - **Land with the fewest pull requests.** Every pull request costs a screenshot review, a CI run and
   queue time; the studio branch lands as one.
+- **Commits must really run the hooks.** Agents skip only the interactive `prepare-commit-msg`, by
+  copying the WHOLE `.husky/` folder to a temp dir, deleting its `prepare-commit-msg` and passing
+  `-c core.hooksPath=<tmp>/_`. Husky's `.husky/_/h` runs the hook script one folder above itself,
+  so the older recipe (copy only `.husky/_`) skipped the secret scan, formatting and commit-message
+  checks without a word on every studio commit until 2026-10-08.

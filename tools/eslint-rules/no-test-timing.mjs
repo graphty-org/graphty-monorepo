@@ -70,8 +70,12 @@ const rule = {
         const clockVars = new Map();
 
         const isFunction = (n) => Boolean(n) && FUNCTION_TYPES.has(n.type);
-        const propName = (m) =>
-            m?.type === "MemberExpression" ? (m.computed ? m.property.value : m.property.name) : undefined;
+        const propName = (m) => {
+            if (m?.type !== "MemberExpression") {
+                return undefined;
+            }
+            return m.computed ? m.property.value : m.property.name;
+        };
 
         // A number literal, or arithmetic/unary over number literals (`60_000`, `2 * 1000`).
         const isNumeric = (n) =>
@@ -175,7 +179,13 @@ const rule = {
                 if (n.type === "Identifier") {
                     return n.name;
                 }
-                n = n.type === "MemberExpression" ? n.object : n.type === "CallExpression" ? n.callee : undefined;
+                if (n.type === "MemberExpression") {
+                    n = n.object;
+                } else if (n.type === "CallExpression") {
+                    n = n.callee;
+                } else {
+                    return undefined;
+                }
             }
             return undefined;
         };
@@ -203,7 +213,8 @@ const rule = {
             const args = node.arguments;
             // With no function literal (`it("x", runCase, 5000)`) the body sits where the API puts it.
             const literalIndex = args.findIndex(isFunction);
-            const fnIndex = literalIndex === -1 ? (isTest ? 1 : 0) : literalIndex;
+            const bodyIndex = isTest ? 1 : 0;
+            const fnIndex = literalIndex === -1 ? bodyIndex : literalIndex;
             if (args.length <= fnIndex) {
                 return;
             }
@@ -239,6 +250,52 @@ const rule = {
             }
         };
 
+        // expect(elapsed).toBeLessThan(n), assert.isBelow(elapsed, n)
+        const checkClockMatcher = (node, name) => {
+            if (!COMPARISON_MATCHERS.has(name) || !isAssertCall(node)) {
+                return;
+            }
+            const { callee, arguments: args } = node;
+            let target = callee.object;
+            while (target?.type === "MemberExpression") {
+                target = target.object;
+            }
+            const operands = baseName(callee) === "assert" ? args : [...(target?.arguments ?? []), ...args];
+            if (operands.some(isElapsed)) {
+                context.report({ node, messageId: "clock" });
+            }
+        };
+
+        // page.waitForTimeout(n), sleep(n), await setTimeout(n) from node:timers/promises
+        const isSleepCall = (node, name) => {
+            const [first] = node.arguments;
+            if (name === "waitForTimeout") {
+                return true;
+            }
+            if (sleepNames.has(name)) {
+                return isNumeric(first) && !isZero(first);
+            }
+            return (
+                node.callee.type === "Identifier" &&
+                name === "setTimeout" &&
+                node.parent.type === "AwaitExpression" &&
+                !isFunction(first) &&
+                !isZero(first)
+            );
+        };
+
+        // this.timeout(n), test.setTimeout(n), vi.setConfig({ testTimeout })
+        const isTimeoutCall = (node, name) => {
+            const { callee, arguments: args } = node;
+            if (name === "timeout") {
+                return callee.object?.type === "ThisExpression";
+            }
+            if (name === "setTimeout") {
+                return callee.type === "MemberExpression" && args.length === 1 && !isFunction(args[0]);
+            }
+            return name === "setConfig" && args.some((a) => hasTimeoutKey(a, CONFIG_KEYS));
+        };
+
         return {
             VariableDeclarator(node) {
                 markClock(node.id, node.init);
@@ -259,46 +316,13 @@ const rule = {
                 }
             },
             CallExpression(node) {
-                const { callee, arguments: args } = node;
+                const { callee } = node;
                 const name = callee.type === "Identifier" ? callee.name : propName(callee);
-
-                // expect(elapsed).toBeLessThan(n), assert.isBelow(elapsed, n)
-                if (COMPARISON_MATCHERS.has(name) && isAssertCall(node)) {
-                    let target = callee.object;
-                    while (target?.type === "MemberExpression") {
-                        target = target.object;
-                    }
-                    const operands = baseName(callee) === "assert" ? args : [...(target?.arguments ?? []), ...args];
-                    if (operands.some(isElapsed)) {
-                        context.report({ node, messageId: "clock" });
-                    }
-                }
-
-                if (name === "waitForTimeout") {
-                    reportSleep(node);
-                } else if (sleepNames.has(name) && args.length >= 1 && isNumeric(args[0]) && !isZero(args[0])) {
-                    reportSleep(node);
-                } else if (
-                    callee.type === "Identifier" &&
-                    name === "setTimeout" &&
-                    node.parent.type === "AwaitExpression" &&
-                    !isFunction(args[0]) &&
-                    !isZero(args[0])
-                ) {
+                checkClockMatcher(node, name);
+                if (isSleepCall(node, name)) {
                     reportSleep(node);
                 }
-
-                // this.timeout(n), test.setTimeout(n), vi.setConfig({ testTimeout })
-                if (name === "timeout" && callee.object?.type === "ThisExpression") {
-                    context.report({ node, messageId: "timeout" });
-                } else if (
-                    name === "setTimeout" &&
-                    callee.type === "MemberExpression" &&
-                    args.length === 1 &&
-                    !isFunction(args[0])
-                ) {
-                    context.report({ node, messageId: "timeout" });
-                } else if (name === "setConfig" && args.some((a) => hasTimeoutKey(a, CONFIG_KEYS))) {
+                if (isTimeoutCall(node, name)) {
                     context.report({ node, messageId: "timeout" });
                 } else {
                     checkTimeoutArgs(node);

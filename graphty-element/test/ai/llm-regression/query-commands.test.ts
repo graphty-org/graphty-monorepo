@@ -190,7 +190,17 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
             const result = await harness.testPrompt("Find all server nodes");
 
             assert.ok(result.commandResult, "Expected command result");
-            assert.strictEqual(result.commandResult.success, true);
+            assertCalled(result, "findNodes");
+            // Not `success === true`: the controller reports a message as failed when ANY tool
+            // call in it failed, so a model that sends a selector that does not parse, reads the
+            // error and retries with a good one fails the message although it found the nodes.
+            // What this test owns is that findNodes returned the server nodes (ids 1 and 2).
+            const found = result.commandResult.affectedNodes ?? [];
+            assert.ok(
+                found.includes("1") && found.includes("2"),
+                `Expected findNodes to return server nodes 1 and 2; got [${found.join(", ")}]. ` +
+                    `Calls: ${JSON.stringify(result.toolCalls)}. Message: ${result.commandResult.message}`,
+            );
             assert.ok(result.commandResult.message, "Expected result message");
         });
 

@@ -294,19 +294,23 @@ export function shardKeys(root) {
     };
 }
 
-// Terminal color codes, built from the ESC character rather than written into a regular expression.
-const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
-
 /**
  * How many tests a shard's log says passed: the sum over every vitest summary line
- * (`Tests  12 passed | 1 skipped (13)`) in it, colors stripped.
+ * (`Tests  12 passed | 1 skipped (13)`) in it, terminal colors left out.
  * @param log the shard's whole output
  * @returns the number of passed tests, 0 when the log has no summary
  */
 export function testsPassed(log) {
     let n = 0;
-    for (const m of log.replaceAll(ANSI, "").matchAll(/^\s*Tests\s+(?:.*?\b)?(\d+) passed\b/gm)) {
-        n += Number(m[1]);
+    for (const raw of log.split("\n")) {
+        // Drop each color code: ESC, "[", digits and semicolons, "m".
+        const line = raw
+            .split("\u001b[")
+            .map((part, i) => (i === 0 ? part : part.slice(part.indexOf("m") + 1)))
+            .join("")
+            .trim();
+        const passed = line.startsWith("Tests ") ? /(\d+) passed/.exec(line) : null;
+        n += passed ? Number(passed[1]) : 0;
     }
     return n;
 }

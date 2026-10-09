@@ -485,15 +485,19 @@ const SR_STATES = new Set(["checked", "pressed", "expanded", "selected", "disabl
 // accessibility tree, and the live-region text recorded since the last call
 const FOCUSED =
     "(() => { let e = document.activeElement; while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement; return e === document.body ? null : e; })()";
-// role "name" value "..." states, for one accessibility node
+// role "name" value "..." states, for one accessibility node. A range's value is its valuetext
+// when it has one, as a screen reader speaks it: Chromium keeps a range's number as a 32-bit
+// float, so the bare value of aria-valuenow="0.85" comes back as 0.8500000238418579.
 function axSays(n) {
     const states = (n.properties || [])
         .filter((p) => SR_STATES.has(p.name) && p.value.value !== false && p.value.value !== "false")
         .map((p) => (p.value.value === true || p.value.value === "true" ? p.name : `${p.name}=${p.value.value}`));
+    const valuetext = (n.properties || []).find((p) => p.name === "valuetext")?.value.value;
+    const value = valuetext || n.value?.value;
     return [
         n.role?.value || "unknown role",
         n.name?.value ? JSON.stringify(n.name.value) : "(no name)",
-        n.value?.value !== undefined && n.value.value !== "" ? `value ${JSON.stringify(String(n.value.value))}` : "",
+        value !== undefined && value !== "" ? `value ${JSON.stringify(String(value))}` : "",
         states.join(", "),
     ]
         .filter(Boolean)
@@ -1329,6 +1333,18 @@ async function prove() {
                   .filter((f) => /^\d+\.png$/.test(f))
                   .sort()
             : [];
+
+    // a range reads as its valuetext, not Chromium's single-precision number
+    check(
+        "a spinbutton reads as its valuetext",
+        axSays({
+            role: { value: "spinbutton" },
+            name: { value: "Damping factor" },
+            value: { value: 0.8500000238418579 },
+            properties: [{ name: "valuetext", value: { value: "0.85" } }],
+        }) === 'spinbutton "Damping factor" value "0.85"',
+        "it read the 32-bit value",
+    );
 
     // refused before anything opens
     const refused = node(["--step", join(base, "none"), "--bogus", "x"]);

@@ -11,6 +11,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **Check what a finding measured before fixing the code it names.** "Damping factor
+  exposes 0.8500000238418579" was the study tool, not graphty-element: `run.params` holds 0.85
+  exactly and the DOM has `aria-valuenow="0.85"`; Chromium keeps a range's value as a 32-bit float,
+  so CDP's AX `value` is `Math.fround(0.85)`. The node's `valuetext` property is "0.85", which is
+  what a screen reader speaks. `real.mjs --read` now prints `valuetext` when present (`axSays`),
+  with a `--prove` check. Evidence `tmp/r1-dry4-option-precision/` (`probe.mjs` reads run.params,
+  aria-valuenow and the AX node in the built app; `T21A/` is the re-pilot).
 - (2026-10-08) **Shortest path can follow edges one way (element only).** Dijkstra and
   Bellman-Ford take `direction: "out" | "in" | "all"` (default "all" = today). "out" searches the
   declared snapshot, "in" its `transpose()` (shared helper `searchFollowing` in
@@ -24,12 +31,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   in one column (`PaintLine` in SetLine.tsx); the paint field sits under it (fixed 156 px). The
   Selection row has Nodes (halo) and Edges (`edgeColor`/`edgeOpacity`/`edgeScale`) parts. Evidence
   `tmp/r1-dry3-app-style-tab/`. Baselines: StyleTab, Inspector selection stories.
-- (2026-10-08, condensed) **Find list.** Headings count each kind (`FindResult.totals`); list is
-  `ScrollArea.Autosize type="auto"` with scroll-snap so every rest ends on a whole row; graph title
-  `EllipsizedName self`. Evidence `tmp/r1-dry3-app-find-list-graph-title/`.
-- (2026-10-08, condensed) **Filters say what each control does.** Checkbox tooltip by state, "Save
-  and turn on" on an off step, chip tooltip, neighbors step "within N hop(s) of X". The answer key's
-  T17 follow-up wording is the next editor's to update. Evidence `tmp/r1-dry3-app-filters/`.
+- (2026-10-08, condensed) **Find list and filters.** Headings count each kind
+  (`FindResult.totals`); list scroll-snaps to whole rows. Filter controls say what they do ("Save
+  and turn on", "within N hop(s) of X"). Evidence `tmp/r1-dry3-app-find-list-graph-title/`,
+  `tmp/r1-dry3-app-filters/`.
 - (2026-10-08, condensed) **Study tool records the served build** (`session.json` `commit`; the
   checkout's HEAD is `toolCommit`) and finds `setup:<file>` in cwd, `tier2/`, then
   `rounds/tier-2/setups/`. Evidence `tmp/r1-dry3-studio-tool-records/`.
@@ -66,32 +71,23 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **A study tool reads a range as a screen reader speaks it, not as Chromium stores
+  it.** ARIA has assistive technology prefer `aria-valuetext`; Chromium derives it from the
+  spinbutton's text. Rejected: setting `aria-valuetext` in compact-mantine's `useNumberField`
+  (Chromium already exposes the text; nothing a reader hears changes) and narrowing anything in
+  PageRank (nothing there narrows: the dispatch gets a fresh options object).
+
 - (2026-10-08) **A one-way path searches the transpose, not a swapped source and target.** Swapping
   ends would give the right route but wrong per-node distances (distance TO the source, not from
   it); the transpose keeps node and edge spaces, so the result loop and `edgeRemap` are unchanged.
   Same pattern Katz uses for "out". "all" keeps the exact old code path (undirected input).
-- (2026-10-08) **One label style beats a wider field.** A field that cannot fit the value column
-  keeps its own row, but its name is drawn by the same component, type and column as every other
-  line's name; a shared component's own caption (CompactColorInput `label`) is not used inside the
-  Style tab. Rejected: swatch+hex only inline (`showOpacity={false}` also drops alpha from the
-  picker); a caption above every line (every row 50 px). The Selection row's halo and band are two
-  parts named Nodes and Edges, the words a reader uses, not "halo"/"band".
-- (2026-10-08) **A scroll list ends on a whole row at every resting position, not only at the top.**
-  Cutting the height once fixes the first view; scroll-snap fixes every view after a wheel. A
-  per-kind count belongs to the element (a fact about the matches), the heading's words to the app.
-- (2026-10-08) **A button that changes state says so before the click.** "Save and turn on" on an
-  off step, not a status line after it (the save already announces). Rejected: keeping it disabled
-  when unchanged -- a button that names an action and refuses it is a new flaw. A neighborhood's
-  words lead with the hop count at every depth (one pattern, and the count is what tells two such
-  steps apart when the row is cut).
-- (2026-10-08) **A weight's follow-up choice goes below the control that caused it.** Inserting
-  Higher means above the roles moved them ~62 px under the pointer (T20A). Below the roles,
-  before the grid, nothing above the pointer moves. Rejected: reserving the line's height while
-  hidden (empty space on every node table). Tooltips on Add / Leave out, not a sentence under
-  them: the report row is one line and the words are needed only before choosing.
-- (2026-10-08) **A script-focused heading gets an underline, not a box.** Five pilots read the
-  1px box around the inspector title as an editable name. The mark is a shared class in
-  compact-mantine (a focus style is shared UI), documented in figma-spec.md's focus table.
+- (2026-10-08, condensed) **UI polish calls from the third dry run:** one label style (`Text xs`
+  in one column) beats a wider field, and the Selection row's parts are Nodes and Edges; a scroll
+  list ends on a whole row at every rest (scroll-snap), per-kind counts are the element's fact; a
+  button that changes state says so before the click ("Save and turn on"), never disabled when
+  unchanged; a follow-up choice goes below the control that caused it (Higher above the roles moved
+  them ~62 px under the pointer); a script-focused heading gets an underline, not a box (read as an
+  editable name), shared in compact-mantine.
 - (2026-10-08) **A left-out row opens its load's whole account, not a "Left out" section alone.**
   The task asks how many arrived AND what was dropped; the small inspector hid the counts (T4A/12).
 - (2026-10-08) **A shared control's defect is fixed in compact-mantine, and an app-specific
@@ -198,6 +194,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-08) Worked: a standalone Playwright probe (`tmp/<task>/probe.mjs`, own static server on
+  `graphty/dist`, under `with-browser.sh`) that wraps `session.runs.start`, reads `run.params`,
+  the DOM attribute and `Accessibility.getFullAXTree` split "the value is wrong" from "the reading
+  is wrong" in one run. An element or app test of params passed in every setup; it could not.
+  `--read` in `--sr` mode refuses `--click`; read without `--sr`. graphty's real-element tests are
+  project `real-element`, not `browser`.
 
 - (2026-10-08) Did not work: a string-anchored script edit put the new descriptor inside the Zod
   `meta` (two `advanced: true` blocks matched); caught by the "defaults to all" test. Anchor on

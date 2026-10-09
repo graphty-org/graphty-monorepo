@@ -306,7 +306,10 @@ export const FromAButtonInteractions: Story = {
         await userEvent.click(trigger);
         const body = within(canvasElement.ownerDocument.body);
         await waitFor(() => expect(body.getByRole("menu")).toBeVisible());
-        // Opening focuses the first row (the theme drops Mantine's focus placeholder).
+        // Opened by a click, the menu itself has focus and no row is highlighted; ArrowDown
+        // reaches the first row.
+        await waitFor(() => expect(body.getByRole("menu")).toHaveFocus());
+        await userEvent.keyboard("{ArrowDown}");
         await waitFor(() => expect(body.getByRole("menuitem", { name: /^Actions/ })).toHaveFocus());
         await userEvent.keyboard("{ArrowDown}{ArrowRight}");
         // Rows with a shortcut carry it in their accessible name ("New design fileCtrl+Alt+N").

@@ -11,6 +11,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **A menu opened by a click highlights no row, whatever its first row is.**
+  compact-mantine `overlayBehavior.ts` (`skipDisabledFirstRow`): the row Mantine's focus trap
+  picks (the menu's first menuitem) is redirected to the menu itself when the pointer opened it;
+  opened by a key it stays on (or moves to) the first enabled row. Any other enabled row reached
+  from the menu (type-ahead) is left alone. Tests: two enabled-first-row cases in
+  `MenuKeys.browser.test.tsx` (the pointer one fails without the change); three tests and the
+  Menu story's play function that asserted "a click focuses the first row" now assert the menu
+  has focus and ArrowDown reaches row one; graphty `HelpMenu.test.tsx` likewise. Evidence
+  `tmp/r2-dry3-shared-menu-pointer-highlight/T24A/03.png`, `T24B/` (Edge actions, no row filled).
+
 - (2026-10-09) **Study build is d5a3bee20b61**, frozen write-protected at
   `design/ui/studio/tmp/study-builds/tier2-r2d2-d5a3bee20/` (inside the worktree: the main
   checkout's `.study-builds/` is off limits). All 20 task halves were walked on it with
@@ -93,6 +103,13 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
   Filters step editor is a `<form>` (`focusNext`/`focusStep`).
 
 ## Decisions and reasons
+
+- (2026-10-09) **Pointer-opened menus focus the menu, not row one, for every menu.** A filled first
+  row reads as already chosen (Edge actions showed "Select endpoints" blue in the T24 pilots). The
+  WAI-ARIA menu-button pattern focuses the first item on any open; we keep that for keyboard opens
+  only, where the highlight is the reader's cursor. The rule is limited to the row the focus trap
+  picks: applying it to any row focused from the menu also undid type-ahead from the menu (typing
+  "l" went back to row one) -- caught by `tests/figma/overlays.browser.test.tsx`.
 
 - (2026-10-09) **One neighborhood filter per center, whatever the reach.** The toggle is about
   "this node's neighbors are filtered", so a 2-hop step answers it at Hops 1 too; matching only the
@@ -229,6 +246,11 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-09) Did not work: wrapping `tier2/pilot/repilot.sh` in `tool/with-browser.sh` -- the
+  wrapper held a browser slot with no browser while each `real.mjs --start` took its own; run
+  repilot.sh bare. Did not work: dropping the enabled-row early return outright (broke type-ahead
+  from the menu itself, see decisions).
 
 - (2026-10-09) Worked: a scripted re-pilot that walks each half's success path plus the exact
   steps that reach every fixed screen, then contact sheets (`montage *.png -tile 4x -geometry

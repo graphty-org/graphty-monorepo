@@ -2,7 +2,7 @@
  * A themed Menu's keys, in a real browser: the Escape that closes it is used up there, so a page
  * shortcut on Escape skips it; a disabled row -- focusable so it can show its reason -- never
  * takes the highlight, nor the first focus when the menu opens; and a menu the pointer opened
- * highlights no row until an arrow key.
+ * highlights no row until an arrow key, whatever its first row is.
  */
 import { Button, Menu } from "@mantine/core";
 import { screen, waitFor } from "@testing-library/react";
@@ -24,6 +24,20 @@ function ActionsMenu(): React.JSX.Element {
                     Neighborhood
                 </Menu.Item>
                 <Menu.Item>Frame selection</Menu.Item>
+            </Menu.Dropdown>
+        </Menu>
+    );
+}
+
+function EdgeMenu(): React.JSX.Element {
+    return (
+        <Menu>
+            <Menu.Target>
+                <Button variant="default">Edge actions</Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+                <Menu.Item>Select endpoints</Menu.Item>
+                <Menu.Item>Hide edge</Menu.Item>
             </Menu.Dropdown>
         </Menu>
     );
@@ -86,5 +100,28 @@ describe("Menu keys", () => {
         await userEvent.hover(disabled);
         expect(disabled).toHaveFocus();
         expect(getComputedStyle(disabled, "::before").backgroundColor).toBe(TRANSPARENT);
+    });
+
+    it("opened by the pointer with an enabled first row, highlights no row until ArrowDown", async () => {
+        await renderThemed(<EdgeMenu />);
+        await userEvent.click(screen.getByRole("button", { name: "Edge actions" }));
+        const menu = await screen.findByRole("menu");
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+        await new Promise((r) => setTimeout(r, 100));
+        expect(menu).toHaveFocus();
+        expect(highlighted()).toEqual([]);
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => expect(screen.getByRole("menuitem", { name: "Select endpoints" })).toHaveFocus());
+        expect(highlighted()).toEqual(["Select endpoints"]);
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => expect(screen.getByRole("menuitem", { name: "Hide edge" })).toHaveFocus());
+    });
+
+    it("opened by a key with an enabled first row, focuses and highlights that row", async () => {
+        await renderThemed(<EdgeMenu />);
+        screen.getByRole("button", { name: "Edge actions" }).focus();
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => expect(screen.getByRole("menuitem", { name: "Select endpoints" })).toHaveFocus());
+        expect(highlighted()).toEqual(["Select endpoints"]);
     });
 });

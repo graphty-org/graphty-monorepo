@@ -277,10 +277,12 @@ describe.skipIf(!available)("8.1 dark menu", () => {
                 );
                 await drive(part(container, "button"), "open");
                 await waitFor(() => document.querySelector(".mantine-Menu-dropdown"));
-                // The theme drops Mantine's focus placeholder, so opening focuses the first row
-                // (the WAI-ARIA menu pattern); down and back up puts the keyboard highlight on it.
+                // Opened by a click, the menu itself takes focus and no row is highlighted; the
+                // first ArrowDown reaches the first row, and down and back up returns to it.
                 const first = row(document, "First");
-                await waitFor(() => document.activeElement === first);
+                await waitFor(() => expect(document.querySelector(".cm-menu")).toHaveFocus());
+                await userEvent.keyboard("{ArrowDown}");
+                await waitFor(() => expect(first).toHaveFocus());
                 await userEvent.keyboard("{ArrowDown}");
                 await waitFor(() => document.activeElement === row(document, "Second"));
                 await userEvent.keyboard("{ArrowUp}");
@@ -408,8 +410,8 @@ describe("8.1 dark menu keyboard and scroll", () => {
         );
         await userEvent.click(getByRole("button", { name: "Main menu" }));
         await waitFor(() => document.querySelector(".cm-menu"));
-        // Opening focuses the first row: the theme drops Mantine's focus placeholder.
-        await waitFor(() => (document.activeElement?.textContent?.startsWith("Actions") ? true : null));
+        // Opened by a click, the menu itself has focus; type-ahead starts from before the first row.
+        await waitFor(() => expect(document.querySelector(".cm-menu")).toHaveFocus());
         const focused = (): string => document.activeElement?.textContent ?? "";
         await userEvent.keyboard("l");
         expect(focused()).toBe("Libraries");

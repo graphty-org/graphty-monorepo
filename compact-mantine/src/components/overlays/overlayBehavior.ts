@@ -254,19 +254,28 @@ function consumeMenuEscape(event: KeyboardEvent): void {
 }
 
 /**
- * A menu's first focus skips a disabled row: Mantine's focus trap focuses the first focusable
- * row as the menu opens, and a disabled row that stays focusable to show its reason would be the
- * one highlighted, the row Enter cannot run (its ArrowDown from the dropdown does the same).
+ * A menu's first focus: Mantine's focus trap focuses the first focusable row as the menu opens,
+ * which highlights it as if already chosen, and a disabled row that stays focusable to show its
+ * reason would be the row Enter cannot run (its ArrowDown from the dropdown does the same).
  * Opened by a key, focus moves on to the first enabled row, or the menu itself when none is.
- * Opened by the pointer, it goes to the menu itself, so no row is highlighted until an arrow key
- * (ArrowDown then lands here again, from a key, and reaches the first enabled row). Focus coming
- * from another row (an arrow, a click on the row to read its reason) stays.
+ * Opened by the pointer, it goes to the menu itself, whatever the first row is, so no row is
+ * highlighted until an arrow key (ArrowDown then lands here again, from a key, and reaches the
+ * first enabled row). Focus coming from another row (an arrow, a click on the row to read its
+ * reason) stays.
  * @param event - a focusin anywhere in the document
  */
 function skipDisabledFirstRow(event: FocusEvent): void {
     const row = event.target instanceof HTMLElement ? event.target : null;
     const menu = row?.closest<HTMLElement>(".cm-menu");
-    if (!row || !menu || menuRows(menu).includes(row) || !row.matches('[role^="menuitem"]')) {
+    if (!row || !menu || !row.matches('[role^="menuitem"]')) {
+        return;
+    }
+    // An enabled row other than the one the focus trap picks (the first) was reached on purpose:
+    // type-ahead from the menu itself lands there.
+    const trapPick = Array.from(menu.querySelectorAll('[role^="menuitem"]')).find(
+        (r) => r.closest(".cm-menu") === menu,
+    );
+    if (row !== trapPick && menuRows(menu).includes(row)) {
         return;
     }
     const from = event.relatedTarget;
@@ -274,6 +283,9 @@ function skipDisabledFirstRow(event: FocusEvent): void {
         return;
     }
     const first = keyLast ? menuRows(menu).at(0) : undefined;
+    if (row === first) {
+        return;
+    }
     // Mantine's focus trap places its first focus twice (two timers), the second time from the
     // row this moved to; marked, both land here.
     first?.setAttribute("data-autofocus", "");

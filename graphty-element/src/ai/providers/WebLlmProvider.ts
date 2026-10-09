@@ -41,7 +41,7 @@ export interface WebLlmModelInfo {
     downloadMB?: number;
 }
 
-/** Options for a new {@link WebLlmProvider}. */
+/** Options for a new `WebLlmProvider` (from `getWebLlmProviderClass()`). */
 export interface WebLlmProviderOptions {
     /**
      * Load the model on the first request instead of failing until `initialize()` has been

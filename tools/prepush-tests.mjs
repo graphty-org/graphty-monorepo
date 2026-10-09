@@ -55,7 +55,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { SHARDS } from "./ci-test-matrix.mjs";
-import { partitionByPasses, passStore, shardKeys } from "./prepush-inputs.mjs";
+import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-inputs.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -237,9 +237,13 @@ function passed(shards, main) {
         );
     }
     const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
-    const record = (shard) => {
+    const record = (shard, log) => {
         const key = before.get(shard.shard);
         try {
+            // A run that passed no test proves nothing about these inputs (an empty include, a filter).
+            if (testsPassed(log) === 0) {
+                return "; not recorded: its log shows no test that passed";
+            }
             if (!key || keys()(shard) !== key) {
                 return "; not recorded: its inputs changed while it ran";
             }
@@ -340,7 +344,14 @@ async function main() {
             }
             if (code === 0) {
                 warmed.add(family(shard));
-                console.log(`  [PASS] ${shard.shard} (${secs}s)${passes.record(shard)}`);
+                // The pass is recorded from the whole log, so only once the log stream has finished.
+                const report = () =>
+                    console.log(`  [PASS] ${shard.shard} (${secs}s)${passes.record(shard, readFileSync(log, "utf8"))}`);
+                if (out.destroyed) {
+                    report();
+                } else {
+                    out.end(report);
+                }
                 next();
                 return;
             }

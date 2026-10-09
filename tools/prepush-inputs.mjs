@@ -294,6 +294,23 @@ export function shardKeys(root) {
     };
 }
 
+// Terminal color codes, built from the ESC character rather than written into a regular expression.
+const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
+
+/**
+ * How many tests a shard's log says passed: the sum over every vitest summary line
+ * (`Tests  12 passed | 1 skipped (13)`) in it, colors stripped.
+ * @param log the shard's whole output
+ * @returns the number of passed tests, 0 when the log has no summary
+ */
+export function testsPassed(log) {
+    let n = 0;
+    for (const m of log.replaceAll(ANSI, "").matchAll(/^\s*Tests\s+(?:.*?\b)?(\d+) passed\b/gm)) {
+        n += Number(m[1]);
+    }
+    return n;
+}
+
 /**
  * Which shards already passed on these exact inputs.
  * @param shards the shards to run

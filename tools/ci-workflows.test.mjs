@@ -36,7 +36,15 @@ import {
     revertTitle,
 } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
-import { fingerprint, inputKey, outputHash, partitionByPasses, passStore, related } from "./prepush-inputs.mjs";
+import {
+    fingerprint,
+    inputKey,
+    outputHash,
+    partitionByPasses,
+    passStore,
+    related,
+    testsPassed,
+} from "./prepush-inputs.mjs";
 import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
@@ -2831,6 +2839,14 @@ describe("pre-push shards skipped on inputs that already passed (tools/prepush-i
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
+    });
+
+    it("counts the passed tests of a shard's log, so a run that passed none is never recorded", () => {
+        assert.equal(testsPassed("No test files found, exiting with code 0\n"), 0);
+        assert.equal(testsPassed(" Test Files  1 passed (1)\n      Tests  0 passed (0)\n"), 0);
+        assert.equal(testsPassed("\x1b[2m      Tests \x1b[22m \x1b[1m\x1b[32m6 passed\x1b[39m\x1b[22m (6)\n"), 6);
+        assert.equal(testsPassed("      Tests  12 passed | 1 skipped (13)\n...\n      Tests  3 passed (3)\n"), 15);
+        assert.equal(testsPassed("      Tests  2 failed | 5 passed (7)\n"), 5);
     });
 
     it("records passes per branch and reads them back", () => {

@@ -35,6 +35,7 @@ import {
     revertBody,
     revertTitle,
 } from "./master-guard.mjs";
+import { linksIssue, skipReason } from "./pr-issue-link.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { strayChanges } from "./release-diff.mjs";
@@ -1198,6 +1199,66 @@ describe("pr-title.yml", () => {
     it("is never cancelled by a later run, so Mergify's body edits cannot interrupt the required check", () => {
         // A concurrency group cancels superseded runs even without cancel-in-progress.
         assert.doesNotMatch(workflow("pr-title.yml"), /^concurrency:/m);
+    });
+});
+
+describe("pr-issue-link.yml", () => {
+    it("passes a closing keyword, in any case, with or without a colon, for #N or owner/repo#N", () => {
+        for (const kw of ["close", "closes", "closed", "fix", "fixes", "fixed", "resolve", "resolves", "resolved"]) {
+            for (const text of [`${kw} #12`, `${kw.toUpperCase()}: #12`, `${kw} graphty-org/graphty-monorepo#12`]) {
+                assert.ok(linksIssue(`Some change.\n\n${text}.`), text);
+            }
+        }
+    });
+    it("passes Refs, Ref and Part of", () => {
+        for (const text of ["Refs #12", "ref: #12", "Part of #12", "part  of #12"]) assert.ok(linksIssue(text), text);
+    });
+    it("passes a line that is only No issue, in any case", () => {
+        assert.ok(linksIssue("Bumps a dependency.\n\n  no ISSUE  \n"));
+        assert.ok(linksIssue("No issue\r\nmore"));
+        assert.ok(!linksIssue("There is no issue for this yet."));
+    });
+    it("fails an empty description, a bare number, and a keyword with no issue", () => {
+        for (const body of [
+            undefined,
+            "",
+            "Filed as #12 and not changed here.",
+            "Fixes 12",
+            "prefixes #12",
+            "Fixes the bug",
+        ]) {
+            assert.ok(!linksIssue(body), String(body));
+        }
+    });
+    it("skips Dependabot and the release train, and only those", () => {
+        assert.ok(skipReason({ headRef: "dependabot/npm/x", author: "dependabot[bot]", sameRepo: true }));
+        assert.ok(skipReason({ headRef: "release/train-1", author: "github-actions[bot]", sameRepo: true }));
+        assert.equal(skipReason({ headRef: "release/train-1", author: "someone", sameRepo: true }), null);
+        assert.equal(skipReason({ headRef: "release/train-1", author: "github-actions[bot]", sameRepo: false }), null);
+        assert.equal(skipReason({ headRef: "fix/x", author: "someone", sameRepo: true }), null);
+    });
+    it("skips the whole job for Mergify's own merge-queue draft, and re-runs on a description edit", () => {
+        const wf = workflow("pr-issue-link.yml");
+        assert.ok(wf.includes(`        name: Link PR Issue\n`));
+        assert.ok(wf.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
+        assert.match(wf, /types: \[opened, edited, synchronize, reopened\]/);
+        assert.doesNotMatch(wf, /^concurrency:/m);
+        assert.match(wf, /PR_BODY: \$\{\{ github\.event\.pull_request\.body \}\}\n/);
+    });
+    it("fails with the message that says what to add, and a failing one blocks Mergify", () => {
+        const run = (env) =>
+            spawnSync(process.execPath, [new URL("pr-issue-link.mjs", import.meta.url).pathname], {
+                encoding: "utf8",
+                env: { ...process.env, HEAD_REF: "fix/x", PR_AUTHOR: "someone", SAME_REPO: "true", ...env },
+            });
+        const bad = run({ PR_BODY: "" });
+        assert.equal(bad.status, 1);
+        assert.match(bad.stderr, /Add 'Fixes #123' \(or Closes\/Resolves\), 'Refs #123'.*a line 'No issue'/);
+        assert.equal(run({ PR_BODY: "Fixes #1611" }).status, 0);
+        assert.equal(run({ PR_BODY: "", PR_AUTHOR: "dependabot[bot]" }).status, 0);
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        assert.match(mergify, /- -check-failure=Link PR Issue\n/);
+        assert.doesNotMatch(mergify, /check-success=Link PR Issue/);
     });
 });
 

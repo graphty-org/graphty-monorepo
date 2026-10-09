@@ -627,6 +627,27 @@ describe("a development daemon", () => {
         }
     });
 
+    it("prefers the daemon a live daemon.json names over a GITHERD_URL that still answers", async () => {
+        const servers2 = [0, 1].map(() =>
+            createServer((_req, res) => res.end(JSON.stringify({ name: "githerd", root }))),
+        );
+        await Promise.all(servers2.map((s) => new Promise((r) => s.listen(0, "127.0.0.1", () => r(undefined)))));
+        const [live, pinned] = servers2.map((s) => /** @type {import("node:net").AddressInfo} */ (s.address()).port);
+        const sd = join(dir, "live-record");
+        mkdirSync(sd, { recursive: true });
+        const me = { pid: process.pid, ...identify(process.pid) };
+        writeFileSync(join(sd, "daemon.json"), JSON.stringify({ ...me, port: live }));
+        const ctx = /** @type {any} */ ({ env: { GITHERD_URL: `http://127.0.0.1:${pinned}` }, root, stateDir: sd });
+        try {
+            expect(await ensureDaemon(ctx)).toEqual({ url: `http://127.0.0.1:${live}`, action: "warm" });
+            // A record whose process is gone does not outrank the URL.
+            writeFileSync(join(sd, "daemon.json"), JSON.stringify({ ...me, startTime: "1", port: live }));
+            expect(await ensureDaemon(ctx)).toEqual({ url: `http://127.0.0.1:${pinned}`, action: "warm" });
+        } finally {
+            for (const s of servers2) s.close();
+        }
+    });
+
     it("is never another repository's daemon", async () => {
         const other = createServer((_req, res) =>
             res.end(JSON.stringify({ name: "githerd", root: "/elsewhere/main" })),
@@ -1245,8 +1266,8 @@ describe("tools that follow the daemon", () => {
     /**
      * A fake daemon at GITHERD_URL serving `defs()` as its tool list and echoing each call it gets.
      * @param {() => any[]} defs its tool list, read at each `tools/list`
-     * @returns {Promise<{url: string, calls: any[], lists: () => number}>} its URL, the calls it
-     *   received and how many times its list was read
+     * @returns {Promise<{url: string, calls: any[], lists: () => number, server: import("node:http").Server}>}
+     *   its URL, the calls it received, how many times its list was read, and the server
      */
     async function fakeDaemon(defs) {
         /** @type {any[]} */
@@ -1279,7 +1300,7 @@ describe("tools that follow the daemon", () => {
         servers.push(server);
         await new Promise((r) => server.once("listening", r));
         const { port } = /** @type {import("node:net").AddressInfo} */ (server.address());
-        return { url: `http://127.0.0.1:${port}`, calls: received, lists: () => lists };
+        return { url: `http://127.0.0.1:${port}`, calls: received, lists: () => lists, server };
     }
 
     /**
@@ -1379,6 +1400,41 @@ describe("tools that follow the daemon", () => {
         expect(l.notices()).toHaveLength(1);
         l.input.end();
         await l.running;
+    });
+
+    it("follows a daemon that restarted on a new port without failing the call", async () => {
+        const defs = () => TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
+        const first = await fakeDaemon(defs);
+        const sd = join(dir, "dev-moves");
+        mkdirSync(sd, { recursive: true });
+        const record = (/** @type {string} */ url) =>
+            writeFileSync(join(sd, "daemon.json"), JSON.stringify({ port: Number(new URL(url).port) }));
+        record(first.url);
+        const written = /** @type {any[]} */ ([]);
+        const input = new PassThrough();
+        const running = runLauncher({
+            input,
+            write: (l) => written.push(JSON.parse(l)),
+            cwd: root,
+            env: { ...env, GITHERD_DEV_STATE: sd },
+            pkgDir: "githerd",
+            heartbeatMs: 60_000,
+            jitterMs: 0,
+            callWaitMs: 5000,
+            log: () => {},
+        });
+        const reply = (/** @type {number} */ id) => until(() => written.find((m) => m.id === id), `reply ${id}`);
+        input.write(`${JSON.stringify(done(1, "done"))}\n`);
+        expect((await reply(1)).result.content[0].text).toBe("ok done");
+        first.server.closeAllConnections();
+        await new Promise((r) => first.server.close(r));
+        const second = await fakeDaemon(defs);
+        record(second.url);
+        input.write(`${JSON.stringify(done(2, "failed"))}\n`);
+        expect((await reply(2)).result.content[0].text).toBe("ok failed");
+        expect(second.calls.map((c) => c.arguments.outcome)).toEqual(["failed"]);
+        input.end();
+        await running;
     });
 
     it("answers with the built-in list while no daemon answers", async () => {

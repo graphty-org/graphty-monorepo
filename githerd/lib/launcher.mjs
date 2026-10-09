@@ -1104,28 +1104,31 @@ function devStateUrl(dir) {
 }
 
 /**
- * The daemon GITHERD_URL names, or when it does not answer, the one a daemon.json names now: the
- * state directory's, then the development daemon's of the worktree this code runs from. A URL fixed
- * when a session started goes stale when the daemon restarts on a new port, and must not strand
- * the session until the owner reconnects it.
+ * The daemon a live daemon.json names (the state directory's, then the development daemon's of the
+ * worktree this code runs from), else the one GITHERD_URL names, else the one any daemon.json names.
+ * A URL fixed when a session started goes stale when the daemon restarts on a new port, and must
+ * not strand the session until the owner reconnects it, nor win over the record of the daemon that
+ * runs now.
  * @param {LauncherContext} ctx the context
  * @returns {Promise<{url: string, action: "warm" | "down", fatal?: string}>} the answer
+ * @throws {Error} GITHERD_URL's error when no candidate answers
  */
 async function urlDaemon(ctx) {
-    try {
-        return await devDaemon(/** @type {string} */ (ctx.env.GITHERD_URL), ctx.root);
-    } catch (err) {
-        for (const dir of [ctx.stateDir, join(PACKAGE_DIR, "..", ".githerd-dev")]) {
-            const port = dir ? readJson(join(dir, "daemon.json"))?.port : null;
-            if (!port) continue;
-            try {
-                return await devDaemon(`http://127.0.0.1:${port}`, ctx.root);
-            } catch {
-                // not this one either
-            }
+    const named = /** @type {string} */ (ctx.env.GITHERD_URL);
+    const records = [ctx.stateDir, join(PACKAGE_DIR, "..", ".githerd-dev")]
+        .map((dir) => (dir ? readJson(join(dir, "daemon.json")) : null))
+        .filter((r) => r?.port);
+    const urlOf = (/** @type {any} */ r) => `http://127.0.0.1:${r.port}`;
+    const live = records.filter((r) => r.pid && sameProcess(r)).map(urlOf);
+    let failure;
+    for (const url of new Set([...live, named, ...records.map(urlOf)])) {
+        try {
+            return await devDaemon(url, ctx.root);
+        } catch (err) {
+            if (url === named) failure = err;
         }
-        throw err;
     }
+    throw failure;
 }
 
 /**
@@ -1495,9 +1498,10 @@ export async function runLauncher({
     /**
      * Forwards one `tools/call`, waiting up to `callWaitMs` for the daemon.
      * @param {any} msg the request
+     * @param {boolean} [retried] this is the call's second try
      * @returns {Promise<unknown>} the reply
      */
-    async function forward(msg) {
+    async function forward(msg, retried = false) {
         const notReachable = (/** @type {string} */ reason) => ({
             jsonrpc: "2.0",
             id: msg.id,
@@ -1505,19 +1509,13 @@ export async function runLauncher({
         });
         // A known daemon answers at once, even while a restarter works: one in fatal mode still
         // explains its state.
-        let target = daemonUrl;
+        const known = daemonUrl;
+        let target = known;
         if (!target) {
-            /** @type {NodeJS.Timeout | undefined} */
-            let timer;
             try {
-                const timeout = new Promise((_, reject) => {
-                    timer = setTimeout(() => reject(new Error(`no daemon after ${callWaitMs / 1000} s`)), callWaitMs);
-                });
-                target = await Promise.race([inflight ?? ensure(), timeout]);
+                target = await daemonWithin();
             } catch (err) {
                 return notReachable(err.message);
-            } finally {
-                clearTimeout(timer);
             }
         }
         try {
@@ -1530,8 +1528,29 @@ export async function runLauncher({
             return await res.json();
         } catch (err) {
             daemonUrl = null;
+            // A refused connection delivered nothing, so the call goes once more to wherever the
+            // daemon runs now: a daemon restarted on a new port costs the session no failed call.
+            if (known && !retried && err.cause?.code === "ECONNREFUSED") return forward(msg, true);
             void ensure().catch(() => {});
             return notReachable(err.cause?.code ?? err.message);
+        }
+    }
+
+    /**
+     * The daemon's URL, from the restarter, within `callWaitMs`.
+     * @returns {Promise<string>} the URL
+     * @throws {Error} when no daemon answers in time
+     */
+    async function daemonWithin() {
+        /** @type {NodeJS.Timeout | undefined} */
+        let timer;
+        try {
+            const timeout = new Promise((_, reject) => {
+                timer = setTimeout(() => reject(new Error(`no daemon after ${callWaitMs / 1000} s`)), callWaitMs);
+            });
+            return await Promise.race([inflight ?? ensure(), timeout]);
+        } finally {
+            clearTimeout(timer);
         }
     }
 

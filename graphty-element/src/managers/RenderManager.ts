@@ -240,6 +240,10 @@ export class RenderManager implements Manager {
             this.config.engine ??
             new Engine(this.canvas, true, {
                 preserveDrawingBuffer: true, // Required for screenshots
+                // Disposing a graph gives its WebGL context back to the browser at once. Kept
+                // until garbage collection instead, a page that creates and disposes graphs runs
+                // into Chrome's limit on live contexts and has its oldest ones evicted.
+                loseContextOnDispose: true,
             });
 
         // Create scene

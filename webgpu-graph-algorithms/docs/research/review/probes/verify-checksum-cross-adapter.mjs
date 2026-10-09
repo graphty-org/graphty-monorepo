@@ -74,7 +74,7 @@ const forceBuf = mk(pos.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY
 const swingBuf = mk(mass.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
 const ub = mk(16, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
 device.queue.writeBuffer(ub, 0, new Uint32Array([n, 0, 0, 0]));
-device.queue.writeBuffer(ub, 4, new Float32Array([2.0]));
+device.queue.writeBuffer(ub, 4, new Float32Array([2]));
 const bg = device.createBindGroup({
     layout: pipe.getBindGroupLayout(0),
     entries: [

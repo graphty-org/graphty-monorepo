@@ -689,7 +689,7 @@ export class ScreenshotCapture {
             state.pipeline = pipeline;
         } else if (useFxaa) {
             // FXAA only, no pipeline needed
-            const fxaa = new FxaaPostProcess("screenshotFxaa", 1.0, camera);
+            const fxaa = new FxaaPostProcess("screenshotFxaa", 1, camera);
             state.fxaaPostProcess = fxaa;
         }
 

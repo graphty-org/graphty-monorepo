@@ -37,6 +37,15 @@ import {
 } from "./master-guard.mjs";
 import { linksIssue, skipReason } from "./pr-issue-link.mjs";
 import { summarize } from "./pr-status-broker.mjs";
+import {
+    fingerprint,
+    inputKey,
+    outputHash,
+    partitionByPasses,
+    passStore,
+    related,
+    testsPassed,
+} from "./prepush-inputs.mjs";
 import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
@@ -251,6 +260,7 @@ describe("the pre-push gate matches CI", () => {
             copyFileSync(new URL("./prepush-tests.mjs", import.meta.url), join(dir, "tools/prepush-tests.mjs"));
             // The runner wraps every shard in the machine-wide test slot (it imports only node builtins).
             copyFileSync(new URL("./test-slots.mjs", import.meta.url), join(dir, "tools/test-slots.mjs"));
+            copyFileSync(new URL("./prepush-inputs.mjs", import.meta.url), join(dir, "tools/prepush-inputs.mjs"));
             const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
             writeFileSync(
                 join(dir, "tools/ci-test-matrix.mjs"),
@@ -1550,7 +1560,15 @@ describe("the re-run of a T4 run whose spot runner was lost", () => {
             `if [ "$GITHUB_RUN_ATTEMPT" = 1 ] && tools/gpu-runner-lost.sh "$GITHUB_RUN_ID" 1; then`,
         );
         assert.ok(skip > 0, "the held job asks the same question");
-        assert.match(held.slice(skip), /^[^\n]*\n\s+echo "::warning::[^\n]*\n\s+exit 0\n/);
+        assert.match(
+            held.slice(skip),
+            /^[^\n]*\n\s+echo "::warning::[^\n]*\n\s+echo "reclaimed=true" >> "\$GITHUB_OUTPUT"\n\s+exit 0\n/,
+        );
+        // and announces nothing: the re-run attempt announces its own outcome
+        assert.match(
+            held,
+            /- name: Announce the held release\n\s+if: \$\{\{ always\(\) && steps.hold.outputs.reclaimed != 'true' \}\}/,
+        );
         assert.ok(skip < held.indexOf("tools/release-held.sh open"), "before the issue is opened");
         // the train still requires a green T4: the re-run attempt must pass it
         assert.match(job(workflow("release.yml"), "train"), /needs.t4.result == 'success'/);
@@ -2190,7 +2208,8 @@ describe("release.yml", () => {
         // shape: CI's "All Checks Pass" never ran, "Queue Checks Pass" failed on it) and tools/release-held.sh
         // records the issue it would open.
         const issue = (env, jobs) => {
-            const script = /- name: Open or update the held-release issue\n\s+run: \|\n([\s\S]*?)\n\n/.exec(held)[1];
+            const script =
+                /- name: Open or update the held-release issue\n\s+id: hold\n\s+run: \|\n([\s\S]*?)\n\n/.exec(held)[1];
             const dir = mkdtempSync(join(tmpdir(), "release-held-"));
             try {
                 mkdirSync(join(dir, "tools"));
@@ -2218,6 +2237,7 @@ describe("release.yml", () => {
                         GITHUB_REPOSITORY: "o/r",
                         GITHUB_RUN_ID: "37635516841",
                         GITHUB_RUN_ATTEMPT: "1",
+                        GITHUB_OUTPUT: join(dir, "output"),
                         RUNNER_TEMP: dir,
                         TRIGGER: "schedule",
                         SHA: "44ab26d10658f95c66025ab391219e2865b94aa8",
@@ -2449,7 +2469,7 @@ describe("release.yml", () => {
         assert.match(publish, /issues: write/);
         assert.match(
             publish,
-            /- name: Report a failed publish\n\s+if: \$\{\{ failure\(\) \}\}[\s\S]*title="Release held: publish failed on \$\{GITHUB_SHA:0:7\}"[\s\S]*tools\/release-held.sh open "\$title"/,
+            /- name: Report a failed publish\n\s+id: report\n\s+if: \$\{\{ failure\(\) \}\}[\s\S]*title="Release held: publish failed on \$\{GITHUB_SHA:0:7\}"[\s\S]*tools\/release-held.sh open "\$title"/,
         );
         assert.match(
             publish,
@@ -2457,11 +2477,31 @@ describe("release.yml", () => {
         );
     });
 
+    it("announces every outcome on the Release status issue: held, release pull request, published or failed", () => {
+        // tools/release-status.mjs mentions RELEASE_NOTIFY; a run the owner did not start notifies nobody otherwise
+        for (const [j, outcome] of [
+            [held, "held"],
+            [train, "opened"],
+        ]) {
+            assert.match(j, new RegExp(`node tools/release-status.mjs ${outcome} `));
+            assert.match(j, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
+        }
+        assert.match(held, /tools\/release-status.mjs\n/, "in the held job's sparse checkout");
+        // the last step of the publish job, whatever happened above it, so a re-run (--failed) announces again
+        assert.match(
+            publish,
+            /- name: Announce the publish outcome\n\s+if: \$\{\{ always\(\) \}\}[\s\S]*OUTCOME: \$\{\{ job.status == 'success' && 'published' \|\| 'publish-failed' \}\}[\s\S]*node tools\/release-status.mjs "\$OUTCOME"[^\n]*\n[^\n]*\n$/,
+        );
+        assert.match(publish, /echo "tags=\$\(IFS=,; echo "\$\{tags\[\*\]\}"\)" >> "\$GITHUB_OUTPUT"/);
+    });
+
     // The failed-publish report, run in a scratch directory with stubs: the publish step's output (run
     // 37691314850's shape, colors and all), `pnpm exec nx show project` answering each project's root, and
     // tools/release-held.sh recording the issue it would open.
     const publishReport = (log) => {
-        const script = /- name: Report a failed publish\n\s+if: [^\n]*\n\s+run: \|\n([\s\S]*?)\n\n/.exec(publish)[1];
+        const script = /- name: Report a failed publish\n\s+id: report\n\s+if: [^\n]*\n\s+run: \|\n([\s\S]*?)\n\n/.exec(
+            publish,
+        )[1];
         const dir = mkdtempSync(join(tmpdir(), "release-publish-"));
         try {
             mkdirSync(join(dir, "tools"));
@@ -2487,6 +2527,7 @@ describe("release.yml", () => {
                     GITHUB_REPOSITORY: "graphty-org/graphty-monorepo",
                     GITHUB_RUN_ID: "37691314850",
                     GITHUB_SHA: "e140ea5c8358785f46e6a671172c30a361c6ded4",
+                    GITHUB_OUTPUT: join(dir, "output"),
                     RUNNER_TEMP: dir,
                 },
             });
@@ -2859,13 +2900,15 @@ describe("the commit and push hooks", () => {
         };
         const build = at('run_step "Build"');
         assert.ok(at("PROJECTS=$(") < build);
-        for (const step of ["Formatting", "ESLint root config", "Legacy graph API use", "Links"]) {
-            assert.ok(
-                at(`run_step "${step}"`) < at("PROJECTS=$("),
-                `${step} runs before the affected list and the build`,
-            );
+        assert.ok(at('source "$SCRIPT_DIR/prepush-source-checks.sh"') < at("PROJECTS=$("), "before the affected list");
+        const checks = repoFile("tools/prepush-source-checks.sh");
+        for (const step of ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"]) {
+            assert.match(checks, new RegExp(`run_step "${step.replace(/[()]/g, "\\$&")}"`), step);
         }
-        const runStep = prepush.slice(at("run_step() {"), prepush.indexOf("\n}\n", at("run_step() {")) + 3);
+        const runStep = checks.slice(
+            checks.indexOf("run_step() {"),
+            checks.indexOf("\n}\n", checks.indexOf("run_step() {")) + 3,
+        );
         const r = spawnSync("bash", ["-c", `${runStep}\nrun_step one false\nrun_step two "echo SECOND"`], {
             encoding: "utf8",
         });
@@ -2937,7 +2980,7 @@ describe("a failed pre-push test shard (#1562)", () => {
         try {
             mkdirSync(join(dir, "tools"));
             mkdirSync(join(dir, "tmp"));
-            for (const f of ["prepush-tests.mjs", "test-slots.mjs"]) {
+            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             const shard = { shard: "fake", package: "fake", "test-command": "true", "needs-browser": false };
@@ -2965,6 +3008,221 @@ describe("a failed pre-push test shard (#1562)", () => {
             assert.match(firstLog, /FAIL {2}src\/a\.test\.ts > draws the edge/);
             assert.match(firstLog, /Test timed out in 5000ms/);
             assert.equal(readdirSync(join(dir, "tmp/push-gate-logs")).length, 2);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("pre-push shards skipped on inputs that already passed (tools/prepush-inputs.mjs)", () => {
+    const shard = (name, pkg = name) => ({ shard: name, package: pkg, "test-command": "true", "needs-browser": false });
+    const roots = new Map([
+        ["graph-format", "graph-format"],
+        ["graphty-element", "graphty-element"],
+        ["graphty", "graphty"],
+    ]);
+    const files = (changes = {}) =>
+        new Map(
+            Object.entries({
+                "pnpm-lock.yaml": "a",
+                "tools/run-tests.sh": "a",
+                "graph-format/src/a.ts": "a",
+                "graphty-element/src/b.ts": "a",
+                "graphty/src/c.ts": "a",
+                ...changes,
+            }),
+        );
+    // graphty-element depends on graph-format; graphty is a dependent of graphty-element, not an input.
+    const include = related("graphty-element", new Map([["graphty-element", new Set(["graph-format"])]]));
+    const key = (changes, outputs = new Map([["graph-format/dist", "x"]])) =>
+        inputKey(shard("graphty-element-default", "graphty-element"), files(changes), roots, include, outputs, {});
+
+    it("runs a shard that never passed, and one whose key is unknown", () => {
+        const shards = [shard("a"), shard("b")];
+        const { run, skipped } = partitionByPasses(
+            shards,
+            new Map([
+                ["a", "k"],
+                ["b", null],
+            ]),
+            {
+                b: { key: null, sha: "s", at: "t" },
+            },
+        );
+        assert.deepEqual(run, shards);
+        assert.deepEqual(skipped, []);
+    });
+
+    it("skips only a shard whose recorded pass has exactly this key", () => {
+        const shards = [shard("same"), shard("changed")];
+        const passes = { same: { key: "k1", sha: "s", at: "t" }, changed: { key: "old", sha: "s", at: "t" } };
+        const { run, skipped } = partitionByPasses(
+            shards,
+            new Map([
+                ["same", "k1"],
+                ["changed", "new"],
+            ]),
+            passes,
+        );
+        assert.deepEqual(
+            run.map((s) => s.shard),
+            ["changed"],
+        );
+        assert.deepEqual(
+            skipped.map((s) => s.shard.shard),
+            ["same"],
+        );
+    });
+
+    it("re-runs when the package, a dependency, a root file or a dependency's build output changes", () => {
+        const base = key({});
+        assert.notEqual(key({ "graphty-element/src/b.ts": "b" }), base, "its own source");
+        assert.notEqual(key({ "graphty-element/test/new.test.ts": "n" }), base, "a new file");
+        assert.notEqual(key({ "graph-format/src/a.ts": "b" }), base, "a dependency's source");
+        assert.notEqual(key({ "pnpm-lock.yaml": "b" }), base, "a root file");
+        assert.notEqual(key({ "tools/run-tests.sh": "b" }), base, "a tool");
+        assert.notEqual(key({}, new Map([["graph-format/dist", "y"]])), base, "a dependency's dist");
+        const gone = files();
+        gone.delete("graphty-element/src/b.ts");
+        assert.notEqual(
+            inputKey(
+                shard("graphty-element-default", "graphty-element"),
+                gone,
+                roots,
+                include,
+                new Map([["graph-format/dist", "x"]]),
+                {},
+            ),
+            base,
+            "a deleted file",
+        );
+        assert.notEqual(
+            inputKey(
+                shard("graphty-element-default", "graphty-element"),
+                files(),
+                roots,
+                include,
+                new Map([["graph-format/dist", "x"]]),
+                { GRAPHTY_GPU_REQUIRE: "any" },
+            ),
+            base,
+            "the GRAPHTY_ environment",
+        );
+    });
+
+    it("keeps the key of a shard whose inputs a change does not touch", () => {
+        assert.equal(key({ "graphty/src/c.ts": "b" }), key({}), "a package that depends on it");
+        assert.equal(key({}), key({}));
+    });
+
+    it("follows dependencies and relative path references transitively", () => {
+        const deps = new Map([["graphty", new Set(["graphty-element"])]]);
+        const refs = new Map([["graphty-element", new Set(["graph-format"])]]);
+        assert.deepEqual([...related("graphty", deps, refs)].sort(), ["graph-format", "graphty", "graphty-element"]);
+        assert.deepEqual([...related("graph-format", deps, refs)], ["graph-format"]);
+    });
+
+    it("hashes the checkout as it is on disk: edits and untracked files count, ignored ones do not", () => {
+        const dir = mkdtempSync(join(tmpdir(), "prepush-inputs-"));
+        try {
+            const git = (...args) => assert.equal(spawnSync("git", args, { cwd: dir }).status, 0, args.join(" "));
+            git("init", "-q");
+            writeFileSync(join(dir, ".gitignore"), "dist/\n");
+            writeFileSync(join(dir, "a.ts"), "a\n");
+            git("add", ".");
+            git("commit", "-q", "-m", "a");
+            const before = fingerprint(dir);
+            mkdirSync(join(dir, "dist"));
+            writeFileSync(join(dir, "dist/out.js"), "x\n");
+            assert.equal(fingerprint(dir), before, "an ignored file");
+            writeFileSync(join(dir, "new.ts"), "n\n");
+            const untracked = fingerprint(dir);
+            assert.notEqual(untracked, before, "an untracked file");
+            writeFileSync(join(dir, "a.ts"), "b\n");
+            assert.notEqual(fingerprint(dir), untracked, "an edit");
+            assert.notEqual(outputHash(join(dir, "dist")), outputHash(join(dir, "missing")));
+            const out = outputHash(join(dir, "dist"));
+            writeFileSync(join(dir, "dist/out.js"), "y\n");
+            assert.notEqual(outputHash(join(dir, "dist")), out, "a changed build output");
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("counts the passed tests of a shard's log, so a run that passed none is never recorded", () => {
+        assert.equal(testsPassed("No test files found, exiting with code 0\n"), 0);
+        assert.equal(testsPassed(" Test Files  1 passed (1)\n      Tests  0 passed (0)\n"), 0);
+        assert.equal(testsPassed("\x1b[2m      Tests \x1b[22m \x1b[1m\x1b[32m6 passed\x1b[39m\x1b[22m (6)\n"), 6);
+        assert.equal(testsPassed("      Tests  12 passed | 1 skipped (13)\n...\n      Tests  3 passed (3)\n"), 15);
+        assert.equal(testsPassed("      Tests  2 failed | 5 passed (7)\n"), 5);
+    });
+
+    it("records passes per branch and reads them back", () => {
+        const dir = mkdtempSync(join(tmpdir(), "prepush-passes-"));
+        try {
+            const store = passStore(dir, "tools/x");
+            assert.deepEqual(store.read(), {});
+            store.record("a", { key: "k", sha: "s", at: "t" });
+            store.record("b", { key: "k2", sha: "s", at: "t" });
+            assert.deepEqual(Object.keys(passStore(dir, "tools/x").read()).sort(), ["a", "b"]);
+            assert.deepEqual(passStore(dir, "other").read(), {});
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("the source-only checks before the queue (tools/prepush-source-checks.sh)", () => {
+    it("skip only on the exact checkout they passed on, and run again after any edit", () => {
+        // The script and the fingerprint tool in a throwaway repository, every check behind a fake
+        // pnpm (and check-links.sh) that logs its call and passes.
+        const dir = mkdtempSync(join(tmpdir(), "prepush-source-checks-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            mkdirSync(join(dir, "bin"));
+            mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs"]) {
+                copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
+            }
+            writeFileSync(join(dir, "bin/pnpm"), `#!/bin/sh\necho "$*" >> ${dir}/calls\n`, { mode: 0o755 });
+            writeFileSync(join(dir, "tools/check-links.sh"), `#!/bin/sh\necho links >> ${dir}/calls\n`, {
+                mode: 0o755,
+            });
+            writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
+            writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n");
+            writeFileSync(join(dir, ".gitignore"), "node_modules/\ncalls\n");
+            writeFileSync(join(dir, "a.ts"), "a\n");
+            const git = (...args) => assert.equal(spawnSync("git", args, { cwd: dir }).status, 0, args.join(" "));
+            git("init", "-q");
+            git("add", ".");
+            git("commit", "-q", "-m", "a");
+            const run = () => {
+                rmSync(join(dir, "calls"), { force: true });
+                const r = spawnSync("bash", ["tools/prepush-source-checks.sh"], {
+                    cwd: dir,
+                    encoding: "utf8",
+                    env: { ...process.env, PATH: `${join(dir, "bin")}:${process.env.PATH}` },
+                });
+                assert.equal(r.status, 0, r.stdout + r.stderr);
+                return {
+                    out: r.stdout,
+                    calls: existsSync(join(dir, "calls")) ? readFileSync(join(dir, "calls"), "utf8") : "",
+                };
+            };
+            const first = run();
+            assert.match(first.calls, /run format:check/);
+            assert.match(first.calls, /links/);
+            const second = run();
+            assert.equal(second.calls, "", "nothing changed: no check runs");
+            assert.match(second.out, /\[SKIP\] Source-only checks/);
+            writeFileSync(join(dir, "a.ts"), "b\n");
+            assert.match(run().calls, /run format:check/, "an edit runs them again");
+            writeFileSync(join(dir, "new.ts"), "n\n");
+            assert.match(run().calls, /run format:check/, "a new file runs them again");
+            git("add", ".");
+            git("commit", "-q", "-m", "b");
+            assert.match(run().calls, /run format:check/, "a commit runs them again");
+            assert.equal(run().calls, "");
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

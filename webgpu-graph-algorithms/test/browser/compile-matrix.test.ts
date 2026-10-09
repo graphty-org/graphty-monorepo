@@ -43,8 +43,14 @@ describe("compile matrix on Chromium", () => {
         return { ctx: a, twin: b };
     }
 
-    async function compileAll(context: GpuContext, cases: readonly OverrideCase[]): Promise<void> {
+    /**
+     * Compiles the cases one after another, and stops at the first case after `signal` aborts. Vitest aborts a test's
+     * signal when the test times out but cannot stop its body, so without the check a timed-out kernel kept queuing
+     * SwiftShader compiles (each a CPU JIT in the GPU process) under every test after it (issue #1706).
+     */
+    async function compileAll(context: GpuContext, cases: readonly OverrideCase[], signal: AbortSignal): Promise<void> {
         for (const c of cases) {
+            signal.throwIfAborted();
             const kernel = await context.pipelines.kernel(kernelSpec(c.id, c.overrides, c.snippets));
             expect(kernel.entryPoint).toBe(entryOf(c.id).entryPoint);
         }
@@ -61,10 +67,10 @@ describe("compile matrix on Chromium", () => {
             const { ctx: a, twin: b } = await contexts(t);
             const cases = OVERRIDE_MATRIX.filter((c) => c.id === id);
             expect(cases.length).toBeGreaterThan(0);
-            await compileAll(a, cases);
+            await compileAll(a, cases, t.signal);
             const twins = cases.filter((c) => c.twin);
             if (twins.length > 0) {
-                await compileAll(b, twins);
+                await compileAll(b, twins, t.signal);
             }
         });
     }

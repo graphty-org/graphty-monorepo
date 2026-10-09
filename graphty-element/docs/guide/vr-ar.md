@@ -72,23 +72,29 @@ unless you ask for them with `element.xr = { ui: { enabled: true } }`.
 
 ## XR Configuration
 
-Configure WebXR session options:
+Each mode has its own reference space, the coordinate system the headset tracks the viewer in:
 
 ```typescript
-graph.setXRConfig({
-    referenceSpace: "local-floor",
-    sessionMode: "immersive-vr",
-});
+element.xr = {
+    enabled: true,
+    vr: { referenceSpaceType: "bounded-floor" },
+    ar: { referenceSpaceType: "local-floor" },
+};
 ```
 
 ### Reference Space Options
 
-| Value           | Description                             |
-| --------------- | --------------------------------------- |
-| `local`         | Small-scale, seated experience          |
-| `local-floor`   | Standing experience with floor tracking |
-| `bounded-floor` | Room-scale with boundaries              |
-| `unbounded`     | Large-scale, free movement              |
+| Value                   | Description                             |
+| ----------------------- | --------------------------------------- |
+| `local`                 | Small-scale, seated experience          |
+| `local-floor` (default) | Standing experience with floor tracking |
+| `bounded-floor`         | Room-scale with boundaries              |
+| `unbounded`             | Large-scale, free movement              |
+
+Not every headset offers every reference space. When the device refuses the configured one, the
+element tries `local-floor`, then `local`, and uses the first one the device grants. If it refuses
+all of them, the session runs in the `viewer` space, lowered to standing height. The
+`xr-session-started` event says which one the session got (see "Event Handling in XR" below).
 
 ### Session Mode Options
 
@@ -222,21 +228,28 @@ reader's own headset places the scene.
 
 ## Event Handling in XR
 
-XR has specific events:
+Two events report the session's life:
 
 ```typescript
-graph.on("xr-session-started", () => {
-    console.log("Entered XR mode");
+element.addEventListener("xr-session-started", (event) => {
+    const { mode, requestedReferenceSpace, referenceSpace } = event.detail;
+    // mode: "vr" or "ar"
+    // referenceSpace: the one the headset granted, which differs from
+    // requestedReferenceSpace when the headset refused the configured one
 });
 
-graph.on("xr-session-ended", () => {
-    console.log("Exited XR mode");
-});
-
-graph.on("xr-controller-connected", ({ controller }) => {
-    console.log("Controller connected:", controller);
+element.addEventListener("xr-session-ended", (event) => {
+    const { mode, cause } = event.detail;
+    // cause: "exit" when the page left the session (setViewMode("3d")),
+    // "device" when the headset or browser ended it (the system button, taking the headset off)
 });
 ```
+
+However the session ends, the graph goes back to its 3D view, and `setViewMode("vr")` or
+`setViewMode("ar")` starts a new session.
+
+While a session is running, `graph.getXRSessionManager()?.getReferenceSpaceType()` returns the
+reference space it runs in.
 
 ## Testing Without Headset
 

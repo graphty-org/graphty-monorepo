@@ -114,9 +114,10 @@ function babylonXRButton(): Element | null {
  * Attach an element with XR on, and wait for its XR buttons to appear, which happens at the end
  * of `Graph.init()`.
  * @param handTracking - whether the element's hand tracking is on
+ * @param vrReferenceSpace - the VR reference space to configure, when not the default
  * @returns the element's graph
  */
-async function mountXRGraph(handTracking = false): Promise<Graph> {
+async function mountXRGraph(handTracking = false, vrReferenceSpace?: "bounded-floor"): Promise<Graph> {
     element = document.createElement("graphty-element");
     element.style.width = "400px";
     element.style.height = "300px";
@@ -125,6 +126,7 @@ async function mountXRGraph(handTracking = false): Promise<Graph> {
         enabled: true,
         ui: { enabled: true, showAvailabilityWarning: true },
         input: { handTracking },
+        ...(vrReferenceSpace === undefined ? {} : { vr: { referenceSpaceType: vrReferenceSpace } }),
     };
     element.layout = "circular";
     document.body.append(element);
@@ -491,4 +493,102 @@ describe("session.capabilities.xr", () => {
         assert.strictEqual(alert.mock.calls.length, 0);
         alert.mockRestore();
     });
+});
+
+describe.each([
+    { viewMode: "vr", mode: "immersive-vr" },
+    { viewMode: "ar", mode: "immersive-ar" },
+] as const)("a $viewMode session the headset ends", ({ viewMode, mode }) => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    test(
+        "returns the graph to 3D, says so, and the element can enter again",
+        async () => {
+            const graph = await mountXRGraph();
+            const ended: { mode: string; cause: string }[] = [];
+            element.addEventListener("xr-session-ended", (event) => {
+                ended.push({ mode: event.detail.mode, cause: event.detail.cause });
+            });
+
+            await element.setViewMode(viewMode);
+            const [first] = iwer.sessions;
+            await vi.waitFor(() => {
+                assert.isAtLeast(first.frames, MIN_XR_FRAMES, "the session is not rendering XR frames");
+            }, WAIT);
+
+            // The headset ends it: the element did not ask.
+            await first.session.end();
+
+            await vi.waitFor(() => {
+                assert.deepEqual(ended, [{ mode: viewMode, cause: "device" }], "no xr-session-ended from the device");
+            }, WAIT);
+            assert.isNull(graph.getXRSessionManager()?.getActiveMode(), "the session manager still holds a session");
+            assert.isNull(graph.getXRSessionManager()?.getXRHelper() ?? null, "the XR helper was kept");
+            assert.strictEqual(graph.getViewMode(), "3d");
+            assert.strictEqual(graph.scene.activeCamera, graph.camera.getActiveController()?.camera);
+
+            await element.setViewMode(viewMode);
+
+            assert.lengthOf(iwer.sessions, 2, "entering again requested no new session");
+            assert.strictEqual(graph.getXRSessionManager()?.getActiveMode(), mode);
+            assert.strictEqual(graph.getViewMode(), viewMode);
+
+            await element.setViewMode("3d");
+            await vi.waitFor(() => {
+                assert.deepEqual(ended.at(-1), { mode: viewMode, cause: "exit" }, "no xr-session-ended on exit");
+            }, WAIT);
+            assert.lengthOf(ended, 2);
+        },
+        TEST_TIMEOUT,
+    );
+});
+
+describe("the configured VR reference space", () => {
+    /**
+     * Enter VR with bounded-floor configured and report what the element said it got.
+     * @returns the started event's detail and the manager's reference space
+     */
+    async function enterBoundedFloor(): Promise<{ requested: string; granted: string; manager: string | null }> {
+        const graph = await mountXRGraph(false, "bounded-floor");
+        const started: { requested: string; granted: string }[] = [];
+        element.addEventListener("xr-session-started", (event) => {
+            started.push({ requested: event.detail.requestedReferenceSpace, granted: event.detail.referenceSpace });
+        });
+
+        await element.setViewMode("vr");
+        assert.strictEqual(graph.getXRSessionManager()?.getActiveMode(), "immersive-vr");
+        assert.lengthOf(started, 1, "no xr-session-started");
+        const manager = graph.getXRSessionManager()?.getReferenceSpaceType() ?? null;
+        await element.setViewMode("3d");
+
+        return { ...started[0], manager };
+    }
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    test(
+        "is the one the session runs in when the headset supports it",
+        async () => {
+            assert.deepEqual(await enterBoundedFloor(), {
+                requested: "bounded-floor",
+                granted: "bounded-floor",
+                manager: "bounded-floor",
+            });
+        },
+        TEST_TIMEOUT,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    test(
+        "falls back to local-floor when the headset refuses it",
+        async () => {
+            iwer.uninstall();
+            iwer = installIWER(["bounded-floor"]);
+
+            assert.deepEqual(await enterBoundedFloor(), {
+                requested: "bounded-floor",
+                granted: "local-floor",
+                manager: "local-floor",
+            });
+        },
+        TEST_TIMEOUT,
+    );
 });

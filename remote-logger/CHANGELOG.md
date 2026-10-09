@@ -1,3 +1,7 @@
+## 2.0.13 (2026-10-09)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
 ## 2.0.12 (2026-10-09)
 
 This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.

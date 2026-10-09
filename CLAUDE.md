@@ -341,7 +341,9 @@ The `tools/` directory contains build scripts:
 | `ci-test-matrix.mjs` | The CI test shards and their commands (ci.yml and `run-tests.sh` both read it) |
 | `test-slots.mjs` | The machine-wide limit on concurrent test runs: every package's vitest config takes a slot through it, and `node tools/test-slots.mjs <command>` holds one for a whole command (each pre-push shard). Off on GitHub Actions and with `GRAPHTY_TEST_SLOTS=0` |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
-| `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast` |
+| `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast`. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
+| `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks), about a minute. `tmp/push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
+| `prepush-inputs.mjs` | Content hashes for the gate: the checkout's fingerprint, and each test shard's input key (its package and the packages it depends on or reads by relative path, their build outputs, the root files, the Node version). `prepush-tests.mjs` skips a shard that already passed on this branch with the same key and prints `[SKIP]` with when and where; `PREPUSH_RERUN_ALL=1` runs every shard |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
 | `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Any problem fails. CI and pre-push |
@@ -372,8 +374,10 @@ from there and never print them. The checked-in `.claude/settings.json` denies a
 
 After the scan, `.husky/pre-commit` runs `tools/format-staged.sh`: prettier on the staged files,
 staged again (it skips a file that also has unstaged changes, `visual-baselines/` and merge commits).
-`tools/prepush.sh` runs its source-only checks (formatting, links, the tool and config checks) before
-the build, and stops at the first failing check instead of running the rest.
+`tools/prepush.sh` runs its source-only checks (formatting, links, the tool and config checks,
+`tools/prepush-source-checks.sh`) before the build, and stops at the first failing check instead of
+running the rest. `tmp/push-queue.sh` runs the same checks before the push waits for a gate slot, so
+a slip fails in about a minute; the gate then skips them if nothing in the checkout changed.
 
 `tools/prepush.sh` stops first if `node_modules` does not match `pnpm-lock.yaml` (pnpm keeps a
 copy of the installed lockfile at `node_modules/.pnpm/lock.yaml`), and `.husky/post-merge` warns
@@ -615,7 +619,11 @@ restarts the release. A passing train closes the train hold; a restart that fail
 and comments on it. A failed publish opens a publish hold, a `Release held: publish failed on
 <sha>` issue that names the run: no train retitles, closes or is restarted for it, and it lasts
 until that run is re-run (`gh run rerun <run id> --failed`), which publishes what is missing and
-closes it. The scheduled attempts skip while either hold is open. Never edit or push to a release branch, and never close one
+closes it. The scheduled attempts skip while either hold is open. Every release outcome (a held
+attempt, a release pull request opened, a publish that succeeded or failed, again after a restart or a
+re-run) is announced as a comment on the one open `Release status` issue (label `release-status`) by
+`tools/release-status.mjs`, mentioning the people in the repository variable `RELEASE_NOTIFY`; attempts
+that do nothing announce nothing. Never edit or push to a release branch, and never close one
 unless it must be replaced: while one is open, no new train runs. An ad hoc release cuts the same
 pull request at once, for the owner or an agent the owner asked:
 `gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never
@@ -1003,7 +1011,9 @@ then tests batches of up to 4 queued pull requests, 2 batches at once, each on a
 pull request that runs the full suite on the combined tree; a batch merges when `Queue Checks Pass`
 succeeds there, and a failing batch is split in halves to find the culprit. The visual gate passes a
 batch only when every capture equals an image the owner approved on one of its pull requests, so
-the queue never asks for a new approval. Nobody turns on auto-merge by hand.
+the queue never asks for a new approval. Nobody turns on auto-merge by hand. Mergify posts no
+comments on pull requests (`status_comments: none`, `queue_controls_comment: false`, `post_comment:
+false`): every comment notified the owner. Its state is in its check runs.
 
 - To keep a pull request from merging, add the `hold` label; removing it releases the pull request.
   Adding `hold` also takes an already-queued pull request out of the queue.

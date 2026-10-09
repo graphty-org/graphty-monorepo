@@ -152,6 +152,7 @@ export class ApiKeyManager {
     clear(): void;
     disablePersistence(clearStorage?: boolean): void;
     enablePersistence(config?: PersistenceConfig): void;
+    enablePersistenceWithPassphrase(passphrase: string, config?: PassphrasePersistenceConfig): Promise<void>;
     getConfiguredProviders(): ProviderType[];
     getDefaultProvider(): ProviderType | null;
     getKey(provider: ProviderType): string | undefined;
@@ -237,9 +238,6 @@ export function createSystemPromptBuilder(): SystemPromptBuilder;
 
 // @public
 export function createWebLlmProvider(): Promise<LlmProvider>;
-
-// @public
-export function deriveKeyFromPassphrase(passphrase: string, salt?: string): Promise<string>;
 
 // @public
 export const describeProperty: GraphCommand;
@@ -373,6 +371,13 @@ export interface NumericStatistics {
     median: number;
     // (undocumented)
     min: number;
+}
+
+// @public
+export interface PassphrasePersistenceConfig {
+    prefix?: string;
+    salt?: string;
+    storage?: StorageType;
 }
 
 // @public

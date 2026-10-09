@@ -122,7 +122,13 @@ import { type ExportGraphOptions, type ExportResult, exportSession } from "./dat
 import { sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
-import { EventCallbackType, EventOfType, EventType } from "./events";
+import {
+    EventCallbackType,
+    EventOfType,
+    EventType,
+    type XRSessionEndedEvent,
+    type XRSessionStartedEvent,
+} from "./events";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import {
     type AddEdgesOptions,
@@ -204,7 +210,7 @@ import { XRUIManager } from "./ui/XRUIManager";
 import { downloadBlob } from "./utils/download";
 import type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./utils/queue-migration";
 import { XrAvailability } from "./xr/XrAvailability";
-import { XRSessionManager } from "./xr/XRSessionManager";
+import { type XRSessionEndCause, XRSessionManager } from "./xr/XRSessionManager";
 // import {createXrButton} from "./xr-button";
 
 /**
@@ -4110,6 +4116,11 @@ export class Graph implements GraphContext {
             settings.graph.immersive = mode;
         });
         this.writeSceneDimension(false);
+        this.eventManager.emit("xr-session-started", {
+            mode,
+            requestedReferenceSpace: this.graphContext.getConfig().xr?.[mode].referenceSpaceType ?? "local-floor",
+            referenceSpace: this.xrSessionManager.getReferenceSpaceType() ?? "viewer",
+        } satisfies Omit<XRSessionStartedEvent, "type">);
     }
 
     /**
@@ -6750,20 +6761,16 @@ export class Graph implements GraphContext {
     private initializeXR(): void {
         const xrConfig = this.xrConfig();
         if (xrConfig.enabled) {
+            // The headset can end the session itself; the view then leaves VR or AR as it would
+            // for `view.immersive` with `null` (`xrSessionEnded`).
             this.xrSessionManager = new XRSessionManager(this.scene, {
                 vr: xrConfig.vr,
                 ar: xrConfig.ar,
                 handTracking: xrConfig.input.handTracking,
+                onSessionEnded: ({ mode, cause }) => {
+                    this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
+                },
             });
-            // The headset can end the session itself; the view then leaves VR or AR as it would
-            // for `view.immersive` with `null`.
-            this.xrSessionManager.onSessionEnded = () => {
-                void dispatcherOf(this.session)
-                    .dispatch({ op: "view.immersive", mode: null })
-                    .catch((error: unknown) => {
-                        console.warn("[Graph] Failed to leave XR after the session ended:", error);
-                    });
-            };
         }
 
         this.#unwatchXrButtons ??= this.xrAvailability.onChange(() => {
@@ -6809,6 +6816,34 @@ export class Graph implements GraphContext {
         this.xrSessionManager = null;
         this.initializeXR();
         this.xrAvailability.changed();
+    }
+
+    /**
+     * A session the XR session manager started has ended. One the headset or browser ended leaves
+     * the graph still in VR or AR, so it is left the way `setViewMode("3d")` leaves it, which also
+     * lets the next `setViewMode("vr")` start a new session. Either way, `xr-session-ended` says so
+     * once the graph is back in 3D.
+     * @param mode - The kind of session that ended
+     * @param cause - `"exit"` when the element left it, `"device"` otherwise
+     */
+    private xrSessionEnded(mode: "vr" | "ar", cause: XRSessionEndCause): void {
+        const emit = (): void => {
+            this.eventManager.emit("xr-session-ended", { mode, cause } satisfies Omit<XRSessionEndedEvent, "type">);
+        };
+        if (cause === "exit") {
+            emit();
+            return;
+        }
+
+        // The XR camera controller stops now, not when the queue reaches the command below: the
+        // session it reads from is gone. Its cleanup runs before exitXR's first await.
+        void this.exitXR();
+        dispatcherOf(this.session)
+            .dispatch({ op: "view.immersive", mode: null })
+            .catch((error: unknown) => {
+                console.warn("[Graph] Failed to leave XR after the device ended the session:", error);
+            })
+            .finally(emit);
     }
 
     /**

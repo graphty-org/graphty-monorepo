@@ -11,15 +11,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-08) **App labels sit on a white chip (app only, no API).** T24B's "Stadi m" was not a
-  draw-order defect: the label IS on top (pixel map of the pilot's 02.png shows every stroke of
-  the "u" over the band), but a label's ground is transparent, so the selected edge's blue band
-  filled the gaps and the "u"'s open middle and the letter vanished at 1x. `appLabelLook`
-  (style/row.ts) adds `background: "#FFFFFF", cornerRadius: 4`. Evidence
-  `tmp/r1-dry3-element-labels-on-top-trace/` (T24B/01-03; frozen/grid4.png, grid5.png). OPEN:
-  the element's label texture is not premultiplied, so a light outline or background edge
-  fringes gray (halo tried, looked outlined); the context menu opened at the click covers the
-  tail of "Stadium" (T24B/03, a menu placement question, not this fix).
+- (2026-10-08) **A tooltip opens on hover only after the pointer moves onto its target
+  (compact-mantine, no API).** Chromium's after-layout hover update is a move that does not move,
+  so T21's reset button, sliding under the resting pointer after Load, opened its tooltip over "Its
+  meaning was not set...". overlayBehavior.ts keeps the last pointermove that changed position; a
+  tooltip whose trigger the pointer did not move onto is `data-cm-still` (hidden) until a real move
+  or a focus, then held 1000 ms; dismiss skips still ones so Tab shows them. Listeners now install
+  when the theme loads. Evidence `tmp/r1-dry3-cm-tooltip-pointer-move/` (T21A/06, 08, 12; T21B/06).
+  OPEN: an `opened`-prop tooltip under a resting pointer would stay hidden until a move (none).
 
 - (2026-10-08) **A setup hands over a clean start (study tool).** After setup, `real.mjs` blurs
   focus AND moves the pointer to (-1,-1), so 01.png shows no hover the participant never made
@@ -196,11 +195,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
-- (2026-10-08) Worked: a text pixel map of a screenshot crop (`#` glyph, `B` band) to tell "drawn
-  under" from "looks cut" -- the pilot's "Stadi m" had every stroke over the band. Worked: a
-  Playwright probe (`tmp/r1-dry3-element-labels-on-top-trace/probe.mjs`) that runs a setup on any
-  build and edits a layer through `document.querySelector("graphty-element").session` to try
-  looks live; an opaque red background proved on top in one shot.
+- (2026-10-08) Did not work: Tooltip `vars` installing listeners that must see events before the
+  first tooltip (vars run only when the tooltip renders). A same-pixel move after the pointer left
+  the window is real (the vitest harness does this between tests). Never revert-and-restore a file
+  another agent is editing to prove a test fails: their edits in the window are lost.
 
 - (2026-10-08) Worked: proving a tool fix by commenting the line out in place, running `--prove`
   with its own `REAL_PROVE_DIR`, restoring (no copy of real.mjs needed for a one-line change).
@@ -251,10 +249,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   test "frames a selected edge's two ends" lands off in x (13.8 to 14.5 vs 14.07) with or without
   unrelated changes; TableDock's export preview fails only inside the full real run.
 
-- (2026-10-08) Did not work: landing focus on the left panel's tree after open -- Tree typeahead
-  claims every one-character key, so the study's single-key shortcuts typed nothing. Worked: a
-  plain button (rail). A project that opens ON the Data page (New from data...) must not take
-  focus from that page: the open effect runs only when `page === "panels"`.
+- (2026-10-08) Did not work: focus on the left tree after open (typeahead eats single-key
+  shortcuts); a plain rail button works. A project opened ON the Data page keeps that page's focus.
 
 - (2026-10-08, condensed) Shared worktree: snapshot a file another agent has dirty BEFORE editing
   (`tmp/<task>/base/`); stage only my hunks (`git apply --cached --unidiff-zero`, or
@@ -281,8 +277,7 @@ build --outDir <dir>`); the app reads compact-mantine from its `dist/`. Tests: a
   run's per-node values via `session.data.nodePage({ columns: [runId] })`; queries are JMESPath.
   `selection.apply` throws synchronously on a bad selector (element defect, unfiled).
 
-- (2026-10-06 to 10-08) Grep every route of a value before calling a change done. Untraced: header
-  "Untitled" after New from data; `notReadSentence` words only `E_PARSE_FAILED`.
+- (2026-10-06 to 10-08) Grep every route of a value before calling a change done.
 
 - **Open project or file... reopening a project.** #913 closed in the element with "one intake
   verb"; the app still imports a `.graphty.json` as data. A tier 1 task (save, close, reopen) only

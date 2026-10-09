@@ -11,6 +11,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **The Data page's footer is pinned by its own grid again; the format has its own
+  place.** Root cause of "Load jumps when Higher means appears": the Data page and the Data place
+  both used the root class `.dp`, so `data-place.css`'s `display: flex` replaced the page's grid
+  and the footer followed the content. With a table taller than the window (bus-stops at 1440x900)
+  the shrink hid it; with a short table it moved 62 px. The page's root is now `.dp-page`. The
+  format button ("CSV auto") left the "Each row is" row for the file heading's line, under a
+  visible "File settings" label (the words the problem block already tells readers to look for).
+  Test: "keeps the file's format apart from 'Each row is', and Load in place..." in
+  `DataPage.real-element.test.tsx` (failed at 519 vs 457 before the rename). Evidence
+  `tmp/r2-dry1-import-page-layout/{bus/04,bus/06,trails/04,trails/08}.png`.
 - (2026-10-09) **Panels: the Graph title is the graph's row; an open step's row is marked; the
   neighborhood wears its node's header; no reset at a default.** `GraphPlace.tsx` title is an
   UnstyledButton writing `inspected: { kind: "graph" }`, which `fromRow` in `inspector/inspected.ts`
@@ -56,37 +66,22 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   on it or one to add (PageRank: no Nodes | Edges switch). Test `StyleTab.real-element.test.tsx`;
   evidence `tmp/t2r1-11/`.
 
-- (2026-10-09) **Words true in every case they appear in.** The canvas key says ", out of date"
-  only when `run.stale.reason` is `data-changed` (Replace); under a filter step (`scope-changed`)
-  the values still hold for the nodes the run covered, so it reads "Size: PageRank on 20 nodes"
-  (`rowName`, `canvas/legendWords.ts`). The unused-weight note reads 'Each edge counts as 1. A path
-  needs a distance, and "weight" has no meaning set.' (`weightRead`, `analyze/words.ts`: column
-  quoted, every sentence capitalized, reason kept; no one-word last line at 1440). The source
-  inspector heads its counts "Loaded", not "Added" (true after Replace). The neighbor heading names
-  the center beside the count, "Ava and 14 connections within 2 hops", so it adds up to Selection 15
-  (`neighborhoodWords`, `inspector/words.ts`). Tests `legendWords.test.ts`, `words.test.ts`,
-  `neighborhoodWords.test.ts`; evidence `tmp/r2-dry1-words-that-misstate/{filter/07,path/04,path/09,
-replace/05,replace/07,hood/05}.png`.
+- (2026-10-09, condensed) **Words true in every case they appear in:** ", out of date" only on
+  `data-changed`; the unused-weight note; "Loaded" not "Added"; "Ava and 14 connections" (tests
+  `legendWords.test.ts`, `words.test.ts`, `neighborhoodWords.test.ts`).
 
-- (2026-10-09) **Focus and keys in the Filters section, the step editor and the Notes place.**
-  The step editor is a `<form>` (Enter saves, Escape closes to the step's row or "+"); focus after
-  Add/Save/Delete is placed by `focusNext`/`focusStep` in `data-place/Filters.tsx`; note chips and
-  delete buttons carry the note's first line so no two share a name. Test
-  `FilterFocus.real-element.test.tsx`; evidence `tmp/t2r1-7/bars.log`.
+- (2026-10-09, condensed) **Focus and keys in Filters and Notes:** the step editor is a `<form>`;
+  `focusNext`/`focusStep` in `data-place/Filters.tsx`. Test `FilterFocus.real-element.test.tsx`.
 
 - (2026-10-09, summarized) **Study tool:** bars 2, 7, 8, 9 scored by script (`bars.mjs`, proven on
   planted failures, 80fb33e68); one machine-wide 4-browser pool; ambiguous names refused with
   `"<name>#n"`; `--drop` over CDP; `--brief` folders hold participant files only.
 
-- (2026-10-09, summarized) **A live region is in the page, visible, before its words arrive, and
-  holds words only.** The status line lives in `Frame.tsx` outside hidden surfaces; `DataPage.load()`
-  writes `loadedWords(...)` after the rename ("people and messages: 12 nodes, 22 edges, 1 row left
-  out", heard once); run state bar and find refusal follow the same rule. Evidence `tmp/t2r1-8/`.
+- (2026-10-09, summarized) **A live region is in the page before its words arrive, words only**
+  (status line in `Frame.tsx`; `DataPage.load()` writes `loadedWords(...)`).
 
-- (2026-10-09) **The selection halo draws only its back faces, so a selected node keeps its own
-  color** (`createOverlaySource` in `Node.ts`; test
-  `graphty-element/test/browser/selection-halo-rings-without-tinting.test.ts`). Selection story
-  baselines change and go to visual review.
+- (2026-10-09, condensed) **The selection halo draws only back faces** (`createOverlaySource`,
+  `Node.ts`).
 
 ## Decisions and reasons
 
@@ -237,6 +232,12 @@ replace/05,replace/07,hood/05}.png`.
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-09) Worked: when a layout rule "does nothing", log the computed `display` and
+  `gridTemplateRows` of the root in the test. A grid that measured as flex exposed a class-name
+  collision between two places (`.dp`). Grep a new root class across `src/**/*.css` before using
+  it. Seen, not mine: the "Role Menu" and "Unmatched Rows" Data page stories fail (they look for
+  combobox "owner" and text "1 unmatched row"; the page names "Role of owner").
 
 - (2026-10-09) Worked: `real.mjs` `--expect selected=N` counts selected ROWS (aria-selected), not
   selected nodes -- read the Selection row's count in the screenshot instead. Did not work: one

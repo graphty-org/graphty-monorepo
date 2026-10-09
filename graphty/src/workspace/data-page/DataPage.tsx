@@ -300,7 +300,7 @@ export function DataPage(): React.JSX.Element {
         <PopoutManager>
             <section
                 ref={pageRef}
-                className="dp"
+                className="dp-page"
                 aria-label="Data page"
                 onDragOver={(event) => {
                     event.preventDefault();
@@ -702,7 +702,11 @@ function MainView({
     }
     return (
         <Stack p="md" gap="sm">
-            <ModelStrip page={page} draft={draft} joins={joins} />
+            {/* The file's format sits beside the file's heading, apart from the table's "Each row is". */}
+            <Group justify="space-between" align="center" wrap="nowrap">
+                <ModelStrip page={page} draft={draft} joins={joins} />
+                <FileSettings page={page} />
+            </Group>
             {problem === null ? null : <ProblemBlock refusal={problem} onChooseFiles={onChooseFiles} />}
             {table === undefined ? null : <TableView page={page} draft={draft} table={table} />}
         </Stack>
@@ -766,23 +770,20 @@ function TableView({ page, draft, table }: PartProps & { draft: LoadDraft; table
     };
     return (
         <Stack gap="sm">
-            <Group gap="md" align="flex-end" wrap="wrap">
-                <Input.Wrapper label="Each row is" description={table.fixed ? "Set by the file" : undefined} size="sm">
-                    <SegmentedControl
-                        size="sm"
-                        disabled={table.fixed}
-                        value={kind}
-                        data={[
-                            { value: "nodes", label: "a node" },
-                            { value: "edges", label: "an edge" },
-                        ]}
-                        onChange={(value) => {
-                            change(setRowsAre(draft, table, value === "edges" ? "edges" : "nodes", page.choices));
-                        }}
-                    />
-                </Input.Wrapper>
-                <FileSettings page={page} />
-            </Group>
+            <Input.Wrapper label="Each row is" description={table.fixed ? "Set by the file" : undefined} size="sm">
+                <SegmentedControl
+                    size="sm"
+                    disabled={table.fixed}
+                    value={kind}
+                    data={[
+                        { value: "nodes", label: "a node" },
+                        { value: "edges", label: "an edge" },
+                    ]}
+                    onChange={(value) => {
+                        change(setRowsAre(draft, table, value === "edges" ? "edges" : "nodes", page.choices));
+                    }}
+                />
+            </Input.Wrapper>
             <RoleList page={page} draft={draft} table={table} />
             {/* Below the roles, so choosing Weight for a column moves nothing above the pointer. */}
             {kind === "edges" && !table.fixed ? <WeightLine page={page} draft={draft} table={table} /> : null}
@@ -853,70 +854,76 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
     const named = type === "csv" && separator !== undefined ? `, ${separator.toLowerCase()}` : "";
     const line = type === undefined ? "File settings" : formatName(type) + named;
     return (
-        <Popout>
-            <Popout.Trigger>
-                <Button variant="default" size="sm" aria-label={`File settings: ${line}`}>
-                    {line}
-                    {settings.type === undefined && draft !== null ? <span className="dp-auto">auto</span> : null}
-                </Button>
-            </Popout.Trigger>
-            <Popout.Panel
-                width={SETTINGS_WIDTH}
-                header={{ variant: "title", title: "File settings" }}
-                placement="bottom"
-            >
-                <Popout.Content>
-                    <Stack gap="xs">
-                        <Select
-                            label="Format"
-                            // Its list opens inside the popover, so a pick is not a click outside it.
-                            comboboxProps={{ withinPortal: false }}
-                            size="sm"
-                            data={[{ value: "", label: "Auto" }, ...READABLE_FORMATS]}
-                            value={settings.type ?? ""}
-                            allowDeselect={false}
-                            onChange={(value) => {
-                                page.setSettings({
-                                    ...settings,
-                                    type: value === null || value === "" ? undefined : value,
-                                });
-                            }}
-                        />
-                        {type === "csv" ? (
+        <Group gap="xs" wrap="nowrap">
+            {/* Its own visible label, the words the problem block's "Pick its format in File settings" names. */}
+            <Text size="xs" fw={600} aria-hidden className="dp-nowrap">
+                File settings
+            </Text>
+            <Popout>
+                <Popout.Trigger>
+                    <Button variant="default" size="sm" aria-label={`File settings: ${line}`}>
+                        {line}
+                        {settings.type === undefined && draft !== null ? <span className="dp-auto">auto</span> : null}
+                    </Button>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={SETTINGS_WIDTH}
+                    header={{ variant: "title", title: "File settings" }}
+                    placement="bottom"
+                >
+                    <Popout.Content>
+                        <Stack gap="xs">
                             <Select
-                                label="Separator"
+                                label="Format"
+                                // Its list opens inside the popover, so a pick is not a click outside it.
                                 comboboxProps={{ withinPortal: false }}
                                 size="sm"
-                                data={SEPARATORS.map(({ value, label }) => ({ value, label }))}
-                                value={settings.delimiter ?? ""}
+                                data={[{ value: "", label: "Auto" }, ...READABLE_FORMATS]}
+                                value={settings.type ?? ""}
                                 allowDeselect={false}
                                 onChange={(value) => {
                                     page.setSettings({
                                         ...settings,
-                                        delimiter: value === null || value === "" ? undefined : value,
+                                        type: value === null || value === "" ? undefined : value,
                                     });
                                 }}
                             />
-                        ) : null}
-                        <NumberInput
-                            label="Error limit"
-                            description="Bad rows read past before the file is refused"
-                            size="sm"
-                            min={0}
-                            allowDecimal={false}
-                            placeholder="100"
-                            value={settings.errorLimit ?? ""}
-                            onChange={(value) => {
-                                page.setSettings({
-                                    ...settings,
-                                    errorLimit: typeof value === "number" ? value : undefined,
-                                });
-                            }}
-                        />
-                    </Stack>
-                </Popout.Content>
-            </Popout.Panel>
-        </Popout>
+                            {type === "csv" ? (
+                                <Select
+                                    label="Separator"
+                                    comboboxProps={{ withinPortal: false }}
+                                    size="sm"
+                                    data={SEPARATORS.map(({ value, label }) => ({ value, label }))}
+                                    value={settings.delimiter ?? ""}
+                                    allowDeselect={false}
+                                    onChange={(value) => {
+                                        page.setSettings({
+                                            ...settings,
+                                            delimiter: value === null || value === "" ? undefined : value,
+                                        });
+                                    }}
+                                />
+                            ) : null}
+                            <NumberInput
+                                label="Error limit"
+                                description="Bad rows read past before the file is refused"
+                                size="sm"
+                                min={0}
+                                allowDecimal={false}
+                                placeholder="100"
+                                value={settings.errorLimit ?? ""}
+                                onChange={(value) => {
+                                    page.setSettings({
+                                        ...settings,
+                                        errorLimit: typeof value === "number" ? value : undefined,
+                                    });
+                                }}
+                            />
+                        </Stack>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        </Group>
     );
 }
 

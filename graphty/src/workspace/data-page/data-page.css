@@ -1,6 +1,8 @@
 /* The Data page (tier1-design.md section 2.10). Colors come only from compact-mantine's --cm-* tokens. */
 
-.dp {
+/* Not ".dp": the Data place's root has that name, and its flex column would stack these rows by
+   their content, so the footer would move whenever a row above it grew. */
+.dp-page {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto auto;
     height: 100%;
@@ -49,6 +51,10 @@
 
 .dp-role {
     width: 160px;
+}
+
+.dp-nowrap {
+    white-space: nowrap;
 }
 
 .dp-auto {

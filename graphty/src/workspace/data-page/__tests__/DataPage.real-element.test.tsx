@@ -805,6 +805,35 @@ describe("the Data page on the real element", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
+        "keeps the file's format apart from 'Each row is', and Load in place when Higher means appears",
+        async () => {
+            await openFromEmptyApp();
+            await chooseFiles(new File(["from,to,minutes\nA,B,4\nB,C,6\n"], "bus-stops.csv"));
+            await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+
+            // The format is the file's: on the heading's line, under its own label, above the row kind.
+            const format = screen.getByRole("button", { name: /^File settings/ });
+            const rowKind = screen.getByText("Each row is");
+            const strip = (
+                await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS })
+            ).getBoundingClientRect();
+            const box = format.getBoundingClientRect();
+            assert.isAtMost(box.bottom, rowKind.getBoundingClientRect().top, "the format sits above 'Each row is'");
+            assert.isAtLeast(strip.top + strip.height / 2, box.top, "on the heading's line");
+            assert.isAtMost(strip.top + strip.height / 2, box.bottom, "on the heading's line");
+            assert.isFalse(rowKind.closest(".mantine-InputWrapper-root")?.contains(format), "not inside 'Each row is'");
+
+            const footer = (): number => loadButton().getBoundingClientRect().top;
+            const before = footer();
+            await pick("Role of minutes", "Weight");
+            await screen.findByRole("radiogroup", { name: "Higher means" }, { timeout: TIMEOUT_MS });
+            assert.equal(footer(), before, "Load stays where the reader aimed");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
         "words the summary line, and its direction follows the Direction choice",
         async () => {
             await openFromEmptyApp();

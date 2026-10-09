@@ -67,7 +67,7 @@ describe("runs over the element's own operation queue", () => {
     it("starts, finishes and resolves through the real queue", async () => {
         const runs = makeRuns(async (context) => {
             context.report({ phase: "measuring", completed: 1, total: 2 });
-            await settle(1);
+            await settle();
 
             return { result: stubResult(context.runId) };
         });
@@ -86,7 +86,7 @@ describe("runs over the element's own operation queue", () => {
     it("carries a run's progress on the queue's own events", async () => {
         const runs = makeRuns(async (context) => {
             context.report({ phase: "measuring", completed: 1, total: 2, message: "Measuring nodes" });
-            await settle(1);
+            await settle();
 
             return { result: stubResult(context.runId) };
         });
@@ -114,7 +114,7 @@ describe("runs over the element's own operation queue", () => {
         const order: string[] = [];
         const runs = makeRuns(async (context) => {
             order.push(`start:${String(context.params.k)}`);
-            await settle(5);
+            await settle();
             order.push(`end:${String(context.params.k)}`);
 
             return { result: stubResult(context.runId) };
@@ -134,7 +134,7 @@ describe("runs over the element's own operation queue", () => {
         const ran: number[] = [];
         const runs = makeRuns(async (context) => {
             ran.push(Number(context.params.k));
-            await settle(2);
+            await settle();
 
             return { result: stubResult(context.runId) };
         });
@@ -142,7 +142,7 @@ describe("runs over the element's own operation queue", () => {
         queueManager.pause();
         const first = runs.start("k-core", { k: 1 }, { as: "k1" });
         const second = runs.start("k-core", { k: 2 }, { as: "k2" });
-        await settle(1);
+        await settle();
 
         first.cancel("no longer wanted");
 

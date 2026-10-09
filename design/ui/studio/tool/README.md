@@ -27,15 +27,23 @@ Every command prints what a participant would notice, then the path of the new s
 
 - `--start <folder> empty` opens the app as a first-time visitor sees it.
 - `--start <folder> setup:<file>` runs the setup file's steps first and never shows them: one step
-  per line, unquoted (`--click Open the Zachary's karate club sample`); `#` lines are comments. A
+  per line, unquoted (`--click Open the Zachary's karate club sample`); `#` lines are comments.
+  `<file>` is looked up in the folder the command runs in, then `../tier2/`, then
+  `../rounds/tier-2/setups/`; a file in none of them prints one `SETUP FAILED: no such setup file`
+  line and exits 2, with no session started. A
   setup step that misses fails the start with `SETUP FAILED`, which is itself a finding. When the
   setup ends, nothing has focus and the pointer is off the page, as when a saved project is
   reopened: the participant does not arrive to a focus ring or a hover on the control the setup
   used last.
 - `--start <folder> empty --sr` (or `setup:<file> --sr`) starts a session in screen-reader mode;
   see below.
-- The folder gets `01.png`, `02.png`, ..., `session.json` (the commit and build under study, the
-  start), `session.log` (the session process's own log), `setup.log`, and `downloads/`.
+- The folder gets `01.png`, `02.png`, ..., `session.json`, `session.log` (the session process's
+  own log), `setup.log`, and `downloads/`. In `session.json`, `commit` is the served build's own commit (from its build stamp, the
+  `graphty-build` meta tag in `REAL_DIST`'s `index.html`, or else a frozen folder's name such as
+  `tier2-r1d2-909b19b57`), `buildStamp` is that stamp, `toolCommit` is this checkout's HEAD (the
+  tool that ran the session, not the build), and `uncommittedChanges` says whether this
+  checkout's `graphty/` or `graphty-element/` had uncommitted edits; it also holds the URL,
+  the start time and the setup steps.
 - A session nobody steps for 15 minutes closes itself, so a forgotten one cannot hold a browser.
 - Call `real.mjs` directly, with your own session folder, for every step. Do not write a helper
   script that wraps it: a script shared between sessions sends one participant's steps into

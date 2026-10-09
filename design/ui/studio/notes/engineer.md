@@ -11,6 +11,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **Study tool records the served build, finds relative setups (tool only).**
+  `session.json` `commit` is the served build's (stamp in `REAL_DIST/index.html`, resolved to the
+  full sha; else the frozen folder's `-<sha>` suffix); the checkout's HEAD is `toolCommit`. Reason:
+  sessions on frozen 909b19b57 recorded the worktree HEAD and misled graders. `setup:<file>` is
+  looked up in cwd, then `tier2/`, then `rounds/tier-2/setups/`; none prints one "SETUP FAILED: no
+  such setup file" line, exit 2 (was an uncaught ENOENT stack). Both in `--prove`. answers.md T17
+  gives the follow-up path: open the off step, set 5, "Save step" (turns it on), read, then one
+  tick brings everyone back. Evidence `tmp/r1-dry3-studio-tool-records/` (T17A/08-12, frozen/).
 - (2026-10-08) **Import page sizes, Add / Leave out, weight line (app only, no API).** Sentences,
   links, SegmentedControls and buttons on the Data page are `sm` (11 px; buttons 24 tall); dimmed
   captions stay `xs`, except the filtered-grid sentence ("1 unmatched row: z has no node row"),
@@ -187,6 +195,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   file..." for an import -- it loads the CSV straight to the graph.
 - (2026-10-08) Worked: "fails without" for a file only I had dirty: copy mine aside, write
   `git show HEAD:<file>` over it, run, copy back (both new assertions failed at 9px).
+- (2026-10-08) Worked: a `--prove` case that spawns `real.mjs` with `cwd` set to a scratch folder
+  proves a setup path is found from elsewhere; `git rev-parse --verify <short>^{commit}` turns a
+  build stamp's 12-char sha into the full one.
 - (2026-10-08) Did not work: `findByRole("tooltip")` for the Edge actions tooltip in
   Inspector.test (testing-library judged it inaccessible); `findByText` then `closest('[role=
   "tooltip"]')` works, as the measurement-gloss test already does. A row that looks highlighted

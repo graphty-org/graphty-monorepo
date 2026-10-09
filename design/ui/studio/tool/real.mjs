@@ -71,6 +71,8 @@ const repo = resolve(here, "../../../..");
 // REAL_DIST serves a copy of a build instead, one a rebuild cannot replace mid-session
 const dist = process.env.REAL_DIST ? resolve(process.env.REAL_DIST) : join(repo, "graphty/dist");
 const files = join(here, "files");
+const tier2 = join(here, "../tier2");
+const setups = join(here, "../rounds/tier-2/setups");
 const gate = join(here, "with-browser.sh");
 // The tier 1 workspace is reached with ?next until the Switch-over makes it the default (graphty/src/App.tsx)
 const TIER1 = "/?next";
@@ -228,7 +230,14 @@ async function start(dir, how, sr) {
             console.error(`--start takes empty or setup:<file>, not "${how}"`);
             return 2;
         }
-        const p = parseSetup(await readFile(resolve(m[1]), "utf8"));
+        // a setup file is looked up from the folder the command runs in, then the tier 2 folder
+        // (tasks.md gives paths relative to it), then the setups folder itself
+        const file = [process.cwd(), tier2, setups].map((d) => resolve(d, m[1])).find((f) => existsSync(f));
+        if (!file) {
+            console.error(`SETUP FAILED: no such setup file ${m[1]} (looked in ${process.cwd()}, ${tier2}, ${setups})`);
+            return 2;
+        }
+        const p = parseSetup(await readFile(file, "utf8"));
         if (p.refused) {
             console.error(p.refused);
             return 2;
@@ -609,19 +618,21 @@ async function saveDownload(s, d) {
     return `a file was saved: ${name}, ${what} (${path})`;
 }
 
+// The commit under study is the served build's own (its stamp, or a frozen copy's folder name such as
+// tier2-r1d2-909b19b57), not this checkout's HEAD, which is only the tool's (`toolSha`).
 const commitOf = () => {
-    const sha = spawnSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
-    const dirty =
-        spawnSync("git", ["-C", repo, "status", "--porcelain", "--", "graphty", "graphty-element"], {
-            encoding: "utf8",
-        }).stdout.trim() !== "";
+    const git = (...a) => spawnSync("git", ["-C", repo, ...a], { encoding: "utf8" }).stdout.trim();
+    const toolSha = git("rev-parse", "HEAD");
+    const dirty = git("status", "--porcelain", "--", "graphty", "graphty-element") !== "";
     let stamp = null;
     try {
         stamp = readFileSync(join(dist, "index.html"), "utf8").match(/<meta name="graphty-build" content="([^"]*)"/)[1];
     } catch {
         // no stamp, or a rebuild in progress removed the page for a moment: unknown, not fatal
     }
-    return { sha, dirty, build: stamp };
+    const short = (stamp ?? "").match(/^[0-9a-f]{7,40}\b/)?.[0] ?? basename(dist).match(/-([0-9a-f]{7,40})$/)?.[1];
+    const sha = short ? git("rev-parse", "--verify", "--quiet", `${short}^{commit}`) || short : null;
+    return { sha, toolSha, dirty, build: stamp };
 };
 
 // Opens the app in the session's tab and waits for its window
@@ -647,6 +658,7 @@ async function opStart(s, setup) {
         JSON.stringify(
             {
                 commit: commit.sha,
+                toolCommit: commit.toolSha,
                 uncommittedChanges: commit.dirty,
                 buildStamp: commit.build,
                 url: TIER1,
@@ -677,7 +689,9 @@ async function opStart(s, setup) {
     }
     s.errors.length = 0; // what loading and setup printed is in session.log, not the participant's view
     if (s.sr) await srReport(s, out);
-    out.push(`commit ${commit.sha}${commit.dirty ? " (with uncommitted changes)" : ""}, build ${commit.build}`);
+    out.push(
+        `commit ${commit.sha ?? "unknown"}, build ${commit.build}; tool checkout ${commit.toolSha}${commit.dirty ? " (with uncommitted changes)" : ""}`,
+    );
     out.push(await shot(s));
     return { out, code };
 }
@@ -1298,7 +1312,8 @@ async function prove() {
     const base = resolve(process.env.REAL_PROVE_DIR || join(repo, "design/ui/studio/tmp/prove"));
     await rm(base, { recursive: true, force: true });
     let bad = 0;
-    const node = (args) => spawnSync(process.execPath, [self, ...args], { encoding: "utf8", env: process.env });
+    const node = (args, cwd) =>
+        spawnSync(process.execPath, [self, ...args], { encoding: "utf8", env: process.env, ...(cwd && { cwd }) });
     const check = (name, ok, detail) => {
         console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : `: ${detail}`}`);
         if (!ok) bad++;
@@ -1334,6 +1349,14 @@ async function prove() {
         )
     )
         return finish(bad, [A]);
+    {
+        const c = commitOf();
+        check(
+            "session.json names the served build's commit, and the checkout's HEAD apart from it",
+            !!c.build && json.commit.startsWith(c.build.split(" ")[0]) && json.toolCommit === c.toolSha,
+            `commit ${json.commit}, toolCommit ${json.toolCommit}, build ${c.build}, HEAD ${c.toolSha}`,
+        );
+    }
     try {
         let x = step(A, "--click", "No thanks", "--expect", "Samples");
         check("a click by a control's name", x.code === 0 && pngs(A).length === 2, x.out);
@@ -1526,6 +1549,26 @@ async function prove() {
         `exit ${r.status} ${r.stdout}`,
     );
     node(["--end", C]);
+    // a setup path as tasks.md gives it (relative to tier2/), from a folder that is neither
+    const F = join(base, "session-f");
+    r = node(["--start", F, "setup:../rounds/tier-2/setups/florentine.txt"], base);
+    check(
+        "a setup path relative to tier2/ is found from another folder",
+        r.status === 0 && pngs(F).length === 1,
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+    node(["--end", F]);
+    const G = join(base, "session-g");
+    r = node(["--start", G, "setup:no-such-setup.txt"], base);
+    const lines = `${r.stdout}${r.stderr}`.trim().split("\n");
+    check(
+        "a missing setup file is one SETUP FAILED line, exit 2, and no session",
+        r.status === 2 &&
+            lines.length === 1 &&
+            /^SETUP FAILED: no such setup file no-such-setup\.txt/.test(lines[0]) &&
+            !existsSync(G),
+        `exit ${r.status} ${lines.join(" | ")}`,
+    );
     // screen-reader mode: the focused element's role and name after every step, and live-region text
     const D = join(base, "session-d");
     const srSetup = join(base, "setup-sr.txt");

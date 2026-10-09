@@ -205,7 +205,16 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   participant notices and ticks it again.
 - **Success path (A):** `--click "Data"`; `--click "weight"` (the attribute row); `--click
 "Attribute actions"`; `--click "Filter to..."`; `--click "Value" --type 4`; `--click "Add step"`;
-  read the chip; `--click "Apply step: weight is at least 4"`. On B the attribute is
+  read the chip; `--click "Apply step: weight is at least 4"`. **Follow-up success path (A),**
+  from there: `--click "weight is at least 4"` (the step's row; its editor opens with "Off" in the
+  header); `--click "Value" --key Control+a --type 5`; `--click "Save step"` (on a build where an
+  off step's button reads "Save and turn on", that button); read the chip "10 of 20 nodes" with
+  the checkbox now ticked and the row "20 to 10 nodes"; then `--click "Apply step: weight is at
+least 5"` once, which brings the whole club back (row "off", Overview Nodes 20, Edges 41).
+  Saving already turned the step on, so the only tick in this path is the one that brings
+  everyone back; "edit, then tick to switch it on" turns it off instead (the trap above). Walked
+  on build 8d0097f3762f (`../tmp/r1-dry3-studio-tool-records/T17A/08.png` to `12.png`). On B the
+  same with `shared_chapters` and 8. On B the attribute is
   `shared_chapters` and the value 5. The Filters "+" ("Add filter step") then Attribute, "weight",
   "at least", 4 is the other door; in an earlier pilot the attribute list's "weight" option was
   hard to click by name (the tool clicked the tree row), so graders accept either door. The step's

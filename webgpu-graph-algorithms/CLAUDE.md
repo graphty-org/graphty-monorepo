@@ -300,7 +300,11 @@ every batch awaits -- never on the per-batch path, where an extra await changes 
 batch in flight and so breaks `test/layouts/frame-loop.test.ts`'s coalescing case). On a fresh context that
 first call compiles the two scan pipelines and maps two extra staging buffers: a test that counts pipelines or
 `mapAsync` calls must `await verifyDevice(ctx)` first and count from there (`test/layouts/fa2-options.test.ts`,
-`test/algorithms/pagerank.test.ts` do). The one policy variable (D19), parsed and checked by
+`test/algorithms/pagerank.test.ts` do). Budgets live in `vitest.config.ts`, never on a case (the `local/no-test-timing`
+lint rule): 30 s per case in `node`, 600 s in `node-limits`, and 30 minutes in `node` during a recording run
+(`GRAPHTY_NOISE_FLOOR_WRITE=1`), whose writer cases measure the unscaled fixtures. A case whose GPU work outlasts 30 s
+on some lane keeps its own number behind a disable line that names the lanes and their measured seconds (issue
+#1636). The one policy variable (D19), parsed and checked by
 `scripts/gpu-policy.js` for the Node setup, the browser setup and `scripts/gpu-report.js`:
 
 | `GRAPHTY_GPU_REQUIRE`        | Meaning                                                                                                        |

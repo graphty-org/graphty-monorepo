@@ -46,7 +46,6 @@ describe("all-pairs shortest paths at the real ceiling (node-limits, design 8.7)
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("8,192 nodes run under the context's default limits and match one BFS per source; the ceiling + 1 is E_TOO_LARGE with all four facts", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "limits/apsp-ceiling" });
@@ -86,5 +85,5 @@ describe("all-pairs shortest paths at the real ceiling (node-limits, design 8.7)
         } finally {
             ctx.dispose();
         }
-    }, 300_000);
+    });
 });

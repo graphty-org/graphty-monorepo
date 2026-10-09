@@ -825,6 +825,53 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         expect(document.activeElement?.textContent).toBe("2");
         expect(two.hasAttribute("data-cm-held")).toBe(true);
     });
+
+    /** A Load button that, clicked, is replaced by a button with a tooltip at the same place. */
+    function Swap(): React.JSX.Element {
+        const [loaded, setLoaded] = useState(false);
+        const size = { width: 120, height: 40 };
+        return (
+            <div style={{ padding: 40 }}>
+                {loaded ? (
+                    <Tooltip label="Reset" openDelay={0}>
+                        <button type="button" style={size}>
+                            R
+                        </button>
+                    </Tooltip>
+                ) : (
+                    <button type="button" style={size} onClick={() => setLoaded(true)}>
+                        Load
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    it("a trigger that comes under a resting pointer shows no tooltip until the pointer moves", async () => {
+        const { getByRole } = await renderFigma(<Swap />);
+        const mounted = tooltipMount("Reset");
+        await userEvent.click(getByRole("button", { name: "Load" }));
+        // Chromium's hover update after the layout change opens the tooltip with the pointer still.
+        const tip = await mounted;
+        await new Promise((r) => setTimeout(r, 300));
+        expect(tip.hasAttribute("data-cm-still")).toBe(true);
+        expect(isVisible(tip)).toBe(false);
+        // The reader moves the pointer on the button: it shows after the usual delay.
+        await userEvent.hover(getByRole("button", { name: "R" }), { position: { x: 10, y: 10 } });
+        expect(isVisible(tip)).toBe(false);
+        await waitFor(() => isVisible(tip));
+    });
+
+    it("keyboard focus still shows the tooltip of a trigger under a resting pointer", async () => {
+        const { getByRole } = await renderFigma(<Swap />);
+        const mounted = tooltipMount("Reset");
+        await userEvent.click(getByRole("button", { name: "Load" }));
+        const tip = await mounted;
+        expect(isVisible(tip)).toBe(false);
+        await userEvent.keyboard("{Tab}");
+        expect(document.activeElement?.textContent).toBe("R");
+        await waitFor(() => isVisible(tip));
+    });
 });
 
 // ------------------------------------------------------------------ 8.4 light popover

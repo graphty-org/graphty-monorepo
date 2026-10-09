@@ -38,6 +38,10 @@ import {
     VIEWPORT_MARGIN,
 } from "../styles/overlays";
 
+// Installed when the theme loads, not only when the first tooltip renders: whether a tooltip
+// may open on hover depends on the pointer moves seen before it (see overlayBehavior.ts).
+installOverlayBehavior();
+
 /**
  * Menu.Sub.Item's defaults. A click (a tap on a touch screen, which has no hover) opens the
  * submenu instead of closing the whole menu: a submenu row is never an action. MenuSubItemProps

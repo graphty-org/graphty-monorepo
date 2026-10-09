@@ -205,8 +205,9 @@ const css = `
 }
 .cm-tooltip-arrow { border: 0; }
 /* Hidden by overlayBehavior.ts: dismissed (pointer-down, key, wheel, pointer left the window)
-   for the rest of this tooltip's life, or held for the cold delay after a keyboard focus. */
-.cm-tooltip:is([data-cm-dismissed], [data-cm-held]) { visibility: hidden; }
+   for the rest of this tooltip's life, held for the cold delay after a keyboard focus, or still:
+   its trigger came under a resting pointer and nobody has pointed at it yet. */
+.cm-tooltip:is([data-cm-dismissed], [data-cm-held], [data-cm-still]) { visibility: hidden; }
 
 /* TooltipShortcut: the label, then the shortcut 12px after it in the secondary text color. */
 .cm-tooltip-shortcut-row { display: flex; align-items: center; white-space: nowrap; }

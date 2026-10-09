@@ -11,6 +11,11 @@
  *   handling has no delay): it is marked `data-cm-held` for that long. While tooltips are warm
  *   (one is visible, or was within the 300 ms hide window) it shows at once, as a hovered one
  *   does: Tabbing from a visible tooltip's trigger hands off immediately.
+ * - A tooltip opens on hover only when the pointer moved onto its trigger. Chromium updates hover
+ *   after a layout change with a move that does not move, so a trigger that slides under a resting
+ *   pointer (a page switch, a panel opening) would open its tooltip unasked. Such a tooltip is
+ *   marked `data-cm-still` (CSS hides it) until the pointer moves over the trigger or it is
+ *   focused, and then shows after the usual delay. Keyboard focus is unaffected.
  * - Menus get type-ahead: a printable key moves focus to the next enabled row whose label starts
  *   with it ("v" -> View).
  * - A menu clamped to the viewport shows Figma's 24px chevron rows at the ends it can still
@@ -43,6 +48,10 @@ let warmUntil = 0;
  * and the mount must not turn a warm hand-off cold.
  */
 let focusedAt = 0;
+/** Where the pointer last was (client px). */
+let pointerAt: { x: number; y: number } | null = null;
+/** What the pointer was over when it last actually moved. */
+let movedOver: EventTarget | null = null;
 
 /**
  * Whether a tooltip other than `except` is showing (not held, not dismissed).
@@ -55,6 +64,7 @@ function anotherTooltipVisible(except?: Element): boolean {
             tooltip !== except &&
             tooltip.dataset.cmSeen !== undefined &&
             tooltip.dataset.cmHeld === undefined &&
+            tooltip.dataset.cmStill === undefined &&
             tooltip.dataset.cmDismissed === undefined,
     );
 }
@@ -78,7 +88,9 @@ function dismissTooltips(): void {
     if (anotherTooltipVisible()) {
         warmUntil = performance.now() + TOOLTIP_CLOSE_DELAY;
     }
-    for (const tooltip of document.querySelectorAll(".cm-tooltip")) {
+    // A still tooltip was never shown, so there is nothing to dismiss: the Tab that focuses its
+    // trigger must still show it.
+    for (const tooltip of document.querySelectorAll(".cm-tooltip:not([data-cm-still])")) {
         const trigger = triggerOf(tooltip);
         if (trigger && (trigger.matches(":hover") || trigger === document.activeElement)) {
             tooltip.setAttribute("data-cm-dismissed", "");
@@ -103,16 +115,75 @@ function mustHold(tooltip: HTMLElement): boolean {
 }
 
 /**
+ * Hold a tooltip for the open delay, then let it show.
+ * @param tooltip - the tooltip element
+ */
+function hold(tooltip: HTMLElement): void {
+    tooltip.dataset.cmHeld = "";
+    globalThis.setTimeout(() => {
+        delete tooltip.dataset.cmHeld;
+    }, TOOLTIP_OPEN_DELAY);
+}
+
+/**
+ * Whether a tooltip that just mounted opened on hover with no pointer movement onto its trigger:
+ * the trigger came to lie under a resting pointer.
+ * ponytail: a tooltip held open through its `opened` prop whose trigger sits under a resting
+ * pointer is hidden too, until the pointer moves over it; none does today.
+ * @param tooltip - the tooltip element that just mounted
+ * @returns true when nobody pointed at the trigger
+ */
+function openedUnasked(tooltip: HTMLElement): boolean {
+    const trigger = triggerOf(tooltip);
+    return (
+        !!trigger &&
+        trigger !== document.activeElement &&
+        trigger.matches(":hover") &&
+        !(movedOver instanceof Node && trigger.contains(movedOver))
+    );
+}
+
+/**
+ * Show, after the open delay, a still tooltip whose trigger the pointer moved onto or focus
+ * reached.
+ * @param target - what the pointer moved over, or what took focus
+ */
+function wakeStillTooltips(target: EventTarget | null): void {
+    if (!(target instanceof Node)) {
+        return;
+    }
+    for (const tooltip of document.querySelectorAll<HTMLElement>(".cm-tooltip[data-cm-still]")) {
+        if (triggerOf(tooltip)?.contains(target)) {
+            delete tooltip.dataset.cmStill;
+            hold(tooltip);
+        }
+    }
+}
+
+/**
+ * Record a pointer move that moved. A move at the same place is Chromium's hover update after a
+ * layout change, not the reader pointing; a script-dispatched move always counts.
+ * @param event - a pointermove anywhere in the document
+ */
+function trackPointer(event: PointerEvent): void {
+    if (event.isTrusted && pointerAt?.x === event.clientX && pointerAt.y === event.clientY) {
+        return;
+    }
+    pointerAt = { x: event.clientX, y: event.clientY };
+    movedOver = event.target;
+    wakeStillTooltips(event.target);
+}
+
+/**
  * Hold a tooltip that opened on keyboard focus for the cold delay, then mark it seen. The CSS
  * hides a tooltip until it is seen, so it never shows before this decision.
  * @param tooltip - the tooltip element that just mounted
  */
 function holdIfFocusOpened(tooltip: HTMLElement): void {
-    if (mustHold(tooltip)) {
-        tooltip.dataset.cmHeld = "";
-        globalThis.setTimeout(() => {
-            delete tooltip.dataset.cmHeld;
-        }, TOOLTIP_OPEN_DELAY);
+    if (openedUnasked(tooltip)) {
+        tooltip.dataset.cmStill = "";
+    } else if (mustHold(tooltip)) {
+        hold(tooltip);
     }
     tooltip.dataset.cmSeen = "";
 }
@@ -234,8 +305,9 @@ export function installOverlayBehavior(): void {
     document.addEventListener("wheel", dismissTooltips, capture);
     document.addEventListener(
         "focusin",
-        () => {
+        (event) => {
             focusedAt = performance.now();
+            wakeStillTooltips(event.target);
         },
         capture,
     );
@@ -250,12 +322,15 @@ export function installOverlayBehavior(): void {
     );
     document.addEventListener("mouseout", (event) => {
         if (!event.relatedTarget) {
+            // Back in at the same pixel is a move: the pointer was elsewhere in between.
+            pointerAt = null;
             dismissTooltips();
             stopAutoScroll();
         }
     });
     document.addEventListener("keydown", typeAhead);
     document.addEventListener("pointermove", trackChevronHover, { passive: true });
+    document.addEventListener("pointermove", trackPointer, capture);
     document.addEventListener(
         "scroll",
         (event) => {

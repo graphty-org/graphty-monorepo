@@ -82,6 +82,7 @@ describe("FR inspect(): every stage against the oracle's (spec 11.9 item 2; G5)"
         for (const dim of DIMS) {
             for (const k of K_VALUES) {
                 const label = `${graph}/${dim}d/k=${k ?? "auto"}`;
+                // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
                 it(
                     `${label}: K2, K3, K5 (positions, displacement, partials), toScene and the K1 fold within their traced tolerances, twice bitwise; the weighted copy identical`,
                     async (t) => {
@@ -130,6 +131,7 @@ describe("FR inspect(): every stage against the oracle's (spec 11.9 item 2; G5)"
         }
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a pinned node (karate): its force is computed, its displacement is exactly zero, the free count excludes it, every stage still within tolerance",
         async (t) => {
@@ -175,6 +177,7 @@ describe("FR inspect(): every stage against the oracle's (spec 11.9 item 2; G5)"
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writes this adapter's stage outputs of the UNSCALED random1k, of karate and of random1k under k 0.3, and the f64 reference of each as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {

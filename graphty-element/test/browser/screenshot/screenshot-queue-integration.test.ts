@@ -85,6 +85,7 @@ test("screenshots wait for queued operations when waitForOperations is true", as
     });
 
     // Screenshot should wait for operation
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.equal(operationCompleted, false, "Operation should not be complete yet");
 

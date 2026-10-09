@@ -58,6 +58,7 @@ async function newProject(): Promise<GraphSession> {
 }
 
 describe("the canvas on the real element", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "shows No nodes to draw until the graph has a node, then the legend of a run that paints (T7)",
         async () => {
@@ -89,6 +90,7 @@ describe("the canvas on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "paints Louvain over Betweenness, and names it the color winner (T8)",
         async () => {
@@ -118,6 +120,7 @@ describe("the canvas on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "says a run was hidden by the reader's layer, and Show anyway puts it on top (T8)",
         async () => {

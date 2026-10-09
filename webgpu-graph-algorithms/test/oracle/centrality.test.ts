@@ -91,6 +91,7 @@ describe("brandesOracle (design 11.3)", () => {
     // 3.8-4.0 s alone with coverage, the time of the 2,000 searches and their accumulation, once per precision (one
     // sweep for both is about 1.4x faster than the two calls it replaced). It took 39 s at load average 50-70, past the
     // 30 s default, so it gets an explicit 60 s.
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the f32 reference differs from the f64 one on randomEdges(2000, 8000, 7) by less than 1e-4 (the noise floor of design 9.7)", () => {
         const s = snapshotOf(randomEdges(2000, 8000, 7));
         // Both precisions over one breadth-first search per source, keeping no per-source state (two brandesOracle

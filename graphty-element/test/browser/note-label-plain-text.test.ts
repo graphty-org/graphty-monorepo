@@ -46,6 +46,7 @@ describe("a label bound to a note", () => {
                 return label;
             }
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise<void>((done) => {
                 setTimeout(done, 10);
             });

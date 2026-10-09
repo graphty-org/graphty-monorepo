@@ -74,6 +74,7 @@ describe("grid tier subgroup twins in-process (spec 11.3)", () => {
         expect(adapterClass(withSubgroups.caps)).toBe(adapterClass(withoutSubgroups.caps));
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "random20k: the build, the pyramid and the far field bitwise between the twins; G7's force within grid-twins.force; K5 and K1 within the P3 twin tolerances",
         async (t) => {
@@ -116,6 +117,7 @@ describe("grid tier subgroup twins in-process (spec 11.3)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "hubcell: the hub cell's level-0 entry (G4b, the one pyramid kernel with a reduction) agrees between the twins within grid-twins.hubCentroid",
         async (t) => {
@@ -154,6 +156,7 @@ describe("grid tier subgroup twins in-process (spec 11.3)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writes the workgroup twin's outputs as `<class>-no-subgroups` noise fixtures: grid-near-field / random20k-near and grid-centroid-hub / hubcell-L0 (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {

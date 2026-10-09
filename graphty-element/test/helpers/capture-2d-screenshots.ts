@@ -85,6 +85,7 @@ async function setCameraZoom(page: PageLike, radiusMultiplier: number): Promise<
     }, radiusMultiplier);
 
     // Wait for render to settle
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await page.waitForTimeout(500);
 }
 
@@ -114,6 +115,7 @@ async function captureScreenshots(storyId: string, includeZoomLevels = false): P
         console.log("Component loaded");
 
         // Wait for initial render to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await page.waitForTimeout(2000);
 
         const timestamp = getTimestamp();

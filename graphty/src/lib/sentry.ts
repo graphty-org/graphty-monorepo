@@ -46,7 +46,7 @@ export function initSentry(config?: SentryConfig): void {
     Sentry.init({
         dsn,
         environment: effectiveConfig.environment,
-        tracesSampleRate: effectiveConfig.isProd ? 0.1 : 1.0,
+        tracesSampleRate: effectiveConfig.isProd ? 0.1 : 1,
         // Started only once the reader has said Share usage data (workspace/privacy/usageData.ts),
         // whose "What is collected" list promises a replay of each session with every text and
         // input masked. The canvas is not recorded: replay draws no canvas without its canvas

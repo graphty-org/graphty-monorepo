@@ -26,6 +26,7 @@ async function captureStory(page: Page, storyId: string, filename: string): Prom
 
     // Wait for component to load
     await page.waitForSelector("graphty-element", { timeout: 10000 });
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await page.waitForTimeout(1000);
 
     // Take screenshot
@@ -41,6 +42,7 @@ async function checkZoomBehavior(page: Page): Promise<void> {
     await page.goto(storyUrl, { waitUntil: "networkidle" });
 
     await page.waitForSelector("graphty-element", { timeout: 10000 });
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await page.waitForTimeout(1000);
 
     // Capture before zoom
@@ -60,6 +62,7 @@ async function checkZoomBehavior(page: Page): Promise<void> {
         }
     });
 
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await page.waitForTimeout(500);
 
     // Capture after zoom

@@ -141,6 +141,7 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
         ctx.release(s);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "fixed nodes never move: a random mask set through setFixed between steps, or given as the fixed option at creation (PD-6), keeps every pinned row bitwise where it was; the all-fixed mask settles within settleWindow + 1 steps",
         async (t) => {
@@ -199,6 +200,7 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "setPosition is visible in the next readback and never clobbered by an older batch (the override list, spec 7.12)",
         async (t) => {
@@ -246,6 +248,7 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "settled within maxIter: run({ maxIter, batch: 1 }) stops at maxIter exactly; settled within the FR budget: run({ batch: 1 }) stops at exactly iterations",
         async (t) => {
@@ -287,6 +290,7 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reheat on unpin, setPosition and load, not on pin (D8): every reheat restarts the temperature index at floor(0.7 iterations) (PD-5), a pin continues the schedule unbroken, a load restarts it at 0",
         async (t) => {
@@ -352,6 +356,7 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A is still fixed",
         async (t) => {
@@ -418,6 +423,7 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "2D writes z === center.z whatever z was uploaded, for random z and random center.z",
         async (t) => {
@@ -449,6 +455,7 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the FR displacement bound: after one iteration every free row moved by at most the temperature, a row with |F| < t by exactly |F| (up to four f32 roundings and the position rounding), a pinned row by 0",
         async (t) => {

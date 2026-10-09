@@ -45,6 +45,7 @@ async function mount(): Promise<Graphty> {
 }
 
 describe("load draft on the element", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "prepares and reports without loading, then loads the held rows",
         async () => {

@@ -234,6 +234,7 @@ async function drain(fake: FakeAccelerator): Promise<void> {
  */
 async function until(predicate: () => boolean): Promise<void> {
     for (let attempt = 0; attempt < 200 && !predicate(); attempt += 1) {
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 5));
     }
 
@@ -433,6 +434,7 @@ describe("the simulation layout bridge", () => {
         // A chunk is submitted only once the one before it has landed, so waiting for whatever is
         // in flight right now would return in the middle of the run.
         for (let attempt = 0; attempt < 200 && fake.calls.resolved < chunks; attempt += 1) {
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 5));
         }
 
@@ -1189,6 +1191,7 @@ describe("the default force arrangement, which has two drivers", () => {
         // A retry loop is asynchronous, so it needs turns of the event loop to show itself rather
         // than a condition to wait for: a spin would have filled this with failures.
         for (let tick = 0; tick < 40; tick += 1) {
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 5));
         }
 

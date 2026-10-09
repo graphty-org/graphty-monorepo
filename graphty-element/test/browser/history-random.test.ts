@@ -156,6 +156,7 @@ async function begin(engine: (typeof ENGINES)[number]): Promise<{ real: Real; mo
 
 describe.each(ENGINES)("random sequences on a real graph under %s", (engine) => {
     for (const seed of SEEDS) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `holds for seed ${String(seed)}`,
             async () => {

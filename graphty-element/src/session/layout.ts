@@ -25,6 +25,7 @@
 import { LAYOUT_DESCRIPTORS } from "../catalog/layouts";
 import type { LayoutDescriptor, LayoutId } from "../catalog/types";
 import { DEFAULT_LIMITS } from "./limits";
+import type { CodedFact } from "./shared";
 import type { GraphStatistics } from "./types";
 
 /** Which arrangement suits this graph, and why. */
@@ -37,9 +38,39 @@ export interface LayoutRecommendation {
      * acts on the id: `element.setLayout(recommendation.layout.id)`.
      */
     readonly layout: LayoutDescriptor;
-    /** Why this arrangement suits this graph, in a sentence a consumer can show a reader. */
+    /**
+     * Why this arrangement suits this graph, as an English sentence.
+     * @deprecated English written by the element. Word {@link LayoutRecommendation.fact}
+     *   yourself; removed in the next major release.
+     */
     readonly reason: string;
+    /**
+     * Why this arrangement suits this graph, as a code for the application to word. See
+     * {@link LayoutRecommendationCode} for every code and its parameters.
+     * @since 3.20.0
+     */
+    readonly fact: CodedFact<LayoutRecommendationCode>;
 }
+
+/**
+ * Which rule chose a {@link LayoutRecommendation}, as the `code` of its `fact`. The application
+ * words it; graphty-element writes no sentence for it. Every code carries the same `params`, the
+ * shape the rule read: `nodeCount`, `edgeCount`, `placedNodes` (how many nodes the data placed;
+ * zero when the caller did not say) and `largeGraphThreshold`.
+ *
+ * | Code | Why |
+ * | --- | --- |
+ * | `recommend.fixed` | Every node already carries a coordinate, so the arrangement the data arrived with is kept |
+ * | `recommend.random` | The graph is larger than `largeGraphThreshold`, so it is scattered from a seed instead of settling a force simulation |
+ * | `recommend.circular` | Nothing is connected, so a ring puts the nodes in a readable order where a force layout has no pull to work with |
+ * | `recommend.force` | Connected nodes pulled together and unconnected ones pushed apart shows the graph's structure |
+ * | `recommend.first-servable` | No rule named an arrangement the catalogue can serve, so this is the first one that can place a graph this size |
+ *
+ * New codes may be added in a minor release: word an unknown one generically.
+ * @since 3.20.0
+ */
+export type LayoutRecommendationCode =
+    "recommend.fixed" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable";
 
 /** What {@link recommendLayout} may be told beyond the graph's shape. */
 export interface LayoutRecommendationOptions {
@@ -78,6 +109,8 @@ interface LayoutRule {
      * @returns True when the rule claims the graph.
      */
     fires(shape: RuleInput): boolean;
+    /** The code the recommendation carries when this rule wins. */
+    readonly code: LayoutRecommendationCode;
     /** The sentence the recommendation carries when this rule wins. */
     readonly reason: string;
 }
@@ -102,6 +135,7 @@ interface RuleInput {
 const LAYOUT_RULES: readonly LayoutRule[] = [
     {
         id: "fixed",
+        code: "recommend.fixed",
         fires: ({ statistics, placedNodes }) => statistics.nodeCount > 0 && placedNodes >= statistics.nodeCount,
         reason:
             "Every node already carries a coordinate, so this keeps the arrangement the data " +
@@ -109,6 +143,7 @@ const LAYOUT_RULES: readonly LayoutRule[] = [
     },
     {
         id: "random",
+        code: "recommend.random",
         fires: ({ statistics, largeGraphThreshold }) => statistics.nodeCount > largeGraphThreshold,
         reason:
             "This graph is large enough that settling a force simulation would hold the frame for " +
@@ -116,6 +151,7 @@ const LAYOUT_RULES: readonly LayoutRule[] = [
     },
     {
         id: "circular",
+        code: "recommend.circular",
         fires: ({ statistics }) => statistics.nodeCount > 0 && statistics.edgeCount === 0,
         reason:
             "Nothing is connected, so a force layout has no pull to work with and would push every " +
@@ -123,6 +159,7 @@ const LAYOUT_RULES: readonly LayoutRule[] = [
     },
     {
         id: "force",
+        code: "recommend.force",
         fires: () => true,
         reason:
             "Connected nodes are pulled together and unconnected ones pushed apart, which is the " +
@@ -148,6 +185,24 @@ function servable(descriptor: LayoutDescriptor, nodeCount: number): boolean {
     }
 
     return descriptor.sizeRating === "any" || nodeCount <= descriptor.sizeRating;
+}
+
+/**
+ * The recommendation's fact: the winning rule's code and the shape every rule read.
+ * @param code - The winning rule's code.
+ * @param input - The shape the rules read.
+ * @returns The fact.
+ */
+function factOf(code: LayoutRecommendationCode, input: RuleInput): CodedFact<LayoutRecommendationCode> {
+    return {
+        code,
+        params: {
+            nodeCount: input.statistics.nodeCount,
+            edgeCount: input.statistics.edgeCount,
+            placedNodes: input.placedNodes,
+            largeGraphThreshold: input.largeGraphThreshold,
+        },
+    };
 }
 
 /**
@@ -190,7 +245,7 @@ export function recommendLayout(
         const descriptor = LAYOUT_DESCRIPTORS.find((candidate) => candidate.id === rule.id);
 
         if (descriptor !== undefined && servable(descriptor, statistics.nodeCount)) {
-            return Object.freeze({ layout: descriptor, reason: rule.reason });
+            return Object.freeze({ layout: descriptor, reason: rule.reason, fact: factOf(rule.code, input) });
         }
     }
 
@@ -205,5 +260,6 @@ export function recommendLayout(
         : Object.freeze({
               layout: fallback,
               reason: "The first arrangement this element can place a graph of this size with.",
+              fact: factOf("recommend.first-servable", input),
           });
 }

@@ -72,6 +72,7 @@ function makeHost(): HTMLDivElement {
  */
 async function settle(graph: Graph): Promise<void> {
     await operationQueueOf(graph).waitForCompletion();
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 300));
     await operationQueueOf(graph).waitForCompletion();
 }
@@ -119,6 +120,7 @@ describe("a graph that opens in 2D", () => {
         element.edgeData = EDGES;
         element.layout = "circular";
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
         await settle(element.graph);
 
@@ -136,6 +138,7 @@ describe("a graph that opens in 2D", () => {
         element.setAttribute("layout", "circular");
         host.append(element);
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
         element.nodeData = NODES;
         element.edgeData = EDGES;
@@ -158,6 +161,7 @@ describe("a graph that opens in 2D", () => {
         element.edgeData = EDGES;
         element.layout = "spring";
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
         await settle(element.graph);
 
@@ -193,6 +197,7 @@ describe("a graph that opens in 2D", () => {
         element.nodeData = NODES;
         element.edgeData = EDGES;
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
         await settle(element.graph);
 

@@ -70,6 +70,7 @@ describe("spring-electrical force-sum invariant: one iteration, |sum F| <= tol x
     });
 
     for (const c of CASES) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `${c.name}: the net force vanishes within the traced tolerance, twice bitwise`,
             async (t) => {

@@ -3,7 +3,8 @@
  * Uses the 'selfsigned' npm package to generate proper X.509 certificates.
  */
 
-import * as fs from "fs";
+import * as fs from "node:fs";
+
 import selfsigned from "selfsigned";
 
 export interface GeneratedCert {

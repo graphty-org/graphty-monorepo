@@ -34,6 +34,7 @@ describe("XR Local Space Transformations", () => {
         await graph.addNodes(TEST_NODES);
         await graph.addEdges(TEST_EDGES);
         await operationQueueOf(graph).waitForCompletion();
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 100));
     });
 
@@ -182,6 +183,7 @@ describe("XR Local Space Transformations", () => {
         test("2D mode uses correct coordinate plane", async () => {
             await graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             const node1 = graph.getNode("node1");
@@ -200,6 +202,7 @@ describe("XR Local Space Transformations", () => {
             // frame -- which a slow runner reached inside the test's 50 ms wait.
             await graph.addNodes([{ id: "deep", position: { x: 0, y: 0, z: 5 } }]);
             await operationQueueOf(graph).waitForCompletion();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             const deep = graph.getNode("deep");

@@ -170,6 +170,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         }
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the forward pass alone: depthK and sigmaK exactly the reference's at k = 1, k = 2 and the planner's k", async (t) => {
         const ctx = await context(t);
         const cases: readonly [string, GraphSnapshot][] = [
@@ -191,6 +192,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         }
     }, 120_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("path counts past 2^32 (grid(20, 20), grid(40, 40), layered(4, 18)) are rescaled level by level and equal the CPU in both forward forms", async (t) => {
         const ctx = await context(t);
         // grid(40, 40) has C(78, 39), about 2.6e22, corner-to-corner paths: past u32 and far past f32's 2^24 integers
@@ -212,6 +214,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         }
     }, 300_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the overflow flag: counts at one depth spread wider than f32 can hold (wideAndNarrow(130)) raise it and the dispatcher refuses the scores; wideAndNarrow(100) does not", async (t) => {
         const ctx = await context(t);
         for (const forward of ["frontier", "edge"] as const) {
@@ -234,6 +237,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         ).rejects.toBeInstanceOf(PathCountOverflowError);
     }, 120_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("exact betweenness on the fixture list within 1e-4 of the reference, top-10 order kept, bitwise run to run, the snapshot unchanged", async (t) => {
         const ctx = await context(t);
         for (const { name, s } of fixtures()) {
@@ -255,6 +259,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         expect(() => checked.validate({ checksum: true })).not.toThrow();
     }, 300_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("every simple fixture equals the CPU port's betweennessCentrality and edgeBetweennessCentrality within 1e-4, exact, normalized and on a source list; the dispatcher's k runs the port's draw", async (t) => {
         const ctx = await context(t);
         const sources = [0, 3, 3, 7, 11];
@@ -283,6 +288,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         ).toBeLessThanOrEqual(TOLERANCE);
     }, 300_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the closed forms: path(n) scores i (n - 1 - i); star(L) the hub L (L - 1) / 2 and every leaf 0; normalized divides by (n - 1)(n - 2) / 2", async (t) => {
         const ctx = await context(t);
         const n = 60;
@@ -306,6 +312,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         expect(scoreError(norm.scores, want)).toBeLessThanOrEqual(TOLERANCE);
     }, 60_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the three forward forms give bitwise identical scores; auto runs edge-parallel on a shallow graph and frontier on a deep one", async (t) => {
         const ctx = await context(t);
         const shallow = snapshotOf(rmatEdges(gpuScale() < 1 ? 9 : 12, 8, 3));
@@ -329,6 +336,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         }
     }, 120_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("a faked maxBufferSize shrinks k and adds batches without changing a single bit of the scores", async (t) => {
         const ctx = await context(t);
         const s = snapshotOf(randomEdges(500, 2000, 13));
@@ -346,6 +354,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         expectBitwiseEqual(shrunk.scores, planned.scores);
     }, 120_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("sampling: an explicit list equals the reference on that list, unscaled; k draws the same sources every time; a 256-source sample ranks like the exact scores", async (t) => {
         const ctx = await context(t);
         const s = snapshotOf(randomEdges(1000, 4000, 21));
@@ -376,6 +385,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         expect(spearman(sampled.scores, exact.scores)).toBeGreaterThanOrEqual(0.9);
     }, 120_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("edge betweenness: both arcs of an undirected edge equal before the fold, the folded scores within 1e-4 of the reference, the path's closed form (i + 1)(n - 1 - i), a sample against the reference on the same sources", async (t) => {
         const ctx = await context(t);
         for (const { name, s } of fixtures()) {
@@ -448,6 +458,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         ctx.release(s);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the edge cases: the empty graph, one vertex, no sources, dest, onProgress and the signal", async (t) => {
         const ctx = await context(t);
         const empty = await betweennessCentrality(ctx, snapshotOf([], { nodeCount: 0 }));
@@ -475,6 +486,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         await expectRejection(betweennessCentrality(ctx, s, { signal: controller.signal }), "E_ABORTED");
     }, 60_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("refuses endpoints: true, bad sources, a bad k, a k that contradicts sources and a wrong dest, before any device work", async (t) => {
         const ctx = await context(t);
         const s = snapshotOf(KARATE_EDGES);

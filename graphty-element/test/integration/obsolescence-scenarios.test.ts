@@ -64,6 +64,7 @@ describe("Obsolescence Scenarios", () => {
             );
 
             // Small delay between batches
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 5));
         }
 
@@ -102,6 +103,7 @@ describe("Obsolescence Scenarios", () => {
         );
 
         // Wait for layout-set to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 10));
 
         const layoutOpId = queueManager.queueOperation(
@@ -134,6 +136,7 @@ describe("Obsolescence Scenarios", () => {
         await progressReached;
 
         // Small additional delay to ensure progress is registered in the queue manager
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 5));
 
         // Queue a data operation that would normally obsolete the layout
@@ -216,6 +219,7 @@ describe("Obsolescence Scenarios", () => {
         );
 
         // After a short delay, add new data that obsoletes everything
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 20));
 
         queueManager.queueOperation(
@@ -337,6 +341,7 @@ describe("Obsolescence Scenarios", () => {
                 },
             );
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 5));
         }
 
@@ -404,6 +409,7 @@ describe("Obsolescence Scenarios", () => {
         batch1.forEach((op) => op());
 
         // Simulate second batch that obsoletes the first
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 10));
 
         const batch2 = [

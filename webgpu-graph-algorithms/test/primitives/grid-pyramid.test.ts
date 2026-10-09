@@ -36,6 +36,7 @@ const POISON_F32 = new Float32Array(new Uint32Array([0xdeadbeef]).buffer)[0];
 describe("gridPyramid (spec 7.7 G4-G5; P4-T9): every level within the analytic bound, twice bitwise", () => {
     for (const name of PYRAMID_FIXTURES) {
         for (const dim of [2, 3] as const) {
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${name} in ${dim}D: every level equals gridOraclePyramid within the bound; two runs bitwise equal; the hub list and the counters are the oracle's`,
                 async (t) => {
@@ -136,6 +137,7 @@ describe("gridPyramid (spec 7.7 G4-G5; P4-T9): every level within the analytic b
         }
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the twins in one process: without subgroups, hubcell's level 0 matches the feature context bitwise outside the hub cell and every level stays within the bound",
         async (t) => {
@@ -235,6 +237,7 @@ describe("gridPyramid (spec 7.7 G4-G5; P4-T9): every level within the analytic b
         }
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "records the random20k-L1 downsample and the hubcell-L0 hub-centroid f32 fixtures of this adapter (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {

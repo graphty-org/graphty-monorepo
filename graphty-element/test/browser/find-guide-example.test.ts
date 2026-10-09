@@ -96,6 +96,7 @@ describe("the finding guide's example", () => {
         assert.lengthOf(session.selection.nodes, 0, "Enter on plain text commits nothing");
         box.value = "regex:^Jav";
         box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 50));
         assert.isAbove(session.selection.nodes.length, 0, "Enter on a pattern selects what it matches");
         session.dispose();

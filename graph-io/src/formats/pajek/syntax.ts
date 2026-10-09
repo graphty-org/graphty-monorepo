@@ -143,9 +143,8 @@ const SECTION_KINDS: ReadonlyMap<string, SectionKind> = new Map([
     ["vector", "vector"],
 ]);
 
-const INTEGER_TEXT = /^[+-]?[0-9]+$/;
-const TIME_POINT =
-    /^(\*|[+-]?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)(?:-(\*|[+-]?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?))?$/;
+const INTEGER_TEXT = /^[+-]?\d+$/;
+const TIME_POINT = /^(\*|[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:-(\*|[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?))?$/;
 
 /**
  * What tokenize() noticed in a line beyond its tokens, for the importer to report.

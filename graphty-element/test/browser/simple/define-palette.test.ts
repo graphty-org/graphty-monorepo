@@ -237,6 +237,7 @@ describe("the brand palettes from the guide's first example", () => {
         const derived = (): boolean =>
             element.session.styles.list().some((layer) => layer.source.by === "run" && layer.source.runId === run.id);
         while (!derived() && Date.now() < deadline) {
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((settle) => setTimeout(settle, 10));
         }
         await operationQueueOf(element.graph).waitForCompletion();

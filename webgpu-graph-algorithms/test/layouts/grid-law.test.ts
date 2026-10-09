@@ -151,6 +151,7 @@ describe("the FR and spring-electrical grid tier through LAW (spec 7.20, 7.8; PD
     for (const model of MODELS) {
         for (const name of LAW_FIXTURES) {
             for (const dim of [2, 3] as const) {
+                // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
                 it(
                     `(1) ${model}/${name}/${dim}d: the grid tier's repulsion, whole and far field alone, against its own exact tier's (LAW ${LAW_OF[model]}) under grid-exact.rms / grid-exact.p99, twice bitwise`,
                     async (t) => {
@@ -199,6 +200,7 @@ describe("the FR and spring-electrical grid tier through LAW (spec 7.20, 7.8; PD
         }
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writes the spring-electrical widening members of grid-exact.rms / grid-exact.p99 on the UNSCALED random20k in 2D (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {
@@ -232,6 +234,7 @@ describe("the FR and spring-electrical grid tier through LAW (spec 7.20, 7.8; PD
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "(2, 3) the FR grid run on the story graph is finite and cools (the temperature trace decreases), twice bitwise; its pipeline keys carry LAW 1 on grid-far-field and grid-near-field",
         async (t) => {
@@ -261,6 +264,7 @@ describe("the FR and spring-electrical grid tier through LAW (spec 7.20, 7.8; PD
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         `(2, 3) the spring grid run on the story graph settles within ${MAX_STEPS} iterations cooler than its first batch, finite, twice bitwise; its pipeline keys carry LAW 2 on grid-far-field and grid-near-field`,
         async (t) => {

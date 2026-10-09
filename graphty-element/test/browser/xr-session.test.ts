@@ -138,6 +138,7 @@ describe.each([
     { viewMode: "vr", mode: "immersive-vr", blend: "opaque" },
     { viewMode: "ar", mode: "immersive-ar", blend: "alpha-blend" },
 ] as const)("setViewMode($viewMode) with an emulated Quest 3", ({ viewMode, mode, blend }) => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     test(
         "starts a session the graph renders into, and setViewMode('3d') ends it",
         async () => {
@@ -231,6 +232,7 @@ describe.each([
 });
 
 describe("VR with hand tracking on and emulated hands", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     test(
         "tracks and draws both hands without touching the network",
         async () => {

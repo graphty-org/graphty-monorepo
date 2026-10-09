@@ -33,6 +33,7 @@ afterEach(() => {
 async function atRest(graph: Graph): Promise<void> {
     await graph.waitForSettled();
     for (let wait = 0; wait < 1000 && graph.getLayoutManager().running; wait++) {
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 10));
     }
 
@@ -101,6 +102,7 @@ async function addSettleUndo(graph: Graph): Promise<void> {
     assert.deepEqual(restored, before, "undo restores where the layout had come to rest before the add");
 
     graph.getUpdateManager().stepFrames(FRAMES);
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 50));
     assert.isFalse(graph.getLayoutManager().running, "nothing reheated the layout");
     assert.deepEqual(lane(graph), restored, "and nothing moved");
@@ -112,6 +114,7 @@ async function addSettleUndo(graph: Graph): Promise<void> {
 }
 
 describe("the arrangement under undo, on a renderer", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "no reheat on refreeze: add, settle, undo, advance frames, and the lane is the restored capture",
         async () => {
@@ -121,6 +124,7 @@ describe("the arrangement under undo, on a renderer", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a listener reading the snapshot during the undo does not reheat the layout either",
         async () => {
@@ -140,6 +144,7 @@ describe("the arrangement under undo, on a renderer", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a placement moves the node, and undo puts it back where the layout had it",
         async () => {
@@ -159,6 +164,7 @@ describe("the arrangement under undo, on a renderer", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a pin reaches the lane and the simulation, and undo releases it",
         async () => {

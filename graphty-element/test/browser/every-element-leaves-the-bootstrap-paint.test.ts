@@ -89,6 +89,7 @@ async function mount(): Promise<Graphty> {
             throw new Error("the element never finished initialising");
         }
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 20));
     }
 
@@ -132,6 +133,7 @@ describe("once the picture has settled", () => {
         container = null;
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "no element is still drawn from the paint the element gives one it has not styled yet",
         async () => {
@@ -164,6 +166,7 @@ describe("once the picture has settled", () => {
 
             await operationQueueOf(graph).waitForCompletion();
             await session.styles.settled();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
 
             assert.deepStrictEqual(

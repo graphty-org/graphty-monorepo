@@ -134,6 +134,7 @@ describe("OperationQueueManager", () => {
         });
 
         // Check stats immediately after queueing
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 5)); // Wait for microtask
         const stats = queueManager.getStats();
 
@@ -155,6 +156,7 @@ describe("OperationQueueManager", () => {
         });
 
         // Wait a bit - operation should not execute while paused
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 50));
         assert.equal(executionOrder.length, 0);
 

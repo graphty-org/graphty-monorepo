@@ -19,7 +19,7 @@ describe("StatsManager - Profiling", () => {
         vi.spyOn(performance, "now").mockImplementation(() => clock);
         // Create mock EventManager
         mockEventManager = {
-            emitGraphEvent: vi.fn(),
+            emit: vi.fn(),
         } as unknown as EventManager;
 
         statsManager = new StatsManager(mockEventManager);

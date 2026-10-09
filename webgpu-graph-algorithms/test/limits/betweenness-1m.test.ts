@@ -20,6 +20,7 @@ const SEED = 12345;
 const SOURCES = 64;
 
 describe("sampled betweenness at 1M nodes / 10M edges (node-limits)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("64 sources: the planned batch count, the reference's scores within 1e-4, and bitwise the same scores at k = 8", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "limits/betweenness-1m" });

@@ -57,6 +57,7 @@ function resultsOf(data: object): unknown {
 }
 
 describe("a plugin algorithm without a descriptor is one step", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writing nested results on nodes and edges and a graph value is one step, and undo removes all three",
         async () => {
@@ -97,6 +98,7 @@ describe("a plugin algorithm without a descriptor is one step", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a nested write copies only its own subtree and keeps its siblings",
         async () => {
@@ -121,6 +123,7 @@ describe("a plugin algorithm without a descriptor is one step", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a plugin whose run calls addNodes and styles.add yields exactly one step",
         async () => {
@@ -145,6 +148,7 @@ describe("a plugin algorithm without a descriptor is one step", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "runAlgorithm with applySuggestedStyles for a descriptor-less plugin is one step",
         async () => {
@@ -163,6 +167,7 @@ describe("a plugin algorithm without a descriptor is one step", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a plugin that fails leaves nothing behind and records no step",
         async () => {
@@ -184,6 +189,7 @@ describe("a plugin algorithm without a descriptor is one step", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "an edit made while a plugin runs is a step of its own",
         async () => {
@@ -212,6 +218,7 @@ describe("a plugin algorithm without a descriptor is one step", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a data edit made while a plugin runs cancels the run, as a data edit cancels any run in progress, and is a step of its own",
         async () => {
@@ -235,6 +242,7 @@ describe("a plugin algorithm without a descriptor is one step", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "outside a plugin run, graphResults cannot be written",
         async () => {

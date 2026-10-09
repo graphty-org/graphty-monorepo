@@ -17,6 +17,7 @@ function createMockManager(name: string, initDelay = 0, shouldFail = false): Man
     return {
         async init() {
             if (initDelay > 0) {
+                // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
                 await new Promise((resolve) => setTimeout(resolve, initDelay));
             }
 

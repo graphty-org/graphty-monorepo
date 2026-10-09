@@ -26,10 +26,9 @@ concurrency:
 jobs:
     paired:
         name: Paired benchmark, master against the latest release (NVIDIA T4)
-        # Spot, like gpu.yml's default (owner decision, 2026-10-04): about 70 minutes a week costs about $0.31 instead
-        # of $1.23, and a reclaim is re-run once by gpu-rerun-on-runner-loss.yml. Spot is the same T4 instance type, so
-        # the paired timings are unaffected; the pairing itself (ABBA rounds on one machine) cancels machine drift.
-        runs-on: machine/gpu=t4/cpu=4/ram=16/tenancy=spot
+        # On-demand, like gpu.yml's default (owner decision, 2026-10-08): reclaimed spot runners interrupted T4 jobs,
+        # and a paired run cut short throws away its whole hour of ABBA rounds.
+        runs-on: machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand
         timeout-minutes: 100 # setup about 5 + the paired step's 85
         env:
             GRAPHTY_GPU_REQUIRE: nvidia

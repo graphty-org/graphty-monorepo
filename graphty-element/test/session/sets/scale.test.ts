@@ -70,6 +70,7 @@ async function runFrames(): Promise<void> {
     }
 }
 
+// eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
 beforeAll(async () => {
     h = makeSession({ directed: false });
     h.add(
@@ -122,6 +123,7 @@ afterAll(() => {
 });
 
 describe("a freeze with live sets, at 100k nodes", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("re-resolves each live scope exactly once, and a 200-row count panel after it resolves nothing", async () => {
         const before = cacheCounters.misses;
 
@@ -148,6 +150,7 @@ describe("a freeze with live sets, at 100k nodes", () => {
 });
 
 describe("the memory budget, at 100k nodes", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the bitmap cache stays within 64 MB plus its pins, and reports exactly the bytes it holds", async () => {
         const cache = cacheOf();
         const { evictions } = cacheCounters;
@@ -225,6 +228,7 @@ describe("the memory budget, at 100k nodes", () => {
         );
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("a definition holds 8 bytes a node member and 20 an edge member plus its interned ids, and a resolution materialises none", async () => {
         const snapshot = h.session.data.snapshot();
         const rows = Array.from({ length: 100_000 }, (_, i) => Math.floor((i * snapshot.edgeCount) / 100_000));
@@ -298,6 +302,7 @@ describe("the memory budget, at 100k nodes", () => {
         assert.strictEqual(reachableBytes(edges), 20 * edges.length, "five 4-byte columns");
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the derived-input cache stays within max(256 MB, 1.5 x the snapshot's bytes)", () => {
         const ids = Array.from({ length: NODES }, (_, i) => `n${String(i)}`);
         const graph = new InputGraph(

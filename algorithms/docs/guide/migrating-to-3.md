@@ -200,7 +200,9 @@ graphs named:
 - **Label propagation.** For the same `randomSeed`, communities differ on any graph with more than one valid partition
   (a work queue, a uniform tie draw and another random generator); it stops when every label is dominant, so tie-rich
   graphs converge; in-neighbours vote on a directed graph; self-loops do not vote; a negative, NaN or infinite weight
-  throws a `RangeError`. `labelPropagationSemiSupervised` draws from another random stream and renumbers the labels.
+  throws a `RangeError`. `labelPropagationSemiSupervised` draws from another random stream and renumbers the labels, and since the fix of
+  issue #959 its free nodes start unlabeled instead of in a community of their own, so seed labels spread to every node
+  connected to a seed rather than stopping where the free nodes outvote them.
   `labelPropagationSynchronous` adds a swap guard, so a single edge settles in two passes. In every release after
   3.1.4 it breaks a tie by a fixed scramble of each label rather than by the lowest label, so its partitions differ
   from 3.0.0 through 3.1.4 on any graph with tied votes: a path or a cycle now settles in a few passes into short runs

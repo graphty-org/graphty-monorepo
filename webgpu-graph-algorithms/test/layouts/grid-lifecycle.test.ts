@@ -35,6 +35,7 @@ function tick(): Promise<void> {
 }
 
 describe("FA2 grid-tier lifecycle (spec 11.3)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "dispose() leaves no live buffer (the lease's scratch included); a step() maps at most two staging slots",
         async (t) => {
@@ -73,6 +74,7 @@ describe("FA2 grid-tier lifecycle (spec 11.3)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "release(snapshot) during a live simulation: the next step() rejects E_RELEASED; a load of another snapshot works; snapshots === 1",
         async (t) => {
@@ -113,6 +115,7 @@ describe("FA2 grid-tier lifecycle (spec 11.3)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "device loss mid-run: the pending step rejects E_DEVICE_LOST, the simulation is disposed, the context is lost; a fresh context runs afterwards",
         async (t) => {

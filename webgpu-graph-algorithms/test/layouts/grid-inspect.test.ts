@@ -218,6 +218,7 @@ describe("grid tier inspect(): every stage against the oracle's (spec 11.9 item 
     for (const name of FIXTURES) {
         for (const dim of [2, 3] as const) {
             const label = `${name}/${dim}d`;
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${label}: G1, G2, G3 bitwise, the pyramid, G6, G7, K5 and the K1 grid block within their traced tolerances, twice bitwise`,
                 async (t) => {
@@ -258,6 +259,7 @@ describe("grid tier inspect(): every stage against the oracle's (spec 11.9 item 
         }
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a pinned node (clumpy100, 2D): its force is computed, K5 leaves it in place, every stage still within tolerance",
         async (t) => {
@@ -285,6 +287,7 @@ describe("grid tier inspect(): every stage against the oracle's (spec 11.9 item 
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writes this adapter's grid stage outputs of the UNSCALED random20k, isolated and clumpy100 and the f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {

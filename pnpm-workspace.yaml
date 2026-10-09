@@ -34,6 +34,11 @@ patchedDependencies:
     # ignored: the real element loads instead. Vitest 5 checks for the trailing slash; this is
     # that fix (issue #493).
     "@vitest/browser@4.1.11": patches/@vitest__browser@4.1.11.patch
+    # nwsapi (jsdom's selector engine) keeps compiled selectors in a 1000-entry LRU, and jsdom
+    # matches every stylesheet rule against every element. Past 1000 distinct selectors (jsdom's
+    # own sheet plus compact-mantine's) each lookup misses and recompiles, and getComputedStyle
+    # slows about tenfold. A larger limit keeps every selector cached.
+    "nwsapi@2.2.28": patches/nwsapi@2.2.28.patch
 
 # Security floors for transitive packages that a parent in pnpm-lock.yaml pins to a vulnerable
 # version. Each line names the parent that holds it back; delete an entry once that parent moves

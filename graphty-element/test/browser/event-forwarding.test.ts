@@ -28,6 +28,7 @@ async function createGraphtyElement(): Promise<{ element: Graphty; container: HT
     container.appendChild(graphtyElement);
 
     // Wait for element to be connected and asyncFirstUpdated to complete
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     return { element: graphtyElement, container };
@@ -112,6 +113,7 @@ describe("Event Forwarding Regression Tests", () => {
             await graphtyElement.graph.addNodes([{ id: "1" }, { id: "2" }]);
 
             // Wait for async operations
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             // data-added should have been emitted
@@ -131,6 +133,7 @@ describe("Event Forwarding Regression Tests", () => {
 
             // First add nodes
             await graphtyElement.graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             // Now listen for edge additions
@@ -142,6 +145,7 @@ describe("Event Forwarding Regression Tests", () => {
                 { src: "b", dst: "c" },
             ]);
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             // Should have received data-added for edges
@@ -432,6 +436,7 @@ describe("Event Forwarding Regression Tests", () => {
             ]);
 
             // Wait for operations to complete
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 300));
 
             // Should have received data-added events for both nodes and edges

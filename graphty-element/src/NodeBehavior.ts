@@ -113,7 +113,7 @@ export class NodeDragHandler {
         const context = this.getContext();
         const xrConfig = context.getConfig().xr;
 
-        this.zAxisAmplification = xrConfig?.input.zAxisAmplification ?? 10.0;
+        this.zAxisAmplification = xrConfig?.input.zAxisAmplification ?? 10;
         this.enableZAmplificationInDesktop = xrConfig?.input.enableZAmplificationInDesktop ?? false;
 
         // Setup pointer event listeners

@@ -1,0 +1,40 @@
+name: PR Issue Link
+
+# Fails a pull request whose description names no issue (issue #1611): a fix that does not say
+# "Fixes #N" leaves its issue open, and nothing connects the two. tools/pr-issue-link.mjs reads the
+# description; it accepts the forms githerd counts as a reference, or a line "No issue".
+#
+# Its own workflow, like pr-title.yml, so that editing the description re-runs it with no push:
+# `edited` fires for body edits, and a re-run of a job would reuse the event's old body. No
+# concurrency group, for pr-title.yml's reason: a cancelled required check dequeues a batch.
+on:
+    pull_request:
+        types: [opened, edited, synchronize, reopened]
+
+permissions:
+    contents: read
+
+jobs:
+    link-issue:
+        name: Link PR Issue
+        # Mergify's own merge-queue draft carries Mergify's body; the pull requests it holds were each
+        # checked here. Skipped as a whole job, for the reason pr-title.yml gives.
+        if: ${{ !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') }}
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            # The description goes through an environment variable, never into the script text: it is
+            # attacker-controlled on a fork's pull request.
+            - name: Check the description names an issue
+              env:
+                  PR_BODY: ${{ github.event.pull_request.body }}
+                  HEAD_REF: ${{ github.head_ref }}
+                  PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+                  SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+              run: node tools/pr-issue-link.mjs

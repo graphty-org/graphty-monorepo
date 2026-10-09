@@ -230,6 +230,12 @@ describe("every kept set survives the data manager's edits and re-freezes", () =
                 guardedAsyncProperty(fc.commands(ops, { maxCommands: 25, size: "+1" }), async (commands) => {
                     graph.getDataManager().clear();
                     driver.path = null;
+                    // The graph is reused, so the last sequence's sets go with its data.
+                    for (const set of driver.sets.list()) {
+                        driver.sets.remove(set.id);
+                    }
+
+                    assert.deepEqual(driver.sets.list(), [], "no set is left from the last sequence");
                     await fc.asyncModelRun(() => ({ model: new Model(), real: driver }), commands);
                 }),
                 fcParams(100),

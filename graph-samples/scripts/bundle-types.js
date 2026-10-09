@@ -6,9 +6,9 @@
  * dist/src/, so a shim can never drift from the source export list.
  */
 
-import { existsSync, mkdirSync, writeFileSync } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { declarationSpecifier, ENTRIES } from "./entries.js";
 

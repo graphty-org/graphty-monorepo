@@ -16,7 +16,6 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
             emit: vi.fn(),
             once: vi.fn(),
             listenerCount: vi.fn(() => 0),
-            emitGraphEvent: vi.fn(),
             emitGraphError: vi.fn(),
             onGraphEvent: {
                 add: vi.fn(),
@@ -60,6 +59,7 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
             );
 
             // Operation should be queued but not executed
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 10));
             expect(executed).toBe(false);
 

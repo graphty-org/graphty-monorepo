@@ -129,10 +129,12 @@ export function fakeLayout(session: GraphSession): FakeLayout {
         for (let row = 0; row < rows; row++) {
             lane.read(row, at);
             if (Number.isNaN(at.x)) {
-                out.set([row, row, row], 3 * row);
+                out.set([row, row, session.layout.dimension === "2d" ? 0 : row], 3 * row);
             } else {
                 const step = lane.isPinned(row) ? 0 : 1;
-                out.set([at.x + step, at.y + step, at.z + step], 3 * row);
+                // A 2D layout keeps every node on the Z = 0 plane.
+                const flat = session.layout.dimension === "2d";
+                out.set([at.x + step, at.y + step, flat ? 0 : at.z + step], 3 * row);
             }
         }
 

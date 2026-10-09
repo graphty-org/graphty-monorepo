@@ -120,6 +120,7 @@ test("waitForSettle waits for layout to settle", async () => {
         });
 
     // Should not capture immediately
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.equal(captured, false, "Should not capture before settling");
 
@@ -135,6 +136,7 @@ test("waitForSettle waits for layout to settle", async () => {
     assert.equal(captured, true, "Should capture after settling");
 });
 
+// eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
 test("waitForSettle times out if layout never settles", { timeout: 35000 }, async () => {
     graph = await createTestGraphWithData();
 
@@ -178,6 +180,7 @@ test("waitForOperations waits for pending operations", async () => {
         });
 
     // Should not capture immediately
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 50));
     assert.equal(captured, false, "Should not capture before operations complete");
 

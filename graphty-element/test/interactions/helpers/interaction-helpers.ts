@@ -24,16 +24,19 @@ export async function waitForGraphReady(graph: Graph, timeout = 5000): Promise<v
     while (Date.now() - startTime < timeout) {
         if (graph.initialized) {
             // Give a small delay for everything to settle
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             // Trigger a render loop iteration to ensure layout is applied
             graph.scene.render();
 
             // Another small delay for positions to be applied
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
             return;
         }
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 50));
     }
 
@@ -206,6 +209,7 @@ export async function dragNode(graph: Graph, nodeId: string | number, delta: Dra
     } as unknown as Parameters<typeof scene.onPointerObservable.notifyObservers>[0]);
 
     // Small delay to allow event processing
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 16));
 
     // Simulate pointer move
@@ -222,6 +226,7 @@ export async function dragNode(graph: Graph, nodeId: string | number, delta: Dra
             } as PointerEvent,
         } as unknown as Parameters<typeof scene.onPointerObservable.notifyObservers>[0]);
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 16));
     }
 
@@ -237,6 +242,7 @@ export async function dragNode(graph: Graph, nodeId: string | number, delta: Dra
     } as unknown as Parameters<typeof scene.onPointerObservable.notifyObservers>[0]);
 
     // Wait for physics to settle
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 100));
 }
 
@@ -375,6 +381,7 @@ export async function clickAtPosition(graph: Graph, position: ScreenPosition): P
     } as unknown as Parameters<typeof scene.onPrePointerObservable.notifyObservers>[0]);
 
     // Small delay for event processing
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 16));
 
     // Pointer up to complete the click
@@ -389,6 +396,7 @@ export async function clickAtPosition(graph: Graph, position: ScreenPosition): P
     } as unknown as Parameters<typeof scene.onPrePointerObservable.notifyObservers>[0]);
 
     // Small delay for click detection processing
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 50));
 }
 
@@ -416,6 +424,7 @@ export async function clickOnNode(graph: Graph, nodeId: string | number): Promis
     // Trigger a few render frames to ensure everything is synchronized
     for (let i = 0; i < 3; i++) {
         graph.scene.render();
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 16));
     }
 

@@ -320,6 +320,7 @@ describe("the declarative load path, which is how a page without any script load
         element.style.display = "block";
         container.appendChild(element);
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
 
         const reported: string[] = [];
@@ -334,6 +335,7 @@ describe("the declarative load path, which is how a page without any script load
             node: { path: "nodes" },
             edge: { path: "edges" },
         };
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
 
         // Setting a property hands the caller no promise to catch, so the throw the refusal
@@ -359,6 +361,7 @@ describe("the declarative load path, which is how a page without any script load
         element.style.display = "block";
         container.appendChild(element);
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
 
         const reported: string[] = [];
@@ -369,6 +372,7 @@ describe("the declarative load path, which is how a page without any script load
 
         element.nodeData = [{ id: "a" }, { id: "b" }];
         element.edgeData = [{ a: "a", b: "b" }];
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
 
         // This path reported NOTHING: the records go straight to the data manager rather than

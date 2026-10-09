@@ -114,6 +114,7 @@ describe("sabotage: the tier rows of the row-walking kernels", () => {
         if (rowsOf(id).length === 0) {
             continue;
         }
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `${id}: the real kernel passes the tier check (factor < 1)`,
             async (t) => {
@@ -127,6 +128,7 @@ describe("sabotage: the tier rows of the row-walking kernels", () => {
             CASE_TIMEOUT,
         );
         for (const mutation of rowsOf(id)) {
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${id}/${mutation.name}: fails the tier check by >= ${mutation.minFactor}x`,
                 async (t) => {

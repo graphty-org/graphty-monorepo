@@ -44,6 +44,7 @@ afterEach(() => {
 async function atRest(graph: Graph): Promise<void> {
     await graph.waitForSettled();
     for (let wait = 0; wait < 1000 && graph.getLayoutManager().running; wait++) {
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 10));
     }
 
@@ -139,6 +140,7 @@ function sceneDigest(graph: Graph): string {
 
 describe("round trip per command, on a renderer", () => {
     for (const fixture of FIXTURES.filter((each) => each.tags.includes("renderer"))) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             fixture.name,
             async () => {
@@ -154,6 +156,7 @@ describe("round trip per command, on a renderer", () => {
         );
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "digests a scene the same way twice when nothing changed",
         async () => {

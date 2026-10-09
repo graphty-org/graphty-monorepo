@@ -264,6 +264,7 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
     for (const fixture of FIXTURES) {
         for (const directed of [false, true]) {
             const kind = directed ? "directed" : "undirected";
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(`${fixture.name} (${kind}): dist bitwise vs the f32 oracle and sssp, within the derived tolerance of the f64 one, the triangle inequality, predArc by the tight rule, reachedCount, no negative cycle, run twice`, async (t) => {
                 const ctx = await context(t);
                 const s = snapshotOf(fixture.edges, {
@@ -282,6 +283,7 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
         }
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("a directed DAG with negative arcs: no negative cycle, some distance negative, dist bitwise vs the f32 oracle, every chain reaches the source", async (t) => {
         const ctx = await context(t);
         const s = snapshotOf(negativeDag(300, 1500, 13), { directed: true, label: "bf-dag" });
@@ -293,6 +295,7 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
         ctx.release(s);
     }, 120_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("a planted negative cycle reachable from the source is reported (dist and predArc are the last round's, chains acyclic); the same cycle unreachable from the source is NOT (the naive case); a zero-weight cycle is not; an undirected negative edge is a negative cycle of length two", async (t) => {
         const ctx = await context(t);
         const planted = snapshotOf(gridWithCycle(-3, true), {
@@ -339,6 +342,7 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
         ctx.release(undirected);
     }, 300_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("cutoff on the non-negative integer grid, exactly as sssp: an integer distance some node attains is reached (the <= case), -1 is the source alone, Infinity is no cap, NaN is E_INVALID_ARGUMENT { argument: 'cutoff' } before any device work", async (t) => {
         const ctx = await context(t);
         const grid = snapshotOf(weightedEdges(gridEdges(30, 30), "integer", 2), { label: "bf-grid-cutoff" });
@@ -358,6 +362,7 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
         ctx.release(grid);
     }, 120_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("weights overrides (PD-22): an integer override on the unweighted path500 is bitwise the f32 oracle's on that vector and NOT the depths; on an undirected snapshot an override whose two arcs of one edge differ is E_UNSUPPORTED { feature: 'bellmanFord.asymmetricUndirectedWeights' } before any device work, and the same override made symmetric runs and equals sssp", async (t) => {
         requireGpu(t);
         const { device } = await acquireRaw();
@@ -402,6 +407,7 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
         counter.restore();
     }, 300_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the directed identity path (pathEdges(64), weights a + 1): arcToEdge is the identity, the residency binds no edgeToArc (the driver's iota), dist bitwise vs the f32 oracle, the reported rounds at most n - 1", async (t) => {
         const ctx = await context(t);
         const s = snapshotOf(
@@ -435,6 +441,7 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
         ctx.release(s);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the unit route (PD-22): an unweighted snapshot is the BFS -- dist the depths as f32, hasNegativeCycle false, reachedCount the visited count; an all-ones override on a weighted snapshot takes the same route", async (t) => {
         const ctx = await context(t);
         const grid = snapshotOf(gridEdges(30, 30), { label: "bf-unit-grid" });
@@ -520,6 +527,7 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
         ctx.release(path);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("PD-12 counts spurious failures only (issue #470): on the fan-in whose 4,096 distinct candidates land in one round, and on the descending fan whose one round before the decision round offers 4,096 candidates largest first, even maxRetries 1 leaves retryExhaustedRounds 0, dist exact and no negative cycle -- a lane that loses its exchange to another lane retries until it wins or is no longer an improvement", async (t) => {
         const ctx = await context(t);
         const fan = snapshotOf(fanIn(4096), { directed: true, label: "bf-fan-in" });
@@ -539,6 +547,7 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
         ctx.release(descending);
     }, 120_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("issue #470: a negative cycle whose decision round offers 4,096 descending candidates for one node from adjacent lanes is reported, not E_VALIDATION -- a lane that loses its exchange to another lane's improvement is not a spurious failure and never counts against the retry bound, so no lane exhausts it even at maxRetries 1", async (t) => {
         const ctx = await context(t);
         const s = snapshotOf(racingCycle(4096), { directed: true, label: "bf-racing-cycle" });
@@ -551,6 +560,7 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
         ctx.release(s);
     }, 120_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the driver's retryExhausted paths, reached through a kernel that counts every lost exchange (the kernel before issue #470): exhausted before the decision round it runs on and dist stays exact; exhausted IN the decision round it is E_VALIDATION, never a guess", async (t) => {
         requireGpu(t);
         const countsEveryLoss = {
@@ -573,6 +583,7 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
         });
     }, 120_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the sabotage check passes on the real kernels (factor 0)", async (t) => {
         const ctx = await context(t);
         const report = await bellmanFordReport(ctx);

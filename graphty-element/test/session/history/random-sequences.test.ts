@@ -233,11 +233,13 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
 describe("random sequences of edits, pending work and history moves, from every starting state", () => {
     const only = process.env.FC_SEED;
     for (const seed of only === undefined ? SEEDS : [Number(only)]) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(`holds for seed ${String(seed)}`, () => runSeed(seed, NUM_RUNS), SEED_TIMEOUT_MS);
     }
 });
 
 describe("eviction folds the arrangement of every evicted step into the baseline", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "2000 placements with coalescing off and a limit of 1000 steps, all undone, leave every evicted placement in place",
         async () => {

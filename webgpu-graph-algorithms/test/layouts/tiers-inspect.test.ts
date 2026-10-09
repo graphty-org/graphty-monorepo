@@ -71,6 +71,7 @@ describe("the K2 degree tiers inside the layout (P4-T6, PD-7)", () => {
     for (const graph of TIER_GRAPHS) {
         for (const weighted of [false, true]) {
             const label = `${graph}${weighted ? "-w" : ""}`;
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${label}: every stage bitwise twice, K2 within deg_i x 2^-22 of the f64 oracle, the tier pipelines the degrees populate`,
                 async (t) => {
@@ -119,6 +120,7 @@ describe("the K2 degree tiers inside the layout (P4-T6, PD-7)", () => {
         }
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "karate: no row of degree >= 32, so perm stays the dummy and only TIER 0 with USE_PERM false is compiled",
         async (t) => {
@@ -140,6 +142,7 @@ describe("the K2 degree tiers inside the layout (P4-T6, PD-7)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the Fruchterman-Reingold and spring-electrical simulations on rmat14 reach the same three tier pipelines",
         async (t) => {
@@ -169,6 +172,7 @@ describe("the K2 degree tiers inside the layout (P4-T6, PD-7)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "hub10k with the hub pinned: its attraction is computed through its tier, the free count excludes it, K5 leaves it in place",
         async (t) => {
@@ -219,6 +223,7 @@ describe("the K2 degree tiers inside the layout (P4-T6, PD-7)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writes this adapter's K2 output of the UNSCALED hub10k and the f64 reference as the hub10k-K2-tiers noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {

@@ -79,6 +79,7 @@ function watchOnLoad(graph: Graph): ReturnType<typeof vi.fn> {
 }
 
 describe("runs as steps on a renderer", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "runAlgorithm with applySuggestedStyles is one step, and one undo removes the run and its layers",
         async () => {
@@ -101,6 +102,7 @@ describe("runs as steps on a renderer", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "addNodes with algorithms on load is one step: the on-load runs merge into it as deferred members",
         async () => {
@@ -126,6 +128,7 @@ describe("runs as steps on a renderer", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a replacing import starts the on-load algorithms once, and undoing a removal starts none",
         async () => {
@@ -154,6 +157,7 @@ describe("runs as steps on a renderer", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "runAlgorithmsFromTemplate is one step",
         async () => {

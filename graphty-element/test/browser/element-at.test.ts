@@ -105,6 +105,7 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
         assert.isNull(element.elementAt({ x: 2, y: 2 }), "the corner is empty canvas");
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("returns the node a click at the same point selects, across the whole element", async () => {
         const element = await mounted(viewMode);
         const points = NODES.map(({ id }) => centerOf(element, id));

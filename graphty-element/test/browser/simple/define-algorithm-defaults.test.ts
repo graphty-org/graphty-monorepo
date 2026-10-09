@@ -200,6 +200,7 @@ describe("cancelling a whole-graph function", () => {
         assert.strictEqual(run.status, "canceled");
         const deadline = Date.now() + 5000;
         while (!stopped && Date.now() < deadline) {
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((settle) => setTimeout(settle, 10));
         }
         assert.isTrue(stopped, "the author's own loop unwound");

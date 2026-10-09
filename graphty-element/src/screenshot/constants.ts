@@ -20,7 +20,7 @@ export const SCREENSHOT_CONSTANTS = {
     /**
      * Default PNG quality (always maximum for lossless format).
      */
-    DEFAULT_PNG_QUALITY: 1.0,
+    DEFAULT_PNG_QUALITY: 1,
 } as const;
 
 /**

@@ -226,6 +226,7 @@ function mountEmpty(): Graphty {
  */
 async function settle(element: Graphty): Promise<void> {
     await operationQueueOf(element.graph).waitForCompletion();
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
 }
 
@@ -242,6 +243,7 @@ async function until(condition: () => boolean): Promise<boolean> {
             return true;
         }
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, FRAME_MS));
     }
 

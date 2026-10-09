@@ -131,6 +131,7 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
         ctx.release(s);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "fixed nodes never move: a random mask set between steps keeps every pinned row and its velocity bitwise where they were",
         async (t) => {
@@ -198,6 +199,7 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
         });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "setPosition is visible in the next readback, never clobbered by an older batch, and does not reset the dragged row's velocity",
         async (t) => {
@@ -252,6 +254,7 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "run({ maxIter, batch: 1 }) stops at maxIter exactly with stats.iteration agreeing; the preset has no budget option, so `settled` is the shared rule alone (false with settling disabled)",
         async (t) => {
@@ -280,6 +283,7 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reheat on unpin, setPosition and load, not on pin (D8); the velocities are bitwise unchanged across a reheat (onReheat is empty)",
         async (t) => {
@@ -326,6 +330,7 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A is still fixed",
         async (t) => {
@@ -391,6 +396,7 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "2D writes z === center.z whatever z was uploaded, for random z and random center.z",
         async (t) => {
@@ -420,6 +426,7 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the unit speed clamp: after one iteration every velocity row's |v| <= 1 + 8 x 2^-23 (the 2.5-ULP division, G3-F6), every free row's |dt v| <= timeStep x that x (1 + 4 x 2^-24), and its stored |dp| adds the two f32 position roundings",
         async (t) => {

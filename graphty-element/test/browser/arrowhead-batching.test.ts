@@ -40,6 +40,7 @@ describe("arrowheads are drawn in bulk", () => {
     let graph: Graph;
     let session: GraphSession;
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeEach(async () => {
         container = document.createElement("div");
         container.style.width = `${String(WIDTH)}px`;
@@ -99,6 +100,7 @@ describe("arrowheads are drawn in bulk", () => {
 
         for (let at = 0; at < FRAMES; at++) {
             graph.scene.render();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise<void>((done) => {
                 setTimeout(done, FRAME_MS);
             });

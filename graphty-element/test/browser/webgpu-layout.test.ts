@@ -324,6 +324,7 @@ async function cpuReference(): Promise<Graphty> {
     return reference;
 }
 
+// eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
 beforeAll(async () => {
     if (!GPU_LANE) {
         return;
@@ -355,6 +356,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         }
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("settles forceatlas2 on the device, reporting active while it runs", { timeout: SETTLE_MS * 2 }, async () => {
         const seen = watchStatus(gpu);
 
@@ -376,6 +378,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         assert.equal(status(gpu).state, "idle", "and it is idle again once the arrangement is at rest");
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("moves a node when it is dragged, and leaves it pinned", { timeout: SETTLE_MS * 3 }, async () => {
         const node = gpu.graph.getDataManager().getNode("node-0");
         if (node === undefined) {
@@ -412,16 +415,19 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         node.unpin();
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("settles spring on the device", { timeout: SETTLE_MS * 2 }, async () => {
         await settle(gpu, "spring");
         assert.isTrue((gpu.graph.getLayoutManager().layoutEngine as SimulationLayoutEngine).isAccelerated);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("settles spring-electrical, which only exists on an accelerator", { timeout: SETTLE_MS * 2 }, async () => {
         await settle(gpu, "spring-electrical");
         assert.isTrue((gpu.graph.getLayoutManager().layoutEngine as SimulationLayoutEngine).isAccelerated);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "settles the DEFAULT arrangement on the device, asked for nothing else",
         { timeout: SETTLE_MS * 2 },
@@ -443,6 +449,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         },
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("labels a PageRank run computed on the device as single precision", { timeout: SETTLE_MS }, async () => {
         const run = gpu.session.runs.start("pagerank");
         await run;
@@ -454,6 +461,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
     // The two traversal cases carry an explicit timeout, as the PageRank case does: a cyclic predecessor chain would
     // hang the seam's unbounded walk, and a hang must read as a failure on the lane, not as a stalled job.
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "labels a breadth-first search computed on the device as single precision, and its levels are the CPU's",
         { timeout: SETTLE_MS * 2 },
@@ -521,6 +529,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         },
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "labels a Dijkstra run computed on the device as single precision, and its route costs the CPU's",
         { timeout: SETTLE_MS * 2 },
@@ -614,6 +623,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         },
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("settles where the CPU settles, to a quarter of every quantile", { timeout: SETTLE_MS * 4 }, async () => {
         await settle(gpu, "forceatlas2");
         const accelerated = quantiles(gpu);
@@ -656,6 +666,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the po
     /** SwiftShader is the only software adapter a lane launches; every other flag set is hardware. */
     const SOFTWARE = ADAPTER === "swiftshader";
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         SOFTWARE ? "refuses the software adapter under auto, saying why" : "attaches the hardware adapter under auto",
         { timeout: 200_000 },
@@ -676,6 +687,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the po
         },
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         SOFTWARE
             ? "lets go of the software adapter required attached once the policy relaxes to auto"

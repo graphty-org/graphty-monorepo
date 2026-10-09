@@ -1,3 +1,33 @@
+## 0.9.13 (2026-10-09)
+
+### 🩹 Fixes
+
+- **compact-mantine:** register the browser commands for the storybook test project ([#1566](https://github.com/graphty-org/graphty-monorepo/issues/1566), [#1480](https://github.com/graphty-org/graphty-monorepo/issues/1480))
+- **compact-mantine:** theme Input.Wrapper labels like every field label ([#877](https://github.com/graphty-org/graphty-monorepo/issues/877))
+- **compact-mantine:** make dimmed text meet AA under the high-contrast tokens ([#2](https://github.com/graphty-org/graphty-monorepo/issues/2), [#1405](https://github.com/graphty-org/graphty-monorepo/issues/1405))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.12 (2026-10-08)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.9.11 (2026-10-08)
+
+### 🩹 Fixes
+
+- **compact-mantine:** anchor pop-out panels inside transformed ancestors ([#433](https://github.com/graphty-org/graphty-monorepo/issues/433))
+
+### 🔥 Performance
+
+- **compact-mantine:** skip the pop-out scale probe when there is no layout ([#433](https://github.com/graphty-org/graphty-monorepo/issues/433))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.10 (2026-10-08)
 
 ### 🩹 Fixes

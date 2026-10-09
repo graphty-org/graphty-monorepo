@@ -246,6 +246,7 @@ async function compare(
 }
 
 describe("FR vs @graphty/layout: the admission rule (the f64 and f32 oracles alone, no GPU)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "every case's trajectory sensitivity is printed; the admitted horizons are under a third of the cap on both counts; the layout10 member's configuration (karate with the mask) is admitted at its horizon",
         async () => {
@@ -332,6 +333,7 @@ describe("FR vs @graphty/layout's FruchtermanReingoldSimulation: the second refe
             const label = caseLabel(graph, k);
             const asserted = ADMITTED[label];
             const printed = [...HORIZONS.filter((h) => !asserted.includes(h)), PRINTED];
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${label}: twice bitwise; within fr-layout-oracle after ${asserted.join(", ")} iterations, ${printed.join(", ")} printed; the temperature schedule bitwise`,
                 async (t) => {
@@ -350,6 +352,7 @@ describe("FR vs @graphty/layout's FruchtermanReingoldSimulation: the second refe
         }
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         `karate with a fixed mask on both sides: the pinned row is bitwise the seed at every horizon, the rest within fr-layout-oracle after ${ADMITTED[FIXED_LABEL].join(", ")} iterations`,
         async (t) => {
@@ -374,6 +377,7 @@ describe("FR vs @graphty/layout's FruchtermanReingoldSimulation: the second refe
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         `karate at scale 3, center (10, 20, 0) with the mask: the owner arrays agree within fr-layout-oracle at k = ${Math.max(...ADMITTED[FIXED_LABEL])}, k = ${SCALED_PRINTED} printed (both write layout * scale + center, never a rescale)`,
         async (t) => {
@@ -397,6 +401,7 @@ describe("FR vs @graphty/layout's FruchtermanReingoldSimulation: the second refe
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         'karate under cooling: "adaptive": the CPU class runs the same controller -- the temperature of each of the first 12 iterations and the positions after 1 and 5',
         async (t) => {
@@ -448,6 +453,7 @@ describe("FR vs @graphty/layout's FruchtermanReingoldSimulation: the second refe
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         `writes the GPU's and the CPU class's ${LAYOUT10_LABEL} positions after ${LAYOUT10_HORIZON} iterations as the layout10 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
         async (t) => {

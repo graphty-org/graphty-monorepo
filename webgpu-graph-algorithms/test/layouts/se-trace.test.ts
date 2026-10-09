@@ -120,6 +120,7 @@ function at<T>(map: ReadonlyMap<number, T>, k: number): T {
 }
 
 describe("spring-electrical trace: the admission rule (the f64 and f32 oracles alone, no GPU)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "every graph's trajectory sensitivity at 1, 5 and 10 is printed; the admitted horizons are under a third of the cap on both counts; the traj10 graph is admitted at 10",
         async () => {
@@ -169,6 +170,7 @@ describe("spring-electrical trace: the kinetic energy, the free-running trajecto
     for (const graph of GRAPHS) {
         const asserted = ADMITTED[graph];
         const printed = [...HORIZONS.filter((k) => !asserted.includes(k)), PRINTED];
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `${graph}: twice bitwise; positions after ${asserted.join(", ")} iterations within se-trajectory (${printed.join(", ")} printed); the lagged kinetic energy and the fold through record ${Math.max(...asserted)} within it`,
             async (t) => {
@@ -266,9 +268,15 @@ describe("spring-electrical trace: the kinetic energy, the free-running trajecto
         );
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         `writes the ${TRAJ10_HORIZON}-iteration positions of ${TRAJ10_GRAPH} and the f64 reference's as the traj10 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
         async (t) => {
+            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+                // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
+                // ones on every run (issue #455)
+                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+            }
             requireGpu(t);
             const s = paritySnapshot(TRAJ10_GRAPH, 1, false);
             try {

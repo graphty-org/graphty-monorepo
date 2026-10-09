@@ -24,6 +24,7 @@ test("canvas resizes when container element dimensions change", async () => {
     container.appendChild(graphtyElement);
 
     // Wait for element to be connected and initialized
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     // Add some test data
@@ -34,6 +35,7 @@ test("canvas resizes when container element dimensions change", async () => {
     ]);
 
     // Wait for initial render
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     // Get the canvas element - it's in the shadow root
@@ -57,6 +59,7 @@ test("canvas resizes when container element dimensions change", async () => {
     container.style.height = "900px";
 
     // Wait for ResizeObserver to trigger and for resize to complete
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     // Check that canvas dimensions have updated
@@ -102,6 +105,7 @@ test("canvas resizes in flexbox layout", async () => {
     container.appendChild(graphtyElement);
 
     // Wait for element to be connected and initialized
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Add some test data
@@ -109,6 +113,7 @@ test("canvas resizes in flexbox layout", async () => {
     await graphtyElement.graph.addEdges([{ src: "1", dst: "2" }]);
 
     // Wait for render
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Get the canvas element
@@ -135,6 +140,7 @@ test("canvas resizes in flexbox layout", async () => {
     header.style.height = "100px";
 
     // Wait for layout and ResizeObserver
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     // Check that canvas adjusted to new available space

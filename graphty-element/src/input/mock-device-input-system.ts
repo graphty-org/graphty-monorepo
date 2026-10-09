@@ -71,7 +71,7 @@ export class MockDeviceInputSystem {
             deviceType: DeviceType.Mouse,
             pointerId: 1,
             isPrimary: true,
-            pressure: 1.0,
+            pressure: 1,
         };
 
         this.onPointerDown.notifyObservers(info);

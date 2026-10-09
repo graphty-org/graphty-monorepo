@@ -124,6 +124,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         await page.viewport(1366, 768);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T6: the graph's Overview shows the element's counts for karate",
         async () => {
@@ -152,6 +153,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T12: a picked node opens on Values, and Degree lists its neighbors by name, strongest first",
         async () => {
@@ -177,6 +179,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T12 by keyboard only: Degree, the neighbor names, and Esc back to the node",
         async () => {
@@ -209,6 +212,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T7: a measure row shows its top 10, a node its rank, and Rerun revises the same row",
         async () => {
@@ -290,6 +294,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T8: Louvain's row shows its groups, a group its members, and Why this look names it for Color",
         async () => {
@@ -333,6 +338,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "an edge, an attribute, the Everything row and a group's members each show the element's values",
         async () => {

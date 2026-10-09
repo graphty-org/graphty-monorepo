@@ -1,0 +1,13 @@
+diff --git a/src/nwsapi.js b/src/nwsapi.js
+index 1d5c902b20c65f9d9c3a98fd72d09f58bcb94932..58629d67ed6d7fb63d7ac6167d4f30cd20323944 100644
+--- a/src/nwsapi.js
++++ b/src/nwsapi.js
+@@ -233,7 +233,7 @@
+     },
+ 
+   // caching limit for compiled resolver functions
+-  CACHE_LIMIT = 1000,
++  CACHE_LIMIT = 10000,
+ 
+   // ES5 bounded LRU cache. It stores query plans (compiled resolvers),
+   // never DOM result sets. A prefixed dictionary avoids user-key collisions

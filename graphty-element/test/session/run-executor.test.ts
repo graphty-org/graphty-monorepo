@@ -100,7 +100,7 @@ function mockGraph(nodeIds: readonly string[], edges: readonly (readonly [string
         // Its own registry, so nothing another test registered reaches this one.
         acceleration: new AccelerationController({ policy: "auto", minNodes: 0, registry: new AcceleratorRegistry() }),
     } as unknown as Graph;
-    const events = { emitGraphError: () => undefined, emitGraphEvent: () => undefined } as unknown as EventManager;
+    const events = { emitGraphError: () => undefined, emit: () => undefined } as unknown as EventManager;
 
     return {
         manager: new AlgorithmManager(events, graph),

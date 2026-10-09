@@ -139,6 +139,7 @@ describe("FA2 subgroup twins in-process (spec 11.3)", () => {
         for (const tuning of [PAPER, NETWORKX]) {
             const paper = tuning.compat === "paper";
             const label = `${graph}/${tuning.compat ?? "paper"}`;
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${label}: every stage agrees between the twins within the traced tolerances; K2's attraction bitwise`,
                 async (t) => {
@@ -175,6 +176,7 @@ describe("FA2 subgroup twins in-process (spec 11.3)", () => {
                 CASE_TIMEOUT,
             );
 
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${label}: one iteration from each of ${TRACE_TEN} trajectory states agrees between the twins (re-synchronised per iteration)`,
                 async (t) => {
@@ -225,6 +227,7 @@ describe("FA2 subgroup twins in-process (spec 11.3)", () => {
                 CASE_TIMEOUT,
             );
 
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${label}: the workgroup twin's ${TRACE_ITERATIONS}-iteration trajectory agrees with the re-synchronised f32 / f64 oracles; the free-running ${TRACE_TEN}-iteration twin trace ${paper ? "printed (chaotic)" : "within fa2-twins.trace"}`,
                 async (t) => {
@@ -273,6 +276,7 @@ describe("FA2 subgroup twins in-process (spec 11.3)", () => {
         }
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writes the workgroup twin's outputs of the UNSCALED random1k / karate as `<class>-no-subgroups` noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {

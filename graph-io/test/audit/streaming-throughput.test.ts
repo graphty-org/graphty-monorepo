@@ -130,6 +130,7 @@ function expectExportStreams(name: string, run: ExportRun): void {
 }
 
 describe.skipIf(!BENCH)("streaming audit: throughput at 1M edges (IO_BENCH=1)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "CSV imports 1M edges through a file stream",
         async () => {
@@ -142,6 +143,7 @@ describe.skipIf(!BENCH)("streaming audit: throughput at 1M edges (IO_BENCH=1)", 
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Pajek imports 1M arcs through a file stream",
         async () => {
@@ -154,6 +156,7 @@ describe.skipIf(!BENCH)("streaming audit: throughput at 1M edges (IO_BENCH=1)", 
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Neo4j imports 100k nodes and 1M relationships through file streams",
         async () => {
@@ -171,6 +174,7 @@ describe.skipIf(!BENCH)("streaming audit: throughput at 1M edges (IO_BENCH=1)", 
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "GraphML imports 200k edges through a file stream",
         async () => {
@@ -185,6 +189,7 @@ describe.skipIf(!BENCH)("streaming audit: throughput at 1M edges (IO_BENCH=1)", 
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "GEXF imports 200k edges through a file stream",
         async () => {
@@ -199,6 +204,7 @@ describe.skipIf(!BENCH)("streaming audit: throughput at 1M edges (IO_BENCH=1)", 
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "CSV, Pajek and GraphML export 1M edges as bounded chunks while the heap stays flat",
         async () => {
@@ -220,6 +226,7 @@ describe.skipIf(!BENCH)("streaming audit: throughput at 1M edges (IO_BENCH=1)", 
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "GEXF exports 1M edges as bounded chunks while the heap stays flat (PINS a defect)",
         async () => {

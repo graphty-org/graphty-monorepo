@@ -95,6 +95,7 @@ for (const check of CHECKS) {
             }
         });
 
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             "the real kernel passes the analytic check",
             async (t) => {
@@ -110,6 +111,7 @@ for (const check of CHECKS) {
         );
 
         for (const mutation of SABOTAGE[id] ?? []) {
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${id}/${mutation.name}: fails the analytic check by >= ${mutation.minFactor}x`,
                 async (t) => {

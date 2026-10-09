@@ -1,7 +1,8 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import react from "@vitejs/plugin-react";
-import { readFileSync } from "fs";
-import { resolve } from "path";
 import { defineConfig, loadEnv, UserConfig } from "vite";
 
 import { aliases } from "./vite.aliases";

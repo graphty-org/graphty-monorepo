@@ -36,6 +36,7 @@ describe("Operation Triggers", () => {
         );
 
         // Wait for operations to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         assert.isTrue(layoutUpdateTriggered, "layout-update should be triggered after data-add");
@@ -66,6 +67,7 @@ describe("Operation Triggers", () => {
         );
 
         // Wait for operations to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         assert.isFalse(layoutUpdateTriggered, "layout-update should not be triggered when skipTriggers is true");
@@ -101,6 +103,7 @@ describe("Operation Triggers", () => {
         );
 
         // Wait for operations to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         assert.isTrue(customTriggered, "custom trigger should be called");
@@ -134,6 +137,7 @@ describe("Operation Triggers", () => {
         );
 
         // Wait for operations to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         assert.isFalse(layoutUpdateTriggered, "layout-update should not be triggered when no layout engine exists");
@@ -184,6 +188,7 @@ describe("Operation Triggers", () => {
         );
 
         // Wait for operations to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         assert.include(operations, "data-add", "data-add should have executed");
@@ -214,6 +219,7 @@ describe("Operation Triggers", () => {
         );
 
         // Wait for operations to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         assert.isTrue(triggerCalled, "trigger function should be called");
@@ -244,6 +250,7 @@ describe("Operation Triggers", () => {
         );
 
         // Wait for operations to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         // Check that the metadata contains the expected fields (ignoring timestamp)

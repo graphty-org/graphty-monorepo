@@ -44,6 +44,7 @@ import { SpectralLayout } from "../layout/SpectralLayoutEngine";
 import { SpiralLayout } from "../layout/SpiralLayoutEngine";
 import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
+import type { CodedFact } from "../session/shared";
 import { registeredLayoutById } from "./layoutRegistry";
 import { optionsFromZod } from "./optionsFromZod";
 import type { KNOWN_LAYOUT_IDS, LayoutDescriptor, LayoutId, OptionDescriptor } from "./types";
@@ -65,8 +66,19 @@ export interface LayoutImplementation {
     maxDimensions: 2 | 3;
     /** True for the engine the element runs when this layout is asked for by name. */
     isDefault: boolean;
-    /** Why this engine is the default, or what choosing it over the default buys. */
+    /**
+     * Why this engine is the default, or what choosing it over the default buys, as an English
+     * sentence.
+     * @deprecated English written by the element. Word {@link LayoutImplementation.fact}
+     *   yourself; removed in the next major release.
+     */
     reason: string;
+    /**
+     * Why this engine is the default, or what choosing it over the default buys, as a code for
+     * the application to word. See {@link LayoutImplementationCode} for every code.
+     * @since 3.20.0
+     */
+    fact: CodedFact<LayoutImplementationCode>;
     options: readonly OptionDescriptor[];
     /**
      * Whether this engine arranges a graph differently when its edges carry weights.
@@ -89,8 +101,56 @@ export interface LayoutImplementation {
     requires?: { accelerator?: boolean };
 }
 
-/** An implementation as it is authored here. Which one is the default is decided by position. */
-type LayoutImplementationSpec = Omit<LayoutImplementation, "isDefault">;
+/**
+ * Why an engine is the default for its arrangement, or what choosing it buys, as the `code` of
+ * its {@link LayoutImplementation.fact}. Every code's `params` is `engine`: the registered engine
+ * name. The application words it; graphty-element writes no sentence for it.
+ *
+ * | Code | What it says |
+ * | --- | --- |
+ * | `implementation.only` | The only engine that draws this arrangement |
+ * | `implementation.only-uncrossed-rows` | The only engine that draws this arrangement; it orders each row by breadth-first arrival and does not reduce edge crossings between rows |
+ * | `implementation.default-processor` | The default, run on the processor: a live Barnes-Hut simulation that accepts nodes and edges added while it runs; above `acceleration.minNodes` the element draws the same arrangement on an accelerator when one is attached |
+ * | `implementation.d3-tuning` | Offers d3's own tuning vocabulary (alpha, alpha decay, velocity decay), to match a d3 drawing elsewhere |
+ * | `implementation.gephi-look` | The Gephi look, and the arrangement an accelerator reproduces first; runs until settled and reheats on a drag or a pin |
+ * | `implementation.seed-reproducible` | The same seed gives the same settled shape |
+ * | `implementation.accelerator-only` | The default arrangement's force model computed on hardware; asked for by name it needs an accelerator at any size |
+ * | `implementation.distance-faithful` | Drawn distances match graph distances; solves over every pair of nodes, so it suits small graphs |
+ * | `implementation.two-dimensional` | The only force engine that is two-dimensional by nature |
+ *
+ * New codes may be added in a minor release: word an unknown one generically.
+ * @since 3.20.0
+ */
+export type LayoutImplementationCode =
+    | "implementation.only"
+    | "implementation.only-uncrossed-rows"
+    | "implementation.default-processor"
+    | "implementation.d3-tuning"
+    | "implementation.gephi-look"
+    | "implementation.seed-reproducible"
+    | "implementation.accelerator-only"
+    | "implementation.distance-faithful"
+    | "implementation.two-dimensional";
+
+/**
+ * An implementation as it is authored here. Which one is the default is decided by position, and
+ * its fact is built from its code.
+ */
+type LayoutImplementationSpec = Omit<LayoutImplementation, "isDefault" | "fact"> & {
+    code: LayoutImplementationCode;
+};
+
+/**
+ * Finish one authored implementation.
+ * @param spec - The implementation as authored.
+ * @param isDefault - Whether it is the arrangement's default engine.
+ * @returns The published implementation.
+ */
+function implementation(spec: LayoutImplementationSpec, isDefault: boolean): LayoutImplementation {
+    const { code, ...authored } = spec;
+
+    return { ...authored, isDefault, fact: { code, params: { engine: spec.engine } } };
+}
 
 /** One semantic layout, with every engine that can draw it. */
 export interface LayoutCatalogEntry {
@@ -153,8 +213,8 @@ function entry(
             scoped: primary.scoped,
         },
         implementations: [
-            { ...primary, isDefault: true },
-            ...alternates.map((alternate) => ({ ...alternate, isDefault: false })),
+            implementation(primary, true),
+            ...alternates.map((alternate) => implementation(alternate, false)),
         ],
     };
 }
@@ -174,6 +234,7 @@ const ngraph: LayoutImplementationSpec = {
         "accepts nodes and edges added while it is running. One step costs 2.6 ms at a thousand " +
         "nodes and 1.8 seconds at a hundred thousand, so from two thousand nodes the element " +
         "draws this same arrangement on an accelerator instead, whenever one is attached.",
+    code: "implementation.default-processor",
     options: engineOptions(NGraphEngine.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: NGraphEngine.honoursWeights,
     scoped: NGraphEngine.scoped,
@@ -188,6 +249,7 @@ const d3: LayoutImplementationSpec = {
     reason:
         "Choose it for d3's own tuning vocabulary -- alpha, alpha decay, velocity decay -- when " +
         "the arrangement has to match a d3 drawing elsewhere in the product.",
+    code: "implementation.d3-tuning",
     options: engineOptions(D3GraphEngine.zodOptionsSchema),
     honoursWeights: D3GraphEngine.honoursWeights,
     scoped: D3GraphEngine.scoped,
@@ -202,6 +264,7 @@ const forceAtlas2: LayoutImplementationSpec = {
     reason:
         "Choose it for the Gephi look, and for the arrangement an accelerator reproduces first. " +
         "It keeps running until the layout settles and reheats on a drag or a pin.",
+    code: "implementation.gephi-look",
     options: engineOptions(ForceAtlas2Layout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: ForceAtlas2Layout.honoursWeights,
     scoped: ForceAtlas2Layout.scoped,
@@ -216,6 +279,7 @@ const spring: LayoutImplementationSpec = {
     reason:
         "Choose it when the arrangement must be reproducible from a seed: the same seed gives " +
         "the same settled shape.",
+    code: "implementation.seed-reproducible",
     options: engineOptions(SpringLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: SpringLayout.honoursWeights,
     scoped: SpringLayout.scoped,
@@ -231,6 +295,7 @@ const springElectrical: LayoutImplementationSpec = {
         "ngraph's own force model computed on hardware, which is what the default arrangement " +
         "routes to on a graph big enough to need it. Ask for it by name to have it at any size: " +
         "it then needs an accelerator and says so when there is none.",
+    code: "implementation.accelerator-only",
     options: engineOptions(SpringElectricalLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: SpringElectricalLayout.honoursWeights,
     scoped: SpringElectricalLayout.scoped,
@@ -246,6 +311,7 @@ const kamadaKawai: LayoutImplementationSpec = {
     reason:
         "Choose it for a small graph whose drawn distances should match its graph distances. It " +
         "solves over every pair of nodes, so it is slow well before the other force engines are.",
+    code: "implementation.distance-faithful",
     options: engineOptions(KamadaKawaiLayout.zodOptionsSchema),
     honoursWeights: KamadaKawaiLayout.honoursWeights,
     scoped: KamadaKawaiLayout.scoped,
@@ -260,6 +326,7 @@ const arf: LayoutImplementationSpec = {
     reason:
         "The only registered force engine that is two-dimensional by nature, so a flat result " +
         "is what it computes rather than what it is flattened into afterwards.",
+    code: "implementation.two-dimensional",
     options: engineOptions(ArfLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: ArfLayout.honoursWeights,
     scoped: ArfLayout.scoped,
@@ -272,6 +339,7 @@ const circular: LayoutImplementationSpec = {
     kind: "batch",
     maxDimensions: 3,
     reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
     options: engineOptions(CircularLayout.zodOptionsSchema),
     honoursWeights: CircularLayout.honoursWeights,
     scoped: CircularLayout.scoped,
@@ -284,6 +352,7 @@ const shell: LayoutImplementationSpec = {
     kind: "batch",
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
     options: engineOptions(ShellLayout.zodOptionsSchema),
     honoursWeights: ShellLayout.honoursWeights,
     scoped: ShellLayout.scoped,
@@ -296,6 +365,7 @@ const radial: LayoutImplementationSpec = {
     kind: "batch",
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
     options: engineOptions(RadialLayout.zodOptionsSchema),
     honoursWeights: RadialLayout.honoursWeights,
     scoped: RadialLayout.scoped,
@@ -308,6 +378,7 @@ const grid: LayoutImplementationSpec = {
     kind: "batch",
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
     options: engineOptions(GridLayout.zodOptionsSchema),
     honoursWeights: GridLayout.honoursWeights,
     scoped: GridLayout.scoped,
@@ -320,6 +391,7 @@ const spiral: LayoutImplementationSpec = {
     kind: "batch",
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
     options: engineOptions(SpiralLayout.zodOptionsSchema),
     honoursWeights: SpiralLayout.honoursWeights,
     scoped: SpiralLayout.scoped,
@@ -332,6 +404,7 @@ const spectral: LayoutImplementationSpec = {
     kind: "batch",
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
     options: engineOptions(SpectralLayout.zodOptionsSchema),
     honoursWeights: SpectralLayout.honoursWeights,
     scoped: SpectralLayout.scoped,
@@ -344,6 +417,7 @@ const planar: LayoutImplementationSpec = {
     kind: "batch",
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
     options: engineOptions(PlanarLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: PlanarLayout.honoursWeights,
     scoped: PlanarLayout.scoped,
@@ -358,6 +432,7 @@ const bfs: LayoutImplementationSpec = {
     reason:
         "The only engine that draws this arrangement. It orders each row by breadth-first " +
         "arrival and does not reduce edge crossings between rows.",
+    code: "implementation.only-uncrossed-rows",
     options: engineOptions(BfsLayout.zodOptionsSchema),
     honoursWeights: BfsLayout.honoursWeights,
     scoped: BfsLayout.scoped,
@@ -370,6 +445,7 @@ const bipartite: LayoutImplementationSpec = {
     kind: "batch",
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
     options: engineOptions(BipartiteLayout.zodOptionsSchema),
     honoursWeights: BipartiteLayout.honoursWeights,
     scoped: BipartiteLayout.scoped,
@@ -382,6 +458,7 @@ const multipartite: LayoutImplementationSpec = {
     kind: "batch",
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
     options: engineOptions(MultipartiteLayout.zodOptionsSchema),
     honoursWeights: MultipartiteLayout.honoursWeights,
     scoped: MultipartiteLayout.scoped,
@@ -394,6 +471,7 @@ const fixed: LayoutImplementationSpec = {
     kind: "batch",
     maxDimensions: 3,
     reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
     options: engineOptions(FixedLayout.zodOptionsSchema),
     honoursWeights: FixedLayout.honoursWeights,
     scoped: FixedLayout.scoped,
@@ -406,6 +484,7 @@ const random: LayoutImplementationSpec = {
     kind: "batch",
     maxDimensions: 3,
     reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
     options: engineOptions(RandomLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: RandomLayout.honoursWeights,
     scoped: RandomLayout.scoped,

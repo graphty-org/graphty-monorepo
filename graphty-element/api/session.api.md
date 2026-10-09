@@ -1465,9 +1465,14 @@ export interface LayerSpec {
 
 // @public
 export interface LayoutRecommendation {
+    readonly fact: CodedFact<LayoutRecommendationCode>;
     readonly layout: LayoutDescriptor;
+    // @deprecated
     readonly reason: string;
 }
+
+// @public
+export type LayoutRecommendationCode = "recommend.fixed" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable";
 
 // @public
 export interface LayoutRecommendationOptions {

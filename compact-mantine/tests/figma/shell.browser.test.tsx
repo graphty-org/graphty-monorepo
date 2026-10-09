@@ -44,6 +44,7 @@ const SHAPES: ToolItem[] = [
     { value: "arrow", label: "Arrow", icon: <Glyph />, shortcut: "Shift+L" },
 ];
 
+// eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const openTooltip = (): HTMLElement | null => document.querySelector<HTMLElement>(".cm-tooltip");
 
@@ -482,8 +483,10 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const { container } = await renderFigma(railIn(null));
             const button = part(container, ".cm-rail-button:not([data-active])");
             await drive(button, "hover");
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await sleep(350);
             expect(openTooltip()).toBeNull();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await sleep(350);
             const tip = openTooltip();
             expect(tip).not.toBeNull();
@@ -510,6 +513,7 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             await drive(part(container, ".cm-tool"), "hover");
             await expect.poll(openTooltip, { timeout: 2000 }).not.toBeNull();
             await drive(part(container, ".cm-rail-button:not([data-active])"), "hover");
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await sleep(100);
             expect(openTooltip()?.textContent).toBe("Assets");
         });
@@ -518,9 +522,11 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const { container } = await renderFigma(<HelpButton />);
             const button = part(container, ".cm-help-button");
             await drive(button, "hover");
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await sleep(100);
             expect(openTooltip()).not.toBeNull();
             await userEvent.unhover(button);
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await sleep(100);
             expect(openTooltip()).toBeNull();
         });
@@ -548,6 +554,7 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const { container } = await renderFigma(<HelpButton />);
             const button = part(container, ".cm-help-button");
             await drive(button, "focus");
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((r) => setTimeout(r, 250));
             expectMeasured(
                 button,

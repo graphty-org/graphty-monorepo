@@ -87,6 +87,7 @@ describe("the exact tier sums every node at any n (issue #87)", () => {
     });
 
     for (const model of ["fa2", "fr", "se"] as const) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `${model}: K3 at n=${N} matches the f64 all-pairs sum on both sides of j = 65,027`,
             async (t) => {

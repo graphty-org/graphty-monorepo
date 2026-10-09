@@ -1481,8 +1481,8 @@ const IMPLS = {
         o: WeightedFlag<LabelPropagationOptions> & {
             /**
              * Seed labels: the node data field holding them (nodes without it are free), or one selection per label.
-             * Every free node starts with a label of its own, so a seed label spreads only where its seeds outvote
-             * their neighbors: a single seed in a dense group can end up alone in its own cluster.
+             * Free nodes start unlabeled and take a seed label when one reaches them, so every node connected to a seed
+             * ends in a seed's cluster. Each connected group of nodes no seed reaches becomes a cluster of its own.
              */
             readonly seeds: string | readonly NodeSelection[];
         },

@@ -99,9 +99,9 @@ export class XRInputHandler {
     // Target: full arm movement (0.6m) should move node ~15-20 units
     private readonly VELOCITY_SLOW_THRESHOLD = 0.005; // meters/second - below this = precision mode
     private readonly VELOCITY_FAST_THRESHOLD = 0.03; // meters/second - above this = speed mode
-    private readonly AMP_SLOW = 5.0; // Precision zone: usable but controlled
-    private readonly _AMP_MEDIUM = 10.0; // Natural zone: comfortable movement (kept for reference)
-    private readonly AMP_FAST = 20.0; // Speed zone: fast repositioning
+    private readonly AMP_SLOW = 5; // Precision zone: usable but controlled
+    private readonly _AMP_MEDIUM = 10; // Natural zone: comfortable movement (kept for reference)
+    private readonly AMP_FAST = 20; // Speed zone: fast repositioning
     private lastDragTime = 0; // For velocity calculation
 
     // Smoothing to reduce jitter from hand tracking noise

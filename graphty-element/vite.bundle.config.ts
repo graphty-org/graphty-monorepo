@@ -1,4 +1,5 @@
-import { fileURLToPath } from "url";
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vite";
 
 const here = fileURLToPath(new URL(".", import.meta.url));

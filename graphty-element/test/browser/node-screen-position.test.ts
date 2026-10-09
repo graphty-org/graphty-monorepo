@@ -33,6 +33,7 @@ const IDS = NODES.map((node) => node.id);
  * Let the element's own render loop draw a few frames.
  */
 async function frames(): Promise<void> {
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 200));
 }
 

@@ -60,6 +60,7 @@ describe("Standardized error messages", () => {
         vi.unstubAllGlobals();
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     test("network error includes retry count", async () => {
         const fetchMock = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
         vi.stubGlobal("fetch", fetchMock);

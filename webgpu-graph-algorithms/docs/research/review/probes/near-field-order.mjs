@@ -203,7 +203,7 @@ async function run(n, kind) {
         dv.setFloat32(16, grid.ox, true);
         dv.setFloat32(20, grid.oy, true);
         dv.setFloat32(24, grid.cell, true);
-        dv.setFloat32(28, 2.0, true);
+        dv.setFloat32(28, 2, true);
         device.queue.writeBuffer(ub, 0, dv.buffer);
     };
     const results = { n, kind, ...grid.stats };

@@ -61,6 +61,7 @@ describe("FR subgroup twins in-process (spec 11.3)", () => {
     });
 
     for (const graph of GRAPHS) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `${graph}: every stage agrees between the twins within the traced tolerances, each twice bitwise; K2's attraction bitwise`,
             async (t) => {
@@ -102,6 +103,7 @@ describe("FR subgroup twins in-process (spec 11.3)", () => {
         );
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writes the workgroup twin's K3 force, K5 positions, K5 partials and K1 state of the UNSCALED random1k and of karate as `<class>-no-subgroups` noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {

@@ -40,6 +40,7 @@ describe("FA2 force parity: K2 + K3 vs the f64 oracle (spec 11.4)", () => {
     });
 
     for (const c of forceParityCases()) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `${c.name}: force within the traced tolerance, twice bitwise`,
             async (t) => {
@@ -78,6 +79,7 @@ describe("FA2 force parity: K2 + K3 vs the f64 oracle (spec 11.4)", () => {
         );
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the UNSCALED random1k (the noise member's inputs) passes too, and the matrix's worst ratio is printed",
         async (t) => {

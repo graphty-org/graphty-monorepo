@@ -50,6 +50,7 @@ async function createGraphtyElement(): Promise<Graphty> {
     element.style.display = "block";
     container.appendChild(element);
 
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
 
     mounted = element;
@@ -66,6 +67,7 @@ async function loadInline(element: Graphty, data: string): Promise<void> {
     element.dataSource = "json";
     element.dataSourceConfig = { data };
 
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
 }
 
@@ -111,6 +113,7 @@ describe("graphty-element.clearData", () => {
         // Naming a source with no config must not start anything on its own.
         element.dataSource = "json";
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
 
         assert.strictEqual(element.graph?.getDataManager().nodes.size, 0);

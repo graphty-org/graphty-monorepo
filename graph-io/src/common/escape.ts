@@ -91,7 +91,7 @@ export function quoteGmlString(text: string): string {
     return `"${escaped}"`;
 }
 
-const GML_ENTITY = /&(#[0-9]+|#x[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);/g;
+const GML_ENTITY = /&(#\d+|#x[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);/g;
 
 /** The XML entities and the ISO-8859-1 HTML entities (U+00A0..U+00FF), which GML uses for characters above 127. */
 const GML_NAMED: ReadonlyMap<string, string> = (() => {
@@ -146,7 +146,7 @@ export function decodeGmlString(body: string, onUnknown?: (entity: string) => vo
     });
 }
 
-const DOT_NUMERAL = /^-?(\.[0-9]+|[0-9]+(\.[0-9]*)?)$/;
+const DOT_NUMERAL = /^-?(\.\d+|\d+(\.\d*)?)$/;
 const DOT_KEYWORDS: ReadonlySet<string> = new Set(["node", "edge", "graph", "digraph", "subgraph", "strict"]);
 
 /**

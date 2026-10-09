@@ -23,9 +23,17 @@ const FIGMA_SWITCHES = `--cm-field-shadow: none;
     --cm-field-shadow-hover: none;
     --cm-field-border: var(--cm-border);`;
 
+/*
+ * Mantine's `c="dimmed"` color follows the AA secondary text, so `<Text c="dimmed">` meets AA too
+ * (its default, gray-6 / dark-2, does not). `!important` because Mantine declares it under
+ * `:root[data-mantine-color-scheme]`, as specific as this block, from a stylesheet whose order
+ * against this one the consumer decides. The token's light-dark() resolves where the text is, so
+ * a dimmed caption inside a dark menu gets the dark value.
+ */
 const AA_SWITCHES = `--cm-field-shadow: inset 0 0 0 1px var(--cm-field-edge);
     --cm-field-shadow-hover: inset 0 0 0 1px var(--cm-field-edge-hover);
-    --cm-field-border: var(--cm-field-edge);`;
+    --cm-field-border: var(--cm-field-edge);
+    --mantine-color-dimmed: var(--cm-text-secondary) !important;`;
 
 /**
  * The AA token block under a selector.

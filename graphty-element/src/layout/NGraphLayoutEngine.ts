@@ -383,8 +383,8 @@ export class NGraphEngine extends LayoutEngine {
     /**
      * Take a node out of the simulation, and the links ngraph drops with it.
      *
-     * `ngraph.removeNode` removes the node's links too, so the element's own edge mapping is
-     * swept for links that no longer belong to any graph -- otherwise `getEdgePosition` would ask
+     * `ngraph.removeNode` removes the node's links too, so the element's own edge mapping drops
+     * the edge behind each of the node's links -- otherwise `getEdgePosition` would ask
      * ngraph for the position of a link it has already forgotten.
      * @param n - the node leaving the graph
      */
@@ -394,10 +394,9 @@ export class NGraphEngine extends LayoutEngine {
             return;
         }
 
-        for (const [edge, link] of this.edgeMapping) {
-            if (link.fromId === ngraphNode.id || link.toId === ngraphNode.id) {
-                this.edgeMapping.delete(edge);
-            }
+        // The node's own links, not every link: each carries the edge it was added for.
+        for (const link of ngraphNode.links ?? []) {
+            this.edgeMapping.delete((link.data as { parentEdge: Edge }).parentEdge);
         }
 
         this.ngraph.removeNode(ngraphNode.id);

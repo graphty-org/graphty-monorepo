@@ -34,6 +34,7 @@ const NODE_COLOR = { r: 76, g: 175, b: 80, a: 1 };
 
 // Helper to wait for a delay
 function delay(ms: number): Promise<void> {
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -158,10 +159,12 @@ describe("Nested Operations", () => {
         while (Date.now() - startTime < maxWaitMs) {
             if (layoutManager.isSettled) {
                 // Give one more frame for mesh positions to sync
+                // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
                 await delay(16);
                 return;
             }
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(16); // Poll every frame (~60fps)
         }
 
@@ -332,6 +335,7 @@ describe("Nested Operations", () => {
             assert.isFalse(graph.getViewMode() === "2d", "Should start in 3D mode");
 
             // Switch to 2D - internally rebuilds the layout for two dimensions
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(10);
             await graph.setViewMode("2d");
 
@@ -363,6 +367,7 @@ describe("Nested Operations", () => {
             assert.isFalse(graph.getViewMode() === "2d", "Should start in 3D mode");
 
             // Switch to 2D
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(10);
             await graph.setViewMode("2d");
 
@@ -459,13 +464,16 @@ describe("Nested Operations", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(5);
             await graph.setViewMode("2d");
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(5);
             await graph.setViewMode("3d");
 
             // Final: default (3D)
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(5);
             await styleEveryNode(graph, NODE_STYLE);
 

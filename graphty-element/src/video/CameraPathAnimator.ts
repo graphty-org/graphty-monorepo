@@ -386,7 +386,7 @@ export class CameraPathAnimator {
                 0,
                 totalFrames,
                 false, // Don't loop
-                1.0, // Speed
+                1, // Speed
                 () => {
                     // Animation completed via callback
                     if (!resolved) {

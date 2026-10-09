@@ -59,6 +59,7 @@ afterEach(() => {
 });
 
 describe("Export: save a picture and the numbers (task T13)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "saves the drawing as a PNG and the node table with the run's result columns",
         async () => {

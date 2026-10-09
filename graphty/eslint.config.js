@@ -22,7 +22,7 @@ const ELEMENT_EXPORTS = Object.keys(
     JSON.parse(readFileSync(new URL("../graphty-element/package.json", import.meta.url), "utf8")).exports,
 )
     .filter((key) => key !== ".")
-    .map((key) => key.slice(2).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    .map((key) => key.slice(2).replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`));
 const RULE = "The graphty app consumes graphty-element and nothing else (CLAUDE.md, Architectural Principles).";
 const RESTRICTED_IMPORT_PATTERNS = [
     {

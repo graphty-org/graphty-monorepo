@@ -153,9 +153,9 @@ function validateValueSnippet(snippet: string): void {
             slot: "VALUE",
         });
     }
-    const tokens = code.match(/[A-Za-z_][A-Za-z0-9_]*|[0-9][0-9A-Za-z_.]*/g) ?? [];
+    const tokens = code.match(/[A-Za-z_]\w*|\d[0-9A-Za-z_.]*/g) ?? [];
     for (const token of tokens) {
-        if (/^[0-9]/.test(token) || VALUE_SNIPPET_VOCABULARY.has(token) || VALUE_SNIPPET_WGSL_WORDS.has(token)) {
+        if (/^\d/.test(token) || VALUE_SNIPPET_VOCABULARY.has(token) || VALUE_SNIPPET_WGSL_WORDS.has(token)) {
             continue;
         }
         throw new WebGpuGraphError(

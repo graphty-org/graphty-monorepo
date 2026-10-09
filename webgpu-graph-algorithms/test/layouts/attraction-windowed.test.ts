@@ -17,6 +17,7 @@ const CASE_TIMEOUT = 120_000;
 const ARCS_PER_WINDOW = 64;
 
 describe("fa2-attraction over arc windows (P4-T6: the kernel-level window proof)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "karate in 64-arc windows: bitwise the one-dispatch result on unsplit rows, within the analytic bound on split rows, twice bitwise",
         async (t) => {
@@ -44,6 +45,7 @@ describe("fa2-attraction over arc windows (P4-T6: the kernel-level window proof)
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "tier0-rebase-ignored: reading colIdx[a] instead of colIdx[a - P.arcBase] folds the poison tail and breaks the window check",
         async (t) => {

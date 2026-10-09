@@ -223,9 +223,11 @@ describe("simulations", () => {
         layout.on(EVENTS, (e: EventObject) => seen.push(e.type));
         const done = layout.pon("layoutstop");
         layout.run();
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((r) => setTimeout(r, 50));
         layout.stop();
         await done;
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((r) => setTimeout(r, 50));
         expect(seen).toEqual(["layoutstart", "layoutready", "layoutstop"]);
         expectPlaced(cy);

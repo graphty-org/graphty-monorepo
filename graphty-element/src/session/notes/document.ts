@@ -36,7 +36,7 @@ const NOTE_ID = /^note_[0-9A-Za-z_-]{1,64}$/;
 
 /** The schema's `timestamp` pattern: RFC 3339 with an explicit offset. */
 const TIMESTAMP =
-    /^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$/;
+    /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d+)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$/;
 
 /** A day, in milliseconds: how far past the moment of opening a time may be before it is noted. */
 const DAY = 86_400_000;

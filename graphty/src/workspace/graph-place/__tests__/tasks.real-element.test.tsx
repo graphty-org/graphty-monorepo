@@ -73,6 +73,7 @@ describe("the Graph place on the real element", () => {
         await page.viewport(1366, 768);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "finds a node by a name that differs from its id while typing, and a pick selects and inspects it (T12)",
         async () => {
@@ -97,6 +98,7 @@ describe("the Graph place on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "finds and picks with the keyboard alone: / focuses, Down enters the list, Enter picks (T12)",
         async () => {
@@ -123,6 +125,7 @@ describe("the Graph place on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "says when nothing matches, and offers the value rows",
         async () => {
@@ -141,6 +144,7 @@ describe("the Graph place on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "lists a run on top under Selection, hides and shows its paint as one undo step, and deletes it with Undo",
         async () => {
@@ -203,6 +207,7 @@ describe("the Graph place on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "draws a group run with its groups as children, each with the size the element reports",
         async () => {

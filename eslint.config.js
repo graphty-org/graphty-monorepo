@@ -10,6 +10,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "./compact-mantine/eslint/mantine-replacements.js";
+import noTestTiming from "./tools/eslint-rules/no-test-timing.mjs";
 
 export default tseslint.config(
     // ============================================
@@ -275,6 +276,19 @@ export default tseslint.config(
             "jsdoc/check-tag-names": "off",
             "jsdoc/tag-lines": "off",
         },
+    },
+
+    // ============================================
+    // TESTS WAIT ON CONDITIONS, NOT ON THE CLOCK
+    // ============================================
+    // A wall-clock assertion, a fixed sleep or a hand-set timeout passes on an idle machine and
+    // fails when several test runs share it. The rule and its reasons: tools/eslint-rules/no-test-timing.mjs.
+    // Benchmarks are where a timing check that must exist belongs, so they are left out.
+    {
+        files: ["**/*.test.{ts,tsx,js,mjs}", "**/*.spec.{ts,tsx,js,mjs}", "**/test/**/*.{ts,tsx,js,mjs}"],
+        ignores: ["**/*.bench.test.ts", "**/*.bench-browser.ts", "**/benchmarks/**", "**/bench/**"],
+        plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
+        rules: { "local/no-test-timing": "error" },
     },
 
     // ============================================

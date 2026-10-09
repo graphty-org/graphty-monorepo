@@ -745,6 +745,7 @@ describe("JSON robustness: Cytoscape", () => {
         expect(s.nodes.require("parent").isSet(2)).toBe(false);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("json-cy-parent-deep-chain: a 100k-deep compound chain listed root first resolves in linear time", async () => {
         const n = 100_000;
         const nodes = Array.from({ length: n }, (_, i) => ({ data: i === 0 ? { id: 0 } : { id: i, parent: i - 1 } }));
@@ -923,6 +924,7 @@ describe("JSON robustness: NetworkX adjacency and tree data", () => {
         expect(codes(report)).toEqual([JSON_ISSUE.DUPLICATE_NODE]);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("json-tree-deep-chain: a 1M-node path written as nested children imports", async () => {
         const depth = 1_000_000;
         const text =

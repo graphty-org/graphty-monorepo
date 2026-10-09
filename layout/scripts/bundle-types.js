@@ -5,9 +5,9 @@
  * bundled together, matching the structure of dist/layout.js
  */
 
-import { writeFileSync, existsSync } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { writeFileSync, existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

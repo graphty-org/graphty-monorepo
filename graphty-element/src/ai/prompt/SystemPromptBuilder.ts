@@ -9,6 +9,14 @@ import { formatSchemaForPrompt } from "../schema/SchemaFormatter";
 import type { SchemaSummary } from "../schema/types";
 
 /**
+ * How many times one message may ask the model for tools (src/ai/AiController.ts runs the loop).
+ * Each ask after the first carries the results of the tools the previous one called. A model still
+ * calling tools after the last of them is asked once more for a text answer only, so the person
+ * always hears back. The system prompt tells the model the budget, so it acts before running out.
+ */
+export const MAX_TOOL_TURNS = 5;
+
+/**
  * Options for building system prompts.
  */
 export interface SystemPromptOptions {
@@ -211,7 +219,8 @@ ${commandDescriptions}`;
 5. When the user wants VR/AR mode, use the setImmersiveMode tool.
 6. If no tool is needed, respond conversationally and helpfully.
 7. Always explain what you're doing when executing commands.
-8. If a command fails, explain the error and suggest alternatives.`;
+8. If a command fails, explain the error and suggest alternatives.
+9. You can call tools in at most ${MAX_TOOL_TURNS} rounds per message, so look only as much as the request needs, then act: a selector a find tool just matched can go straight to a styling or camera tool without being checked again.`;
     }
 
     /**

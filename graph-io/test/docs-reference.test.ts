@@ -9,6 +9,7 @@ import { importGraph, registry } from "../src/registry.js";
 // format, exporter, option or code fails here until the pages are regenerated (`npm run docs:reference`, which
 // also creates the page of a new format).
 describe("generated documentation", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("matches the current source", async () => {
         const results = await pages();
         if (process.env.UPDATE_REFERENCE === "1") {
@@ -21,11 +22,13 @@ describe("generated documentation", () => {
         expect(stale, "docs are out of date: run `npm run docs:reference` in graph-io").toEqual([]);
     }, 120_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("gives every option, code and capability a description", async () => {
         // a row without a meaning has no doc comment where it is declared: write one there
         expect(await undocumented()).toEqual([]);
     }, 120_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("never sends a reader to the internal design documents", async () => {
         // the published doc comments and the generated pages are read by users, who have neither
         expect(internalReferences()).toEqual([]);
@@ -33,6 +36,7 @@ describe("generated documentation", () => {
         expect(leaking).toEqual([]);
     }, 120_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("lists in each built-in importer and exporter exactly the options its type declares", async () => {
         // W_UNKNOWN_OPTION trusts these lists; a new option without its name here would be reported as a misspelling
         const names = await optionNames();

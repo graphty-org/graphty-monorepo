@@ -41,7 +41,12 @@ export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
 export type { UnservedFormat } from "./src/catalog/formats";
 export { FORMAT_DESCRIPTORS, formatDescriptor, formatsForExtension, UNSERVED_FORMAT_IDS } from "./src/catalog/formats";
-export type { LayoutCatalogEntry, LayoutImplementation, UnservedLayout } from "./src/catalog/layouts";
+export type {
+    LayoutCatalogEntry,
+    LayoutImplementation,
+    LayoutImplementationCode,
+    UnservedLayout,
+} from "./src/catalog/layouts";
 export {
     LAYOUT_CATALOG,
     LAYOUT_DESCRIPTORS,
@@ -54,6 +59,7 @@ export { listGraphs } from "./src/catalog/listGraphs";
 export { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "./src/catalog/logSinks";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
+export type { CodedFact, CodedFactParam } from "./src/session/shared";
 export type { GraphListing } from "@graphty/graph-io";
 
 // The style channels a layer can paint, described as data: the plain name, the kind of value

@@ -50,9 +50,11 @@ async function mountWithGraph(): Promise<Graphty> {
     container.appendChild(element);
     mounted = element;
 
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
     element.dataSource = "json";
     element.dataSourceConfig = { data: GRAPH };
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
 
     return element;
@@ -137,6 +139,7 @@ describe("a graph whose ids the file wrote as integers", () => {
         container.appendChild(element);
         mounted = element;
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
         element.dataSource = "json";
         element.dataSourceConfig = {
@@ -145,6 +148,7 @@ describe("a graph whose ids the file wrote as integers", () => {
                 edges: [{ source: 1, target: 34 }],
             }),
         };
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
 
         return element;

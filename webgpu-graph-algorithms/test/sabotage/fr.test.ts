@@ -260,6 +260,7 @@ describe("sabotage coverage of the P5 table (spec 11.9 item 1, 13 rule f; PD-8)"
 });
 
 describe("sabotage: the Fruchterman-Reingold branches against the P5 FR checks (spec 11.9 item 1)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the pristine kernels pass every check (the baseline the mutants are measured against)",
         async (t) => {
@@ -289,6 +290,7 @@ describe("sabotage: the Fruchterman-Reingold branches against the P5 FR checks (
 
     for (const b of BRANCHES) {
         for (const row of rowsOf(b.id).filter(isFr)) {
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${b.id}/${row.name}: fails its check by >= ${row.minFactor}x the tolerance`,
                 async (t) => {

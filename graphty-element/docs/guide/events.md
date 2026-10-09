@@ -8,27 +8,41 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 
 ## Available Events
 
-| Event                   | Trigger                                                                            | Event Data                                                       |
-| ----------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `graph-settled`         | Layout finished                                                                    | `{ settled: boolean }`                                           |
-| `graph-frame-stable`    | The picture is final: layout converged, camera framed, frame drawn                 | `{ frames }`                                                     |
-| `zoom-to-fit-complete`  | Auto-framing moved the camera around the whole graph                               | `{ boundingBoxMin, boundingBoxMax }`                             |
-| `data-loaded`           | Initial data loaded                                                                | `{ details: { report, ... }, cause? }`                           |
-| `data-added`            | Incremental data added                                                             | `{ dataType, count, cause? }`                                    |
-| `selection-changed`     | Node selected/deselected                                                           | `{ node, previousNode }`                                         |
-| `camera-state-changed`  | Camera moved                                                                       | `{ state }`                                                      |
-| `style-changed`         | Styles updated                                                                     | `{ reason, layers, painted, unresolvedPaths }`                   |
-| `node-click`            | User clicked node                                                                  | `{ node, data, event }`                                          |
-| `node-hover`            | Mouse entered node                                                                 | `{ node, data }`                                                 |
-| `node-drag-start`       | Started dragging node                                                              | `{ node, position, pinned }`                                     |
-| `node-drag-end`         | Finished dragging node                                                             | `{ node, position, pinned }`                                     |
-| `elements-removed`      | Nodes and their edges removed                                                      | `{ nodes, edges, cause? }`                                       |
-| `data-cleared`          | All data cleared (`clearData()`, a replacing load, or undo back to an empty graph) | none                                                             |
-| `data-loading-progress` | A chunk of a load arrived                                                          | `{ nodeRecordsLoaded, edgeRecordsLoaded, chunksProcessed, ... }` |
-| `data-loading-complete` | A load finished                                                                    | `{ nodesLoaded, edgesLoaded, report, loadId, ... }`              |
-| `data-loading-error`    | A load failed                                                                      | `{ error, format, loadId, ... }`                                 |
-| `layout-progress`       | A layout reported how far its arrangement has got                                  | `{ layoutType, fraction, message? }`                             |
-| `error`                 | Error occurred                                                                     | `{ error, context }`                                             |
+| Event                                                          | Trigger                                                                            | Event Data                                                       |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `graph-settled`                                                | Layout finished                                                                    | `{ settled: boolean }`                                           |
+| `graph-frame-stable`                                           | The picture is final: layout converged, camera framed, frame drawn                 | `{ frames }`                                                     |
+| `zoom-to-fit-complete`                                         | Auto-framing moved the camera around the whole graph                               | `{ boundingBoxMin, boundingBoxMax }`                             |
+| `data-loaded`                                                  | Initial data loaded                                                                | `{ details: { report, ... }, cause? }`                           |
+| `data-added`                                                   | Incremental data added                                                             | `{ dataType, count, cause? }`                                    |
+| `selection-changed`                                            | Node selected/deselected                                                           | `{ node, previousNode }`                                         |
+| `camera-state-changed`                                         | Camera moved                                                                       | `{ state }`                                                      |
+| `style-changed`                                                | Styles updated                                                                     | `{ reason, layers, painted, unresolvedPaths }`                   |
+| `node-click`                                                   | User clicked node                                                                  | `{ node, data, event }`                                          |
+| `node-hover`                                                   | Mouse entered node                                                                 | `{ node, data }`                                                 |
+| `node-drag-start`                                              | Started dragging node                                                              | `{ node, position, pinned }`                                     |
+| `node-drag-end`                                                | Finished dragging node                                                             | `{ node, position, pinned }`                                     |
+| `elements-removed`                                             | Nodes and their edges removed                                                      | `{ nodes, edges, cause? }`                                       |
+| `data-cleared`                                                 | All data cleared (`clearData()`, a replacing load, or undo back to an empty graph) | none                                                             |
+| `data-loading-progress`                                        | A chunk of a load arrived                                                          | `{ nodeRecordsLoaded, edgeRecordsLoaded, chunksProcessed, ... }` |
+| `data-loading-complete`                                        | A load finished                                                                    | `{ nodesLoaded, edgesLoaded, report, loadId, ... }`              |
+| `data-loading-error`                                           | A load failed                                                                      | `{ error, format, loadId, ... }`                                 |
+| `layout-progress`                                              | A layout reported how far its arrangement has got                                  | `{ layoutType, fraction, message? }`                             |
+| `graph-started`                                                | The render loop started                                                            | `{ timestamp }`                                                  |
+| `layout-changed`                                               | A new layout is now running                                                        | `{ layoutType, options }`                                        |
+| `operation-cancelled`                                          | A queued operation was aborted                                                     | `{ id, reason }`                                                 |
+| `stats-update`                                                 | Every 60 graph updates, with the performance counters                              | `{ totalUpdates, stats }`                                        |
+| `input-enabled-changed`                                        | `setInputEnabled()` switched canvas input on or off                                | `{ enabled }`                                                    |
+| `input:pointer-down`, `input:pointer-move`, `input:pointer-up` | A pointer pressed, moved or released on the canvas                                 | `{ x, y }` (the DOM event's `clientX`, `clientY`)                |
+| `input:wheel`                                                  | The wheel turned over the canvas                                                   | `{ deltaX, deltaY, deltaZ, deltaMode }`                          |
+| `input:touch-start`, `input:touch-move`                        | Touches started or moved on the canvas                                             | `{ array: [{ x, y }, ...] }`                                     |
+| `input:touch-end`                                              | Touches ended on the canvas                                                        | `{ array: [{ value: touchId }, ...] }`                           |
+| `input:key-down`, `input:key-up`                               | A key pressed or released on the canvas                                            | `{ key, code, ctrlKey, shiftKey, altKey, metaKey }`              |
+| `input:undo`, `input:redo`, `input:select-all`                 | Ctrl or Cmd with Z, Shift+Z or Y, or A on the canvas                               | none                                                             |
+| `render-initialized`                                           | The renderer is ready                                                              | `{ engine, scene }`                                              |
+| `manager-initialized`                                          | One of the element's managers finished starting                                    | `{ managerName, elapsedTime }`                                   |
+| `lifecycle-initialized`                                        | Every manager finished starting                                                    | `{ totalTime, managerCount }`                                    |
+| `error`                                                        | Error occurred                                                                     | `{ error, context }`                                             |
 
 `cause` on the three data events is set when undo, redo, a restore or a rolled-back change added
 or removed the rows: `"undo"`, `"redo"`, `"restore"` or `"rollback"`. A listener that starts work

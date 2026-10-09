@@ -106,6 +106,7 @@ describe("the Style tab on the real element", () => {
         await page.viewport(1366, 768);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "draws the Everything row's base style as lines, in the fixed sections",
         async () => {
@@ -131,6 +132,7 @@ describe("the Style tab on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "has no two controls with one accessible name",
         async () => {
@@ -144,6 +146,7 @@ describe("the Style tab on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T9: colors Everything by a file attribute on the row it is on, with no new row",
         async () => {
@@ -172,6 +175,7 @@ describe("the Style tab on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T9: a declared code column colors one color per group, and a group column cannot size",
         async () => {
@@ -203,6 +207,7 @@ describe("the Style tab on the real element", () => {
 
     // The paint tree opens a row as `{ kind, id }` with the row's kind and id: a run's row carries
     // the run id, never a layer id, and the Everything row its own name.
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T9: a run's row, opened as the paint tree opens it, lists the run's layers",
         async () => {
@@ -235,6 +240,7 @@ describe("the Style tab on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T9: sizes a measure row by its result, storing the chosen scale and the range",
         async () => {
@@ -305,6 +311,7 @@ describe("the Style tab on the real element", () => {
 
     // Plan T9: sizing by a result stores the element's size range, 1 to 3, as sizing by a column
     // does (#915).
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T9: sizing a measure row by its result stores the range 1 to 3 (#915)",
         async () => {
@@ -317,6 +324,7 @@ describe("the Style tab on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "removes a line with Undo",
         async () => {
@@ -346,6 +354,7 @@ describe("labels from an attribute (task T10) on the real element", () => {
         await page.viewport(1366, 768);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the Label + adds a label line and opens its attribute list; picking binds it and states the counts",
         async () => {
@@ -384,6 +393,7 @@ describe("labels from an attribute (task T10) on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the heading word adds the line too; Esc leaves it empty, it writes nothing and is dropped on selection change",
         async () => {
@@ -414,6 +424,7 @@ describe("labels from an attribute (task T10) on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Add label line from an attribute makes a row on top, bound to it, and selects it",
         async () => {
@@ -464,6 +475,7 @@ describe("editing lines on the real element", () => {
         return screen.findByRole("group", { name: "Color binding" });
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the Color popover writes a color, and the Shape popover a shape",
         async () => {
@@ -491,6 +503,7 @@ describe("editing lines on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Palette, Reverse and Values from write the binding; Detach puts the element's default back",
         async () => {
@@ -523,6 +536,7 @@ describe("editing lines on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the Edges side lists its own sections and lines",
         async () => {
@@ -541,6 +555,7 @@ describe("editing lines on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a section's single + adds its one property; a text line follows Undo",
         async () => {
@@ -560,6 +575,7 @@ describe("editing lines on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the Show checkbox appears over a label drawn beneath, and hides it on this row",
         async () => {
@@ -588,6 +604,7 @@ describe("editing lines on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "binds with the keyboard alone: the bind icon, then the list",
         async () => {
@@ -606,6 +623,7 @@ describe("editing lines on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "says what a line draws: the element's unresolved path reads nothing, a literal label shows its text",
         async () => {
@@ -632,6 +650,7 @@ describe("editing lines on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "shows no Style tab for an inspected thing that is not a layer, instead of editing Everything",
         async () => {

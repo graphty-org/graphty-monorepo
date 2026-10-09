@@ -8,9 +8,9 @@
  * Keys are the output names under dist/, values the source entry relative to the package root.
  */
 
-import { existsSync, readdirSync } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { existsSync, readdirSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 

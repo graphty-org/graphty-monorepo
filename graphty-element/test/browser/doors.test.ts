@@ -141,6 +141,7 @@ describe("the renderer's doors", () => {
             continue;
         }
 
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `${root.name}: every called row dispatches what its row says`,
             async () => {
@@ -168,6 +169,7 @@ describe("the element's properties read back across undo and redo", () => {
             }
 
             const { value } = door.call;
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${root.name}.${member}`,
                 async () => {
@@ -209,6 +211,7 @@ describe("the element's properties read back across undo and redo", () => {
 });
 
 describe("the coordinate lane is read-only everywhere a consumer reaches it", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "hands out no writer through the data manager or the layout engine",
         async () => {
@@ -244,6 +247,7 @@ describe("an assignment of a setting's default reads back", () => {
         ["layoutBehavior", { layout: { preSteps: 0, stepMultiplier: 1, minDelta: 0 } }],
     ];
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reads the value assigned, and records no step because nothing changed",
         async () => {

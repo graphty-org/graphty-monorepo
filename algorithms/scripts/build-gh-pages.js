@@ -8,11 +8,11 @@
  * working.
  */
 
-import path from "path";
-import { fileURLToPath } from "url";
-import fs from "fs/promises";
-import { createReadStream, createWriteStream } from "fs";
-import { pipeline } from "stream/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import fs from "node:fs/promises";
+import { createReadStream, createWriteStream } from "node:fs";
+import { pipeline } from "node:stream/promises";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

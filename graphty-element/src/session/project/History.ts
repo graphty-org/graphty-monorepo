@@ -425,18 +425,7 @@ export class History<P> {
             return;
         }
 
-        let index = this.cursor - 1;
-        while (index >= 0 && !this.arranges(this.entries[index])) {
-            index--;
-        }
-
-        const step = index >= 0 ? this.entries[index] : null;
-        if (step === null) {
-            this.setBaseline(capture, false);
-        } else {
-            this.retake(step, capture);
-        }
-
+        this.sealApplied(capture);
         this.changed("size");
         this.evictIfOver();
     }
@@ -608,12 +597,11 @@ export class History<P> {
             // The lane now holds where the step began, which is where the position it lands on
             // ends: a rest point sealed into that position after the step began is older news.
             // Without this, undoing a later step that moved nothing would put the lane back to
-            // that older rest point.
-            if (this.cursor === 0) {
-                this.setBaseline(step.before, false);
-            } else {
-                this.retake(this.entries[this.cursor - 1], step.before);
-            }
+            // that older rest point. It goes to the seal target like any capture: filed under a
+            // step that moved nothing, undoing that step would restore the arrangement below it,
+            // which can be older than this one -- a node removed and brought back since would
+            // jump to where it was before its removal.
+            this.sealApplied(step.before);
         }
 
         return step;
@@ -810,6 +798,40 @@ export class History<P> {
         rows.ids.forEach((id, at) => {
             coordsIn(capture, id, rows.rows[at])?.set(rows.values.subarray(6 * at + 3, 6 * at + 6));
         });
+    }
+
+    /**
+     * Which of some nodes the arrangement at the cursor places: a capture or a row patch the
+     * history holds names a node of that id. One the graph has just created a row for is then
+     * another node of the same id, removed since that arrangement was taken.
+     * @param ids - The nodes.
+     * @returns The ones it places.
+     */
+    placed(ids: readonly NodeId[]): NodeId[] {
+        if (ids.length === 0) {
+            return [];
+        }
+
+        const named = this.arrangementAt(this.cursor).map((op) => ("capture" in op ? idSet(op.capture) : op.patch.ids));
+        return ids.filter((id) => named.some((each) => ("has" in each ? each.has(id) : each.includes(id))));
+    }
+
+    /**
+     * Seal a capture into the newest applied step that has to do with the arrangement, or else
+     * into the baseline: the seal target when no group is open (design section 6.4).
+     * @param capture - The capture.
+     */
+    private sealApplied(capture: ArrangementCapture): void {
+        let index = this.cursor - 1;
+        while (index >= 0 && !this.arranges(this.entries[index])) {
+            index--;
+        }
+
+        if (index < 0) {
+            this.setBaseline(capture, false);
+        } else {
+            this.retake(this.entries[index], capture);
+        }
     }
 
     /**
@@ -1035,6 +1057,24 @@ function afterOps(step: {
         ...(step.after === null ? [] : [{ capture: step.after }]),
         ...(step.afterRows === null ? [] : [{ patch: step.afterRows, forward: true }]),
     ];
+}
+
+/** The ids of each capture asked about, as a set; a capture's id list never changes. */
+const idSets = new WeakMap<ArrangementCapture, ReadonlySet<NodeId>>();
+
+/**
+ * The ids a capture holds.
+ * @param capture - The capture.
+ * @returns Them, as a set built once per capture.
+ */
+function idSet(capture: ArrangementCapture): ReadonlySet<NodeId> {
+    let set = idSets.get(capture);
+    if (set === undefined) {
+        set = new Set(capture.ids);
+        idSets.set(capture, set);
+    }
+
+    return set;
 }
 
 /**

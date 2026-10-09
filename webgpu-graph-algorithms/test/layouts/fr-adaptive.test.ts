@@ -132,6 +132,7 @@ describe("FR adaptive cooling (Yifan Hu's step control on the GPU)", () => {
         ctx = await acquire({ label: "fr-adaptive" });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "karate: the traced temperature follows the f32 oracle through the first 12 iterations, and every later step is x0.9, x1/0.9 or unchanged",
         async (t) => {
@@ -181,6 +182,7 @@ describe("FR adaptive cooling (Yifan Hu's step control on the GPU)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reheat() restarts the temperature at 0.1 and the controller from scratch",
         async (t) => {
@@ -203,6 +205,7 @@ describe("FR adaptive cooling (Yifan Hu's step control on the GPU)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "random1k settles on its own under the shared rule, well inside the budget, with the layout expanded past 50 linear iterations",
         async (t) => {

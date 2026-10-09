@@ -83,6 +83,7 @@ describe("what each kind of step retains, at the largest graph a session holds",
     let session: ElementSession;
     let rows: number;
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeAll(async () => {
         harness = await bigGraph();
         session = harness.session as ElementSession;
@@ -254,6 +255,7 @@ describe("what each kind of step retains, at the largest graph a session holds",
         );
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a run of steps that each keep a capture stays within the budget",
         async () => {
@@ -300,6 +302,7 @@ describe("at a million nodes and five million edges, without a scene", () => {
     const MILLION = 1_000_000;
     const ARCS = 5 * MILLION;
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a snapshot and a degree result are estimated at their storage, and a history of steps that size stays within 256 MiB",
         () => {

@@ -42,7 +42,7 @@ function isArrayIndex(value: string | number): boolean {
 function needsQuoting(key: string): boolean {
     // JMESPath identifiers must start with a letter or underscore and
     // contain only letters, digits, and underscores
-    return !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key);
+    return !/^[a-zA-Z_]\w*$/.test(key);
 }
 
 /**

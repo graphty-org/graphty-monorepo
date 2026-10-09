@@ -79,9 +79,9 @@ export function detExp(x: number): number {
     const t = r * r;
     const c = r - t * (P1 + t * (P2 + t * (P3 + t * (P4 + t * P5))));
     if (k === 0) {
-        return 1 - ((r * c) / (c - 2.0) - r);
+        return 1 - ((r * c) / (c - 2) - r);
     }
-    const y = 1 - (lo - (r * c) / (2.0 - c) - hi);
+    const y = 1 - (lo - (r * c) / (2 - c) - hi);
     return k >= -1021 ? scale(y, k) : scale(y, k + 1000) * TWOM1000;
 }
 

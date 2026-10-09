@@ -42,6 +42,39 @@ describe("EventManager", () => {
             eventManager.removeListener(listenerId);
         });
 
+        it.each([
+            "render-initialized",
+            "manager-initialized",
+            "lifecycle-initialized",
+            "lifecycle-disposed",
+            "snapshot-dropped",
+            "input:pointer-down",
+            "input:select-all",
+        ] as const)("subscribes to %s, which addListener used to reject", (type) => {
+            const callback = vi.fn();
+            const listenerId = eventManager.addListener(type, callback);
+
+            eventManager.emit(type, {});
+
+            assert.equal(callback.mock.calls.length, 1);
+            assert.equal((callback.mock.calls[0][0] as { type: string }).type, type);
+
+            eventManager.removeListener(listenerId);
+        });
+
+        it("still throws for a name no event declares", () => {
+            assert.throws(() => eventManager.addListener("no-such-event" as never, vi.fn()), TypeError);
+        });
+
+        it("the deprecated emitGraphEvent delivers through emit", () => {
+            const callback = vi.fn();
+            eventManager.addListener("operation-queue-idle", callback);
+
+            eventManager.emitGraphEvent("operation-queue-idle", {});
+
+            assert.equal(callback.mock.calls.length, 1);
+        });
+
         it("should add and trigger graph settled event listeners", () => {
             const callback = vi.fn();
             const listenerId = eventManager.addListener("graph-settled", callback);

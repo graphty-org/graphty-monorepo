@@ -57,7 +57,7 @@ export const SHARDS = [
     },
     // webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
     // project on Dawn over Mesa lavapipe with coverage (thresholds active) plus the no-subgroups twins
-    // pass, and the Chromium SwiftShader browser smoke. The node shard calls vitest directly: the
+    // pass (four node shards, below), and the Chromium SwiftShader browser smoke. The node shard calls vitest directly: the
     // nx -> npm -> vitest pipe chain starved the worker RPC for graph-format and graph-io (6fc56c1b).
     // needs-lavapipe gates the apt install and the ICD lookup that export the lane's environment.
     // The twin pass covers test/algorithms as well: pr-scale and pr-finalize declare
@@ -69,25 +69,42 @@ export const SHARDS = [
     // swallowed; after it, and after 90 seconds of silence, the process table with each process's kernel
     // wait channel and a Node diagnostic report per surviving process (G4-F14).
     // The files that break a device on purpose are the `node-device-errors` project and run in an
-    // invocation of their own, one file at a time, AFTER the node project has written its coverage:
-    // a worker they kill then takes eleven files with it instead of the hundred and fourteen beside
-    // them. Their coverage goes to .coverage-parts/device-errors and is uploaded as a second
-    // artifact, which tools/merge-coverage.sh merges with the first the way it already merges the
-    // graphty-element shards.
+    // invocation of their own, one file at a time: a worker they kill then takes eleven files with it
+    // instead of the hundred and fourteen beside them. Their coverage goes to .coverage-parts/device-errors
+    // and is uploaded as a second artifact, which tools/merge-coverage.sh merges with the first the way it
+    // already merges the graphty-element shards.
     // The twin pass runs TWICE for the same reason. `--project=node` no longer reaches the four
     // device-error files under test/layouts (fa2-lifecycle, fr-lifecycle, grid-lifecycle,
     // force-simulation), so a second twin invocation names them through the device-error project:
     // 44 + 4 = the 48 layout files the twin pass covered before the split, unchanged. It carries no
     // --passWithNoTests on purpose -- an empty match there means those files moved and the twin pass
     // shrank again, which should be a red step and not a silent pass.
-    {
-        shard: "webgpu-graph-algorithms-node",
+    // The four invocations are four shards, so CI runs them on four runners at once instead of one after
+    // another (they were 25 minutes in series, the longest job of every full run). Each one writes the
+    // same coverage it wrote in series: the coverage thresholds apply to the `node` invocation alone
+    // (vitest.config.ts, thresholdsActive), exactly as before, and the device-error invocation's report
+    // still uploads as coverage-webgpu-graph-algorithms-node-device-errors for coverage.yml to merge.
+    ...[
+        ["webgpu-graph-algorithms-node", "node scripts/run-node-shard.js --project=node --coverage"],
+        [
+            "webgpu-graph-algorithms-node-device-errors",
+            "COVERAGE_DIR=.coverage-parts/device-errors node scripts/run-node-shard.js --project=node-device-errors --coverage",
+        ],
+        [
+            "webgpu-graph-algorithms-node-no-subgroups",
+            "GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node test/primitives test/layouts test/algorithms --passWithNoTests",
+        ],
+        [
+            "webgpu-graph-algorithms-node-no-subgroups-device-errors",
+            "GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors test/layouts",
+        ],
+    ].map(([shard, command]) => ({
+        shard,
         package: "webgpu-graph-algorithms",
-        "test-command":
-            "cd webgpu-graph-algorithms && node scripts/run-node-shard.js --project=node --coverage && COVERAGE_DIR=.coverage-parts/device-errors node scripts/run-node-shard.js --project=node-device-errors --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node test/primitives test/layouts test/algorithms --passWithNoTests && GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors test/layouts",
+        "test-command": `cd webgpu-graph-algorithms && ${command}`,
         "needs-browser": false,
         "needs-lavapipe": true,
-    },
+    })),
     // the browser smoke: scripts/run-browser-project.js wraps vitest in `timeout -k 10 600` and passes a
     // timeout iff every test passed (browser.close() can hang after GPU work); SwiftShader flags come
     // from the package's vitest.config.ts, not from CI

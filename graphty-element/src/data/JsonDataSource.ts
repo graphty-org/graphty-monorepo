@@ -94,7 +94,7 @@ const ID_KEYS = ["id", "name", "key", "label"] as const;
  * @returns the key, or null when the expression is anything more
  */
 function plainKey(expression: string): string | null {
-    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(expression) ? expression : null;
+    return /^[A-Za-z_]\w*$/.test(expression) ? expression : null;
 }
 
 /**

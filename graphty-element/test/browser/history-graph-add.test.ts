@@ -93,6 +93,7 @@ function events(graph: Graph): { added: GraphDataAddedEvent[]; removed: Elements
 }
 
 describe("graph additions on a renderer", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a forward add starts the layout, frames the camera and runs the on-load algorithms once",
         async () => {
@@ -115,6 +116,7 @@ describe("graph additions on a renderer", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "undo removes the render objects and says so with cause undo, starting nothing",
         async () => {
@@ -164,6 +166,7 @@ describe("graph additions on a renderer", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Node.data reads the record the graph holds, across an edit, its undo and its redo",
         async () => {
@@ -181,6 +184,7 @@ describe("graph additions on a renderer", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a data-source load is one step: it starts the layout, frames and runs the on-load algorithms once, and its undo starts nothing",
         async () => {

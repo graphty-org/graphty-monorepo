@@ -2,7 +2,7 @@ import { NullEngine, Scene } from "@babylonjs/core";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test } from "vitest";
 
-import { XRSessionManager } from "../../src/xr/XRSessionManager";
+import { referenceSpaceFallbacks, XRSessionManager } from "../../src/xr/XRSessionManager";
 
 describe("XRSessionManager", () => {
     let engine: NullEngine;
@@ -60,5 +60,18 @@ describe("XRSessionManager", () => {
     test("should return null on getActiveMode when no session", () => {
         const mode = manager.getActiveMode();
         assert.isNull(mode);
+    });
+
+    test("should return null on getReferenceSpaceType when no session", () => {
+        assert.isNull(manager.getReferenceSpaceType());
+    });
+});
+
+describe("referenceSpaceFallbacks", () => {
+    test("tries the configured type, then local-floor, then local", () => {
+        assert.deepEqual(referenceSpaceFallbacks("bounded-floor"), ["bounded-floor", "local-floor", "local"]);
+        assert.deepEqual(referenceSpaceFallbacks("unbounded"), ["unbounded", "local-floor", "local"]);
+        assert.deepEqual(referenceSpaceFallbacks("local-floor"), ["local-floor", "local"]);
+        assert.deepEqual(referenceSpaceFallbacks("local"), ["local"]);
     });
 });

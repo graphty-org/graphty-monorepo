@@ -162,6 +162,14 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
         const { enabled }: { enabled: boolean } = e.detail;
         log(enabled);
     });
+    element.addEventListener("xr-session-started", (e) => {
+        const { mode, requestedReferenceSpace, referenceSpace } = e.detail;
+        log(mode, requestedReferenceSpace, referenceSpace);
+    });
+    element.addEventListener("xr-session-ended", (e) => {
+        const { mode, cause }: { mode: "vr" | "ar"; cause: "exit" | "device" } = e.detail;
+        log(mode, cause);
+    });
     element.addEventListener("input:pointer-down", (e) => {
         const { x, y }: { x: number; y: number } = e.detail;
         log(x, y);

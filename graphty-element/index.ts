@@ -279,6 +279,8 @@ export type {
     OperationCancelledEvent,
     StatsUpdateEvent,
     StyleChangedEvent,
+    XRSessionEndedEvent,
+    XRSessionStartedEvent,
 } from "./src/events";
 
 // =============================================================================

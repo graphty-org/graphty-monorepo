@@ -232,6 +232,13 @@ graphs named:
   the Fiedler vector (the smallest nonzero eigenvalue's): a two-block planted partition splits exactly along its
   blocks, and Zachary's karate club scores modularity 0.40 where it scored 0.04. The clusters, `spectralValues` and
   modularity scores differ from 2.x's on almost every graph.
+- **`syncClustering` scales each node's step by its degree.** 2.x, and 3.x before the fix for issue #1600, moved
+  every node by the same fixed step (`learningRate` 0.01 x `lambda` 0.1), so in 100 iterations a low-degree node
+  hardly moved and two unconnected 4-node cliques split on noise in 1 run of 20, while a step large enough for them
+  overshot on high-degree nodes. A node's step is now its gradient divided by `lambda` x (out-degree + 1), and
+  `learningRate` is the fraction of that step it takes (default 0.5, stable for any value up to 1); `lambda` weights
+  the reported loss only; `maxIterations` defaults to 1000. Unconnected cliques of 3 to 30 nodes now split and
+  converge on every seed. Labels, embeddings, loss and iteration counts differ from 2.x's on every graph.
 - **`grsbm` keeps a split only when it raises the whole partition's modularity.** 2.x, and 3.x before the fix for
   issue #960, compared the two halves' modularity terms alone with the parent split's and kept a split that lowered
   that number by up to 0.01, so it kept splits that hurt the partition and refused ones that helped. A split is now

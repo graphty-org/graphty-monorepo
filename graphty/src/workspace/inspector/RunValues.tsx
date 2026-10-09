@@ -83,6 +83,9 @@ export function RunStateBar({
                     onClick={() => {
                         session?.runs.start(run.algorithm, settingsOf(run, draft), { as: run.id });
                         onDraft({});
+                        // The bar and its Rerun go once the run is current, so focus would fall
+                        // to the page: it goes to the inspector's title, as after any run.
+                        focusInspectorTitle();
                     }}
                 >
                     Rerun
@@ -107,6 +110,7 @@ export function RunStateBar({
                 size="compact-xs"
                 onClick={() => {
                     session?.runs.start(run.algorithm, run.params, { as: run.id, scope: scopeSpec });
+                    focusInspectorTitle();
                 }}
             >
                 Rerun

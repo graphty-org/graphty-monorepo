@@ -187,14 +187,16 @@ export function Inspector(): React.JSX.Element {
                         {header.swatch !== undefined && (
                             <ColorSwatch color={header.swatch} size={12} withShadow={false} aria-hidden />
                         )}
-                        {/* Focusable from script only: where focus lands after a run or a find pick.
-                            Its focus mark is an underline, not a box, so it never reads as a field. */}
+                        {/* Focusable from script only: where focus lands after a run or a find pick,
+                            so a screen reader starts here. A heading, not a control and not in the
+                            Tab order, so it takes no focus mark: a box read as a field, an
+                            underline as a link. The next Tab reaches the first control. */}
                         <Text
                             id={INSPECTOR_TITLE_ID}
                             tabIndex={-1}
                             role="heading"
                             aria-level={2}
-                            className="cm-focus-underline"
+                            style={{ outline: "none" }}
                             size="sm"
                             fw={600}
                             truncate

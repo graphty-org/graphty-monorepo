@@ -255,10 +255,10 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             await waitFor(() => {
                 assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
             });
-            // A heading with an underline focus mark, not a box that reads as an editable name.
+            // A heading with no focus mark: a box reads as an editable name, an underline as a link.
             const title = inspector().getByRole("heading", { level: 2, name: "n0" });
             assert.equal(title, document.activeElement);
-            assert.notEqual(getComputedStyle(title).textDecorationLine, "none");
+            assert.equal(getComputedStyle(title).textDecorationLine, "none");
             assert.equal(getComputedStyle(title).outlineStyle, "none");
             await userEvent.keyboard("{Enter}");
             assert.isNull(inspector().queryByRole("region", { name: "Node 0's 3 connections" }));
@@ -343,6 +343,8 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 { timeout: TIMEOUT_MS },
             );
             assert.isNull(inspector().queryByRole("status"));
+            // The bar and its Rerun are gone; focus is on the inspector's title, not the page.
+            assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
         },
         TIMEOUT_MS * 2,
     );

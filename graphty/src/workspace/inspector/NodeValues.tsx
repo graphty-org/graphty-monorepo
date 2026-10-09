@@ -107,17 +107,18 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
     const { session, store, run: runCommand } = useWorkspace();
     const degree = useRef<HTMLDivElement>(null);
     const summary = useRef<HTMLDivElement>(null);
+    // After every render, not only a mount: the node's Values need not remount between the
+    // neighbor list and Back. Back (or Esc) returns focus to the Degree link that opened the list;
+    // its ring shows for a keyboard reader only, as every ring does. A find pick (also on the node
+    // already shown) puts it on the inspector's title, never on Degree: a ring on a value row there
+    // reads as a choice the reader did not make.
     useEffect(() => {
-        if (returnToDegree) {
+        const back = degree.current?.querySelector("button");
+        if (returnToDegree && back !== null && back !== undefined) {
             returnToDegree = false;
-            degree.current?.querySelector("button")?.focus();
-        }
-    }, []);
-    // After every render, so a pick of the node already shown takes focus too. Focus goes to the
-    // inspector's title, never to Degree: a ring on a value row reads as a choice the reader did
-    // not make, and the next Enter would open it.
-    useEffect(() => {
-        if (summary.current !== null && takeNodeValuesFocus()) {
+            takeNodeValuesFocus();
+            back.focus();
+        } else if (summary.current !== null && takeNodeValuesFocus()) {
             focusInspectorTitle();
         }
     });

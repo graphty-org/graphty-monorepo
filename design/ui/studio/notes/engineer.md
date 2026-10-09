@@ -11,6 +11,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **The inspector title takes focus with no mark; Rerun and Back keep focus off the
+  page (app only).** The title (`INSPECTOR_TITLE_ID`, tabIndex -1 heading) has `outline: none` and
+  no underline: a heading focused so a screen reader starts there is not a control (a box read as
+  a field, an underline as a link). `cm-focus-underline` is deleted from compact-mantine. Both
+  Rerun buttons in `RunStateBar` call `focusInspectorTitle()` on click (the title stays mounted
+  through the run). Back/Esc to Degree now runs on every render of `NodeValues`, not only a mount.
+  "After Back nothing shows focus" was mis-measured: focus WAS on Degree (Tab went on to Collapse
+  Results); a pointer click on Back leaves Chromium in pointer modality, so the keyboard-only ring
+  stays hidden, as spec 2.7 means; Esc shows it. Evidence `tmp/r1-dry4-inspector-focus/`
+  (`probe.mjs`; T23B/03 clean title, T23B/05 Esc ring, T23B/07 Tab after Back; T12RA/02;
+  T21A/06 `--read` starts at the inspector after Rerun).
 - (2026-10-08) **A click keeps its trigger's tooltips closed until the pointer leaves; a
   pointer-opened menu highlights nothing** (compact-mantine `overlayBehavior.ts`). Mechanism, from
   a probe on the frozen build: the click on "Filter to neighbors" came before the 1000 ms open
@@ -56,12 +67,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Leave out tooltips (`UNMATCHED_HINTS`); WeightLine after RoleList so Weight moves no role box.
   Evidence `tmp/r1-dry3-app-import-page/`.
 
-- (2026-10-08) **Sources and left-out rows (app only).** Sources counts are a visible second line
-  (`description` + `descriptionVisible`); the left-out child wears `GLYPHS.warning` in danger ink.
-  Both a load's row and its left-out child show two headed sections, "Added" (Nodes, Edges) and
-  "Left out" (the sentence and each row, wrapping); the left-out child leads with "Left out", the
-  load with "Added" (`SourceValues.tsx`). A table child keeps "Added" alone. Evidence
-  `tmp/r1-dry4-left-out-inspector/` (T4A/03-04, T4B/03-04), earlier `tmp/r1-dry3-app-sources-left-out/`.
+- (2026-10-08, condensed) **Sources and left-out rows (app only).** Counts as a visible second
+  line; the left-out child wears `GLYPHS.warning`; a load and its left-out child show "Added" and
+  "Left out" sections (`SourceValues.tsx`). Evidence `tmp/r1-dry4-left-out-inspector/`.
 - (2026-10-08, condensed) **Shared tree and menu fixes (compact-mantine).** `Tree childBand?`
   (default true; the app passes false); type-ahead takes letters and digits only; a menu's Escape
   is marked used in the capture phase; a disabled first focus moves to the first enabled row
@@ -76,16 +84,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   with's Weight is `weightRead(caveats)`; runs show time to the second. OPEN: Columns after "="
   omit run results.
 - (2026-10-08, condensed) Earlier dry-run fixes: focus after an action goes to the inspector's
-  title (`focusInspectorTitle`; element `data-pointer-focus` hides the click ring); a load that
-  leaves rows out wears a warning, a Sources child opens what it names (`tableRows`); find keeps
-  the rule and the live count, selections list members (`selection.originPaths`; OPEN:
-  `edgePage({ scope: "selection" })` empty for edge-only selections, owner door); neighborhood
-  lists by name at every hop count; key sections titled by the run; route color set by the app.
-  OPEN: after Replace the legend loses "Size: PageRank" (T21A/06); explicit dijkstra over a
-  negative undirected weight freezes the page.
+  title; find keeps the rule and live count; selections list members (`selection.originPaths`;
+  OPEN: `edgePage({ scope: "selection" })` empty for edge-only selections, owner door). OPEN:
+  after Replace the legend loses "Size: PageRank"; explicit dijkstra over a negative undirected
+  weight freezes the page.
 
 ## Decisions and reasons
 
+- (2026-10-08) **No script ring after a pointer action.** Back to <name> returns focus to Degree
+  but shows no ring after a click: the ring is keyboard-only everywhere (spec 2.7), and
+  `focus({ focusVisible: true })` does nothing in Chrome 143 (probe: `optionSupported=false`).
+  Forcing one would need a compact-mantine attribute ring, a second ring rule for one control.
 - (2026-10-08) **Dismissal follows the pressed control, not the tooltip element.** A tooltip can
   mount after the click (open delay not over) or remount (a label change), so a mark on the
   element misses it. The pressed control is found with `closest(...)` so moving onto its padding
@@ -176,6 +185,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Did not work: `focus({ focusVisible: true })` to show a ring after a pointer click
+  (Chrome 143 ignores it, and `false` too); the vitest browser test passed with or without it,
+  because its page was already in keyboard modality, so a `:focus-visible` assertion there proves
+  nothing (script focus inherits the modality). Worked: `--click X --key Tab` in real.mjs, or
+  `--sr` "focus:" lines, to tell "not focused" from "focused, no ring".
 - (2026-10-08) Worked: proving a test fails without a fix by copying the fixed file aside,
   writing `git show HEAD:<file>` over it, running, and copying back (no stash). graphty's tests
   read compact-mantine from its `dist`, so rebuild compact-mantine before an app test sees a
@@ -231,9 +245,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   name but keeps a 2.5em stub, so "weight is at least 4" + "20 to 19 nodes" became "weight is at
   least..." + "20 to ...". An old test passed because `textContent` includes a `hidden` span:
   assert `checkVisibility()` on visible words.
-- (2026-10-08, condensed) Did not work: `focus({ focusVisible: false })` (Chrome 143 ignores it).
-  Worked: a probe page showing script focus inherits keyboard modality; `--sr` "focus:" lines plus
-  a computed-style probe tell "not focused" from "focused, no ring".
 - (2026-10-08, condensed) A probe logging node extents plus `zoomToFit()` splits "framed wrong"
   from "laid out differently"; after a second load poll `isSettled && !running`, not
   `waitForSettled()`; `data.name()` returns the id until `knownFields.nodeLabelPath` is set.

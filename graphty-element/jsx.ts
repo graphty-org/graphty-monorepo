@@ -460,6 +460,14 @@ export interface GraphtyElementJSXProps {
      * Emitted after the style stack changed and the graph was repainted for it.
      */
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
+    /**
+     * Emitted when a VR or AR session has ended and the graph is back in its 3D view.
+     */
+    "onxr-session-ended"?: (event: CustomEvent<EventOfType<"xr-session-ended">>) => void;
+    /**
+     * Emitted when a VR or AR session has started and the graph is drawing into it.
+     */
+    "onxr-session-started"?: (event: CustomEvent<EventOfType<"xr-session-started">>) => void;
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
 }
 

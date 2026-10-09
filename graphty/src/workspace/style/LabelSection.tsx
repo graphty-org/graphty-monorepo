@@ -1,7 +1,7 @@
 import { AlignmentMatrix, FieldRow, Popout, PopoutButton } from "@graphty/compact-mantine";
 import type { Channel, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Checkbox, Group, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Checkbox, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -140,16 +140,12 @@ export function LabelSection({ target, row, layers, fresh }: Readonly<LabelSecti
     return (
         <Stack gap={2} role="group" aria-label="Label" data-section="label">
             <Group gap={4} h={24} wrap="nowrap">
-                <Button
-                    size="compact-xs"
-                    variant="subtle"
-                    color="dark"
-                    fw={600}
-                    aria-disabled={blocked !== null}
-                    onClick={add}
-                >
-                    Label
-                </Button>
+                {/* The heading word adds a line too, so it is a button drawn as the other sections' headings. */}
+                <UnstyledButton aria-disabled={blocked !== null} onClick={add}>
+                    <Text size="xs" fw={600} pl={4}>
+                        Label
+                    </Text>
+                </UnstyledButton>
                 {setBeneath(session, row, channel) ? (
                     <Checkbox
                         size="xs"

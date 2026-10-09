@@ -11,24 +11,22 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-08) **Find list: counts on headings, a drawn scrollbar, scrolls a row at a time.**
-  Headings read "Nodes 1" / "Edges 17" from the element's new `FindResult.totals` (additive; in
-  owner-decisions.md). The list is `ScrollArea.Autosize type="auto"`: the shared overlay bar is
-  drawn while it overflows (headless Chromium hides native bars, so the old `overflow: auto` list
-  never showed one). The edge "falling between rows" / "Values heading alone" was the SCROLL
-  position, not the cut: the cut at the top was already whole; a wheel left the window anywhere.
-  Fix: `scroll-snap-type: y mandatory` on the viewport, `scroll-snap-align: end` on options, so
-  every resting position ends on a row. Graph title uses compact-mantine `EllipsizedName self`
-  (now exported): tooltip only when cut. Evidence `tmp/r1-dry3-app-find-list-graph-title/`
-  (T12RA/02-06, T12RB/02-03, T23B/03). Baselines that will change: GraphPlace stories with a find.
-- (2026-10-08) **Filters say what each control does (app only, no API).** The step checkbox has a
-  tooltip by state ("Turn this step off" / "on", `applyTip`); an off step's editor button reads
-  "Save and turn on" (`saveLabel`) and is enabled even with the rule unchanged, since it does
-  something; an on step keeps "Save step", disabled until a change. Chip tooltip: 'Showing only:
-  "<step>". Click to open Filters, where you can turn it off.' A neighbors step reads "within N
-  hop(s) of Ava" (hop count first, also at one hop), whole in the 240-wide row. Rows, chip and
-  answers.md's T17 follow-up ("Save step") now differ: the key's wording is the next editor's to
-  update. Evidence `tmp/r1-dry3-app-filters/` (T17A/07,10-12; T17B/07-11; T23A/07-08).
+- (2026-10-08) **Style tab: one name style, and the Selection row shows the edge band (app only).**
+  A Color line's name is the same `Text size="xs"` in the same column as Size and Shape
+  (`PaintLine` in SetLine.tsx); the paint field sits under it because at 156 px it cannot fit the
+  88 px value column (an inline paint field would lose the opacity box). The paint field no longer
+  carries its own `label` caption; `PaintLine` names the group. The Label heading is an
+  `UnstyledButton` holding the same `Text xs 600 pl4` as Fill/Shape. The Selection row's Style
+  has a Nodes part (halo) and an Edges part (`edgeColor`/`edgeOpacity`/`edgeScale`), both with
+  `PaintLine` Color and an inline `ComboInput` Size (the old `StyleNumberInput` Size reset is gone).
+  Evidence `tmp/r1-dry3-app-style-tab/` (T22A/02-03, T22B/03-04: 0077BB shown, DD0000 repaints).
+  Baselines that will change: StyleTab stories, Inspector selection stories.
+- (2026-10-08, condensed) **Find list.** Headings count each kind (`FindResult.totals`); list is
+  `ScrollArea.Autosize type="auto"` with scroll-snap so every rest ends on a whole row; graph title
+  `EllipsizedName self`. Evidence `tmp/r1-dry3-app-find-list-graph-title/`.
+- (2026-10-08, condensed) **Filters say what each control does.** Checkbox tooltip by state, "Save
+  and turn on" on an off step, chip tooltip, neighbors step "within N hop(s) of X". The answer key's
+  T17 follow-up wording is the next editor's to update. Evidence `tmp/r1-dry3-app-filters/`.
 - (2026-10-08, condensed) **Study tool records the served build** (`session.json` `commit`; the
   checkout's HEAD is `toolCommit`) and finds `setup:<file>` in cwd, `tier2/`, then
   `rounds/tier-2/setups/`. Evidence `tmp/r1-dry3-studio-tool-records/`.
@@ -65,6 +63,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **One label style beats a wider field.** A field that cannot fit the value column
+  keeps its own row, but its name is drawn by the same component, type and column as every other
+  line's name; a shared component's own caption (CompactColorInput `label`) is not used inside the
+  Style tab. Rejected: swatch+hex only inline (`showOpacity={false}` also drops alpha from the
+  picker); a caption above every line (every row 50 px). The Selection row's halo and band are two
+  parts named Nodes and Edges, the words a reader uses, not "halo"/"band".
 - (2026-10-08) **A scroll list ends on a whole row at every resting position, not only at the top.**
   Cutting the height once fixes the first view; scroll-snap fixes every view after a wheel. A
   per-kind count belongs to the element (a fact about the matches), the heading's words to the app.
@@ -99,23 +103,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the fixture frames four nodes on one point). Rejected: a halo (`outline`, gray fringe), an
   element default (a choice, not a capability).
 
-- (2026-10-08) **The pointer leaves the page after setup, not to a "quiet" spot on it.** Every
-  point in the 1440 x 900 window is a control, a panel or the canvas (where a node can light up);
-  (-1,-1) is over nothing and Chromium clears `:hover`. Rejected: a fixed in-page point.
-- (2026-10-08) **A saved note takes focus, not "+".** Focus on "+" opened its tooltip over the
-  note just written (items 40, 44); the note itself reads whole and Tab/Arrow move on from it.
-  Rejected: suppressing the tooltip on "+" (a shared component's behavior, every icon button).
-- (2026-10-08) **Delete note gets its own glyph (`delete`, trash) rather than changing `remove`.**
-  `remove` (minus) also marks "take out of this list" in SetLine and LabelSection, where minus is right.
-- (2026-10-08) **A run's time is shown to the second.** Two path runs in one minute (T18B) must
-  differ in their own record; minutes alone tie. Rejected: a relative "2 min ago" (goes stale on a
-  saved project), a run counter (not a fact the reader can check).
-- (2026-10-08) **The weight row holds a short fact; the why goes on a line under it.** Rejected:
-  "weight, meaning not set, read as closer" (read as a contradiction) and any sentence in the
-  value column (wraps, orphan "1)"). The select's description and Made with share one sentence.
-- (2026-10-08) **Escape guard is one helper for every popover form, not per caller.** The shared
-  list already consumes its Escape; the panel guard also covers a field that overrides the
-  theme's `onKeyDown` and the Layout popover (same pattern, not in the pilot).
+- (2026-10-08, condensed) Small calls: the pointer leaves the page after setup ((-1,-1), not an
+  in-page spot); a saved note takes focus, not "+" (its tooltip covered the note); Delete note has
+  its own `delete` glyph (minus stays "take out of this list"); a run's time shows seconds (two
+  runs in a minute must differ); the weight row holds a short fact, the why on a line under it;
+  one Escape guard helper for every popover form.
 - (2026-10-08) **A replace is laid out as an open is, not framed differently.** The "small graph"
   after Replace was a correct fit of a deep layout (z extent 37 vs x 23; an explicit `zoomToFit()`
   changed nothing). Mechanism: the seeded restart skipped while "another graph write waits", and
@@ -200,6 +192,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Did not work: `CompactColorInput width="100%"` inside `PaintLine` with no trailing
+  control -- the field grew past the panel edge and cut off the opacity (T22B/03 first try); a fixed
+  `PAINT_FIELD_WIDTH` (156) fits. Worked: a style test comparing computed font size, weight, ink and
+  left edge of two names (fails at "11px 400" against "9px 450" on the old code). The new ComboInput
+  is `role="combobox"`, not a textbox. Pre-existing, not mine: Inspector.test.tsx "names a selected
+  edge by its ends" fails in a whole-file run (passes alone) on HEAD too -- its `findByText("Edge
+  actions")` has the default 1 s timeout against the 1000 ms tooltip delay.
 - (2026-10-08) Worked: snap test scrolls the viewport by 7 px steps and asserts the bottom is an
   option's bottom; fails with `scroll-snap-type: none`. Scroll-area thumb needs `waitFor` (sized
   after its ResizeObserver). Did not work: measuring the title tooltip via `--hover "<name>"` --
@@ -216,16 +215,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-08) Worked: a `--prove` case that spawns `real.mjs` with `cwd` set to a scratch folder
   proves a setup path is found from elsewhere; `git rev-parse --verify <short>^{commit}` turns a
   build stamp's 12-char sha into the full one.
-- (2026-10-08) Did not work: `findByRole("tooltip")` for the Edge actions tooltip in
-  Inspector.test (testing-library judged it inaccessible); `findByText` then `closest('[role=
-"tooltip"]')` works, as the measurement-gloss test already does. A row that looks highlighted
-  right after clicking Degree is the pointer's hover (it clears with `--hover-at` elsewhere,
-  florentine/03 vs florentine2/03), not focus.
-- (2026-10-08) Trap: another agent's `git commit` of whole files swept my uncommitted hunks
-  in, then an amend took them out again. Stage hunks with `git apply --cached` of a filtered
-  diff and commit at once.
-- (2026-10-08) Worked: re-piloting T4 from answers.md's success path (no session.json setup list
-  for an `empty` start) on a dist copy in my tmp folder.
+- (2026-10-08, condensed) Tooltip tests: `findByText` then `closest('[role="tooltip"]')`, not
+  `findByRole("tooltip")`. A row that looks highlighted after a click is the pointer's hover. Stage
+  my hunks with `git apply --cached` of a filtered diff and commit at once (another agent's
+  whole-file commit swept mine in). Re-pilot an `empty` start from answers.md's success path.
 - (2026-10-08, condensed) Menus and tooltips: a theme `onKeyDown` on `MenuDropdown` never runs
   (capture-phase close unmounts first); a disabled first focus needs `data-autofocus` (Mantine's
   trap refocuses row 1); Tooltip `vars` run only when the tooltip renders; read "tooltip under X"

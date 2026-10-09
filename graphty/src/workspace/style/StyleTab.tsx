@@ -1,4 +1,4 @@
-import { CompactColorInput, SegmentedControl, StyleNumberInput } from "@graphty/compact-mantine";
+import { ComboInput, CompactColorInput, FieldRow, SegmentedControl } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
 import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
@@ -23,7 +23,7 @@ import {
     writeGroupColor,
     writeLine,
 } from "./row";
-import { CompoundSetLine, SetLine } from "./SetLine";
+import { CompoundSetLine, PAINT_FIELD_WIDTH, PaintLine, SetLine } from "./SetLine";
 import { focusLineNext, openListNext, useFocusLine } from "./useFocusLine";
 import { useStyleVersion } from "./useStyleVersion";
 import { channelWord, type CompoundLine, compoundOf, isLineChannel, SECTIONS, type StyleSection } from "./words";
@@ -429,9 +429,27 @@ function SectionTitle({ title }: Readonly<{ title: string }>): React.JSX.Element
     );
 }
 
+/** The element's selection highlight, as `session.config.selectionStyle` reads. */
+type Highlight = GraphSession["config"]["selectionStyle"];
+
 /**
- * The Selection row's Style: the highlight a selected node is drawn with, which is the element's
- * `selectionStyle` setting rather than a style layer. Each settled change is one undoable step.
+ * The two parts of the highlight: the halo a selected node is drawn with and the band a selected
+ * edge is drawn with, each its own color, opacity and size in the element's `selectionStyle`.
+ */
+const HIGHLIGHT_PARTS = [
+    { title: "Nodes", color: "color", opacity: "opacity", scale: "scale" },
+    { title: "Edges", color: "edgeColor", opacity: "edgeOpacity", scale: "edgeScale" },
+] as const satisfies readonly {
+    title: string;
+    color: keyof Highlight;
+    opacity: keyof Highlight;
+    scale: keyof Highlight;
+}[];
+
+/**
+ * The Selection row's Style: the highlight selected nodes and edges are drawn with, which is the
+ * element's `selectionStyle` setting rather than a style layer. Each settled change is one
+ * undoable step.
  * @returns The section, or nothing before the element has come up
  */
 export function SelectionStyle(): React.JSX.Element | null {
@@ -441,39 +459,54 @@ export function SelectionStyle(): React.JSX.Element | null {
         return null;
     }
     const current = session.config.selectionStyle;
-    const write = (patch: Partial<typeof current>): void => {
-        // `selectionStyle` is replaced whole, so the halves not changed are written back as they are.
+    const write = (patch: Partial<Highlight>): void => {
+        // `selectionStyle` is replaced whole, so the settings not changed are written back as they are.
         session.config.set({ selectionStyle: { ...current, ...patch } }).catch(() => {
             store.set({ notice: { message: "The highlight could not be changed", error: true } });
         });
     };
+    const hex = (color: string): string => color.slice(0, 7).toUpperCase();
     return (
         <Stack gap={8} p={8} data-testid="selection-style" role="group" aria-label="Highlight">
-            <SectionTitle title="Highlight" />
-            <CompactColorInput
-                label="Color"
-                color={current.color.slice(0, 7).toUpperCase()}
-                defaultColor={DEFAULT_SELECTION_STYLE.color.slice(0, 7).toUpperCase()}
-                opacity={Math.round(current.opacity * 100)}
-                defaultOpacity={Math.round(DEFAULT_SELECTION_STYLE.opacity * 100)}
-                onChangeEnd={(color, opacity) => {
-                    write({
-                        color: color ?? DEFAULT_SELECTION_STYLE.color,
-                        opacity: (opacity ?? DEFAULT_SELECTION_STYLE.opacity * 100) / 100,
-                    });
-                }}
-            />
-            <StyleNumberInput
-                label="Size"
-                value={current.scale}
-                defaultValue={DEFAULT_SELECTION_STYLE.scale}
-                min={0.1}
-                step={0.05}
-                decimalScale={2}
-                onChange={(scale) => {
-                    write({ scale: scale ?? DEFAULT_SELECTION_STYLE.scale });
-                }}
-            />
+            {HIGHLIGHT_PARTS.map((part) => (
+                <Stack key={part.title} gap={2} role="group" aria-label={part.title}>
+                    <SectionTitle title={part.title} />
+                    <PaintLine name="Color">
+                        <CompactColorInput
+                            width={PAINT_FIELD_WIDTH}
+                            color={hex(current[part.color])}
+                            defaultColor={hex(DEFAULT_SELECTION_STYLE[part.color])}
+                            opacity={Math.round(current[part.opacity] * 100)}
+                            defaultOpacity={Math.round(DEFAULT_SELECTION_STYLE[part.opacity] * 100)}
+                            onChangeEnd={(color, opacity) => {
+                                write({
+                                    [part.color]: color ?? DEFAULT_SELECTION_STYLE[part.color],
+                                    [part.opacity]: (opacity ?? DEFAULT_SELECTION_STYLE[part.opacity] * 100) / 100,
+                                });
+                            }}
+                        />
+                    </PaintLine>
+                    <FieldRow>
+                        <Text size="xs" truncate>
+                            Size
+                        </Text>
+                        <ComboInput
+                            label="Size"
+                            width="100%"
+                            numeric
+                            options={[]}
+                            value={current[part.scale]}
+                            min={0.1}
+                            step={0.05}
+                            onChange={(scale) => {
+                                if (typeof scale === "number" && scale > 0) {
+                                    write({ [part.scale]: scale });
+                                }
+                            }}
+                        />
+                    </FieldRow>
+                </Stack>
+            ))}
         </Stack>
     );
 }

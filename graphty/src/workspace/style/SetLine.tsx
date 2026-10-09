@@ -51,7 +51,7 @@ interface SetLineProps {
 }
 
 /** Figma's paint field beside a row's bind icon and "-": 156 px, so the hex and opacity fit whole. */
-const PAINT_FIELD_WIDTH = 156;
+export const PAINT_FIELD_WIDTH = 156;
 
 /** The width of a line's pop-out (a compound line, the bind list, the Binding and Shape lists), as wide as the panel's own rows. */
 const POPOUT_WIDTH = 248;
@@ -188,25 +188,16 @@ export function SetLine({
         );
 
     if (descriptor.accepts === "color" && line.binding === undefined) {
-        // Figma's paint row: the name as a caption above the field, the bind icon beside it and
-        // "-" in the trailing slot, all on the field's line.
         return (
-            <FieldRow
-                data-line={channel}
-                trailing={removeButton}
-                style={{ height: "auto", alignItems: "flex-end", paddingBlock: 4 }}
-            >
-                <div style={{ display: "flex", alignItems: "flex-end", gap: 4 }}>
-                    <ColorValue
-                        name={name}
-                        value={line.value}
-                        fallback={descriptor.default}
-                        documentColors={documentColors}
-                        write={write}
-                    />
-                    {bindIcon}
-                </div>
-            </FieldRow>
+            <PaintLine name={name} data-line={channel} trailing={removeButton}>
+                <ColorValue
+                    value={line.value}
+                    fallback={descriptor.default}
+                    documentColors={documentColors}
+                    write={write}
+                />
+                {bindIcon}
+            </PaintLine>
         );
     }
 
@@ -375,7 +366,6 @@ function ValueEditor({
         case "color":
             return (
                 <ColorValue
-                    name={label}
                     value={value}
                     fallback={descriptor.default}
                     documentColors={documentColors}
@@ -453,11 +443,40 @@ function ValueEditor({
 }
 
 /**
- * A color line's value: compact-mantine's paint field (swatch, hex, opacity) with the name as its
- * caption. The swatch opens the picker with the document's colors; a drag writes once, on release,
- * so it is one undo step.
+ * A color line: its name in the same small type and column as every other line's name, and the
+ * paint field (swatch, hex, opacity) under it, since the field is wider than a line's value column.
+ * The name also names the group the field's controls sit in.
  * @param props - Component props
- * @param props.name - the property's name
+ * @param props.name - the line's name
+ * @param props.trailing - the row's trailing control ("-", a reset), if any
+ * @param props.children - the paint field and anything beside it (the bind icon)
+ * @returns The line
+ */
+export function PaintLine({
+    name,
+    trailing,
+    children,
+    ...rest
+}: Readonly<
+    { name: string; trailing?: React.ReactNode; children: React.ReactNode } & Record<`data-${string}`, string>
+>): React.JSX.Element {
+    return (
+        <FieldRow {...rest} trailing={trailing} style={{ height: "auto", alignItems: "flex-end", paddingBlock: 4 }}>
+            <div role="group" aria-label={name} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <Text size="xs" truncate>
+                    {name}
+                </Text>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 4 }}>{children}</div>
+            </div>
+        </FieldRow>
+    );
+}
+
+/**
+ * A color line's value: compact-mantine's paint field (swatch, hex, opacity), named by the line
+ * around it. The swatch opens the picker with the document's colors; a drag writes once, on
+ * release, so it is one undo step.
+ * @param props - Component props
  * @param props.value - the value
  * @param props.fallback - what the element draws when the value is unset
  * @param props.documentColors - colors the document uses
@@ -465,13 +484,11 @@ function ValueEditor({
  * @returns The paint field
  */
 function ColorValue({
-    name,
     value,
     fallback,
     documentColors,
     write,
 }: Readonly<{
-    name: string;
     value: ChannelValue | undefined;
     fallback: ChannelValue | undefined;
     documentColors: readonly string[];
@@ -481,7 +498,6 @@ function ColorValue({
     const color = chosen ?? colorOf(fallback) ?? { hex: "#000000", percent: 100 };
     return (
         <CompactColorInput
-            label={name}
             width={PAINT_FIELD_WIDTH}
             // Unset (a glow's color), the field shows what the element draws, as not chosen.
             color={chosen?.hex}

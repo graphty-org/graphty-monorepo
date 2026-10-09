@@ -477,7 +477,9 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 store.set({ inspected: { kind: "selection-row", id: "selection" } });
             });
             const highlight = await inspector().findByRole("group", { name: "Highlight" });
-            const hex = within(highlight).getByRole("textbox", { name: /Color/ });
+            const hex = within(within(highlight).getByRole("group", { name: "Nodes" })).getByRole("textbox", {
+                name: /Color/,
+            });
             await userEvent.clear(hex);
             await userEvent.type(hex, "FF0000{Enter}");
             await waitFor(() => {

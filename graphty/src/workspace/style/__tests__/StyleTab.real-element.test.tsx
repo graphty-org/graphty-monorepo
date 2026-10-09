@@ -14,7 +14,7 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { registration } from "../commands";
@@ -1044,6 +1044,91 @@ describe("the selection's own row on the real element", () => {
             await session.undo();
             await waitFor(() => {
                 assert.equal(idLayers(session).length, 0);
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
+});
+
+describe("one look for names and headings on the real element", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    /**
+     * How a piece of text is drawn: its size, weight, ink and left edge.
+     * @param element - the text.
+     * @returns the four, as one string to compare.
+     */
+    function drawn(element: HTMLElement): string {
+        const style = getComputedStyle(element);
+        return `${style.fontSize} ${style.fontWeight} ${style.color} ${String(Math.round(element.getBoundingClientRect().left))}`;
+    }
+
+    it(
+        "a Color line's name is drawn as the Size and Shape lines' names, and the Label heading as Fill's",
+        async () => {
+            await openWithGraph();
+            await pickStyleTab();
+            const line = (channel: string): HTMLElement => {
+                const found = styleTab().querySelector<HTMLElement>(`[data-line="${channel}"]`);
+                if (found === null) {
+                    throw new Error(`no ${channel} line`);
+                }
+                return found;
+            };
+            await waitFor(() => {
+                line("node.color");
+            });
+            const color = within(line("node.color")).getByText("Color", { exact: true });
+            const size = within(line("node.size")).getByText("Size", { exact: true });
+            const shape = within(line("node.shape")).getByText("Shape", { exact: true });
+            assert.equal(drawn(color), drawn(size));
+            assert.equal(drawn(shape), drawn(size));
+
+            const heading = (section: string, word: string): HTMLElement =>
+                within(within(styleTab()).getByRole("group", { name: section })).getByText(word, { exact: true });
+            assert.equal(drawn(heading("Label", "Label")), drawn(heading("Fill", "Fill")));
+        },
+        TIMEOUT_MS * 2,
+    );
+});
+
+describe("the Selection row's highlight on the real element", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    it(
+        "shows the edge band beside the node halo, and writes the band's color and size back to the element",
+        async () => {
+            const { session, store } = await openWithGraph();
+            act(() => {
+                store.set({ inspected: { kind: "selection-row", id: "selection" } });
+            });
+            const highlight = await screen.findByRole("group", { name: "Highlight" }, { timeout: TIMEOUT_MS });
+            const part = (name: string): HTMLElement => within(highlight).getByRole("group", { name });
+            const hexOf = (name: string): HTMLInputElement =>
+                within(part(name)).getByRole<HTMLInputElement>("textbox", { name: "Color hex value" });
+            assert.equal(hexOf("Nodes").value, "FFD700");
+            assert.equal(hexOf("Edges").value, "0077BB", "the band the element draws selected edges with");
+
+            await userEvent.clear(hexOf("Edges"));
+            await userEvent.type(hexOf("Edges"), "FF0000{Enter}");
+            await waitFor(() => {
+                assert.equal(session.config.selectionStyle.edgeColor.toUpperCase(), "#FF0000");
+            });
+            assert.equal(session.config.selectionStyle.color.toUpperCase(), "#FFD700", "the halo is left alone");
+
+            const size = within(part("Edges")).getByRole("combobox", { name: "Size" });
+            await userEvent.clear(size);
+            await userEvent.type(size, "4{Enter}");
+            await waitFor(() => {
+                assert.equal(session.config.selectionStyle.edgeScale, 4);
+            });
+            assert.equal(session.config.selectionStyle.scale, 1.45, "the halo's size is left alone");
+            await waitFor(() => {
+                assert.equal(hexOf("Edges").value, "FF0000");
             });
         },
         TIMEOUT_MS * 2,

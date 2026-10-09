@@ -544,6 +544,10 @@ is the order of the migration. Update this paragraph as each step lands.
 still runs on every push. Mark it ready (`gh pr ready <n>`) when the work is done: that starts its
 CI, and Mergify queues only ready pull requests.
 
+**Every pull request description names its issue** (`Fixes #N`, `Closes #N`, `Resolves #N`,
+`Refs #N` or `Part of #N`) **or has a line `No issue`.** The `Link PR Issue` check
+(`pr-issue-link.yml`) fails it otherwise and re-runs when the description is edited.
+
 ### Workflows (`.github/workflows/`)
 
 | Workflow | Trigger | Purpose |

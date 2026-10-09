@@ -5,14 +5,16 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-09 (third round 2 dry run, every task half piloted on eaea2a75d95b).
+Last updated: 2026-10-09 (fourth round 2 dry run, every task half piloted on 2dcea6dd5bba).
 
 ## Top of mind
 
-- 2026-10-09: THIRD ROUND 2 DRY RUN on eaea2a75d95b (`tier2/dry-run-r2-3.md`): 120 pilot items;
-  13 fix in four units (shared menus, import page, neighbor list, study tool), 61 design, 40 no
-  change, 4 owner. Participants would now meet few build defects; refreeze, re-pilot only the
-  halves the fixes touch (T4, T20, T21A, T23B, T24) plus one setup of every task, then start.
+- 2026-10-09: FOURTH ROUND 2 DRY RUN on 2dcea6dd5bba (`tier2/dry-run-r2-4.md`): 118 items, 7 fix
+  in four small units (source inspector glyph, run inspector alignment, find box rule font and
+  Enter target, click on a drawn name), 52 design, 52 no change. No walk hit a broken control or
+  an error. The dry runs have converged: fix, refreeze, re-pilot the touched halves, then start.
+- 2026-10-09: A pattern fixed in one place is a defect wherever it is missing. The path form
+  marked its Enter target in the first dry run; the find box never did. Grep for siblings.
 - 2026-10-09: The study tool is the biggest remaining risk to a session, not the app. Its 3000 ms
   click limit counts Playwright's wait after the click, so on a loaded machine (load 90 to 115) a
   landed click reads as "could not click" and a missed one can pass setup. In a session that
@@ -20,10 +22,8 @@ Last updated: 2026-10-09 (third round 2 dry run, every task half piloted on eaea
 - 2026-10-09: A shared rule tested on one shape only is not a rule. "A pointer-opened menu
   highlights nothing" held only for menus whose first row is disabled (the test used one). Every
   shared-behavior test needs the common case, not just the case that was reported.
-- 2026-10-09: Pilots repeat known items (no focus mark on a heading, tooltips covering things,
-  "on 20 nodes"). Name a recurring reason once in the triage and point to it; do not re-argue.
-- 2026-10-09: Reversed: the "Add a table" tooltip that covers the "E" is fixed now (opens left).
-  Reported in every dry run, and it costs one prop; "transient" was no reason to keep paying it.
+- 2026-10-09: Pilots repeat known items. Name a recurring reason once in the triage (3D overlap,
+  names by default, focus on a heading, covers until closed, tooltip after a click); never re-argue.
 - 2026-10-09: The study tool hid every native scrollbar (`--hide-scrollbars`); fixed. Check other
   headless defaults the same way.
 - 2026-10-09: Check every pilot claim in source or screenshot before classing; the second dry run
@@ -168,37 +168,28 @@ Last updated: 2026-10-09 (third round 2 dry run, every task half piloted on eaea
   issue), compact-mantine toast role and segmented fill, bare numbers (owner). Reason throughout:
   one door per problem so round 2 can credit each change; measurement before any app change.
 
-- 2026-10-09 -- Round 2 dry run triage (me, `tier2/dry-run-r2-1.md`). Reversed one round 1
-  deferral: the chosen segment of a two-option control is fixed now in compact-mantine, because
-  two of four T4 pilots could not tell Add from Leave out, and the build is refrozen for the
-  other fixes anyway, so attribution is no argument. Kept "no mark on the focused inspector
-  title" (fourth dry run: the underline read as a link; a heading is not a control) and the
-  tooltip that stays closed after a click (Figma, macOS), though pilots keep reporting both: the
-  key says so. Find's bare-number hint shows the reader's own rule, rewritten by the element
-  (additive `suggestion` on the refusal, recorded under "decided by the team"), not a column's
-  midpoint that sat near the task's number on both halves. Fixed the tool myself: a wrapped
-  `real.mjs --start` held a slot while its own session waited for a second.
+- 2026-10-09 -- Round 2 dry runs one to three (summarized; full text in
+  `tier2/dry-run-r2-{1,2,3}.md` and git history of this file). Fixed: the chosen segment's fill
+  and weight (compact-mantine), find's bare-number hint quoting the reader's own rule (element
+  `suggestion`, additive), `applyNow` not notifying an origin change and an unparsed suggestion
+  (element), the shared menu's pointer rule for an enabled first row (compact-mantine), "All N
+  rows" captions, the neighbor list's reach under a 2-hop filter and its wrapped heading, the
+  "Add a table" tooltip opening left (reversed a keep: reported every round, one prop), the
+  study tool's click timeouts and empty tooltip report. Kept with reasons named once: focus on a
+  heading (boxed and underlined each read as a control), transient tooltips and menus, "on N
+  nodes", the weight note's "a path needs a distance" (T18 follow-up measures it), "auto" on
+  the import page (a naming question).
 
-- 2026-10-09 -- Second round 2 dry run triage (me, `tier2/dry-run-r2-2.md`). Two element
-  defects fixed in the element, not the app: `SelectionApi.applyNow` changes `origin` without
-  notifying when members are unchanged (find's same-set Enter showed no count), and the
-  `number-needs-backticks` suggestion is offered without checking it parses. Kept as design, though
-  pilots pushed: the weight note's "a path needs a distance" (T18's follow-up measures whether it
-  steers), a weighted path's row reading "4 hops" beside a 7.5 km total (the "units on a total"
-  question and T20's read check). Kept the "1 row left out" fix as a deletion (drop the source's
-  counts from that inspector) rather than new words. The import preview's cut rows are a tool
-  fix, not an app one: the pane scrolls; the headless browser hid its bar.
-
-- 2026-10-09 -- Third round 2 dry run triage (me, `tier2/dry-run-r2-3.md`). Fixed: the shared
-  menu's pointer rule for menus with an enabled first row (compact-mantine
-  `skipDisabledFirstRow` returns early for an enabled row, so Edge actions opened highlighted);
-  the preview caption "The first 17 rows of 17" (says "All 17 rows" when whole); the neighbor list
-  opening one hop out under a 2-hop filter (`selection.neighborhood` ignores the filter's reach)
-  and its cut heading (drawn whole, which also removes the tooltip over Hops); the tool's click
-  timeouts and empty tooltip report. Kept, with reasons named once: focus on a heading (tried
-  boxed and underlined, each read as a control), transient tooltips and menus, "on N nodes".
-  Kept "auto" on the import page as a naming question. Reversed one keep: the "Add a table"
-  tooltip opens left, since it was reported every round and costs one prop.
+- 2026-10-09 -- Fourth round 2 dry run triage (me, `tier2/dry-run-r2-4.md`). Fixed: the source
+  inspector heading draws its row's glyph (the left-out row lost its warning triangle once
+  opened); "Advanced run settings" and the histogram's summary line aligned; the find box sets
+  quoted rules in monospace (a backtick read as an apostrophe) and marks the option Enter picks
+  (the path form already did); a click on a drawn name picks its node, as a new element label
+  option whose default keeps today's behavior and which the app turns on (Cytoscape.js passes
+  label clicks through by default, so it is a consumer's choice, not a default to change). Kept as
+  design: one name or two for project and file (the Graph title "friends-v2.csv" may be a T21
+  cue); the left-out row quoting the file's id (the key takes either). Reason throughout: a
+  defect is fixed only when a participant could hit it on a walked route or a common detour.
 
 ## Tried: worked / did not work
 
@@ -265,6 +256,12 @@ Last updated: 2026-10-09 (third round 2 dry run, every task half piloted on eaea
   answer key copying pilot claims as facts ("the scrollbar is drawn when every row fits"); the
   key needs the same check as a defect.
 
+- 2026-10-09 (fourth round 2 dry run) -- Worked: measuring pixel x on the screenshots before
+  calling a misalignment (8 px and 16 px, both real), and checking each "new" item against the
+  key first (the "out-of-date key line" sat in the earlier build's list; the current notes were
+  right). Did not work: the first dry run's fix to the path form's Enter target stayed local;
+  the find box had the same defect for four dry runs because no one grepped for the pattern.
+
 - 2026-10-09 (third round 2 dry run) -- Worked: reading the shared code a pilot's symptom
   passes through. The menu highlight looked like a regression but was a rule never built for the
   common case. Worked: separating the tool's faults from the app's; two of the 120 items could put
@@ -289,7 +286,7 @@ Last updated: 2026-10-09 (third round 2 dry run, every task half piloted on eaea
 
 ## Sources
 
-- Tier 2 round 2 dry runs (2026-10-09): `tier2/dry-run-r2-{1,2,3}.md`, pilots in `tier2/rounds/r2d{1,2}/pilot/`.
+- Tier 2 round 2 dry runs (2026-10-09): `tier2/dry-run-r2-{1,2,3,4}.md`, pilots in `tier2/rounds/r2d{1,2,3}/pilot/`.
 - Tier 2 (2026-10-08): `tier2/dry-run-r1-4.md` (pilots in `tier2/rounds/r1d3/pilot/`), `tier2/dry-run-r1-1.md`, `tier2/dry-run-r1-2.md` (pilots in `tier2/rounds/r1d1/pilot/`), `tier2/dry-run-r1-3.md` (pilots in `tier2/rounds/r1d2/pilot/`), `tier2/criteria.md` (frozen), `tier2/tasks.md`, `tier2/roster.md` ("Where each
   session starts"), `rounds/tier-2/setups/*-ranked*.txt`; reviews in `notes/researcher.md`,
   `notes/user.md`, `notes/redteam.md`.

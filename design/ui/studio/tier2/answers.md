@@ -655,7 +655,9 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   path counts every edge as one step, and PageRank and communities read a higher weight as
   closer." under it; `--click "Farther"` (the line under it changes to "A higher weight means
   farther apart, such as a longer distance or travel time; a path takes the smallest total.", the
-  same example whatever the data is, and the summary changes at once to "Weight: minutes
+  same example whatever the data is; it holds "distance" and "time", which both prompts avoid,
+  and "longer", which prompt B uses, so record a participant who quotes it as a possible wording echo; it shows only
+  after Farther is chosen, so it cannot lead there; and the summary changes at once to "Weight: minutes
   (farther)", `rounds/r1d4/pilot/T20A/08.png`, `T20B/07.png`); `--click "Load"` (Load is enabled while Higher
   means is still "Not set"); `--key p` (the Path popover's Weight starts on "minutes (farther,
   loaded)", `rounds/r1d3/pilot/T20B/12.png`); From Depot, To Harbor as in T18 (a clicked option

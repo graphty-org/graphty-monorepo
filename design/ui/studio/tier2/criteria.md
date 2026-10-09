@@ -1,5 +1,5 @@
-The study runs on build eaea2a75d95b served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d2-eaea2a75d/`
-(graphty@0.8.61, commit eaea2a75d), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build 2dcea6dd5bba served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d3-2dcea6dd5/`
+(graphty@0.8.61, commit 2dcea6dd5), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -627,3 +627,14 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   time out under load, which may or may not have landed, so a session's first screenshot is
   checked against its start. Citations of d5a3bee20b61 walks whose folders now hold this build's
   walks point at their `-old-build-d5a3bee/` folders. No bar, floor, step limit or prompt changed.
+
+- **2026-10-09, before round 2: the third round 2 dry run build.** The study build moved from
+  eaea2a75d95b (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d2-eaea2a75d/`) to
+  2dcea6dd5bba (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d3-2dcea6dd5/`,
+  write-protected), a fresh build of graphty-element, compact-mantine and the graphty app with the
+  Sentry variables unset. It holds the fixes found in the second dry run (the neighbor list opening
+  at the reach of the filter that is on with its heading wrapped, "All N rows" for a whole-table
+  import preview, the Add a table tooltip opening to the left, a click-opened menu highlighting no
+  row, a section name shown whole in the shared tooltip) and master's element changes merged since
+  (a disposed graph's WebGL context released, the AI provider catalog, the spring-electrical
+  layout's maxIter). No bar, floor, step limit or prompt changed.

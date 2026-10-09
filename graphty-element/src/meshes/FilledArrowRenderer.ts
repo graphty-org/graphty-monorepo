@@ -251,7 +251,7 @@ void main() {
         const mesh = new Mesh("filled-triangle-arrow", scene);
 
         // Normalized dimensions
-        const length = 1.0;
+        const length = 1;
         const width = 0.8;
 
         // Tip at origin, base extends backward
@@ -295,7 +295,7 @@ void main() {
         const mesh = new Mesh("filled-diamond-arrow", scene);
 
         // Normalized dimensions
-        const length = 1.0;
+        const length = 1;
         const width = 0.8;
 
         // Front tip at origin, extends backward
@@ -345,7 +345,7 @@ void main() {
         const mesh = new Mesh("filled-box-arrow", scene);
 
         // Normalized dimensions - perfect square (1.0 x 1.0)
-        const size = 1.0;
+        const size = 1;
         const halfSize = size / 2;
 
         // Front edge at origin, extends backward
@@ -446,7 +446,7 @@ void main() {
         const mesh = new Mesh("filled-vee-arrow", scene);
 
         // Normalized dimensions
-        const length = 1.0;
+        const length = 1;
         const width = 0.8;
 
         // Tip at origin, base extends backward
@@ -555,7 +555,7 @@ void main() {
         const mesh = new Mesh("filled-half-open-arrow", scene);
 
         // Normalized dimensions (same as vee)
-        const length = 1.0;
+        const length = 1;
         const width = 0.8;
 
         // Tip at origin, base extends backward
@@ -607,7 +607,7 @@ void main() {
         const mesh = new Mesh("filled-crow-arrow", scene);
 
         // Normalized dimensions
-        const length = 1.0;
+        const length = 1;
         const width = 0.8;
 
         // ROTATED 180 degrees: Tip at back (touching line), base at front (near node)
@@ -683,7 +683,7 @@ void main() {
         const mesh = new Mesh("filled-open-normal-arrow", scene);
 
         // Normalized dimensions
-        const length = 1.0;
+        const length = 1;
         const width = 0.8;
         const insetFactor = 0.225; // How much to inset inner triangle (22.5% toward center) - matches open-diamond thickness
 
@@ -760,7 +760,7 @@ void main() {
         const insetFactor = 0.225; // How much to inset inner circle (22.5% toward center) - matches open-diamond and open-normal thickness
 
         // Calculate inner radius
-        const innerRadius = outerRadius * (1.0 - insetFactor);
+        const innerRadius = outerRadius * (1 - insetFactor);
 
         const positions: number[] = [];
         const indices: number[] = [];
@@ -820,7 +820,7 @@ void main() {
         const mesh = new Mesh("filled-open-diamond-arrow", scene);
 
         // Normalized dimensions (same as filled diamond)
-        const length = 1.0;
+        const length = 1;
         const width = 0.8;
         const insetFactor = 0.225; // How much to inset inner diamond (22.5% toward center) - 50% thicker than original 0.15
 
@@ -929,13 +929,13 @@ void main() {
         const colorObj = Color3.FromHexString(options.color);
         shaderMaterial.setVector3("color", new Vector3(colorObj.r, colorObj.g, colorObj.b));
         shaderMaterial.setFloat("size", options.size);
-        shaderMaterial.setFloat("opacity", options.opacity ?? 1.0);
+        shaderMaterial.setFloat("opacity", options.opacity ?? 1);
 
         // Initialize lineDirection to a default value (will be updated per-edge)
         shaderMaterial.setVector3("lineDirection", new Vector3(1, 0, 0));
 
         // Set clipping uniform (default -1.0 = disabled)
-        shaderMaterial.setFloat("clipEndX", options.clipEndX ?? -1.0);
+        shaderMaterial.setFloat("clipEndX", options.clipEndX ?? -1);
 
         // Register material for its own scene's camera position updates; the registration ends
         // when the material is disposed. See releaseMaterial and PerSceneMaterials.
@@ -1062,7 +1062,7 @@ void main() {
      * @returns The cap; point it with {@link ArrowCap.place}
      */
     static createArrowCap(shape: string, createShape: () => Mesh, options: FilledArrowOptions, scene: Scene): ArrowCap {
-        const opacity = options.opacity ?? 1.0;
+        const opacity = options.opacity ?? 1;
         const cap = this.capOf(
             scene,
             `3d|${shape}|${String(opacity)}`,

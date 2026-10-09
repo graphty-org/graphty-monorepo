@@ -561,7 +561,7 @@ export class StatsManager implements Manager {
         }
 
         // Flag high-blocking frames (blocking > 2x CPU time AND > 20ms frame time)
-        if (blockingRatio > 2.0 && interFrameTime > 20) {
+        if (blockingRatio > 2 && interFrameTime > 20) {
             this.reportHighBlockingFrame(profile);
         }
     }
@@ -603,7 +603,7 @@ export class StatsManager implements Manager {
             }
         >();
 
-        const highBlockingThreshold = 1.0; // Blocking > 1x CPU time
+        const highBlockingThreshold = 1; // Blocking > 1x CPU time
 
         for (const frame of this.frameProfiles) {
             const isHighBlocking = frame.blockingRatio > highBlockingThreshold;

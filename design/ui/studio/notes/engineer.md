@@ -11,6 +11,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **Inspector title, actions button and neighborhood focus (app + compact-mantine,
+  no element API).** The title that takes focus after a run, find pick or Find path is a level-2
+  heading (`role="heading" aria-level={2}`) marked by the new shared `cm-focus-underline` (2px
+  underline in `--cm-border-selected`, no outline), so it no longer reads as an editable name
+  field. Every inspector's actions button has its name as a Tooltip (Menu.Target > Tooltip >
+  ActionIcon). NeighborList focuses `input:checked` (the Hops choice), never the first row.
+  `neighborhoodWords(center, count, hops)`: one hop "Ava's 6 connections", past it "Ava's 14
+  connections within 2 hops". Evidence `tmp/r1-dry3-app-inspector-header-neighborhood/`
+  (friends/03-08, florentine2/02-04). OPEN: an edge picked from Find leaves focus in the Find box
+  (friends/07), not on the title; the underline might read as a link (watch the sessions).
 - (2026-10-08) **Sources rows and left-out rows (app only, no API).** A Sources row passes its
   counts as `description` + `descriptionVisible` (two-line row) instead of `count`, so
   "people.csv and messages.csv" and "12 nodes, 22 edges" both show whole. The left-out child's
@@ -78,6 +88,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **A script-focused heading gets an underline, not a box.** Five pilots read the
+  1px box around the inspector title as an editable name. The mark is a shared class in
+  compact-mantine (a focus style is shared UI), documented in figma-spec.md's focus table.
 - (2026-10-08) **A left-out row opens its load's whole account, not a "Left out" section alone.**
   The task asks how many arrived AND what was dropped; the small inspector hid the counts (T4A/12).
 - (2026-10-08) **A shared control's defect is fixed in compact-mantine, and an app-specific
@@ -197,6 +210,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Did not work: `findByRole("tooltip")` for the Edge actions tooltip in
+  Inspector.test (testing-library judged it inaccessible); `findByText` then `closest('[role=
+  "tooltip"]')` works, as the measurement-gloss test already does. A row that looks highlighted
+  right after clicking Degree is the pointer's hover (it clears with `--hover-at` elsewhere,
+  florentine/03 vs florentine2/03), not focus.
+- (2026-10-08) Trap: another agent's `git commit` of whole files swept my uncommitted hunks
+  in, then an amend took them out again. Stage hunks with `git apply --cached` of a filtered
+  diff and commit at once.
 - (2026-10-08) Worked: re-piloting T4 from answers.md's success path (no session.json setup list
   for an `empty` start) on a dist copy in my tmp folder.
 - (2026-10-08) Did not work: `MenuDropdown` theme `onKeyDown` to mark Escape (never ran: the

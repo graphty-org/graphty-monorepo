@@ -400,6 +400,17 @@ describe("GraphtyError.wrap", () => {
         assert.deepStrictEqual(wrapped.details, { format: "gexf", sourceCode: "E_SIBLING_ONLY" });
     });
 
+    it("adopts a sibling's E_TOO_LARGE with its params as details, under the caller's own", () => {
+        const sibling = Object.assign(new RangeError("teraHAC: 9 nodes exceeds maxNodes 8"), {
+            code: "E_TOO_LARGE",
+            params: { nodeCount: 9, maxNodes: 8, bytes: 648 },
+        });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_INTERNAL", source: "run", details: { runId: "r1" } });
+
+        assert.strictEqual(wrapped.code, "E_TOO_LARGE");
+        assert.deepStrictEqual(wrapped.details, { nodeCount: 9, maxNodes: 8, bytes: 648, runId: "r1" });
+    });
+
     it("uses the caller's message when one is given", () => {
         const wrapped = GraphtyError.wrap(new Error("ENOENT"), {
             code: "E_FETCH_FAILED",

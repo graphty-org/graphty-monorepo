@@ -1363,13 +1363,13 @@ export class LayoutManager implements Manager {
 
         // An uncoded throw from an engine has no better code in the union than this one, and
         // inventing a code is not allowed. An engine that wants a consumer to be able to switch on
-        // its failure throws a `GraphtyError`, and the branch above hands that back untouched.
-        return new GraphtyError({
+        // its failure throws a `GraphtyError`, and the branch above hands that back untouched. A
+        // sibling package's coded throw (the layout package's E_TOO_LARGE) keeps its code and params.
+        return GraphtyError.wrap(thrown, {
             code: "E_INTERNAL",
             message: `the layout "${type}" could not be ${phase}: ${thrown.message}`,
             source: "layout",
             details: { layout: type, phase },
-            cause: thrown,
         });
     }
 

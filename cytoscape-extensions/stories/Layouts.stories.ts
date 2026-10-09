@@ -6,7 +6,7 @@ import { runLayout } from "./run.js";
 
 interface LayoutArgs extends RunArgs {
     layout: string;
-    /** Simulations: the fixed number of iterations (maxIter for ForceAtlas2, iterations for the others). */
+    /** Simulations: the iteration budget (iterations for Fruchterman-Reingold, maxIter for the others). */
     iterations: number;
     animate: boolean;
 }

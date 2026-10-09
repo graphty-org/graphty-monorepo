@@ -81,6 +81,8 @@ export interface ResolvedFruchtermanReingoldOptions {
  * @public
  */
 export interface ResolvedSpringElectricalOptions {
+    /** The iteration cap; null: none, the run ends only once it settles. */
+    readonly maxIter: number | null;
     readonly springLength: number;
     readonly springCoefficient: number | null;
     readonly gravity: number | null;

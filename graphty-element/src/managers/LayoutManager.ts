@@ -128,7 +128,7 @@ const FORCE_ACCELERATED_MIN_NODES = 2000;
  */
 interface ParsedSimulationOptions {
     scalingFactor?: number;
-    maxIter?: number;
+    maxIter?: number | null;
     jitterTolerance?: number;
     scalingRatio?: number;
     gravity?: number;
@@ -173,7 +173,7 @@ function simulationModel(
             return {
                 ...common,
                 scale: options.scalingFactor,
-                maxIter: options.maxIter,
+                maxIter: options.maxIter ?? undefined,
                 jitterTolerance: options.jitterTolerance,
                 scalingRatio: options.scalingRatio,
                 gravity: options.gravity,
@@ -203,6 +203,7 @@ function simulationModel(
             return {
                 ...common,
                 scale: options.scale,
+                maxIter: options.maxIter,
                 springLength: options.springLength,
                 springCoefficient: options.springCoefficient,
                 gravity: options.gravity,

@@ -542,7 +542,7 @@ const LAYOUT_NOTES: Readonly<Record<string, string>> = {
     bfs: "When a node cannot be reached from `root`, `run()` throws `bfs_layout didn't include all nodes. Graph may be disconnected.` and emits no events ([failures before the run](../guide/layouts#events)).",
     radial: "The nodes `root` cannot reach go on one extra ring outside the others.",
     "spring-electrical":
-        'Runs only on the GPU. With no GPU for any reason (`gpu: "off"`, `accelerator: null`, a browser with no `navigator.gpu`, no usable device), `run()` returns normally and the layout then emits `layouterror`, with an error whose message starts `graphty-spring-electrical has no CPU simulation and runs only on the GPU; no GPU ran because` and names the reason (for example `gpu: "off" was requested`), and then `layoutstop`. No node moves and `layout.backend` stays undefined. It has no iteration cap: it runs until it settles (see `settleThreshold` and `settleWindow`) or until you call `layout.stop()`.',
+        'Runs only on the GPU. With no GPU for any reason (`gpu: "off"`, `accelerator: null`, a browser with no `navigator.gpu`, no usable device), `run()` returns normally and the layout then emits `layouterror`, with an error whose message starts `graphty-spring-electrical has no CPU simulation and runs only on the GPU; no GPU ran because` and names the reason (for example `gpu: "off" was requested`), and then `layoutstop`. No node moves and `layout.backend` stays undefined. Without `maxIter` it runs until it settles (see `settleThreshold` and `settleWindow`) or until you call `layout.stop()`; with it, it stops at whichever comes first.',
 };
 
 // What each file format is, and what an import expects.

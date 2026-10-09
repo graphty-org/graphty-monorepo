@@ -5,3 +5,4 @@
 
 export type { ApiKeyManagerOptions, PersistenceConfig } from "./ApiKeyManager";
 export { ApiKeyManager } from "./ApiKeyManager";
+export { deriveKeyFromPassphrase } from "./deriveKeyFromPassphrase";

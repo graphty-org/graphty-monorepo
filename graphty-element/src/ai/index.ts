@@ -71,7 +71,7 @@ export {
 
 // Keys (Phase 7)
 export type { ApiKeyManagerOptions, PersistenceConfig } from "./keys";
-export { ApiKeyManager } from "./keys";
+export { ApiKeyManager, deriveKeyFromPassphrase } from "./keys";
 
 // Prompt Builder (Phase 3)
 export type { SystemPromptOptions } from "./prompt/SystemPromptBuilder";

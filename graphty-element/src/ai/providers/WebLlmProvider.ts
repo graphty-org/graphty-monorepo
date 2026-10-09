@@ -4,6 +4,8 @@
  * @module ai/providers/WebLlmProvider
  */
 
+import { asSchema } from "ai";
+
 import type {
     LlmProvider,
     LlmResponse,
@@ -27,39 +29,83 @@ export interface WebLlmModelInfo {
     size: string;
     /** Optional description */
     description?: string;
+    /**
+     * Whether the model can call the assistant's tools. WebLLM accepts tools only for the
+     * models in its `functionCallingModelIds`; any other model answers in text only, and the
+     * provider then sends it no tools. Always set on the entries `getAvailableModels()` returns.
+     */
+    supportsTools?: boolean;
+    /** Approximate download size in megabytes. Always set on the entries `getAvailableModels()` returns. */
+    downloadMB?: number;
 }
 
-/** Available models with their metadata */
+/** The model the provider loads when none is configured. */
+const DEFAULT_MODEL_ID = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
+
+/**
+ * Available models with their metadata.
+ *
+ * `supportsTools` mirrors WebLLM's exported `functionCallingModelIds`, which cannot be read
+ * here without loading the whole optional package; test/ai/providers/WebLlmProvider.test.ts
+ * checks every entry against that export, and once the package is loaded the provider reads
+ * the export itself (see `modelSupportsTools`).
+ */
 const AVAILABLE_MODELS: WebLlmModelInfo[] = [
     {
-        id: "Llama-3.2-1B-Instruct-q4f32_1-MLC",
+        id: DEFAULT_MODEL_ID,
         name: "Llama 3.2 1B",
         size: "~500MB",
         description: "Fast, lightweight model suitable for quick responses",
+        supportsTools: false,
+        downloadMB: 500,
     },
     {
         id: "Llama-3.2-3B-Instruct-q4f32_1-MLC",
         name: "Llama 3.2 3B",
         size: "~1.5GB",
         description: "Better quality responses with reasonable performance",
+        supportsTools: false,
+        downloadMB: 1500,
     },
     {
         id: "Phi-3.5-mini-instruct-q4f16_1-MLC",
         name: "Phi 3.5 Mini",
         size: "~2GB",
         description: "Good balance of quality and performance",
+        supportsTools: false,
+        downloadMB: 2000,
     },
     {
         id: "Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
         name: "Qwen 2.5 1.5B",
         size: "~800MB",
         description: "Efficient model with good multilingual support",
+        supportsTools: false,
+        downloadMB: 800,
     },
     {
         id: "SmolLM2-360M-Instruct-q4f16_1-MLC",
         name: "SmolLM2 360M",
         size: "~200MB",
         description: "Very small and fast, basic capabilities",
+        supportsTools: false,
+        downloadMB: 200,
+    },
+    {
+        id: "Hermes-3-Llama-3.1-8B-q4f16_1-MLC",
+        name: "Hermes 3 Llama 3.1 8B",
+        size: "~4.5GB",
+        description: "Can call the assistant's tools; large download",
+        supportsTools: true,
+        downloadMB: 4500,
+    },
+    {
+        id: "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC",
+        name: "Hermes 2 Pro Mistral 7B",
+        size: "~4GB",
+        description: "Can call the assistant's tools; large download",
+        supportsTools: true,
+        downloadMB: 4000,
     },
 ];
 
@@ -128,6 +174,9 @@ export class WebLlmProvider implements LlmProvider {
     // WebLLM engine instance (dynamically imported)
     private engine: unknown = null;
 
+    // WebLLM's own list of models it accepts tools for, read once the package has loaded
+    private toolCapableModelIds?: readonly string[];
+
     /**
      * Check if WebGPU is available in the current browser.
      * @returns Promise resolving to true if WebGPU is available
@@ -161,6 +210,22 @@ export class WebLlmProvider implements LlmProvider {
      */
     static getAvailableModels(): WebLlmModelInfo[] {
         return Array.from(AVAILABLE_MODELS);
+    }
+
+    /**
+     * Whether the configured model can call tools. A model that cannot answers in text only:
+     * the provider sends it no tools. Before `initialize()` this comes from the model's entry in
+     * `getAvailableModels()` (false for a model not listed there); after it, from WebLLM's own
+     * `functionCallingModelIds`.
+     * @returns True if the configured model is sent the assistant's tools
+     */
+    get modelSupportsTools(): boolean {
+        const id = this.model ?? DEFAULT_MODEL_ID;
+        if (this.toolCapableModelIds) {
+            return this.toolCapableModelIds.includes(id);
+        }
+
+        return AVAILABLE_MODELS.find((m) => m.id === id)?.supportsTools ?? false;
     }
 
     /**
@@ -296,7 +361,8 @@ export class WebLlmProvider implements LlmProvider {
 
             this.emitProgress(0.1, "Creating engine...");
 
-            const modelId = this.model ?? "Llama-3.2-1B-Instruct-q4f32_1-MLC";
+            this.toolCapableModelIds = webllm.functionCallingModelIds;
+            const modelId = this.model ?? DEFAULT_MODEL_ID;
 
             // Create engine with progress callback
             this.engine = await webllm.CreateMLCEngine(modelId, {
@@ -323,12 +389,13 @@ export class WebLlmProvider implements LlmProvider {
      * @param tools - Available tools for the LLM
      * @param options - Generation options
      * @param options.signal - Optional abort signal
+     * @param options.toolChoice - "none" sends no tools, so the model answers in text
      * @returns Promise resolving to LLM response
      */
     async generate(
         messages: Message[],
         tools: ToolDefinition[],
-        options?: { signal?: AbortSignal },
+        options?: { signal?: AbortSignal; toolChoice?: "auto" | "none" },
     ): Promise<LlmResponse> {
         if (options?.signal?.aborted) {
             throw new Error("Request was aborted");
@@ -343,29 +410,26 @@ export class WebLlmProvider implements LlmProvider {
         }
 
         try {
-            // Convert messages to OpenAI format (which WebLLM uses)
-            const openaiMessages = this.convertMessages(messages);
-
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const engine = this.engine as any;
+            const sendTools = this.shouldSendTools(tools, options?.toolChoice);
 
-            // Generate with tool support if tools are provided
-            // OpenAI API requires snake_case keys
-            /* eslint-disable camelcase */
-            const requestOptions: OpenAiRequestOptions = {
-                temperature: this.temperature ?? 0.7,
-                max_tokens: this.maxTokens ?? 1024,
-            };
+            let response = (await engine.chat.completions.create(
+                this.buildRequest(messages, sendTools ? tools : [], false),
+            )) as OpenAiResponse;
 
-            if (tools.length > 0) {
-                requestOptions.tools = this.convertTools(tools);
-                requestOptions.tool_choice = "auto";
+            // Sent tools, WebLLM constrains a Hermes model to a JSON list of calls, so it cannot
+            // answer in words. An empty list means it has nothing to call: ask again without tools
+            // for the text answer.
+            if (sendTools && !response.choices?.[0]?.message?.tool_calls?.length) {
+                if (options?.signal?.aborted) {
+                    throw new Error("Request was aborted");
+                }
+
+                response = (await engine.chat.completions.create(
+                    this.buildRequest(messages, [], false),
+                )) as OpenAiResponse;
             }
-
-            const response = (await engine.chat.completions.create({
-                messages: openaiMessages,
-                ...requestOptions,
-            })) as OpenAiResponse;
 
             // Check for abort after async operation
             if (options?.signal?.aborted) {
@@ -409,29 +473,13 @@ export class WebLlmProvider implements LlmProvider {
         }
 
         try {
-            const openaiMessages = this.convertMessages(messages);
-
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const engine = this.engine as any;
+            const sendTools = this.shouldSendTools(tools);
 
-            // OpenAI API requires snake_case keys
-            /* eslint-disable camelcase */
-            const requestOptions: OpenAiRequestOptions = {
-                stream: true,
-                temperature: this.temperature ?? 0.7,
-                max_tokens: this.maxTokens ?? 1024,
-            };
-
-            if (tools.length > 0) {
-                requestOptions.tools = this.convertTools(tools);
-                requestOptions.tool_choice = "auto";
-            }
-            /* eslint-enable camelcase */
-
-            const stream = await engine.chat.completions.create({
-                messages: openaiMessages,
-                ...requestOptions,
-            });
+            const stream = await engine.chat.completions.create(
+                this.buildRequest(messages, sendTools ? tools : [], true),
+            );
 
             let accumulatedText = "";
             const toolCalls: ToolCall[] = [];
@@ -515,6 +563,49 @@ export class WebLlmProvider implements LlmProvider {
     }
 
     /**
+     * Whether to send tools on this request: never to a model WebLLM refuses them for.
+     * @param tools - The tools the caller offers
+     * @param toolChoice - "none" asks for a text answer
+     * @returns True if the request carries the tools
+     */
+    private shouldSendTools(tools: ToolDefinition[], toolChoice?: "auto" | "none"): boolean {
+        return tools.length > 0 && toolChoice !== "none" && this.modelSupportsTools;
+    }
+
+    /**
+     * Build a chat completion request in the OpenAI shape WebLLM takes.
+     * @param messages - Conversation messages
+     * @param tools - Tools to send; empty for none
+     * @param stream - Whether to stream the response
+     * @returns The request
+     */
+    private buildRequest(
+        messages: Message[],
+        tools: ToolDefinition[],
+        stream: boolean,
+    ): OpenAiRequestOptions & { messages: OpenAiMessage[] } {
+        // OpenAI API requires snake_case keys
+        /* eslint-disable camelcase */
+        const request: OpenAiRequestOptions & { messages: OpenAiMessage[] } = {
+            messages: this.convertMessages(messages),
+            temperature: this.temperature ?? 0.7,
+            max_tokens: this.maxTokens ?? 1024,
+        };
+
+        if (stream) {
+            request.stream = true;
+        }
+
+        if (tools.length > 0) {
+            request.tools = this.convertTools(tools);
+            request.tool_choice = "auto";
+        }
+        /* eslint-enable camelcase */
+
+        return request;
+    }
+
+    /**
      * Convert our Message format to OpenAI format.
      * @param messages - Messages to convert
      * @returns Array of OpenAI formatted messages
@@ -532,10 +623,12 @@ export class WebLlmProvider implements LlmProvider {
             }
 
             if (msg.role === "assistant" && msg.toolCalls?.length) {
+                // WebLLM requires string content and reads only the content of an assistant
+                // turn, so the calls go in as the JSON list a Hermes model emits for them.
                 // OpenAI API uses snake_case
                 return {
                     role: "assistant",
-                    content: msg.content || null,
+                    content: JSON.stringify(msg.toolCalls.map((tc) => ({ name: tc.name, arguments: tc.arguments }))),
                     tool_calls: msg.toolCalls.map((tc) => ({
                         id: tc.id,
                         type: "function",
@@ -566,7 +659,8 @@ export class WebLlmProvider implements LlmProvider {
             function: {
                 name: t.name,
                 description: t.description,
-                parameters: t.parameters,
+                // WebLLM writes the tools into the model's prompt as JSON, so it needs JSON Schema, not Zod
+                parameters: asSchema(t.parameters).jsonSchema,
             },
         }));
     }

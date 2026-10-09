@@ -165,7 +165,7 @@ const FIT_PADDING = 30;
  * Fits the graph to the container's current size: cy.resize() reads the size, cy.fit() zooms and pans to it.
  * @param cy - the core
  */
-export function fitToContainer(cy: Core): void {
+function fitToContainer(cy: Core): void {
     cy.resize();
     cy.fit(undefined, FIT_PADDING);
 }

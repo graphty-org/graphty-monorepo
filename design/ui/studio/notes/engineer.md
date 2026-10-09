@@ -11,6 +11,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **The path's Weight list already starts on the loaded weight; the round's "starts on
+  None" came from sessions that never loaded one.** The four sessions opened the file with "Open
+  project or file...", so no weight was loaded and None is right by the item's own rule. Fresh
+  build d3d11342a: trails.csv through "New from data...", km as Weight, Farther, Load, P: Weight
+  reads "km (farther, loaded)" (`tmp/t2r1-13/a/09.png`). Existing test "the Weight box reads a
+  loaded distance as used" covers it, so no app change. The real defect is the route (no way to
+  set a meaning from an opened file), which is a different item. Fixed the one stale assertion
+  that broke when the weight note was reworded.
+
 - (2026-10-09) **A style line goes only to a layer its row names; nothing falls back to
   Everything.** `writeLine(..., fresh)` in `style/row.ts` takes the layer to add as a required
   argument (`EVERYTHING_LAYER` is exported for the Everything row, `selectionLayer` for a
@@ -120,6 +129,11 @@ the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nod
 
 ## Decisions and reasons
 
+- (2026-10-09) No code change for "the path's Weight list starts on the loaded weight": the
+  behavior exists (`WeightField` in `options/OptionsForm.tsx` shows LOADED when the element's plan
+  reads it, None when the meaning is unset because the plan skips it). Reason: showing an unread
+  weight as chosen would misstate what the run reads. Evidence above.
+
 - (2026-10-08, summarized 2026-10-09) **Dry-run 4 fixes, still standing:** a reopen is framed as
   a fresh fit (`useReservedMargin` waits for `graph-frame-stable`; OPEN owner door: Florentine
   reopens ~60 px lower, camera not saved); Undo/Redo/Escape say what they did
@@ -222,6 +236,12 @@ the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nod
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Worked: reading the graders' state lines before coding. Each "starts on None"
+  session says "no Loaded weight row exists", which turned an implementation task into a
+  verification. Did not work: the PathForm suite had one test failing on master of the branch
+  since the weight note was reworded (`Each edge counts as 1. weight's meaning is not set.`);
+  nobody ran the real-element project after that change.
+
 - (2026-10-09) Seen, not fixed: after Everything's edge color was set, a new path run showed
   "Hidden by your layer Everything" and its Style tab was blank (no sections, no words):
   `defaultRow` returns null when `session.runs.bindings(run)` is empty, and the tab says nothing
@@ -259,29 +279,12 @@ the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nod
   runs first and empties the file, so the read sees nothing; it wiped another agent's uncommitted
   notes. Recovered by replaying that agent's edit scripts from its transcript onto HEAD (byte count
   matched). Always read into a variable, then open for writing.
-- (2026-10-09) Worked: a 1-second poll of `/proc/*/fd` for holders of each slot file shows which
-  pool every browser is in (`tmp/t2r1-1/holders.sh`). Did not work: `fuser` on the lock files
-  (prints nothing useful). Editing real.mjs in the shared worktree changes every agent's NEXT
-  session at once (the session process loads the file at start); another agent edited real.mjs in
-  the same hour, so stage only your own hunks (build the staged copy from HEAD plus yours,
-  `git update-index --cacheinfo`).
-
-- (2026-10-09) Worked: `real.mjs --sr` with the two-tables setup, then `--key Tab` from Cancel to
-  Load and `--key Enter`: the live line printed once with no "unconfirmed" mark. Typing a refused
-  rule printed the refusal once; a further digit kept the same words and printed nothing. Did not
-  work first: a `findByText` on the refusal once its words were in two places (visible line and
-  status region); pick the line by `role !== "status"`. TableDock's export preview test failed in
-  the full real-element run and passed alone: its `waitFor` keeps the 1 s default while the export
-  preview is written asynchronously under 168 parallel files (not touched by this change).
-
-- (2026-10-09) Worked: finding a layout defect's cause in Mantine's own CSS before touching the row.
-- (2026-10-09) Worked: reading `scores.md` beside `insights.md` (skeptics can lower a severity).
-- (2026-10-09) Worked: `long-names.csv` (with PageRank, Size and every label drawn, setup in the
-  audit's own file) is what surfaced every severity 3 truncation; the study datasets hide them.
-  Did not work: `--click "Add to Shape"` on Everything's Style tab (Shape has fields there, no
-  "+"); `--click Graph` is ambiguous with the inspector heading (the tool takes the rail button).
-  Crop and zoom (PIL, 4x) to judge small text and swatch contrast; `friends .csv` in a 10 px
-  subtitle was font hinting, not a space.
+- (2026-10-09, condensed) Worked: polling `/proc/*/fd` for slot-file holders (`tmp/t2r1-1/holders.sh`;
+  `fuser` prints nothing useful); staging only my hunks of shared files (`git update-index
+  --cacheinfo`), since real.mjs edits reach every agent's next session; `real.mjs --sr` with Tab and
+  Enter to check a live line prints once (pick the visible line by `role !== "status"`); finding a
+  layout cause in Mantine's CSS first; reading `scores.md` beside `insights.md`; `long-names.csv`
+  for truncation audits, with PIL 4x crops for small text. `--click Graph` takes the rail button.
 - (2026-10-08, summarized 2026-10-09) **Older study-tool and test lessons.** Pilot and `--prove`
   on a `cp -r graphty/dist` copy with `REAL_DIST` (others' rebuilds empty the live dist). A test
   must fail without the fix (the Florentine reopen test passed without it; the friends graph in a

@@ -75,11 +75,39 @@ them on the Node side. What runs in a page is a tool-calling loop, and graphty-e
 ships one. Pi's agent core needs a Node HTTP stack; Mastra, VoltAgent and LlamaIndex.TS do not
 build for the browser; OpenAI's Agents SDK and LangGraph build but add a second provider layer.
 
-**One disagreement with the earlier study.** It recommended moving the `ai` package from 5 to 7 and
-replacing the hand-written controller with the SDK's agent loop. This report does not: the
-installed `ai` 5.0.116 already exports the primitives graphty would use (stop conditions, per-step
-hooks, usage totals, message pruning), and the hand-written loop is the seam that lets the
-in-browser model and the test mock plug in. A version move can come later on its own merits.
+**How this report differs from the earlier study.** The September study answered a different
+question (which library should run the loop in a page, settled by building each candidate) and
+agrees with this one on the main points: no library offers planning, subagents, skills, memory and
+MCP in a page; do not adopt OpenAI's Agents SDK or LangGraph; no subagents. It differs on four
+recommendations:
+
+- **The `ai` package.** The earlier study: upgrade from 5 to 7 and replace the hand-written
+  controller with the SDK's agent loop (about 1,850 lines deleted). This report: stay on 5 for now.
+  The installed `ai` 5.0.116 already exports stop conditions (`stepCountIs`, `hasToolCall`), the
+  per-step hook (`prepareStep`) and `pruneMessages` (checked against the installed package on
+  2026-10-08), and the hand-written loop is the seam that lets the in-browser model and the test mock
+  plug in. What version 7 adds and 5 lacks -- signed tool approvals, tool search, tool-call repair --
+  is not needed by any prototype here; revisit the upgrade when one of those is. Note also that the
+  earlier study's central complaint (the assistant takes exactly one step per message) no longer
+  holds: the loop now makes up to 5 model calls per message. What is missing now is memory between
+  messages, which is what "multi-turn" means in this report.
+- **Skills.** The earlier study: load skills inside the web element, as instructions, bundled or
+  supplied by the embedding page. This report: no skill loading in the web element for now. Skill
+  triggering is unreliable in the hosts that have it, a skill is untrusted text in the system prompt
+  of an assistant that holds the reader's keys and data, and the immediate value of skills is for
+  external agents (Claude Code and similar), which read a SKILL.md shipped beside the Node recipe.
+- **Memory.** The earlier study: a preference store the assistant reads and writes, off by default,
+  visible and deletable. This report: conversation memory within the tab only. Stored preferences
+  that the model writes conflict with `design/ui/framework/principles.md` (the reader, not the
+  assistant, decides what persists) and can be poisoned by text in loaded data that persuades the
+  model to save it.
+- **MCP.** The earlier study: an MCP client as an optional peer dependency in the page, for remote
+  servers that allow browser access. This report: no MCP client in the web app. Every client call
+  goes to an outside server whose tool descriptions the model treats as instructions (tool poisoning
+  succeeded up to 72.8% of the time in MCPTox, a preprint), a page cannot reach the local stdio
+  servers where most data lives, and the earlier study itself found the reachable set small. The
+  direction that pays now is the reverse: a private MCP server, so external agents drive graphty.
+  An MCP client belongs in a desktop app, with per-server tokens in the OS keychain.
 
 **What exists** (in `graphty-element/src/ai/`, about 7,900 lines, behind the
 `@graphty/graphty-element/ai` entry point and loaded on demand):

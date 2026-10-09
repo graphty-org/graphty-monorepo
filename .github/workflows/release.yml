@@ -369,9 +369,11 @@ jobs:
                   sparse-checkout: |
                       tools/release-held.sh
                       tools/gpu-runner-lost.sh
+                      tools/release-status.mjs
                   sparse-checkout-cone-mode: false
 
             - name: Open or update the held-release issue
+              id: hold
               run: |
                   set -euo pipefail
                   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
@@ -394,9 +396,11 @@ jobs:
                   # loss, or any real failure beside the loss, opens the issue below.
                   if [ "$GITHUB_RUN_ATTEMPT" = 1 ] && tools/gpu-runner-lost.sh "$GITHUB_RUN_ID" 1; then
                       echo "::warning::release attempt on ${SHA} lost its T4 runner (a spot reclaim); its failed jobs are re-run once, no issue opened"
+                      echo "reclaimed=true" >> "$GITHUB_OUTPUT"
                       exit 0
                   fi
                   what=$(printf '%s, ' "${what[@]}"); what=${what%, }
+                  echo "what=${what}" >> "$GITHUB_OUTPUT"
                   title="Release held: ${what} failed on ${SHA:0:7}"
                   # Each job of this attempt that did not pass: failed, cancelled, or never finished (a job GitHub
                   # never ran stays queued with no conclusion: "none" here, as read collapses an empty tab field).
@@ -443,7 +447,24 @@ jobs:
                       echo '```'
                   } > "$RUNNER_TEMP/body.md"
                   open=$(tools/release-held.sh open "$title" "$RUNNER_TEMP/body.md")
+                  echo "issue=${open}" >> "$GITHUB_OUTPUT"
                   echo "::error::release held: ${what} failed on ${SHA}; no release pull request was opened (issue ${open})"
+
+            # The owner hears of every held attempt, a restart that fails again included (tools/release-status.mjs):
+            # always(), so a failure of the step above is announced too. A lost spot runner is not an outcome:
+            # its failed jobs are re-run, and that attempt announces its own result.
+            - name: Announce the held release
+              if: ${{ always() && steps.hold.outputs.reclaimed != 'true' }}
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  WHAT: ${{ steps.hold.outputs.what }}
+                  ISSUE: ${{ steps.hold.outputs.issue }}
+              run: |
+                  restart=()
+                  [ "$TRIGGER" != workflow_run ] || restart=(--restart)
+                  node tools/release-status.mjs held --sha "$SHA" --what "$WHAT" --issue "$ISSUE" "${restart[@]}" \
+                      --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
     # Versions the candidate and opens the release pull request, only after the full suite, the T4, Hosts, the
     # audit and the LLM regression tests all passed on it.
@@ -526,6 +547,7 @@ jobs:
             # GITHUB_TOKEN starts no workflow of its own. Any later push to the branch (Mergify bringing it up to
             # date, a person) starts CI and Lint PR Title as usual, and they report on the new head.
             - name: Open the release pull request
+              id: open
               if: ${{ steps.version.outputs.commit != '' }}
               env:
                   SHA: ${{ needs.pick.outputs.sha }}
@@ -551,7 +573,10 @@ jobs:
                       echo
                       echo "This pull request changes only version fields and changelogs (tools/release-diff.mjs). When it merges, release.yml tags each package, creates its GitHub release and publishes it to npm from the builds that run tested. Opened by ${run_url}."
                   } > "$RUNNER_TEMP/body.md"
-                  gh pr create --base master --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+                  pr=$(gh pr create --base master --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md")
+                  echo "$pr"
+                  tags=$(git log -1 --format=%b "$COMMIT" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1@\2/p' | paste -sd, -)
+                  { echo "pr=${pr}"; echo "tags=${tags}"; } >> "$GITHUB_OUTPUT"
                   for context in "All Checks Pass" "Lint PR Title" "Link PR Issue"; do
                       gh api "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT}" -f state=success -f context="$context" \
                           -f description="release train: versions and changelogs only, on a commit that passed the full suite, the T4, Hosts, the audit and the LLM regression tests" \
@@ -567,6 +592,22 @@ jobs:
                   set -euo pipefail
                   tools/release-held.sh close \
                       "The full CI suite, the T4 GPU lane, Hosts, the security audit and the LLM regression tests passed on ${SHA} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}); this train releases what the failed train held. A publish hold (\"Release held: publish failed\"), if one is open, is a separate issue and stays open until its own run is re-run."
+
+            # An intermediate step, announced because it is the first sign a held release recovered; the publish
+            # job announces the outcome (tools/release-status.mjs).
+            - name: Announce the release pull request
+              if: ${{ steps.open.outputs.pr != '' }}
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  SHA: ${{ needs.pick.outputs.sha }}
+                  PR: ${{ steps.open.outputs.pr }}
+                  TAGS: ${{ steps.open.outputs.tags }}
+              run: |
+                  restart=()
+                  [ "$TRIGGER" != workflow_run ] || restart=(--restart)
+                  node tools/release-status.mjs opened --sha "$SHA" --pr "$PR" --tags "$TAGS" "${restart[@]}" \
+                      --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
     # Runs on the push that merges a release pull request: Mergify's merge commit names the release branch. The
     # release queue rule merges with merge_method: merge for this reason; a merge-batch commit names only numbers.
@@ -660,9 +701,11 @@ jobs:
               run: |
                   set -euo pipefail
                   projects=()
+                  tags=()
                   while read -r project version; do
                       projects+=("$project")
                       tag="${project}@${version}"
+                      tags+=("$tag")
                       if gh release view "$tag" >/dev/null 2>&1; then echo "${tag} exists already"; continue; fi
                       root=$(pnpm exec nx show project "$project" --json | jq -r .root)
                       git diff -U0 "${COMMIT}^1" "$COMMIT" -- "${root}/CHANGELOG.md" | sed -n '/^+++/d; s/^+//p' > "$RUNNER_TEMP/notes.md"
@@ -670,6 +713,7 @@ jobs:
                   done < <(git log -1 --format=%b "$COMMIT" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
                   [ "${#projects[@]}" -gt 0 ] || { echo "::error::${COMMIT} lists no released project"; exit 1; }
                   echo "projects=$(IFS=,; echo "${projects[*]}")" >> "$GITHUB_OUTPUT"
+                  echo "tags=$(IFS=,; echo "${tags[*]}")" >> "$GITHUB_OUTPUT"
 
             - name: Publish
               run: |
@@ -722,6 +766,7 @@ jobs:
             # failure of this run only comments on it. Re-running the failed jobs of this run publishes what is
             # missing and closes it.
             - name: Report a failed publish
+              id: report
               if: ${{ failure() }}
               run: |
                   set -euo pipefail
@@ -759,6 +804,7 @@ jobs:
                       echo "The release pull request merged, but its packages are not all tagged and on npm, so every later release train skips. Read the failed step in the run, fix the cause (an npm rejection, a missing \`release-builds-<sha>\` artifact of the train run, more than one version commit in the push), then re-run the failed jobs of run ${GITHUB_RUN_ID}: \`gh run rerun ${GITHUB_RUN_ID} --failed\`. The release stays held until that run is re-run and passes: a new release train cannot clear this, and a train that fails meanwhile opens its own, separate issue without touching this one. A publish that passes closes this issue. The builds the train kept expire 30 days after the train ran."
                   } > "$RUNNER_TEMP/body.md"
                   open=$(tools/release-held.sh open "$title" "$RUNNER_TEMP/body.md" "Release held: publish failed")
+                  echo "issue=${open}" >> "$GITHUB_OUTPUT"
                   echo "::error::publish failed on ${GITHUB_SHA}; issue ${open}"
 
             - name: Close the failed-publish issue
@@ -766,3 +812,18 @@ jobs:
                   tools/release-held.sh close \
                       "Published from ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}: every package version is on npm." \
                       "Release held: publish failed"
+
+            # The owner hears of every publish outcome (tools/release-status.mjs): released, with each package and
+            # version, or failed. always(), so a failure anywhere above is announced; re-running the failed job
+            # (gh run rerun <id> --failed) runs this step again and announces the re-run's outcome.
+            - name: Announce the publish outcome
+              if: ${{ always() }}
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  OUTCOME: ${{ job.status == 'success' && 'published' || 'publish-failed' }}
+                  TAGS: ${{ steps.tags.outputs.tags }}
+                  ISSUE: ${{ steps.report.outputs.issue }}
+              run: |
+                  node tools/release-status.mjs "$OUTCOME" --sha "$GITHUB_SHA" --tags "$TAGS" --issue "$ISSUE" \
+                      --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"

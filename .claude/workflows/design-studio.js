@@ -257,6 +257,11 @@ async function freezeBuild(tag, phaseName) {
 // walks the success path, the task's commonest detours, and the success path again by keyboard.
 // prevRound: the previous round's folder, whose wrong turns name the detours (none before round 1).
 async function pilotAll(tag, phaseName, prevRound) {
+    const pastTurns = prevRound
+        ? "the wrong turns participants took on this task in " +
+          prevRound +
+          " (insights.md, scores.md, the session transcripts) and "
+        : "";
     const ids = await agent(
         `Read ${T}/tasks.md and return every ${NAME} task id with its dataset variants as separate ids (e.g. T17A, T17B).`,
         {
@@ -276,7 +281,7 @@ async function pilotAll(tag, phaseName, prevRound) {
                 (id) => () =>
                     slot(() =>
                         agent(
-                            `${RULES}\nPilot ${NAME} task ${id} on the frozen build (first line of ${T}/criteria.md): read ${SD}/tool/README.md, the task in ${T}/tasks.md and its success path in ${T}/answers.md; walk it with real.mjs (REAL_DIST set; sessions under ${T}/rounds/${tag}/pilot/${id}/), always from the task's real start, exactly as a participant can (clicks, typing, keys; never by URL), looking at every screenshot, and checking the data stays the task's own data the whole way. Walk it THREE ways, each its own session: (1) the success path by pointer; (2) the task's two or three commonest DETOURS, each walked as far as a participant would take it -- ${prevRound ? `the wrong turns participants took on this task in ${prevRound} (insights.md, scores.md, the session transcripts) and ` : ""}what a person would try first if they did not know the success path (another panel, the search box, a right-click, a menu, the toolbar, styling from where they are, opening a file from the start screen); (3) the success path again by KEYBOARD only (Tab, Shift+Tab, Enter, Space, Escape, arrows), recording each focused control's screen-reader name and every place focus falls to the page body. In every field you open, press Enter, Tab and Escape and check each does what a person expects. A dry run that passes on the answer key's route is necessary but not sufficient. Do not change code. Always --end. Write ${T}/rounds/${tag}/pilot/${id}/report.md (every route walked, what happened, screenshot paths). Return reached, the detours walked, keyboard (true if the keyboard walk reached the end), every mismatch between the answer key and the screen (from the success path), and every defect on ANY of the three walks (anything a participant could trip over, including focus lost, a missing or duplicate name, a key that does nothing), each with its route and screenshot path.`,
+                            `${RULES}\nPilot ${NAME} task ${id} on the frozen build (first line of ${T}/criteria.md): read ${SD}/tool/README.md, the task in ${T}/tasks.md and its success path in ${T}/answers.md; walk it with real.mjs (REAL_DIST set; sessions under ${T}/rounds/${tag}/pilot/${id}/), always from the task's real start, exactly as a participant can (clicks, typing, keys; never by URL), looking at every screenshot, and checking the data stays the task's own data the whole way. Walk it THREE ways, each its own session: (1) the success path by pointer; (2) the task's two or three commonest DETOURS, each walked as far as a participant would take it -- ${pastTurns}what a person would try first if they did not know the success path (another panel, the search box, a right-click, a menu, the toolbar, styling from where they are, opening a file from the start screen); (3) the success path again by KEYBOARD only (Tab, Shift+Tab, Enter, Space, Escape, arrows), recording each focused control's screen-reader name and every place focus falls to the page body. In every field you open, press Enter, Tab and Escape and check each does what a person expects. A dry run that passes on the answer key's route is necessary but not sufficient. Do not change code. Always --end. Write ${T}/rounds/${tag}/pilot/${id}/report.md (every route walked, what happened, screenshot paths). Return reached, the detours walked, keyboard (true if the keyboard walk reached the end), every mismatch between the answer key and the screen (from the success path), and every defect on ANY of the three walks (anything a participant could trip over, including focus lost, a missing or duplicate name, a key that does nothing), each with its route and screenshot path.`,
                             { label: `${tag} pilot: ${id}`, phase: phaseName, schema: PILOT },
                         ),
                     ),
@@ -544,11 +549,17 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
         }
         return null;
     };
+    const followupCheck = (s) =>
+        s.followup
+            ? ' The transcript must hold the answer to the follow-up "' +
+              s.followup +
+              '"; if it does not, list that as a problem of kind behavior.'
+            : "";
     const grade = (t, s) =>
         t
             ? slot(() =>
                   agent(
-                      `${RULES}\nGrade ${NAME} session ${s.id} (task ${s.task}, persona ${s.persona}) strictly by ${T}/criteria.md and the task's success definition in ${T}/answers.md, from the LAST screenshot and any saved files in ${RD}/sessions/${s.id}/ (downloads/ included), never from the participant's own rating. Record the participant model (sonnet if the transcript says so). VOID only if the tool or the run failed, or the participant opened any file outside ${RD}/briefings/${s.brief || s.id}/ and its own session folder (say why).${s.followup ? ` The transcript must hold the answer to the follow-up "${s.followup}"; if it does not, list that as a problem of kind behavior.` : ""} Count steps and wrong turns against the success path; record a false "done" whenever the participant claims done while the screen shows otherwise (truth_on_screen if the screen itself said so). List each problem with severity 0-4, kind and evidence (step and screenshot). A build defect you can reproduce with a scripted real.mjs path (under ${RD}/repro/${s.id}/, through the browser gate) is marked build-defect with the repro. Write ${RD}/sessions/${s.id}/grade.md.`,
+                      `${RULES}\nGrade ${NAME} session ${s.id} (task ${s.task}, persona ${s.persona}) strictly by ${T}/criteria.md and the task's success definition in ${T}/answers.md, from the LAST screenshot and any saved files in ${RD}/sessions/${s.id}/ (downloads/ included), never from the participant's own rating. Record the participant model (sonnet if the transcript says so). VOID only if the tool or the run failed, or the participant opened any file outside ${RD}/briefings/${s.brief || s.id}/ and its own session folder (say why).${followupCheck(s)} Count steps and wrong turns against the success path; record a false "done" whenever the participant claims done while the screen shows otherwise (truth_on_screen if the screen itself said so). List each problem with severity 0-4, kind and evidence (step and screenshot). A build defect you can reproduce with a scripted real.mjs path (under ${RD}/repro/${s.id}/, through the browser gate) is marked build-defect with the repro. Write ${RD}/sessions/${s.id}/grade.md.`,
                       { label: `${P}: grade ${s.id}`, phase: "Round", schema: GRADE },
                   ),
               )

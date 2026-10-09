@@ -10,6 +10,12 @@ made and evidence comes in.
 
 ## Top of mind
 
+- 2026-10-09 -- ROUND 2 CHANGE SET PROPOSED (critique): five app-only changes, each reusing a
+  path that already works -- find box no-match line points to rules (FindBox.tsx 355); source
+  verbs in the source inspector's "..." (Inspector.tsx MENUS); "Set what higher means..." on a
+  number edge attribute opening the existing Edit source page (attributeActions.ts, editSource);
+  stale mark on the canvas key (LegendCard.tsx); ellipsis, no sideways scroll in find results.
+  Not changing: filtering's place, path run, import page, T22 dialog, label font, selection tint.
 - 2026-10-09 -- TIER 2 ROUND 1 INSIGHTS WRITTEN (`tier2/rounds/round-1/insights.md`) after two
   skeptics. Bar 3 now HOLDS (each give-up one participant; 2 of 3 were Tom's persona file's
   scripted two-attempt exit). Still failing: 1 (T22), 5 (stale key, sev 2-3), 10 (truncation,
@@ -85,6 +91,18 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-09 (researcher, tier 2 round 1 critique) -- Proposed the smallest round 2 changes for
+  the verified sev 3 problems, each reusing a working route so the change is words or a menu
+  entry, not a new screen: (1) T22 -- "No match" on plain text adds the element-checked example
+  rule (pre-decided order: words before any dialog); (2) T21 -- Edit source / Replace in the
+  source inspector's "..." (left click shows that inspector; 8 of 8 hunted, `r1-s29/08.png` shows
+  no "..."); (3) T20 -- the column was the second place 6 of 7 went, so put the meaning there via
+  the existing Edit source page instead of a new element API for setting meaning after load;
+  (4) stale key mark (bar 5, experts only); (5) find-result ellipsis (three experts). Rejected:
+  moving filtering (median = success path), asking before Back to start as the T20 fix (it guards
+  the detour, not the missing route), element bare-number rules this round (additive, but the
+  hint fixes the blocker first; revisit if refusals recur).
 
 - 2026-10-09 (researcher, tier 2 round 1 skeptic verdicts) -- Wrote `rounds/round-1/insights.md`.
   Applied: two weakens = weakened; one drop + one weaken = weakened; a split resolved by checking
@@ -215,22 +233,11 @@ reasons, in short:
   caught two overcounts (selection ring, r3-s06). Did not work: my scoring treated a grader
   checklist line and a pre-announced watch item as evidence.
 
-- 2026-10-07 (round 3 scoring) -- Worked: the graders' JSON tally plus greps of `grade.md`
-  for fixed record lines ("Every name reached", "Sizing record"/"size list", "Community run made",
-  "Activation", "Usage card", "Run name") and the transcripts' rating line; one row per session in
-  `tmp/researcher/r3-score.py` with asserts on 56/54/53. Ease regex caught "1 of 77" as "1 of 7"
-  in three transcripts: match the "7 (very easy)" line, then by hand. Did not work: trusting the
-  tally's grade alone -- r3-s10's S hid a void, r3-s49 a non-voiding tool fault; read every
-  grade's Void line.
-
-- 2026-10-07 (round 3 preflight) -- Worked: re-using the round 2 scripts as r3 copies (walk,
-  keypaths, ranks, wording dump and check), with a deep focus reader that enters shadow roots and
-  prints the highlighted option; 14 of 14 keyboard paths and every walk in about 20 minutes on 2-4
-  browsers. Worked: re-measuring the previous build with the corrected bars script, so the "never
-  goes up" comparison is like for like. Worked: looking at every check screenshot (2D Fit, the
-  legend, the chevron, the canvas ring) instead of trusting exit codes. Did not work: guessing Tab
-  counts in a `--sr` real.mjs session (one Enter landed on "New from data..."); count focus lines
-  first, or use the keypaths harness's tabTo.
+- 2026-10-07 (round 3 scoring, skeptic check and preflight, folded) -- Worked: graders' JSON
+  plus `grade.md` greps of fixed record lines; one row per session in a score script with count
+  asserts; reading every grade's Void line; re-measuring the old build with corrected scripts;
+  looking at every check screenshot; skeptics measuring exported pictures. Did not work: ease
+  regex ("1 of 77"), trusting the tally or a grader checklist line, guessing Tab counts in `--sr`.
 
 - 2026-10-07 (re-pilots) -- Worked: piloting every task, not just changed ones, on the exact
   build stamp; each pilot named defects by kind (element, app, tool, key). It caught the checkbox

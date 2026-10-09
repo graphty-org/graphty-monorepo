@@ -1,3 +1,30 @@
+## 3.21.0 (2026-10-09)
+
+### 🚀 Features
+
+- **graphty-element:** derive the ai key store's encryption key from a passphrase ([#691](https://github.com/graphty-org/graphty-monorepo/issues/691))
+
+### 🩹 Fixes
+
+- **graphty-element:** never store a passphrase-derived ai key in clear text ([#691](https://github.com/graphty-org/graphty-monorepo/issues/691))
+- **graphty-element:** send tools only to in-browser models that accept them ([#1681](https://github.com/graphty-org/graphty-monorepo/issues/1681))
+- **graphty-element:** answer either id spelling from the visible and scope node sets ([#1594](https://github.com/graphty-org/graphty-monorepo/issues/1594))
+- **graphty-element:** type-check event names where they are emitted and subscribed ([#1592](https://github.com/graphty-org/graphty-monorepo/issues/1592), [#1572](https://github.com/graphty-org/graphty-monorepo/issues/1572))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.42
+- Updated @graphty/remote-logger to 2.0.13
+- Updated graph-samples to 0.1.26
+- Updated graph-format to 1.3.11
+- Updated algorithms to 3.3.13
+- Updated graph-io to 0.3.33
+- Updated layout to 2.2.14
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.20.1 (2026-10-09)
 
 ### 🩹 Fixes

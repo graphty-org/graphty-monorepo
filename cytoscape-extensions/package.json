@@ -1,6 +1,6 @@
 {
     "name": "@graphty/cytoscape-extensions",
-    "version": "0.0.5",
+    "version": "0.0.6",
     "description": "Graphty layouts, algorithms, graph generators, sample datasets and file import/export as Cytoscape.js extensions",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",

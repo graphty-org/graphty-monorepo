@@ -34,8 +34,7 @@ describe("XR Local Space Transformations", () => {
         await graph.addNodes(TEST_NODES);
         await graph.addEdges(TEST_EDGES);
         await operationQueueOf(graph).waitForCompletion();
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await graph.waitForStableFrame();
     });
 
     afterEach(() => {
@@ -183,8 +182,7 @@ describe("XR Local Space Transformations", () => {
         test("2D mode uses correct coordinate plane", async () => {
             await graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForStableFrame();
 
             const node1 = graph.getNode("node1");
             if (!node1) {
@@ -199,11 +197,10 @@ describe("XR Local Space Transformations", () => {
             // A Z the layout holds, not one written onto the mesh: the element redraws every
             // mesh from the layout on each frame it updates nodes (layout running, or a
             // zoom-to-fit pending), so a hand-written mesh Z lasted only until the next such
-            // frame -- which a slow runner reached inside the test's 50 ms wait.
+            // frame -- which a slow runner reached inside the 50 ms the test used to wait.
             await graph.addNodes([{ id: "deep", position: { x: 0, y: 0, z: 5 } }]);
             await operationQueueOf(graph).waitForCompletion();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 50));
+            await graph.waitForStableFrame();
 
             const deep = graph.getNode("deep");
             assert.isDefined(deep, "the node was added");

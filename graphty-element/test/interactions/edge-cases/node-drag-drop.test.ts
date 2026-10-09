@@ -10,6 +10,7 @@ import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../../src/Graph";
+import { nextFrame } from "../../helpers/real-input";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [
@@ -35,8 +36,7 @@ describe("Node Drag and Drop", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await operationQueueOf(graph).waitForCompletion();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForStableFrame();
         });
 
         afterEach(() => {
@@ -71,8 +71,7 @@ describe("Node Drag and Drop", () => {
 
             node1.mesh.position = new Vector3(10, 10, 10);
 
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 50));
+            await nextFrame();
 
             assert.equal(graph.getEdgeCount(), 1, "Should still have 1 edge");
         });
@@ -120,8 +119,7 @@ describe("Node Drag and Drop", () => {
             assert.isNotNull(node1);
 
             node1.mesh.position = new Vector3(10000, 10000, 10000);
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 50));
+            await nextFrame();
 
             assert.isDefined(graph.getNode("node1"), "Node should still exist");
             assert.isTrue(isFinite(node1.mesh.position.x), "X should be finite");
@@ -143,8 +141,7 @@ describe("Node Drag and Drop", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await operationQueueOf(graph).waitForCompletion();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForStableFrame();
         });
 
         afterEach(() => {

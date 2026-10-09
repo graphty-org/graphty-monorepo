@@ -1,3 +1,4 @@
+import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it, vi } from "vitest";
 
 import { syncClustering } from "../../../src/indexed/sync.js";
@@ -12,6 +13,13 @@ import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
 // The golden records were taken with 2.x's generator, so this suite replays it in place of
 // mulberry32 to check the arithmetic and the order of the draws against them.
+//
+// 2.x took the same fixed gradient step at every node (0.01 x lambda 0.1 = 0.001), so in its 100
+// iterations a low-degree node hardly moved and two unconnected 4-cliques split on noise (issue
+// #1600); the records encoded that bug. They were re-taken from the fixed port, which scales each
+// node's step by its out-degree, still with 2.x's generator; "legacy" in the test names below now
+// means that re-taken record, and the loss records keep 2.x's way of reporting the loss and the
+// iteration count (the two loss tests check the port against it).
 vi.mock("../../../src/utils/math-utilities.js", async () => {
     const { legacySeededRandom } = await import("../../helpers/legacy-random.js");
     return { mulberry32: vi.fn(legacySeededRandom) };
@@ -102,6 +110,43 @@ describe("indexed.syncClustering", () => {
             (graph) => portShape(graph, { numClusters: 2 }),
             { tolerance: 1e-9 },
         );
+    });
+
+    it("splits two unconnected cliques of any size with the default options (issue #1600)", async () => {
+        // The package generator, not the legacy one this file replays for the records.
+        const actual = await vi.importActual<typeof import("../../../src/utils/math-utilities.js")>(
+            "../../../src/utils/math-utilities.js",
+        );
+        vi.mocked(mulberry32).mockImplementation(actual.mulberry32);
+        try {
+            for (const m of [3, 4, 5, 8, 16, 30]) {
+                const b = new GraphBuilder({ directed: false });
+                for (const offset of [0, m]) {
+                    for (let i = 0; i < m; i++) {
+                        for (let j = i + 1; j < m; j++) {
+                            b.addEdge(offset + i, offset + j);
+                        }
+                    }
+                }
+                const s = b.freeze();
+                // A 30-clique costs most of the test's time, so it runs one seed; the others five.
+                for (let seed = 1; seed <= (m === 30 ? 1 : 5); seed++) {
+                    const r = syncClustering(s, { numClusters: 2, seed });
+                    const side = (from: number): number[] =>
+                        Array.from({ length: m }, (_, i) => r.labels[s.ids.requireIndex(from + i)]);
+                    const [left, right] = [side(0), side(m)];
+                    const at = `m=${String(m)} seed=${String(seed)}`;
+                    expect(new Set(left).size, at).toBe(1);
+                    expect(new Set(right).size, at).toBe(1);
+                    expect(left[0], at).not.toBe(right[0]);
+                    expect(r.converged, at).toBe(true);
+                }
+            }
+        } finally {
+            vi.mocked(mulberry32).mockImplementation(
+                (await import("../../helpers/legacy-random.js")).legacySeededRandom,
+            );
+        }
     });
 
     it("reports the loss of the converging iteration, not the one before it", () => {

@@ -560,3 +560,28 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   project's date written as a note's, on one line; and compact-mantine filling the chosen segment
   with one cursor on every control. It exists so a dry run can find what still breaks before
   participants meet it. No bar, floor, step limit or prompt changed.
+
+- **2026-10-09, before round 2: the answer key matched to the dry run on fabc16247403.** Every
+  task half but T21 B was piloted on the dry run build from its start, T12R A and B included
+  (`rounds/r2d1/pilot/`); T21 B never got a browser, because all four machine-wide browser slots
+  stayed taken for more than 5 minutes, and its entry stays on ddf8b3b63039 until it is walked.
+  Every success path walked landed on the first try with no script errors, console errors or
+  failed requests, every reference value held, and no participant would meet an implementation
+  fault on those paths. `answers.md` now names this build and gives its screens where they differ:
+  under a filter the drawing's key reads "PageRank on 20 nodes" instead of "out of date" (T17,
+  T23; a replacement not yet rerun still reads "out of date", T21); a chosen segment is a white
+  fill, not an outline (T4 Add / Leave out, T12R and T23 Hops); the neighborhood heading reads
+  "<name> and <n> connections" (T12R, T23); a source's inspector heads its counts "Loaded", not
+  "Added" (T4); "CSV auto" moved under "File settings" (T4); a filter step's row looks selected
+  while its editor is open (T17); the graph's title in the left panel brings the Overview back
+  after a run (T20, so "Loaded weight" is a right place to point after the run); B's Load no longer
+  moves (T20); no reset x at a default (T21); the find box's hint and bare-number refusal quote
+  the participant's own condition (T22, so the old "> `16`" trap on B is gone from that route);
+  T18's new Weight line ("A path needs a distance, and "weight" has no meaning set."); T19's
+  one-line Recent projects date, nodes moving on reopen, Undo grayed after reopen, and the bare
+  "Florentine families" click now refused as ambiguous; T18 B's earlier-walk text corrected to the
+  Peruzzi-Bischeri tie through Castellani; T22's same-set Enter showing no count and B's Escape
+  toast; T23's reopened neighbor list at Hops 1 with the filter button unpressed; T24 B's menu and
+  the tie's band gone after Select endpoints; and `work.json` naming the run "Influence" and
+  cutting a step's rule short. No bar, floor, step limit or prompt changed; bar 11 keeps the
+  success paths' counts.

@@ -10,18 +10,18 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-09 -- ROUND 2 DRY RUN DONE on ddf8b3b63039: 19 of 21 halves walked (T12R A never got a
-  browser, T12R B unreported), every success path and every round 2 route reached on the first
-  try, 0 script/console/request errors, every value held. No implementation defect blocks a task.
-  What participants will meet is UX: the stale key's "out of date" (T17, T21, T23), no way back to
-  the graph Overview after a run (T20), Escape silently dropping a selection (T22, T24).
-- 2026-10-09 -- TOOL DEADLOCK blocks T12R: `with-browser.sh` passes --step/--end/--brief but not
-  `real.mjs --start`, which takes its own slot; a wrapped start holds a slot and waits for a
-  second. Fix in the tool (add `start` to the regex) or never wrap --start. Walk T12R after.
-- 2026-10-09 -- Walked counts: T20 route 10, T21 route 8 (not 7: Replace from the source
-  inspector lands on the Graph inspector, PageRank click needed), T22 route 4. Bar 11 unchanged.
-- 2026-10-09 -- "Out of date" on the legend under a filter is a new risk: it may send people to
-  rerun PageRank on a task that needs none. Watch for it in T17/T23 sessions.
+- 2026-10-09 -- DRY RUN DONE on fabc16247403 (`tier2/rounds/r2d1/pilot/`): 19 of 20 halves
+  walked, T12R included; T21 B never got a browser (4 slots full > 5 min) -- walk it before
+  sessions. Every success path first try, 0 script/console/request errors, every value held, no
+  work lost. No participant meets an implementation fault on the key's routes; the misses were
+  key drift (wording, layout), now fixed in `answers.md`.
+- 2026-10-09 -- Round 2 UX risks to watch (design, not build faults): legend "PageRank on 20
+  nodes" beside chip "19 of 20" (T17, T23); T18's "A path needs a distance" line may push a weight
+  set as distance (`meaning-wrong`); T22 same-set Enter shows no count; T23's reopened neighbor
+  list shows its filter unpressed; nodes have no hover tooltip and no names drawn (T18, T20, T24).
+- 2026-10-09 -- Never wrap `real.mjs --start` in `with-browser.sh` (it takes its own slot; a
+  wrapped start waits for a second one). Walked counts: T20 route 10, T21 route 8, T22 route 4.
+
 - 2026-10-09 -- Dry runs walk ONLY the key's routes; round 1's defects sat on detours (Edges
   color landing on Everything; selection display overriding fill). Next dry run seeds each task
   with the previous round's commonest wrong turns.
@@ -82,6 +82,17 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-09 (researcher, key matched to the fabc16247403 dry run) -- Added a build section to
+  `answers.md` and 65 section-scoped edits (legend "on 20 nodes" under a filter, white-fill
+  segments, "<name> and <n> connections", "Loaded" for "Added", the graph title as a way back to
+  the Overview after a run, T22's echoed hints, T18's weight line, T19 reopen shifts and Undo,
+  T18 B's tie through Castellani). Settled a pilot conflict myself: T23B said the graph title does
+  nothing, T20A said it is a button; `T23B/16.png` shows the graph inspector was already open, so
+  the button works. Viewed `T4A/07.png` and `T22A/10.png` before rewriting those claims. Kept T21 B
+  and the T21 menu route's "Added" as ddf8b3b63039's (not walked) and said so. Graders take both
+  old and new heading wordings. No prompt was wrong, so `tasks.md` unchanged; no bar moved.
+
 
 - 2026-10-09 (researcher, key matched to the round 2 pilots) -- Re-pointed `answers.md` at
   ddf8b3b63039 with a build section (legend "out of date" under filter/replace; Summary heading;
@@ -182,6 +193,12 @@ reasons, in short:
 - 2026-09-28 (owner) -- Simulated personas built from public sources, each checked by a skeptic.
 
 ## Tried: worked / did not work
+
+- 2026-10-09 (fabc key) -- Worked: one edit file of (section, old, new) triples, matched
+  whitespace-insensitively inside the task's section with an assert per triple, plus an ASCII
+  assert before writing: 65 edits applied on the first run (`tmp/researcher/r2d1-key/`). Worked:
+  when two pilots disagree about a control, look at the screen BEFORE the click, not after.
+
 
 - 2026-10-09 (round 2 key) -- Worked: applying each task's edits as (old, new) pairs scoped to the
   task's section with an assert per pair; viewing the two screenshots where pilots disagreed

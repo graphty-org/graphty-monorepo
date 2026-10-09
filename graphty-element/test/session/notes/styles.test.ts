@@ -9,6 +9,8 @@ import { assert, describe, it } from "vitest";
 
 import type { NodeId } from "../../../src/catalog/types";
 import { StylePainter } from "../../../src/managers/StylePainter";
+import { createRunResult } from "../../../src/session/results";
+import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 import type { ElementSession } from "../../../src/session/types";
 import { edgeBetween, type Harness, makeSession } from "../helpers";
 import { notesHarness, refusalOf } from "./harness";
@@ -201,7 +203,7 @@ describe("graphty.notes.* in styles", () => {
 });
 
 describe("note text in labels is plain text", () => {
-    it("note-7: a label bound to graphty.notes.latest is drawn as plain text; a data or fixed label is not", async () => {
+    it("note-7: a label bound to graphty.notes.latest or to data is drawn as plain text; a fixed one is not", async () => {
         const h = makeSession({ directed: true });
         h.add([{ id: "a" }, { id: "b", name: "<bold>y</bold>" }]);
         const { session } = h;
@@ -226,7 +228,7 @@ describe("note text in labels is plain text", () => {
         const row = (id: NodeId): number => session.snapshot().ids.indexOf(id);
         assert.strictEqual(labelOf(h, "a"), text, "stored and painted byte for byte");
         assert.isTrue(paint.plainText("node", row("a"), "node.label"));
-        assert.isFalse(paint.plainText("node", row("b"), "node.label"), "the data label above keeps markup");
+        assert.isTrue(paint.plainText("node", row("b"), "node.label"), "a data label is drawn as written too");
         assert.isFalse(paint.plainText("node", row("b"), "node.tooltip"), "a fixed value keeps markup");
 
         const painter = new StylePainter();
@@ -234,7 +236,52 @@ describe("note text in labels is plain text", () => {
         const plainOf = (id: NodeId): unknown =>
             (painter.nodePaint(row(id))?.style.label as { plainText?: boolean } | undefined)?.plainText;
         assert.isTrue(plainOf("a"), "the label block tells the label to read no markup");
-        assert.isUndefined(plainOf("b"));
+        assert.isTrue(plainOf("b"));
+    });
+});
+
+describe("bound label values are drawn as written", () => {
+    it("a label bound to a result is plain text; a literal label in a layer reads markup", async () => {
+        // A community result whose group names hold label markup.
+        const execute = (context: RunExecutionContext): Promise<RunOutcome> =>
+            Promise.resolve({
+                result: createRunResult({
+                    runId: context.runId,
+                    shape: "community",
+                    fields: [
+                        {
+                            name: "group",
+                            plainName: "group",
+                            technicalName: "group",
+                            kind: "node",
+                            type: "string",
+                            path: `results.${context.runId}.group`,
+                        },
+                    ],
+                    measured: { nodes: 1, edges: 0 },
+                    nodes: [{ id: "a", values: { group: "<bold>g</bold>" } }],
+                    caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "test", notes: [] },
+                    durationMs: 1,
+                }),
+            });
+        const h = makeSession({ directed: true, runs: { execute } });
+        h.add([{ id: "a" }, { id: "b" }]);
+        const { session } = h;
+        await session.runs.start("louvain", undefined, { as: "groups", style: false });
+        await session.styles.add({
+            name: "Groups",
+            target: "node",
+            selector: { match: "has", path: "results.groups.group" },
+            encode: { "node.label": { by: "results.groups.group" } },
+            set: { "node.tooltip": "<bold>fixed</bold>" },
+        });
+        await session.styles.settled();
+
+        const { paint } = sessionOf(h);
+        const row = session.snapshot().ids.indexOf("a");
+        assert.strictEqual(paint.styleOf("node", row)["node.label"], "<bold>g</bold>");
+        assert.isTrue(paint.plainText("node", row, "node.label"), "a result label is drawn as written");
+        assert.isFalse(paint.plainText("node", row, "node.tooltip"), "a literal in the layer reads markup");
     });
 });
 

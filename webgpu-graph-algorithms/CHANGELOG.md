@@ -1,3 +1,20 @@
+## 0.6.42 (2026-10-09)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** stop a timed-out compile-matrix case from compiling on ([#1706](https://github.com/graphty-org/graphty-monorepo/issues/1706))
+- **webgpu-graph-algorithms:** take the test slot before the browser run's time limit starts ([#1689](https://github.com/graphty-org/graphty-monorepo/issues/1689))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.11
+- Updated algorithms to 3.3.13
+- Updated layout to 2.2.14
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.41 (2026-10-09)
 
 ### 🧱 Updated Dependencies

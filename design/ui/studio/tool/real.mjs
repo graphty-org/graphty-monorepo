@@ -1715,6 +1715,9 @@ async function prove() {
             "Open project or file",
             "--upload",
             "florentine.gml",
+            // a data file opened from the start screen goes to the Data page first
+            "--click",
+            "Load",
             "--expect",
             "role=button:Project: florentine",
         );
@@ -1937,7 +1940,7 @@ async function prove() {
     // screen-reader mode: the focused element's role and name after every step, and live-region text
     const D = join(base, "session-d");
     const srSetup = join(base, "setup-sr.txt");
-    await writeFile(srSetup, "--click No thanks\n--click Open project or file\n--upload florentine.gml\n");
+    await writeFile(srSetup, "--click No thanks\n--click Open project or file\n--upload florentine.gml\n--click Load\n");
     r = node(["--start", D, `setup:${srSetup}`, "--sr"]);
     check(
         "an --sr start prints what has focus and no screenshot path; a setup leaves nothing focused",
@@ -2033,9 +2036,10 @@ async function prove() {
     const I = join(base, "session-i");
     r = node(["--start", I, "empty", "--task", "T17A"]);
     if (check("a start with a task", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) {
-        const x = step(I, "--click", "No thanks", "--drop", "friends.csv", "--expect", "role=button:Project: friends");
+        // a data file dropped on the start screen opens the Data page as a new graph, not a project
+        const x = step(I, "--click", "No thanks", "--drop", "friends.csv", "--expect", "Open as a new graph");
         check(
-            "a file dropped on the start screen opens it",
+            "a file dropped on the start screen opens it on the Data page",
             x.code === 0 && /dropped the file friends\.csv .*; the page took it/.test(x.out),
             x.out,
         );

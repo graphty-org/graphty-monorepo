@@ -1,5 +1,5 @@
-The study runs on build 946256efb876 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d4-946256efb/`
-(graphty@0.8.56, commit 946256efb), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build ddf8b3b63039 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2-ddf8b3b63/`
+(graphty@0.8.60, commit ddf8b3b63), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -512,3 +512,12 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   records the walk of T18 B on 946256efb876 (`rounds/r1d4/pilot/T18B/`), which agrees with every
   value in the key. Bar 11 and the steps measure keep the success paths' counts (T18 4, T20 11,
   T21 6, T22 3). No bar, floor, step limit or prompt changed.
+- **2026-10-09, before round 2: the round 2 build.** The study build moved from 946256efb876
+  (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d4-946256efb/`) to ddf8b3b63039
+  (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2-ddf8b3b63/`), a fresh build of
+  the worktree's current commit, which holds the round 2 changes (among them the source
+  inspector's "..." menu, the find box's answer to a condition typed without "=", and a data file
+  opened from the start screen going to the Data page instead of loading at once).
+  `tool/real.mjs --prove` was matched to that change (a dropped file is checked on the Data page;
+  an uploaded file is loaded with Load before the checks that need the graph) and passes every
+  check on this build. No bar changed.

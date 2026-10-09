@@ -72,7 +72,15 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         );
         await graph.addNodes(nodes);
         await graph.addEdges(edges);
-        await graph.setLayout("circular", { scale: 0.5 });
+        // A small circle, so the edges are short. A patterned line places one element per period
+        // of its length, by design, so at scale 0.5 (edges about 50 units long) the 300 edges drew
+        // 52,915 diamonds, and a dot line 1.7 million triangles. The bound counts meshes, not
+        // elements, so that bought nothing, but every frame of it went through a software GPU,
+        // and under CPU contention one frame stalled the page for 10 to 70 seconds (issue #1660).
+        // At 0.05 the patterns still draw 1,600 to 5,300 elements across the graph (5,252
+        // diamonds), so a renderer that went back to a mesh per element still blows the bound by
+        // thousands.
+        await graph.setLayout("circular", { scale: 0.05 });
         await operationQueueOf(graph).waitForCompletion();
     }, 60000);
 

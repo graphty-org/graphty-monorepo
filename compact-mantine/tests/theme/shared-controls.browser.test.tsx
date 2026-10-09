@@ -1,8 +1,9 @@
 /**
  * Shared controls drawn by the theme's stylesheet: a content-sized segmented control never clips
- * an option's label, and a bound number field shows one focus ring, not a ring inside a ring.
+ * an option's label, a bound number field shows one focus ring, not a ring inside a ring, and
+ * every control shows the same pointer.
  */
-import { Group, MantineProvider, Text } from "@mantine/core";
+import { ActionIcon, Anchor, Button, Checkbox, Group, MantineProvider, Text, UnstyledButton } from "@mantine/core";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -70,5 +71,34 @@ describe("VariablePill bound number field", () => {
         };
         expect(ring(pill as HTMLElement)).toBe(true);
         expect(ring(field as HTMLElement)).toBe(false);
+    });
+});
+
+describe("one pointer for every control", () => {
+    it("shows the arrow over a bare button, a button, an icon button, a checkbox and a segment; the hand only over a link", () => {
+        const { container } = renderWithTheme(
+            <div>
+                <UnstyledButton data-probe="bare">Data</UnstyledButton>
+                <Button data-probe="button">Filter: 15 of 20 nodes</Button>
+                <ActionIcon data-probe="icon" aria-label="Add" />
+                <Checkbox data-probe="checkbox" aria-label="Apply step" />
+                <SegmentedControl data={["Add", "Leave out"]} />
+                <Anchor data-probe="link" href="#x">
+                    From friends.csv
+                </Anchor>
+            </div>,
+        );
+        const cursor = (selector: string): string =>
+            getComputedStyle(container.querySelector<HTMLElement>(selector)!).cursor;
+        for (const selector of [
+            '[data-probe="bare"]',
+            '[data-probe="button"]',
+            '[data-probe="icon"]',
+            'input[type="checkbox"]',
+            ".cm-sc-label",
+        ]) {
+            expect(cursor(selector), selector).toBe("default");
+        }
+        expect(cursor('[data-probe="link"]')).toBe("pointer");
     });
 });

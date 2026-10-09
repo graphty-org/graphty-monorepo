@@ -400,10 +400,14 @@ describe.skipIf(!available)("SegmentedControl, panel (5.2)", () => {
             figmaSpec(track, ["width", "height", "backgroundColor", "borderRadius", "paddingTop", "paddingLeft"]),
         );
         const [first, second] = container.querySelectorAll<HTMLElement>(".cm-sc-label");
-        expectMeasured(first, figmaSpec(face, ["width", "height", "backgroundColor", "borderRadius", "boxShadow"]));
+        expectMeasured(first, figmaSpec(face, ["width", "height", "borderRadius"]));
+        // Figma's checked face is white with a 1px edge; ours departs on purpose: readers could
+        // not tell which of "Add" and "Leave out" was chosen, so the checked option is filled in
+        // the inverse color, 3:1 or more against the track
+        expectMeasured(first, { backgroundColor: "#2c2c2c", color: "#ffffffe5", boxShadow: "none" });
         // Figma's unchecked ink is 50% black, an icon's. Ours departs on purpose: a label can be a
-        // word ("Add" of Add / Leave out), and a gray word beside the raised checked face read as
-        // a disabled option, so an unchecked label takes the body color; the face marks the choice
+        // word ("Add" of Add / Leave out), and a gray word read as a disabled option, so an
+        // unchecked label takes the body color; the fill marks the choice
         expect(inkOff.style.fill).toBe("rgba(0, 0, 0, 0.5)");
         expectMeasured(second, { color: "#000000e5", backgroundColor: "#00000000", boxShadow: "none" });
     });
@@ -433,15 +437,17 @@ describe.skipIf(!available)("SegmentedControl, panel (5.2)", () => {
         );
     });
 
-    it("dark: the #383838 track and the #2c2c2c face with the #444 edge", async () => {
+    it("dark: the #383838 track and the white checked fill (Figma's #2c2c2c face departed from)", async () => {
         const track = await figmaElement("dt/dark-segmented-text-align-center--default", { index: 28 });
         const face = await figmaElement("dt/dark-segmented-text-align-center--default", { index: 31 });
         const { container } = await renderFigma(<SegmentedControl w={88} data={ALIGN_OPTIONS} />, { scheme: "dark" });
         expectMeasured(part(container, ".cm-sc"), figmaSpec(track, ["backgroundColor", "borderRadius"]));
-        expectMeasured(
-            part(container, ".cm-sc-label"),
-            figmaSpec(face, ["width", "height", "backgroundColor", "boxShadow", "color"]),
-        );
+        expectMeasured(part(container, ".cm-sc-label"), figmaSpec(face, ["width", "height"]));
+        expectMeasured(part(container, ".cm-sc-label"), {
+            backgroundColor: "#ffffff",
+            color: "#000000e5",
+            boxShadow: "none",
+        });
     });
 
     // Figma draws every option at 450; the chosen one here takes 600 so which side is chosen
@@ -459,11 +465,11 @@ describe.skipIf(!available)("SegmentedControl, panel (5.2)", () => {
         });
     });
 
-    it("the AA option gives the checked face a 3:1 edge", async () => {
+    it("the AA option keeps the inverse fill, which needs no edge", async () => {
         const { container } = await renderFigma(<SegmentedControl w={88} data={ALIGN_OPTIONS} />, {
             highContrast: true,
         });
-        expectMeasured(part(container, ".cm-sc-label"), { boxShadow: "#00000073 0px 0px 0px 1px inset" });
+        expectMeasured(part(container, ".cm-sc-label"), { backgroundColor: "#2c2c2c", boxShadow: "none" });
     });
 
     it("an option activates on mouse-down, and the click after it changes nothing more", async () => {

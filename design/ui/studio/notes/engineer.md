@@ -11,59 +11,32 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-09) **A data file opened from the start screen goes through the Data page, as New
-  from data... does.** `openInSession` in `project/actions.ts`: on the start-screen route (`fresh`)
-  a data file disposes the element's draft, closes the project and calls `openDataPage({ intent:
-"new", files })`, so Cancel returns to the start screen and "Higher means" is asked before any
-  load; a project file still opens directly ("Opened trails"). New: an Open project or file...
-  (Control+O) made while the Data page is open lands on the page as a drop (`whileDataPageOpen` in
-  `data-page/request.ts`); before, the request waited for a page that never reopened and the file
-  was silently dropped -- round 1's T4 wrong turn (people.csv, then Control+O messages.csv) hit it
-  once the first file stopped loading at once. Test `StartScreen.real-element.test.tsx`, "opens a
-  data file from the start screen on the Data page" (fails without either change). Every tier 2
-  setup that opened a data file now goes New from data... > choose a file... > Load, which runs on
-  the frozen build too. Real app: `tmp/t2r1-6/a/03.png` (page), `05.png` (Higher means: Not set),
-  `13.png` (project opens directly), `15.png` (drop), `16.png` (Cancel to start).
-- (2026-10-09) **The source's inspector has a "..." ("Source actions") holding the Sources row
-  menu's verbs.** `useSourceActions` in `data-place/sourceActions.ts` gives Edit source... and
-  Replace with file... under `canReplace`; the row menu and `Inspector.tsx` both call it, as
-  attribute verbs share `useAttributeActions`, so the two lists cannot drift. On a graph of two
-  loads neither menu offers anything and no "..." is drawn: the item's acceptance said "Edit
-  source... only", but Edit source replaces the graph's one source, so on two loads it would drop
-  the other load; the row menu never offered it there. Corrected the answer key's T21 round 2
-  route to match. Test `DataPlace.real-element.test.tsx`, "gives the source's inspector a ..."
-  (fails without the change: no "Source actions" button). Real app: `tmp/t2r1-5/a/05.png` (menu),
-  `06.png` (Replace: friends-v2.csv), `14.png` (two loads, no "...").
-- (2026-10-09) **Find answers a condition typed without "=" with how to write it as a rule.**
-  When plain text finds nothing, `readsAsRule` in `graph-place/FindBox.tsx` asks
-  `session.scope.count({ where: text })`: the line under the box reads "To select by a value,
-  start with =, such as =minutes > `9`" (example in monospace, from `exampleRule`) when the element
-  accepts the text and it matches something, or refuses it only for `number-needs-backticks`.
-  Anything else stays "No match". The line is now Mantine's field `description` (below the error,
-  `inputWrapperOrder`), so it is in the box's `aria-describedby`. Test: `GraphPlace.test.tsx`,
-  "answers a condition typed without = ..." (fails without the change). Real app:
-  `tmp/t2r1-4/a/02.png` (hint), `05.png` ("Zebra": No match), `06.png` (=rule selects 3 edges).
-  Walk T22-D1 should now pass on a build with this.
-- (2026-10-09) **The dry run now walks the detours, as a script: `tier2/pilot/detours.sh all`.**
-  30 walks: each task's success path, a keyboard walk in `--sr` mode (pointer steps refused), and
-  round 1's commonest wrong turns, each checking its screens with `--expect`. Report
-  `tier2/dry-run-r2-1.md`. Fixed: the element canceled pointerdown, so the page never got
-  mousedown and Mantine popovers stayed open over the drawing (2a236410c); a short Select list on
-  a field at the window's bottom was cut to a strip (compact-mantine, ca3f10515); Add note with a
-  draft open left focus on the button (55e71f98e); Control+Enter saved a note only from its text
-  box (0e9e329c6). Edge width measured: 10 x W / depth px, consistent, not pixels; dropped as a
-  defect, the unit is on the owner list. Walks T22-D1, T20-D1 and T22-D2 encode changes 4, 6 + 13
-  and 11 and fail until those are in the build. This answers round 1's critique (detours never
-  walked), whose bullet it replaces.
-- (2026-10-09) **The path's Weight list already starts on the loaded weight; the round's "starts on
-  None" came from sessions that never loaded one.** The four sessions opened the file with "Open
-  project or file...", so no weight was loaded and None is right by the item's own rule. Fresh
-  build d3d11342a: trails.csv through "New from data...", km as Weight, Farther, Load, P: Weight
-  reads "km (farther, loaded)" (`tmp/t2r1-13/a/09.png`). Existing test "the Weight box reads a
-  loaded distance as used" covers it, so no app change. The real defect is the route (no way to
-  set a meaning from an opened file), which is a different item. Fixed the one stale assertion
-  that broke when the weight note was reworded.
-
+- (2026-10-09) **A chosen segment is filled, and every control shows the arrow.** compact-mantine's
+  panel track fills its chosen option with `--cm-bg-inverse` / `--cm-text-oninverse` (dark in
+  light, white in dark; 13:1 and 11:1 against the track) instead of Figma's white face and 1px
+  edge, so "Add" / "Leave out" and "a node" / "an edge" read without hovering. One cursor rule in
+  `00-foundation.css.ts`: `.mantine-UnstyledButton-root` (doubled class) gets `cursor: default`,
+  so the rail, the toolbar and app buttons match Button, Checkbox and segments; only Anchor
+  (text drawn as a link) keeps the hand. The filter chip was already the shared Button: no change
+  in `Filters.tsx`. Tests: `SegmentedControl.browser.test.tsx` (3:1 fill in both schemes),
+  `shared-controls.browser.test.tsx` (one pointer); both fail on the old CSS. Real app:
+  `tmp/r2-dry1-shared-chosen-segment-and-cursor/b/03.png`, `04-crop.png`. Visual baselines of the
+  segmented stories change; the owner reviews them on the pull request.
+- (2026-10-09, condensed) **A data file opened from the start screen goes through the Data page**
+  (`openInSession`, `project/actions.ts`); Control+O while the page is open lands as a drop
+  (`whileDataPageOpen`). Test `StartScreen.real-element.test.tsx`; evidence `tmp/t2r1-6/a/`.
+- (2026-10-09, condensed) **The source's inspector "..." holds the Sources row menu's verbs** through
+  one hook, `useSourceActions`; on two loads neither offers anything (Edit source would drop the
+  other load). Test `DataPlace.real-element.test.tsx`; evidence `tmp/t2r1-5/a/`.
+- (2026-10-09, condensed) **Find answers a condition typed without "=" with how to write it**
+  (`readsAsRule` in `FindBox.tsx`, asked of `session.scope.count`), as the field's description.
+  Test `GraphPlace.test.tsx`; evidence `tmp/t2r1-4/a/`.
+- (2026-10-09, condensed) **The dry run walks the detours as a script: `tier2/pilot/detours.sh all`**
+  (30 walks: success paths, `--sr` keyboard walks, round 1's wrong turns, each with `--expect`;
+  report `tier2/dry-run-r2-1.md`). Its fixes: pointerdown no longer canceled (2a236410c), short
+  Select lists open whole (ca3f10515), note focus and Control+Enter (55e71f98e, 0e9e329c6).
+- (2026-10-09, condensed) **The path's Weight list already starts on the loaded weight**; "starts on
+  None" came from sessions that loaded none (evidence `tmp/t2r1-13/a/09.png`). No app change.
 - (2026-10-09) **A style line goes only to a layer its row names; nothing falls back to
   Everything.** `writeLine(..., fresh)` in `style/row.ts` takes the layer to add as a required
   argument and throws when there is none; `RowStyle` offers a side only when the row has a layer
@@ -102,6 +75,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   baselines change and go to visual review.
 
 ## Decisions and reasons
+
+- (2026-10-09) **Chosen segment fill: the inverse color, not the brand blue.** Measured: brand
+  #0d99ff against the light track #f5f5f5 is 2.7:1 (fails 1.4.11) and white 11px text on dark
+  brand #0c8ce9 is 3.5:1 (fails 1.4.3); inverse passes both in every palette, accent-independent.
+  `--cm-segment-edge` is no longer drawn but stays (removing a published CSS variable would be
+  breaking). Mantine marks no option active in a disabled control, so no disabled variant needed.
+- (2026-10-09) **Cursor rule: arrow on every control, hand only on links.** The pilots' "other
+  controls show the hand" was Mantine's UnstyledButton default (`cursor: pointer`), under the rail
+  and the canvas toolbar; the theme's `cursorType: "default"` covered only inputs. The rule goes
+  to the arrow (the theme's stated convention), not the hand. The VariablePill keeps Figma's
+  pointer: its Figma capture asserts it, and it is not in the app's study paths.
 
 - (2026-10-09, summarized) **A list that scrolls only up and down passes `scrollbars="y"`;**
   compact-mantine then makes its content as wide as the area (Mantine's Autosize used
@@ -224,6 +208,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-09) Worked: proving a CSS fix's test fails without it by writing `git show HEAD:<file>`
+  over the edited CSS files (backups in the scratchpad), running the tests, copying the backups
+  back -- no stash, no checkout. Worked: `--hover-at` over every control class in one session to
+  find which ones disagree before choosing the rule.
 
 - (2026-10-09) Worked: checking a door change by re-walking the dry-run walks of every task whose
   path or setup uses that door (`HERE=... LANES=1 tool/with-browser.sh bash tier2/pilot/detours.sh

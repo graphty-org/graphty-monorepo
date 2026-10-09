@@ -283,8 +283,8 @@ const css = `
     font-size: var(--sc-font-size);
     /* An unchosen option is a choice the reader can make, so its label is drawn in the body
        color: the secondary gray at 10-11px read as a disabled option beside the raised chosen
-       one ("Add" of Add / Leave out). The chosen one is marked by its face, its edge and the
-       strong weight of its label, so which side is chosen reads without zooming. */
+       one ("Add" of Add / Leave out). The chosen one is marked by its fill and the strong weight
+       of its label, so which side is chosen reads without zooming. */
     color: var(--cm-text);
     background-color: transparent;
     outline: 1px solid transparent;
@@ -293,11 +293,15 @@ const css = `
     cursor: default;
 }
 .cm-sc .cm-sc-label[data-active] {
-    color: var(--cm-text);
-    /* 600, not the strong role's 550: at 11px on the dark track 550 beside 450 did not read. */
+    /* The chosen option is filled in the inverse color (dark in light, light in dark), 3:1 or
+       more against the track in both schemes (WCAG 1.4.11). Figma's white face with a 1px edge
+       was too faint: readers could not tell which of "Add" and "Leave out" was chosen without
+       hovering. (Mantine marks no option active in a disabled control.) */
+    color: var(--cm-text-oninverse);
+    /* 600, not the strong role's 550: at 11px 550 beside 450 did not read. */
     font-weight: 600;
-    background-color: var(--cm-bg);
-    box-shadow: inset 0 0 0 1px var(--cm-segment-edge);
+    background-color: var(--cm-bg-inverse);
+    box-shadow: none;
 }
 .cm-sc .cm-sc-label[data-active]::before { display: none; }
 .cm-sc .cm-sc-label[data-disabled],

@@ -18,8 +18,8 @@ import { type ColumnHandle, GraphFormatError, type GraphSink, INVALID_INDEX } fr
 import { PRECISION_CODE } from "./codes.js";
 import { type ImportReportBuilder } from "./report.js";
 
-const I32_TEXT = /^-?(0|[1-9][0-9]*)$/;
-const F64_TEXT = /^[+-]?((0|[1-9][0-9]*)(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?$/;
+const I32_TEXT = /^-?(0|[1-9]\d*)$/;
+const F64_TEXT = /^[+-]?((0|[1-9]\d*)(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 const I32_MIN = -2147483648;
 const I32_MAX = 2147483647;
 

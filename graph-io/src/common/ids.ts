@@ -19,7 +19,7 @@ import { GraphFormatError, type IdCoercion, type NodeId } from "@graphty/graph-f
 
 import { ID_MERGED_CODE } from "./codes.js";
 
-const CANONICAL_INTEGER = /^-?(0|[1-9][0-9]*)$/;
+const CANONICAL_INTEGER = /^-?(0|[1-9]\d*)$/;
 
 export { ID_MERGED_CODE };
 

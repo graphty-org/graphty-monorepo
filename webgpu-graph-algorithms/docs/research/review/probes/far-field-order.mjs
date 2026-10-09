@@ -161,7 +161,7 @@ async function run(n, kind) {
     dv.setFloat32(16, b.ox, true);
     dv.setFloat32(20, b.oy, true);
     dv.setFloat32(24, b.cell, true);
-    dv.setFloat32(28, 2.0, true);
+    dv.setFloat32(28, 2, true);
     device.queue.writeBuffer(ub, 0, dv.buffer);
     const res = { n, kind };
     for (const order of ["index", "sorted"]) {

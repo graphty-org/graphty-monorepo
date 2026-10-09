@@ -366,10 +366,10 @@ function isI32(value: number): boolean {
 }
 
 /** A vertex number of an adjacency list: Pajek reads a negative one as its absolute value. */
-const LIST_VERTEX = /^-?[0-9]+$/;
+const LIST_VERTEX = /^-?\d+$/;
 
 /** The relation prefix `k:` of a line in a line section. */
-const RELATION_PREFIX = /^([0-9]+):$/;
+const RELATION_PREFIX = /^(\d+):$/;
 
 /**
  * One import call's state machine: the sections, the vertex range, the columns declared so far

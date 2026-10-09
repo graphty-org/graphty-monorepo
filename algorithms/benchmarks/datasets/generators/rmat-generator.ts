@@ -23,7 +23,7 @@ export function generateRMAT(
 ): BenchmarkGraphImpl {
     // Validate probabilities sum to 1
     const probSum = a + b + c + d;
-    if (Math.abs(probSum - 1.0) > 0.001) {
+    if (Math.abs(probSum - 1) > 0.001) {
         throw new Error(`Probabilities must sum to 1, got ${probSum}`);
     }
 

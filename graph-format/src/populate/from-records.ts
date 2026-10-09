@@ -40,7 +40,7 @@ const SOURCE_KEYS: readonly string[] = ["source", "src", "from"];
 const TARGET_KEYS: readonly string[] = ["target", "dst", "to"];
 
 /** The canonical integer text of design section 4.1. */
-const CANONICAL_INTEGER = /^-?(0|[1-9][0-9]*)$/;
+const CANONICAL_INTEGER = /^-?(0|[1-9]\d*)$/;
 
 // ============================================================ ids
 

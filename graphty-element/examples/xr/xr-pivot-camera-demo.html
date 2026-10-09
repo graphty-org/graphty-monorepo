@@ -450,7 +450,7 @@
 
                     // Scale limits
                     this.MIN_SCALE = 0.1;
-                    this.MAX_SCALE = 10.0;
+                    this.MAX_SCALE = 10;
 
                     // Debug
                     this.frameCount = 0;
@@ -1089,7 +1089,7 @@
                     // X axis (left/right) = pan
                     if (Math.abs(rightY) > 0.0001) {
                         // Zoom: forward = zoom in = scale up
-                        const zoomFactor = 1.0 + rightY * this.ZOOM_SPEED;
+                        const zoomFactor = 1 + rightY * this.ZOOM_SPEED;
                         this.pivot.zoom(zoomFactor);
                     }
 
@@ -1155,7 +1155,7 @@
                     this.wasPinching = { left: false, right: false };
 
                     // Gesture sensitivity (from graphty-element XRGestureDetector)
-                    this.ZOOM_SENSITIVITY = 2.0;
+                    this.ZOOM_SENSITIVITY = 2;
 
                     // Input switch delay tracking
                     // When a controller is removed, we record the time
@@ -1703,7 +1703,7 @@
                     // Calculate zoom factor
                     // Positive delta (hands apart) = zoom out (> 1.0)
                     // Negative delta (hands together) = zoom in (< 1.0)
-                    const zoomDelta = 1.0 + distanceDelta * this.ZOOM_SENSITIVITY;
+                    const zoomDelta = 1 + distanceDelta * this.ZOOM_SENSITIVITY;
                     // Clamp to prevent extreme zooming
                     const clampedZoom = Math.max(0.9, Math.min(1.1, zoomDelta));
 
@@ -1818,7 +1818,7 @@
                             // Apply zoom - hands apart = scale down (zoom out)
                             if (gesture.zoomDelta !== undefined && Number.isFinite(gesture.zoomDelta)) {
                                 // Invert: hands apart (zoomDelta > 1) should scale down
-                                this.pivot.zoom(2.0 - gesture.zoomDelta);
+                                this.pivot.zoom(2 - gesture.zoomDelta);
                             }
 
                             // Apply rotation - use FULL 3D rotation axis for natural hand-based rotation
@@ -1873,7 +1873,7 @@
                     this.lastGripPosition = null; // Previous frame's grip position for delta calculation
 
                     // Movement settings
-                    this.MOVEMENT_AMPLIFICATION = 3.0; // Amplify hand movements by this factor
+                    this.MOVEMENT_AMPLIFICATION = 3; // Amplify hand movements by this factor
 
                     // Controller/hand state tracking
                     this.controllers = new Map(); // uniqueId -> { controller, handedness }

@@ -26,8 +26,10 @@
  * - `incident`: a verdict job needs Claude's verdict on its key recorded; master and low-priority
  *   scopes need the lane's newest master run green at a commit
  *   containing the fix; a shared key also needs one canary pull request green on a head containing
- *   it; a release key must be gone from the daemon's release truth; a local key needs the gate to
- *   pass on the green commit.
+ *   it; a release key must be gone from the daemon's release truth, or a pull request (another
+ *   session's, open or merged) must contain the named fix commits: githerd then keeps the link in
+ *   `state.releaseFixes` and offers the job again only if a later release run fails; a local key
+ *   needs the gate to pass on the green commit.
  * - `triage`: every issue of the batch has a verdict, and on GitHub exactly one type, priority and
  *   effort label from the configured sets, the ones reported. A refresh's entries are the issues its
  *   session judged affected: each must be an open issue the job listed, and there may be none.
@@ -360,7 +362,8 @@ async function incidentAnswer(job, report, view) {
             ? { holds: true }
             : { missing: [`no verdict for ${job.target}: call githerd_verdict with code or environment`] };
     }
-    if (scope === "release" || scope === "local") return conditionAnswer(job, view);
+    if (scope === "release") return releaseAnswer(job, report, view);
+    if (scope === "local") return conditionAnswer(job, view);
     const fix = report.pushedHead ?? job.pushedHead;
     if (!fix) return { missing: ["pushedHead: name the fix commit you pushed"] };
     if (report.pr && view.state.prs?.[String(report.pr)]) {
@@ -371,6 +374,20 @@ async function incidentAnswer(job, report, view) {
     const master = await laneAnswer(job.facts?.lane ?? String(job.target).split(" / ")[0], fix, view);
     if (scope !== "shared" || !master || !("holds" in master)) return master;
     return canaryAnswer(job.facts?.prs ?? [], fix, view);
+}
+
+/**
+ * A release incident: the release recovered, or a pull request (another session's, too) carries the
+ * fix; then the job ends and githerd watches the release itself (`state.releaseFixes`, jobs.mjs).
+ * @param {any} job the job
+ * @param {any} report the report
+ * @param {View} view what the check reads
+ * @returns {Promise<Answer>} the answer
+ */
+async function releaseAnswer(job, report, view) {
+    const cond = conditionAnswer(job, view);
+    if (cond && "holds" in cond) return cond;
+    return report.pr && report.commits?.length ? carriedAnswer(report.pr, report.commits, view) : cond;
 }
 
 /**
@@ -389,7 +406,9 @@ function conditionAnswer(job, view) {
             : "the release run still fails";
         return {
             missing: [
-                `${job.target} is still open: ${why}. The job ends by itself once a release lands; report done only after one has`,
+                `${job.target} is still open: ${why}. The job ends by itself once a release lands; report done only after one has, ` +
+                    "or, when a pull request (yours or another session's) carries the fix, report done with pr and commits " +
+                    "set to the fix commit(s) it contains: githerd then watches the release and offers the job again if it fails again",
             ],
         };
     }
@@ -857,6 +876,17 @@ function applyDone(job, report, view, now, answer) {
     if (report.children) job.children = report.children;
     if (job.kind === "issue" && job.facts?.batch?.length) recordLeftOut(job, report, view.state);
     if (job.kind === "issue" && report.commits?.length) recordCarried(job, report, view.state, now, answer);
+    if (job.facts?.scope === "release" && report.pr && report.commits?.length) {
+        const state = view.state;
+        state.releaseFixes ??= {};
+        state.releaseFixes[job.target] = {
+            pr: Number(report.pr),
+            commits: report.commits,
+            job: job.id,
+            runId: state.escalations?.[job.target]?.runId ?? null,
+            at: now.toISOString(),
+        };
+    }
 }
 
 /**

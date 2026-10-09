@@ -1,7 +1,7 @@
 JOB incident-release half-state at 1a2b3c4
 TARGET: failure release half-state at 1a2b3c4
 WHAT FOR: Something shared is broken. Find the cause, fix it in one pull request, and get the fix onto master. Label your fix pull request priority:critical (gh pr edit --add-label priority:critical): Mergify then merges it first, and githerd lets it through the hold on the red lane.
-DONE WHEN: npm has every version the release tagged, and master has the release's version commit.
+DONE WHEN: the release escalation is gone: npm has every version the release tagged, and master has the release's version commit. When a pull request carries the fix (yours or another session's, such as one already in the merge queue), report done with pr and commits set to the fix commit(s) it contains; githerd then watches the release itself and offers this job again if a later run fails.
 TO FINISH: Call githerd_done with the outcome, the pull request and the head you pushed. githerd checks the claim against GitHub and tells you what is missing if it does not hold.
 RULES:
   - Decide reversible questions yourself and record why in your findings. Ask the owner only through githerd_ask_owner, and only for what only the owner can do: a one-way door, a visual approval, money, a credential, a login, a change to the machine, a new permission rule.

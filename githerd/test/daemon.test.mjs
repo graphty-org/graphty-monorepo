@@ -1788,6 +1788,68 @@ describe("the poll loop", () => {
         expect(gh.writes()).toEqual([]);
     });
 
+    it("names a failed release by its failed run and job, and keeps it when a skipped push run follows", async () => {
+        writeConfig({
+            lanes: {
+                ci: { workflow: "ci.yml", gating: "required" },
+                release: { workflow: "release.yml", gating: "watch" },
+            },
+        });
+        scene.release = [run(300, A, "failure")];
+        scene.jobs = { 300: [{ id: 9, run_attempt: 1, name: "LLM regression", conclusion: "failure" }] };
+        const daemon = await start();
+        await poll(daemon);
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        const summary = `release run 300 on ${A.slice(0, 9)} failed: LLM regression failed`;
+        expect(daemon.state.escalations["release-failed:300"]).toMatchObject({ summary, runId: 300, resolvedAt: null });
+        expect(daemon.state.jobs["incident-release-failed-300"]?.facts.failure).toBe(summary);
+        // A push to master: the release workflow runs, and every job is skipped.
+        scene.release = [{ ...run(301, B, "skipped"), updated_at: "2026-10-02T12:05:00Z" }, run(300, A, "failure")];
+        clock = new Date("2026-10-02T12:06:00Z");
+        await poll(daemon);
+        clock = new Date("2026-10-02T12:09:00Z");
+        await poll(daemon);
+        const open = Object.values(daemon.state.escalations).filter((/** @type {any} */ e) => !e.resolvedAt);
+        expect(open.map((/** @type {any} */ e) => [e.key, e.summary])).toEqual([["release-failed:300", summary]]);
+        expect(daemon.state.jobs["incident-release-failed-300"].state).toBe("queued");
+        expect(daemon.state.jobs["incident-release-failed-301"]).toBeUndefined();
+    });
+
+    it("corrects in place a release escalation raised under a skipped run", async () => {
+        writeConfig({
+            lanes: {
+                ci: { workflow: "ci.yml", gating: "required" },
+                release: { workflow: "release.yml", gating: "watch" },
+            },
+        });
+        scene.release = [run(300, A, "failure")];
+        scene.jobs = { 300: [{ id: 9, run_attempt: 1, name: "LLM regression", conclusion: "failure" }] };
+        const daemon = await start();
+        await poll(daemon);
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        // As an older githerd left it: keyed on the skipped run 301, no failed run recorded.
+        const esc = daemon.state.escalations["release-failed:300"];
+        delete daemon.state.escalations["release-failed:300"];
+        daemon.state.escalations["release-failed:301"] = {
+            ...esc,
+            key: "release-failed:301",
+            summary: "release run 301 failed",
+        };
+        delete daemon.state.master.lanes.release.redRun;
+        daemon.state.jobs = {};
+        scene.release = [{ ...run(301, B, "skipped"), updated_at: "2026-10-02T12:05:00Z" }, run(300, A, "failure")];
+        clock = new Date("2026-10-02T12:06:00Z");
+        await poll(daemon);
+        expect(daemon.state.escalations["release-failed:301"]).toMatchObject({
+            summary: `release run 300 on ${A.slice(0, 9)} failed: LLM regression failed`,
+            runId: 300,
+            resolvedAt: null,
+        });
+        expect(daemon.state.jobs["incident-release-failed-301"].facts.failure).toContain("release run 300");
+    });
+
     it("re-runs the CI run whose expired artifacts made a release skip, once, as a would-do in dry-run", async () => {
         writeConfig({
             lanes: {

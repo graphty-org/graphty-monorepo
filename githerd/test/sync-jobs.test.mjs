@@ -219,6 +219,36 @@ describe("syncJobs: incidents", () => {
         expect(sync(state).cancelled.map((c) => c.job)).toEqual(["incident-release-failed-77"]);
     });
 
+    it("leaves a release incident whose fix another pull request carries to githerd, until a later run fails", () => {
+        const state = base();
+        const key = "release-failed:77";
+        state.escalations[key] = {
+            key,
+            kind: "release-failed",
+            summary: "release run 77 on abc failed: LLM regression failed",
+            raisedAt: "2026-10-04T10:00:00Z",
+            resolvedAt: null,
+            runId: 77,
+        };
+        sync(state);
+        expect(state.jobs["incident-release-failed-77"].facts.failure).toBe(
+            "release run 77 on abc failed: LLM regression failed",
+        );
+        state.jobs["incident-release-failed-77"].state = "done";
+        state.releaseFixes = { [key]: { pr: 1819, commits: ["abc1234"], runId: 77 } };
+        expect(sync(state).created).toEqual([]);
+        // The restart after the fix merged failed too: offered again, naming the new run.
+        Object.assign(state.escalations[key], { runId: 90, summary: "release run 90 on def failed" });
+        expect(sync(state).created).toEqual(["incident-release-failed-77"]);
+        expect(state.jobs["incident-release-failed-77"]).toMatchObject({
+            state: "queued",
+            facts: { failure: "release run 90 on def failed" },
+        });
+        state.escalations[key].resolvedAt = NOW.toISOString();
+        sync(state);
+        expect(state.releaseFixes).toEqual({});
+    });
+
     it("cancels a release incident an owner session holds once the release recovers, and tells it why", () => {
         const state = base();
         const key = "release-stalled:114ae7f8";

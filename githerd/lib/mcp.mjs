@@ -500,7 +500,9 @@ export const TOOLS = [
             "deferred is for an issue job that cannot be acted on now (such as a proposal the owner declined): it needs " +
             "a reason, closes nothing, and the issue is not offered again until it changes (a comment, an edit or a label). " +
             "An issue job whose fix rides in a pull request you did not push (another session's) names that pr and sets " +
-            "commits to the fix commit(s) it contains; its description need not name the issue. " +
+            "commits to the fix commit(s) it contains; its description need not name the issue. A release incident job " +
+            "whose fix is in a pull request (yours or another session's) reports done the same way, with pr and commits: " +
+            "the job ends and githerd watches the release, offering the job again if a later release run fails. " +
             "githerd verifies the claim against GitHub before accepting it and says what is missing.",
         inputSchema: object(
             {

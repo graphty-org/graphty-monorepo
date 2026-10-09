@@ -1,39 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
 import { SIMULATION_LAYOUTS, STATIC_LAYOUTS } from "./catalog.js";
-import { networkArgs, networkArgTypes, renderDemo, type RunArgs } from "./demo.js";
-import { runLayout } from "./run.js";
-
-interface LayoutArgs extends RunArgs {
-    layout: string;
-    /** Simulations: the fixed number of iterations (maxIter for ForceAtlas2, iterations for the others). */
-    iterations: number;
-    animate: boolean;
-}
-
-/**
- * Story render: lays the network out with the chosen layout.
- * @param args - the story args
- * @returns the story root
- */
-function render(args: LayoutArgs): HTMLElement {
-    return renderDemo(args, `graphty-${args.layout}`, ({ cy, gpuMode, extra }) =>
-        runLayout(cy, args.layout, {
-            gpuMode,
-            seed: args.seed,
-            iterations: args.iterations,
-            animate: args.animate,
-            extra,
-        }),
-    );
-}
+import { networkArgs, networkArgTypes } from "./demo.js";
+import { type LayoutArgs, renderLayout as render } from "./layout-story.js";
 
 const meta: Meta<LayoutArgs> = {
     title: "Demo/Layouts",
     render,
     argTypes: {
         ...networkArgTypes,
-        iterations: { control: { type: "number", min: 1, step: 10 } },
+        iterations: { control: { type: "number", min: 0, step: 10 }, description: "0: until the layout settles" },
         animate: { control: "boolean" },
     },
 };
@@ -43,13 +19,13 @@ type Story = StoryObj<LayoutArgs>;
 
 /** The force simulations: the ones that run on the GPU. */
 export const ForceSimulations: Story = {
-    args: { ...networkArgs, layout: "forceatlas2", iterations: 100, animate: true },
+    args: { ...networkArgs, layout: "forceatlas2", iterations: 0, animate: true },
     argTypes: { layout: { control: "select", options: SIMULATION_LAYOUTS } },
 };
 
 /** The one-shot layouts: CPU only. The backend control does not apply. "animate" glides the nodes to the result. */
 export const StaticLayouts: Story = {
-    args: { ...networkArgs, layout: "circular", iterations: 100, animate: false },
+    args: { ...networkArgs, layout: "circular", iterations: 0, animate: false },
     argTypes: {
         layout: { control: "select", options: STATIC_LAYOUTS },
         backend: { table: { disable: true } },
@@ -63,13 +39,13 @@ export const StaticLayouts: Story = {
 /** ForceAtlas2 on 2,000 nodes, drawn once at the end (no animation). */
 export const ForceAtlas2At2000Nodes: Story = {
     ...ForceSimulations,
-    args: { ...networkArgs, size: "medium", layout: "forceatlas2", iterations: 100, animate: false },
+    args: { ...networkArgs, size: "medium", layout: "forceatlas2", iterations: 0, animate: false },
 };
 
 /** Fruchterman-Reingold on 100 nodes, drawn once at the end. */
 export const FruchtermanReingold: Story = {
     ...ForceSimulations,
-    args: { ...networkArgs, layout: "fruchterman-reingold", iterations: 100, animate: false },
+    args: { ...networkArgs, layout: "fruchterman-reingold", iterations: 0, animate: false },
 };
 
 /** The circular layout of a 2,000-node Watts-Strogatz ring: the ring, with its few rewired shortcuts across it. */
@@ -80,7 +56,7 @@ export const CircularWattsStrogatz2000Nodes: Story = {
         network: "watts-strogatz",
         size: "medium",
         layout: "circular",
-        iterations: 100,
+        iterations: 0,
         animate: false,
     },
 };

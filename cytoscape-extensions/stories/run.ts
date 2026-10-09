@@ -51,7 +51,10 @@ function layoutInputs(cy: Core, layout: string): Record<string, unknown> {
 interface LayoutRun {
     gpuMode: GpuMode;
     seed: number;
-    /** Simulations: the fixed iteration count (maxIter for ForceAtlas2, iterations for the others). */
+    /**
+     * Simulations: a fixed iteration count (maxIter for ForceAtlas2, iterations for Fruchterman-Reingold), or 0 to run
+     * until the layout settles, capped by settleCap().
+     */
     iterations: number;
     /** Simulations: draw every frame. Static layouts: tween from the old positions to the new (`animate: "end"`). */
     animate: boolean;
@@ -71,12 +74,12 @@ export async function runLayout(cy: Core, layout: string, run: LayoutRun): Promi
         throw new Error("kamada-kawai needs memory in the square of the node count; pick 2,000 nodes or fewer");
     }
     const options: Record<string, unknown> = { name: `graphty-${layout}`, seed: run.seed, ...layoutInputs(cy, layout) };
+    let note: string | undefined;
     if (simulation) {
-        Object.assign(options, {
-            gpu: run.gpuMode,
-            animate: run.animate,
-            [layout === "forceatlas2" ? "maxIter" : "iterations"]: run.iterations,
-        });
+        Object.assign(options, { gpu: run.gpuMode, animate: run.animate, ...budget(layout, run.iterations, cy) });
+        if (layout === "spring-electrical" && run.iterations > 0) {
+            note = "spring-electrical takes no iteration budget yet and ran until it settled (issue #1766)";
+        }
     } else if (run.gpuMode === "require") {
         throw new Error(`graphty-${layout} has no GPU implementation; only the force simulations do`);
     } else if (run.animate) {
@@ -88,7 +91,38 @@ export async function runLayout(cy: Core, layout: string, run: LayoutRun): Promi
     if (!backend) {
         return { ran: "cpu", detail: "a one-shot layout: there is no GPU implementation" };
     }
-    return { ran: backend.ran, detail: backend.ran === "gpu" ? backend.device : backend.reason };
+    return { ran: backend.ran, detail: backend.ran === "gpu" ? backend.device : backend.reason, note };
+}
+
+/**
+ * The cap on a run until settled: generous, so it only stops a layout that never settles. ForceAtlas2 settles in
+ * about 320 to 450 iterations on 10,000 to 50,000 nodes, Fruchterman-Reingold's adaptive cooling in about 180.
+ * @param n - the node count
+ * @returns the cap
+ */
+function settleCap(n: number): number {
+    return Math.max(1_000, Math.round(20 * Math.sqrt(n)));
+}
+
+/**
+ * A simulation's budget options: a fixed count when one is given; else run until settled under settleCap(), with
+ * Fruchterman-Reingold on adaptive cooling (its linear schedule always runs the whole budget). Spring-electrical
+ * takes no budget (issue #1766) and always runs until it settles.
+ * @param layout - the simulation name without "graphty-"
+ * @param iterations - the fixed count, or 0
+ * @param cy - the core, for its node count
+ * @returns the options
+ */
+function budget(layout: string, iterations: number, cy: Core): Record<string, unknown> {
+    const cap = iterations > 0 ? iterations : settleCap(cy.nodes().length);
+    switch (layout) {
+        case "forceatlas2":
+            return { maxIter: cap };
+        case "fruchterman-reingold":
+            return iterations > 0 ? { iterations } : { iterations: cap, cooling: "adaptive" };
+        default:
+            return {};
+    }
 }
 
 /**
@@ -429,7 +463,9 @@ export function colorBy(cy: Core, field: string | null): void {
                 if (!groups.has(v)) {
                     groups.set(v, groups.size);
                 }
-                n.data("color", PALETTE[(groups.get(v) ?? 0) % PALETTE.length]);
+                const i = groups.get(v) ?? 0;
+                // past the palette, hues a golden angle apart, so neighbouring groups never share a color
+                n.data("color", i < PALETTE.length ? PALETTE[i] : `hsl(${Math.round((i * 137.5) % 360)}, 60%, 55%)`);
             }
         });
     });

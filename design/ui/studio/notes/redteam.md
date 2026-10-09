@@ -16,37 +16,37 @@ served at `/?next`.
 
 ## Top of mind
 
-1. (2026-10-08) Tier 2 measures first discovery of new features by people who know the shell, not
-   repeat work: every history ends "as new to you as it was the first day" and only T21 repeats
-   anything. Push for a second, shorter instance of the same job inside core-four sessions, with
-   its own step target. Repeat cost is the returning persona's stated reason to stop.
-2. (2026-10-08) Tier 2 setups are bare files (friends.txt, florentine.txt): no run, style or
-   label from the history. Bar 2 ("earlier work kept") is then nearly vacuous, and nobody tests a
-   filter or a path against a sized-by-rank drawing. Setups must carry the history's work.
-3. (2026-10-08) The per-round expert walkthrough and screenshot audit feed no bar. Pilots already
-   filed a cut Sources line and the rejected word "route" (element layer names in the legend) as
-   "watch items". A deterministic screenshot finding is confirmed by its one capture; give it a bar.
-4. (2026-10-08) "All bars hold in one round" contradicts re-running only failing tasks; define the
-   carry-forward rule, T4's 3-per-half floor, and "not scored = not passed" before round 1.
-5. (2026-10-08) Pre-register decisions that the study is meant to make (T22's "select where"
-   dialog, the stall rule) before the data exists. "Reported, no target" is a post-hoc door.
-6. (2026-10-07) Perspective lies about size in 3D (Ava draws larger than Farah). Fix in the
-   element or a 2D default the app passes; never a notice.
-7. (2026-10-07) Element English keeps leaking (layout refusals, CSV warnings, run.label, layer
-   names "Shortest route"). Fix = codes and ids from the element, words in the app.
-8. (2026-10-07) One word per thing: the group is named three ways; "route" vs "path".
-9. Rounds are one model playing every participant: a failure is strong, a pass weak, a scripted
-   repro or code cause solid. Count deterministic layout events once per dataset.
-10. (2026-10-06) Fix by removing, not adding. One door per job. No persona features, first-run
-    UI, suggestion cards, tours (owner, v1 lesson).
-11. (2026-10-06) Overfitting guard: task words never echo a fix's screen words; answer key and
-    decision thresholds fixed before the round; report both scorings.
-12. (2026-10-06) Graph logic in the element, words in the app; check existing element API before
-    proposing new API (three times it already existed).
-13. (2026-10-08) Tier 2 grows exactly where clutter creeps: the inspector (edge, path run), the
-    Data place (Filters, Sources), the neighbor list (Hops, Follow). Budget their words.
-14. (2026-10-07) Key over nodes needs a new element option (inset): additive, team's call now.
-15. (2026-10-07) Screen-reader findings need a real tool or user; tier 2 has none (owner).
+1. (2026-10-09) A dry run walks the answer key AND each task's commonest detours, and the
+   preflight scripts a bar needs exist before launch. Tier 2 round 1 walked only success paths
+   and left bars 2, 7, 8, 9 unscoreable; participants then found off-route defects a script walk
+   would have found (Edges color to Everything, halo tint, focus drops). Fix those before round 2.
+2. (2026-10-09) T20's cause is one branch: Open from the start screen loads a data file straight
+   (`openProjectFile` -> `openInSession` with `fresh`, project/actions.ts), skipping the Data page
+   that asks "Higher means". Route it through the Data page. No column "Higher means", no "New
+   from data...", no "Set meaning" verb: each is a second home for a load-time fact.
+3. (2026-10-09) T22: hint words first, as pre-registered. The app must not sniff `<>=`; show the
+   corrected rule only when "=" + text passes the element's own rule check. "Select where..." on
+   the column waits until the hint fails (pre-registered rule).
+4. (2026-10-09) Edges color to Everything: cause is writeLine's default `fresh = EVERYTHING_LAYER`
+   (style/row.ts), reached from StyleTab and SetLine.tsx:112. Fix the shared default, not one
+   caller; hide a side the row has no layer for.
+5. (2026-10-09) Selection halo tint is an element rendering defect with a traced mechanism
+   (Node.ts createOverlaySource: 40% sphere, backFaceCulling false). Fix in the element, not
+   "possibly by design".
+6. (2026-10-09) One mark per state: stale run = ", out of date" on the key title, same words as
+   the run list. Not warning color + dim Top 10 + colored clock + dimmed range.
+7. (2026-10-08) Tier 2 setups are bare files; setups must carry the history's work (bar 2).
+8. (2026-10-08) Push a second, shorter instance of the same job inside core-four sessions.
+9. (2026-10-08) Screenshot-audit findings need a bar, or they ride as "watch items".
+10. Rounds are one model playing every participant: a failure is strong, a pass weak, a scripted
+    repro or code cause solid. Never blame load: name the mechanism (the 4-browser cap is per
+    command, not per session).
+11. (2026-10-06) Fix by removing, not adding. One door per job; reuse the app's own pattern
+    (the "..." header menu every other inspector has) before adding buttons.
+12. (2026-10-06) Overfitting guard: task words never echo a fix's screen words.
+13. (2026-10-06) Graph logic in the element, words in the app; check existing element API first.
+14. (2026-10-07) Element English keeps leaking; codes from the element, words in the app.
+15. (2026-10-08) Budget words where tier 2 grows: inspector, Data place, neighbor list.
 
 ## Priorities and values
 
@@ -110,26 +110,10 @@ served at `/?next`.
   Deferred as not tier 1: chip removal, "Use as edge weight...", notes stamped with data version,
   "Rerun all", leading-zero key matching, a value-and-count Select where builder.
 
-- 2026-10-06 -- Round 1 (folded): first-time bar not lower than all-sessions bar; reference
-  values recorded for every graded answer; T4 two-file join not tier 1; neighbors fixed by
-  routing the existing command, not a second list; no Degree cue; no "Influence" rename on one
-  round; word-budget items (Overview direction row) counted in bar 9 before touching.
-
-- 2026-10-06 -- Round 2 attack (my positions): (a) neighbors = route the Neighborhood command to
-  `openNeighborhood` when one node is selected; withdraw my Summary-lists-names (second list).
-  (b) No Degree cue in round 2 (the routed door is what 4 of 4 used; a cue would confound it).
-  (c) "Babet (1)": delete only; drop the "Edges 0" row when 0. (d) Empty Size list: fix in
-  compact-mantine `ComboInput` (hide the chevron with no options; SetLine passes `options={[]}`,
-  verified), not "list what can be bound" (a new feature). (e) Focus: accept the a11y root cause
-  (compact-mantine `focusRing: "never"` plus opt-in classes) and fix the ring in the foundation
-  CSS; after a Style "+" pick, move focus to the new line (the trigger is gone, so "return to
-  trigger" cannot work). (f) "No crossings": the inline sentence under Method replaces the
-  notice, not adds one; the app knows which method failed, so no element code is needed unless a
-  test shows the error carries nothing. (g) Legend over node: trace owner before building; not on
-  a failing task; do not bundle. (h) "Influence" printed from the element's English `run.label`
-  is an element-neutrality defect to trace, not a round 2 rename. (i) Morgan's screen-reader
-  sessions are blocked on tooling, not owed re-runs. (j) Reconcile scores.md and insights.md
-  before anyone quotes a bar.
+- 2026-10-06 -- Tier 1 rounds 1-2 (summarized 2026-10-09): route the existing neighbors command,
+  no second list, no Degree cue (worked: T12 0 of 8 -> 8 of 8); delete rather than reword; empty
+  Size list fixed in compact-mantine ComboInput; focus ring fixed in foundation CSS; inline
+  sentence replaces a notice; element English is a neutrality defect to trace.
 
 - 2026-10-07 -- Round 2 critique (my positions): see Top of mind 1-7. Also: do not move the key
   (Pazzi/Blacheville overlap is one seeded event per dataset), no export selection option (the
@@ -177,6 +161,22 @@ served at `/?next`.
   else), roster.md histories, pilot/final.md watch items, answers.md T18 "Shortest route" layer
   names, launch-prompt.md walkthrough and audit paragraph, tier2-design.md section 2 ("Never
   route").
+
+- 2026-10-09 -- Tier 2 round 1 proposals attack (my positions). Code read: project/actions.ts
+  openInSession/openProjectFile (fresh data file loads with mode "replace", no Data page);
+  style/row.ts writeLine default EVERYTHING_LAYER, callers StyleTab.tsx:331, SetLine.tsx:112,
+  LabelSection.tsx; graphty-element Node.ts createOverlaySource; FindBox.tsx no-match branch;
+  ProjectDialogs.tsx:76 (Back to start already asks over unsaved changes); insights.md 45-60.
+  Adopt: IA's start-screen Open through the Data page (root cause of T20); hint words in find box
+  gated on the element's rule check; source inspector gets the standard "..." header menu with
+  Replace and Edit source; ", out of date" on key title; Total <column>; Replace page button
+  "Replace"; focus returns after Add/Delete step and Escape; status line name and left-out row;
+  writeLine default removed; halo fixed in the element. Reject: column "Higher means" and "New
+  from data..." (second homes), "Select where..." menu and live rule row now (pre-registration),
+  regex sniffing of operators in the app, four stale marks, visible buttons in the inspector,
+  Back-to-start undo (the question already exists). Process: round 2 must not launch until the
+  missing preflight scripts exist, the detours are scripted, and the browser overrun mechanism is
+  named. Reason: the owner wants studies to learn what users need, not find UX defects.
 
 ## Tried: worked / did not work
 
@@ -232,6 +232,10 @@ served at `/?next`.
   English refusals, three names for one grouping, soft names in export. Taught: once the controls
   work, the next layer of failure is perception and words. Expect it to dominate round 3.
 
+- 2026-10-09 -- Tier 2 round 1 dry run on success paths only: did not work as a gate. No session
+  met a broken control on the walked routes, but participants met off-route defects and four bars
+  had no script. Taught: a dry run must walk detours and prove every bar's script runs.
+
 ## Thinking
 
 - (2026-10-06) The biggest risk for the next round is not a design flaw but repeating the round 7-8
@@ -271,6 +275,8 @@ served at `/?next`.
   If the audit has no bar, truncation and wrong words will ride through all three rounds again.
 
 ## Sources
+
+- `design/ui/studio/tier2/rounds/round-1/insights.md`, the eight role proposals (2026-10-09)
 
 - `design/ui/studio/digests/decisions.md`, `framework.md`, `owner-voice.md`, `study-rounds.md`,
   `tier1.md` (studio worktree, 2026-10-06)

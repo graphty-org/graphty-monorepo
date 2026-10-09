@@ -485,7 +485,8 @@ describe("the Data page on the real element", () => {
                 },
                 { timeout: TIMEOUT_MS },
             );
-            await userEvent.click(loadButton());
+            // A replace says so on its button, as its title does.
+            await userEvent.click(screen.getByRole("button", { name: "Replace" }));
             await waitFor(
                 () => {
                     assert.equal(store.get().page, "panels");

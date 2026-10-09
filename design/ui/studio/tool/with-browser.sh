@@ -20,8 +20,10 @@ here=$(cd "$(dirname "$0")" && pwd)
 # real.mjs --step, --end and --brief launch no browser: a step talks to a session that already holds
 # its slot. Wrapped, it waited for a second slot while its own session held one (r1-s04, void).
 # real.mjs --start takes its own slot (it runs its session process through this gate), so wrapped
-# it held one slot with no browser while that process waited for a second.
-if [[ "$*" =~ real\.mjs\ --(start|step|end|brief)( |$) ]]; then
+# it held one slot with no browser while that process waited for a second. real.mjs --prove runs
+# the gate itself for every browser it starts, so wrapped it waited forever when the other three
+# slots were busy.
+if [[ "$*" =~ real\.mjs\ --(start|step|end|brief|prove)( |$) ]]; then
     exec "$@"
 fi
 main=$(dirname "$(git -C "$here" rev-parse --path-format=absolute --git-common-dir)")

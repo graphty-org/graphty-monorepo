@@ -1,5 +1,5 @@
-The study runs on build ddf8b3b63039 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2-ddf8b3b63/`
-(graphty@0.8.60, commit ddf8b3b63), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build fabc16247403 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d1-fabc16247/`
+(graphty@0.8.61, commit fabc16247), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -548,3 +548,15 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   got a browser, because `tool/with-browser.sh` does not pass `real.mjs --start` through while
   `--start` takes its own slot, so a wrapped start holds one slot and waits for a second. No bar,
   floor, step limit or prompt changed; bar 11 keeps the success paths' counts.
+
+- **2026-10-09, before round 2: the round 2 dry run build.** The study build moved from
+  ddf8b3b63039 (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2-ddf8b3b63/`) to
+  fabc16247403 (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d1-fabc16247/`), a
+  fresh build of graphty-element, compact-mantine and the graphty app with the Sentry variables
+  unset. It carries the fixes made since the round 2 build: the key, weight note, source and
+  neighbor headings saying only what is true; the graph opening from its title, the open step
+  marked and no reset offered at a default; the Data page's footer kept in place with the file
+  format given its own place; the reader's own rule in the find box's number hints; a recent
+  project's date written as a note's, on one line; and compact-mantine filling the chosen segment
+  with one cursor on every control. It exists so a dry run can find what still breaks before
+  participants meet it. No bar, floor, step limit or prompt changed.

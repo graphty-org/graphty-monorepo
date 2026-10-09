@@ -227,9 +227,10 @@ hands to the pre-push gate's browser test shards and to visual-preview captures,
 and the machine's test runs share one limit. `BROWSER_SLOTS` (1 to 4) uses fewer of the four;
 above 4 the gate refuses to run (exit 2). Every command that launches a browser for the studio
 (`real.mjs`, `bars.mjs`, a private walk) goes through `with-browser.sh`. `real.mjs --start` takes its own
-slot (it runs its session process through the gate), and `--step`, `--end` and `--brief` launch no
-browser, so all four are called directly; wrapped in the gate by mistake, they run at once instead of
-holding one slot while waiting for a second.
+slot (it runs its session process through the gate), `--prove` runs the gate itself for each browser
+it starts, and `--step`, `--end` and `--brief` launch no browser, so all five are called directly;
+wrapped in the gate by mistake, they run at once instead of holding one slot while waiting for a
+second.
 
 **Why round 1 of tier 2 ran more than four browsers (2026-10-09).** Until then `with-browser.sh`
 kept a pool of its own, four lock files in `/tmp/graphty-design-browser-slots/`, while the pre-push

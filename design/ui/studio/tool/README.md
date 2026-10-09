@@ -62,23 +62,23 @@ Every command prints what a participant would notice, then the path of the new s
 
 Several steps may follow one `--step`; they run in order, and one screenshot is saved at the end.
 
-| Step                                                                                | What it does                                                                                                                                                                                                                                                                                                                                             |
-| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--click "<name>"`                                                                  | Clicks the control with that name: what it says, its accessible name or its label; a text box with none of those matching, by its placeholder (`--click "Find nodes, edges, values"`). Exact names before partial ones. `"<name>#2"` takes the second of that name; `"role=tab:Style"` only that role. A name several controls share prints `ambiguous`. |
-| `--rclick`, `--dblclick`, `--shift-click`, `--ctrl-click`, `--alt-click`, `--hover` | The same, with that button or key held. A hover prints the tooltip.                                                                                                                                                                                                                                                                                      |
-| `--click "<node name>"`                                                             | With no control of that name, clicks a node whose label is drawn on the canvas and is on screen, at its center, and says where. A node with no label drawn cannot be named, as for a person.                                                                                                                                                             |
-| `--click-at x,y` (`--rclick-at`, `--dblclick-at`, `--hover-at`)                     | A point on the last screenshot. Prints what is there: a node (by its label), empty canvas, or the control. `--hover-at` also prints the pointer's shape there (`cursor: pointer`), which a screenshot never shows.                                                                                                                                       |
-| `--hover-icon <n>`                                                                  | Hovers the nth control that has a name but no visible text, and prints its tooltip.                                                                                                                                                                                                                                                                      |
-| `--drag x1,y1 x2,y2`                                                                | Presses at the first point, moves to the second, releases (pan, or move a node).                                                                                                                                                                                                                                                                         |
-| `--wheel x,y,delta`                                                                 | Turns the wheel at a point; a negative delta zooms in.                                                                                                                                                                                                                                                                                                   |
-| `--key <Key>`                                                                       | A key or chord: `Enter`, `Escape`, `ArrowDown`, `Control+o`.                                                                                                                                                                                                                                                                                             |
-| `--type "<text>"`                                                                   | Types into what has focus. With nothing that takes text focused, types nothing and fails.                                                                                                                                                                                                                                                                |
-| `--upload <file>`                                                                   | Answers the open file chooser (or the next one to open within 3 seconds), including the app's project-file picker (Locate...).                                                                                                                                                                                                                           |
-| `--reopen`                                                                          | Closes the tab and opens the app again in a new tab with the same browser storage: Recent projects and the saved files are still there.                                                                                                                                                                                                                  |
-| `--drop <file>`                                                                     | Drops the file on the middle of the window.                                                                                                                                                                                                                                                                                                              |
-| `--read`                                                                            | Prints what a screen reader's browse mode reads in the open dialog, or else the region around focus (see "Screen-reader mode").                                                                                                                                                                                                                          |
-| `--wait <ms>`                                                                       | Lets the app work on its own for a moment.                                                                                                                                                                                                                                                                                                               |
-| `--expect "<text>"`, `--expect-not "<text>"`                                        | Fails unless the text is (or is not) on screen. Also `role=<role>`, `role=<role>:<name>` and `selected=N`.                                                                                                                                                                                                                                               |
+| Step                                                                                | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--click "<name>"`                                                                  | Clicks the control with that name: what it says, its accessible name or its label; a text box with none of those matching, by its placeholder (`--click "Find nodes, edges, values"`). Exact names before partial ones. `"<name>#2"` takes the second of that name; `"role=tab:Style"` only that role. A name several controls share is refused: the step does nothing and prints `ambiguous`, with each candidate as `"<name>#n"` and what it is. |
+| `--rclick`, `--dblclick`, `--shift-click`, `--ctrl-click`, `--alt-click`, `--hover` | The same, with that button or key held. A hover prints the tooltip.                                                                                                                                                                                                                                                                                                                                                                                |
+| `--click "<node name>"`                                                             | With no control of that name, clicks a node whose label is drawn on the canvas and is on screen, at its center, and says where. A node with no label drawn cannot be named, as for a person.                                                                                                                                                                                                                                                       |
+| `--click-at x,y` (`--rclick-at`, `--dblclick-at`, `--hover-at`)                     | A point on the last screenshot. Prints what is there: a node (by its label), empty canvas, or the control. `--hover-at` also prints the pointer's shape there (`cursor: pointer`), which a screenshot never shows.                                                                                                                                                                                                                                 |
+| `--hover-icon <n>`                                                                  | Hovers the nth control that has a name but no visible text, and prints its tooltip.                                                                                                                                                                                                                                                                                                                                                                |
+| `--drag x1,y1 x2,y2`                                                                | Presses at the first point, moves to the second, releases (pan, or move a node).                                                                                                                                                                                                                                                                                                                                                                   |
+| `--wheel x,y,delta`                                                                 | Turns the wheel at a point; a negative delta zooms in.                                                                                                                                                                                                                                                                                                                                                                                             |
+| `--key <Key>`                                                                       | A key or chord: `Enter`, `Escape`, `ArrowDown`, `Control+o`.                                                                                                                                                                                                                                                                                                                                                                                       |
+| `--type "<text>"`                                                                   | Types into what has focus. With nothing that takes text focused, types nothing and fails.                                                                                                                                                                                                                                                                                                                                                          |
+| `--upload <file>`                                                                   | Answers the open file chooser (or the next one to open within 3 seconds), including the app's project-file picker (Locate...).                                                                                                                                                                                                                                                                                                                     |
+| `--reopen`                                                                          | Closes the tab and opens the app again in a new tab with the same browser storage: Recent projects and the saved files are still there.                                                                                                                                                                                                                                                                                                            |
+| `--drop <file>`                                                                     | Drags the file in from outside the window and drops it on the middle, through the browser itself, as a person would. Prints `the page took it`, or `the drop was not delivered` when nothing there takes a dropped file (a real browser would then open the file itself in place of the app).                                                                                                                                                      |
+| `--read`                                                                            | Prints what a screen reader's browse mode reads in the open dialog, or else the region around focus (see "Screen-reader mode").                                                                                                                                                                                                                                                                                                                    |
+| `--wait <ms>`                                                                       | Lets the app work on its own for a moment.                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `--expect "<text>"`, `--expect-not "<text>"`                                        | Fails unless the text is (or is not) on screen. Also `role=<role>`, `role=<role>:<name>` and `selected=N`.                                                                                                                                                                                                                                                                                                                                         |
 
 A file is a path, or a name from `files/`:
 
@@ -135,7 +135,8 @@ node $T/real.mjs --step $S --click "<project name>"       # reopens the saved fi
 - `could not click "...": ... Timeout 3000ms exceeded.` when a control is there but cannot take the
   click, followed by the browser's own reason, indented (`element is not enabled`, `element is not
 stable`, `<div ...> intercepts pointer events` when something covers it).
-- `ambiguous: ...` when a name is shared.
+- `ambiguous: "Enjolras" matches 5 controls, so the step did nothing; name one: "Enjolras#1" row ..., ...` when a name
+  is shared. Pick one with `#n` or `role=<role>:<name>`.
 - `at x,y: node "Medici"` (or `empty canvas`, or the control there) for every point step.
 - `a file chooser is open` when a click opened one.
 - `a file was saved: florentine_current-view.png, 1806 x 1720 (path)` for every download.
@@ -185,11 +186,58 @@ live: status (polite): "No match for \"zzzz\""
   Read the lines as what the page offers a screen reader, not as a transcript of speech.
 - `session.json` records `"screenReaderMode": true`.
 
+## Briefing a participant, and the follow-up
+
+```bash
+node $T/real.mjs --brief rounds/round-2/sessions/r2-s05      # writes r2-s05/briefing.md
+```
+
+`--brief <session folder>` writes `briefing.md` into the folder: everything a participant gets and
+nothing else. That is their persona files with the sections written for the study team left out
+(facilitator notes, the team's hypotheses, open questions for the study), the history under their
+name in `tier2/roster.md`, the prompt of their task's half word for word, the exact `--start`
+command with the build, and this file's "A session", "Steps" and "Names, dialogs and lists". The
+task, half, persona and start come from the session's row in the round's `plan.md` (the folder's
+name is the session id); `--task T17A --persona Grace` names them for a folder with no plan. A
+participant reads only `briefing.md`: never `tasks.md` (it holds the avoided words and the
+follow-ups), `answers.md`, `roster.md` or a persona file directly.
+
+`--start` refuses a folder that holds a facilitator file: one named like a study document
+(`tasks.md`, `answers.md`, `criteria.md`, `roster.md`, `plan.md`, `grade.md`, ...) or any text file
+that carries avoided words, facilitator notes or a success path. `--brief` checks its own output
+the same way.
+
+**The follow-up.** T17 and T18 each have a follow-up prompt for every session that finished the
+first. The tool gives it, so it never depends on anyone remembering: a session started on a T17
+or T18 half (from its `plan.md` row, or `--start ... --task T18B`) answers its first `--end` with
+exit 3 and the follow-up word for word, and stays open. The participant carries on in the same
+session and runs `--end` again; one who gave up runs `--end` again at once. `session.json`
+records `"followUp": "given <time>"` (never the words).
+
 ## Browsers
 
-At most four browsers run at once on this machine, across every study and tool. A session takes
-one of the four slots (`with-browser.sh`) when it starts and holds it until `--end`; a start
-waits, saying so, while all four are taken.
+At most four browsers run at once on this machine, across every study, tool and test run. A
+session takes one of the machine's four browser slots (`with-browser.sh`) when it starts and holds
+it until `--end`; a start waits, saying so, while all four are taken. The slots are the main
+checkout's `tmp/browser-slots/slot1` to `slot4`, the same ones `<main checkout>/tmp/with-browser.sh`
+hands to the pre-push gate's browser test shards and to visual-preview captures, so a study round
+and the machine's test runs share one limit. `BROWSER_SLOTS` (1 to 4) uses fewer of the four;
+above 4 the gate refuses to run (exit 2). Every command that launches a browser for the studio
+(`real.mjs`, `bars.mjs`, a private walk) goes through `with-browser.sh`. `real.mjs --step`, `--end` and `--brief`
+launch no browser and are called directly; wrapped in the gate by mistake, they run at once instead of
+waiting for a second slot while their own session holds one.
+
+**Why round 1 of tier 2 ran more than four browsers (2026-10-09).** Until then `with-browser.sh`
+kept a pool of its own, four lock files in `/tmp/graphty-design-browser-slots/`, while the pre-push
+gates of other worktrees took theirs from the machine pool in the main checkout's
+`tmp/browser-slots/`. The two pools never saw each other: the studio's four sessions were never
+more than four (only four studio lock files ever existed, and a session's browser exits with its
+session process), but at 06:14 to 06:24 UTC pre-push gates ran their browser test shards (vitest
+browser projects, some starting more than one Chromium each) beside them, about ten software-rendering
+Chromium GPU processes in all, and the load average reached about 158 on 32 threads. Pages then
+could not answer a click's hit test within the tool's 3 seconds (r1-s14, r1-s16, r1-s46). "Five
+sessions" in the grades counted session folders whose times overlapped, not browsers. One pool
+closes that path.
 
 ## Checking the tool
 

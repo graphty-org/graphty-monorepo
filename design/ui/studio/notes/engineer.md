@@ -11,6 +11,34 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **Bars 2, 7, 8 and 9 are scored by script, each check proven on a planted failure**
+  (commit 80fb33e68). Bar 2: `real.mjs` writes `work-start.json` after setup and `work.json` at
+  `--end` (start, end, `gone` by id; sources by name); `--prove` clears the table and checks it is
+  listed gone. Bars 7, 8, 9: `bars.mjs` (page checks shared with real.mjs in `tool/measure.mjs`).
+  Bar 7 (a): 29 catalog algorithms x {closer, farther, capacity, unset, no column} x {directed,
+  undirected} = 290 runs, 0 wrong readings on builds 946256efb and 1fc173a12. Bar 8 on build
+  1fc173a12: focus FALLS to the page after Add step and after Delete (step), axe serious on the
+  Filters row (target-size) and the find list (scrollable-region-focusable), and the Notes place's
+  target chips are three buttons named "Graph" plus two "Delete note". Bar 9 (b) limits are round
+  1's counts on 946256efb (`tool/bars-limits.json`: rest 53, path 66, neighbors 36, edge 30).
+  Five clean `--prove` runs: see "Tried". Evidence `tmp/t2r1-2/` (bars-final2/, final-*.log).
+
+- (2026-10-09) **The study tool reached participants more than the build; fixed in the tool.**
+  (1) Round 1's overrun: `with-browser.sh` kept its own 4-slot pool in `/tmp` while pre-push gates
+  took theirs from the main checkout's `tmp/browser-slots`, so studio sessions (never more than 4:
+  only 4 studio lock files ever existed; a session's Chromium dies with its session process, tested
+  by SIGKILL) ran beside ~6 more test browsers, load ~158, clicks missed the 3 s limit. The gate now
+  takes the machine pool and refuses `BROWSER_SLOTS` > 4; real.mjs --step/--end/--brief pass straight
+  through it (r1-s04 waited for a second slot). (2) A shared name is refused with `"<name>#n"`
+  candidates (r1-s44's "Enjolras" row). (3) `--drop` uses CDP `Input.dispatchDragEvent` with real
+  files; it says "the page took it" or "the drop was not delivered" (no drop event = nothing took
+  it); a start-screen drop opens the file. (4) `--brief <dir>` writes briefing.md (persona minus
+  team-only sections, history, prompt, start command, tool sections) from the round's plan.md row;
+  `--start` refuses a folder holding facilitator files. (5) T17/T18: the first `--end` returns exit
+  3 with the follow-up word for word, the second ends. The checked-in runner copy
+  (`tier2/rounds/workflow-tier2.js`) now briefs participants; a run started from the older copy
+  still sends them to tasks.md. Evidence `tmp/t2r1-1/` (prove.log, six.log, x1/03.png).
+
 - (2026-10-09) **A live region must be in the page, visible, before its words arrive; and it
   holds words only.** The app status line sat in the toolbar under `<main hidden>` while the Data
   page showed, so after Load it reappeared already filled (not spoken), and the canvas wrote it at
@@ -68,25 +96,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   recorded in `session.json`). A private walk script (one `walk` per screen, like
   `tier2/pilot/rewalk.sh`) run at two sizes in parallel took two browser slots and ~25 min.
 
-- (2026-10-08, condensed) **A reopen is framed as a fresh fit; the legend card waits for it.**
-  The card's inset reached the element before its first fit on a reopen; `useReservedMargin`
-  (`LegendCard.tsx`) now waits for `graph-frame-stable`. OPEN, owner door: Florentine still
-  reopens ~60 px lower (only a saved camera fixes it; camera is not saved). Test:
-  `Project.real-element.test.tsx` "frames the graph where it was when saved..." (friends, 1440x900).
-
-- (2026-10-08, condensed) **Undo/Redo/Escape say what they did** (`frame/historyWords.ts`;
-  element `style.update-layer` carries `channels`). **Edit source is a replace**, offered only
-  where Replace is (`canReplace` in `useRowMenu`); import page Esc exits only an empty page. OPEN:
-  a two-table load cannot be edited. Evidence `tmp/r1-dry4-undo-escape-words/`, `tmp/r1-dry4-loads/`.
-- (2026-10-08) **A tooltip's position is a request; the theme flips it.** compact-mantine's
-  Tooltip default is `bottom` with `flip`; `position="right"` on "Filter to neighbors" lands LEFT
-  of the button in the real app, because the inspector sits at the window's right edge. Either side
-  keeps the neighbor list clear, so the test asserts "not below the button" (tip top < button
-  bottom), not "right of". A wrapped example in a hint: wrap the example in a `ws-nowrap` span
-  (graph-place.css) so the sentence breaks before it. Re-pilot on a PRIVATE copy of graphty/dist:
-  other agents rebuild graphty/dist in the shared worktree mid-session ("no production build").
-  Evidence `tmp/r1-dry4-words-placement/` (T20A/07, T22B/02, T12RA/05, T12RB/05).
-
 - (2026-10-09) **Four word fixes on the path and Replace screens.** The path total is named by the
   weight column it read ("Total minutes 14", `RunValues.tsx` `PathValues`); a weight the path left
   unread says "Each edge counts as 1. weight's meaning is not set." (`weightRead`, `analyze/words.ts`;
@@ -96,27 +105,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   analyze `words.test.ts`, `PathRun.real-element.test.tsx` "names the total by the weight column",
   `Replace.real-element.test.tsx`. Real app: `design/ui/studio/tmp/t2r1-14/s1/13.png`, `16-19.png`,
   `s2/10.png`, `s2/14.png`.
-- (2026-10-08, condensed) **The inspector title takes focus with no mark; Rerun and Back keep
-  focus off the page (app only).** Title (`INSPECTOR_TITLE_ID`, tabIndex -1) has no outline or
-  underline (`cm-focus-underline` deleted); both Rerun buttons call `focusInspectorTitle()`;
-  Back/Esc to Degree on every render of `NodeValues`. A pointer click leaves Chromium in pointer
-  modality, so the keyboard ring stays hidden (spec 2.7). Evidence `tmp/r1-dry4-inspector-focus/`.
-- (2026-10-08, condensed) **A click keeps its trigger's tooltips closed until the pointer leaves;
-  a pointer-opened menu highlights nothing** (compact-mantine `overlayBehavior.ts`): a click
-  before the 1000 ms open delay left a tooltip to mount later under the resting pointer; now a
-  pointer-down marks its control (`pressed`) and a tooltip mounting for it is `data-cm-dismissed`
-  until a move off. `keyLast` decides `skipDisabledFirstRow`. To check: a pointer-opened menu
-  whose first row is enabled may still highlight it. Evidence `tmp/r1-dry4-shared-tooltip-menu/`.
-- (2026-10-08, condensed) **Check what a finding measured before fixing the code it names.**
-  "Damping 0.8500000238418579" was the study tool reading Chromium's 32-bit range value; the DOM
-  and `valuetext` say 0.85. `real.mjs --read` now prints `valuetext`. Evidence
-  `tmp/r1-dry4-option-precision/`.
-- (2026-10-08, condensed) Path Follow is the element's `direction` option, shown by the app only on
-  a directed graph; the Style tab uses one label style (`PaintLine`); find headings count each
-  kind (`FindResult.totals`) and the list snaps to whole rows. Evidence `tmp/r1-dry3-*`,
-  `tmp/r1-dry4-path-direction-app/`.
-
 ## Decisions and reasons
+
+- (2026-10-08, summarized 2026-10-09) **Dry-run 4 fixes, still standing:** a reopen is framed as
+  a fresh fit (`useReservedMargin` waits for `graph-frame-stable`; OPEN owner door: Florentine
+  reopens ~60 px lower, camera not saved); Undo/Redo/Escape say what they did
+  (`frame/historyWords.ts`); Edit source is a replace, offered only where Replace is; a tooltip's
+  side is a request the theme flips; the inspector title takes focus with no mark and Rerun/Back
+  keep focus off the page; a click keeps its trigger's tooltips closed until the pointer leaves
+  (compact-mantine `overlayBehavior.ts`); check what a finding measured before fixing the code it
+  names (Damping 0.85 was Chromium's 32-bit value; `--read` prints `valuetext`).
 
 - (2026-10-09) **A skipped weight's note leads with what the run did.** "Not read -- w's meaning is
   not set, and a path needs a distance" read as gibberish to a participant; the note now opens with
@@ -130,6 +128,21 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   so an edge list that names only known people reads "adds 0 nodes, 41 edges": true, where the
   file's own row count would hide repeated edges. Replace says "runs out of date".
 
+- (2026-10-09) **The bar scripts measure in the session the participant would use.** Tier 2's
+  screens are walked as `real.mjs` sessions (bars.mjs talks to a session's socket: ops `measure`,
+  `work`), not by a second Playwright driver, so name resolution, settling and file pickers are the
+  study's own; one `measure.mjs` holds the page checks for both. Each move carries an `--expect`
+  for the screen it should reach: on 1fc173a12 `--click Load` on the Replace page silently matched
+  other text (the button is now "Replace") and the walk measured the wrong screen until it did.
+- (2026-10-09) **What each check counts.** Focus fell = `document.activeElement` is the body or
+  null (focus inside graphty-element's shadow root counts as kept). Shared names: reachable,
+  not-disabled controls in Chromium's AX tree (button, link, checkbox, radio, switch, tab, menu
+  items, combobox, textbox, searchbox, slider, spinbutton); list items (option, treeitem, row) are
+  the data's and left out. Bar 7: a run reads the loaded column in its own sense, or reads none
+  and answers as on the table with no weight column (max-flow reads its own default `capacity`
+  attribute, which is not the loaded column, so it counts as "read none"); seeds fixed at 42 so a
+  random start cannot differ between tables. Bar 9 (b): the four screens' words, the limit being
+  round 1's count measured on the round 1 frozen build, never a later build's.
 - (2026-10-08, summarized 2026-10-09) **Older dry-run fixes, still standing:** study tool `--read`
   prints table rows by cell, takes a visible `labels[0]` for a role target, records the served
   build in `session.json`; sources show counts and "Added"/"Left out" sections
@@ -149,53 +162,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-09) **Audit findings name the owning package; the canvas label clipping is the
   element's.** The fit frames spheres only, so any app fix (smaller font, padding) would hide an
   element defect. The legend card's label overlap waits on the same element fact (label bounds).
-- (2026-10-08) **The camera stays unsaved; a reopen reproduces only fresh framings.** Making the
-  first open move the drawing when the legend grows was rejected (it undoes "insets never move
-  the drawing"); delaying the card's inset makes reopen match first open whenever the session's
-  own framing was a fresh fit. Import page (app, condensed): Data page text `sm`, captions `xs`,
-  `UNMATCHED_HINTS` tooltips, WeightLine after RoleList.
-- (2026-10-08) **A step is named by what changed, not by a guess at intent.** "Size by
-  PageRank" (the dry run's wish) needs to know a binding was added, not removed; the update fact
-  says only which channels changed, so the words are "changing Size on PageRank", true for both.
-  Filter steps keep their gerund words ("turning off ..."), so every step reads "Undo <gerund>".
-  Clear selection returns early on an empty selection, so a bare Escape posts nothing.
-- (2026-10-08) **A reopened load replaces itself; it never adds.** "Edit source" names the same
-  source, so the only reading a reader expects is a swap; "add" doubled every edge. Where the
-  graph cannot be replaced (several loads or tables) the verb is withheld rather than offered as
-  an add, since an add under that name is the defect. Esc on the import page: lost work with no
-  undo outranks a one-key exit, so Esc exits only an empty page. Rejected: a "discard changes?"
-  confirm (a dialog for a key press; Cancel already exists).
-
-- (2026-10-08, condensed) No script focus ring after a pointer action (keyboard-only, spec 2.7;
-  `focusVisible: true` does nothing in Chrome 143); tooltip dismissal follows the pressed control,
-  not a timer; a study tool reads a range as `aria-valuetext`; a one-way path searches the
-  transpose (swapping ends gives wrong per-node distances).
-- (2026-10-08, condensed) **UI polish calls from the third dry run:** one label style (`Text xs`
-  in one column) beats a wider field, and the Selection row's parts are Nodes and Edges; a scroll
-  list ends on a whole row at every rest (scroll-snap), per-kind counts are the element's fact; a
-  button that changes state says so before the click ("Save and turn on"), never disabled when
-  unchanged; a follow-up choice goes below the control that caused it (Higher above the roles moved
-  them ~62 px under the pointer); a script-focused heading gets an underline, not a box (read as an
-  editable name), shared in compact-mantine.
-- (2026-10-08, condensed) **A left-out row opens its load's whole account, what it names first**
-  (whole `ControlSection`s reordered by `child === "left-out"`; DOM-order test).
-- (2026-10-08, condensed) **A shared control's defect is fixed in compact-mantine; an
-  app-specific look is an option with today's look as default** (the Tree child band). Menu
-  Escape is marked in the document's capture phase; a disabled first row focuses the first
-  enabled row; a chosen segment is 600.
-- (2026-10-08, condensed) Small calls: the pointer leaves the page after setup ((-1,-1), not an
-  in-page spot); a saved note takes focus, not "+" (its tooltip covered the note); Delete note has
-  its own `delete` glyph (minus stays "take out of this list"); a run's time shows seconds (two
-  runs in a minute must differ); the weight row holds a short fact, the why on a line under it;
-  one Escape guard helper for every popover form.
-- (2026-10-08, condensed) **Dry-run app and element calls:** a label's ground is the app's white
-  chip, no padding (a halo was gray, padding lifted stacked labels off screen); a Replace is laid
-  out as an open is (only not-started jobs count as a waiting write); which file held nodes is the
-  element's `tableRows`; `.cm-anchor` follows its size prop; neighbors list in name order at every
-  hop count; one key section per highlight color, titled by the run; in a crowded row the name
-  wins and the count yields.
-- (2026-10-08) **A pointer-opened menu has no keyboard position.** Rejected: highlighting row 1 for
-  every open (read as the suggested choice, "Edit source..." in T21B).
+- (2026-10-08, summarized 2026-10-09) **Dry-run 3 and 4 calls, with reasons kept short.** The
+  camera stays unsaved (moving the drawing when the legend grows would undo "insets never move the
+  drawing"). A step is named by what changed ("changing Size on PageRank"), not a guessed intent. A
+  reopened load replaces itself, never adds (an add doubled every edge); where it cannot replace,
+  the verb is withheld; Esc exits only an empty import page (no "discard?" dialog). No script focus
+  ring after a pointer action (spec 2.7). Tooltip dismissal follows the pressed control, not a
+  timer. A one-way path searches the transpose. UI: one label style (`Text xs`); scroll lists snap
+  to whole rows; a state-changing button says so before the click ("Save and turn on"); a follow-up
+  choice goes below its cause; a script-focused heading gets an underline. A left-out row opens its
+  load's whole account, what it names first. A shared control's defect is fixed in
+  compact-mantine, an app-specific look is an option. Small: pointer leaves the page after setup; a
+  saved note takes focus; a run's time shows seconds; a label's ground is the app's white chip; a
+  pointer-opened menu has no keyboard position (row 1 read as the suggestion).
 - (2026-10-08, condensed) **Element facts over new fields:** a resolved option is the caveat that
   names it (`caveats.method`), never written into params (a rerun would pin it); a left-out row
   says which END is missing (`LeftOutEdge.source/target`, mapped by `draft.resolve`); a label's
@@ -233,6 +212,21 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Did not work: planting a bar 2 removal by `styles.remove()` of the last layer (a
+  locked default layer stays; nothing went). Worked: `session.data.clear()`, listed gone as the
+  source. Did not work: `const WALKS` below a top-level `await outer()` (temporal dead zone); run
+  the entry point last. Did not work: `cp -p .husky/_/*` into a temp hooks dir alone -- the shim
+  runs `$(dirname $(dirname $0))/<hook>`, so without the top-level hook copies beside `_/` every
+  hook silently exits 0; copy both. Commit scope `studio` is refused by commitlint; `tools` passes.
+- (2026-10-09) The first-save fault: its two recorded failures were (1) the old picker-save check
+  ("a first save is answered and its file copied to the session folder") printing only the
+  screenshot path -- that check and the picker save are gone (a first save now stays in the
+  browser), so its cause cannot be traced on today's tool; (2) a run where every step after
+  "labels are turned on" failed with ECONNREFUSED on the session socket: the session process was
+  gone. Mechanism not proven; two `--prove` runs on the default `tmp/prove` folder end each
+  other's sessions (`finish()` ends every session folder it knows), so always set
+  `REAL_PROVE_DIR`. Five runs in a row on 1fc173a12 with a private folder: see Top of mind.
+
 - (2026-10-09) Did not work: leaving my edits uncommitted while another agent committed in the
   same files. Their commit (`17bf87085`) swept my `RunValues.tsx`, `DataPage.tsx` and Replace test
   hunks into its own message. Commit a file's hunks as soon as they pass, or at least before another
@@ -241,6 +235,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   runs first and empties the file, so the read sees nothing; it wiped another agent's uncommitted
   notes. Recovered by replaying that agent's edit scripts from its transcript onto HEAD (byte count
   matched). Always read into a variable, then open for writing.
+- (2026-10-09) Worked: a 1-second poll of `/proc/*/fd` for holders of each slot file shows which
+  pool every browser is in (`tmp/t2r1-1/holders.sh`). Did not work: `fuser` on the lock files
+  (prints nothing useful). Editing real.mjs in the shared worktree changes every agent's NEXT
+  session at once (the session process loads the file at start); another agent edited real.mjs in
+  the same hour, so stage only your own hunks (build the staged copy from HEAD plus yours,
+  `git update-index --cacheinfo`).
+
 - (2026-10-09) Worked: `real.mjs --sr` with the two-tables setup, then `--key Tab` from Cancel to
   Load and `--key Enter`: the live line printed once with no "unconfirmed" mark. Typing a refused
   rule printed the refusal once; a further digit kept the same words and printed nothing. Did not
@@ -260,54 +261,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   "+"); `--click Graph` is ambiguous with the inspector heading (the tool takes the rail button).
   Crop and zoom (PIL, 4x) to judge small text and swatch contrast; `friends .csv` in a 10 px
   subtitle was font hinting, not a space.
-- (2026-10-08) Did not work first: a reopen-framing test on the Florentine sample passed WITHOUT
-  the fix (the card hid Pazzi on the first open, so the session refit with insets and both paths
-  agreed). Worked: the friends graph added through `session.data` in a `Workspace` whose store
-  starts with a project, viewport 1440 x 900; `saveAs` now takes the current name. A stand-in
-  element in a unit test needs `isFrameStable` and `add/removeEventListener` once the card reads
-  them.
-- (2026-10-08, condensed) Pilot and `--prove` on a `cp -r graphty/dist` copy with `REAL_DIST`;
-  others' rebuilds break runs on the live dist.
-- (2026-10-08, condensed) Answer key re-pilot on build 8b24133cd: Follow, Edit source and Esc
-  routes all held (details in the answer key). Seen, not mine: after Filter to neighbors, Hops 1
-  plus Follow Out hides the button while the chip still says "15 of 20 nodes" (`T23A/09.png`).
-
-- (2026-10-08) Did not work first time: a T22B setup on the new build (Les Miserables sample)
-  missed "Run" (Playwright: button visible, enabled and stable, click not done in 3 s), and the
-  setup went on without PageRank; the next start of the same setup ran clean, as did the frozen
-  build's. Mechanism not found; the miss is in the setup's Analyze popover, not in anything this
-  change touched. OPEN (study tool): the start did not fail with SETUP FAILED as the tool README
-  says; the miss showed only in `setup.log`. Check it after every `--start`.
-- (2026-10-08) Did not work: running prettier over a whole app folder reformats other agents'
-  committed files (DataPage.tsx); reverted with `git diff <file> | git apply -R`. Format only my
-  own files.
-- (2026-10-08) Worked: re-piloting T21A from its `session.json` setup list (written to
-  `t21a-setup.txt` in the task folder, `setup:t21a-setup.txt`), then `--click Data`, `--rclick
-friends.csv`, `--click "Edit source..."`, `--click Load`, `--expect "20 nodes, 41 edges"`.
-  T20B's import page: "New from data..." then "choose a file..." `--upload trails.csv`.
-- (2026-10-08, condensed) Proving "fails without" with no stash: copy my fixed files aside, write
-  `git show HEAD:<file>` over them, run, copy back; for a file another agent has dirty, comment my
-  lines out in place instead. graphty's real-element tests are project `real-element`, not
-  `browser`; graphty reads compact-mantine from its `dist` (rebuild it first).
-- (2026-10-08, condensed) Study tool: pilot on a dist copy (others' rebuilds empty
-  `graphty/dist`); a role select is `--click "role=combobox:Role of <col>"` (the bare column name
-  also matches the grid header); "Open project or file..." loads a CSV straight to the graph, so
-  an import page needs "New from data..."; `--read` refuses `--click` in `--sr`; step N lands in
-  screenshot N+1. Telling "not focused" from "focused, no ring": `--click X --key Tab` or `--sr`
-  focus lines; `focus({ focusVisible: true })` does nothing in Chrome 143.
-- (2026-10-08, condensed) Probes: a standalone Playwright probe on `graphty/dist` under
-  `with-browser.sh` (wrap `session.runs.start`, read `run.params`, the DOM and the AX tree) splits
-  "value wrong" from "reading wrong"; a camera probe logging `getCameraState()`, canvas rect and
-  `viewInsets` names camera mechanisms; tooltip-under-X needs a probe of ancestors and z-index.
-- (2026-10-08, condensed) Tests: a tooltip after `userEvent.hover` needs `{ timeout: 3000 }` (the
-  open delay equals findBy's default); `findByText` then `closest('[role="tooltip"]')`; a
-  `textContent` assertion includes `hidden` spans (assert `checkVisibility()`); a hung browser test
-  with no output is a sync infinite loop (bisect with `-t`); a contrast or fit test must fail on
-  the old value; never call a failure a flake.
-- (2026-10-08, condensed) Did not work: `pgrep -f` waits (match themselves; wait by PID); a tree
-  row's count slot for a filter outcome (cut the words); focus on the left tree after open
-  (typeahead eats shortcuts); a string-anchored script edit matching twice (anchor on a unique
-  closing line); rerunning a path with the same ends to show two times (same run returned).
+- (2026-10-08, summarized 2026-10-09) **Older study-tool and test lessons.** Pilot and `--prove`
+  on a `cp -r graphty/dist` copy with `REAL_DIST` (others' rebuilds empty the live dist). A test
+  must fail without the fix (the Florentine reopen test passed without it; the friends graph in a
+  `Workspace` at 1440 x 900 did not). A setup miss can show only in `setup.log`: read it after
+  every `--start`. Format only my own files. Prove "fails without" with no stash: copy my files
+  aside, write `git show HEAD:<file>` over them, run, copy back. Tool idioms: `role=combobox:Role
+  of <col>`; an import page needs "New from data..."; step N lands in screenshot N+1; `--sr` focus
+  lines tell "not focused" from "focused, no ring". Probes under `with-browser.sh` split "value
+  wrong" from "reading wrong". Tests: hover tooltips need `{ timeout: 3000 }`; assert
+  `checkVisibility()`; a silent hung browser test is a sync loop (bisect with `-t`); never call a
+  failure a flake. `pgrep -f` matches itself (wait by PID); anchor script edits on a unique line.
 - (2026-10-06 to 10-08, condensed) Shared worktree: stage only my hunks (`git apply --cached`, or a
   private `GIT_INDEX_FILE`), commit from an empty `git diff --cached`; wait for a clean `tsc` before
   building over others' half-saved files; never commit `api:report` output wholesale. Builds:

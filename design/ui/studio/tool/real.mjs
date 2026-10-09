@@ -100,6 +100,140 @@ const sockOf = (dir) =>
     join("/tmp", `graphty-real-${createHash("sha1").update(resolve(dir)).digest("hex").slice(0, 12)}.sock`);
 const fileArg = (f) => (existsSync(resolve(f)) ? resolve(f) : join(files, f));
 
+// ---------- the participant's side of the study: briefing, follow-up, clean folder ----------
+// A session folder rounds/round-N/sessions/<id>/ has its task, half, persona and start in the
+// round's plan.md table ("| r1-s04 | T20 | B: hiking trails ... | Jordan (analyst) | `empty` |").
+// An explicit --task T17A (with --persona <name> for --brief) stands in for a folder with no plan.
+function sessionTask(dir, task, persona) {
+    let start = null;
+    if (!task) {
+        const plan = join(dirname(dirname(resolve(dir))), "plan.md");
+        const row =
+            existsSync(plan) &&
+            readFileSync(plan, "utf8")
+                .split("\n")
+                .map((l) => l.split("|").map((c) => c.trim()))
+                .find((c) => c[1] === basename(resolve(dir)));
+        if (!row) return null;
+        task = row[2] + (row[3].match(/^([AB]):/)?.[1] ?? "");
+        persona ??= row[4];
+        start = row[5]?.replaceAll("`", "") || null;
+    }
+    const m = task.match(/^(T\d+R?)([AB])$/);
+    return m && { task: m[1], half: m[2], persona: persona?.split(/[\s(]/)[0] ?? null, start };
+}
+const tasksText = () => readFileSync(join(tier2, "tasks.md"), "utf8");
+const sectionOf = (text, head) => {
+    const at = text.search(new RegExp(`^### ${head}\\.`, "m"));
+    if (at < 0) return null;
+    const rest = text.slice(at + 4);
+    const end = rest.search(/^#{2,3} /m);
+    return end < 0 ? rest : rest.slice(0, end);
+};
+const oneLine = (t) => t.replace(/\s+/g, " ").trim();
+// The half's prompt and its follow-up (T17 and T18 have one), word for word from tasks.md
+function taskWords(t) {
+    const sec = sectionOf(tasksText(), t.task);
+    if (!sec) return null;
+    const prompt = sec.match(new RegExp(`^- \\*\\*Prompt ${t.half}\\b[^*]*\\*\\* "([\\s\\S]*?)"\\s*$`, "m"))?.[1];
+    const fu = sec.match(/^- \*\*Follow-up[\s\S]*?(?=^- \*\*|$(?![\s\S]))/m)?.[0];
+    const followUp = fu?.match(new RegExp(`^\\s+- ${t.half}: "([\\s\\S]*?)"`, "m"))?.[1];
+    return { prompt: prompt && oneLine(prompt), followUp: followUp && oneLine(followUp) };
+}
+// Files nobody playing a participant may see. In round 1 a participant agent, sent to tasks.md to
+// find its prompt, read the task's avoided words and the persona's facilitator notes (r1-s03).
+const FACILITATOR_NAMES = /^(answers|tasks|criteria|roster|plan|scores|insights|decisions|grade)\.md$/;
+const FACILITATOR_WORDS =
+    /Words avoided|Words kept on purpose|Facilitator notes|success path|Success definitions|answer key/i;
+function facilitatorFiles(dir) {
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir, { recursive: true })
+        .map(String)
+        .filter((f) => {
+            if (FACILITATOR_NAMES.test(basename(f))) return true;
+            if (!/\.(md|txt|json|ya?ml)$/.test(f)) return false;
+            const p = join(dir, f);
+            return statSync(p).isFile() && FACILITATOR_WORDS.test(readFileSync(p, "utf8"));
+        });
+}
+// Persona sections written for the study team, never for the agent playing the persona
+const TEAM_ONLY = /facilitator|study team|for the real study/i;
+function personaText(text) {
+    return text
+        .split(/^(?=## )/m)
+        .filter((s) => !TEAM_ONLY.test(s.split("\n")[0]))
+        .join("")
+        .trim();
+}
+// --brief: writes <dir>/briefing.md, everything a participant gets (tasks.md, "Rules for whoever runs
+// a session"): the persona files and the history under their name, the prompt word for word, the
+// start command and the tool's participant instructions. Never the follow-up, the avoided words,
+// the success path or another persona.
+async function brief(dir, task, persona) {
+    const t = sessionTask(dir, task, persona);
+    if (!t)
+        return `--brief: no task for ${dir} (no row for it in the round's plan.md; pass --task T17A --persona <name>)`;
+    const words = taskWords(t);
+    if (!words?.prompt) return `--brief: tasks.md has no Prompt ${t.half} for ${t.task}`;
+    const roster = readFileSync(join(tier2, "roster.md"), "utf8");
+    const hist = t.persona && sectionOf(roster.replace(/^### (\S+) -- /gm, "### $1. "), t.persona);
+    if (!hist) return `--brief: roster.md has no history for "${t.persona}"`;
+    const S = resolve(repo, roster.match(/`S\/` = `([^`]+)`/)[1]);
+    const P = roster.match(/`P\/` =\s*`([^`]+)`/)[1];
+    const fileLine = hist.match(/^Files: (.*)$/m)?.[1] ?? "";
+    const personas = [...fileLine.matchAll(/`([SP])\/([^`]+\.md)`/g)].map(([, k, f]) => join(k === "S" ? S : P, f));
+    const history = hist
+        .replace(/^.*\n/, "")
+        .replace(/^Files: .*\n/m, "")
+        .trim();
+    const readme = readFileSync(join(here, "README.md"), "utf8");
+    const part = (h) => readme.match(new RegExp(`^## ${h}\\n[\\s\\S]*?(?=^## )`, "m"))?.[0].trim() ?? "";
+    const distLine = readFileSync(join(tier2, "criteria.md"), "utf8").match(/served from `([^`]+)`/)?.[1];
+    // the start: the plan's, or else the task's half in the roster's "Where each session starts"
+    const cell = roster.match(new RegExp(`^\\| ${t.task} +\\|([^|]*)\\|([^|]*)\\|`, "m"))?.[t.half === "A" ? 1 : 2];
+    const fromRoster = cell && (/empty/.test(cell) ? "empty" : `setup:${cell.replaceAll("`", "").trim()}`);
+    const start = t.start ?? fromRoster ?? "<the start you were given>";
+    const doc = [
+        `# Your session`,
+        ``,
+        `You are taking part in a study of a program, as the person described below. This file is everything you get: do not open any other file of this project (no source code, no other notes, tasks or answers).`,
+        ``,
+        `## Who you are`,
+        ``,
+        ...personas.map((p) => personaText(readFileSync(p, "utf8")) + "\n"),
+        `## Your earlier sessions with this program`,
+        ``,
+        history,
+        ``,
+        `## What you are asked to do`,
+        ``,
+        `"${words.prompt}"`,
+        ``,
+        `## How you use the program`,
+        ``,
+        "Start with this command, then take one step at a time and look at each new screenshot before the next:",
+        "",
+        "```bash",
+        `REAL_DIST=${distLine ?? "<the study build>"} node ${join(here, "real.mjs")} --start ${resolve(dir)} ${start}`,
+        "```",
+        "",
+        `Every later command takes the same REAL_DIST. When you are done, or would give up, run \`--end\`.`,
+        ``,
+        part("A session").replace(/^## /m, "### "),
+        ``,
+        part("Steps").replace(/^## /m, "### "),
+        ``,
+        part("Names, dialogs and lists").replace(/^## /m, "### "),
+        ``,
+    ].join("\n");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "briefing.md"), doc);
+    const bad = facilitatorFiles(dir);
+    return bad.length
+        ? `--brief: the briefing still holds facilitator words (${bad.join(", ")}); fix the persona or task files`
+        : null;
+}
+
 // ---------- steps: what each takes, checked before anything opens ----------
 const CLICKS = {
     "--click": {},
@@ -226,7 +360,7 @@ const say = (r) => {
     return r.code;
 };
 
-async function start(dir, how, sr) {
+async function start(dir, how, sr, task) {
     dir = resolve(dir);
     if (existsSync(sockOf(dir))) {
         const alive = await ask(dir, { op: "ping" }).catch(() => null);
@@ -262,6 +396,16 @@ async function start(dir, how, sr) {
         console.error(`${dir} already holds a session's screenshots; use a new folder`);
         return 2;
     }
+    const bad = facilitatorFiles(dir);
+    if (bad.length) {
+        console.error(
+            `${dir} holds facilitator files a participant must not see (${bad.join(", ")}); move them out first`,
+        );
+        return 2;
+    }
+    // T17 and T18 hold a follow-up prompt, given at --end (see "op end" in serve)
+    const t = sessionTask(dir, task);
+    const followUp = t ? taskWords(t)?.followUp : null;
     // the session process holds a browser slot for its whole life, so it runs inside the gate
     const log = openSync(join(dir, "session.log"), "a");
     const child = spawn(
@@ -286,7 +430,7 @@ async function start(dir, how, sr) {
         waited++;
     }
     child.unref();
-    const r = await ask(dir, { op: "start", setup });
+    const r = await ask(dir, { op: "start", setup, task: t && t.task + t.half, followUp });
     return say(r);
 }
 
@@ -384,8 +528,10 @@ async function serve(dir, sr) {
                 let r;
                 try {
                     if (req.op === "ping") r = { out: [], code: 0 };
-                    else if (req.op === "start") r = await opStart(s, req.setup);
-                    else if (req.op === "step") r = await opStep(s, req.steps);
+                    else if (req.op === "start") {
+                        [s.task, s.followUp] = [req.task, req.followUp];
+                        r = await opStart(s, req.setup);
+                    } else if (req.op === "step") r = await opStep(s, req.steps);
                     else if (req.op === "plant-spin") r = await plantSpin(s, req.on);
                     else if (req.op === "plant-live") r = await plantLive(s);
                     else if (req.op === "plant-ticker") r = await plantTicker(s);
@@ -393,6 +539,7 @@ async function serve(dir, sr) {
                     else if (req.op === "measure") r = await measure(s, req.plant);
                     else if (req.op === "work") r = { out: [], code: 0, data: await s.page.evaluate(openWork) };
                     else if (req.op === "plant-removal") r = await plantRemoval(s);
+                    else if (req.op === "end" && s.followUp && !s.followUpGiven) r = await giveFollowUp(s);
                     else if (req.op === "end") r = await opEnd(s);
                     else r = { out: [`unknown request ${req.op}`], code: 2 };
                 } catch (e) {
@@ -707,6 +854,9 @@ async function opStart(s, setup) {
                 viewport: VIEWPORT,
                 started: new Date().toISOString(),
                 setup: setup.map((x) => x.join(" ")),
+                task: s.task ?? null,
+                // the follow-up's words stay out of the participant's folder; only whether it was given
+                followUp: s.followUp ? "held until --end" : "none",
             },
             null,
             1,
@@ -741,6 +891,24 @@ async function opStart(s, setup) {
     );
     out.push(await shot(s));
     return { out, code };
+}
+
+// The first --end of a T17 or T18 session does not end it: it hands the participant the follow-up,
+// word for word, and the session carries on. In round 1 two sessions that left the follow-up to the
+// participant's own reading of tasks.md never got it (r1-s22, r1-s23). A second --end ends.
+async function giveFollowUp(s) {
+    s.followUpGiven = true;
+    const f = join(s.dir, "session.json");
+    const rec = JSON.parse(await readFile(f, "utf8"));
+    await writeFile(f, JSON.stringify({ ...rec, followUp: `given ${new Date().toISOString()}` }, null, 1) + "\n");
+    return {
+        out: [
+            "The session is still open. If you finished what you were asked, here is the next request, word for word:",
+            `  "${s.followUp}"`,
+            "Carry on in this same session, then run --end again. If you gave up instead, run --end again now.",
+        ],
+        code: 3,
+    };
 }
 
 // Bar 2: the open work at the end beside the start's, and what is gone, in work.json for the graders
@@ -987,7 +1155,7 @@ const ROLES = [
 const TIP = "[role=tooltip], .mantine-Tooltip-tooltip";
 // The control a click names: "<name>", "<name>#2" or "role=<role>:<name>". Exact names before partial
 // ones, controls before text, a text box's placeholder only when no name matches; a name several
-// controls share says so. With no control of that name, a node whose label is drawn on the canvas,
+// controls share is refused with the list of them. With no control of that name, a node whose label is drawn on the canvas,
 // at its center.
 async function find(page, raw, out) {
     let name = raw,
@@ -1067,10 +1235,12 @@ async function find(page, raw, out) {
             return {
                 miss: `"${raw}": only ${all.length} control${all.length === 1 ? " is" : "s are"} called "${name}" (${all.map((x) => x.desc).join(", ")})`,
             };
+        // a shared name is refused, never resolved to the first: in round 1 that clicked the wrong
+        // table row (the first of five "Enjolras" cells) and a panel heading for a list row
         if (!nth && all.length > 1)
-            out.push(
-                `ambiguous: "${name}" matches ${all.length} controls (${all.map((x) => x.desc).join(", ")}); took the first`,
-            );
+            return {
+                miss: `ambiguous: "${name}" matches ${all.length} controls, so the step did nothing; name one: ${all.map((x, i) => `"${name}#${i + 1}" ${x.desc}`).join(", ")}`,
+            };
         return all[Math.max(nth, 1) - 1];
     }
     return { miss: `nothing on screen is called "${name}"` };
@@ -1364,30 +1534,31 @@ async function run(s, steps, out) {
             await opening(s, out);
             out.push("closed the tab and opened the app again in a new tab (the same browser storage)");
         } else if (a === "--drop") {
+            // A real drag from outside the window, through the browser's own input path (trusted
+            // events, a real File), not page-made DragEvents, which the app may ignore. A page that
+            // does not take the drop never sees a drop event; then the tool says so, because a real
+            // browser would open the file itself in place of the app, which headless cannot show.
             const path = fileArg(v);
-            const bytes = readFileSync(path).toString("base64");
-            const target = await page.evaluate(
-                ([b64, name, x, y]) => {
-                    const bin = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
-                    const dt = new DataTransfer();
-                    dt.items.add(new File([bin], name));
-                    const t = document.elementFromPoint(x, y) || document.body;
-                    for (const type of ["dragenter", "dragover", "drop"])
-                        t.dispatchEvent(
-                            new DragEvent(type, {
-                                bubbles: true,
-                                cancelable: true,
-                                dataTransfer: dt,
-                                clientX: x,
-                                clientY: y,
-                            }),
-                        );
-                    return t.tagName.toLowerCase();
-                },
-                [bytes, basename(path), VIEWPORT.width / 2, VIEWPORT.height / 2],
-            );
-            out.push(`dropped the file ${basename(path)} on the middle of the window (${target})`);
+            const [x, y] = [Math.round(VIEWPORT.width / 2), Math.round(VIEWPORT.height / 2)];
+            await page.evaluate(() => {
+                window.__realDrop = null;
+                addEventListener("drop", (e) => setTimeout(() => (window.__realDrop = { taken: e.defaultPrevented })), {
+                    capture: true,
+                    once: true,
+                });
+            });
+            const at = await whatIsAt(page, x, y).catch(() => "?");
+            s.cdp ??= await s.context.newCDPSession(page);
+            const data = { items: [], files: [path], dragOperationsMask: 1 };
+            for (const type of ["dragEnter", "dragOver", "drop"])
+                await s.cdp.send("Input.dispatchDragEvent", { type, x, y, data });
             await page.waitForTimeout(400);
+            const got = await page.evaluate(() => window.__realDrop).catch(() => null);
+            out.push(
+                got?.taken
+                    ? `dropped the file ${basename(path)} on the middle of the window (${at}); the page took it`
+                    : `the drop was not delivered: nothing in the middle of the window (${at}) takes a dropped file; a real browser would open ${basename(path)} itself in place of the app`,
+            );
         }
         for (const p of s.picked.splice(0)) out.push(p);
         if ((s.chooser || s.picker) && a !== "--upload")
@@ -1457,6 +1628,55 @@ async function prove() {
         rowSays({ role: { value: "row" }, childIds: ["c1", "c2"] }, rowTree) === 'row "0.10 - 0.20" | "7"',
         "it read the row as (no name)",
     );
+
+    // the browser gate: one machine-wide pool of four, shared with every other browser run
+    {
+        const g = spawnSync(gate, ["printenv", "BROWSER_SLOT_FILE"], { encoding: "utf8" });
+        const pool = join(
+            dirname(
+                spawnSync("git", ["-C", here, "rev-parse", "--path-format=absolute", "--git-common-dir"], {
+                    encoding: "utf8",
+                }).stdout.trim(),
+            ),
+            "tmp/browser-slots/",
+        );
+        check(
+            "the gate takes its slot from the machine's shared pool (the main checkout's tmp/browser-slots)",
+            g.status === 0 && g.stdout.startsWith(pool),
+            `exit ${g.status} ${g.stdout}${g.stderr}`,
+        );
+        const five = spawnSync(gate, ["true"], { encoding: "utf8", env: { ...process.env, BROWSER_SLOTS: "5" } });
+        check(
+            "the gate refuses BROWSER_SLOTS above 4",
+            five.status === 2 && /BROWSER_SLOTS must be 1 to 4/.test(five.stderr),
+            `exit ${five.status} ${five.stderr}`,
+        );
+    }
+
+    // the participant's side: a briefing with the prompt only, and no facilitator file in the folder
+    {
+        const P = join(base, "brief");
+        const b = node(["--brief", P, "--task", "T18B", "--persona", "Ruth"]);
+        const text = existsSync(join(P, "briefing.md")) ? readFileSync(join(P, "briefing.md"), "utf8") : "";
+        check(
+            "a briefing holds the prompt word for word, the start and the history, and nothing for facilitators",
+            b.status === 0 &&
+                text.includes("The Strozzi want a message carried to the Pazzi") &&
+                text.includes("setup:florentine-ranked.txt") &&
+                text.includes("## Your earlier sessions") &&
+                !/Peruzzi|Words avoided|Facilitator notes|Suits:/.test(text),
+            `exit ${b.status} ${b.stderr}`,
+        );
+        const Q = join(base, "dirty");
+        await mkdir(Q, { recursive: true });
+        await writeFile(join(Q, "notes.md"), "- **Words avoided:** filter, keep\n");
+        const q = node(["--start", Q, "empty"]);
+        check(
+            "a start refuses a folder that holds a facilitator file",
+            q.status === 2 && /facilitator files .*notes\.md/.test(q.stderr) && !existsSync(sockOf(Q)),
+            `exit ${q.status} ${q.stderr}`,
+        );
+    }
 
     // refused before anything opens
     const refused = node(["--step", join(base, "none"), "--bogus", "x"]);
@@ -1790,7 +2010,49 @@ async function prove() {
         gone && /closing the session/.test(readFileSync(join(E, "session.log"), "utf8")),
         `exit ${r.status} ${r.stdout}${r.stderr}`,
     );
-    return finish(bad, [A, B, C, D, E]);
+    // a shared name is refused with its candidates; a dropped file goes through the browser itself
+    const H = join(base, "session-h");
+    r = node(["--start", H, "setup:friends-ranked.txt"]);
+    if (check("a ranked setup starts", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) {
+        let x = step(H, "--click", "PageRank");
+        check(
+            "a name several controls share is refused, with each candidate named",
+            /ambiguous: "PageRank" matches \d+ controls, so the step did nothing; name one: "PageRank#1" treeitem/.test(
+                x.out,
+            ) && pngs(H).length === 2,
+            x.out,
+        );
+        x = step(H, "--drop", "friends-v2.csv");
+        check(
+            "a drop where nothing takes it says it was not delivered",
+            /the drop was not delivered: nothing in the middle of the window \(empty canvas\)/.test(x.out),
+            x.out,
+        );
+    }
+    node(["--end", H]);
+    const I = join(base, "session-i");
+    r = node(["--start", I, "empty", "--task", "T17A"]);
+    if (check("a start with a task", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) {
+        const x = step(I, "--click", "No thanks", "--drop", "friends.csv", "--expect", "role=button:Project: friends");
+        check(
+            "a file dropped on the start screen opens it",
+            x.code === 0 && /dropped the file friends\.csv .*; the page took it/.test(x.out),
+            x.out,
+        );
+        r = node(["--end", I]);
+        const rec = JSON.parse(readFileSync(join(I, "session.json"), "utf8"));
+        check(
+            "the first --end of a T17 or T18 session hands over the follow-up and keeps the session open",
+            r.status === 3 &&
+                /"Your club now asks the same for pairs who ran together 5 or more times\./.test(r.stdout) &&
+                existsSync(sockOf(I)) &&
+                /^given /.test(rec.followUp),
+            `exit ${r.status} ${r.stdout}${r.stderr}`,
+        );
+        r = node(["--end", I]);
+        check("the second --end ends it", r.status === 0 && !existsSync(sockOf(I)), `exit ${r.status} ${r.stdout}`);
+    }
+    return finish(bad, [A, B, C, D, E, H, I]);
 }
 function finish(bad, dirs) {
     for (const d of dirs)
@@ -1802,15 +2064,29 @@ function finish(bad, dirs) {
 // ---------- main ----------
 const args = process.argv.slice(2);
 const mode = args[0];
+const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+// the positional arguments after the mode, without the bare flags and the flags that take a value
+const rest = (bare, valued) =>
+    args.slice(1).filter((x, i, a) => !bare.includes(x) && !valued.includes(x) && !valued.includes(a[i - 1]));
 let code = 0;
 if (mode === "--serve") {
     await serve(resolve(args[1]), args[2] === "--sr");
 } else if (mode === "--start") {
-    const [dir, how] = args.slice(1).filter((x) => x !== "--sr");
+    const task = flag("--task");
+    const [dir, how] = rest(["--sr"], ["--task"]);
     if (!dir) {
-        console.error("usage: real.mjs --start <session dir> [empty | setup:<file>] [--sr]");
+        console.error("usage: real.mjs --start <session dir> [empty | setup:<file>] [--sr] [--task T17A]");
         code = 2;
-    } else code = await start(dir, how || "empty", args.includes("--sr"));
+    } else code = await start(dir, how || "empty", args.includes("--sr"), task);
+} else if (mode === "--brief") {
+    const [dir] = rest([], ["--task", "--persona"]);
+    const why = dir
+        ? await brief(dir, flag("--task"), flag("--persona"))
+        : "usage: real.mjs --brief <session dir> [--task T17A --persona <name>]";
+    if (why) {
+        console.error(why);
+        code = 2;
+    } else console.log(join(resolve(dir), "briefing.md"));
 } else if (mode === "--step") {
     const p = parseSteps(args.slice(2));
     if (!args[1] || p.refused) {
@@ -1827,16 +2103,19 @@ if (mode === "--serve") {
         const r = await ask(args[1], { op: "end" }).catch(() => ({
             out: ["the session did not answer; removed its socket"],
             code: 0,
+            end: true,
         }));
-        for (let i = 0; existsSync(sockOf(args[1])) && i < 50; i++) await new Promise((ok) => setTimeout(ok, 100));
-        await rm(sockOf(args[1]), { force: true });
+        if (r.end) {
+            for (let i = 0; existsSync(sockOf(args[1])) && i < 50; i++) await new Promise((ok) => setTimeout(ok, 100));
+            await rm(sockOf(args[1]), { force: true });
+        }
         code = say(r);
     }
 } else if (mode === "--prove") {
     code = await prove();
 } else {
     console.error(
-        "usage: real.mjs --start <dir> [empty|setup:<file>] [--sr] | --step <dir> <steps...> | --end <dir> | --prove",
+        "usage: real.mjs --brief <dir> | --start <dir> [empty|setup:<file>] [--sr] [--task T17A] | --step <dir> <steps...> | --end <dir> | --prove",
     );
     code = 2;
 }

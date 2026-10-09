@@ -650,6 +650,75 @@ describe("mine and disown from inside a Claude session", () => {
         });
     });
 
+    it("done takes every githerd_done field as a flag, a repeated --defect, or a whole --report-file", async () => {
+        const d = await daemon({ peers: { sessions: () => [], registered: () => registered } });
+        const job = { ...newJob({ kind: "issue", target: "#741", id: "issue-741" }, new Date()), facts: {} };
+        const other = { ...newJob({ kind: "issue", target: "#743", id: "issue-743" }, new Date()), facts: {} };
+        d.state.jobs = { "issue-741": job, "issue-743": other };
+        const agent = {
+            session: inSession(),
+            tty: false,
+            extraEnv: { CLAUDECODE: "1", HOME: join(dir, "elsewhere"), GITHERD_DEV_STATE: d.stateDir },
+        };
+        const claim = async (/** @type {string} */ id) => {
+            const { snapshot } = JSON.parse((await cli(["next"], agent)).out);
+            const args = ["claim", id, "--snapshot", String(snapshot.version), "--overlap", "independent"];
+            expect((await cli([...args, "--plan", "p", "alone"], agent)).code).toBe(0);
+        };
+        await claim("issue-741");
+        const head = "c".repeat(40);
+        const done = await cli(
+            [
+                "done",
+                "issue-741",
+                "--outcome",
+                "failed",
+                "--evidence",
+                "master already has it",
+                "--theory",
+                "a race",
+                "--pushed-head",
+                head,
+                "--children",
+                "5,6",
+                "--defect",
+                "flaky lane",
+                "--defect",
+                '{"summary":"bad cache","issue":12}',
+                "--reason",
+                "gave up",
+                "looked",
+                "hard",
+            ],
+            agent,
+        );
+        // The daemon took the report (whether GitHub confirms the defect issue is its own business).
+        expect(done.err).not.toContain("usage");
+        expect(job.report).toMatchObject({
+            outcome: "failed",
+            evidence: "master already has it",
+            theory: "a race",
+            pushedHead: head,
+            children: [5, 6],
+            reason: "gave up",
+            findings: "looked hard",
+            defects: [{ summary: "flaky lane" }, { summary: "bad cache", issue: 12 }],
+        });
+
+        expect(await cli(["done", "issue-741", "--pushedHead", head, "x"], agent)).toMatchObject({
+            code: 2,
+            err: "githerd done: githerd done takes no --pushedHead",
+        });
+
+        const file = join(dir, "report.json");
+        const report = { outcome: "failed", findings: "from the file", reason: "file", defects: [{ summary: "d" }] };
+        writeFileSync(file, JSON.stringify(report));
+        await claim("issue-743");
+        const fromFile = await cli(["done", "issue-743", "--report-file", file, "--theory", "flag wins"], agent);
+        expect(fromFile.err).not.toContain("usage");
+        expect(other.report).toMatchObject({ ...report, theory: "flag wins" });
+    });
+
     it("refuses outside a Claude session, and refuses a worker", async () => {
         const d = await daemon({ peers: { sessions: () => [], registered: () => registered } });
         d.state.prs = { 710: { headSha: "a".repeat(40) } };

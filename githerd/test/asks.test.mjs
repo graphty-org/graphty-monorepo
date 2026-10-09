@@ -252,6 +252,8 @@ describe("onboarding the sessions the owner made githerd workers", () => {
             "`githerd claim <job> --snapshot <version> --overlap independent --plan",
             '`githerd status-answer <job> --capacity <n> "<status>"`',
             '`githerd done <job> --outcome done --pr <n> "<summary>"`',
+            "--evidence, --theory, --pushed-head, --children 1,2, a repeated --defect",
+            "--report-file <report.json>",
             "background subagent",
             "githerd_expect",
             "githerd_done",

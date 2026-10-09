@@ -304,7 +304,9 @@ function onboardText(name, cli) {
         "Report each job's result with githerd_done. A session without githerd's tools, or whose tools fail, " +
         `runs each step from its shell instead: \`${cli} next\`, \`${cli} claim <job> --snapshot <version> ` +
         `--overlap independent --plan "<plan>" "<overlap reason>"\`, \`${cli} status-answer <job> --capacity <n> ` +
-        `"<status>"\`, \`${cli} done <job> --outcome done --pr <n> "<summary>"\`, and about its pull requests ` +
+        `"<status>"\`, \`${cli} done <job> --outcome done --pr <n> "<summary>"\` (it takes every githerd_done ` +
+        "field as a flag: --evidence, --theory, --pushed-head, --children 1,2, a repeated --defect " +
+        `"<summary>" or --defect '{"summary":"...","issue":12}', or --report-file <report.json>), and about its pull requests ` +
         `\`${cli} mine <pr>\` and \`${cli} disown <pr>\` (\`${cli} help\` lists every flag).\n` +
         "Read more in githerd/README.md and in each job's text.\n" +
         "Start taking jobs now, unless the owner tells you otherwise. If the owner has you busy with other work, " +

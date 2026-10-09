@@ -35,7 +35,7 @@ import {
     writeDaemonEnv,
 } from "./launcher.mjs";
 import { UNCHECKED_STOPS } from "./hook.mjs";
-import { TOOL_PROTOCOL } from "./mcp.mjs";
+import { TOOL_PROTOCOL, TOOLS } from "./mcp.mjs";
 import { createNotifier } from "./notify.mjs";
 import { backfillGate, gateReport, gateText, readPushes } from "./prepush.mjs";
 import { pushQueueTickets, sameProcess } from "./proc.mjs";
@@ -86,7 +86,12 @@ const USAGE = `usage: githerd <command>
   status-answer <job> [--capacity <n>] "<status>"
                                            githerd_expect: answer githerd's status question on a job
   done <job> --outcome done|split|not-needed|deferred|failed [--pr <n>] [--commits <sha,...>]
-       [--reason "<why>"] "<summary>"      githerd_done: report the end of an attempt
+       [--reason "<why>"] [--evidence "<proof>"] [--theory "<why it broke>"] [--pushed-head <sha>]
+       [--children <n,...>] [--defect "<summary>" | --defect '{"summary":"..","issue":12}' ...]
+       [--findings "<text>"] [--result '<json>'] [--report-file <report.json>] "<summary>"
+                                           githerd_done: report the end of an attempt; the summary
+                                           is the findings (and the reason, unless --reason);
+                                           --defect repeats; --report-file holds a whole report
   answer <item> <words>                    answer an owner item ("not yet" keeps it open)
   order <N...> <words>                     record an order: these issues, in this order
   policy [freeze-merges | park-gate <lane> | hold-package <name>] <words>
@@ -233,13 +238,16 @@ async function post(port, path, body, headers = {}) {
  * Splits arguments into positionals and `--flag value` pairs (`--json`, `--send-test`, `--stop`,
  * `--with-job`, `--list`, `--backfill` and `--backfill-gate` take no value).
  * @param {string[]} args the arguments after the command
- * @returns {{positional: string[], flags: Record<string, string | true>}} the parts
+ * A flag given more than once keeps its last value in `flags` and every value in `lists`.
+ * @returns {{positional: string[], flags: Record<string, string | true>, lists: Record<string, string[]>}} the parts
  */
 function parseArgs(args) {
     /** @type {string[]} */
     const positional = [];
     /** @type {Record<string, string | true>} */
     const flags = {};
+    /** @type {Record<string, string[]>} */
+    const lists = {};
     const rest = [...args];
     for (let a = rest.shift(); a !== undefined; a = rest.shift()) {
         if (!a.startsWith("--")) positional.push(a);
@@ -247,9 +255,13 @@ function parseArgs(args) {
             ["--json", "--send-test", "--stop", "--with-job", "--list", "--backfill", "--backfill-gate"].includes(a)
         )
             flags[a.slice(2)] = true;
-        else flags[a.slice(2)] = rest.shift() ?? "";
+        else {
+            const value = rest.shift() ?? "";
+            flags[a.slice(2)] = value;
+            (lists[a.slice(2)] ??= []).push(value);
+        }
     }
-    return { positional, flags };
+    return { positional, flags, lists };
 }
 
 /**
@@ -295,6 +307,7 @@ function daemonEnv(record, stateDir) {
  * @property {string} name the command
  * @property {string[]} positional its positional arguments
  * @property {Record<string, string | true>} flags its flags
+ * @property {Record<string, string[]>} lists every value of each flag given with a value
  * @property {string} cwd where it runs
  * @property {Record<string, string | undefined>} env the environment
  * @property {(line: string) => void} out standard output
@@ -577,6 +590,7 @@ function toolCall(c) {
     const f = (/** @type {string} */ k) => (typeof c.flags[k] === "string" ? c.flags[k] : undefined);
     const num = (/** @type {string} */ k) => (f(k) === undefined ? undefined : Number(f(k)));
     if (c.name === "next") return { tool: "githerd_next", args: {} };
+    if (c.name === "done") return job ? { tool: "githerd_done", args: doneArgs(c, job, text) } : null;
     if (!job || !text) return null;
     if (c.name === "claim") {
         const overlap = { decision: f("overlap"), with: f("with"), reason: text };
@@ -585,9 +599,73 @@ function toolCall(c) {
     if (c.name === "status-answer") {
         return { tool: "githerd_expect", args: { job, reason: text, capacity: num("capacity") } };
     }
-    const commits = f("commits")?.split(",");
-    const report = { outcome: f("outcome"), pr: num("pr"), commits, reason: f("reason") ?? text };
-    return { tool: "githerd_done", args: { job, ...report, findings: text, defects: [] } };
+    return null;
+}
+
+/** githerd_done's argument schema: `githerd done` takes one flag per property, so they cannot drift. */
+const DONE_PROPERTIES = /** @type {Record<string, import("./schema.mjs").Schema>} */ (
+    TOOLS.find((t) => t.name === "githerd_done")?.inputSchema.properties
+);
+
+/**
+ * A githerd_done property's flag: `pushedHead` is `--pushed-head`.
+ * @param {string} key the property
+ * @returns {string} the flag, without its dashes
+ */
+const flagOf = (key) => key.replaceAll(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+
+/**
+ * One flag's value as its schema types it: a number, a comma list (of numbers or strings), a
+ * string, or JSON for anything structured.
+ * @param {import("./schema.mjs").Schema} schema the property's schema
+ * @param {string} value the flag's text
+ * @returns {unknown} the value
+ */
+function typedFlag(schema, value) {
+    const scalar = (/** @type {any} */ s, /** @type {string} */ v) =>
+        s.type === "integer" || s.type === "number" ? Number(v) : v;
+    if (schema.type === "string" || schema.type === "integer" || schema.type === "number") return scalar(schema, value);
+    const item = /** @type {any} */ (schema.items);
+    if (schema.type === "array" && item?.type !== "object") return value.split(",").map((v) => scalar(item, v));
+    return JSON.parse(value);
+}
+
+/**
+ * One `--defect`: a JSON object (`{"summary": "...", "issue": 12}`) or a bare summary.
+ * @param {string} value the flag's text
+ * @returns {unknown} the defect
+ */
+const defectOf = (value) => (value.trim().startsWith("{") ? JSON.parse(value) : { summary: value });
+
+/**
+ * githerd_done's arguments from `githerd done`: `--report-file <json>` first, then one flag per
+ * schema property (`--pushed-head`, `--children 1,2`, `--defects '<json>'`), then each repeatable
+ * `--defect`; the positional words are the findings when `--findings` is not given. The daemon
+ * checks the result against the schema.
+ * @param {Command} c the command
+ * @param {string} job the job
+ * @param {string} text the positional words
+ * @returns {Record<string, unknown>} the arguments
+ * @throws {Error} on an unknown flag, unreadable JSON or an unreadable report file
+ */
+function doneArgs(c, job, text) {
+    const known = new Map(Object.keys(DONE_PROPERTIES).map((k) => [flagOf(k), k]));
+    const unknown = Object.keys(c.flags).filter((f) => !known.has(f) && f !== "defect" && f !== "report-file");
+    if (unknown.length) throw new Error(`githerd done takes no --${unknown.join(", --")}`);
+    const file = c.flags["report-file"];
+    /** @type {Record<string, unknown>} */
+    const args = typeof file === "string" ? JSON.parse(readFileSync(resolve(c.cwd, file), "utf8")) : {};
+    for (const [flag, key] of known) {
+        const value = c.flags[flag];
+        if (typeof value === "string") args[key] = typedFlag(DONE_PROPERTIES[key], value);
+    }
+    const defects = (c.lists.defect ?? []).map(defectOf);
+    args.defects = [.../** @type {unknown[]} */ (args.defects ?? []), ...defects];
+    if (text) {
+        args.findings ??= text;
+        args.reason ??= text;
+    }
+    return { ...args, job };
 }
 
 /**
@@ -598,15 +676,19 @@ function toolCall(c) {
  * @returns {Promise<number>} the exit code
  */
 async function cmdSessionTool(c) {
-    const call = toolCall(c);
+    let call;
+    try {
+        call = toolCall(c);
+    } catch (e) {
+        c.err(`githerd ${c.name}: ${/** @type {Error} */ (e).message}`);
+        return 2;
+    }
     if (!call) {
-        const at = USAGE.split("\n").findIndex((l) => l.startsWith(`  ${c.name} `));
-        c.err(
-            `usage: ${USAGE.split("\n")
-                .slice(at, at + 2)
-                .join("\n")
-                .trim()}`,
-        );
+        // The command's usage lines: its own and its continuations, up to the next command.
+        const lines = USAGE.split("\n");
+        const at = lines.findIndex((l) => l.startsWith(`  ${c.name} `));
+        const end = lines.findIndex((l, i) => i > at && /^ {2}\S/.test(l));
+        c.err(`usage: ${lines.slice(at, end).join("\n").trim()}`);
         return 2;
     }
     const s = c.session();

@@ -4,6 +4,27 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- Decided by the team: a shortest path can follow edges one way (`direction`)
+
+**What.** graphty-element's shortest-path algorithms (Dijkstra and Bellman-Ford, the two a path
+run left to choose its method picks between) gain one optional option, `direction: "out" | "in" |
+"all"`, the same values as the neighborhood's `SelectionDirection`. `"all"`, the default, is
+today's behavior: an edge may be crossed either way. `"out"` crosses an edge only from its source
+to its target, `"in"` only from target to source; on an undirected graph every value acts as
+`"all"`. The run records the value it used, like every option. Additive: a run that does not set
+it behaves exactly as before.
+
+**Why.** The tier 2 design gives the app's path form a "Follow: Out | All" choice on a directed
+graph, and it was never built: the element's search always ignores direction, so there was
+nothing to bind it to. In the fourth dry run a path on the friends network ran against two of the
+drawn arrows and nothing on screen said a path counts ties either way. With the option, the form
+shows "Follow: All" and Made with records it.
+
+**Alternatives.** Follow the graph's own direction by default (changes what every existing path
+run returns: breaking, and an opinionated default); a boolean `directed` (cannot say "in", which
+the neighborhood already offers); the app reversing or filtering edges itself (computing over the
+graph outside the element).
+
 ## 2026-10-08 -- Decided by the team: find counts its hits by kind (`FindResult.totals`)
 
 **What.** graphty-element's `FindResult` gains `totals: { node: number; edge: number }`: how many

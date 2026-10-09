@@ -5,20 +5,22 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-08 (third dry run before tier 2 round 1 triaged).
+Last updated: 2026-10-08 (fourth dry run before tier 2 round 1 triaged).
 
 ## Top of mind
 
-- 2026-10-08: THIRD DRY RUN (`tier2/dry-run-r1-3.md`) on the frozen build 909b19b57: 96 items,
-  46 fix, 26 left, 24 no change. Fewer blockers again, but three would have shaped sessions: a
-  menu's Escape clearing the selection, a find list hiding 11 of 17 ties, a tooltip over the T21
-  note after Load. Two came from the second run's own fixes. Round 1 needs ANOTHER frozen build and
-  re-pilot; no round starts until a dry run on its exact build finds no (a) item a participant
-  would hit on a task path.
-- 2026-10-08: Two open questions dominate all three dry runs and are NOT polish: names are not drawn by
-  default, and nodes overlap in the 3D drawing (size-aware spacing is deferred: layout `nodeSize`
-  "not used yet"). Both decide whether a reader can check a list against the drawing. Watch them
-  in round 1; bring the owner the evidence, not a guess.
+- 2026-10-08: FOURTH DRY RUN (`tier2/dry-run-r1-4.md`) on frozen build 8c4eef472: 97 items, 25
+  fix, 39 left, 33 no change. Three would have shaped sessions: "Edit source..." doubling every
+  tie, a tooltip hiding names being counted, one Escape discarding a whole import. Two fixes undo
+  third-run fixes that made new defects (menu highlight, title underline); one is a decided
+  feature never built (path Follow). Round 1 still needs a new frozen build and a re-pilot that
+  finds no (a) item on a task path.
+- 2026-10-08: Every dry run has found a decided-but-unbuilt item or a fix that made a new defect.
+  Before freezing, list each tier 2 design decision as built or not on the build (the round 2
+  lesson), and re-pilot the exact screens each fix touched.
+- 2026-10-08: The open questions are unchanged after four dry runs and are NOT polish: names not
+  drawn by default; nodes and labels overlap in the 3D drawing; how a stale run is marked; where
+  the path form lives. Watch them in round 1; bring the owner the evidence, not a guess.
 - 2026-10-08: The discarded sessions show the real T20 question: 4 of 5 opened with "Open project
   or file", found no place to set the weight's meaning after load, and went back to "New from
   data". Left for the sessions on purpose (dry-run items 58, 60, S10, S16).
@@ -42,8 +44,6 @@ Last updated: 2026-10-08 (third dry run before tier 2 round 1 triaged).
 - 2026-10-07: Tier 2 WAITS (with reasons in the doc): several node types / Links to (no task needs
   it; biggest format door -- owner design first), node weight (no reader), Select where dialog
   (Find "=" is the one home), multi-query path rows, Add as steps, selection bar, OR/NOT.
-- 2026-10-07: Tier 2 element doors are recorded in `owner-decisions.md` (filter steps, weight
-  meaning at load, `E_BAD_SELECTOR` reason, `data.sources()`, StaleNote reason).
 - 2026-10-07: Distance readers given a similarity/unset weight count hops and say so with a code;
   never read strength as distance. Similarity readers read unset as similarity (glossary 11).
 - 2026-10-07: Words: glossary wins over refined B. "Follow: Out | In | All" (path: Out | All, directed
@@ -51,13 +51,12 @@ Last updated: 2026-10-08 (third dry run before tier 2 round 1 triaged).
   never "route". Filter chip only while a step is on.
 - 2026-10-07: Owner one-way doors still open in `owner-decisions.md` (screenshot legend, undirected
   arrowheads, export group rank, legend covered layer -> recommend master's `legend.painted-over`,
-  `optionsFor`, canvas `aria-label`, 2D zoom doc) plus the round 3 and tier 2 doors.
+  `optionsFor`, canvas `aria-label`, 2D zoom doc) plus the round 3 and tier 2 doors; also
+  usage-data card wording, tooltip delay (500 vs 1000 ms), a run's style above a reader's layer.
 - 2026-10-07: Severity 4 needs a wrong conclusion a reader would act on, from what the participant
   could perceive. Never prime graders with the outcome to look for.
 - Before a new element API, grow an existing method (`CodedFact`, `CameraViewInput.current`,
   `WeightMeaning`, `ElementAtResult` already exist). Remove before adding; words at rest never rise.
-- Open owner items: usage-data card wording, tooltip delay (500 vs 1000 ms), whether a run's
-  suggested style lands above a reader's color-everything layer.
 
 ## Priorities and values
 
@@ -150,54 +149,36 @@ Last updated: 2026-10-08 (third dry run before tier 2 round 1 triaged).
   per-task). Old setups kept for pilot reproducibility, used by no task. Added
   `tool/files/long-names.csv` for the truncation audit.
 
-- 2026-10-08 -- Dry run triage (me, `tier2/dry-run-r1-1.md`). Fix now: any defect a participant
-  could hit (clipped text with room, dead or always-enabled controls, focus left on the canvas or
-  a container, raw notation, wrong values, the equal-bar histogram, a path color lost in the
-  PageRank ramp, unnamed or same-named controls, tool faults). Leave: where the weight meaning is
-  set after load, where the path form lives, several path rows, how stale values are marked,
-  labels by default, selection over color, hover linking. Two element changes go to the owner as
-  possibly breaking (histogram per-value binning only for counts; path node color) but are built
-  now so the study does not run on them; left-out rows gain `line` and `endColumns` (additive,
-  team). Reason: the sessions must spend their time on what returning users need.
+- 2026-10-08 -- Dry runs one to three (summarized; full text in `tier2/dry-run-r1-{1,2,3}.md` and
+  git history of this file). Rule: fix any defect a participant could hit, in its owning package;
+  leave what the task asks. Fixed across the three: clipped rows (one compact-mantine fix, then
+  `descriptionVisible`), Escape consumed by the list or menu it closes, pointer-opened menus with no
+  highlight, tooltips only after the pointer moves onto the target, focus to the inspector title
+  after an action and to a saved note, run method recorded (element, additive), left-out rows with
+  line and end columns, labels `onTop` (element option, app sets it), path color off the default
+  blue, find list counts and scrollbar, one run kind in tree and inspector, Save on an off step
+  turns it on. Left every time: names by default, 3D overlap, where the path form lives, stale
+  marks, weight meaning after load, saved-state mark, Recent row, units on a total.
 
-- 2026-10-08 -- Second dry run triage (me, `tier2/dry-run-r1-2.md`). Fix now, in the owning
-  package: the shared row lets its count yield before the name (one compact-mantine fix for every
-  Sources and Filters row); a shared list consumes the Escape that closes it; a pointer-opened
-  menu highlights nothing; the run records which method it used and the catalog can spell
-  "Bellman-Ford" (element, additive); a left-out row says which end is missing (element,
-  additive); labels may draw on top (element option, neutral default off, the app sets it); the
-  path color must stand out from the default node color too (element default, owner list). App
-  decisions: saving a filter step turns it on; after an action fills the inspector, focus goes
-  to the inspector's title, not a value row; after a saved note, to that note; one neighborhood
-  heading, "<name>'s N connections", at every hop count (restores the tested words); a selection
-  of several edges lists them; the single main landmark loses its name. Leave: names by default,
-  3D overlap, where the filter action and the path form live, stale marks, the weight after load,
-  "Hops" as a word. Reason: each fixed item is a seam a participant would trip on; each left item
-  is the question its task asks.
-
-- 2026-10-08 -- Third dry run triage (me, `tier2/dry-run-r1-3.md`, pilots in
-  `tier2/rounds/r1d2/pilot/`), on the frozen build 909b19b57: 96 items, 46 fix, 26 sessions, 24 no
-  change. Fix now: Sources counts as a visible second line (the existing `descriptionVisible`, not a
-  new truncation rule); left-out rows wrap and wear the warning mark after Load too; the tree offers
-  its child band off (Figma keeps it; in this app selecting a parent never selects children) and
-  the app turns it off; the shared menu consumes the Escape that closes it and never highlights a
-  disabled item; type-ahead takes letters and digits only ("/" reaches Find); the chosen side of a
-  two-way choice is readable; a tooltip opens only after the pointer moves onto its target (a
-  target that slides under a resting pointer after Load covered the T21 note in every session);
-  the import page's sentences at the 11 px body size, the weight line below the roles; "Save and
-  turn on" on an off step; chip tooltip says what shows and that a click opens the Filters; a
-  neighbors step leads with its hop count; one kind for a path run in tree and inspector (fixes the
-  icon and the unmarked row together); one "Weight" name in the path form; the inspector title
-  keeps focus but loses the box that read as an editable name; the neighborhood view focuses the
-  checked Hops choice, not a row; "Ava's 14 connections within 2 hops" past one hop (one hop keeps
-  the tested words); every actions button gets a tooltip; the find list shows its counts and its
-  scrollbar and never leaves a heading alone at its edge; the Graph title tooltip only when cut;
-  the Selection row shows the edge band settings it draws with; one label style in the Style tab;
-  trace why the edge band still covers a name with `onTop` built; study tool records the build's
-  commit and finds relative setup paths. Leave: names by default, 3D overlap, where the path form
-  lives and whether it keeps the last pair, stale marks, weight meaning after load, a saved-state
-  mark, the Recent row, units on a total, where the graph overview is reached. Reason: each fixed
-  item is a seam a participant trips on; each left item is the question its task asks.
+- 2026-10-08 -- Fourth dry run triage (me, `tier2/dry-run-r1-4.md`, pilots in
+  `tier2/rounds/r1d3/pilot/`), on the frozen build 8c4eef472: 97 items, 25 fix, 39 sessions, 33 no
+  change. Fix now: a click keeps its target's tooltip closed until the pointer leaves (a toggle's
+  new label remounted the tooltip over the names being counted: one pilot counted 12 for 14), and
+  "Filter to neighbors" tooltips open to the right; a pointer-opened menu highlights nothing even
+  when its first row is disabled (regression of the third run's fix); left-out inspector with
+  "Added" and "Left out" sections, left-out first on its own row; the path form's Follow (Out | All)
+  that the tier 2 design decided and nobody built -- element gains `direction` on shortest path,
+  default "all" (additive, team, `owner-decisions.md`); "Edit source..." replaces its source instead
+  of adding a copy (41 ties became 82), and is not offered where a source cannot be replaced; Escape
+  on the import page leaves only while nothing is chosen; Replace summary drops a zero count; Undo
+  and Redo name their step from `HistoryStep.fact`, and Escape that clears a selection says what it
+  cleared; the inspector title takes no visible focus mark (a focused heading, not a control; the
+  box read as a field, the underline as a link); focus after Rerun to the title and after "Back to"
+  to Degree; the "farther" example fits any data; the find hint's example wraps whole; reopen
+  framing traced; damping factor's single-precision value traced. Reversed my own third-run (n) on
+  the neighbors tooltip: here the covered row is the answer. Kept (n): default cursor on the chip,
+  a tooltip over the rail. Reason: each fix is a seam a participant trips on; each left item is the
+  question its task asks.
 
 ## Tried: worked / did not work
 
@@ -270,6 +251,14 @@ Last updated: 2026-10-08 (third dry run before tier 2 round 1 triaged).
   and unmarked row). Did not work: the second run's "end the find list on a whole row" fix; it
   hid the cut instead of showing it. A fix for a cut must show that more exists, not hide the cut.
 
+- 2026-10-08 (fourth dry run) -- Worked: checking each "known on this build" item in source
+  before keeping it. The path direction note led to an unbuilt decision (no Follow, and the
+  element's search ignores direction); the "Edit source" trap turned out to be a mislabeled
+  command (an "add" request) rather than a design question; "row (no name)" was the tool printing
+  a table row's name, not the app. Did not work: the third run's fixes for a disabled first menu
+  row and a boxed title focus each made the next defect. Lesson: a focus or highlight fix needs
+  both a keyboard and a pointer walk on the exact screen before it is called done.
+
 ## Thinking
 
 - **What tier 2 needs before its first round:** tasks and answers for filter, shortest chain,
@@ -288,7 +277,7 @@ Last updated: 2026-10-08 (third dry run before tier 2 round 1 triaged).
 
 ## Sources
 
-- Tier 2 (2026-10-08): `tier2/dry-run-r1-1.md`, `tier2/dry-run-r1-2.md` (pilots in `tier2/rounds/r1d1/pilot/`), `tier2/dry-run-r1-3.md` (pilots in `tier2/rounds/r1d2/pilot/`), `tier2/criteria.md` (frozen), `tier2/tasks.md`, `tier2/roster.md` ("Where each
+- Tier 2 (2026-10-08): `tier2/dry-run-r1-4.md` (pilots in `tier2/rounds/r1d3/pilot/`), `tier2/dry-run-r1-1.md`, `tier2/dry-run-r1-2.md` (pilots in `tier2/rounds/r1d1/pilot/`), `tier2/dry-run-r1-3.md` (pilots in `tier2/rounds/r1d2/pilot/`), `tier2/criteria.md` (frozen), `tier2/tasks.md`, `tier2/roster.md` ("Where each
   session starts"), `rounds/tier-2/setups/*-ranked*.txt`; reviews in `notes/researcher.md`,
   `notes/user.md`, `notes/redteam.md`.
 - Studio: `criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `owner-decisions.md`,

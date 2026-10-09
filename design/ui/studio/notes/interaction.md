@@ -15,46 +15,38 @@ save and reopen.
 
 ## Top of mind
 
-- 2026-10-07 **Tier 2 build order (my proposal):** the path-row crash first (a live defect that
-  wipes the app), then the element's edge-attribute filter defect, Filters, the loaded-weight
-  default, Notes, the Path popover, Select where, Replace with file, the neighborhood distance,
-  edge selection, several tables, node weight last. Several tables is the biggest and its load
-  description is a one-way door.
-- 2026-10-07 **Keep the round-2 neighbors win when adding distance.** G and the Degree row still
-  act at once (1 hop, the named list); Hops 1-3, direction, Filter to neighbors and Add as steps
-  go INTO that list's header, not a popover in front of it. This departs from refined B's
-  Neighborhood popover; reversible, mine.
-- 2026-10-07 **Pick fields beat Shift-click.** The Path popover's From and To are pick fields
-  (click the field, then a node on the canvas, or type a name with Find's list). Audit: a second
-  node needed Shift-click on unlabeled dots.
-- 2026-10-07 **Round 3 must prove the unwalked fixes, not assume them.** The re-pilot (build
-  b7590f8de) walked every tier 1 task by pointer and all reach their end state, but no pilot
-  touched the menu-to-dialog focus, 2D Fit, the chevron hit area, the canvas name and focus ring,
-  or the finished-load and finished-run announcements. Preflight runs `repro/r2-s07/repro-menu.sh`,
-  a 2D Fit, a chevron click and one `--sr` session before any participant.
-- 2026-10-07 **Watch the sizing detour.** Size "+" now opens its list (decided over my "arrive
-  bound to the run": on a community run that would size by a group id -- the Director was right).
-  Esc on that list leaves a fixed "1", no Size key row, focus on the chain-link (T9 B/06). Count
-  how many stop there believing they sized.
-- 2026-10-07 **Recovery routes are first-class.** Fit is what a lost reader presses. A broken
-  recovery route outranks a slow forward route. Also watch selection recentering that pushes
-  nodes under the toolbar (T12) and Spectral framing a knot under it (T11).
-- 2026-10-07 **A decided change that is not verified on the served build is not done.** The run
-  rename slipped a whole round; it is now built (T7: "PageRank" on row, key, inspector).
-- 2026-10-07 **Feedback that contradicts the drawing:** Everything's Style tab shows Color blue,
-  Size 1 while every dot is orange and sized by the run above it (T15 finding 4). Same trust
-  failure as round 8's "panel says one thing, drawing another". Watch; candidate for round 4.
-- 2026-10-07 **Element English leaks into my refusals** (layout refusal sentence, "centre").
-  The in-place refusal pattern holds; its words must come from codes (issue #867 family).
-- 2026-10-07 **The neighbors flow is done** (round 2: 8 of 8; re-pilot via G also works). Do not
-  add a Degree cue or touch the Neighborhood command.
-- 2026-10-07 **Simulated participants are one model; the study tool is deaf to active options,
-  browse mode and pre-filled live regions.** Trust reproductions and causes in code.
+- 2026-10-09 **The dry runs walked only the answer key's routes.** Four builds plus the frozen
+  build were walked task by task and every success path worked; no participant met a broken
+  control there. Participants' detours (styling, selection display) met build defects no walk had
+  touched. From now on a dry run also walks each task's commonest detours (the previous round's
+  wrong turns, plus "what would a person try first"), and each one-session defect gets a script.
+- 2026-10-09 **Round 2 proposals (smallest set):** (1) the source inspector shows "Edit source..."
+  and "Replace with file..." as visible actions -- one change that serves T20 and T21; (2) the find
+  box's "No match" on text holding a comparison says how a rule starts, with the existing example;
+  (3) the canvas key marks an out-of-date run like its row does; (4) fix Edges Color writing to
+  Everything. Reasons and evidence under Decisions.
+- 2026-10-09 **Do not change in round 2:** where Filters lives (7 of 8 found it at the success
+  path's cost), the Replace page, the import page's "Higher means", the Path popover's flow, the
+  neighbors list, label placement in the app (element class), Hops wording, notes' subject.
+- 2026-10-09 **A visible door beats a new route.** Edit source already reaches "Higher means"
+  without dropping the graph, but only by right-click. Surfacing an existing command is cheaper
+  and safer than a new one.
+- 2026-10-09 **Selection display repainting fills is a design question, not a defect yet** (path
+  looks one node short, new fill hidden until deselect). Needs a decision on how selection is
+  marked (element style), not an app patch.
+- 2026-10-07 **A decided change that is not verified on the served build is not done.**
+- 2026-10-07 **Recovery routes are first-class.** Fit is what a lost reader presses; "Back to
+  start" must never be the only way to a setting (T20).
+- 2026-10-07 **Simulated participants are one model and follow their histories.** A first move
+  that matches the history says little; trust reproductions and causes in code. Label a give-up
+  that follows a persona's scripted rule.
+- 2026-10-07 **Element English leaks into my refusals.** In-place refusals hold; their words come
+  from codes.
+- 2026-10-07 **The neighbors flow is done** (round 2 8 of 8). Do not touch it.
 - 2026-10-06 **Change one thing per problem per round,** so the round can tell what helped.
 - 2026-10-06 **Every detour must work or not look clickable. Refusals in place, under the field,
-  until the value changes.** Held through round 2.
-- 2026-10-06 **Not doing yet:** first-run tour, toolbar words, names drawn by default, the Size
-  move, a chain-link label.
+  until the value changes.**
+- 2026-10-06 **Not doing yet:** first-run tour, toolbar words, names drawn by default.
 - 2026-10-06 **Where a fix goes:** graph logic in graphty-element; flows, focus, words in the app;
   shared control defects in compact-mantine.
 
@@ -120,66 +112,20 @@ Each with its reason. A screen that breaks one is a defect.
 
 ## Decisions and reasons
 
-- 2026-09-13 Panels stay open unless the reader hides them; no locks, no autohide (owner,
-  2026-09-14, after "our panel open / closed / autohide is a confusing nightmare"). Evidence: the
-  v1 shell's lock bugs. Decided by the owner.
-- 2026-09-16 Algorithms layer their styles and never mute the rest; hiding is a reader's choice
-  (owner). Interaction consequence: the eye on a row is the reader's tool.
-- 2026-09-26 Every action undoable, with a mechanism so new features get undo (owner questions
-  "how will we make sure EVERY action has an undo"). Undo history lives in graphty-element
-  (`session.undo`, `history.nextUndo` labels). Decided by the owner.
-- 2026-09-28 Keyboard node walk is Shift+Arrow; plain arrows orbit (3D) or pan (2D) (owner).
-- 2026-09-28 Participant view must never trap the viewer: Esc and a faint corner control exit
-  (owner). Became the general Esc rule.
-- 2026-09-28 Undo notice on every undo and redo; the silent version dropped (studio, round 2).
-  Evidence: 5 of 5 lost the good step silently.
-- 2026-09-29 Selection changes are not undo steps; Ctrl+Z restores a cleared selection from one
-  slot without touching Undo/Redo; notice "Selection cleared (N nodes). Bring it back" (studio,
-  rounds 5-6). Evidence: notice alone 5 of 8 wrong end states, restore 0 of 8; 13 of 16 chose
-  "Bring it back". Recording a clear as an undo step would empty Redo after one stray click.
-- 2026-09-29 "Undo back to here" deleted (studio, round 4-5): it lost the third step in a
-  non-linear filter model.
-- 2026-09-29 Esc does one thing per press, innermost first; handlers that act call
-  preventDefault (studio, round 6).
-- 2026-09-30 A run paints as soon as it finishes (owner: "Measures don't paint on their own" is a
-  fatal flaw). Replaced my earlier groups-list proposal that measures create no row.
-- 2026-09-30 Rename by double-click (and F2), no right-click needed (owner).
-- 2026-09-30 Toolbar icons only, tooltips after a hover delay (owner). Legend and camera go
-  through the toolbar, not floating canvas buttons (owner, 2026-10-01).
-- 2026-09-30 Unset style values are not drawn; a section's "+" adds a property; advanced options
-  in popovers, never accordions (owner third review; studio pattern table).
-- 2026-09-30 Surfaces: dark menu picks a command and closes; light popover edits a value, applies
-  live, closes on Esc or outside click; page takes the workspace; modal only for Export,
-  Settings, shortcuts or an irreversible confirm (studio, refined structure B 2.5).
-- 2026-10-01 Empty selection: the inspector shows the graph as its subject; the graph is never
-  put into the selection, because Delete or Create set would then act on everything. Esc closes
-  the innermost open thing, then clears the selection (studio, round 7). Evidence: Esc returned
-  to the PageRank row 6 of 6.
-- 2026-10-01 No confirm dialog in front of costly runs or slow layouts; state the cost, offer Stop
-  and Undo (studio, round 7).
-- 2026-10-02 The Label "+" with no label anywhere adds an empty label line and opens its attribute
-  list; "Show labels" offered only when a row beneath sets a label; no notice for adding an empty
-  line, its own remove control undoes it (studio, round 8). Evidence: 12 of 21 chose "Show
-  labels", 10 stopped believing names were on.
-- 2026-10-02 The find box is one live list: focus stays in the box, Down enters the list, Enter
-  picks, Esc clears then closes, selection changes only on a pick; "/" focuses it; Ctrl+K stays
-  commands only with a "Find '<text>'" handoff (studio, round 8). Evidence: 8 of 12 waited because
-  results came only after Enter.
-- 2026-10-02 A single node opens on its data tab (now named Values); Degree and "N connections"
-  select its one-hop neighbors and land on the named list; Esc returns to the single node (studio,
-  round 8). Evidence: 0 of 12 found Javert's neighbors.
-- 2026-10-02 Export > Data opens on the table that is showing; the table's Export goes through the
-  one Export dialog (studio, round 8). Evidence: export-the-data first click 10%.
-- 2026-10-02 Esc closes the layout method dialog; the dialog stays clear of the drawing (studio,
-  round 8). Evidence: Esc failed 10 of 10.
-- 2026-10-03 Build the real app instead of round 9 on the mock (owner: "our user studies keep
-  breaking on the fact that it's not a real app").
-- 2026-10-03 Delete acts at once with Undo; nothing in tier 1 asks first; first Save opens Save as
-  with the name selected (tier 1 design; the round 8 Save as finding: 4 saved a garbled name).
-- 2026-10-03 One bind rule: a bind on a row's line edits that row; a door not on a row makes a new
-  row (tier 1 design, adversarial review).
-- 2026-10-03 graphty-element returns facts and `{ code, params }`; the app writes every word
-  (owner). My state lines and notices are app words over element facts.
+- 2026-09-13..10-03 (summarized; owner = decided by the owner) Panels stay open, no locks or
+  autohide (owner). Algorithms layer styles and never mute the rest (owner). Every action undoable,
+  history in graphty-element (owner). Shift+Arrow walks nodes (owner). Every undo and redo shows a
+  notice (5 of 5 lost a step silently). Selection changes are not undo steps; Ctrl+Z restores a
+  cleared selection from one slot (0 of 8 wrong vs 5 of 8). Esc does one thing per press,
+  innermost first. A run paints when it finishes (owner). Rename by double-click and F2 (owner).
+  Toolbar icons only (owner). Unset style values not drawn; "+" adds a property; popovers, never
+  accordions (owner). Surfaces: dark menu picks, light popover edits live, page takes the
+  workspace, modal only for Export, Settings, shortcuts, irreversible confirm. The graph is never
+  put into the selection. No confirm before costly runs; cost, Stop and Undo instead. Label "+"
+  adds a line and opens its list. Find box is one live list ("/" focuses it). A single node opens
+  on Values; Degree opens the named neighbor list. Export > Data opens on the showing table. Build
+  the real app (owner, 2026-10-03). Delete acts at once with Undo. A bind on a row edits that row.
+  The element returns facts and codes; the app writes every word (owner).
 - 2026-10-06 (mine, reversible) Notices also pause while they hold keyboard focus, are announced
   in a polite live region, and are never the only route back. Not yet built.
 
@@ -227,6 +173,24 @@ Each with its reason. A screen that breaks one is a defect.
   (e) Analyze shows "Weight: not read by Degree" on entries that read none, from a catalog fact.
   Open owner questions: how a "stronger" weight becomes a distance for shortest path (1/w,
   refuse, or ask); bare numbers in the rule language (`weight > 3`) as a query-language change.
+
+- 2026-10-09 Round 2 proposals after tier 2 round 1 (mine, reversible; for the Director):
+  (a) **Source inspector shows "Edit source..." and "Replace with file..."** as buttons, the same
+  commands as the row's right-click menu (`DataPlace.tsx` `useRowMenu`; `data-page/request.ts`
+  `editSource`, `canReplace`). Evidence: 8 of 8 hunted for Replace, 7 left-clicked the row and saw
+  only facts (`r1-s29/08.png`); T20's "Back to start" dropped the graph (`r1-s05/09.png`) while
+  Edit source already reaches "Higher means". Rejected: a hover "...", a main-menu entry (two new
+  homes), a new "set weight meaning" route.
+  (b) **Find box: "No match" for text holding <, >, = or != says "To select by a value, start
+  with =, such as <example>"** using `exampleRule` (`FindBox.tsx` emptyLine). App words, no
+  parsing beyond spotting the operator. Evidence: 4 of 4 typed `minutes >= 10`, got only "No
+  match" (`r1-s46/12.png`). Rejected for now: bare numbers in rules (owner's query-language
+  question), a "Select where" on the column (second change to one problem; next if (b) fails).
+  (c) **The canvas key's heading for an out-of-date run carries the same out-of-date mark and
+  words as its row** (stale state is an element fact). Evidence: bar 5 fails as written,
+  `r1-s28/07.png`; two experts. Rejected: dimming the drawing (a reader's choice).
+  (d) **Fix Edges Color writing to Everything** with a run's layer open (r1-s43, r1-s46,
+  `r1-s46/05.png`): a defect, fixed between rounds.
 
 ## Tried: worked / did not work
 
@@ -284,6 +248,15 @@ Each with its reason. A screen that breaks one is a defect.
   PageRank" names the row after itself; equal-bar histograms; element English refusals. Not
   walked: keyboard, screen reader, 2D Fit, menu focus. Taught: a pointer pilot cannot certify
   focus and announcement fixes; they need their own scripted checks.
+
+- 2026-10-09 Tier 2 round 1 (55 valid sessions, frozen build 946256efb): worked -- 0 false
+  "done", 0 silent commits, 0 weights read backwards; the path run, Replace page and load-time
+  "Higher means" read right every time once found; T23 and T12R at or under the success path.
+  Did not -- doors hidden by right-click (Replace, Edit source), a find box that answers a
+  condition with only "No match", the stale key after Replace. Also the run: more than four
+  browsers at once (click timeouts), missing preflight scripts, one void session not re-run.
+  Taught: a dry run that walks only success paths certifies the success paths; detours need
+  their own walk.
 
 ## Thinking
 

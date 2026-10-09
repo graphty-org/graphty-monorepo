@@ -2093,6 +2093,8 @@ export class Graphty extends LitElement {
     get renderer(): RendererRequest;
     set renderer(value: RendererRequest);
     get rendererStatus(): RendererStatus | null;
+    get renderOnDemand(): boolean;
+    set renderOnDemand(value: boolean);
     get repeatedEdges(): DuplicatePolicy | undefined;
     set repeatedEdges(value: DuplicatePolicy | undefined);
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
@@ -3982,6 +3984,7 @@ export class RenderManager implements Manager {
     graphRoot: TransformNode;
     holdFrames(): () => void;
     init(): Promise<void>;
+    requestFrame(): void;
     // (undocumented)
     scene: Scene;
     startRenderLoop(updateCallback: (frameMs: number) => void): void;

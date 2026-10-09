@@ -37,6 +37,7 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `startingCameraDistance` | `starting-camera-distance` | `number`                                                            | unset       | How far the camera starts out; unset frames the graph to fit, set turns automatic framing off                                                                          |
 | `autoFrame`              | `auto-frame`               | `boolean`                                                           | `true`      | Frame the graph after each load and layout change; `auto-frame="false"` leaves the camera alone. A view preference, not saved in a project                             |
 | `labelDeclutter`         | `label-declutter`          | `boolean`                                                           | `false`     | Hide a node label that would overlap another until the reader zooms in; a view preference, not saved in a project                                                      |
+| `renderOnDemand`         | `render-on-demand`         | `boolean`                                                           | `false`     | Draw a frame only when the picture can have changed, so a still graph costs nothing per frame; a view preference, not saved in a project                               |
 | `dataSource`             | `data-source`              | `string`                                                            | `undefined` | Data source type                                                                                                                                                       |
 | `dataSourceConfig`       | `data-source-config`       | `object`                                                            | `{}`        | Data source configuration                                                                                                                                              |
 | `nodeIdPath`             | `node-id-path`             | `string`                                                            | `'id'`      | Path to node ID in data                                                                                                                                                |
@@ -149,6 +150,24 @@ element.labelDeclutter = true;
 
 Assigning `layoutBehavior` is merged over what is already set, section by section, so this line
 leaves `layout`, `node` and the two fetch functions as they were.
+
+### Drawing only when something changes
+
+By default the element draws the graph on every animation frame, whether or not anything moved.
+`renderOnDemand` stops drawing once the layout has settled, the styles are painted and the camera
+is at rest, and draws again as soon as the data, a style, the layout, the camera, the selection or
+the reader's pointer, wheel or keys change the picture. A still graph then costs the page nothing
+per frame, which matters most where the GPU is emulated in software (virtual machines, CI runners,
+headless browsers): there each frame costs the page tens of milliseconds or more, and the page's
+own buttons and fields answer that much later.
+
+```html
+<graphty-element render-on-demand></graphty-element>
+```
+
+Leave it off if your code changes the Babylon.js scene directly, through `element.graph.scene`:
+the element cannot see such a change, so it would not be drawn until something else changed the
+picture. Like `labelDeclutter`, it is a preference of the view, not saved in a project file.
 
 ## Basic Usage
 

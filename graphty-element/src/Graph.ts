@@ -442,6 +442,17 @@ export class Graph implements GraphContext {
     private inputManager: InputManager;
     /** While an immersive session is active: its mode and when it started, stamped on steps. */
     private immersiveSince: string | null = null;
+
+    /**
+     * Whether the render loop may skip a frame: drawing on demand is on, the picture the model
+     * describes is on screen and final, and no headset is showing it -- a VR or AR view moves
+     * with the reader's head, which the loop cannot see. See `RenderManager.mayRest`.
+     * @returns True when a frame that changes nothing may be skipped.
+     */
+    private readonly pictureIsFinal = (): boolean =>
+        this.viewSettings.behavior.rendering?.onDemand === true &&
+        this.updateManager.frameIsStable &&
+        (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
     private selectionManager: SelectionManager;
@@ -524,7 +535,9 @@ export class Graph implements GraphContext {
         this.element.appendChild(this.canvas);
 
         // Initialize RenderManager
-        this.renderManager = new RenderManager(this.canvas, this.eventManager);
+        this.renderManager = new RenderManager(this.canvas, this.eventManager, {
+            pictureIsFinal: this.pictureIsFinal,
+        });
 
         // Get references from RenderManager for backward compatibility
         this.engine = this.renderManager.engine;
@@ -1358,7 +1371,10 @@ export class Graph implements GraphContext {
         // The engine was opened on a canvas not yet in the page, which sized it 300 by 150.
         opened.resize();
 
-        this.renderManager = new RenderManager(canvas, this.eventManager, { engine: opened });
+        this.renderManager = new RenderManager(canvas, this.eventManager, {
+            engine: opened,
+            pictureIsFinal: this.pictureIsFinal,
+        });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
@@ -1674,6 +1690,7 @@ export class Graph implements GraphContext {
             },
             node: { ...current.node, ...behavior.node },
             labels: { ...current.labels, ...behavior.labels },
+            rendering: { ...current.rendering, ...behavior.rendering },
         };
 
         // Checked whole, the project half over the settings in force, before anything is written.
@@ -1685,6 +1702,8 @@ export class Graph implements GraphContext {
         this.writeViewSettings((settings) => {
             settings.behavior = view;
         });
+        // A label declutter switched on or off changes the picture without moving anything.
+        this.renderManager.requestFrame();
 
         // ON-DEMAND EXPANSION IS SWITCHED ON HERE, and it is the only place it can be. The two
         // fetchers are declared in the behaviour schema, so a consumer sets them the same way

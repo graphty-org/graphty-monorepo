@@ -1760,6 +1760,46 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether a frame is drawn only when the picture can have changed.
+     * @remarks
+     * Off (the default), the graph is drawn on every animation frame, still or not. On, it stops
+     * drawing once the layout has settled, the styles are painted and the camera is at rest, and
+     * draws again as soon as anything changes the picture: data, styles, the layout, the camera,
+     * the selection, an animation, or the reader's pointer, wheel or keys on the canvas. A still
+     * graph then costs the page nothing per frame -- on a software GPU (a virtual machine, a CI
+     * runner, a headless browser) that is tens to hundreds of milliseconds of every frame, and
+     * the page's own controls answer that much faster.
+     *
+     * Leave it off if your code changes the Babylon.js scene directly (through `graph.scene`):
+     * the element cannot see such a change, so it is not drawn until something else asks for a
+     * frame.
+     *
+     * A preference of this view, not part of the project: switching it records no undo step and
+     * is not saved in a project file. The same switch as `layoutBehavior.rendering.onDemand`.
+     * @since 3.22.0
+     * @example
+     * ```html
+     * <graphty-element render-on-demand></graphty-element>
+     * ```
+     * ```typescript
+     * element.renderOnDemand = true;
+     * ```
+     * @returns True when frames are drawn only when the picture can have changed
+     */
+    @property({ attribute: "render-on-demand", type: Boolean })
+    get renderOnDemand(): boolean {
+        return this.#graph.getLayoutBehavior()?.rendering?.onDemand === true;
+    }
+    /**
+     * Switches drawing on demand on or off.
+     */
+    set renderOnDemand(value: boolean) {
+        const oldValue = this.renderOnDemand;
+        this.#graph.setLayoutBehavior({ rendering: { onDemand: value } });
+        this.requestUpdate("renderOnDemand", oldValue);
+    }
+
+    /**
      * What a selected node looks like: the halo's colour, how far it stands out past the node,
      * and how solid it is.
      * @remarks

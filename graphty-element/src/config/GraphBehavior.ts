@@ -38,6 +38,23 @@ const LabelBehaviorOpts = z
     })
     .prefault({});
 
+const RenderingBehaviorOpts = z
+    .strictObject({
+        /*
+         * Whether a frame is drawn only when the picture can have changed.
+         *
+         * OFF BY DEFAULT, so the element draws every animation frame, as Babylon.js does and as a
+         * consumer who changes the Babylon scene directly (through `element.graph.scene`) relies
+         * on. On, the element skips a frame once the layout has settled, the styles are painted and
+         * the camera is still, and draws again when anything it drives or the reader's input changes
+         * the picture. A still graph then costs the page nothing per frame, which on a software GPU
+         * is tens to hundreds of milliseconds of every frame. A change made to the scene from
+         * outside the element is not seen until something else asks for a frame.
+         */
+        onDemand: z.boolean().default(false),
+    })
+    .prefault({});
+
 const GraphLayoutOpts = z.strictObject({
     type: z.string().default("ngraph"),
     preSteps: z.number().default(0),
@@ -80,6 +97,7 @@ export const GraphBehaviorOpts = z.strictObject({
     layout: GraphLayoutOpts.prefault({}),
     node: NodeBehaviorOpts,
     labels: LabelBehaviorOpts,
+    rendering: RenderingBehaviorOpts,
     fetchNodes: z.optional(z.instanceof(Function)),
     fetchEdges: z.optional(z.instanceof(Function)),
 });

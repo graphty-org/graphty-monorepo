@@ -22,6 +22,7 @@ import { InputController } from "../cameras/TwoDInputController";
 import type { GraphBackgroundConfig } from "../config/GraphStyle";
 import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
+import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
 
 /**
@@ -35,6 +36,12 @@ interface RenderManagerConfig {
      */
     engine?: Engine | WebGPUEngine;
     backgroundColor?: string;
+    /**
+     * Asked after each update pass: true when the element's own model says the picture on screen
+     * is final, so the loop may skip drawing a frame that would be the same picture again. Left
+     * out, every tick draws. See `RenderManager.mayRest`.
+     */
+    pictureIsFinal?: () => boolean;
 }
 
 /** Which renderer a graph asks for: WebGL, WebGPU, or WebGPU when the browser has it. */
@@ -234,6 +241,12 @@ function releaseWhenIdle(gl: WebGLRenderingContext | WebGL2RenderingContext): vo
     poll();
 }
 
+/** Events that say nothing about the picture, so they do not ask a resting loop to draw. */
+const EVENTS_THAT_DRAW_NOTHING: ReadonlySet<string> = new Set(["graph-frame-stable", "stats-update"]);
+
+/** The canvas events a reader makes, each of which may change what the next frame shows. */
+const READER_INPUT_EVENTS = ["pointerdown", "pointermove", "pointerup", "wheel", "keydown", "keyup"] as const;
+
 /**
  * Manages Babylon.js scene, engine, and render loop
  */
@@ -251,6 +264,30 @@ export class RenderManager implements Manager {
     private lastFrameFence: WebGLSync | null = null;
     /** The time of the ticks skipped since the last frame drawn, for the GPU to catch up. */
     private skippedMs = 0;
+    /** See `RenderManagerConfig.pictureIsFinal`; null draws every tick. */
+    private readonly pictureIsFinal: (() => boolean) | null;
+    /** Set by anything that may have changed the picture since the last frame drawn. */
+    private drawOwed = true;
+    /** What the last frame drawn left behind; see {@link RenderManager.sameAsDrawn}. */
+    private readonly drawnFrom = {
+        view: new Float32Array(16),
+        projection: new Float32Array(16),
+        camera: -1,
+        width: -1,
+        height: -1,
+        clear: new Float32Array(4),
+        observers: [] as readonly unknown[],
+    };
+    /** Whether the last frame drawn left the camera, size or background other than the one before. */
+    private lastFrameMoved = true;
+    private readonly owe = (): void => {
+        this.drawOwed = true;
+    };
+    private readonly oweForEvent = (event: { readonly type: string }): void => {
+        if (!EVENTS_THAT_DRAW_NOTHING.has(event.type)) {
+            this.drawOwed = true;
+        }
+    };
     private resizeHandler: () => void;
     /** The one skybox dome, and the image it shows; null while the background is a colour. */
     private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
@@ -279,6 +316,7 @@ export class RenderManager implements Manager {
     ) {
         // Set Babylon.js log level
         Logger.LogLevels = Logger.ErrorLogLevel;
+        this.pictureIsFinal = this.config.pictureIsFinal ?? null;
 
         // Create engine
         this.engine =
@@ -293,6 +331,11 @@ export class RenderManager implements Manager {
         this.scene.preventDefaultOnPointerUp = false;
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);
         this.canvas.addEventListener("pointerup", this.focusOnPointer);
+        for (const type of READER_INPUT_EVENTS) {
+            this.canvas.addEventListener(type, this.owe, { passive: true });
+        }
+        this.eventManager.onGraphEvent.add(this.oweForEvent);
+        this.oweOnSceneChanges();
 
         // Create graph-root transform node for XR gestures
         // All graph nodes will be parented to this, allowing gestures to transform the entire graph
@@ -360,6 +403,10 @@ export class RenderManager implements Manager {
         window.removeEventListener("resize", this.resizeHandler);
         this.canvas.removeEventListener("pointerdown", this.focusOnPointer);
         this.canvas.removeEventListener("pointerup", this.focusOnPointer);
+        for (const type of READER_INPUT_EVENTS) {
+            this.canvas.removeEventListener(type, this.owe);
+        }
+        this.eventManager.onGraphEvent.removeCallback(this.oweForEvent);
 
         // Dispose camera system
         this.camera.dispose();
@@ -415,9 +462,16 @@ export class RenderManager implements Manager {
                 // Commenting out to avoid double updates
                 // this.camera.update();
 
-                // Render scene
+                if (this.mayRest()) {
+                    return;
+                }
+
+                // Cleared BEFORE the frame, so anything the frame itself announces asks for the
+                // next one.
+                this.drawOwed = false;
                 this.scene.render();
                 this.fenceFrame();
+                this.noteDrawnFrom();
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
                 this.eventManager.emitGraphError(null, err, "other", {
@@ -470,6 +524,177 @@ export class RenderManager implements Manager {
         }
 
         this.lastFrameFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    }
+
+    /**
+     * Asks the loop to draw the next frame even when the picture looks final.
+     *
+     * For a change the loop cannot see by itself: one that moves no node, queues no style work,
+     * leaves the camera where it is and announces no event. A graph drawing every frame (the
+     * default) needs none of this.
+     */
+    requestFrame(): void {
+        this.drawOwed = true;
+    }
+
+    /**
+     * Owes a frame whenever the scene gains or loses something it draws with, or the GL context
+     * comes back.
+     *
+     * The one net under every code path that builds or disposes a mesh, a material, a texture, a
+     * light, a camera or an effect: it does not depend on that path remembering to ask for a
+     * frame, and it also catches such a change made through `graph.scene` from outside. Babylon
+     * has no general "the scene changed" signal -- a changed colour or position marks nothing --
+     * so changes to what already exists are caught by the model's own stability, the element's
+     * events and the reader's input instead; the canvas size and the background colour are
+     * compared frame to frame by {@link RenderManager.sameAsDrawn}. Observers go with the scene.
+     */
+    private oweOnSceneChanges(): void {
+        const { scene } = this;
+        for (const observable of [
+            scene.onNewMeshAddedObservable,
+            scene.onMeshRemovedObservable,
+            scene.onNewMaterialAddedObservable,
+            scene.onMaterialRemovedObservable,
+            scene.onNewTextureAddedObservable,
+            scene.onTextureRemovedObservable,
+            scene.onNewTransformNodeAddedObservable,
+            scene.onTransformNodeRemovedObservable,
+            scene.onNewLightAddedObservable,
+            scene.onLightRemovedObservable,
+            scene.onNewCameraAddedObservable,
+            scene.onCameraRemovedObservable,
+            scene.onNewEffectLayerAddedObservable,
+            scene.onEffectLayerRemovedObservable,
+            scene.onNewPostProcessAddedObservable,
+            scene.onPostProcessRemovedObservable,
+            scene.onActiveCameraChanged,
+            scene.onEnvironmentTextureChangedObservable,
+        ] as const) {
+            (observable as { add: (callback: () => void) => unknown }).add(this.owe);
+        }
+
+        this.engine.onContextRestoredObservable.add(this.owe);
+    }
+
+    /**
+     * Whether this tick may skip drawing, because the frame would be the picture already on screen.
+     *
+     * A STILL GRAPH WAS DRAWN AGAIN ON EVERY ANIMATION FRAME. On a software GPU -- SwiftShader, as
+     * every CI runner and every headless browser here has -- presenting a frame of even 20 nodes
+     * costs the page tens of milliseconds of its main thread, and under load hundreds: a reader's
+     * click waits behind those frames, and so does every test that clicks. Several elements on
+     * one page (the app's real-element tests run their files side by side in one renderer) each
+     * paid it on every frame, for a picture that was not changing (issue #1796).
+     *
+     * Only when `pictureIsFinal` says so, and then only while nothing the
+     * model does not track can change the next frame: a Babylon animation or a texture still
+     * loading (both advance only inside a frame), an every-frame animation, the reader's input on
+     * the canvas, an event the element announced, a new callback waiting for the next frame, or
+     * anything the last two frames drawn did not agree on -- the camera, the canvas size, the
+     * background colour. The last is what keeps a camera gliding to rest: inertia moves it only
+     * inside a frame, so the loop draws until a frame leaves it where the one before did.
+     * @returns True when this tick draws nothing.
+     */
+    private mayRest(): boolean {
+        if (this.pictureIsFinal === null || this.drawOwed || this.lastFrameMoved || !this.pictureIsFinal()) {
+            return false;
+        }
+
+        if (
+            everyFrameAnimationsOn(this.scene) > 0 ||
+            this.scene.animatables.length > 0 ||
+            this.scene.getWaitingItemsCount() > 0
+        ) {
+            return false;
+        }
+
+        return this.sameAsDrawn();
+    }
+
+    /**
+     * The newest callback on each frame observable. A wait for the next frame adds one, and an
+     * added observer is appended, so a new newest one is a frame somebody is waiting for -- even
+     * when a one-shot callback removed in the meantime leaves the count unchanged.
+     * @returns The last observer of each, in a fixed order.
+     */
+    private newestFrameObservers(): readonly unknown[] {
+        return [
+            this.scene.onBeforeRenderObservable.observers.at(-1),
+            this.scene.onAfterRenderObservable.observers.at(-1),
+            this.engine.onBeginFrameObservable.observers.at(-1),
+            this.engine.onEndFrameObservable.observers.at(-1),
+        ];
+    }
+
+    /**
+     * Whether everything the loop cannot learn from the model is as it was for the last frame drawn.
+     * @returns True when the camera, size, background and frame observers are unchanged.
+     */
+    private sameAsDrawn(): boolean {
+        const from = this.drawnFrom;
+        const camera = this.scene.activeCamera;
+        if (camera === null || camera.uniqueId !== from.camera) {
+            return false;
+        }
+
+        const { clearColor } = this.scene;
+        const observers = this.newestFrameObservers();
+        return (
+            this.engine.getRenderWidth() === from.width &&
+            this.engine.getRenderHeight() === from.height &&
+            Math.fround(clearColor.r) === from.clear[0] &&
+            Math.fround(clearColor.g) === from.clear[1] &&
+            Math.fround(clearColor.b) === from.clear[2] &&
+            Math.fround(clearColor.a) === from.clear[3] &&
+            observers.every((observer, i) => observer === from.observers[i]) &&
+            RenderManager.sameMatrix(camera.getViewMatrix().m, from.view) &&
+            RenderManager.sameMatrix(camera.getProjectionMatrix().m, from.projection)
+        );
+    }
+
+    /**
+     * Records what the frame just drawn left behind, for {@link RenderManager.sameAsDrawn}, and
+     * whether it differed from what the frame before left.
+     */
+    private noteDrawnFrom(): void {
+        if (this.pictureIsFinal === null) {
+            return;
+        }
+
+        this.lastFrameMoved = !this.sameAsDrawn();
+        const from = this.drawnFrom;
+        const camera = this.scene.activeCamera;
+        from.camera = camera?.uniqueId ?? -1;
+        if (camera !== null) {
+            from.view.set(camera.getViewMatrix().m);
+            from.projection.set(camera.getProjectionMatrix().m);
+        }
+
+        from.width = this.engine.getRenderWidth();
+        from.height = this.engine.getRenderHeight();
+        const { clearColor } = this.scene;
+        from.clear[0] = clearColor.r;
+        from.clear[1] = clearColor.g;
+        from.clear[2] = clearColor.b;
+        from.clear[3] = clearColor.a;
+        from.observers = this.newestFrameObservers();
+    }
+
+    /**
+     * Whether a matrix is the one recorded.
+     * @param matrix - The matrix now.
+     * @param recorded - The matrix the last frame was drawn with.
+     * @returns True when every element is the same.
+     */
+    private static sameMatrix(matrix: ArrayLike<number>, recorded: Float32Array): boolean {
+        for (let i = 0; i < 16; i++) {
+            if (Math.fround(matrix[i]) !== recorded[i]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

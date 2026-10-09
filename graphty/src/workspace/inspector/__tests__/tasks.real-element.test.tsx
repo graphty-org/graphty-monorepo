@@ -212,8 +212,8 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 .focus();
             await userEvent.keyboard("{Enter}");
             const list = await inspector().findByRole("region", { name: "Node 0's 3 connections" });
-            // Focus lands on the first neighbor, a control, not on the whole list.
-            assert.equal(document.activeElement, rowButtons(list)[0]);
+            // Focus lands on the checked Hops choice, not a neighbor row and not the whole list.
+            assert.equal(document.activeElement, within(list).getByRole("radio", { name: "1" }));
 
             await userEvent.keyboard("{Escape}");
             await waitFor(() => {
@@ -227,8 +227,10 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             const again = await inspector().findByRole("region", { name: "Node 0's 3 connections" });
             const first = rowButtons(again)[0];
             await waitFor(() => {
-                assert.equal(document.activeElement, first);
+                assert.equal(document.activeElement, within(again).getByRole("radio", { name: "1" }));
             });
+            // Enter on a name picks that node.
+            first.focus();
             await userEvent.keyboard("{Enter}");
             await waitFor(() => {
                 assert.deepEqual([...session.selection.nodes], ["n1"]);
@@ -253,6 +255,11 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             await waitFor(() => {
                 assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
             });
+            // A heading with an underline focus mark, not a box that reads as an editable name.
+            const title = inspector().getByRole("heading", { level: 2, name: "n0" });
+            assert.equal(title, document.activeElement);
+            assert.notEqual(getComputedStyle(title).textDecorationLine, "none");
+            assert.equal(getComputedStyle(title).outlineStyle, "none");
             await userEvent.keyboard("{Enter}");
             assert.isNull(inspector().queryByRole("region", { name: "Node 0's 3 connections" }));
         },

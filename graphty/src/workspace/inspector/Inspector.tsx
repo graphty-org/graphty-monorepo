@@ -1,6 +1,6 @@
 import { PANEL_GRID, PopoutManager } from "@graphty/compact-mantine";
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
-import { ActionIcon, Anchor, Box, ColorSwatch, Group, Menu, Stack, Tabs, Text } from "@mantine/core";
+import { ActionIcon, Anchor, Box, ColorSwatch, Group, Menu, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { runName, wordsFor } from "../analyze/words";
@@ -186,11 +186,14 @@ export function Inspector(): React.JSX.Element {
                         {header.swatch !== undefined && (
                             <ColorSwatch color={header.swatch} size={12} withShadow={false} aria-hidden />
                         )}
-                        {/* Focusable from script only: where focus lands after a run or a find pick. */}
+                        {/* Focusable from script only: where focus lands after a run or a find pick.
+                            Its focus mark is an underline, not a box, so it never reads as a field. */}
                         <Text
                             id={INSPECTOR_TITLE_ID}
                             tabIndex={-1}
-                            className="cm-focus-outside"
+                            role="heading"
+                            aria-level={2}
+                            className="cm-focus-underline"
                             size="sm"
                             fw={600}
                             truncate
@@ -230,16 +233,18 @@ export function Inspector(): React.JSX.Element {
                         {menu.length + attributeActions.length > 0 && (
                             <Menu position="bottom-end">
                                 <Menu.Target>
-                                    <ActionIcon
-                                        variant="subtle"
-                                        size="sm"
-                                        ml="auto"
-                                        // Alone at the row's end, so a finger gets the full 44px.
-                                        style={{ "--cm-ai-touch-target": "44px" }}
-                                        aria-label={`${kindWord} actions`}
-                                    >
-                                        <GLYPHS.more size={14} />
-                                    </ActionIcon>
+                                    <Tooltip label={`${kindWord} actions`}>
+                                        <ActionIcon
+                                            variant="subtle"
+                                            size="sm"
+                                            ml="auto"
+                                            // Alone at the row's end, so a finger gets the full 44px.
+                                            style={{ "--cm-ai-touch-target": "44px" }}
+                                            aria-label={`${kindWord} actions`}
+                                        >
+                                            <GLYPHS.more size={14} />
+                                        </ActionIcon>
+                                    </Tooltip>
                                 </Menu.Target>
                                 <Menu.Dropdown>
                                     <Sections sections={[menu.map((command) => command.id)]} />

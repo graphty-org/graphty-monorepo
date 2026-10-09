@@ -221,7 +221,7 @@ async function showNeighborhood(
     // The selection change closes the open row, so it is opened again on the new reach.
     store.set({
         inspected: { kind: "neighborhood", id: neighborhoodKey(center, hops, direction) },
-        announcement: neighborhoodWords(session.data.name(center) ?? String(center), around),
+        announcement: neighborhoodWords(session.data.name(center) ?? String(center), around, hops),
     });
 }
 
@@ -250,7 +250,6 @@ export function NeighborList({
     // The Filter to neighbors toggle reads the steps, so it follows each change to them.
     useVisibilityVersion(session);
     const heading = useRef<HTMLElement>(null);
-    const rowsRef = useRef<HTMLDivElement>(null);
     // The list takes focus as it opens, and Esc anywhere in it returns to the center node: a
     // shortcut on the region, so it is listened for on the region's own element. A Hops or
     // Follow change keeps focus on the control that made it.
@@ -259,13 +258,10 @@ export function NeighborList({
         if (region === null || session === null) {
             return undefined;
         }
-        // Focus goes to the first neighbor, else (no neighbors) to the checked Hops choice: a
-        // control, never a ring around the whole list.
+        // Focus goes to the checked Hops choice: a control, never a ring around the whole list,
+        // and never a neighbor row, which would read as a pick nobody made.
         if (!region.contains(document.activeElement)) {
-            (
-                rowsRef.current?.querySelector<HTMLElement>("button") ??
-                region.querySelector<HTMLElement>("input:checked")
-            )?.focus();
+            region.querySelector<HTMLElement>("input:checked")?.focus();
         }
         const onKeyDown = (event: KeyboardEvent): void => {
             if (event.key === "Escape") {
@@ -295,7 +291,7 @@ export function NeighborList({
             .filter((node) => node !== center)
             .map((node) => ({ node, name: session.data.name(node) ?? String(node) }))
             .sort((a, b) => BY_NAME.compare(a.name, b.name));
-        words = neighborhoodWords(centerName, around.length);
+        words = neighborhoodWords(centerName, around.length, reach);
         rows = around.map(({ node, name }) => (
             <DataRow
                 key={nodeKey(node)}
@@ -424,9 +420,7 @@ export function NeighborList({
                     )}
                 </Stack>
                 {tie !== undefined && <DataRowHeader label="Neighbor" unit={tie} />}
-                <div ref={rowsRef} style={{ display: "contents" }}>
-                    {rows}
-                </div>
+                {rows}
             </ControlSection>
         </section>
     );

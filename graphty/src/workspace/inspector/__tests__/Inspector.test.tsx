@@ -163,8 +163,9 @@ describe("the inspector", () => {
         // A session with no view holds no records, so no labels and no edge weights: each
         // neighbor is named by its id, in name order, with no tie value.
         assert.deepEqual(names, ["n1", "n5", "n6"]);
-        // Focus lands on the first neighbor, a control, not on the whole list.
-        assert.equal(document.activeElement, within(list).getByRole("button", { name: "n1" }));
+        // Focus lands on the checked Hops choice: a control, never a neighbor row (that would read
+        // as a pick nobody made) and never the whole list.
+        assert.equal(document.activeElement, within(list).getByRole("radio", { name: "1" }));
         assert.equal(on.selection.nodes.length, 4);
 
         await userEvent.keyboard("{Escape}");
@@ -188,7 +189,8 @@ describe("the inspector", () => {
         assert.isNotNull(within(list).getByRole("group", { name: "n0's 3 connections" }));
 
         await userEvent.click(within(list).getByRole("radio", { name: "2" }));
-        const wider = await screen.findByRole("region", { name: /^n0's \d+ connections$/ });
+        // Past one hop the heading says how far: only the one-hop count is direct ties.
+        const wider = await screen.findByRole("region", { name: "n0's 7 connections within 2 hops" });
         // Two hops list the same way one hop does: by name.
         const names = within(wider)
             .getAllByRole("button")
@@ -404,6 +406,10 @@ describe("the inspector", () => {
         });
         assert.isNotNull(await screen.findByText("n0 -- n6"));
 
+        // The three-dot button names itself on hover, as every icon button does.
+        await userEvent.hover(screen.getByRole("button", { name: "Edge actions" }));
+        const tip = await screen.findByText("Edge actions");
+        assert.isNotNull(tip.closest('[role="tooltip"]'));
         await userEvent.click(screen.getByRole("button", { name: "Edge actions" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /Select endpoints/ }));
         await waitFor(() => {

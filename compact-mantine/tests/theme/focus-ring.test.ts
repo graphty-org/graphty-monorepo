@@ -31,6 +31,12 @@ describe("focus ring", () => {
         }
     });
 
+    it("marks a focused heading with an underline, never a box that reads as a field", () => {
+        expect(compactGlobalCss()).toMatch(
+            /\.cm-focus-underline:focus-visible \{\s+outline: none;\s+text-decoration: underline 2px var\(--cm-border-selected\);/,
+        );
+    });
+
     it("reserves the ring's slot at rest so focus never shifts layout", () => {
         expect(compactGlobalCss()).toMatch(/\.cm-focus-outside, [^{]*\{\s+outline: 1px solid transparent;/);
     });

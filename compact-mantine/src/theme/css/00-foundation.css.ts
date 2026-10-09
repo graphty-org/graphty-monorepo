@@ -112,6 +112,14 @@ ${FOCUSABLE_REST} {
     outline: 1px solid transparent;
     box-shadow: inset 0 0 0 1px var(--cm-bg), 0 0 0 1px var(--cm-bg), 0 0 0 2px var(--cm-border-selected);
 }
+/* A heading or text that takes focus from script (where focus lands after an action): an
+   underline in the focus color, so the mark never draws a box that reads as an editable field. */
+.cm-focus-underline { outline: none; }
+.cm-focus-underline:focus-visible {
+    outline: none;
+    text-decoration: underline 2px var(--cm-border-selected);
+    text-underline-offset: 2px;
+}
 .cm-focus-pseudo { position: relative; }
 .cm-focus-pseudo::before {
     content: "";

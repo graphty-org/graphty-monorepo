@@ -74,4 +74,36 @@ describe("ControlSection title cut short", () => {
         await userEvent.hover(screen.getByTestId("control-section-name"));
         await expect(screen.findByRole("tooltip", {}, { timeout: 2000 })).rejects.toThrow();
     });
+
+    it("wraps a wrapLabel title onto a second line, whole, with no tooltip", async () => {
+        await renderThemed(
+            <div style={{ width: PANEL_GRID.WIDTH }}>
+                <ControlSection label={LONG} collapsible={false} wrapLabel>
+                    <div>Rows</div>
+                </ControlSection>
+            </div>,
+        );
+        const name = screen.getByTestId("control-section-name");
+        expect(name.scrollWidth).toBe(name.clientWidth);
+        // Two 16px lines, inside a header grown past its 40px.
+        expect(name.scrollHeight).toBeGreaterThan(32);
+        expect(screen.getByTestId("control-section-header").getBoundingClientRect().height).toBeGreaterThan(
+            PANEL_GRID.SECTION_HEADER,
+        );
+        await userEvent.hover(name);
+        await expect(screen.findByRole("tooltip", {}, { timeout: 2000 })).rejects.toThrow();
+    });
+
+    it("draws a short wrapLabel title at the one-line header height", async () => {
+        await renderThemed(
+            <div style={{ width: PANEL_GRID.WIDTH }}>
+                <ControlSection label="Size" wrapLabel>
+                    <div>Rows</div>
+                </ControlSection>
+            </div>,
+        );
+        expect(screen.getByTestId("control-section-header").getBoundingClientRect().height).toBe(
+            PANEL_GRID.SECTION_HEADER,
+        );
+    });
 });

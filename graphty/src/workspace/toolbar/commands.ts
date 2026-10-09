@@ -1,4 +1,4 @@
-import { type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
+import { type GraphSession, isGraphtyError, type NodeId } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import { neighborhoodKey } from "../inspector/inspected";
@@ -13,6 +13,21 @@ import { nothingDrawn } from "./useSessionVersion";
  */
 function noNodeSelected(session: GraphSession | null): string | null {
     return nothingDrawn(session) ?? (session?.selection.nodes.length ? null : "Select a node first");
+}
+
+/**
+ * How far out a node's neighbor list opens: the reach of an on "Filter to neighbors" step on that
+ * node, so the list and its pressed button agree; one hop when no such step is on.
+ * @param session - the element's session.
+ * @param center - the node at the center.
+ * @returns the hop count.
+ */
+function filteredReach(session: GraphSession, center: NodeId): 1 | 2 | 3 {
+    const step = session.visibility.steps.find(
+        (s) => s.on && s.rule.kind === "neighborhood" && s.rule.seeds.length === 1 && s.rule.seeds[0] === center,
+    );
+    const depth = step?.rule.kind === "neighborhood" ? step.rule.depth : 1;
+    return depth === 2 || depth === 3 ? depth : 1;
 }
 
 /**
@@ -228,11 +243,12 @@ export const registration = defineRegistration({
                     return;
                 }
                 const centers = session.selection.nodes;
-                await session.selection.apply({ neighborsOf: centers });
+                const depth = centers.length === 1 ? filteredReach(session, centers[0]) : 1;
+                await session.selection.apply({ neighborsOf: centers, depth });
                 // One node's neighborhood opens in the inspector as a neighborhood, as the
-                // inspector's own connections link does.
+                // inspector's own connections link does, at the reach its filter keeps.
                 if (centers.length === 1) {
-                    workspace.set({ inspected: { kind: "neighborhood", id: neighborhoodKey(centers[0]) } });
+                    workspace.set({ inspected: { kind: "neighborhood", id: neighborhoodKey(centers[0], depth) } });
                 }
             },
         },

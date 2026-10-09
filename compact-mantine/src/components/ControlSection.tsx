@@ -108,6 +108,13 @@ export interface ControlSectionProps extends DisclosureProps {
      * @default true
      */
     collapsible?: boolean;
+    /**
+     * Whether a label too long for one line wraps onto more lines instead of being cut with an
+     * ellipsis. For a label that is a sentence the reader must read whole, such as a count:
+     * `"Medici and 11 connections within 2 hops"`. The header grows to hold it.
+     * @default false
+     */
+    wrapLabel?: boolean;
 }
 
 /**
@@ -158,6 +165,7 @@ export interface ControlSectionProps extends DisclosureProps {
  * @param props.summary - One line saying what the section holds, shown after the name while it is collapsed
  * @param props.children - The rows the section holds
  * @param props.collapsible - Whether the section folds away behind a chevron, defaulting to true
+ * @param props.wrapLabel - Whether a long label wraps onto more lines instead of being cut, defaulting to false
  * @returns The section, its header and its rows
  * @example
  * ```tsx
@@ -202,6 +210,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
         summary,
         children,
         collapsible = true,
+        wrapLabel = false,
     } = props;
 
     const labels = useLabels();
@@ -293,6 +302,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
             aria-describedby={hasInfo ? infoId : undefined}
             data-testid="control-section"
             data-empty={empty ? "true" : undefined}
+            data-wrap-label={wrapLabel ? "true" : undefined}
             className="cm-section"
         >
             {/* 16 | title | info | flex | actions ending at x 232. The padding
@@ -301,7 +311,9 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
                 data-testid="control-section-header"
                 className="cm-section-header"
                 style={{
-                    height: PANEL_GRID.SECTION_HEADER,
+                    // A wrapped label grows the header past its one-line height.
+                    height: wrapLabel ? undefined : PANEL_GRID.SECTION_HEADER,
+                    minHeight: wrapLabel ? PANEL_GRID.SECTION_HEADER : undefined,
                     paddingInlineStart: PANEL_GRID.PAD_LEFT,
                     paddingInlineEnd: PANEL_GRID.PAD_RIGHT,
                 }}

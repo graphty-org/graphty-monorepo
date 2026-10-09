@@ -11,6 +11,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **The neighbor list opens at the reach of the filter that is on, and its heading
+  wraps.** `selection.neighborhood` (Degree link and `g`, `toolbar/commands.ts`) reads an on
+  neighborhood step seeded on the one center (`filteredReach`) and selects and keys the list at
+  its depth; no such step, one hop. The heading uses compact-mantine `ControlSection wrapLabel`
+  (new, default off; recorded "decided by the team"): a long title wraps, the header grows, so it
+  is never cut and has no tooltip; a cut title without `wrapLabel` still shows the shared tooltip
+  (`EllipsizedName`). Tests: "reopens a node's neighbor list at the reach of its 2-hop filter" in
+  `toolbar/__tests__/tasks.real-element.test.tsx` (fails without the change: list opened at 1
+  hop), two `wrapLabel` cases in `ControlSection.browser.test.tsx`. Evidence
+  `tmp/r2-dry3-neighbor-list-reach-and-heading/T23B/{05,10,11,12,13}.png`, `T12RA/04`, `T12RB/04`.
+  For `real.mjs`: the heading's text now matches 2 things (group, span); hover it as `"<text>#2"`.
+
 - (2026-10-09) **The import preview's caption says "All N rows" when it holds the whole table**
   ("1 row" for a one-row table), and "The first N rows of M" only when it holds fewer.
   `previewCaption(shown, total)` in `data-page/words.ts`, unit-tested in `words.test.ts`; the
@@ -48,16 +60,6 @@ T21A/05,T4A-hover/05}.png`.
 plainName`; reports quote names at `NAME_CHARS` = 80. Test `tool/measure.test.mjs`. Bars 2, 7, 8, 9 scored by
   `bars.mjs`; one 4-browser pool; ambiguous names refused with `"<name>#n"`.
 
-- (2026-10-09) **A cut section title shows the shared tooltip.** compact-mantine's
-  `ControlSection` draws its title through `EllipsizedName` (as tree rows do) in place of the native
-  `title` attribute: the themed tooltip only while the header cuts the title, none when it fits; the
-  group is still named by the title's own text. A technical name inside it takes the tooltip's
-  secondary ink (`overlays.css.ts`). Tests "ControlSection title cut short" in
-  `ControlSection.browser.test.tsx` (the cut case fails without the change). Evidence
-  `tmp/r2-dry2-cm-section-title-tooltip/06.png` (T23B's "Medici and 11 connections within 2 ho...").
-  Note for `real.mjs`: a section heading's text matches 4 things (section, group, span, status);
-  hover it as `"<text>#3"`, the span.
-
 - (2026-10-09, condensed) **`selection:origin-changed` `{ origin }`** fires when only a
   selection's origin changes (`selection:changed` stays membership-only); a bare-number
   `suggestion` is attached only when the rewrite parses. Tests `selection-origin.test.ts`,
@@ -80,12 +82,6 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
   `inspector/inspected.ts` resolves "graph"); the open filter step's row is marked; the
   neighborhood wears its node's header; `OptionsForm` passes no `value` at a default. Tests in
   `GraphPlace.test.tsx`, `inspected.test.ts`, `Filters.real-element.test.tsx`, `OptionsForm.test.tsx`.
-- (2026-10-09, condensed) **A chosen segment is filled** (`--cm-bg-inverse`) and every control shows
-  the arrow cursor (one rule in compact-mantine `00-foundation.css.ts`; only Anchor keeps the hand).
-- (2026-10-09, condensed) **A data file opened from the start screen goes through the Data page**
-  (`openInSession`; Control+O on the page lands as a drop), and the source's inspector "..." holds
-  the Sources row menu's verbs (`useSourceActions`). Tests `StartScreen.real-element.test.tsx`,
-  `DataPlace.real-element.test.tsx`.
 - (2026-10-09, condensed) **The dry run walks the detours as a script: `tier2/pilot/detours.sh all`**
   (30 walks: success paths, `--sr` keyboard walks, round 1's wrong turns, each with `--expect`;
   report `tier2/dry-run-r2-1.md`). Its fixes: pointerdown no longer canceled (2a236410c), short
@@ -96,13 +92,27 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
   on it or one to add (PageRank: no Nodes | Edges switch). Test `StyleTab.real-element.test.tsx`;
   evidence `tmp/t2r1-11/`.
 
+## Decisions and reasons
+
 - (2026-10-09, summarized) **Smaller standing facts:** the path's Weight list starts on the loaded
   weight; a live region is in the page before its words arrive (`Frame.tsx`); the selection halo
   draws only back faces (`createOverlaySource`); ", out of date" only on `data-changed`; the
   Filters step editor is a `<form>` (`focusNext`/`focusStep`).
-
-## Decisions and reasons
-
+- (2026-10-09) **The list follows the filter, not the other way round.** Reopening a node under its
+  2-hop filter opened one hop with the button pressed, and pressing it there removed the filter
+  instead of narrowing. Opening at the on step's depth makes list, Hops and button agree; with no
+  on step nothing changes (T12R still opens at Hops 1). Only an ON step counts: an off step is
+  the reader's own choice not to filter, so it should not change where the list opens.
+- (2026-10-09) **Wrap a sentence heading, opt in.** A neighbor heading is the task's answer, so it
+  must be read whole; section names of one to three words stay on one line, so `wrapLabel` is
+  per section with the old drawing as default (no change to any other section). One line at
+  `wrapLabel` keeps the 40px header (16px lines plus 8px padding = the old 32px line box).
+- (2026-10-09, condensed) **A chosen segment is filled** (`--cm-bg-inverse`) and every control shows
+  the arrow cursor (one rule in compact-mantine `00-foundation.css.ts`; only Anchor keeps the hand).
+- (2026-10-09, condensed) **A data file opened from the start screen goes through the Data page**
+  (`openInSession`; Control+O on the page lands as a drop), and the source's inspector "..." holds
+  the Sources row menu's verbs (`useSourceActions`). Tests `StartScreen.real-element.test.tsx`,
+  `DataPlace.real-element.test.tsx`.
 - (2026-10-09) **Pointer-opened menus focus the menu, not row one, for every menu.** A filled first
   row reads as already chosen (Edge actions showed "Select endpoints" blue in the T24 pilots). The
   WAI-ARIA menu-button pattern focuses the first item on any open; we keep that for keyboard opens
@@ -155,52 +165,15 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
   1.4.3); `--cm-segment-edge` kept (removing a published variable is breaking). **Arrow cursor on
   every control, the hand only on links** (Mantine's UnstyledButton default was the hand).
 
-- (2026-10-09, summarized) **A list that scrolls only up and down passes `scrollbars="y"`;**
-  compact-mantine then makes its content as wide as the area (Mantine's Autosize used
-  `min-content`), and `ResultRow` ellipsizes through `EllipsizedName`. Do the same for any other
-  vertical list over long text. Evidence `tmp/t2r1-9/s1/`.
-- (2026-10-09) **Tier 2 screenshot audit (round 1): the app breaks on long names and narrow
-  windows, not at the study's size** (`tier2/rounds/round-1/expert/engineer.md`, 24 findings).
-  `REAL_VIEWPORT=<w>x<h>` on `real.mjs --start` sets the window (default 1440x900).
-
-- (2026-10-09, summarized) **Four word fixes on the path and Replace screens:** the path total
-  named by its weight column (`PathValues`), an unread weight says why (`weightRead`), Replace's
-  button says "Replace", Shortest path answers chain/quickest/link/between. Evidence `tmp/t2r1-14/`.
-
-- (2026-10-09) **"Accepted" alone is not enough to call plain text a condition.** The element
-  reads a bare word ("zzz", a name) as a column reference and accepts it, so the hint would have
-  shown for every unmatched name. The app adds one neutral fact the element already returns: the
-  accepted rule must match at least one node or edge. No rule syntax is read in the app. Rejected:
-  passing `aria-describedby` to SearchInput -- Mantine's Input spreads its own `aria-describedby`
-  after the consumer's props and clobbers it; Mantine's `description` prop links it natively.
-  Side effect: the line now sits under the box, above the list, where the refusal error already
-  sat (a rule with column suggestions shows its line above the Columns list).
-- (2026-10-09) **The element no longer cancels pointerdown on its canvas.** A canceled pointerdown
-  suppresses the page's mousedown, which Mantine's click-outside listens for. Fixed in the element
-  so every consumer gets it; a compact-mantine `clickOutsideEvents` default would have hidden the
-  element defect. `user-select: none` on the canvas keeps drags from selecting page text.
-  Interactions project: 239 pass.
-- (2026-10-09) **A Select list that fits the window opens whole** (shift moves it); only a list
-  taller than the window keeps the macOS cut with the chosen row on the field. ponytail: a long
-  list near the edge can still be cut to a few rows. Escape in a written note keeps it open; saving
-  a project with a note still open is left as a design question (0 of 4 in round 1).
-- (2026-10-09) No code change for "the path's Weight list starts on the loaded weight": the
-  behavior exists (`WeightField` in `options/OptionsForm.tsx` shows LOADED when the element's plan
-  reads it, None when the meaning is unset because the plan skips it). Reason: showing an unread
-  weight as chosen would misstate what the run reads. Evidence above.
-
-- (2026-10-08, summarized 2026-10-09) **Dry-run 4 fixes, still standing:** reopen framed as a
-  fresh fit (OPEN owner door: camera not saved); Undo/Redo/Escape say what they did; a click keeps
-  its trigger's tooltips closed until the pointer leaves; measure a finding before fixing it.
-
-- (2026-10-09) **A skipped weight's note leads with what the run did, then why** ("Each edge counts
-  as 1." first). Dropping "a path needs a distance" when the meaning was unset (an earlier call)
-  left a sentence that began with a lowercase column name and gave no reason; the reason is back,
-  before the column, which is quoted.
-- (2026-10-09, condensed) **The page that names the graph announces its load** (no timer, no
-  canvas read of the header). An Add counts what it adds ("adds 0 nodes, 41 edges"); Replace says
-  "runs out of date".
-
+- (2026-10-09, summarized) **Round 1 and dry-run calls, still standing:** a vertical list passes
+  `scrollbars="y"` and ellipsizes through `EllipsizedName`; the app breaks on long names and narrow
+  windows, not at 1440x900 (`REAL_VIEWPORT`); path and Replace words name the weight column and say
+  why a weight was not read; plain text counts as a condition only when the accepted rule matches
+  something (no syntax read in the app; Mantine's `description` links the hint); the element no
+  longer cancels canvas pointerdown (click-outside works for every consumer); a Select list that
+  fits opens whole; the path's Weight list already starts on the loaded weight; reopen is a fresh
+  fit (camera unsaved, owner door); a skipped weight's note says what the run did, then why; the
+  page that names the graph announces its load; an Add counts what it adds.
 - (2026-10-09, condensed) **The bar scripts measure in the participant's own `real.mjs` session**
   (ops `measure`, `work`; checks in `measure.mjs`), each move with an `--expect`. Focus fell = body
   or null (shadow-root focus is kept); shared names count reachable controls, not list items; bar
@@ -246,6 +219,11 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Did not work: making a section header grow with an inline `minHeight` alone --
+  `.cm-section-header` sets `height: 40px` in `chrome.css.ts`, so the header stayed 40 until the
+  `[data-wrap-label]` rule set `height: auto`. The browser test caught it (40 not above 40).
+- (2026-10-09) Worked: when a pilot's log is gone, rebuild its walk from `repilot.sh` and the
+  screenshots (T23B 14 to 17: Data page, then Find Medici and `g` under the 2-hop filter).
 - (2026-10-09) Worked: re-piloting only the halves a fix touches with
   `REAL_DIST=graphty/dist OUT=<my tmp> LANES=3 tier2/pilot/repilot.sh T20A T20B T21A`, then one
   hand session for a hover the script does not take (`--hover "Add a table"` prints the tooltip).

@@ -4,6 +4,22 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-09 -- Decided by the team: a compact-mantine section title can wrap (`ControlSection` `wrapLabel`)
+
+**What.** `ControlSection` takes an optional `wrapLabel` (default `false`). Set, a title too long
+for one line wraps onto more lines instead of being cut with an ellipsis, and the header grows
+past its 40px to hold it; a title that fits is drawn exactly as before. Additive: a new optional
+prop whose default keeps today's drawing.
+
+**Why.** The graphty app's neighbor list is headed by a sentence the task needs whole: "Medici and
+11 connections within 2 hops". At 1440 x 900 the panel holds about 37 characters, so the hop count
+was cut and readable only in a tooltip that opened over the Hops control under it. A section name
+of one to three words never needs this, so the default stays one line.
+
+**Alternatives.** Draw the heading outside `ControlSection` in the app (a second heading style for
+one panel); shorten the words (the count and the reach are the answer); always wrap every section
+title (changes how every existing section is drawn).
+
 ## 2026-10-09 -- Decided by the team: a selection's origin has its own event (`selection:origin-changed`)
 
 **What.** A session publishes `selection:origin-changed` with `{ origin }` when a selection call

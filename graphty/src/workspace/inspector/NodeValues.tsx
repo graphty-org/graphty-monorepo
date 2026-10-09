@@ -364,7 +364,7 @@ export function NeighborList({
                 {`Back to ${centerName}`}
             </Button>
             {/* The heading is a section title, as Summary is on the node, never smaller than its rows. */}
-            <ControlSection label={words} collapsible={false}>
+            <ControlSection label={words} collapsible={false} wrapLabel>
                 <Stack gap={4} px="md" py={6}>
                     <Group gap={8} wrap="nowrap">
                         <Text size="sm" id={hopsLabel} w={44}>

@@ -65,6 +65,15 @@ const css = `
     white-space: nowrap;
     transition: color var(--cm-duration-sm) var(--cm-ease-out);
 }
+/* A wrapping label (wrapLabel): one line is the same 32px as above; a longer one takes more lines. */
+.cm-section[data-wrap-label] .cm-section-header { height: auto; min-height: 40px; }
+.cm-section[data-wrap-label] .cm-section-lead { height: auto; min-height: 32px; }
+.cm-section[data-wrap-label] .cm-section-title {
+    line-height: 16px;
+    padding-block: 8px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
 .cm-section-technical { font-weight: 450; color: var(--cm-text-secondary); }
 /* A collapsed section's summary: after the name, in the secondary ink, and the first to give
    way to an ellipsis when the header is narrow. */

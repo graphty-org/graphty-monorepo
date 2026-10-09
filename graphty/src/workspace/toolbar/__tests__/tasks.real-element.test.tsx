@@ -408,4 +408,67 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         },
         TIMEOUT_MS,
     );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "reopens a node's neighbor list at the reach of its 2-hop filter, pressed, and the button toggles that filter",
+        async () => {
+            const session = await openKarate();
+            const node = session.data.nodes()[0].id;
+            const name = session.data.name(node) ?? String(node);
+            await session.selection.apply({ nodes: [node] });
+            const degree = async (): Promise<void> => {
+                const values = await screen.findByRole("group", { name: "Summary values" });
+                await userEvent.click(within(values).getByRole("button", { name: /Degree/ }));
+            };
+
+            // Open at one hop, reach two, filter to it.
+            await degree();
+            const hops = await screen.findByRole("radiogroup", { name: "Hops" });
+            await userEvent.click(within(hops).getByRole("radio", { name: "2" }));
+            await screen.findByRole("group", { name: /within 2 hops$/ });
+            await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
+            await waitFor(() => {
+                assert.deepEqual(
+                    session.visibility.steps.map((step) => step.rule),
+                    [{ kind: "neighborhood", seeds: [node], depth: 2 }],
+                );
+            });
+            const grown = session.selection.nodes.length - 1;
+
+            // Back to the node, then its Degree row again: the list opens at the filter's two hops.
+            await userEvent.click(screen.getByRole("button", { name: `Back to ${name}` }));
+            await degree();
+            const words = `${name} and ${String(grown)} connections within 2 hops`;
+            await screen.findByRole("group", { name: words });
+            const reopened = await screen.findByRole("radiogroup", { name: "Hops" });
+            assert.isTrue(within(reopened).getByRole<HTMLInputElement>("radio", { name: "2" }).checked);
+            assert.equal(session.selection.nodes.length, grown + 1);
+            const toggle = screen.getByRole("button", { name: "Filter to neighbors" });
+            assert.equal(toggle.getAttribute("aria-pressed"), "true");
+            // The heading is drawn whole: wrapped, never cut.
+            const heading = screen
+                .getByRole("group", { name: words })
+                .querySelector<HTMLElement>('[data-testid="control-section-name"]');
+            assert.isNotNull(heading);
+            assert.equal(heading?.scrollWidth, heading?.clientWidth);
+            assert.isAtMost(heading?.scrollHeight ?? 0, heading?.clientHeight ?? 0);
+
+            // Pressed, it takes the filter away; pressed again, it puts it back at two hops.
+            await userEvent.click(toggle);
+            await waitFor(() => {
+                assert.lengthOf(session.visibility.steps, 0);
+                assert.equal(toggle.getAttribute("aria-pressed"), "false");
+            });
+            await userEvent.click(toggle);
+            await waitFor(() => {
+                assert.deepEqual(
+                    session.visibility.steps.map((step) => step.rule),
+                    [{ kind: "neighborhood", seeds: [node], depth: 2 }],
+                );
+                assert.equal(toggle.getAttribute("aria-pressed"), "true");
+            });
+        },
+        TIMEOUT_MS,
+    );
 });

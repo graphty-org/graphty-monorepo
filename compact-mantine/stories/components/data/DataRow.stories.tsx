@@ -415,9 +415,10 @@ export const LongValue: Story = {
     ),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await expect(canvas.getByRole("group", { name: "Direction" })).toHaveTextContent(
-            "DirectionUndirected, from the file: directed 0",
-        );
+        // Drawn once per color scheme.
+        for (const group of canvas.getAllByRole("group", { name: "Direction" })) {
+            await expect(group).toHaveTextContent("DirectionUndirected, from the file: directed 0");
+        }
     },
 };
 

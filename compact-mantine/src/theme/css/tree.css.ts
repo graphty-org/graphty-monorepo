@@ -68,7 +68,7 @@ const css = `
 .cm-tree-row[data-tint="first"]::after { height: 28px; border-radius: 5px 5px 0 0; }
 .cm-tree-row[data-tint="middle"]::after { top: 0; height: 32px; border-radius: 0; }
 .cm-tree-row[data-tint="last"]::after { top: 0; height: 28px; border-radius: 0 0 5px 5px; }
-.cm-tree-row[data-tint="parent"]::after {
+.cm-tree-row[data-tint="parent"][aria-selected="true"]::after {
     box-sizing: content-box;
     height: 24px;
     /* A selected parent is told apart from the band its children wear: the stronger selected

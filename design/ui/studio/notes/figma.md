@@ -5,18 +5,21 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-09 (tier 2 round 1 expert walkthrough; file summarized).
+Last updated: 2026-10-09 (tier 2 round 1 critique).
 
 ## Top of mind
 
-1. (2026-10-09) Tier 2 round 1 walkthrough done (`tier2/rounds/round-1/expert/figma.md`): 4
-   severity 3, 22 severity 2, 9 severity 1. The 3s: Enter does not commit in the filter step
-   editor; rules need backticks around numbers (element syntax on screen); edge names cut inside
-   the string so the far end is lost; the canvas key shows an out-of-date range with no mark.
-2. (2026-10-09) Four dry runs preceded round 1 and still left implementation faults a participant
-   can trip on (the Enter commit, the cut names, the suggestion list over the next field, Escape
-   not closing the step editor, "1 note" with two notes). A dry run must click every field's
-   commit keys (Enter, Tab, Escape), not only the success path's button.
+1. (2026-10-09) Round 1 critique: the dry run happened (four builds plus a walk of the frozen
+   build) and cleared the success paths -- every session.log empty, no grade decided by a build
+   defect. Participants met faults only on detours no dry run walked (Edges color written to
+   Everything, the selection tint over a new fill). Round 2's dry run walks each task's two
+   commonest round 1 wrong turns and presses Enter, Tab and Escape in every field it opens.
+2. (2026-10-09) Round 2 proposal, eight changes, one per verified problem: find box offers
+   "Select where" for a typed condition and the column menu gets the same door; Replace in the
+   selected source's inspector menu; "Higher means" on the weight column's inspector; "Back to
+   start" asks before dropping work; the key marks an out-of-date block; step editor Enter/Escape;
+   the new step selected after Add; path Weight starts on the loaded meaning. Plus the Edges-color
+   defect.
 3. (2026-10-09) Biggest Figma divergence in tier 2: the step editor is a form with Save, not a
    live inspector; its one button both saves and turns the step on. Push for live commit plus the
    row's own toggle.
@@ -104,6 +107,22 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- 2026-10-09 (me, round 1 critique) Round 2 changes, smallest per verified failure: (a) T22 --
+  a typed condition gets one live row "Select where <rule> (n)" instead of bare "No match", and
+  the column's menu gets "Select where..." opening the find box with the column filled (4 of 4
+  went to the column second; one home, a second door with the same words); numbers without
+  backticks is an element ask, additive if it only accepts input refused today. (b) T21 --
+  "Replace with file..." in the inspector's "..." menu when a source is selected (selection
+  drives the inspector; 8 of 8 hunted, nothing visible at rest). (c) T20 -- the "Higher means"
+  control on the weight column's inspector, same element setting as the import page (6 of 7 went
+  to the column next); "Back to start" with open work goes through the existing Discard prompt.
+  (d) The key dims an out-of-date block and shows the row's clock glyph (bar 5). (e) Step editor:
+  Enter commits, Escape closes (my finding; trivial, on T17's follow-up). (f) After Add step the
+  new step is selected and focused (fixes my finding 10 and the a11y focus loss in one change).
+  (g) Path Weight preselects the loaded meaning (4 sessions). Not now: live step inspector,
+  checkbox-to-eye, segmented fill, selection marks, label placement, a filter door on the
+  toolbar, units, a second path replacing the first. Reason: each is either large, owner-visible,
+  element-only, or not a verified failure; one change per failure keeps round 2 attributable.
 - 2026-10-09 (me, tier 2 round 1 walkthrough) Severity 3 for: Enter not committing in the step
   editor (bar 4, silent non-commit), backtick numbers in rules (raw code string on a success path,
   bar 10 rule), edge names cut in the string (truncation hiding the word needed to act), the key
@@ -132,11 +151,8 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   answer key for new routes, T10 prompt kept. All of my proposal accepted except "no show-all
   control yet" (overruled with a forcing fact I accept). Not changed: key placement and fit
   insets (new API, owner), 4x export (element, later), Size pre-bound to the result.
-- 2026-10-07 (me, round 2 critique) Round 3 proposal: menu-to-dialog focus, chevron in the hit
-  area, Size "+" opens its list, key from winning layers, 2D Fit, group fact from the element,
-  ship the run rename. Not changed: toolbar, tooltip delay, signposts, default labels or hover,
-  a show-all-names control, ranking that also sizes. Reason: smallest fixes for verified failures
-  on the core path; the rest is opinion or prompt-made.
+- 2026-10-07 (me, round 2 critique) Summarized: my round 3 proposal was accepted into the
+  round 2 close entry above, except "no show-all control yet".
 
 - 2026-09-25 (owner) Figma studied in depth by capture: components, measurements, styles, dark
   mode, flows, saved in `design/ui/figma/`. Reason: compact-mantine replicates them and the app
@@ -185,6 +201,13 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- 2026-10-09 Tier 2 round 1 (55 valid sessions, 52 succeeded). Worked: Data > Filters (7 of 8
+  found it, follow-ups at the key's 4 steps), the path popover once found, the Replace page and
+  load-time "Higher means" read right every time, 0 false done, 0 silent commits. Did not: the
+  find box for conditions (T22 below floor), Replace behind right-click only, weight meaning
+  unreachable after a plain Open. My walkthrough's Enter-commit finding was not met by any
+  session (a pass is weak; keep the fix, it is cheap). Lesson: a dry run on the answer key's
+  route cannot find detour defects; walk the previous round's wrong turns too.
 - 2026-10-07 Re-pilot of round 2's fixes (nine tasks, scripted). Worked: Size "+" opens "Size by
   attribute" at once with Fixed size first and id/name disabled "Holds groups, not amounts" (the
   Label "+" pattern transferred cleanly); runs named "PageRank" on key, row and node; group layouts

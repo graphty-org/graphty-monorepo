@@ -2495,6 +2495,24 @@ describe("release.yml", () => {
         assert.match(publish, /echo "tags=\$\(IFS=,; echo "\$\{tags\[\*\]\}"\)" >> "\$GITHUB_OUTPUT"/);
     });
 
+    it("has a backstop that announces a run that ended badly without announcing itself", () => {
+        const watch = workflow("release-watch.yml");
+        // workflow_run matches the watched workflow by its name
+        assert.match(release, /^name: Release\n/);
+        assert.match(watch, /workflow_run:\n\s+workflows: \["Release"\]\n\s+types: \[completed\]\n/);
+        assert.match(
+            watch,
+            /if: \$\{\{ !contains\(fromJSON\('\["success","skipped","neutral"\]'\), github.event.workflow_run.conclusion\) \}\}/,
+        );
+        assert.doesNotMatch(watch, /secrets\./, "GITHUB_TOKEN only");
+        assert.deepEqual(watch.match(/\w+: write/g), ["issues: write"], "it writes only the comment");
+        assert.match(watch, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
+        assert.match(watch, /node tools\/release-status.mjs run-ended --run "\$RUN_URL" --attempt "\$ATTEMPT"/);
+        assert.match(watch, /--what "\$CONCLUSION" --sha "\$HEAD_SHA" --since "\$STARTED"/);
+        // the same rule gpu-rerun-on-runner-loss.yml re-runs by, so a lost spot runner is never announced twice
+        assert.match(watch, /tools\/gpu-runner-lost.sh "\$RUN_ID" 1/);
+    });
+
     // The failed-publish report, run in a scratch directory with stubs: the publish step's output (run
     // 37691314850's shape, colors and all), `pnpm exec nx show project` answering each project's root, and
     // tools/release-held.sh recording the issue it would open.

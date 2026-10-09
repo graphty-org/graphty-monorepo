@@ -97,6 +97,7 @@ describe("scanLock", () => {
         const said = [];
         const release = await scanLock(lock, 10, (m) => said.push(m));
         assert.ok(release, "the lock was obtained");
+        // eslint-disable-next-line local/no-test-timing -- a lower bound: load only lengthens the wait, so it cannot fail spuriously
         assert.ok(Date.now() - start >= 500, "it waited for the holder");
         assert.deepEqual(said, []);
         release();

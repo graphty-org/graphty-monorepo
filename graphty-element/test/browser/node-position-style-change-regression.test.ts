@@ -31,6 +31,7 @@ const TEST_EDGES = [
 
 // Helper to wait for a delay
 function delay(ms: number): Promise<void> {
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -63,10 +64,12 @@ describe("Node position preservation during style changes (regression)", () => {
         while (Date.now() - startTime < maxWaitMs) {
             if (layoutManager.isSettled) {
                 // Give one more frame for mesh positions to sync
+                // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
                 await delay(16);
                 return;
             }
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(16); // Poll every frame (~60fps)
         }
 
@@ -149,6 +152,7 @@ describe("Node position preservation during style changes (regression)", () => {
         });
 
         // Give a frame for any potential updates
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await delay(16);
 
         // Verify positions are preserved
@@ -177,6 +181,7 @@ describe("Node position preservation during style changes (regression)", () => {
         });
 
         // Wait a frame
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await delay(16);
 
         // Record positions
@@ -186,6 +191,7 @@ describe("Node position preservation during style changes (regression)", () => {
         await graph.getSession().styles.remove(layer.id);
 
         // Wait a frame
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await delay(16);
 
         // Verify positions are preserved
@@ -222,10 +228,12 @@ describe("Node position preservation during style changes (regression)", () => {
             });
 
             // Small delay between changes
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(10);
         }
 
         // Wait for all updates to complete
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await delay(32);
 
         // Verify positions are still preserved
@@ -258,6 +266,7 @@ describe("Node position preservation during style changes (regression)", () => {
         });
 
         // Wait for mesh recreation
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await delay(32);
 
         // Verify positions are preserved even after mesh recreation

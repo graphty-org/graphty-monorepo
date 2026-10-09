@@ -712,7 +712,7 @@ export class Graph implements GraphContext {
             const { graph } = this.styles.config;
             if (changed("background")) {
                 this.renderManager.applyBackground(graph.background, (url) => {
-                    this.eventManager.emitGraphEvent("skybox-loaded", { graph: this, url });
+                    this.eventManager.emit("skybox-loaded", { graph: this, url });
                 });
                 this.updateManager.meshesAdded();
             }
@@ -762,7 +762,7 @@ export class Graph implements GraphContext {
             //
             // The detail is COUNTS AND WORDS, never layers: it crosses to listeners that may
             // structure-clone it, and a consumer that wants the stack reads `styles.list()`.
-            this.eventManager.emitGraphEvent("style-changed", {
+            this.eventManager.emit("style-changed", {
                 reason: change.reason,
                 layers: change.layers.length,
                 painted: change.painted,
@@ -1465,7 +1465,7 @@ export class Graph implements GraphContext {
             // The configured background reaches the scene here, whether it was set through
             // `element.background` before the element was attached or left at its default.
             this.renderManager.applyBackground(this.styles.config.graph.background, (url) => {
-                this.eventManager.emitGraphEvent("skybox-loaded", { graph: this, url });
+                this.eventManager.emit("skybox-loaded", { graph: this, url });
             });
 
             // Start the graph system (render loop, etc.)
@@ -4530,7 +4530,7 @@ export class Graph implements GraphContext {
 
         // Set up progress event handler
         const onProgress = (progress: number): void => {
-            this.eventManager.emitGraphEvent("animation-progress", { progress });
+            this.eventManager.emit("animation-progress", { progress });
         };
 
         try {
@@ -4674,7 +4674,7 @@ export class Graph implements GraphContext {
 
         // Emit cancellation event
         if (cancelled) {
-            this.eventManager.emitGraphEvent("animation-cancelled", {});
+            this.eventManager.emit("animation-cancelled", {});
         }
 
         return cancelled;
@@ -4858,7 +4858,7 @@ export class Graph implements GraphContext {
         if (!options || !options.animate || options.skipQueue) {
             this.applyCameraStateImmediate(resolvedState);
             // Emit event
-            this.eventManager.emitGraphEvent("camera-state-changed", { state: resolvedState });
+            this.eventManager.emit("camera-state-changed", { state: resolvedState });
 
             return;
         }
@@ -4888,7 +4888,7 @@ export class Graph implements GraphContext {
                     } else {
                         // Unknown controller, apply immediately
                         this.applyCameraStateImmediate(resolvedState);
-                        this.eventManager.emitGraphEvent("camera-state-changed", { state: resolvedState });
+                        this.eventManager.emit("camera-state-changed", { state: resolvedState });
                     }
                 } catch (error) {
                     // Check if error is due to cancellation
@@ -4899,7 +4899,7 @@ export class Graph implements GraphContext {
                     console.error("Camera animation failed:", error);
                     // Fallback to immediate
                     this.applyCameraStateImmediate(resolvedState);
-                    this.eventManager.emitGraphEvent("camera-state-changed", { state: resolvedState });
+                    this.eventManager.emit("camera-state-changed", { state: resolvedState });
                 }
             },
             {
@@ -5357,7 +5357,7 @@ export class Graph implements GraphContext {
                         orbitController.updateCameraPosition();
 
                         // Emit completion event
-                        this.eventManager.emitGraphEvent("camera-state-changed", {
+                        this.eventManager.emit("camera-state-changed", {
                             state: targetState,
                         });
 
@@ -5386,7 +5386,7 @@ export class Graph implements GraphContext {
         } else if (distanceAnimation) {
             // Only distance animation
             await distanceAnimation;
-            this.eventManager.emitGraphEvent("camera-state-changed", {
+            this.eventManager.emit("camera-state-changed", {
                 state: targetState,
             });
         }
@@ -5588,7 +5588,7 @@ export class Graph implements GraphContext {
                     twoDController.camera.orthoBottom = dummy.orthoBottom;
                 }
 
-                this.eventManager.emitGraphEvent("camera-state-changed", {
+                this.eventManager.emit("camera-state-changed", {
                     state: targetState,
                 });
 
@@ -6398,13 +6398,13 @@ export class Graph implements GraphContext {
             // and the DOM however it was started.
             adapter.onActiveChange((active, reason) => {
                 if (active) {
-                    this.eventManager.emitGraphEvent("ai-voice-start", {});
+                    this.eventManager.emit("ai-voice-start", {});
                 } else {
-                    this.eventManager.emitGraphEvent("ai-voice-end", { reason });
+                    this.eventManager.emit("ai-voice-end", { reason });
                 }
             });
             adapter.onInput((transcript, isFinal) => {
-                this.eventManager.emitGraphEvent("ai-voice-transcript", { transcript, isFinal });
+                this.eventManager.emit("ai-voice-transcript", { transcript, isFinal });
             });
 
             this.voiceAdapter = adapter;

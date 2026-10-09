@@ -65,7 +65,7 @@ export class LifecycleManager implements Manager {
                         duration: managerDuration.toFixed(2),
                     });
 
-                    this.eventManager.emitGraphEvent("manager-initialized", {
+                    this.eventManager.emit("manager-initialized", {
                         managerName,
                         elapsedTime: performance.now() - startTime,
                     });
@@ -98,7 +98,7 @@ export class LifecycleManager implements Manager {
             });
 
             // Emit overall initialization complete event
-            this.eventManager.emitGraphEvent("lifecycle-initialized", {
+            this.eventManager.emit("lifecycle-initialized", {
                 totalTime,
                 managerCount: this.managers.size,
             });
@@ -131,7 +131,7 @@ export class LifecycleManager implements Manager {
             }
 
             // Emit graph started event
-            this.eventManager.emitGraphEvent("graph-started", {
+            this.eventManager.emit("graph-started", {
                 timestamp: Date.now(),
             } satisfies Omit<GraphStartedEvent, "type">);
         } catch (error) {
@@ -190,7 +190,7 @@ export class LifecycleManager implements Manager {
         });
 
         // Emit lifecycle disposed event
-        this.eventManager.emitGraphEvent("lifecycle-disposed", {
+        this.eventManager.emit("lifecycle-disposed", {
             managerCount: this.managers.size,
         });
     }

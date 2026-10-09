@@ -11,7 +11,7 @@ describe("StatsManager", () => {
     beforeEach(() => {
         // Create mock EventManager
         mockEventManager = {
-            emitGraphEvent: vi.fn(),
+            emit: vi.fn(),
         } as unknown as EventManager;
 
         statsManager = new StatsManager(mockEventManager);
@@ -120,13 +120,13 @@ describe("StatsManager", () => {
             for (let i = 0; i < 59; i++) {
                 statsManager.step();
             }
-            assert.equal(vi.mocked(mockEventManager.emitGraphEvent).mock.calls.length, 0);
+            assert.equal(vi.mocked(mockEventManager.emit).mock.calls.length, 0);
 
             // 60th step should emit
             statsManager.step();
-            assert.equal(vi.mocked(mockEventManager.emitGraphEvent).mock.calls.length, 1);
-            assert.equal(vi.mocked(mockEventManager.emitGraphEvent).mock.calls[0][0], "stats-update");
-            assert.equal(vi.mocked(mockEventManager.emitGraphEvent).mock.calls[0][1].totalUpdates, 60);
+            assert.equal(vi.mocked(mockEventManager.emit).mock.calls.length, 1);
+            assert.equal(vi.mocked(mockEventManager.emit).mock.calls[0][0], "stats-update");
+            assert.equal(vi.mocked(mockEventManager.emit).mock.calls[0][1].totalUpdates, 60);
         });
     });
 

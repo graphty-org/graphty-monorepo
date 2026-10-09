@@ -65,6 +65,7 @@ describe("a caption at the end of an arrow", () => {
     let graph: Graph;
     let session: GraphSession;
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeEach(async () => {
         container = document.createElement("div");
         container.style.width = `${String(WIDTH)}px`;

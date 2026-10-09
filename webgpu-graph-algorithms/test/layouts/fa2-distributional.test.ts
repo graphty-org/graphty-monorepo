@@ -204,6 +204,7 @@ describe("FA2 distributional parity: 100 iterations, metrics within the traced 1
 
     for (const c of CASES) {
         const label = `${c.graph}/${c.tuning.compat ?? "paper"}/${c.dim}d`;
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `${label}: layoutMetrics of the GPU layout vs the f64 oracle's, coordinates never compared, twice bitwise`,
             async (t) => {
@@ -249,6 +250,7 @@ describe("FA2 distributional parity: 100 iterations, metrics within the traced 1
         );
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "writes the UNSCALED random1k metrics after 100 iterations and the f64 reference's as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {

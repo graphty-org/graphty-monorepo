@@ -69,6 +69,7 @@ describe("AiStatusManager", () => {
 
         it("calculates correct elapsed time", async () => {
             manager.submit();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
             manager.updateElapsed();
 

@@ -24,6 +24,7 @@ const MEASURED: readonly KernelId[] = [
 ];
 
 describe("sabotage: the betweenness kernels (spec 11.9 item 1)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the real kernels pass the check", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "sabotage-betweenness" });
@@ -37,6 +38,7 @@ describe("sabotage: the betweenness kernels (spec 11.9 item 1)", () => {
 
     for (const id of MEASURED) {
         for (const mutation of SABOTAGE[id] ?? []) {
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(`${id}/${mutation.name}: fails the check by >= ${mutation.minFactor}x`, async (t) => {
                 requireGpu(t);
                 const report = await withSabotage(id, mutation, (ctx) => betweennessReport(ctx));

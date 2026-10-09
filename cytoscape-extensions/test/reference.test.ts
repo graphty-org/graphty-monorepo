@@ -14,6 +14,7 @@ import {
 // layout, algorithm, generator, dataset or format fails here until the pages are regenerated
 // (`npm run docs:reference`). The hand-written text around the generated sections is kept.
 describe("docs/reference", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it.each(REFERENCE_PAGES)(
         "%s holds the reference generated from the current source",
         async (page) => {
@@ -29,6 +30,7 @@ describe("docs/reference", () => {
         120_000,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("src/algorithm-options.ts lists the options of the current algorithm types", async () => {
         const file = new URL(`../${OPTION_NAMES_FILE}`, import.meta.url);
         const expected = await optionNamesModule();
@@ -41,6 +43,7 @@ describe("docs/reference", () => {
         );
     }, 120_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("gives every option a meaning", () => {
         // an option row whose last cell is empty has no doc comment where it is declared: write one there
         const undocumented = reference()

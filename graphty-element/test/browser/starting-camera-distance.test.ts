@@ -51,9 +51,11 @@ describe("startingCameraDistance", () => {
         container.appendChild(element);
         element.nodeData = NODES;
         element.edgeData = EDGES;
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 200));
         await element.graph.waitForSettled();
         // The first settlement's re-frame lands on the frame after it.
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 200));
 
         return element;
@@ -86,6 +88,7 @@ describe("startingCameraDistance", () => {
         const element = await mount({ "starting-camera-distance": "45" });
 
         element.graph.zoomToFit();
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 200));
 
         assert.notStrictEqual(element.graph.getCameraState().cameraDistance, 45);

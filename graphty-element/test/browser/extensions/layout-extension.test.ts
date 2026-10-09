@@ -769,6 +769,7 @@ function distanceFromSegment(point: Coords, from: Coords, to: Coords): number {
  * @returns a promise that resolves after the wait
  */
 function delay(ms: number): Promise<void> {
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     return new Promise<void>((resolve) => {
         setTimeout(resolve, ms);
     });
@@ -1627,6 +1628,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
             compute: async (input) => {
                 snapshotInputs.push(input);
                 input.report({ fraction: 0.5, message: "half way" });
+                // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
                 await new Promise((resolve) => setTimeout(resolve, 3 * FRAME_MS));
                 return line(input);
             },
@@ -1635,6 +1637,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
         registerSnapshotLayout({
             descriptor: lineDescriptor("test-snapshot-fails"),
             compute: async () => {
+                // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
                 await new Promise((resolve) => setTimeout(resolve, FRAME_MS));
                 throw new GraphtyError({ code: "E_UNSUPPORTED", message: "cannot arrange this", source: "layout" });
             },
@@ -1790,6 +1793,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
         assert.isTrue(input.signal.aborted, "replacing the layout aborted the answer");
 
         late(new Float32Array(2 * NODES.length).fill(999));
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 5 * FRAME_MS));
         for (const { id } of NODES) {
             assert.deepStrictEqual(at(id), circle[id], `node ${id} is still on the circle`);

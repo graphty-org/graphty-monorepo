@@ -170,6 +170,7 @@ describe("sabotage: the spring-electrical branches against the P5 spring checks 
         }
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the pristine kernels pass every check (the baseline the mutants are measured against)",
         async (t) => {
@@ -197,6 +198,7 @@ describe("sabotage: the spring-electrical branches against the P5 spring checks 
 
     for (const id of P5_KERNELS) {
         for (const row of rowsOf(id)) {
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${id}/${row.name}: fails its check by >= ${row.minFactor}x the tolerance`,
                 async (t) => {

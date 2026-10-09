@@ -48,6 +48,7 @@ async function mount(): Promise<Graphty> {
             throw new Error("the element never finished initialising");
         }
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 20));
     }
 
@@ -60,6 +61,7 @@ afterEach(() => {
 });
 
 describe("an element with no data", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "reports a stable frame",
         async () => {

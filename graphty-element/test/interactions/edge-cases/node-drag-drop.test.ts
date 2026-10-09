@@ -35,6 +35,7 @@ describe("Node Drag and Drop", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await operationQueueOf(graph).waitForCompletion();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
         });
 
@@ -70,6 +71,7 @@ describe("Node Drag and Drop", () => {
 
             node1.mesh.position = new Vector3(10, 10, 10);
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             assert.equal(graph.getEdgeCount(), 1, "Should still have 1 edge");
@@ -118,6 +120,7 @@ describe("Node Drag and Drop", () => {
             assert.isNotNull(node1);
 
             node1.mesh.position = new Vector3(10000, 10000, 10000);
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             assert.isDefined(graph.getNode("node1"), "Node should still exist");
@@ -140,6 +143,7 @@ describe("Node Drag and Drop", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await operationQueueOf(graph).waitForCompletion();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
         });
 

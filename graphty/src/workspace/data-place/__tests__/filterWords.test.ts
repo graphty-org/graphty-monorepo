@@ -5,13 +5,13 @@ import {
     applyTip,
     chipTip,
     chipWords,
-    historyNotice,
     type Namer,
     outcomeWords,
     ruleWords,
     savedWords,
     saveLabel,
     statusWords,
+    stepChangeWords,
 } from "../filterWords";
 
 const NAMES: Namer = { attribute: (path) => path.replace("data.", ""), node: (id) => String(id) };
@@ -55,14 +55,11 @@ describe("the Filters words", () => {
 
     it("names the step an Undo or Redo took back", () => {
         assert.equal(
-            historyNotice("visibility.step-off", "weight is at least 4", true),
-            'Undid turning off "weight is at least 4".',
+            stepChangeWords("visibility.step-off", "weight is at least 4"),
+            'turning off "weight is at least 4"',
         );
-        assert.equal(
-            historyNotice("visibility.step-add", "weight is at least 4", false),
-            'Redid adding "weight is at least 4".',
-        );
-        assert.isNull(historyNotice("visibility.filter", "x", true));
+        assert.equal(stepChangeWords("visibility.step-add", "weight is at least 4"), 'adding "weight is at least 4"');
+        assert.isNull(stepChangeWords("visibility.filter", "x"));
     });
 
     it("says a save, which turns the step on", () => {

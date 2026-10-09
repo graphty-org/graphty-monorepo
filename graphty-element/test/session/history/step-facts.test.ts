@@ -106,7 +106,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.declare": ["column", "kind"],
     "data.set-source": ["name"],
     "style.add-layer": ["layer"],
-    "style.update-layer": ["layer"],
+    "style.update-layer": ["channels", "layer"],
     "style.remove-layer": ["layer"],
     "style.move-layer": ["layer"],
     "style.remove-layers": ["count"],
@@ -249,6 +249,24 @@ describe("history step facts", () => {
             assertDocumented(fact, fact.code);
         }
 
+        session.dispose();
+    });
+
+    it("names the channels a layer update changes", async () => {
+        const session = await fixtureSession();
+        const layer = await session.styles.add({
+            name: "Mine",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await session.styles.update(layer.id, { set: { "node.color": "#ff0000", "node.size": 2 } });
+        const sized = topOf(session.history.steps, session.history.position).fact;
+        await session.styles.update(layer.id, { name: "Renamed" });
+        const renamed = topOf(session.history.steps, session.history.position).fact;
+
+        assert.deepEqual(sized, { code: "style.update-layer", params: { layer: "Mine", channels: ["node.size"] } });
+        assert.deepEqual(renamed, { code: "style.update-layer", params: { layer: "Mine", channels: [] } });
         session.dispose();
     });
 

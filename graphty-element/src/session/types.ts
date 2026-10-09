@@ -1602,7 +1602,8 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.expand` | `node`: the id expanded |
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
- * | `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
+ * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
+ * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
  * | `style.remove-layers` | `count` |
  * | `style.highlight` | `run`: the run highlighted |
  * | `style.fix-channel` | `channel`; `layer`: its name, or its id |

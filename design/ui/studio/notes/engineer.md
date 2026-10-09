@@ -11,6 +11,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **Undo, Redo and Escape say what they did (app, plus one element param).** One
+  words table, `graphty/src/workspace/frame/historyWords.ts`, words every `HistoryCode` from its
+  params (filter steps keep their rule words through `stepChange` in `filterSteps.ts`). Undo/Redo
+  tooltips read `Command.tooltip` ("Undo changing Size on PageRank Ctrl+Z"); the accessible name
+  stays "Undo"/"Redo". After running: "Undid changing Size on PageRank." Escape on a non-empty
+  selection: "Selection cleared: 3 edges"; the find box keeps the rule and Enter restores it.
+  The element's `style.update-layer` fact now carries `channels` (additive; a Size binding is a
+  layer UPDATE, not `style.encode`, so the layer name alone said nothing). The fact names a layer
+  by its element name ("Influence"); the app maps it to its run row name ("PageRank") through
+  `runs.bindings`, first layer of that name (ponytail). Evidence `tmp/r1-dry4-undo-escape-words/`
+  (T22A/04 Escape notice, 05 tooltip, 06 Undid, 07 Enter restores; T22B/04, 05, 06).
 - (2026-10-08) **Edit source... is a replace, offered only where Replace with file... is; Esc
   keeps a chosen file; the match report leaves out a zero kind (app only).** `editSource` opens
   the Data page with intent "replace" on the load's remembered files and choices, so its Load
@@ -98,11 +109,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (compact-mantine `overlayBehavior.ts`, `data-cm-still`). The theme's open delay is 1000 ms, so a
   test waits with `findByText(hint, {}, { timeout })`, not the default 1 s. OPEN: an `opened`-prop
   tooltip under a resting pointer stays hidden until a move. Evidence `tmp/r1-dry3-cm-tooltip-pointer-move/`.
-- (2026-10-08, condensed) Study tool blurs focus and moves the pointer off the page after setup;
-  a saved note takes focus; a panel's Escape waits for inner controls (`isPanelEscape`); Made
-  with's Weight is `weightRead(caveats)`; runs show time to the second. OPEN: Columns after "="
-  omit run results.
-- (2026-10-08, condensed) Earlier dry-run fixes: focus after an action goes to the inspector's
+- (2026-10-08, condensed) Earlier dry-run fixes: the study tool blurs focus and moves the
+  pointer off after setup; a panel's Escape waits for inner controls (`isPanelEscape`); Made
+  with's Weight is `weightRead(caveats)`; OPEN: Columns after "=" omit run results. Focus after
+  an action goes to the inspector's
   title; find keeps the rule and live count; selections list members (`selection.originPaths`;
   OPEN: `edgePage({ scope: "selection" })` empty for edge-only selections, owner door). OPEN:
   after Replace the legend loses "Size: PageRank"; explicit dijkstra over a negative undirected
@@ -110,6 +120,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **A step is named by what changed, not by a guess at intent.** "Size by
+  PageRank" (the dry run's wish) needs to know a binding was added, not removed; the update fact
+  says only which channels changed, so the words are "changing Size on PageRank", true for both.
+  Filter steps keep their gerund words ("turning off ..."), so every step reads "Undo <gerund>".
+  Clear selection returns early on an empty selection, so a bare Escape posts nothing.
 - (2026-10-08) **A reopened load replaces itself; it never adds.** "Edit source" names the same
   source, so the only reading a reader expects is a swap; "add" doubled every edge. Where the
   graph cannot be replaced (several loads or tables) the verb is withheld rather than offered as
@@ -211,6 +226,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Did not work first time: a T22B setup on the new build (Les Miserables sample)
+  missed "Run" (Playwright: button visible, enabled and stable, click not done in 3 s), and the
+  setup went on without PageRank; the next start of the same setup ran clean, as did the frozen
+  build's. Mechanism not found; the miss is in the setup's Analyze popover, not in anything this
+  change touched. OPEN (study tool): the start did not fail with SETUP FAILED as the tool README
+  says; the miss showed only in `setup.log`. Check it after every `--start`.
+- (2026-10-08) Did not work: running prettier over a whole app folder reformats other agents'
+  committed files (DataPage.tsx); reverted with `git diff <file> | git apply -R`. Format only my
+  own files.
 - (2026-10-08) Worked: re-piloting T21A from its `session.json` setup list (written to
   `t21a-setup.txt` in the task folder, `setup:t21a-setup.txt`), then `--click Data`, `--rclick
   friends.csv`, `--click "Edit source..."`, `--click Load`, `--expect "20 nodes, 41 edges"`.

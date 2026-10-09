@@ -66,6 +66,11 @@ export interface Command {
     readonly keywords?: readonly string[];
     /** A tooltip sentence, where the label alone is not enough. */
     readonly description?: string;
+    /**
+     * The tooltip's name in place of the label, read on each render, where it changes with the
+     * state ("Undo Size by PageRank"). The accessible name stays the label.
+     */
+    readonly tooltip?: (ctx: CommandContext) => string;
     /** Why it cannot run now, or null when it can. Drawn grayed with the reason, still focusable. */
     readonly disabled?: (ctx: CommandContext) => string | null;
     /** Does it. */

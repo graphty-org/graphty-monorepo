@@ -146,7 +146,7 @@ export function statusWords(steps: readonly FilterStep[], showing: Showing): str
         : "Filter off";
 }
 
-/** What each step history code did, as the undo notice says it. */
+/** What each step history code did, as Undo and Redo name it. */
 const DID: Partial<Record<HistoryCode, string>> = {
     "visibility.step-add": "adding",
     "visibility.step-edit": "editing",
@@ -156,13 +156,12 @@ const DID: Partial<Record<HistoryCode, string>> = {
 };
 
 /**
- * The notice after Undo or Redo of a step change: `Undid turning off "weight is at least 4".`
+ * A step change as Undo and Redo name it: `turning off "weight is at least 4"`.
  * @param code - the history step's code.
  * @param words - the step's sentence.
- * @param undo - true for Undo, false for Redo.
  * @returns the words, or null for a code that is not one step's.
  */
-export function historyNotice(code: HistoryCode, words: string, undo: boolean): string | null {
+export function stepChangeWords(code: HistoryCode, words: string): string | null {
     const did = DID[code];
-    return did === undefined ? null : `${undo ? "Undid" : "Redid"} ${did} "${words}".`;
+    return did === undefined ? null : `${did} "${words}"`;
 }

@@ -1,12 +1,12 @@
 /**
  * Filter steps as the app reaches them: their words from the session, the step editor's door, the
- * one write, and the undo notice. The steps themselves are graphty-element's.
+ * one write, and the words Undo and Redo name a step change with. The steps themselves are graphty-element's.
  */
 
-import type { FilterStep, GraphSession, HistoryCode } from "@graphty/graphty-element/session";
+import type { CodedFact, FilterStep, GraphSession, HistoryCode } from "@graphty/graphty-element/session";
 
 import type { WorkspaceStore } from "../state/store";
-import { historyNotice, type Namer, ruleWords } from "./filterWords";
+import { type Namer, ruleWords, stepChangeWords } from "./filterWords";
 
 /** The inspected kind of the step editor; its id is a step id, or `NEW` for a new step. */
 const STEP_KIND = "filter-step";
@@ -94,29 +94,17 @@ export async function writeSteps(
 }
 
 /**
- * The notice an Undo or Redo of a step change shows, naming the step, or null for any other
- * history step. Read before the undo or redo runs, since the step may be gone after it.
+ * A filter step change as Undo and Redo name it (`turning off "weight is at least 4"`), or null
+ * for any other history step, or for a step the session does not hold now (a removed step before
+ * its Redo): read it again after the undo or redo has run.
  * @param session - the element's session.
- * @param undo - true for Undo, false for Redo.
- * @returns a function to call once it has run, giving the notice words, or null.
+ * @param fact - the history step's fact.
+ * @returns the words, or null.
  */
-export function stepHistoryNotice(session: GraphSession, undo: boolean): (() => string | null) | null {
-    const { history } = session;
-    const next = history.nextUndo;
-    let step = history.steps.at(history.position);
-    if (undo) {
-        step = next?.kind === "undo" ? next.step : undefined;
-    }
-    const code: HistoryCode | undefined = step?.fact.code;
-    const id = step?.fact.params.id;
-    if (code === undefined || typeof id !== "string" || !code.startsWith("visibility.step")) {
-        return null;
-    }
-    const before = session.visibility.steps.find((s) => s.id === id);
-    return () => {
-        const named = before ?? session.visibility.steps.find((s) => s.id === id);
-        return named === undefined ? null : historyNotice(code, stepWords(session, named), undo);
-    };
+export function stepChange(session: GraphSession, fact: CodedFact<HistoryCode>): string | null {
+    const { id } = fact.params;
+    const step = session.visibility.steps.find((each) => each.id === id);
+    return step === undefined ? null : stepChangeWords(fact.code, stepWords(session, step));
 }
 
 /**

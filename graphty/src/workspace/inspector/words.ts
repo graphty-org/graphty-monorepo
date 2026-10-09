@@ -194,8 +194,28 @@ export const NEIGHBOR_FILTER_WORDS = {
  * @returns the words.
  */
 export function selectionWords(nodes: number, edges: number): string {
+    return `${sizeWords(nodes, edges)} selected`;
+}
+
+/**
+ * The status line after Clear selection: "Selection cleared: 13 edges".
+ * @param nodes - how many nodes were selected.
+ * @param edges - how many edges were selected.
+ * @returns the words.
+ */
+export function selectionClearedWords(nodes: number, edges: number): string {
+    return `Selection cleared: ${sizeWords(nodes, edges)}`;
+}
+
+/**
+ * Nodes and edges, leaving out a zero half: "3 nodes, 1 edge".
+ * @param nodes - how many nodes.
+ * @param edges - how many edges.
+ * @returns the words.
+ */
+function sizeWords(nodes: number, edges: number): string {
     const parts = [nodes > 0 ? count(nodes, "node") : "", edges > 0 ? count(edges, "edge") : ""];
-    return `${parts.filter(Boolean).join(", ")} selected`;
+    return parts.filter(Boolean).join(", ");
 }
 
 /**

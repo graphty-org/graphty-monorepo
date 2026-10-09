@@ -4,6 +4,29 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- Decided by the team: a layer update's history step names the channels it changed (`channels`)
+
+**What.** The fact of a `style.update-layer` history step gains one param, `channels`: the
+channels whose set value or binding the update changed, in the order the layer and the update
+name them, and empty when only another key changed (a rename, a selector, turning the layer off).
+Additive: `layer` is still there and means the same; the fact's code is unchanged.
+
+**Why.** Undo and Redo now name the step they take back, in their tooltip and in the status line
+after they run. Binding Size to a result in the Style tab is an update of the result's layer, and
+the fact said only which layer, so the best the app could say was "Undo changing PageRank" while
+the drawing lost every node's size. With the channels the app says "Undo changing Size on
+PageRank". The step keeps no payload, so the app could not find this out after the fact.
+
+**Alternatives.** Keep the update payload on the step (every step would retain it, and the
+history's byte budget counts it); a code per channel kind (many codes for one op); the app reading
+the layer before and after the undo and diffing it (computing what the element already knows, and
+impossible for a step further back than the next one).
+
+**Built.** `graphty-element/src/session/commands/style.ts` (`changedChannels`), the code table in
+`HistoryCode`'s comment. The public API report is unchanged (the params are documented, not
+typed). Test in `graphty-element/test/session/history/step-facts.test.ts`, "names the channels a
+layer update changes": a layer given Size reports `["node.size"]`, a rename reports `[]`.
+
 ## 2026-10-08 -- Decided by the team: a shortest path can follow edges one way (`direction`)
 
 **What.** graphty-element's shortest-path algorithms (Dijkstra and Bellman-Ford, the two a path

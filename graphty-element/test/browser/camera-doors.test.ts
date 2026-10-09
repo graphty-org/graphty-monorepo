@@ -12,15 +12,12 @@
  * pin that the app's calls and the element's members agree.
  */
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { CameraState } from "../../src/screenshot/types";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { stateDigest } from "../../src/session/project/digest";
-
-/** Per-test budget: each builds a real Babylon scene. */
-const TEST_TIMEOUT_MS = 30_000;
 
 /** How close two camera coordinates must be to count as the same place. */
 const TOLERANCE = 1e-6;
@@ -58,12 +55,12 @@ async function loadedGraph(mode: "2d" | "3d"): Promise<Graph> {
     await operationQueueOf(graph).waitForCompletion();
     await graph.waitForSettled();
     // The views frame the laid-out box, so wait for the nodes to be where the layout put them.
-    for (let wait = 0; wait < 1000 && graph.getLayoutManager().running; wait++) {
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-
-    assert.isFalse(graph.getLayoutManager().running, "the layout came to rest");
+    await vi.waitFor(
+        () => {
+            assert.isFalse(graph.getLayoutManager().running, "the layout came to rest");
+        },
+        { timeout: 10_000 },
+    );
     cleanups.push(() => {
         graph.dispose();
         container.remove();
@@ -178,158 +175,118 @@ async function compare(
 
 describe("camera doors", () => {
     for (const mode of ["3d", "2d"] as const) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(
-            `zoomStep moves the ${mode} camera as the app's zoom buttons do`,
-            async () => {
-                const graph = await loadedGraph(mode);
-                for (const direction of ["in", "out"] as const) {
-                    await compare(
-                        graph,
-                        `${mode} zoomStep ${direction}`,
-                        () => appZoomStep(graph, direction),
-                        () => graph.zoomStep(direction),
-                    );
-                }
-            },
-            TEST_TIMEOUT_MS,
-        );
-    }
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "zoomToSelection centres the camera on the selected node as the app's helper does",
-        async () => {
-            const graph = await loadedGraph("3d");
-            assert.isTrue(graph.selectNode("n2"));
-            await compare(
-                graph,
-                "zoomToSelection",
-                () => appZoomToSelection(graph, "n2"),
-                () => graph.zoomToSelection(),
-            );
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "zoomToSelection centres the camera on a selected edge's ends",
-        async () => {
-            const graph = await loadedGraph("3d");
-            const session = graph.getSession();
-            const [edge] = session.data.edges();
-            await session.selection.apply({ edges: [edge.id] });
-            assert.lengthOf(session.selection.nodes, 0, "only the edge is selected");
-            const ends = [edge.source, edge.target].map((id) => graph.getNodeMesh(String(id))?.position);
-            await compare(
-                graph,
-                "zoomToSelection on an edge",
-                async () => {
-                    const [a, b] = ends;
-                    assert.isDefined(a);
-                    assert.isDefined(b);
-                    await graph.setCameraTarget({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 });
-                },
-                () => graph.zoomToSelection(),
-            );
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "zoomToSelection with nothing selected leaves the camera where it is",
-        async () => {
-            const graph = await loadedGraph("3d");
-            const start = graph.getCameraState();
-            await graph.zoomToSelection();
-            assertSameCamera(graph.getCameraState(), start, "nothing selected");
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    for (const mode of ["3d", "2d"] as const) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(
-            `zoomToNodes frames only the named nodes on the ${mode} camera`,
-            async () => {
-                const graph = await loadedGraph(mode);
-                const subset = graph.resolveCameraPreset("fitToGraph", { nodes: ["n1", "n2"] });
-                const whole = graph.resolveCameraPreset("fitToGraph");
-                assert.notDeepEqual(subset, whole, `${mode}: the pair frames differently from the graph`);
+        it(`zoomStep moves the ${mode} camera as the app's zoom buttons do`, async () => {
+            const graph = await loadedGraph(mode);
+            for (const direction of ["in", "out"] as const) {
                 await compare(
                     graph,
-                    `${mode} zoomToNodes`,
-                    () => graph.setCameraState(subset),
-                    () => graph.zoomToNodes(["n1", "n2"]),
-                );
-            },
-            TEST_TIMEOUT_MS,
-        );
-    }
-
-    for (const mode of ["3d", "2d"] as const) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(
-            `zoomToNodes frames a single node on the ${mode} camera, with the camera still in front of it`,
-            async () => {
-                const graph = await loadedGraph(mode);
-                const node = graph.getNode("n1");
-                assert.isDefined(node);
-                const at = node.getPosition();
-                await graph.zoomToNodes("n1");
-                const state = graph.getCameraState();
-                if (mode === "2d") {
-                    assert.isTrue(Number.isFinite(state.zoom), `2d: zoom ${state.zoom} is a number`);
-                    assert.approximately(state.pan?.x ?? Number.NaN, at.x, TOLERANCE, "2d: centred on x");
-                    assert.approximately(state.pan?.y ?? Number.NaN, at.y, TOLERANCE, "2d: centred on y");
-                    return;
-                }
-
-                const { position, target } = state;
-                assert.isDefined(position);
-                assert.isDefined(target);
-                for (const axis of ["x", "y", "z"] as const) {
-                    assert.approximately(target[axis], at[axis], TOLERANCE, `3d: target.${axis}`);
-                }
-
-                const distance = Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z);
-                assert.isAbove(distance, 0, "3d: the camera stands back from the node");
-                assert.isTrue(Number.isFinite(distance), "3d: the distance is a number");
-            },
-            TEST_TIMEOUT_MS,
-        );
-    }
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "zoomToNodes with no node it knows leaves the camera where it is",
-        async () => {
-            const graph = await loadedGraph("3d");
-            const start = graph.getCameraState();
-            await graph.zoomToNodes([]);
-            await graph.zoomToNodes(["no-such-node"]);
-            assertSameCamera(graph.getCameraState(), start, "unknown nodes");
-        },
-        TEST_TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "loadCameraPreset answers the app's Top, Front and Side rows with the element's view names",
-        async () => {
-            const graph = await loadedGraph("3d");
-            for (const [row, name] of Object.entries(APP_PRESETS)) {
-                // The app recipe is the call its helper makes; the member is the one it moves to.
-                await compare(
-                    graph,
-                    `preset ${row}`,
-                    () => graph.setCameraState({ preset: name }),
-                    () => graph.loadCameraPreset(name),
+                    `${mode} zoomStep ${direction}`,
+                    () => appZoomStep(graph, direction),
+                    () => graph.zoomStep(direction),
                 );
             }
-        },
-        TEST_TIMEOUT_MS,
-    );
+        });
+    }
+
+    it("zoomToSelection centres the camera on the selected node as the app's helper does", async () => {
+        const graph = await loadedGraph("3d");
+        assert.isTrue(graph.selectNode("n2"));
+        await compare(
+            graph,
+            "zoomToSelection",
+            () => appZoomToSelection(graph, "n2"),
+            () => graph.zoomToSelection(),
+        );
+    });
+
+    it("zoomToSelection centres the camera on a selected edge's ends", async () => {
+        const graph = await loadedGraph("3d");
+        const session = graph.getSession();
+        const [edge] = session.data.edges();
+        await session.selection.apply({ edges: [edge.id] });
+        assert.lengthOf(session.selection.nodes, 0, "only the edge is selected");
+        const ends = [edge.source, edge.target].map((id) => graph.getNodeMesh(String(id))?.position);
+        await compare(
+            graph,
+            "zoomToSelection on an edge",
+            async () => {
+                const [a, b] = ends;
+                assert.isDefined(a);
+                assert.isDefined(b);
+                await graph.setCameraTarget({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 });
+            },
+            () => graph.zoomToSelection(),
+        );
+    });
+
+    it("zoomToSelection with nothing selected leaves the camera where it is", async () => {
+        const graph = await loadedGraph("3d");
+        const start = graph.getCameraState();
+        await graph.zoomToSelection();
+        assertSameCamera(graph.getCameraState(), start, "nothing selected");
+    });
+
+    for (const mode of ["3d", "2d"] as const) {
+        it(`zoomToNodes frames only the named nodes on the ${mode} camera`, async () => {
+            const graph = await loadedGraph(mode);
+            const subset = graph.resolveCameraPreset("fitToGraph", { nodes: ["n1", "n2"] });
+            const whole = graph.resolveCameraPreset("fitToGraph");
+            assert.notDeepEqual(subset, whole, `${mode}: the pair frames differently from the graph`);
+            await compare(
+                graph,
+                `${mode} zoomToNodes`,
+                () => graph.setCameraState(subset),
+                () => graph.zoomToNodes(["n1", "n2"]),
+            );
+        });
+    }
+
+    for (const mode of ["3d", "2d"] as const) {
+        it(`zoomToNodes frames a single node on the ${mode} camera, with the camera still in front of it`, async () => {
+            const graph = await loadedGraph(mode);
+            const node = graph.getNode("n1");
+            assert.isDefined(node);
+            const at = node.getPosition();
+            await graph.zoomToNodes("n1");
+            const state = graph.getCameraState();
+            if (mode === "2d") {
+                assert.isTrue(Number.isFinite(state.zoom), `2d: zoom ${state.zoom} is a number`);
+                assert.approximately(state.pan?.x ?? Number.NaN, at.x, TOLERANCE, "2d: centred on x");
+                assert.approximately(state.pan?.y ?? Number.NaN, at.y, TOLERANCE, "2d: centred on y");
+                return;
+            }
+
+            const { position, target } = state;
+            assert.isDefined(position);
+            assert.isDefined(target);
+            for (const axis of ["x", "y", "z"] as const) {
+                assert.approximately(target[axis], at[axis], TOLERANCE, `3d: target.${axis}`);
+            }
+
+            const distance = Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z);
+            assert.isAbove(distance, 0, "3d: the camera stands back from the node");
+            assert.isTrue(Number.isFinite(distance), "3d: the distance is a number");
+        });
+    }
+
+    it("zoomToNodes with no node it knows leaves the camera where it is", async () => {
+        const graph = await loadedGraph("3d");
+        const start = graph.getCameraState();
+        await graph.zoomToNodes([]);
+        await graph.zoomToNodes(["no-such-node"]);
+        assertSameCamera(graph.getCameraState(), start, "unknown nodes");
+    });
+
+    it("loadCameraPreset answers the app's Top, Front and Side rows with the element's view names", async () => {
+        const graph = await loadedGraph("3d");
+        for (const [row, name] of Object.entries(APP_PRESETS)) {
+            // The app recipe is the call its helper makes; the member is the one it moves to.
+            await compare(
+                graph,
+                `preset ${row}`,
+                () => graph.setCameraState({ preset: name }),
+                () => graph.loadCameraPreset(name),
+            );
+        }
+    });
 });

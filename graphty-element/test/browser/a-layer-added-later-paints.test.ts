@@ -66,7 +66,6 @@ describe("a layer written to a graph that is already drawn", () => {
     let graph: Graph;
     let session: GraphSession;
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeAll(async () => {
         container = document.createElement("div");
         container.style.width = `${String(WIDTH)}px`;
@@ -100,7 +99,7 @@ describe("a layer written to a graph that is already drawn", () => {
             },
         });
         await operationQueueOf(graph).waitForCompletion();
-    }, 60000);
+    });
 
     afterAll(() => {
         graph.dispose();

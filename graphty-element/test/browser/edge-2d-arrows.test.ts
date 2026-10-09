@@ -40,10 +40,7 @@ describe("Edge 2D Arrows Integration", () => {
         await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         // Get the edge from dataManager
         const edge = edgeBetween(graph, "node1", "node2");
@@ -122,10 +119,7 @@ describe("Edge 2D Arrows Integration", () => {
 
         await operationQueueOf(graph).waitForCompletion();
 
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
@@ -155,10 +149,7 @@ describe("Edge 2D Arrows Integration", () => {
 
         await operationQueueOf(graph).waitForCompletion();
 
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
@@ -188,10 +179,7 @@ describe("Edge 2D Arrows Integration", () => {
 
         await operationQueueOf(graph).waitForCompletion();
 
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
@@ -221,10 +209,7 @@ describe("Edge 2D Arrows Integration", () => {
 
         await operationQueueOf(graph).waitForCompletion();
 
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
@@ -254,10 +239,7 @@ describe("Edge 2D Arrows Integration", () => {
 
         await operationQueueOf(graph).waitForCompletion();
 
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");
@@ -287,10 +269,7 @@ describe("Edge 2D Arrows Integration", () => {
 
         await operationQueueOf(graph).waitForCompletion();
 
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         const edge = edgeBetween(graph, "node1", "node2");
         assert(edge, "Edge should exist");

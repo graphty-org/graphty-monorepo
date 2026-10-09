@@ -50,7 +50,6 @@ describe("an edge tooltip, withdrawn in 2.0", () => {
     let graph: Graph;
     let session: GraphSession;
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeAll(async () => {
         container = document.createElement("div");
         container.style.width = `${String(WIDTH)}px`;
@@ -67,7 +66,7 @@ describe("an edge tooltip, withdrawn in 2.0", () => {
         // racing a simulation that is still moving it.
         await graph.setLayout("circular", { scale: 0.2 });
         await operationQueueOf(graph).waitForCompletion();
-    }, 60000);
+    });
 
     afterAll(() => {
         graph.dispose();

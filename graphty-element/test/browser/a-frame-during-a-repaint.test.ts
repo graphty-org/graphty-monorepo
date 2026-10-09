@@ -25,9 +25,6 @@ import { Graphty } from "../../src/graphty-element";
 /** How long the element may take to build its renderer. */
 const MOUNT_TIMEOUT_MS = 15000;
 
-/** Mounting and loading is slower than the five-second default. */
-const TEST_TIMEOUT_MS = 30000;
-
 /** Where the element is mounted, kept so the test can take it down again. */
 let container: HTMLDivElement | null = null;
 
@@ -50,16 +47,12 @@ async function mount(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    const deadline = Date.now() + MOUNT_TIMEOUT_MS;
-
-    while (!mounted.graph.initialized) {
-        if (Date.now() > deadline) {
-            throw new Error("the element never finished initialising");
-        }
-
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+    await vi.waitFor(
+        () => {
+            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+        },
+        { timeout: MOUNT_TIMEOUT_MS },
+    );
 
     return mounted;
 }
@@ -88,75 +81,70 @@ describe("a frame drawn while a style pass is painting", () => {
         container = null;
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "leaves the element to be drawn from what the pass announces",
-        async () => {
-            const element = await mount();
+    it("leaves the element to be drawn from what the pass announces", async () => {
+        const element = await mount();
 
-            element.layout = "fixed";
-            element.nodeData = [
-                { id: "a", position: { x: -2, y: 0, z: 0 } },
-                { id: "b", position: { x: 2, y: 0, z: 0 } },
-            ];
-            element.edgeData = [{ src: "a", dst: "b" }];
+        element.layout = "fixed";
+        element.nodeData = [
+            { id: "a", position: { x: -2, y: 0, z: 0 } },
+            { id: "b", position: { x: 2, y: 0, z: 0 } },
+        ];
+        element.edgeData = [{ src: "a", dst: "b" }];
 
-            await element.waitForStableFrame();
+        await element.waitForStableFrame();
 
-            const { graph, session } = element;
-            // The frame's own style step, driven by hand so the test chooses when a frame lands.
-            const frame = (graph as unknown as { updateManager: { syncStyles: () => void } }).updateManager;
-            const painter = graph.getStylePainter();
+        const { graph, session } = element;
+        // The frame's own style step, driven by hand so the test chooses when a frame lands.
+        const frame = (graph as unknown as { updateManager: { syncStyles: () => void } }).updateManager;
+        const painter = graph.getStylePainter();
 
-            graph.engine.stopRenderLoop();
+        graph.engine.stopRenderLoop();
 
-            // Painted and announced, and left pending: no frame has drawn it yet.
-            await session.styles.add({
-                name: "Half-opacity caps",
-                target: "edge",
-                selector: { match: "everything" },
-                set: { "edge.arrowHead": "normal", "edge.arrowHeadOpacity": 0.5 },
-            });
+        // Painted and announced, and left pending: no frame has drawn it yet.
+        await session.styles.add({
+            name: "Half-opacity caps",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "normal", "edge.arrowHeadOpacity": 0.5 },
+        });
 
-            assert.isTrue(painter.hasPending, "the layer's paint is waiting for a frame");
+        assert.isTrue(painter.hasPending, "the layer's paint is waiting for a frame");
 
-            // Every slice of the next pass runs out of time, so the pass yields after each one.
-            let clock = performance.now();
-            vi.spyOn(performance, "now").mockImplementation(() => (clock += 1000));
+        // Every slice of the next pass runs out of time, so the pass yields after each one.
+        let clock = performance.now();
+        vi.spyOn(performance, "now").mockImplementation(() => (clock += 1000));
 
-            // A data change repaints the whole graph from the bottom of the stack, which is the
-            // pass that clears an element's columns before painting them again.
-            const update = graph.updateNodes([{ id: "a", touched: true }]);
-            let finished = false;
-            void update.then(() => {
-                finished = true;
-            });
+        // A data change repaints the whole graph from the bottom of the stack, which is the
+        // pass that clears an element's columns before painting them again.
+        const update = graph.updateNodes([{ id: "a", touched: true }]);
+        let finished = false;
+        void update.then(() => {
+            finished = true;
+        });
 
-            // The frame lands at the one moment that matters: the pass has cleared the edge and
-            // repainted it from the element's own layers, and not yet reached the layer that fades
-            // its cap. Earlier, the frame takes the pending paint while the columns still hold the
-            // last pass's answer, and nothing goes wrong.
-            let framesMidPass = 0;
+        // The frame lands at the one moment that matters: the pass has cleared the edge and
+        // repainted it from the element's own layers, and not yet reached the layer that fades
+        // its cap. Earlier, the frame takes the pending paint while the columns still hold the
+        // last pass's answer, and nothing goes wrong.
+        let framesMidPass = 0;
 
-            while (!finished) {
-                await new Promise((resolve) => setTimeout(resolve, 0));
-                if (painter.isPainting && painter.edgePaint(0)?.style.arrowHead?.opacity !== 0.5) {
-                    framesMidPass++;
-                    frame.syncStyles();
-                }
+        while (!finished) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            if (painter.isPainting && painter.edgePaint(0)?.style.arrowHead?.opacity !== 0.5) {
+                framesMidPass++;
+                frame.syncStyles();
             }
+        }
 
-            vi.restoreAllMocks();
-            await update;
-            frame.syncStyles();
+        vi.restoreAllMocks();
+        await update;
+        frame.syncStyles();
 
-            assert.isAbove(framesMidPass, 0, "a frame came due while the pass was painting");
-            assert.deepStrictEqual(
-                arrowCapOpacities(element).map((value) => value.toFixed(2)),
-                ["0.50"],
-                "the cap is asked for at half opacity",
-            );
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.isAbove(framesMidPass, 0, "a frame came due while the pass was painting");
+        assert.deepStrictEqual(
+            arrowCapOpacities(element).map((value) => value.toFixed(2)),
+            ["0.50"],
+            "the cap is asked for at half opacity",
+        );
+    });
 });

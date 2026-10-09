@@ -15,16 +15,10 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, test } from "vitest";
+import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import type { ProgressChange } from "../../src/session";
-
-/** How long the element needs to connect and finish its first update. */
-const ELEMENT_READY_MS = 300;
-
-/** How long a data-source assignment needs to reach the data manager. */
-const LOAD_SETTLE_MS = 400;
 
 /** Two nodes and the edge between them, as an inline JSON data source. */
 const GRAPH = JSON.stringify({
@@ -51,12 +45,13 @@ async function mountWithGraph(): Promise<Graphty> {
     container.appendChild(element);
     mounted = element;
 
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
+    await element.updateComplete;
+    await vi.waitFor(() => {
+        assert.isTrue(element.graph.initialized, "the element initialised its graph");
+    });
     element.dataSource = "json";
     element.dataSourceConfig = { data: GRAPH };
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
+    await element.waitForSettled();
 
     return element;
 }
@@ -88,8 +83,11 @@ describe("the element's own mirrors on the DOM", () => {
         });
 
         element.session.visibility.showContext = true;
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.waitFor(() => {
+            assert.isNotEmpty(seen, "a visibility change told the DOM");
+        });
+        // Anything else the change set off has run, so a second event would have arrived.
+        await element.waitForSettled();
 
         assert.strictEqual(seen.length, 1, "a visibility change told the DOM");
         assert.doesNotThrow(() => structuredClone(seen[0]), "the detail carries no render object");

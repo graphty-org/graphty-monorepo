@@ -7,7 +7,7 @@
  * fails every capture of an empty element.
  */
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { Graphty } from "../../src/graphty-element";
 
@@ -16,9 +16,6 @@ const MOUNT_TIMEOUT_MS = 15000;
 
 /** Far longer than an empty graph needs, far shorter than the 30 s default. */
 const STABLE_TIMEOUT_MS = 5000;
-
-/** Room for a cold start plus the wait. */
-const TEST_TIMEOUT_MS = 30000;
 
 let container: HTMLDivElement | null = null;
 
@@ -41,16 +38,12 @@ async function mount(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    const deadline = Date.now() + MOUNT_TIMEOUT_MS;
-
-    while (!mounted.graph.initialized) {
-        if (Date.now() > deadline) {
-            throw new Error("the element never finished initialising");
-        }
-
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+    await vi.waitFor(
+        () => {
+            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+        },
+        { timeout: MOUNT_TIMEOUT_MS },
+    );
 
     return mounted;
 }
@@ -61,16 +54,11 @@ afterEach(() => {
 });
 
 describe("an element with no data", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "reports a stable frame",
-        async () => {
-            const element = await mount();
+    it("reports a stable frame", async () => {
+        const element = await mount();
 
-            await element.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await element.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
 
-            assert.isTrue(element.isFrameStable, "an empty graph has nothing left to move");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.isTrue(element.isFrameStable, "an empty graph has nothing left to move");
+    });
 });

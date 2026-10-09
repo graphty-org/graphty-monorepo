@@ -5,10 +5,20 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-09 (dry run of every tier 2 task on the round 2 build, before its sessions).
+Last updated: 2026-10-09 (second round 2 dry run, every task piloted on fabc16247403).
 
 ## Top of mind
 
+- 2026-10-09: SECOND ROUND 2 DRY RUN on fabc16247403 (`tier2/dry-run-r2-2.md`): 102 pilot items;
+  15 fix in eight units, 41 design, 40 no change, 3 owner, 3 process. Participants would now meet
+  few build defects: most items are design questions or deliberate behavior. Refreeze, re-pilot
+  every task (T21B never got a browser), then start the sessions.
+- 2026-10-09: The study tool hid every native scrollbar: Playwright's headless Chromium adds
+  `--hide-scrollbars`. Any plain `overflow: auto` pane looked unscrollable to participants (the
+  import preview, 2 pilots). Launch without it; check other headless defaults the same way.
+- 2026-10-09: Five pilot claims did not hold on checking (focus ring left on a note, drawing
+  reshaped after reopen, graph title dead, find list bar with every row fitting, '...' menus
+  highlighting). Keep checking every claim in source or screenshot before classing it.
 - 2026-10-09: ROUND 2 DRY RUN on ddf8b3b63 (`tier2/dry-run-r2-1.md`, second part): 79 rows; 22
   fixes in six groups (words, shared controls, import page, find box, panels, selection and
   saving), 32 design questions left alone. No session starts until the fixes are in a refrozen
@@ -33,13 +43,9 @@ Last updated: 2026-10-09 (dry run of every tier 2 task on the round 2 build, bef
   graphty-element label placement, too large between rounds. Bring the owner that evidence.
 - 2026-10-09: "Select where..." on a column waits for the find hint to fail (3+ looking in one
   place). Bare numbers in rules stay an owner question.
-- 2026-10-08: The open questions after the dry runs were NOT polish: names not drawn by default;
-  3D overlap; stale marks; where the path form lives. Round 1 confirmed overlap and stale marks.
 - 2026-10-08: TIER 2 CRITERIA FROZEN (`tier2/criteria.md`). 11 bars; "not scored" never holds; no
   round cap; stall = no progress (< 3 more core-four successes of 32, no core sev 3-4 closed, no
   failing bar newly held).
-- 2026-10-07: TIER 2 DESIGN in `next-steps/tier2-design.md`; waits: several node types, node weight,
-  Select where dialog, multi-query path rows, Add as steps, selection bar, OR/NOT.
 - 2026-10-07: Words: glossary wins. "Follow: Out | In | All"; "Higher means: Closer | Farther |
   Capacity"; never "route" on screen. Severity 4 needs a wrong conclusion a reader would act on.
 - Before a new element API, grow an existing method. Remove before adding; words at rest never rise.
@@ -180,6 +186,16 @@ Last updated: 2026-10-09 (dry run of every tier 2 task on the round 2 build, bef
   midpoint that sat near the task's number on both halves. Fixed the tool myself: a wrapped
   `real.mjs --start` held a slot while its own session waited for a second.
 
+- 2026-10-09 -- Second round 2 dry run triage (me, `tier2/dry-run-r2-2.md`). Two element
+  defects fixed in the element, not the app: `SelectionApi.applyNow` changes `origin` without
+  notifying when members are unchanged (find's same-set Enter showed no count), and the
+  `number-needs-backticks` suggestion is offered without checking it parses. Kept as design, though
+  pilots pushed: the weight note's "a path needs a distance" (T18's follow-up measures whether it
+  steers), a weighted path's row reading "4 hops" beside a 7.5 km total (the "units on a total"
+  question and T20's read check). Kept the "1 row left out" fix as a deletion (drop the source's
+  counts from that inspector) rather than new words. The import preview's cut rows are a tool
+  fix, not an app one: the pane scrolls; the headless browser hid its bar.
+
 ## Tried: worked / did not work
 
 - 2026-09-27..10-03 (summarized) -- Eight rounds on mocks: places right, behavior after the click
@@ -187,49 +203,15 @@ Last updated: 2026-10-09 (dry run of every tier 2 task on the round 2 build, bef
   overfitting from task words (two-domain and wording rules); my hybrid lost to the owner's
   refined B (bring the owner's proposal to working first); 23 browsers filled swap (4-slot gate);
   a pre-run sample contaminated first-time tasks; stopped mocking because the mock was the noise.
-- 2026-10-06 (pilot) -- Piloting every task on the build before a round found four task-deciding
-  defects for 16 sessions. Pilots that named a source file and line were the useful ones. Keep:
-  pilot every round whose build changed (done before rounds 2 and 3; worked both times).
-- 2026-10-06 (round 1) -- Did not work: a session clock that ran while queued for a browser voided
-  14 sessions. A clock starts when the participant can act; every session ends in a finally.
-- 2026-10-06 (round 1) -- Worked: proposals root-caused in source. Fix the route people take
-  before marking the one they miss (neighbors 1 of 3 -> 8 of 8 with no cue).
-- 2026-10-07 (round 2) -- Did not work: a decided rename was not built and nothing caught it.
-  Preflight now lists every carried decision as built or not on the served build; it held in
-  round 3.
-- 2026-10-07 (round 2) -- The screen-reader tool's blind spots were scored as findings until the
-  skeptics withdrew them. A new tool mode gets a pilot against a known-good widget first.
-- 2026-10-07 (round 3 triage) -- Worked: the red team checking proposals in source found two "new
-  APIs" already half-built in the element and that the cheap focus fix broke Escape.
-- 2026-10-07 (round 3) -- Worked: one change per path made credit clean (names switch, Size list,
-  menu focus each credited on its own route). Did not work: briefing graders on a risk by name
-  (Ava/Farah) primed bar 3; one keyboard-only session was played with the pointer and voided
-  bar 7 -- a persona's input mode needs a check in the runner, not trust.
-- 2026-10-07 (round 3) -- Did not work: removing the canvas autofocus without asking where focus
-  goes when the activating button unmounts; it became the round's one regression.
-- 2026-10-07 (report) -- The harness refused a subagent's Write of `report.md` as a "report file".
-  The orchestrator must write it, or the director's task must say the file is a deliverable input.
-
-- 2026-10-07 (units) -- Worked: reading the code before writing units found two things already
-  half-built (`LossNote` codes; `CameraViewInput.current`), which turned one would-be element API
-  into an app-only unit and narrowed another to an option.
-
-- 2026-10-07 (tier 2 design) -- Worked again: reading the element before deciding. Found the
-  path-crash fix needs no API (shape contract), `ElementAtResult` already types edges, notes are
-  already in the project file, selector refusals already carry a code, and `WeightMeaning` exists
-  -- five would-be doors became zero or a field. Also found T4 needs no multi-type load.
-
-- 2026-10-07 (tier 2 pilots) -- Worked: pilots naming the screenshot and the test line made every
-  finding a unit without a re-walk. Two answer-key claims were wrong about the build (Everything
-  does not replace the selection; bare-number refusal shows only after Enter): pilot the key, not
-  only the app.
-
-- 2026-10-08 (setups) -- Worked: walking a setup by hand once in a live session before writing
-  seven of them. The tier 1 key path ("Add to Shape", then "Size") failed as a blind script:
-  after Run the inspector shows the Graph, the run row must be clicked first, and "Size" is
-  ambiguous with the resize separators (use `role=menuitem:Size`). All seven then ran clean.
-- 2026-10-08 -- A `rm -rf $VAR/...` was refused by the safety check; use new folder names or
-  `"${VAR:?}"` instead of clearing scratch folders.
+- 2026-10-06..10-08 (summarized; full text in git history of this file) -- Worked: piloting every
+  task on each new build; pilots naming file, line and screenshot; proposals root-caused in source
+  (several "new APIs" were already half-built in the element); one change per path for clean
+  credit; walking a setup by hand once before scripting it; preflight listing every carried
+  decision as built or not. Did not work: a session clock running while queued for a browser
+  (voided 14 sessions); a decided rename never built; scoring a new tool mode's blind spots as
+  findings; briefing graders on a risk by name; trusting a persona's input mode; removing canvas
+  autofocus without deciding where focus goes; a subagent writing `report.md` (the harness refused
+  it); `rm -rf $VAR/...` (use new folder names).
 
 - 2026-10-08 (dry run) -- Did not work: starting round 1 before a dry run; the first five
   sessions spent most of their steps on defects (same-named From/To boxes, a tool crash on EPIPE,
@@ -271,6 +253,13 @@ Last updated: 2026-10-09 (dry run of every tier 2 task on the round 2 build, bef
   was the app's word, not a missing API. Did not work: pilots naming causes they had not traced
   ("step-1 off" read from the row's second line; "minutes > `9`" a rewrite of ">= 10"): both were
   something else in source. Check every cause a pilot guesses before writing its unit.
+
+- 2026-10-09 (second round 2 dry run) -- Worked: comparing the pilot's screenshots side by side
+  before classing. "Every node moved after reopen" was the same shape framed smaller; "focus ring
+  left beside the new form" was not in the screenshot. Worked: reading the tool's browser launch
+  when a pane looked unscrollable -- the cause was the measuring instrument. Did not work: the
+  answer key copying pilot claims as facts ("the scrollbar is drawn when every row fits"); the
+  key needs the same check as a defect.
 
 ## Thinking
 

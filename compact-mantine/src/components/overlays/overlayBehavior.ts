@@ -7,6 +7,10 @@
  *   the pointer leaves the window. The open tooltip element is marked `data-cm-dismissed` (CSS
  *   hides it); the mark lives exactly as long as that tooltip does, so it stays hidden while the
  *   pointer rests on its trigger and the next tooltip shows normally.
+ * - A pointer-down on a trigger also keeps every tooltip that mounts for it later dismissed until
+ *   the pointer leaves it: a click before the open delay ran out, or a toggle whose label changes,
+ *   mounts a new tooltip under the resting pointer, which must not open over what the click just
+ *   showed. A fresh hover after leaving opens it normally.
  * - A tooltip opened by keyboard focus waits the same 1000 ms as a hovered one (Mantine's focus
  *   handling has no delay): it is marked `data-cm-held` for that long. While tooltips are warm
  *   (one is visible, or was within the 300 ms hide window) it shows at once, as a hovered one
@@ -52,6 +56,10 @@ let focusedAt = 0;
 let pointerAt: { x: number; y: number } | null = null;
 /** What the pointer was over when it last actually moved. */
 let movedOver: EventTarget | null = null;
+/** The control the last pointer-down landed on, until the pointer leaves it: its tooltips stay closed. */
+let pressed: Element | null = null;
+/** The keyboard opened the menu that is opening (the last key came after the last pointer-down). */
+let keyLast = false;
 
 /**
  * Whether a tooltip other than `except` is showing (not held, not dismissed).
@@ -171,6 +179,9 @@ function trackPointer(event: PointerEvent): void {
     }
     pointerAt = { x: event.clientX, y: event.clientY };
     movedOver = event.target;
+    if (pressed && !(event.target instanceof Node && pressed.contains(event.target))) {
+        pressed = null;
+    }
     wakeStillTooltips(event.target);
 }
 
@@ -180,7 +191,9 @@ function trackPointer(event: PointerEvent): void {
  * @param tooltip - the tooltip element that just mounted
  */
 function holdIfFocusOpened(tooltip: HTMLElement): void {
-    if (openedUnasked(tooltip)) {
+    if (pressed && triggerOf(tooltip)?.contains(pressed)) {
+        tooltip.dataset.cmDismissed = "";
+    } else if (openedUnasked(tooltip)) {
         tooltip.dataset.cmStill = "";
     } else if (mustHold(tooltip)) {
         hold(tooltip);
@@ -244,8 +257,10 @@ function consumeMenuEscape(event: KeyboardEvent): void {
  * A menu's first focus skips a disabled row: Mantine's focus trap focuses the first focusable
  * row as the menu opens, and a disabled row that stays focusable to show its reason would be the
  * one highlighted, the row Enter cannot run (its ArrowDown from the dropdown does the same).
- * Focus moves on to the first enabled row, or the menu itself when none is. Focus coming from
- * another row (an arrow, a click on the row to read its reason) stays.
+ * Opened by a key, focus moves on to the first enabled row, or the menu itself when none is.
+ * Opened by the pointer, it goes to the menu itself, so no row is highlighted until an arrow key
+ * (ArrowDown then lands here again, from a key, and reaches the first enabled row). Focus coming
+ * from another row (an arrow, a click on the row to read its reason) stays.
  * @param event - a focusin anywhere in the document
  */
 function skipDisabledFirstRow(event: FocusEvent): void {
@@ -258,7 +273,7 @@ function skipDisabledFirstRow(event: FocusEvent): void {
     if (from instanceof Node && from !== menu && menu.contains(from)) {
         return;
     }
-    const first = menuRows(menu).at(0);
+    const first = keyLast ? menuRows(menu).at(0) : undefined;
     // Mantine's focus trap places its first focus twice (two timers), the second time from the
     // row this moved to; marked, both land here.
     first?.setAttribute("data-autofocus", "");
@@ -340,7 +355,17 @@ export function installOverlayBehavior(): void {
     }
     installed = true;
     const capture = { capture: true, passive: true } as const;
-    document.addEventListener("pointerdown", dismissTooltips, capture);
+    document.addEventListener(
+        "pointerdown",
+        (event) => {
+            keyLast = false;
+            const target = event.target instanceof Element ? event.target : null;
+            // The control, not the label span inside it: moving onto its padding is not leaving.
+            pressed = target?.closest("button, a, input, select, textarea, [role], [tabindex]") ?? target;
+            dismissTooltips();
+        },
+        capture,
+    );
     document.addEventListener("wheel", dismissTooltips, capture);
     document.addEventListener(
         "focusin",
@@ -353,6 +378,7 @@ export function installOverlayBehavior(): void {
     document.addEventListener(
         "keydown",
         (event) => {
+            keyLast = true;
             if (!MODIFIER_KEYS.has(event.key)) {
                 dismissTooltips();
             }
@@ -363,6 +389,7 @@ export function installOverlayBehavior(): void {
         if (!event.relatedTarget) {
             // Back in at the same pixel is a move: the pointer was elsewhere in between.
             pointerAt = null;
+            pressed = null;
             dismissTooltips();
             stopAutoScroll();
         }

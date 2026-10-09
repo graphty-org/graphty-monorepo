@@ -704,6 +704,39 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         expect(visibleTip()).toBeNull();
     });
 
+    /** A toggle whose tooltip says what it does now, as a filter's on and off states do. */
+    function Toggle(): React.JSX.Element {
+        const [on, setOn] = useState(false);
+        return (
+            <div style={{ padding: 40 }}>
+                <Tooltip label={on ? "Showing only these" : "Show only these"}>
+                    <button type="button" aria-pressed={on} onClick={() => setOn(!on)}>
+                        Filter
+                    </button>
+                </Tooltip>
+            </div>
+        );
+    }
+
+    it("a click keeps the trigger's tooltip closed until the pointer leaves, even one that mounts later", async () => {
+        const { getByRole } = await renderFigma(<Toggle />);
+        const filter = getByRole("button", { name: "Filter" });
+        // Clicked before the open delay ran out: the tooltip mounts afterwards, under the resting
+        // pointer, already showing the new label.
+        const mounted = tooltipMount("Showing only these");
+        await userEvent.click(filter);
+        const tip = await mounted;
+        await new Promise((r) => setTimeout(r, 300));
+        expect(isVisible(tip)).toBe(false);
+        // Left and hovered again, it opens as usual.
+        await commands.mouseAway();
+        await waitFor(() => (tip.isConnected ? null : true));
+        const again = tooltipMount("Showing only these");
+        await userEvent.hover(filter);
+        const next = await again;
+        await waitFor(() => isVisible(next));
+    });
+
     it("hides at once on a key press but not on a modifier", async () => {
         const { getByRole } = await renderFigma(<Tips />);
         await userEvent.hover(getByRole("button", { name: "1" }));

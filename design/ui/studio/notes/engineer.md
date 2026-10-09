@@ -11,6 +11,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **A click keeps its trigger's tooltips closed until the pointer leaves; a
+  pointer-opened menu highlights nothing** (compact-mantine `overlayBehavior.ts`). Mechanism, from
+  a probe on the frozen build: the click on "Filter to neighbors" came before the 1000 ms open
+  delay ran out, so no tooltip existed to dismiss; the tooltip mounted afterwards (same button
+  element, new tooltip, the new label) under the resting pointer. Now a pointer-down records the
+  control it landed on (`pressed`, `closest(button, a, input, ..., [role], [tabindex])`) and any
+  tooltip that mounts for a trigger containing it is `data-cm-dismissed`, until a real move off it
+  or the pointer leaving the window. Menus: `keyLast` (last key after last pointer-down) decides
+  `skipDisabledFirstRow`: a key open goes to the first enabled row, a pointer open to the menu
+  itself; ArrowDown then lands on the first enabled row. To check: a pointer-opened menu whose
+  first row is ENABLED likely still highlights it (Mantine's focus trap focuses the first row; the
+  theme turns the placeholder off for axe); not seen in a pilot yet. Evidence `tmp/r1-dry4-shared-tooltip-menu/` (`probe.mjs`,
+  T23A/05-07, T23B/05, T22B/03-04, 07).
 - (2026-10-08) **Check what a finding measured before fixing the code it names.** "Damping factor
   exposes 0.8500000238418579" was the study tool, not graphty-element: `run.params` holds 0.85
   exactly and the DOM has `aria-valuenow="0.85"`; Chromium keeps a range's value as a 32-bit float,
@@ -71,6 +84,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **Dismissal follows the pressed control, not the tooltip element.** A tooltip can
+  mount after the click (open delay not over) or remount (a label change), so a mark on the
+  element misses it. The pressed control is found with `closest(...)` so moving onto its padding
+  from the label span is not leaving. A menu's open source is the last input (key vs pointer-down),
+  not Mantine's `openedViaClick` (not exposed on the dropdown). Rejected: delaying the dismissal
+  by time (an arbitrary timeout), and a per-app `opened` prop on the toggle (every caller would
+  repeat it).
+
 - (2026-10-08) **A study tool reads a range as a screen reader speaks it, not as Chromium stores
   it.** ARIA has assistive technology prefer `aria-valuetext`; Chromium derives it from the
   spinbutton's text. Rejected: setting `aria-valuetext` in compact-mantine's `useNumberField`
@@ -98,72 +119,25 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Disabled first row: focus the first enabled row rather than nothing, matching Mantine's
   keyboard model for button menus (the context menu's "pointer opens with no position" stays).
   Chosen segment: 550 (the strong role) was invisible at 11 px in a crop compare; 600 reads.
-- (2026-10-08) **A label's ground is the app's choice: a white chip.** Reason: on top keeps the
-  letters but not their legibility over a saturated band; a ground separates them. White, not the
-  canvas color, so no element constant is copied. No padding: the texture already has margins
-  (grid5.png shows no difference), and padding 2 lifted the stacked-label test's giant labels
-  fully above the viewport so declutter skipped them (`StyleTab.real-element` "picking binds it";
-  the fixture frames four nodes on one point). Rejected: a halo (`outline`, gray fringe), an
-  element default (a choice, not a capability).
-
 - (2026-10-08, condensed) Small calls: the pointer leaves the page after setup ((-1,-1), not an
   in-page spot); a saved note takes focus, not "+" (its tooltip covered the note); Delete note has
   its own `delete` glyph (minus stays "take out of this list"); a run's time shows seconds (two
   runs in a minute must differ); the weight row holds a short fact, the why on a line under it;
   one Escape guard helper for every popover form.
-- (2026-10-08) **A replace is laid out as an open is, not framed differently.** The "small graph"
-  after Replace was a correct fit of a deep layout (z extent 37 vs x 23; an explicit `zoomToFit()`
-  changed nothing). Mechanism: the seeded restart skipped while "another graph write waits", and
-  the import being placed counted as waiting. Only not-started jobs count now. Rejected: re-arming
-  the settle framing (the fit was already right), turning the camera to the thinnest axis (an
-  opinion as a default).
-- (2026-10-08) **Which file held nodes is the element's fact (`tableRows`).** The app cannot infer
-  it: order of adding and "Each row is" both change it. Rejected: a record keyed by name (collides
-  like `tables`). A table child shows only its own count; the left-out child only the rows.
-- (2026-10-08) **A shared link follows its size prop.** `.cm-anchor` set the body font outright, so
-  `size="xs"` links were 11 px in 9 px captions. Fixed once for every caller (inspector "from"
-  line, usage card, import grid caption). The report itself moved to `sm`, the row size.
-- (2026-10-08) **Neighbors in name order at every hop count, weighted one hop included.** Two or
-  more hops list the selection, which has no single tie per node, so weight order is impossible
-  there; one hop in weight order made the lists disagree (pilot T23B). Tie values still show at
-  one hop. Filter to neighbors is outlined at rest because a subtle button read as a list row; the
-  way back is in the pressed button's tooltip, not new chrome.
-
-- (2026-10-08) **One key section per highlight color, titled by the run.** A node and an edge
-  section with the same chip told a reader nothing the one does not; the property word ("Color",
-  "Edge color") is dropped only when merged, since the one entry then covers both. Entry words
-  live by result shape in analyze/words.ts beside the run names, so a new highlight shape gets
-  "In the result" until it gets its own words. Rejected: renaming the element's layers (its English
-  layer name is a default, the app replaces words by id).
-
-- (2026-10-08) **The name wins the room fight, the count yields.** Reverses the earlier "count stays
-  whole up to half the row": the name says which row it is, and two versions of a file differ at
-  the end of the name. The tooltip still carries both. Rejected: moving the count under the name
-  (rows are a fixed 32 px, virtualized), `min-width: 0` (the count vanished with no sign).
+- (2026-10-08, condensed) **Dry-run app and element calls:** a label's ground is the app's white
+  chip, no padding (a halo was gray, padding lifted stacked labels off screen); a Replace is laid
+  out as an open is (only not-started jobs count as a waiting write); which file held nodes is the
+  element's `tableRows`; `.cm-anchor` follows its size prop; neighbors list in name order at every
+  hop count; one key section per highlight color, titled by the run; in a crowded row the name
+  wins and the count yields.
 - (2026-10-08) **A pointer-opened menu has no keyboard position.** Rejected: highlighting row 1 for
   every open (read as the suggested choice, "Edit source..." in T21B).
-- (2026-10-08) **The run record of a resolved option is the caveat that names it, not a new field.**
-  `caveats.method` already said "dijkstra"; a `resolvedParams` record would state it twice. The app
-  matches it against the option's choice values only for an enum left unset. Writing the resolved
-  value into params was rejected: a rerun would pin it and lose "left unset".
-- (2026-10-08) **A row says which END is missing, not which value.** Ends stay exact when both ends
-  hold the same text and match `LeftOutEdge.source/target`; the app maps an end to its column with
-  `draft.resolve(loadChoices(...))` (grid) or `leftOut.endColumns` (inspector). The ingest test is
-  the one `isUnmatched` uses (`unmatchedValues` or not held), so the mark and the count agree.
-  Rejected: missing values (ambiguous), column names (a `LeftOutEdge` end may be an expression).
-- (2026-10-08) **A label's draw order is a style field, not an element switch.** `onTop` lives on
-  the label style so a layer can lift some names and not others; the default stays depth sorted
-  (another consumer may want the depth cue). Wired by one row in `StylePainter.RICH_TEXT_KEYS`:
-  Node and Edge spread the resolved block into `RichTextLabel`, which already honored `onTop`.
-  Rejected: always on top (an opinion as a default), a depth offset (still cut by nearer nodes).
-- (2026-10-08) **A route is told apart by color, not by a second cue.** Searched the color space
-  under the shading model against the default node, the measurement ramp, edge grey, background
-  and the selection band (normal, protan, deutan): black wins by far (min Delta E 22 vs 14 for
-  indigo). Size was rejected (flattens a size encoding beneath, e.g. PageRank size), outline too
-  (one thin width for all, a full-screen pass). The owner kept the element default; the app sets it.
-- (2026-10-08) **View insets are margins for the next fit, never a reason to move the drawing.**
-  The consumer that covered the canvas decides, by the shape it knows (`nodesInRect`), whether to
-  ask for a fit. Rejected: re-frame when a node is under the bands (moved T18B), a second switch.
+- (2026-10-08, condensed) **Element facts over new fields:** a resolved option is the caveat that
+  names it (`caveats.method`), never written into params (a rerun would pin it); a left-out row
+  says which END is missing (`LeftOutEdge.source/target`, mapped by `draft.resolve`); a label's
+  draw order is the style field `onTop` (default depth sorted); a route is told apart by color
+  (black, min Delta E 22; the app sets it); view insets are margins for the next fit, never a
+  reason to move the drawing.
 - (2026-10-08, condensed) **Standing app decisions from the dry runs:** find moves the camera only
   to an off-screen pick (`zoomToSelection` swung the drawing away); Made with states the weight the
   run read (`caveats.weight.assumed`, not `data.loadedWeight()`); visible labels stay exact ("From"),
@@ -195,6 +169,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Worked: proving a test fails without a fix by copying the fixed file aside,
+  writing `git show HEAD:<file>` over it, running, and copying back (no stash). graphty's tests
+  read compact-mantine from its `dist`, so rebuild compact-mantine before an app test sees a
+  change. Did not work: assuming "label change remounts the tooltip" from the finding's words; the
+  probe showed the button and tooltip lifecycle (a late first mount). Inspector.test.tsx "names a
+  selected edge by its ends" raced its 1 s `findByText` against the 1000 ms open delay again in a
+  multi-file run; now waits 3 s.
 - (2026-10-08) Worked: a standalone Playwright probe (`tmp/<task>/probe.mjs`, own static server on
   `graphty/dist`, under `with-browser.sh`) that wraps `session.runs.start`, reads `run.params`,
   the DOM attribute and `Accessibility.getFullAXTree` split "the value is wrong" from "the reading

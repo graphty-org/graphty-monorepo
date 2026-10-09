@@ -1,7 +1,8 @@
 /**
  * A themed Menu's keys, in a real browser: the Escape that closes it is used up there, so a page
- * shortcut on Escape skips it; and a disabled row -- focusable so it can show its reason -- never
- * takes the highlight, nor the first focus when the menu opens.
+ * shortcut on Escape skips it; a disabled row -- focusable so it can show its reason -- never
+ * takes the highlight, nor the first focus when the menu opens; and a menu the pointer opened
+ * highlights no row until an arrow key.
  */
 import { Button, Menu } from "@mantine/core";
 import { screen, waitFor } from "@testing-library/react";
@@ -53,12 +54,32 @@ describe("Menu keys", () => {
         }
     });
 
-    it("opens with the first enabled row focused and the disabled first row never highlighted", async () => {
+    const highlighted = (): string[] =>
+        screen
+            .getAllByRole("menuitem")
+            .filter((row) => getComputedStyle(row, "::before").backgroundColor !== TRANSPARENT)
+            .map((row) => row.textContent ?? "");
+
+    it("opened by the pointer, highlights no row; ArrowDown then lands on the first enabled row", async () => {
         await renderThemed(<ActionsMenu />);
         await userEvent.click(screen.getByRole("button", { name: "Selection actions" }));
+        const menu = await screen.findByRole("menu");
+        // Mantine's focus trap places its first focus on a timer: wait past both placements.
+        await new Promise((r) => setTimeout(r, 100));
+        expect(menu).toHaveFocus();
+        expect(highlighted()).toEqual([]);
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => expect(screen.getByRole("menuitem", { name: "Frame selection" })).toHaveFocus());
+        expect(highlighted()).toEqual(["Frame selection"]);
+    });
+
+    it("opened by a key, focuses the first enabled row and never highlights the disabled first row", async () => {
+        await renderThemed(<ActionsMenu />);
+        screen.getByRole("button", { name: "Selection actions" }).focus();
+        await userEvent.keyboard("{Enter}");
         const disabled = await screen.findByRole("menuitem", { name: "Neighborhood" });
         await waitFor(() => expect(screen.getByRole("menuitem", { name: "Frame selection" })).toHaveFocus());
-        expect(getComputedStyle(disabled, "::before").backgroundColor).toBe(TRANSPARENT);
+        expect(highlighted()).toEqual(["Frame selection"]);
         // Focused on purpose (a click, to read its reason) or hovered, it still takes no fill.
         disabled.focus();
         await userEvent.hover(disabled);

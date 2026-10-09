@@ -51,7 +51,7 @@ function layoutInputs(cy: Core, layout: string): Record<string, unknown> {
 interface LayoutRun {
     gpuMode: GpuMode;
     seed: number;
-    /** Simulations: the fixed iteration count (maxIter for ForceAtlas2, iterations for the others). */
+    /** Simulations: the iteration budget (iterations for Fruchterman-Reingold, maxIter for the others). */
     iterations: number;
     /** Simulations: draw every frame. Static layouts: tween from the old positions to the new (`animate: "end"`). */
     animate: boolean;
@@ -75,7 +75,7 @@ export async function runLayout(cy: Core, layout: string, run: LayoutRun): Promi
         Object.assign(options, {
             gpu: run.gpuMode,
             animate: run.animate,
-            [layout === "forceatlas2" ? "maxIter" : "iterations"]: run.iterations,
+            [layout === "fruchterman-reingold" ? "iterations" : "maxIter"]: run.iterations,
         });
     } else if (run.gpuMode === "require") {
         throw new Error(`graphty-${layout} has no GPU implementation; only the force simulations do`);

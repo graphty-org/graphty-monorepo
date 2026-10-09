@@ -211,6 +211,28 @@ describe("spring-electrical behaviour pins (spec 11.4, 7.20)", () => {
         expect(moved, "every free node moved").toBe(n - 1);
     });
 
+    it("maxIter caps the run (issue #1766): run() stops at exactly maxIter, reports settled and a later step() does no work; without it the run goes on to settle", async (t) => {
+        requireGpu(t);
+        // settleWindow 10 > maxIter 7: the settle rule cannot fire first, so only the budget can stop the run at 7
+        const settling: SpringElectricalOptions = { ...BASE, settleThreshold: 0.001 };
+        const positions = await twice(ctx, karate, { ...settling, maxIter: 7 }, async (sim, p) => {
+            sim.load(karate, p);
+            const stats = await sim.run({ batch: 1 });
+            expect(sim.iterationsDone).toBe(7);
+            expect(stats.iteration).toBe(7);
+            expect(sim.settled).toBe(true);
+            await sim.step();
+            expect(sim.iterationsDone, "a settled simulation submits nothing").toBe(7);
+        });
+        expect(positions.every((v) => Number.isFinite(v))).toBe(true);
+        await withSe(ctx, settling, async (sim) => {
+            sim.load(karate, start(karate, 7));
+            await sim.run({ batch: 8 });
+            expect(sim.settled).toBe(true);
+            expect(sim.iterationsDone, "no cap: the settle rule stopped the run").toBeGreaterThan(7);
+        });
+    });
+
     it("kineticEnergy: 0 before the first batch and on the first record after load(), positive afterwards, always finite and non-negative (PD-4)", async (t) => {
         requireGpu(t);
         await withSe(ctx, BASE, async (sim) => {

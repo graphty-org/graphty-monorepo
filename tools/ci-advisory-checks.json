@@ -1,0 +1,21 @@
+{
+    "description": "New required CI checks start as warnings. 'required': every job of ci.yml that can fail \"All Checks Pass\" or \"Queue Checks Pass\", by its job id. Steps are not listed, so adding, renaming or removing a step inside a required job needs no change here. 'required' only grows by jobs the base branch already runs, and drops a job ci.yml no longer requires. 'advisory': new checks in their warning period, each {job, step (a step's name; omit for a whole new job), added, enforce, issue}; until 'enforce' (YYYY-MM-DD, UTC, at most 21 days after 'added') a failure only warns. A job or step the base branch already requires cannot become advisory, and the list a pull request runs under is read from its base, so a new check must pass on the pull request that adds it. The wiring an entry needs is described at the 'List advisory checks' step of ci.yml. To promote an entry, drop it (a new job goes into 'required') along with its continue-on-error and warning step; the CI workflow tests warn from three days before 'enforce'. Enforced by tools/ci-workflows.test.mjs.",
+    "required": [
+        "packages",
+        "build",
+        "lint",
+        "checks",
+        "docs",
+        "test",
+        "links",
+        "cost-accuracy",
+        "chromatic-element",
+        "chromatic-app",
+        "chromatic-compact-mantine",
+        "chromatic-algorithms",
+        "chromatic-layout",
+        "all-checks",
+        "queue-checks"
+    ],
+    "advisory": []
+}

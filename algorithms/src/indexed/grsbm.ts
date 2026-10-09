@@ -25,9 +25,9 @@ export interface GrsbmOptions {
 
 /** Why a cluster was split: the legacy `ClusterExplanation`, over node indices. @public */
 export interface GrsbmSplit {
-    /** The split's modularity minus the parent's. */
+    /** How much the split raised the whole partition's modularity; always above 0. */
     readonly improvement: number;
-    /** Modularity of the chosen split point (the legacy explanation text prints it to 3 places). */
+    /** Modularity of the whole partition once this split was made. */
     readonly bisectionModularity: number;
     /** Up to five members with the largest-magnitude Fiedler values, in member order. */
     readonly keyNodes: U32;
@@ -46,7 +46,10 @@ export interface GrsbmCluster {
     readonly members: U32;
     /** Depth below the root. */
     readonly depth: number;
-    /** Modularity of the split that made this cluster (the root: of the whole graph as one cluster). */
+    /**
+     * Modularity of the whole partition once the split that made this cluster was made (the root: of
+     * the whole graph as one cluster).
+     */
     readonly modularity: number;
     /** Spread of the Fiedler values of the split that made this cluster; 0 for the root. */
     readonly spectralScore: number;
@@ -66,7 +69,10 @@ export interface GrsbmCluster {
 export interface GrsbmResult extends LabelResult {
     /** Every cluster of the hierarchy. */
     readonly clusters: readonly GrsbmCluster[];
-    /** The root's modularity, then each accepted split's, in split order. */
+    /**
+     * The root's modularity, then the whole partition's after each accepted split, in split order;
+     * the last is the modularity of the leaf partition.
+     */
     readonly modularityScores: F64;
 }
 
@@ -84,14 +90,18 @@ interface MutableCluster {
 /**
  * GRSBM over a snapshot: recursive spectral bisection. Each cluster's Laplacian (over the arcs
  * between its members, self-loops left out) gives an approximate Fiedler vector; members are sorted
- * by it and cut at the point between 20% and 80% that maximises modularity; the split is kept when
- * modularity drops by no more than 0.01. The arithmetic and the random draws are the legacy
- * `grsbm`'s, so with `weighted: false` the result equals legacy's exactly on a graph without
- * self-loops; the port draws from its own generator instead of replacing `Math.random`.
+ * by it and cut at the point between 20% and 80% that maximises modularity; the split is kept only
+ * when it raises the modularity of the whole partition (every other cluster held as it is). The
+ * change is the two halves' community terms minus the cluster's, so scoring a cut costs the arcs of
+ * the cluster alone. Clusters are split breadth first. The cut and the modularity arithmetic are the
+ * legacy `grsbm`'s; the acceptance rule is not (legacy compared the two halves' terms alone with the
+ * parent split's, and kept a split that lowered that by up to 0.01, issue #960), nor is the
+ * bisection vector, because legacy's iteration converged to the eigenvector of the Laplacian's
+ * largest eigenvalue rather than the Fiedler vector. The port draws from its own generator instead
+ * of replacing `Math.random`.
  *
  * Modularity uses `weightedDegree()` (a self-loop counts twice) against `totalWeight()`, or
- * `degree()` against the edge count when unweighted. Like legacy's, a split's modularity sums only
- * the two halves of the cluster being split. A self-loop follows the standard convention (left out
+ * `degree()` against the edge count when unweighted. A self-loop follows the standard convention (left out
  * of the Laplacian, twice in the degree), so on a graph with self-loops the result differs from
  * legacy's, which scores the whole graph as one community above 0. On a directed graph the
  * unweighted path keeps legacy's halving of internal arcs; the weighted path does not, so there the
@@ -199,6 +209,8 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
         },
     ];
     const scores = [initial];
+    // Modularity of the current leaf partition.
+    let partition = initial;
     const position = new Int32Array(n).fill(-1);
     let nextSerial = 1;
 
@@ -238,15 +250,18 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
 
         const leftSerial = nextSerial++;
         const rightSerial = nextSerial++;
-        const improvement = best - cluster.modularity;
-        if (improvement < -0.01) {
+        // Every other cluster's term is unchanged, so the whole partition moves by the two halves'
+        // terms minus the cluster's own.
+        const improvement = best - modularity([members]);
+        if (improvement <= 0) {
             continue;
         }
+        partition += improvement;
         const child = (serial: number, childMembers: U32): MutableCluster => ({
             serial,
             members: childMembers,
             depth: cluster.depth + 1,
-            modularity: best,
+            modularity: partition,
             spectralScore,
             left: INVALID_INDEX,
             right: INVALID_INDEX,
@@ -256,12 +271,12 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
         cluster.right = clusters.length + 1;
         cluster.split = {
             improvement,
-            bisectionModularity: best,
+            bisectionModularity: partition,
             keyNodes: Uint32Array.from(keyNodes),
             spectralValues: fiedler,
         };
         clusters.push(child(leftSerial, leftMembers), child(rightSerial, rightMembers));
-        scores.push(best);
+        scores.push(partition);
     }
 
     // One label per leaf, renumbered by each leaf's lowest node index.
@@ -284,10 +299,12 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
 }
 
 /**
- * Legacy's approximate Fiedler vector of a cluster's Laplacian: a seeded random start orthogonal to
- * the all-ones vector, then repeated multiplication by -L, re-centred and normalised, until it stops
- * moving. Each row is summed in member order, the order legacy's dense matrix product uses, so the
- * vector matches legacy's to the last bit.
+ * The approximate Fiedler vector of a cluster's Laplacian L: a seeded random start orthogonal to
+ * the all-ones vector, then repeated multiplication by (c I - L), re-centred and normalised, until
+ * it stops moving. c is twice the largest weighted degree in the cluster, an upper bound on L's
+ * largest eigenvalue, so every eigenvalue c - lambda of (c I - L) is non-negative and the largest
+ * left after re-centring, c - lambda_2, belongs to the Fiedler vector. (Legacy multiplied by -L,
+ * which converges to the eigenvector of L's LARGEST eigenvalue instead.)
  * @param members - The cluster's node indices
  * @param position - Scratch, -1 everywhere on entry and exit
  * @param s - The snapshot
@@ -315,6 +332,7 @@ function fiedlerVector(
     const cols: number[] = [];
     const vals: number[] = [];
     const row = new Map<number, number>();
+    let maxDegree = 0;
     for (let p = 0; p < size; p++) {
         const u = members[p];
         row.clear();
@@ -328,6 +346,7 @@ function fiedlerVector(
             }
         }
         row.set(p, diagonal);
+        maxDegree = Math.max(maxDegree, diagonal);
         for (const q of [...row.keys()].sort((a, b) => a - b)) {
             cols.push(q);
             vals.push(row.get(q) ?? 0);
@@ -366,6 +385,7 @@ function fiedlerVector(
             vector[p] /= start;
         }
     }
+    const shift = 2 * maxDegree;
     for (let iteration = 0; iteration < maxIterations; iteration++) {
         const next = new Float64Array(size);
         for (let p = 0; p < size; p++) {
@@ -373,7 +393,7 @@ function fiedlerVector(
             for (let k = rowStart[p]; k < rowStart[p + 1]; k++) {
                 sum += vals[k] * vector[cols[k]];
             }
-            next[p] = -sum;
+            next[p] = shift * vector[p] - sum;
         }
         recentre(next);
         const length = norm(next);

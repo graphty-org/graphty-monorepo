@@ -539,7 +539,11 @@ describe("GraphStore lifecycle", () => {
         store.touch();
         const s = store.getSnapshot();
         assert.strictEqual(s.directed, false);
-        assert.throws(() => store.builder.setDirected(true), /locked/, "config.data.directed wins over any later writer");
+        assert.throws(
+            () => store.builder.setDirected(true),
+            /locked/,
+            "config.data.directed wins over any later writer",
+        );
     });
 
     it("locks an explicitly DIRECTED builder too", () => {
@@ -635,5 +639,49 @@ describe("GraphStore lifecycle", () => {
         assert.strictEqual(events.length, 1, "nothing was announced after teardown");
         store.dispose();
         assert.strictEqual(store.isDisposed, true, "disposing twice is harmless");
+    });
+});
+
+describe("GraphStore edge-id index", () => {
+    /** The private index's entry count: the only way to see what it holds. */
+    function indexSize(store: GraphStore): number {
+        return (store as unknown as { indexByEdgeId: Map<number, number> }).indexByEdgeId.size;
+    }
+
+    it("stays proportional to the live edges over many add and remove cycles", () => {
+        const { store } = makeStore();
+        const kept: number[] = [];
+        let counter = 0;
+        const add = (source: string, target: string): number => {
+            const id = counter++;
+            store.stampEdgeId(store.builder.addEdge(source, target), id);
+            return id;
+        };
+
+        for (let i = 0; i < 10; i++) {
+            kept.push(add(`k${i}`, `k${i + 1}`));
+        }
+
+        store.touch();
+        store.getSnapshot();
+        for (let cycle = 0; cycle < 1500; cycle++) {
+            const added = [add("a", "b"), add("b", "c"), add("c", "a")];
+            store.touch();
+            store.getSnapshot();
+            store.removeRows([], added);
+            store.getSnapshot();
+            assert.isAtMost(indexSize(store), 2 * kept.length, `cycle ${cycle}`);
+        }
+
+        assert.strictEqual(indexSize(store), kept.length);
+        const snapshot = store.getSnapshot();
+        for (const id of kept) {
+            const row = store.edgeIndexOf(id);
+            assert.notStrictEqual(row, INVALID_INDEX, `edge ${id} is still found`);
+            assert.strictEqual(store.edgeIdAt(row), id);
+            assert.strictEqual(snapshot.edges.value("graphty.edgeId", row), id);
+        }
+
+        assert.strictEqual(store.edgeIndexOf(counter - 1), INVALID_INDEX, "a removed edge is not found");
     });
 });

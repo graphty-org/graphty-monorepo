@@ -46,7 +46,6 @@ import {
     UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
-import { survivesF32 } from "../../common/format.js";
 import { coerceIdText, ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
 import { LineReader, throwIfAborted } from "../../common/input.js";
 import {
@@ -292,14 +291,14 @@ function spellsDecl(): ColumnDecl {
 }
 
 /**
- * The position column declaration (design section 5.2: f32 x 3, role position, units "file").
+ * The position column declaration (design section 5.2: f64 x 3, role position, units "file").
  * @param sourceDims - 2 or 3, the coordinate count of the first vertex line with coordinates
  * @returns a fresh declaration
  */
 function positionDecl(sourceDims: number): ColumnDecl {
     return {
         name: POSITION_COLUMN,
-        dtype: "f32",
+        dtype: "f64",
         components: 3,
         nullable: true,
         role: "position",
@@ -760,8 +759,9 @@ class PajekParser {
             );
         }
         try {
-            // the declared count must be reservable (the sink is the authority on what it can hold,
-            // E_TOO_LARGE beyond MAX_COUNT) before any vertex is materialised
+            // the declared count must be reservable (the sink is the authority on what it can hold;
+            // the builder refuses more than its id map holds with E_TOO_LARGE) before any vertex
+            // or per-vertex table is allocated
             this.sink.reserve(h.count);
         } catch (err) {
             const reason = err instanceof Error ? err.message : String(err);
@@ -1182,7 +1182,7 @@ class PajekParser {
     }
 
     /**
-     * Write a vertex's coordinates into the position column (f32 x 3), declared on first use.
+     * Write a vertex's coordinates into the position column (f64 x 3), declared on first use.
      * @param index - the node index
      * @param dims - 2 or 3, the coordinates the line gave
      * @param point - x, y, z (0 when absent)
@@ -1199,15 +1199,6 @@ class PajekParser {
                 PAJEK_ISSUE.COORD_DIMS,
                 `vertex lines mix ${this.coordDims} and ${dims} coordinates; the position column records sourceDims ${this.coordDims}`,
                 { line, element: String(k) },
-            );
-        }
-        if (!point.every(survivesF32)) {
-            this.report.warnOnce(
-                "precision",
-                PAJEK_ISSUE.PRECISION,
-                `vertex ${k} has a coordinate the f32 position column rounds (warned once)`,
-                { line, element: String(k) },
-                `${PAJEK_ISSUE.PRECISION}:position`,
             );
         }
         this.sink.setNodeValue(this.positionHandle, index, point);
@@ -1606,7 +1597,7 @@ class PajekParser {
     private extras(tokens: readonly string[], start: number, domain: "node" | "edge", line: number): RowExtras {
         const extras: RowExtras = { keys: [], values: [], spells: null };
         const seen = new Set<string>();
-        for (let i = start; i < tokens.length; ) {
+        for (let i = start; i < tokens.length;) {
             const token = tokens[i];
             if (token.startsWith("[")) {
                 extras.spells = this.intervals(token, domain);

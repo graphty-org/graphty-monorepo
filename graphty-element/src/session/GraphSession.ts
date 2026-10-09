@@ -42,8 +42,9 @@ import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
 import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
-import { GraphStore } from "../data/GraphStore";
+import { GraphStore, type Renumbering } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
+import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
@@ -55,6 +56,8 @@ import { declarationKey } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
+import { englishRunLabel } from "./english";
+import { createJournal, type JournalApi } from "./journal";
 import { recommendLayout } from "./layout";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
@@ -77,7 +80,7 @@ import {
     type Scheduler,
     type TransactionScope as DispatchScope,
 } from "./project/Dispatcher";
-import { nodeOfKey, ROWS_MOVED } from "./project/graphOps";
+import { EDGES_ADDED, nodeOfKey, NODES_ADDED, ROWS_MOVED } from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
@@ -134,7 +137,7 @@ import {
 } from "./styles";
 import { atStylePath, channelsFor } from "./styles/channels";
 import type { CompiledLayer } from "./styles/Layer";
-import { createLayerRepaint, type ElementPaint, type RepaintEngine } from "./styles/repaint";
+import { createLayerRepaint, type ElementPaint, type ElementRemaps, type RepaintEngine } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
 import { createSelectorSource, edgeEndpointOf, type SessionSelectorSource } from "./styles/sources";
 import type {
@@ -179,8 +182,14 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
     readonly positions: ElementPositions;
     /** Whether structural changes wait for the next read of the graph; see `GraphStore.deferring`. */
     readonly deferring?: boolean;
+    /** How many published freezes renumbered rows; see `GraphStore.renumberCount`. */
+    readonly renumberCount?: number;
+    /** The last of them and its remaps; see `GraphStore.lastRenumbering`. */
+    readonly lastRenumbering?: Renumbering | null;
     /** Whether the next read of the graph would freeze a snapshot; see `GraphStore.stale`. */
     readonly stale?: boolean;
+    /** Whether the graph holds no node rows, answered without freezing; see `GraphStore.holdsNoRows`. */
+    readonly holdsNoRows?: boolean;
     /**
      * The attribute revisions and input tick of whoever builds the stores (design/sets 6.2): the
      * data manager's, the same across a Clear. Absent, the store's own.
@@ -229,6 +238,7 @@ const PLANNED_CAVEATS: Caveats = Object.freeze({
     weight: null,
     precision: "f64",
     method: "exact",
+    facts: Object.freeze([]),
     notes: Object.freeze([]),
 });
 
@@ -289,6 +299,8 @@ interface SessionParts {
     readonly sets: SetsApi;
     /** The notes. */
     readonly notes: NotesApi;
+    /** The record of the commands the session ran. */
+    readonly journal: JournalApi;
     /** The one selection this session holds. */
     readonly selection: SelectionOwner;
     /** What the filters and the time window have left showing. */
@@ -386,6 +398,7 @@ class Session implements ElementSession {
     readonly scope: ScopeApi;
     readonly sets: SetsApi;
     readonly notes: NotesApi;
+    readonly journal: JournalApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
     readonly styles: SessionStylesApi;
@@ -435,6 +448,7 @@ class Session implements ElementSession {
         this.scope = parts.scope;
         this.sets = parts.sets;
         this.notes = parts.notes;
+        this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
         this.styles = parts.styles;
@@ -836,10 +850,10 @@ class Session implements ElementSession {
         }
 
         const held = subscribers;
-        held.add(handler as (detail: never) => void);
+        held.add(handler);
 
         return () => {
-            held.delete(handler as (detail: never) => void);
+            held.delete(handler);
         };
     }
 
@@ -950,13 +964,14 @@ export function dispatcherOf(session: GraphSession): Dispatcher {
 
 /**
  * The pinned ids as a consumer reads them: a sealed copy, because the slice itself is project
- * state that only the dispatcher writes.
+ * state that only the dispatcher writes. Its `has` takes either spelling of an integer id, as
+ * `pin` does.
  * @param pins - The pins slice.
  * @returns The copy.
  */
 function pinnedOf(pins: ReadonlySet<NodeId>): ReadonlySet<NodeId> {
     // ponytail: copies per read (O(pins)); cache per pins revision if a caller reads it per frame.
-    return sealedSet(pins, "Call session.positions.pin() or unpin() to change what is pinned.");
+    return sealedSet(pins, "Call session.positions.pin() or unpin() to change what is pinned.", otherIdSpelling);
 }
 
 /**
@@ -1554,7 +1569,11 @@ function fieldWordsOf(
         for (const run of runs.list()) {
             for (const field of run.fields) {
                 if (bindResultPath(field.path, run.id) === path && field.kind === target) {
-                    return { plainName: field.plainName, technicalName: field.technicalName };
+                    return {
+                        plainName: field.plainName,
+                        technicalName: field.technicalName,
+                        result: { algorithm: run.algorithm, field: field.name },
+                    };
                 }
             }
         }
@@ -1667,6 +1686,7 @@ function repaintAgainstCurrentData(
     paint: ElementPaint;
     repaint: RepaintEngine["repaint"];
     repaintElements: RepaintEngine["repaintElements"];
+    repaintMoved: RepaintEngine["repaintMoved"];
     encoding: RepaintEngine["encoding"];
     invalidate: () => void;
 } {
@@ -1725,6 +1745,11 @@ function repaintAgainstCurrentData(
             againstCurrentData();
 
             return engine.repaintElements(stack, dirty, context);
+        },
+        repaintMoved: async (stack, moved, kept, dirty, context, still) => {
+            againstCurrentData();
+
+            return engine.repaintMoved(stack, moved, kept, dirty, context, still);
         },
         // A READ, so it does NOT re-prepare against current data first. Two reasons, and the
         // second is the load-bearing one. `againstCurrentData` would forget what the pass
@@ -1867,7 +1892,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         get positions() {
             return store.store.positions;
         },
-        holdsNoRows: () => (store.store instanceof GraphStore ? store.store.holdsNoRows : true),
+        // The data manager answers from the GraphStore it holds, without freezing: an edge's
+        // endpoint left behind by its edge is a row with no record, which "no rows" would lose.
+        holdsNoRows: () =>
+            store.store instanceof GraphStore ? store.store.holdsNoRows : (store.store.holdsNoRows ?? true),
         get stale() {
             return (store.store as { readonly stale?: boolean }).stale === true;
         },
@@ -1952,7 +1980,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // What status and "Used by" read of a run. Late-bound: the runs are built below.
     const statusRun = (run: Run): StatusRun => ({
         id: run.id,
-        label: run.label,
+        label: englishRunLabel(run),
         algorithm: run.algorithm,
         registered: SESSION_CATALOG_TABLES.algorithms().some((descriptor) => descriptor.key === run.algorithm),
         execution: executionOf(run.id),
@@ -1963,7 +1991,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Offers and Memberships. Read through calls: the runs and the scope resolver are built below.
     const offerRun = (run: Run): { id: RunId; label: string; result: Run["result"] } => ({
         id: run.id,
-        label: run.label,
+        label: englishRunLabel(run),
         result: run.result,
     });
     const offering = createOffering({
@@ -2239,7 +2267,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                     : (key) => captureItem(result, key, graph, (row) => edgeMember(space.idOf(row))),
             );
         },
-        ...(runsOptions.defaultCaveats === undefined ? {} : { defaultCaveats: runsOptions.defaultCaveats }),
+        ...(runsOptions.defaultCaveats === undefined
+            ? {}
+            : { defaultCaveats: { facts: [], ...runsOptions.defaultCaveats } }),
         // ONE POLICY, EVERY ROUTE. A run paints itself on its first completion, from the encoding
         // its own shape derives -- see `./styles/autoApply` for the six rules and `./styles/derive`
         // for what a shape suggests. It is handed in here rather than called at each door because
@@ -2339,6 +2369,22 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             publish(watchers, "note:changed", change);
         },
     });
+
+    // The journal, published as `session.journal`: every command that finishes writes one entry,
+    // before its promise resolves, so a run reports its entry by the time it reports done.
+    const journal = createJournal({
+        engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        onAppend: (entry) => {
+            publish(watchers, "journal:appended", { entry });
+        },
+    });
+    dispatcher.events.executed = (done) => {
+        const entry = journal.append(done);
+        const run = entry.runId === undefined ? undefined : runs.get(entry.runId);
+        if (run instanceof ManagedRun) {
+            run.journalId = entry.id;
+        }
+    };
 
     // The real columns, read per element and never captured: a compiled selector stays correct
     // across a freeze that renumbers the index space because every lookup starts from the
@@ -2473,6 +2519,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         queue,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        inputRevision: () => inputs.tick.value,
         onChange: (change) => {
             // Only the scopes the stack names stay live.
             layerScopes.keep(layerScopesOf(stack));
@@ -2531,6 +2578,17 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // layers that read a field it changed, from the lowest of them up: a record edit the stack does
     // not read paints nothing. A renderer that reconciles its own objects and repaints from there
     // takes this over; see `handGraphPaintToRenderer`.
+    //
+    // A CHANGE TO THE ROWS PAINTS ONLY THE ROWS IT CHANGED when every layer paints each element
+    // from that element alone -- a fixed `set`, selected by everything, a column's presence or
+    // named ids (issue #1253). Then nothing an add or a removal does changes how another element
+    // looks; it only moves where it is. So an existing element keeps its paint, carried to its new
+    // row when a removal's freeze renumbered the rows, and the pass paints the rows nothing was
+    // carried to and the rows whose records changed. At a hundred thousand nodes that is the
+    // difference between one row and a hundred thousand per layer. The default layers are of
+    // this kind, so a session nobody styled takes this path on every add.
+    /** The graph this hook last left painted: renumbering freezes then, and its row counts. */
+    let paintedThrough: { readonly renumbers: number; readonly nodes: number; readonly edges: number } | null = null;
     HEADLESS_GRAPH_PAINT.set(
         dispatcher,
         dispatcher.lane.register("graph", async (_rendered, target, dirty) => {
@@ -2539,10 +2597,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             edited.edge.clear();
             // Undone rows wait to be rebuilt until something reads the graph, so a run of undos
             // rebuilds it once; painting now would read it. The picture catches up at the next
-            // pass over a settled graph.
+            // pass over a settled graph, which paints the whole stack again.
             // ponytail: no pass is owed for it; repaint on the store's next rebuild if a headless
             // reader needs the picture current between an unawaited undo and its next edit.
             if (target.styles.length === 0 || store.store.deferring === true) {
+                paintedThrough = null;
                 return;
             }
 
@@ -2556,6 +2615,29 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 return;
             }
 
+            const graph = snapshot();
+            const now = {
+                renumbers: store.store.renumberCount ?? Number.NaN,
+                nodes: graph.nodeCount,
+                edges: graph.edgeCount,
+            };
+            const moved = rowsMoved(paintedThrough, now, store.store.lastRenumbering ?? null);
+            if (
+                !recordsOnly &&
+                paintedThrough !== null &&
+                moved !== null &&
+                [...dirty].every(changesRowsOnly) &&
+                target.styles.every(paintsRowAlone)
+            ) {
+                const kept = { node: paintedThrough.nodes, edge: paintedThrough.edges };
+                const still = (): boolean => store.store.renumberCount === now.renumbers;
+                await painter.repaintMoved(target.styles, moved, kept, editedRows(graph, dirty), RUNS_PASS, still);
+                // A freeze that renumbered the rows while the pass ran leaves the next pass to
+                // paint everything.
+                paintedThrough = still() ? now : null;
+                return;
+            }
+
             painter.invalidate();
             const edits = readers.map((entry) => ({ previous: entry, next: entry }));
             const fromIndex = target.styles.indexOf(readers[0]);
@@ -2564,7 +2646,16 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 // The layers above paint what the edited field's readers match now; an element the
                 // edit took out of a reader's match is found by its own row, repainted whole.
                 await painter.repaintElements(target.styles, editedRows(snapshot(), dirty), RUNS_PASS);
+                // Only the readers' elements were painted: one that moved with a renumbering and
+                // matches none of them still shows what its old row showed.
+                paintedThrough =
+                    paintedThrough?.renumbers === now.renumbers && store.store.renumberCount === now.renumbers
+                        ? now
+                        : null;
+                return;
             }
+
+            paintedThrough = store.store.renumberCount === now.renumbers ? now : null;
         }),
     );
 
@@ -2588,6 +2679,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             algorithms: () => SESSION_CATALOG_TABLES.algorithms(),
             estimate: (algorithm) => estimateCommand(planning, { op: "algo.run", algorithm }),
             runs: () => runs.list(),
+            resolve: (spec) => scope.resolutionOf(spec ?? defaultScope),
         }),
         readProject,
         controller: acceleration.controller,
@@ -2597,6 +2689,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         scope,
         sets,
         notes,
+        journal,
         selection,
         visibility,
         styles,
@@ -2628,7 +2721,7 @@ function editedRows(graph: GraphSnapshot, dirty: ReadonlySet<string>): { node: n
     const space = edgeSpaceOf(graph);
     for (const key of dirty) {
         if (key.startsWith("n:")) {
-            const row = graph.ids.indexOf(nodeOfKey(key) as string | number);
+            const row = graph.ids.indexOf(nodeOfKey(key));
             if (row !== INVALID_INDEX) {
                 rows.node.push(row);
             }
@@ -2641,6 +2734,67 @@ function editedRows(graph: GraphSnapshot, dirty: ReadonlySet<string>): { node: n
     }
 
     return rows;
+}
+
+/**
+ * Whether a dirty key is one an add or a removal of rows marks: a node or edge record, a graph
+ * value, or a rows marker. Anything else -- the direction, say -- can change every element.
+ * @param key - The lane key.
+ * @returns True for such a key.
+ */
+function changesRowsOnly(key: string): boolean {
+    return (
+        key.startsWith("n:") ||
+        key.startsWith("e:") ||
+        // A graph value (the import report an add replaces) is read by no layer.
+        key.startsWith("v:") ||
+        key === ROWS_MOVED ||
+        key === NODES_ADDED ||
+        key === EDGES_ADDED
+    );
+}
+
+/**
+ * Whether a layer paints each element from that element alone: fixed values only, selected by
+ * everything, a column's presence or named ids. Rows appended beside it change nothing it painted.
+ * @param entry - The layer.
+ * @returns True when it does.
+ */
+function paintsRowAlone(entry: CompiledLayer): boolean {
+    const { match } = entry.selector;
+    return entry.layer.encode === undefined && (match === "everything" || match === "has" || match === "ids");
+}
+
+/**
+ * How the rows moved since the graph hook last left the picture current, when the store can say:
+ * not at all, or by the one renumbering freeze since.
+ * @param through - The graph the hook last painted: renumberings then, and its row counts.
+ * @param through.renumbers - The store's renumber count then.
+ * @param through.nodes - Its node count.
+ * @param through.edges - Its edge count.
+ * @param now - The same, now.
+ * @param now.renumbers - The store's renumber count now.
+ * @param now.nodes - The node count now.
+ * @param now.edges - The edge count now.
+ * @param last - The store's last renumbering.
+ * @returns The remaps, null for a kind that kept its rows; or null when the picture cannot follow.
+ */
+function rowsMoved(
+    through: { readonly renumbers: number; readonly nodes: number; readonly edges: number } | null,
+    now: { readonly renumbers: number; readonly nodes: number; readonly edges: number },
+    last: Renumbering | null,
+): ElementRemaps | null {
+    if (through === null) {
+        return null;
+    }
+
+    if (now.renumbers === through.renumbers) {
+        return now.nodes >= through.nodes && now.edges >= through.edges ? { node: null, edge: null } : null;
+    }
+
+    return now.renumbers === through.renumbers + 1 && last?.count === now.renumbers
+        ? { node: last.node, edge: last.edge }
+        : null;
 }
 
 /**
@@ -2848,7 +3002,9 @@ function publish<K extends keyof SessionEventMap>(watchers: Watchers, event: K, 
 function toResultsEntry(run: Run): ResultsRunEntry {
     return {
         id: run.id,
-        label: run.label,
+        label: englishRunLabel(run),
+        distinguishedBy: run.distinguishedBy,
+        siblingsDifferBy: run.siblingsDifferBy,
         shape: run.shape,
         ...(run.result === undefined ? {} : { result: run.result }),
         ...(run instanceof ManagedRun && run.resultExecution !== undefined ? { execution: run.resultExecution } : {}),
@@ -2885,7 +3041,8 @@ function planningContext(
     acceleration: AccelerationControllerLike,
     keptSets: NonNullable<PlanningContext["keptSets"]>,
 ): PlanningContext {
-    const defaultCaveats: Caveats = runsOptions.defaultCaveats ?? PLANNED_CAVEATS;
+    const defaultCaveats: Caveats =
+        runsOptions.defaultCaveats === undefined ? PLANNED_CAVEATS : { facts: [], ...runsOptions.defaultCaveats };
 
     return {
         algorithms: () => SESSION_CATALOG_TABLES.algorithms(),

@@ -34,13 +34,7 @@ export interface ConfigSetCommand {
 
 /** Which part of the project settings a key belongs to: the discriminant of `config.set`. */
 type ConfigGroup =
-    | "data"
-    | "runAlgorithmsOnLoad"
-    | "background"
-    | "selectionStyle"
-    | "layoutBehavior"
-    | "author"
-    | "name";
+    "data" | "runAlgorithmsOnLoad" | "background" | "selectionStyle" | "layoutBehavior" | "author" | "name";
 
 /** One key of the `config` slice. */
 interface ConfigKey {
@@ -212,6 +206,10 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
     undo: {
         kind: "undoable",
         label: labelOf,
+        fact: (command) => ({
+            code: "config.set",
+            params: { keys: configLeaves(command.values).map(([path]) => path) },
+        }),
         // Dragging a colour picker is one step: sets of the same keys recorded close together merge.
         coalesce: (command) =>
             `config:${configLeaves(command.values)

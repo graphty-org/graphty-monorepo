@@ -40,6 +40,7 @@ import {
     type ScopeCandidate,
 } from "./cost";
 import type { Caveats, ResolvedScope } from "./runs";
+import { noted } from "./runs/caveatFacts";
 import type { GraphStatistics } from "./types";
 
 // ---------------------------------------------------------------------------------------------
@@ -454,7 +455,7 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
     if ("unresolvableScope" in built) {
         return Object.freeze({
             ok: false,
-            blocked: Object.freeze({ code: "E_UNSUPPORTED" as GraphtyErrorCode, reason: built.unresolvableScope }),
+            blocked: Object.freeze({ code: "E_UNSUPPORTED", reason: built.unresolvableScope }),
             cost: unavailableEstimate(descriptor, built.unresolvableScope),
             effect: Object.freeze({ kind: "none" as const }),
             caveats: context.defaultCaveats,
@@ -505,7 +506,7 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
             sampleSize: decision.sampleSize,
             seed: decision.seeded ? (command.seed ?? null) : null,
             method: decision.method,
-            notes: decision.notes,
+            ...noted(decision.facts),
         }),
     });
 }

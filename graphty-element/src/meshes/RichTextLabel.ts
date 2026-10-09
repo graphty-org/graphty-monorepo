@@ -36,15 +36,7 @@ export type BadgeType =
     | "dot"
     | undefined;
 export type AttachPosition =
-    | "top"
-    | "bottom"
-    | "left"
-    | "right"
-    | "center"
-    | "top-left"
-    | "top-right"
-    | "bottom-left"
-    | "bottom-right";
+    "top" | "bottom" | "left" | "right" | "center" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
 export interface RichTextStyle {
     font: string;
@@ -233,7 +225,7 @@ export class RichTextLabel {
             textOutline: false,
             textOutlineColor: "black",
             textOutlineWidth: 2,
-            textOutlineJoin: "round" as CanvasLineJoin,
+            textOutlineJoin: "round",
             pointer: false,
             pointerDirection: "bottom",
             pointerWidth: 20,
@@ -1109,8 +1101,8 @@ export class RichTextLabel {
      */
     public setText(text: string): void {
         const numericValue = Number(text);
-        if (this.options.smartOverflow && !isNaN(numericValue)) {
-            const num = parseInt(text, 10);
+        if (this.options.smartOverflow && !Number.isNaN(numericValue)) {
+            const num = Number.parseInt(text, 10);
             if (num > this.options.maxNumber) {
                 if (num >= 1000) {
                     this.options.text = `${Math.floor(num / 1000)}k`;
@@ -1167,8 +1159,8 @@ export class RichTextLabel {
         this.animationStarted = true;
 
         // No animator (animation: "none"): nothing to start. `isVisible` is deliberately left
-        // alone: it is LabelDeclutter's switch, and this runs on the layout settling and on a
-        // timer after init -- after the declutter pass on some loads and before it on others --
+        // alone: it is LabelDeclutter's switch, and this runs on the layout settling, or on the
+        // first frame that finds it at rest -- after the declutter pass on some loads and before it on others --
         // with nothing that makes the pass run again, so showing the label here re-drew labels
         // the pass had hidden, on some loads only.
         if (!this.animator) {

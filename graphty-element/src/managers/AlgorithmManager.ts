@@ -1,7 +1,6 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { Algorithm } from "../algorithms/Algorithm";
-import type { SimplifyPolicy } from "../algorithms/input/derivedInputs";
 import { checkNodeOptions } from "../algorithms/input/maskBack";
 import { type ResolvedInputScope, withRunInput } from "../algorithms/input/ScopedInput";
 import type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey } from "../catalog/algorithms";
@@ -11,11 +10,19 @@ import { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { Graph } from "../Graph";
 import { Node } from "../Node";
-import { type AlgoLegacyCommand, legacyFacade, LegacyWrites, openLegacyScope } from "../session/commands/algo";
+import {
+    type AlgoLegacyCommand,
+    legacyFacade,
+    LegacyWrites,
+    openLegacyScope,
+    TEMPLATE_RUNS,
+} from "../session/commands/algo";
+import { englishNotes } from "../session/english";
 import { dispatcherOf } from "../session/GraphSession";
 import type { UndoableContext } from "../session/project/Dispatcher";
 import { createRunResult, resultPath, type RunResult } from "../session/results";
 import type { RunExecutionContext, RunOutcome, RunProgressReport } from "../session/runs";
+import { caveat, caveatSentence, noted } from "../session/runs/caveatFacts";
 import { resolutionBehind } from "../session/scope/ScopeApi";
 import type { AlgorithmSpecificOptions } from "../utils/queue-migration";
 import type { EventManager } from "./EventManager";
@@ -43,13 +50,6 @@ function mergedParallelEdges(data: { getSnapshot(): GraphSnapshot }): number {
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_NAMESPACE = "graphty";
-
-/** How a run's caveat says a group of parallel edges became one, by the class's merge policy. */
-const MERGED_WEIGHTS: Readonly<Record<Exclude<SimplifyPolicy, "none">, string>> = {
-    sum: "with weights summed",
-    min: "keeping the lowest weight",
-    max: "keeping the highest weight",
-};
 
 /** Which registered class one run should build, and what to build it with. */
 interface AlgorithmTarget {
@@ -207,24 +207,21 @@ export class AlgorithmManager implements Manager {
         const { caveats } = result.summary();
         const policy = (algorithm.constructor as typeof Algorithm).parallelEdges ?? "sum";
         const merged = policy === "none" ? 0 : mergedParallelEdges(this.graph.getDataManager());
-        const noted =
+        const mergedFact = caveat("parallel-edges.merged", { count: merged, policy });
+        const stated =
             merged === 0 || policy === "none"
                 ? caveats
                 : {
                       ...caveats,
-                      notes: [
-                          ...caveats.notes,
-                          `${String(merged)} parallel ${merged === 1 ? "edge was" : "edges were"} merged, ${MERGED_WEIGHTS[policy]}, ` +
-                              `because this algorithm runs over a graph that holds one edge per pair. Every member of a merged ` +
-                              `group carries the merged value.`,
-                      ],
+                      facts: [...caveats.facts, mergedFact],
+                      notes: [...englishNotes(caveats), caveatSentence(mergedFact)],
                   };
 
         return {
             result,
             fields: result.fields,
             summary: result.summary(),
-            caveats: noted,
+            caveats: stated,
         };
     }
 
@@ -235,26 +232,30 @@ export class AlgorithmManager implements Manager {
     async runAlgorithmsFromTemplate(algorithms: string[]): Promise<void> {
         const errors: Error[] = [];
 
-        await dispatcherOf(this.graph.getSession()).transaction("Ran the template's algorithms", async (tx) => {
-            for (const algName of algorithms) {
-                try {
-                    const trimmedName = algName.trim();
-                    const [namespace, type] = trimmedName.split(":");
-                    if (!namespace || !type) {
-                        throw new Error(
-                            `invalid algorithm name format: ${trimmedName}. Expected format: namespace:type`,
-                        );
-                    }
+        await dispatcherOf(this.graph.getSession()).transaction(
+            "Ran the template's algorithms",
+            async (tx) => {
+                for (const algName of algorithms) {
+                    try {
+                        const trimmedName = algName.trim();
+                        const [namespace, type] = trimmedName.split(":");
+                        if (!namespace || !type) {
+                            throw new Error(
+                                `invalid algorithm name format: ${trimmedName}. Expected format: namespace:type`,
+                            );
+                        }
 
-                    await this.dispatchLegacy(
-                        { op: "algo.legacy", namespace: namespace.trim(), type: type.trim() },
-                        (command) => tx.dispatch(command),
-                    );
-                } catch (error) {
-                    errors.push(error instanceof Error ? error : new Error(String(error)));
+                        await this.dispatchLegacy(
+                            { op: "algo.legacy", namespace: namespace.trim(), type: type.trim() },
+                            (command) => tx.dispatch(command),
+                        );
+                    } catch (error) {
+                        errors.push(error instanceof Error ? error : new Error(String(error)));
+                    }
                 }
-            }
-        });
+            },
+            TEMPLATE_RUNS,
+        );
 
         // If there were any errors, throw a summary error
         if (errors.length > 0) {
@@ -326,7 +327,7 @@ export class AlgorithmManager implements Manager {
             { prototype: Edge.prototype, target: "edge" },
         ]);
         try {
-            const options = command.options as AlgorithmSpecificOptions | undefined;
+            const { options } = command;
             // Pass options to constructor for new-style algorithms with zodOptionsSchema
             const alg = Algorithm.get(facade, command.namespace, command.type, options);
             if (!alg) {
@@ -541,7 +542,7 @@ function emptyResult(context: RunExecutionContext, descriptor: AlgorithmDescript
             weight: null,
             precision: "f64",
             method: descriptor.technicalName,
-            notes: ["The graph had nothing for this algorithm to measure."],
+            ...noted([caveat("input.empty")]),
         },
         durationMs: 0,
     });

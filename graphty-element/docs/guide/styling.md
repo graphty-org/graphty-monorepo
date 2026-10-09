@@ -37,7 +37,7 @@ map beside the element deleted the element's own base layer with an off-by-one.
 
 ## Reading is free, writing is a command
 
-`list`, `get`, `validate`, `legend` and `explain` answer from what the session already holds and
+`list`, `get`, `validate`, `legend`, `explain` and `agreement` answer from what the session already holds and
 cost nothing. `add`, `update`, `remove`, `move`, `removeBySource`, `encode` and `highlight`
 **validate and repaint**, so each one returns a `Run`: it can report progress on a large graph,
 take an `AbortSignal`, and be fired from a click handler and forgotten.
@@ -94,7 +94,8 @@ group is painted only when ALL of it fits inside `n`. So a top-10 layer never pa
 ten elements, but it can paint fewer -- and it paints none on a graph whose highest value is
 shared by more than ten elements (every node of a ring has the same degree). To find out why, ask
 the run: `result.top(field, n)` returns the same elements, plus `leftOut` (the tie group that did
-not fit) and `reason` (a sentence saying so). A `{ top }` selection target
+not fit), `reason` (a sentence saying so) and `threshold` (the `above` value that selects exactly
+the same elements). A `{ top }` selection target
 (`session.selection.apply({ top: { run, field, n } })`) uses the same rule, so a layer and a
 selection never disagree about which elements are the top `n`.
 
@@ -442,10 +443,64 @@ element.layout = "ngraph";
 element.session.styles.list(); // every layer, bottom first
 element.session.styles.legend(); // what a reader needs to interpret the picture
 element.session.styles.explain({ node: "alice" }); // why this node looks like this
+element.session.styles.counts(layerId); // how many elements one layer covers and wins
 ```
+
+See [Counting What a Layer Paints](./layer-counts) for `counts()`.
 
 `explain()` answers the question a screenshot cannot: which layer decided each channel of one
 element, and what the layers under it had said before it did.
+
+Each entry of `channels` says whether a control may write that channel on the layer that won it
+(`editable`). When it may not, `fact` says why, as a code and its values for your application to
+word:
+
+| `fact.code`       | Why the channel cannot be edited there                                   | `fact.params`                        |
+| ----------------- | ------------------------------------------------------------------------ | ------------------------------------ |
+| `layer.locked`    | The layer belongs to the element; add a layer above it instead           | `layerId`, `name`                    |
+| `channel.encoded` | The layer works the channel out from the data; `resolveToStatic()` first | `layerId`, `name`, `channel`, `path` |
+
+```typescript
+const { channels } = element.session.styles.explain({ node: "alice" });
+
+for (const entry of channels) {
+    if (entry.fact?.code === "channel.encoded") {
+        showHint(`${entry.fact.params.name} works this out from ${entry.fact.params.path}`);
+    }
+}
+```
+
+`styles.applyTemplate()` reports the layers it could not bind in `unbound`, each with a `fact`:
+`layer.unanswered` (`layerId`, `name`, `paths`: what the layer reads that nothing in this session
+answers) or `layer.detached` (`layerId`, `name`, `error`: the error code its set scope was refused
+with). New codes may be added in a minor release: word an unknown one generically. The English
+`reason` on both is deprecated and goes in the next major release.
+
+### Several elements at once
+
+`agreement()` answers the same question for many elements: the selection, a saved set, or a list
+of node ids. For each channel it says whether they all look the same, and if not, how they split.
+
+```typescript
+const { channels } = element.session.styles.agreement("selection");
+
+for (const entry of channels) {
+    if (entry.state === "agree") {
+        // every selected element has entry.value, decided by the layer entry.layerId
+        console.log(entry.channel, entry.value, entry.layerId);
+    } else {
+        // entry.breakdown: one { value, layerId, count } per look, most common first
+        console.log(entry.channel, entry.breakdown);
+    }
+    // entry.unpainted: how many elements no layer painted on this channel
+}
+
+element.session.styles.agreement({ nodes: ["alice", "bob"] }, "node.color"); // one channel only
+```
+
+Two elements agree only when they show the same value **and** the same layer decided it, so a
+layer that repeats the value of the layer under it still reads as mixed. The answer holds counts,
+never lists of ids, so it stays small however many elements are selected.
 
 ## Interactive Examples
 

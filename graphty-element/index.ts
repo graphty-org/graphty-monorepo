@@ -45,8 +45,15 @@ import "./src/graphty-element";
 // Core classes
 // =============================================================================
 export { Edge } from "./src/Edge";
+export type { NodeScreenPosition } from "./src/Graph";
 export { Graph } from "./src/Graph";
-export type { GraphtyElementEventMap } from "./src/graphty-element";
+export type {
+    GraphtyCapabilitiesChangeDetail,
+    GraphtyElementEventMap,
+    GraphtyHistoryChangeDetail,
+    GraphtyNoteChangeDetail,
+    GraphtyRunChangeDetail,
+} from "./src/graphty-element";
 export { Graphty } from "./src/graphty-element";
 export type { NodeIdType } from "./src/Node";
 export { Node } from "./src/Node";
@@ -114,8 +121,9 @@ export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from ".
 // The shapes every session verb names things with: a data column, a run's result column, a coded
 // fact (graphty-element reports facts, never sentences) and a progress report
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
-// How many node labels the element draws, and why the rest are not (element.nodeLabelCounts)
-export type { NodeLabelCounts } from "./src/managers/LabelDeclutter";
+// How many node labels the element draws, and why the rest are not (element.nodeLabelCounts), and
+// one node's label as drawn (element.labelOf)
+export type { NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";
 
 // What a find box lists without selecting: `element.session.find(text)`
 export type {
@@ -132,6 +140,8 @@ export type { WeightMeaning } from "./src/session/runs";
 export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./src/session/types";
 // The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
 export type { NodeId } from "./src/catalog/types";
+// What `element.elementAt({ x, y })` finds under a point
+export type { ElementAtResult } from "./src/catalog/types";
 // What a run's suggested style did when it first completed: `element.session.runs.painting(id)`
 export type { RunPainting, SuggestionOutcome } from "./src/session/runs";
 
@@ -186,7 +196,7 @@ export { SimpleLayoutEngine } from "./src/layout/LayoutEngine";
 // =============================================================================
 export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSource";
 export { DataSource } from "./src/data/DataSource";
-export type { ExportGraphOptions, ExportResult } from "./src/data/export";
+export type { ExportGraphOptions, ExportLoss, ExportLossCode, ExportResult } from "./src/data/export";
 
 // Error aggregation for data loading
 export type { DataLoadingError, ErrorSummary } from "./src/data/index";
@@ -244,6 +254,10 @@ export type {
     GraphGenericEvent,
     GraphLayoutInitializedEvent,
     GraphSettledEvent,
+    GraphStartedEvent,
+    GraphtyForwardedEventMap,
+    InputEnabledChangedEvent,
+    LayoutChangedEvent,
     NodeAddEvent,
     NodeClickEvent,
     NodeDragEndEvent,
@@ -255,6 +269,8 @@ export type {
     NodeEventType,
     NodeGenericEvent,
     NodeHoverEvent,
+    OperationCancelledEvent,
+    StatsUpdateEvent,
     StyleChangedEvent,
 } from "./src/events";
 

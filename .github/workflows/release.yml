@@ -1,27 +1,55 @@
 name: Release
 
-# A daily release train, landed through the merge queue like every other change (design/ci/ci-cd-plan.md,
-# sections 10 and 11).
+# The release train, landed through the merge queue like every other change (design/ci/ci-cd-plan.md,
+# sections 10 and 11). Master runs no tests (owner decision, 2026-10-06): the merge queue tests each batch's
+# combined tree, and this train tests the exact commit it releases.
 #
-# 1. Once a day (the schedule), or at once when the owner dispatches it (the ad hoc release), the train job finds
-#    the newest master commit green on every lane, versions it with nx release, and opens a "chore(release):
-#    publish" pull request holding only version fields and changelogs. Mergify merges it ahead of waiting pull
-#    requests (.mergify.yml's "release train" priority rule, which matches the branch, not a label) without
-#    interrupting the batches already being checked.
-# 2. That merge is a push to master, which starts the publish job: it tags each released package
+# 1. At 00:00, 06:00, 12:00 and 18:00 UTC, or at once when the owner dispatches it (the ad hoc release), the
+#    pick job takes master's newest commit -- unless the previous release is still pending:
+#    a release/train-* pull request is open, a "Release held" issue is open (a fix is in progress; a dispatch
+#    runs anyway), the last release's publish has not tagged it yet, or nothing releasable changed since the
+#    last release. A held release restarts itself: after every push to master whose build (ci.yml) passes,
+#    while a train hold is open (a "Release held" issue other than "Release held: publish failed"), the pick job takes that pushed commit at once, through the same path. A release pull request that can no longer merge (it conflicts with master, a check on it
+#    failed, or it left the merge queue) is closed and replaced by this attempt.
+# 2. On that commit, in parallel: the FULL CI suite (ci.yml called on it, every shard of every package, which
+#    also makes the builds this release ships), the paid NVIDIA T4 lane (gpu.yml), the host matrix (hosts.yml,
+#    full scope), the security audit of the shipped dependencies and the LLM regression tests (graphty-element's
+#    llm-regression project: real, paid Google Gemini calls that check the model still picks the element's tools,
+#    with the GOOGLE_API_KEY repository secret; a missing secret fails the job, it never skips, and a key or balance
+#    the provider refuses holds the release as an owner item). Coverage is published from the same CI run
+#    (coverage.yml).
+# 3. Only when all five pass does the train job version the commit with nx release and open a
+#    "chore(release): publish" pull request holding only version fields and changelogs. Anything red holds the
+#    WHOLE release: no pull request, nothing published, and the held job opens or updates the one train hold,
+#    a "Release held: <what> failed on <sha>" issue for githerd to fix. A later train that passes closes it. Mergify merges the
+#    release pull request ahead of waiting pull requests (.mergify.yml's "release train" priority rule).
+# 4. That merge is a push to master, which starts the publish job: it tags each released package
 #    {projectName}@{version}, creates its GitHub release and publishes it to npm with trusted publishing (OIDC),
-#    from the build of the commit every lane tested.
+#    from the builds of the run that tested the commit. A failed publish opens its own, separate hold, a
+#    "Release held: publish failed on <sha>" issue that no train retitles or closes; re-running that run's failed
+#    jobs (gh run rerun <id> --failed) publishes what is missing and closes it.
 #
 # Nothing here pushes to master: the version commit reaches master only by the pull request. The file keeps its
 # name because npm's trusted-publisher entry for every package names it.
 #
+# The scheduled attempts are not started by GitHub's cron: GitHub creates this repository's scheduled runs hours
+# late or not at all (owner decision, 2026-10-07). Instead the Cloudflare Worker in tools/release-scheduler/
+# dispatches release.yml with scheduled=true at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler
+# GitHub App (setup and operation: tools/release-scheduler/README.md):
+#   POST https://api.github.com/repos/graphty-org/graphty-monorepo/actions/workflows/release.yml/dispatches
+#   {"ref":"master","inputs":{"scheduled":"true"}}   (answers HTTP 204)
+# Such a run behaves exactly like a scheduled train attempt; a person can still dispatch it by hand.
+#
 # Ad hoc release: `gh workflow run release.yml --ref master`, optionally `-f packages=graph-format,graph-io` (nx
 # project names) to release only those; every other project is held for that run, on top of release-hold.json.
 on:
-    schedule:
-        - cron: "0 14 * * *"
     workflow_dispatch:
         inputs:
+            scheduled:
+                description: "Set by the release scheduler: behave like a scheduled train attempt (skip while a train PR or a held issue is open, or when nothing is releasable)"
+                required: false
+                default: false
+                type: boolean
             packages:
                 description: "Release only these nx projects (comma separated). Empty: every package with releasable commits."
                 required: false
@@ -30,19 +58,400 @@ on:
     push:
         branches:
             - master
+    # A held release restarts on the next master push whose build passed (owner decision, 2026-10-06). The pick
+    # job does nothing when no release is held, or when the build failed.
+    workflow_run:
+        workflows: ["CI"]
+        types:
+            - completed
+        branches:
+            - master
+
+# One train at a time across all its jobs: a second train waits for the first, which has opened its pull request
+# (or held the release) by then, so the second skips and never pays for a second T4 run on the same commit. Two
+# master pushes in a row therefore never start two trains: the restart after the second push waits for the first
+# train, then finds its release pull request or its held issue. A push run (the publish job) gets a group of its
+# own and never waits for a train.
+concurrency:
+    group: ${{ github.event_name == 'push' && format('release-push-{0}', github.run_id) || 'release-train' }}
+    cancel-in-progress: false
+
+# What started this run, as the jobs branch on it: "schedule" for a train attempt the release scheduler dispatched
+# (scheduled=true), otherwise the event's name ("workflow_dispatch" for a person's ad hoc release, "workflow_run"
+# for a restart, "push").
+env:
+    TRIGGER: ${{ github.event_name == 'workflow_dispatch' && inputs.scheduled && 'schedule' || github.event_name }}
 
 jobs:
-    # The released commit is the NEWEST commit on master's first-parent line, after the last release landed, whose
-    # lanes all succeeded: CI and the GPU lane must exist and be green; Hosts is filtered by paths, so a commit with
-    # no Hosts run has nothing to wait for (owner rule of 2026-09-18: no release while any lane is red). A commit
-    # whose lanes failed, were cancelled or are still running is passed over, never released.
+    # The candidate is master's newest commit. Every reason not to try is an event that has not happened yet
+    # (owner rule: a state ends on the event that settles it, never on a count of hours).
+    pick:
+        name: Pick the release candidate
+        if: ${{ github.event_name != 'push' && github.ref == 'refs/heads/master' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'master' && github.event.workflow_run.head_repository.full_name == github.repository)) }}
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: write # delete the branch of a release pull request that conflicts with master
+            issues: read
+            pull-requests: write # close that pull request
+        env:
+            GH_TOKEN: ${{ github.token }}
+        outputs:
+            release: ${{ steps.releasable.outputs.release || 'false' }}
+            sha: ${{ steps.pending.outputs.sha }}
+        steps:
+            # The commit this run was started on (master's head when it was dispatched; the pushed
+            # commit whose build passed for a restart), so the run's commit, Coveralls' commit and the tested
+            # commit are one and the same.
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+                  fetch-depth: 0
+
+            - name: Skip while the previous release is pending
+              id: pending
+              env:
+                  CANDIDATE: ${{ github.event.workflow_run.head_sha || github.sha }}
+              run: |
+                  set -euo pipefail
+                  skip() { echo "::notice::$1"; echo "pending=true" >> "$GITHUB_OUTPUT"; exit 0; }
+                  run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                  # A master push restarts only a held train; with nothing held it touches nothing. A publish hold
+                  # does not count: no train can clear it, only re-running the failed publish run.
+                  if [ "$TRIGGER" = workflow_run ] && [ -z "$(tools/release-held.sh find --train)" ]; then
+                      skip "no release train is held; a master push restarts only a held train"
+                  fi
+                  # Any hold, a train's or a publish's, stops the schedule (below).
+                  held=$(tools/release-held.sh find)
+                  # An open release pull request is pending until it merges. One that can no longer merge is
+                  # closed and replaced by a new one from the newest commit: it conflicts with master, a check on
+                  # its head failed, or it left the merge queue (Mergify's queue check finished without merging
+                  # it, e.g. its queue run went red; the release rule never retries). One labelled hold waits.
+                  # ponytail: "left the queue" is read from the "Mergify Merge Queue" check run; a Mergify API
+                  # call would be exact if that check's states ever change.
+                  for number in $(gh pr list --state open --limit 200 --json number,headRefName \
+                      --jq '.[] | select(.headRefName | startswith("release/train-")) | .number'); do
+                      state=$(gh pr view "$number" --json mergeable,labels,statusCheckRollup --jq '
+                          if any(.labels[]; .name == "hold") then "held"
+                          elif .mergeable == "CONFLICTING" then "conflicts with master"
+                          elif any(.statusCheckRollup[]; (.conclusion // .state // "") as $c
+                              | ["FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE"] | index($c) != null)
+                              then "has a failed check"
+                          elif any(.statusCheckRollup[]; .name == "Mergify Merge Queue" and .status == "COMPLETED")
+                              then "left the merge queue"
+                          else "pending" end')
+                      case "$state" in
+                          pending | held) skip "release pull request #${number} is still open (${state}); it must merge or close first" ;;
+                          *) gh pr close "$number" --delete-branch --comment \
+                              "Replaced: this release pull request ${state}. ${run_url} cuts a new one from master's newest commit." ;;
+                      esac
+                  done
+                  # A held release waits for its fix: a scheduled attempt skips. The next master push whose build
+                  # passed restarts a held train (workflow_run), and an ad hoc dispatch runs anyway; a train hold
+                  # closes when a train passes, a publish hold when its re-run publish passes.
+                  if [ -n "$held" ] && [ "$TRIGGER" = schedule ]; then
+                      skip "the release is held (issue #${held}); the next master push whose build passes restarts it"
+                  fi
+                  # The newest version commit, and whether its publish run has tagged it yet. Until it has, nx
+                  # would version from the previous tags and release the same versions a second time.
+                  last=$(git log -1 --no-merges --grep='^chore(release): publish' --format=%H HEAD)
+                  while read -r project version; do
+                      git rev-parse -q --verify "refs/tags/${project}@${version}" >/dev/null ||
+                          skip "the last release (${last}) has no tag ${project}@${version} yet; its publish run must finish first"
+                  done < <(git log -1 --format=%b "$last" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
+                  { echo "pending=false"; echo "sha=${CANDIDATE}"; } >> "$GITHUB_OUTPUT"
+
+            - uses: pnpm/action-setup@v4
+              if: ${{ steps.pending.outputs.pending == 'false' }}
+
+            - uses: actions/setup-node@v4
+              if: ${{ steps.pending.outputs.pending == 'false' }}
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              if: ${{ steps.pending.outputs.pending == 'false' }}
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # Versions the candidate locally, as the train job will; nothing leaves this runner. No version commit
+            # means nothing releasable changed since the last release, and the full suite and the T4 are not paid for.
+            - name: Skip when nothing releasable changed
+              id: releasable
+              if: ${{ steps.pending.outputs.pending == 'false' }}
+              env:
+                  PACKAGES: ${{ inputs.packages }}
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  set -euo pipefail
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  commit=$(tools/release-version.sh "$PACKAGES")
+                  if [ -z "$commit" ]; then
+                      echo "::notice::nothing releasable changed since the last release"
+                      echo "release=false" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "release=true" >> "$GITHUB_OUTPUT"
+                  fi
+
+    # The full CI suite on exactly the candidate: every shard of every package, the links, the cost estimates,
+    # the screenshots, and the per-package builds this release ships (no artifact of any other run is used).
+    ci:
+        name: CI
+        needs: pick
+        if: ${{ needs.pick.outputs.release == 'true' }}
+        permissions:
+            contents: read
+            actions: read
+            # ci.yml asks for it (a failed job marks the summary checks failed at once on a pull request);
+            # a called workflow cannot ask for more than its caller grants.
+            checks: write
+        uses: ./.github/workflows/ci.yml
+        with:
+            ref: ${{ needs.pick.outputs.sha }}
+        secrets: inherit
+
+    # The paid NVIDIA T4 lane on exactly the candidate: gpu.yml's job, tests and benchmarks.
+    t4:
+        name: T4 GPU
+        needs: pick
+        if: ${{ needs.pick.outputs.release == 'true' }}
+        permissions:
+            contents: read
+        uses: ./.github/workflows/gpu.yml
+        with:
+            ref: ${{ needs.pick.outputs.sha }}
+
+    # The host matrix (Dawn on Metal and D3D12 WARP, WebKit) on exactly the candidate, full scope.
+    hosts:
+        name: Hosts
+        needs: pick
+        if: ${{ needs.pick.outputs.release == 'true' }}
+        permissions:
+            contents: read
+        uses: ./.github/workflows/hosts.yml
+        with:
+            ref: ${{ needs.pick.outputs.sha }}
+
+    # The security audit lives here, not in CI: a high or critical advisory against the candidate's shipped
+    # (production) dependencies holds the release, never an unrelated pull request. Development tools are left
+    # out: they are not published. To release past an advisory that does not apply, add its GHSA to package.json
+    # pnpm.auditConfig.ignoreGhsas with the reason. pnpm audit reads the lockfile; nothing is installed.
+    audit:
+        name: Security audit
+        needs: pick
+        if: ${{ needs.pick.outputs.release == 'true' }}
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ needs.pick.outputs.sha }}
+
+            - uses: pnpm/action-setup@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: Security audit
+              run: pnpm audit --prod --audit-level=high
+
+    # graphty-element's llm-regression project on exactly the candidate: each case sends a prompt to Google
+    # (gemini-3.8-flash, graphty-element/test/helpers/llm-regression-env.ts) and checks the model calls the element's
+    # own tools with the right arguments. About 190 calls a release. It runs only here, never on a pull request or
+    # in the merge queue, because every case is a paid API call. A missing or empty GOOGLE_API_KEY secret fails
+    # the job: the tests would otherwise skip, and a release test that skips is worse than none. A missing secret,
+    # or a key or balance the provider refuses (the harness prints ACCOUNT_REFUSED_MARKER), sets the job's
+    # owner_item output, and the held job files the issue as the owner's to fix rather than a code defect. Each
+    # case has a per-provider limit, 120 s on Google (graphty-element/test/helpers/llm-regression-env.ts), so the
+    # job ends on its own.
+    llm:
+        name: LLM regression
+        needs: pick
+        if: ${{ needs.pick.outputs.release == 'true' }}
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+        outputs:
+            owner_item: ${{ steps.llm.outputs.owner_item }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ needs.pick.outputs.sha }}
+
+            - uses: pnpm/action-setup@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # graphty-element's tests resolve the workspace packages it depends on from their dist folders.
+            - name: Build graphty-element and its dependencies
+              run: pnpm exec nx run graphty-element:build
+
+            - name: LLM regression tests
+              id: llm
+              working-directory: graphty-element
+              env:
+                  VITE_LLM_REGRESSION_PROVIDER: google
+                  VITE_GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+              run: |
+                  set -uo pipefail
+                  if [ -z "${VITE_GOOGLE_API_KEY}" ]; then
+                      echo "owner_item=the GOOGLE_API_KEY repository secret is missing or empty" >> "$GITHUB_OUTPUT"
+                      echo "::error::the GOOGLE_API_KEY repository secret is missing or empty, so the LLM regression tests cannot run; add it under Settings > Secrets and variables > Actions"
+                      exit 1
+                  fi
+                  npx vitest run --project llm-regression 2>&1 | tee "$RUNNER_TEMP/llm-regression.log"
+                  status=${PIPESTATUS[0]}
+                  if [ "$status" != 0 ] && grep -q '\[llm-regression\] provider refused the account' "$RUNNER_TEMP/llm-regression.log"; then
+                      echo "owner_item=Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left)" >> "$GITHUB_OUTPUT"
+                      echo "::error::Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left): an owner item, not a code defect"
+                  fi
+                  exit "$status"
+
+    # Coveralls' master coverage, from the CI run above (a push to master runs no test shards). Advisory: it
+    # never holds the release.
+    coverage:
+        name: Coverage
+        needs: [pick, ci]
+        if: ${{ needs.ci.result == 'success' }}
+        permissions:
+            contents: read
+            actions: read
+        uses: ./.github/workflows/coverage.yml
+        with:
+            ref: ${{ needs.pick.outputs.sha }}
+        secrets: inherit
+
+    # Anything red holds the whole release: this job opens no pull request and publishes nothing. It opens (or
+    # retitles and comments on) the open train hold, a "Release held: <what> failed on <sha>" issue, which githerd
+    # turns into a fix job; an open publish hold ("Release held: publish failed") is never touched. Scheduled
+    # trains skip while either is open; the train hold closes when a later train passes.
+    # A train attempt ends with a release pull request or with this issue, never with neither. So the condition
+    # is "the train did not succeed", never a list of the results that count as red: a job's result is not only
+    # failure or cancelled. On 2026-10-07 (run 37635516841) a GitHub Actions outage left CI's "All Checks Pass"
+    # queued for good, its result "abandoned", the CI call ended neither failure nor cancelled, and a list of
+    # those two skipped this job: the attempt ended red with no pull request and no issue. always(), so a
+    # cancelled run still reports; a pick that failed (not one that skipped by design) is held too.
+    held:
+        name: Hold the release
+        needs: [pick, ci, t4, hosts, audit, llm, train]
+        if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && needs.train.result != 'success')) }}
+        runs-on: ubuntu-24.04
+        permissions:
+            actions: read
+            contents: read
+            issues: write
+        env:
+            GH_TOKEN: ${{ github.token }}
+            SHA: ${{ needs.pick.outputs.sha || github.sha }}
+            PICK_RESULT: ${{ needs.pick.result }}
+            CI_RESULT: ${{ needs.ci.result }}
+            T4_RESULT: ${{ needs.t4.result }}
+            HOSTS_RESULT: ${{ needs.hosts.result }}
+            AUDIT_RESULT: ${{ needs.audit.result }}
+            LLM_RESULT: ${{ needs.llm.result }}
+            LLM_OWNER_ITEM: ${{ needs.llm.outputs.owner_item }}
+            TRAIN_RESULT: ${{ needs.train.result }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: |
+                      tools/release-held.sh
+                      tools/gpu-runner-lost.sh
+                  sparse-checkout-cone-mode: false
+
+            - name: Open or update the held-release issue
+              run: |
+                  set -euo pipefail
+                  run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                  # Every job the train needs that did not succeed, by its result: failure, cancelled, or one GitHub
+                  # gives no name in its docs (abandoned). Skipped is a consequence (the train skips when a lane
+                  # did not pass), never a cause.
+                  what=()
+                  llm_lane="LLM regression"
+                  [ -z "$LLM_OWNER_ITEM" ] || llm_lane="LLM regression (owner item: Google account)"
+                  results=()
+                  for lane in "candidate pick=$PICK_RESULT" "CI=$CI_RESULT" "T4 GPU=$T4_RESULT" "Hosts=$HOSTS_RESULT" \
+                      "security audit=$AUDIT_RESULT" "$llm_lane=$LLM_RESULT" "release pull request=$TRAIN_RESULT"; do
+                      results+=("${lane%%=*} ${lane#*=}")
+                      case "${lane#*=}" in success | skipped) ;; *) what+=("${lane%%=*}") ;; esac
+                  done
+                  [ "${#what[@]}" != 0 ] || what+=("release train")
+                  # The first attempt failed only because a spot runner was taken away (every failed job says its
+                  # runner was lost): gpu-rerun-on-runner-loss.yml re-runs this run's failed jobs once when it
+                  # ends, with the same test (tools/gpu-runner-lost.sh), so there is nothing to hold yet. A second
+                  # loss, or any real failure beside the loss, opens the issue below.
+                  if [ "$GITHUB_RUN_ATTEMPT" = 1 ] && tools/gpu-runner-lost.sh "$GITHUB_RUN_ID" 1; then
+                      echo "::warning::release attempt on ${SHA} lost its T4 runner (a spot reclaim); its failed jobs are re-run once, no issue opened"
+                      exit 0
+                  fi
+                  what=$(printf '%s, ' "${what[@]}"); what=${what%, }
+                  title="Release held: ${what} failed on ${SHA:0:7}"
+                  # Each job of this attempt that did not pass: failed, cancelled, or never finished (a job GitHub
+                  # never ran stays queued with no conclusion: "none" here, as read collapses an empty tab field).
+                  # Not this job, and not the advisory Coverage job.
+                  jobs=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100" \
+                      --jq '.jobs[] | select(.name != "Hold the release" and (.name | startswith("Coverage") | not)) | select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral") | "\(.id)\t\(.conclusion // "none")\t\(.name)\t\(.status)\t\([.steps[] | select(.conclusion == "failure") | .name] | join("; "))"') ||
+                      jobs="" # the issue matters more than its details
+                  {
+                      echo "The release train failed on ${SHA} (${what}): ${run_url}"
+                      echo
+                      echo "Results: $(printf '%s, ' "${results[@]}" | sed 's/, $//')"
+                      [ -z "$jobs" ] || echo "Jobs that did not pass: $(cut -f3 <<<"$jobs" | paste -sd, - | sed 's/,/, /g')"
+                      [ "$TRIGGER" != workflow_run ] || echo "This was a restarted release: a master push whose build passed restarted the held release, and it failed again."
+                      echo
+                      echo "No release pull request was opened and nothing was published. The whole release is held until this is fixed on master. Scheduled trains skip while this issue is open. The release restarts itself on the next push to master whose build passes, so the fix's pull request should name this issue without closing it (\`Refs #<this issue>\`, not \`Fixes #<this issue>\`): its merge restarts the release on its commit. A train that passes releases everything at once and closes this issue; one that fails again comments here."
+                      if [ -n "$LLM_OWNER_ITEM" ]; then
+                          echo
+                          echo "The LLM regression job did not fail on code: ${LLM_OWNER_ITEM}. There is no code to fix: it is an owner item. Fund the Google account (its Gemini API billing) or replace the GOOGLE_API_KEY repository secret, then \`gh workflow run release.yml --ref master\` retries at once (a dispatch runs despite this issue), or close this issue and the next scheduled train retries."
+                      fi
+                      if [ "$T4_RESULT" = failure ]; then
+                          echo
+                          echo "If the T4 job was refused or lost its runner (machine.dev: insufficient balance, concurrent runner limit, \"received a shutdown signal\", \"lost communication\"; such a job has no log below), there is no code to fix: it is an owner item. Restore the machine.dev capacity, then \`gh workflow run release.yml --ref master\` retries at once (a dispatch runs despite this issue), or close this issue and the next scheduled train retries."
+                      fi
+                      if grep -q $'^[0-9]*\tnone\t' <<<"$jobs" || [[ " ${results[*]} " != *" failure "* ]]; then
+                          echo
+                          echo "A job that never finished, or a lane that was cancelled or abandoned rather than failed, is usually GitHub Actions itself (an outage, a runner never assigned, a person cancelling the run), not the code: check https://www.githubstatus.com for the run's time. If nothing failed on its own, re-run the run's failed jobs (\`gh run rerun ${GITHUB_RUN_ID} --failed\`) or \`gh workflow run release.yml --ref master\` (a dispatch runs despite this issue)."
+                      fi
+                      echo
+                      echo "What did not pass (each job's failed steps, then its FAIL and error lines):"
+                      echo
+                      echo '```'
+                      [ -n "$jobs" ] || echo "(the run's jobs could not be read; open the run)"
+                      while IFS=$'\t' read -r id conclusion name status steps; do
+                          [ -n "$id" ] || continue
+                          if [ "$conclusion" = none ]; then
+                              echo "${name}: never finished (still ${status}): GitHub Actions did not run it"
+                              continue
+                          fi
+                          echo "${name} (${conclusion}): ${steps}"
+                          # a job the provider refused (no balance, no runner) has no log
+                          gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/${id}/logs" 2>/dev/null |
+                              sed 's/^[0-9TZ:.-]* //' | grep -E '(^| )(FAIL|##\[error\])' | head -60 || true
+                      done <<<"$jobs"
+                      echo '```'
+                  } > "$RUNNER_TEMP/body.md"
+                  open=$(tools/release-held.sh open "$title" "$RUNNER_TEMP/body.md")
+                  echo "::error::release held: ${what} failed on ${SHA}; no release pull request was opened (issue ${open})"
+
+    # Versions the candidate and opens the release pull request, only after the full suite, the T4, Hosts, the
+    # audit and the LLM regression tests all passed on it.
     train:
         name: Open the release pull request
-        if: ${{ github.event_name != 'push' && github.ref == 'refs/heads/master' }}
+        needs: [pick, ci, t4, hosts, audit, llm]
+        if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' }}
         runs-on: ubuntu-24.04
-        # A second train waits for the first, which has opened its pull request by then and so stops the second.
-        concurrency:
-            group: release-train
         permissions:
             actions: read
             contents: write
@@ -57,147 +466,61 @@ jobs:
                   ref: master
                   fetch-depth: 0
 
-            - name: Pick the newest commit since the last release with CI, GPU and Hosts green
-              id: lanes
-              run: |
-                  set -euo pipefail
-                  skip() { echo "::notice::$1"; echo "release=false" >> "$GITHUB_OUTPUT"; exit 0; }
-                  open=$(gh pr list --state open --limit 200 --json number,headRefName \
-                      --jq '[.[] | select(.headRefName | startswith("release/train-")) | .number] | first // empty')
-                  [ -z "$open" ] || skip "release pull request #${open} is still open; it must merge or close first"
-                  # The newest version commit, and whether its publish run has tagged it yet. Until it has, nx
-                  # would version from the previous tags and release the same versions a second time.
-                  last=$(git log -1 --no-merges --grep='^chore(release): publish' --format=%H HEAD)
-                  while read -r project version; do
-                      git rev-parse -q --verify "refs/tags/${project}@${version}" >/dev/null ||
-                          skip "the last release (${last}) has no tag ${project}@${version} yet; its publish run must finish first"
-                  done < <(git log -1 --format=%b "$last" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
-                  # Candidates, newest first: master's first-parent line down to the commit that brought the last
-                  # version commit in (its pull request's merge, or the version commit itself). Commits merged
-                  # while that pull request waited are released with the first green commit after it.
-                  candidates=()
-                  while read -r sha; do
-                      git merge-base --is-ancestor "$last" "${sha}^1" 2>/dev/null || { echo "last release lands at ${sha}"; break; }
-                      candidates+=("$sha")
-                  done < <(git log --first-parent --max-count=200 --format=%H HEAD)
-                  [ "${#candidates[@]}" -gt 0 ] || skip "nothing on master since the last release"
-                  # Every lane's master runs, newest first, as "head_sha id status conclusion". The first line for a
-                  # commit is its newest run (a re-run keeps its id and updates in place).
-                  runs() {
-                      gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/$1/runs?branch=master&per_page=100" \
-                          --jq '.workflow_runs[] | "\(.head_sha) \(.id) \(.status) \(.conclusion // "-")"'
-                  }
-                  ci_runs=$(runs ci.yml); gpu_runs=$(runs gpu.yml); hosts_runs=$(runs hosts.yml)
-                  newest() { awk -v s="$2" '$1 == s { print $2, $3, $4; exit }' <<< "$1"; }
-                  # The release ships the CI run's per-package builds, which CI keeps for one day.
-                  artifacts_ok() {
-                      local live
-                      live=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$1/artifacts?per_page=100" --jq '
-                          [.artifacts[] | select(.expired | not) | .name] as $live
-                          | ["graph-format", "graph-io", "webgpu-graph-algorithms", "graph-samples", "algorithms",
-                             "layout", "graphty", "graphty-element", "remote-logger", "compact-mantine"]
-                          | map("build-" + .) - $live | length')
-                      [ "$live" = 0 ]
-                  }
-                  for sha in "${candidates[@]}"; do
-                      ci=$(newest "$ci_runs" "$sha"); gpu=$(newest "$gpu_runs" "$sha"); hosts=$(newest "$hosts_runs" "$sha")
-                      echo "${sha}: ci=[${ci:-none}] gpu=[${gpu:-none}] hosts=[${hosts:-none (paths did not change)}]"
-                      case "$ci" in *" completed success") ;; *) continue ;; esac
-                      case "$gpu" in *" completed success") ;; *) continue ;; esac
-                      case "$hosts" in "" | *" completed success") ;; *) continue ;; esac
-                      ci_run_id=${ci%% *}
-                      artifacts_ok "$ci_run_id" ||
-                          skip "${sha} is green but CI run ${ci_run_id} no longer holds its builds; the next train tries a newer commit"
-                      echo "every lane green on ${sha}; CI run ${ci_run_id} holds the build artifacts"
-                      { echo "release=true"; echo "sha=${sha}"; echo "ci_run_id=${ci_run_id}"; } >> "$GITHUB_OUTPUT"
-                      exit 0
-                  done
-                  skip "no commit since the last release is green on every lane yet; dispatch again once one is"
-
             # The version commit must sit on the tree the lanes tested.
-            - name: Check out the green commit
-              if: ${{ steps.lanes.outputs.release == 'true' }}
+            - name: Check out the tested commit
               env:
-                  SHA: ${{ steps.lanes.outputs.sha }}
+                  SHA: ${{ needs.pick.outputs.sha }}
               run: git checkout --quiet --detach "$SHA"
 
-            # The tested builds, kept in this run for 30 days under the commit's name, so the publish job finds
-            # them however long the pull request waits in the queue (CI keeps its own copy for one day).
-            - name: Download the green commit's builds
-              if: ${{ steps.lanes.outputs.release == 'true' }}
+            # The builds of the CI run above, in this workflow run, kept for 30 days under the commit's name, so the
+            # publish job finds them however long the pull request waits in the queue (CI keeps its own for a day).
+            - name: Download the tested commit's builds
               uses: actions/download-artifact@v4
               with:
                   pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,algorithms,layout,graphty,graphty-element,remote-logger,compact-mantine}"
                   path: ${{ runner.temp }}/builds
-                  run-id: ${{ steps.lanes.outputs.ci_run_id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Keep the builds for the publish job
-              if: ${{ steps.lanes.outputs.release == 'true' }}
               uses: actions/upload-artifact@v4
               with:
-                  name: release-builds-${{ steps.lanes.outputs.sha }}
+                  name: release-builds-${{ needs.pick.outputs.sha }}
                   path: ${{ runner.temp }}/builds
                   retention-days: 30
                   if-no-files-found: error
 
             - uses: pnpm/action-setup@v4
-              if: ${{ steps.lanes.outputs.release == 'true' }}
 
             - uses: actions/setup-node@v4
-              if: ${{ steps.lanes.outputs.release == 'true' }}
               with:
                   node-version: 22.x
                   cache: "pnpm"
 
             - name: Install dependencies
-              if: ${{ steps.lanes.outputs.release == 'true' }}
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
 
-            # A package listed in release-hold.json is left out of nx.json's release.projects in this checkout, so
-            # it is neither versioned nor published -- not even as a dependent of a package that is released. An ad
-            # hoc release with `packages` holds every other project too. nx commits only the manifests and
-            # changelogs it wrote, never this nx.json edit. To stop one package, add it to release-hold.json; never
-            # disable this workflow (CLAUDE.md, "Release versioning").
-            - name: Leave out the held packages
-              if: ${{ steps.lanes.outputs.release == 'true' }}
-              env:
-                  PACKAGES: ${{ inputs.packages }}
-              run: |
-                  if [ -n "${PACKAGES// /}" ]; then
-                      node tools/release-hold.mjs apply --only "$PACKAGES"
-                  else
-                      node tools/release-hold.mjs apply
-                  fi
-
-            # Version and changelogs only, as one commit. The tags and the GitHub releases wait for the merge (the
-            # publish job), so a pull request that never merges leaves nothing behind; nothing is pushed by nx.
+            # Version and changelogs only, as one commit (tools/release-version.sh). A package listed in
+            # release-hold.json is neither versioned nor published -- not even as a dependent of a package that is
+            # released. An ad hoc release with `packages` holds every other project too. To stop one package, add
+            # it to release-hold.json; never disable this workflow (CLAUDE.md, "Release versioning"). The tags and
+            # the GitHub releases wait for the merge (the publish job), so a pull request that never merges leaves
+            # nothing behind; nothing is pushed by nx.
             - name: Version the packages
               id: version
-              if: ${{ steps.lanes.outputs.release == 'true' }}
+              env:
+                  PACKAGES: ${{ inputs.packages }}
+                  # the changelog renderer looks up commit authors' GitHub handles
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
                   set -euo pipefail
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
-                  jq '.release.git.tag = false | .release.git.push = false
-                      | .release.changelog.projectChangelogs.createRelease = false' nx.json > "$RUNNER_TEMP/nx.json"
-                  cp "$RUNNER_TEMP/nx.json" nx.json
-                  pnpm exec nx release --skip-publish --verbose
-                  if [ "$(git rev-parse HEAD)" = "$SHA" ]; then
-                      echo "::notice::nothing to release since the last release"
-                      echo "commit=" >> "$GITHUB_OUTPUT"
-                  else
-                      echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-                  fi
-              env:
-                  SHA: ${{ steps.lanes.outputs.sha }}
-                  # the changelog renderer looks up commit authors' GitHub handles
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  HUSKY: "0"
+                  commit=$(tools/release-version.sh "$PACKAGES")
+                  [ -n "$commit" ] || echo "::notice::nothing to release since the last release"
+                  echo "commit=${commit}" >> "$GITHUB_OUTPUT"
 
-            # The release pull request gets no full CI: its code is the commit every lane already passed. What is
+            # The release pull request gets no CI of its own: its code is the commit this run just tested. What is
             # checked is that the version commit adds nothing else, and that its title is a valid commit message.
             # Those two results are reported under the names master's ruleset requires; a pull request opened with
             # GITHUB_TOKEN starts no workflow of its own. Any later push to the branch (Mergify bringing it up to
@@ -205,9 +528,8 @@ jobs:
             - name: Open the release pull request
               if: ${{ steps.version.outputs.commit != '' }}
               env:
-                  SHA: ${{ steps.lanes.outputs.sha }}
+                  SHA: ${{ needs.pick.outputs.sha }}
                   COMMIT: ${{ steps.version.outputs.commit }}
-                  CI_RUN: ${{ steps.lanes.outputs.ci_run_id }}
                   PACKAGES: ${{ inputs.packages }}
               run: |
                   set -euo pipefail
@@ -217,25 +539,37 @@ jobs:
                   branch="release/train-${GITHUB_RUN_ID}"
                   git push origin "${COMMIT}:refs/heads/${branch}"
                   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-                  kind=daily
-                  [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] || kind="ad hoc"
+                  kind=scheduled
+                  [ "$TRIGGER" != workflow_dispatch ] || kind="ad hoc"
+                  [ "$TRIGGER" != workflow_run ] || kind="restarted"
                   {
-                      echo "The ${kind} release train versions ${SHA}, the newest master commit green on CI, GPU and Hosts (CI run ${CI_RUN})."
+                      echo "The ${kind} release train versions ${SHA}, master's newest commit, after the full CI suite, the T4 GPU lane, Hosts, the security audit and the LLM regression tests passed on it in ${run_url}."
                       [ -z "${PACKAGES// /}" ] || echo "Only these packages are released: ${PACKAGES}."
                       echo
                       echo "Releases:"
                       git log -1 --format=%b "$COMMIT" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/- \1 \2/p'
                       echo
-                      echo "This pull request changes only version fields and changelogs (tools/release-diff.mjs). When it merges, release.yml tags each package, creates its GitHub release and publishes it to npm from that commit's tested build. Opened by ${run_url}."
+                      echo "This pull request changes only version fields and changelogs (tools/release-diff.mjs). When it merges, release.yml tags each package, creates its GitHub release and publishes it to npm from the builds that run tested. Opened by ${run_url}."
                   } > "$RUNNER_TEMP/body.md"
                   gh pr create --base master --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"
-                  for context in "All Checks Pass" "Lint PR Title"; do
+                  for context in "All Checks Pass" "Lint PR Title" "Link PR Issue"; do
                       gh api "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT}" -f state=success -f context="$context" \
-                          -f description="release train: versions and changelogs only, on a commit green on every lane" \
+                          -f description="release train: versions and changelogs only, on a commit that passed the full suite, the T4, Hosts, the audit and the LLM regression tests" \
                           -f target_url="$run_url" >/dev/null
                   done
 
-    # Runs on the push that merges a release pull request: Mergify's merge commit names the release branch.
+            # Everything passed on this commit: a held train is released by this one. Only the train hold closes;
+            # a publish hold waits for its own re-run.
+            - name: Close the held-release issue
+              env:
+                  SHA: ${{ needs.pick.outputs.sha }}
+              run: |
+                  set -euo pipefail
+                  tools/release-held.sh close \
+                      "The full CI suite, the T4 GPU lane, Hosts, the security audit and the LLM regression tests passed on ${SHA} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}); this train releases what the failed train held. A publish hold (\"Release held: publish failed\"), if one is open, is a separate issue and stays open until its own run is re-run."
+
+    # Runs on the push that merges a release pull request: Mergify's merge commit names the release branch. The
+    # release queue rule merges with merge_method: merge for this reason; a merge-batch commit names only numbers.
     publish:
         name: Publish the release
         if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '/release/train-') }}
@@ -246,6 +580,7 @@ jobs:
             actions: read
             contents: write
             id-token: write
+            issues: write # report a failed publish
         env:
             GH_TOKEN: ${{ github.token }}
         steps:
@@ -347,7 +682,10 @@ jobs:
                   # npm answers a retry inside its propagation window (up to about 7.5 minutes after it accepted
                   # an upload) with E409 "Cannot publish over previously staged version" (npm/cli#9889), which
                   # failed the 3.1.0 release although every version it refused was already published.
-                  pnpm exec nx release publish --projects="$PROJECTS" --nxBail=false ||
+                  #
+                  # The output is kept for the failed-publish report, which reads npm's login error from it.
+                  set -o pipefail
+                  pnpm exec nx release publish --projects="$PROJECTS" --nxBail=false 2>&1 | tee "$RUNNER_TEMP/publish.log" ||
                       echo "::warning::nx release publish reported a failure; the registry check below decides"
               env:
                   PROJECTS: ${{ steps.tags.outputs.projects }}
@@ -377,3 +715,54 @@ jobs:
                   done
                   for spec in $absent; do echo "::error::${spec} is versioned on master but not on npm; re-run this job to publish it"; done
                   exit 1
+
+            # A failed publish leaves master versioned but untagged, and every later train skips until the tags
+            # exist, so it is reported as a hold of its own: a "Release held: publish failed" issue, separate from
+            # any train hold, which also stops the scheduled trains. A train never retitles or closes it, and a second
+            # failure of this run only comments on it. Re-running the failed jobs of this run publishes what is
+            # missing and closes it.
+            - name: Report a failed publish
+              if: ${{ failure() }}
+              run: |
+                  set -euo pipefail
+                  run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                  # A package with no npm trusted publisher fails with npm's login error: its first publish, or one
+                  # whose trusted-publisher configuration expired unused. Only the owner can fix that on npmjs.com,
+                  # so the issue says so instead of reading as a code defect. nx prints each task's output under
+                  # its "nx run <project>:nx-release-publish" line.
+                  login=()
+                  if [ -f "$RUNNER_TEMP/publish.log" ]; then
+                      mapfile -t login < <(sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/publish.log" | awk '
+                          match($0, /nx run [^ ]+:nx-release-publish/) { p = substr($0, RSTART + 7, RLENGTH - 26) }
+                          /requires you to be logged in to https:\/\/registry\.npmjs\.org/ && p != "" { print p; p = "" }' | sort -u)
+                  fi
+                  names=()
+                  for project in "${login[@]}"; do
+                      root=$(pnpm exec nx show project "$project" --json | jq -r .root)
+                      names+=("$(jq -r .name "${root}/package.json")")
+                  done
+                  title="Release held: publish failed on ${GITHUB_SHA:0:7}"
+                  [ "${#names[@]}" = 0 ] || title="${title}: owner must create the npm trusted publisher for ${names[*]}"
+                  {
+                      if [ "${#names[@]}" -gt 0 ]; then
+                          echo "## OWNER ITEM: create the npm trusted publisher for ${names[*]}"
+                          echo
+                          echo "This is not a code defect: no pull request or agent can fix it. npm refused to publish ${names[*]} with \"This command requires you to be logged in to https://registry.npmjs.org/\". That is what npm trusted publishing (OIDC) answers when a package has no trusted-publisher configuration: its first publish, or a configuration that expired because no publish used it within 2 days of its creation (https://docs.npmjs.com/trusted-publishers/)."
+                          echo
+                          echo "1. On npmjs.com, for each package below, open its settings, Trusted Publisher, GitHub Actions, and enter: Organization or user \`${GITHUB_REPOSITORY%%/*}\`, Repository \`${GITHUB_REPOSITORY#*/}\`, Workflow filename \`release.yml\`, Environment left empty."
+                          for name in "${names[@]}"; do echo "   - ${name}: https://www.npmjs.com/package/${name}/access"; done
+                          echo "2. Re-run the failed publish at once: \`gh run rerun ${GITHUB_RUN_ID} --failed\`. The new configuration expires if no publish uses it within 2 days."
+                          echo
+                      fi
+                      echo "The publish job failed on master ${GITHUB_SHA}: ${run_url}"
+                      echo
+                      echo "The release pull request merged, but its packages are not all tagged and on npm, so every later release train skips. Read the failed step in the run, fix the cause (an npm rejection, a missing \`release-builds-<sha>\` artifact of the train run, more than one version commit in the push), then re-run the failed jobs of run ${GITHUB_RUN_ID}: \`gh run rerun ${GITHUB_RUN_ID} --failed\`. The release stays held until that run is re-run and passes: a new release train cannot clear this, and a train that fails meanwhile opens its own, separate issue without touching this one. A publish that passes closes this issue. The builds the train kept expire 30 days after the train ran."
+                  } > "$RUNNER_TEMP/body.md"
+                  open=$(tools/release-held.sh open "$title" "$RUNNER_TEMP/body.md" "Release held: publish failed")
+                  echo "::error::publish failed on ${GITHUB_SHA}; issue ${open}"
+
+            - name: Close the failed-publish issue
+              run: |
+                  tools/release-held.sh close \
+                      "Published from ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}: every package version is on npm." \
+                      "Release held: publish failed"

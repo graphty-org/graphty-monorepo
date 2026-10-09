@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -59,14 +60,11 @@ interface LabelPropagationOptions extends Record<string, unknown> {
  *   Deterministic.
  *   This is the definition a GPU runs, so it is the one routed to an accelerator above its floor;
  *   below the floor, or with no accelerator, `@graphty/algorithms`' synchronous port runs it. The
- *   two follow the same rule but differ in four details -- the order (the lowest label on the
- *   device, a scramble of the label on the CPU, so a long chain numbered in order settles in a few
- *   passes on the CPU and creeps one node per two passes on the device), which direction the first
- *   pass moves, whether a label tied for the lead is kept, and how a run whose labels cycle ends -- so on a
- *   graph with tied votes they can settle on different, equally valid partitions; on community
- *   structure they agree. `caveats.precision` says which one ran. On a cycle (some weighted graphs)
- *   the CPU stops when a pass repeats the labels of two passes before and reports `converged`
- *   false; the device runs all `maxIterations` passes and reports no `converged` at all.
+ *   two follow the same rules (the order is a fixed scramble of the label, a label tied for the
+ *   lead is kept, the first pass moves up) and give the same labels, except on a run whose labels
+ *   cycle (some weighted graphs): the CPU stops when a pass repeats the labels of two passes before
+ *   and reports `converged` false; the device runs all `maxIterations` passes and reports no
+ *   `converged` at all. `caveats.precision` says which one ran.
  * - A seed: the asynchronous (FLPA) definition. Nodes are visited one at a time in an order drawn
  *   from the seed, so one seed gives one partition. No GPU kernel has a seed to honour, so this
  *   always runs on the CPU, and under `acceleration="required"` it is refused.
@@ -154,7 +152,7 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
                 iterations,
                 ...(synchronous ? {} : { seed: randomSeed }),
                 precision,
-                notes: ["Label propagation does not score its own partition, so it reports no modularity."],
+                facts: [caveat("partition.unscored", { algorithm: "label-propagation" })],
             }),
         };
     }

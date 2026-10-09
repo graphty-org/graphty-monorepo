@@ -3,6 +3,7 @@ import {
     Combobox,
     FileInput,
     InputClearButton,
+    InputWrapper,
     JsonInput,
     type MantineTheme,
     MultiSelect,
@@ -22,6 +23,7 @@ import {
     ensureFocusModality,
     ensureListboxKeyboard,
     FieldCaret,
+    listboxComboboxProps,
     overTriggerComboboxProps,
     renderListboxOption,
 } from "../../components/inputs/listbox";
@@ -78,6 +80,16 @@ function fieldLook(variant: string | undefined, fallback: "filled" | "outlined")
 }
 
 /**
+ * The label, description and error of every field and of a bare `Input.Wrapper` (a label above
+ * a SegmentedControl): one set on InputWrapper, so a form's labels cannot drift apart.
+ */
+const FIELD_TEXT_CLASS_NAMES = {
+    label: "cm-field-label",
+    description: "cm-field-description",
+    error: "cm-field-error",
+};
+
+/**
  * The classNames every field shares.
  * @param fallback - the look of a variant this family does not name
  * @param extra - classes the wrapper also takes (`cm-select`, `cm-pills-field`, ...)
@@ -96,9 +108,6 @@ function fieldClassNames(fallback: "filled" | "outlined", extra = "") {
             wrapper,
             input: "cm-input",
             section: "cm-input-section",
-            label: "cm-field-label",
-            description: "cm-field-description",
-            error: "cm-field-error",
         };
     };
 }
@@ -179,6 +188,10 @@ function listVars(
 }
 
 export const inputComponentExtensions = {
+    // Every field's wrapper is also styled under this name (Mantine's useStyles names it
+    // ["InputWrapper", "Select"]), so this one entry themes the label of every field.
+    InputWrapper: InputWrapper.extend({ classNames: FIELD_TEXT_CLASS_NAMES }),
+
     TextInput: TextInput.extend({
         defaultProps: { size: "sm", variant: "filled" },
         vars: (_theme, props) => ({ root: {}, wrapper: compactVarsForSize(compactInputScale, props?.size) }),
@@ -319,6 +332,13 @@ export const inputComponentExtensions = {
     }),
 
     // Mantine's combobox targets omit aria-expanded unless asked; every themed target states it.
+    // What every field's list falls back to for a key its caller's comboboxProps leaves out:
+    // Mantine replaces a field's whole comboboxProps default with the caller's object, and only
+    // the Combobox underneath merges key by key (listboxComboboxProps).
+    Combobox: Combobox.extend({
+        defaultProps: { ...listboxComboboxProps() },
+    }),
+
     ComboboxTarget: Combobox.Target.extend({
         defaultProps: { withExpandedAttribute: true },
     }),

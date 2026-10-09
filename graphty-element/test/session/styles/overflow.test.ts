@@ -39,6 +39,8 @@ function field(name: string, kind: FieldDescriptor["kind"], type: FieldDescripto
 const LOUVAIN: EncodingRun = {
     id: "louvain",
     label: "Communities",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "louvain",
     params: {},
     shape: "community",
@@ -48,6 +50,8 @@ const LOUVAIN: EncodingRun = {
 const EDGE_GROUPS: EncodingRun = {
     id: "edgegroups",
     label: "Edge groups",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "edge-groups",
     params: {},
     shape: "edge-metric",
@@ -57,6 +61,8 @@ const EDGE_GROUPS: EncodingRun = {
 const DEGREE: EncodingRun = {
     id: "degree",
     label: "Degree",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "degree",
     params: {},
     shape: "node-metric",
@@ -138,7 +144,11 @@ describe("what encode() writes for overflow", () => {
 
 describe('overflow: "other"', () => {
     const { names, values } = column(10);
-    const prepared = prepare("node.color", bindingOf(plan({ run: "louvain", channel: "node.color" }), "node.color"), values);
+    const prepared = prepare(
+        "node.color",
+        bindingOf(plan({ run: "louvain", channel: "node.color" }), "node.color"),
+        values,
+    );
 
     it("keeps the palette's colours, in palette order, for the eight largest groups", () => {
         assert.strictEqual(prepared.palette?.id, "okabe-ito");

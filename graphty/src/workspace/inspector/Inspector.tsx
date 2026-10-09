@@ -11,6 +11,7 @@ import {
     type LucideIcon,
     MoreHorizontal,
     MousePointer2,
+    Paintbrush,
     Shapes,
     Share2,
     Spline,
@@ -19,6 +20,7 @@ import {
 import React, { useEffect, useState } from "react";
 
 import { LayoutGroup } from "../layout/LayoutGroup";
+import { runName } from "../runWords";
 import { tabFor } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StyleTab } from "../style/StyleTab";
@@ -56,6 +58,7 @@ const KIND_ICONS: Readonly<Record<InspectedKindId, LucideIcon>> = {
     "group-row": Component,
     "everything-row": Layers,
     "selection-row": MousePointer2,
+    "layer-row": Paintbrush,
     attribute: Columns3,
 };
 
@@ -274,7 +277,7 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
     const from = (made: Run): Header["from"] => {
         const date = runDate(made.startedAt);
         return {
-            words: fromWords(made.label, date),
+            words: fromWords(runName(session, made), date),
             open: () => {
                 open({ kind: "run-row", run: made.id });
             },
@@ -310,9 +313,10 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
                 return { name: "Gone" };
             }
             const date = runDate(run.startedAt);
-            const analysis = session.catalog.algorithms().find((a) => a.key === run.algorithm)?.plainName ?? run.label;
+            const name = runName(session, run);
+            const analysis = session.catalog.algorithms().find((a) => a.key === run.algorithm)?.plainName ?? name;
             return {
-                name: run.label,
+                name,
                 from: { words: fromWords(analysis, date), open: openAnalyze },
             };
         }
@@ -327,6 +331,8 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             return { name: "Everything" };
         case "selection-row":
             return { name: "Selection" };
+        case "layer-row":
+            return { name: session.styles.get(resolved.layer)?.name ?? "Gone" };
         default: {
             const column = session.data.attributes().find((candidate) => candidate.path === resolved.path);
             const made = column?.runId === undefined ? undefined : session.runs.get(column.runId);
@@ -384,10 +390,12 @@ function bodyOf(
         case "group-row":
             return run === undefined
                 ? { only: <Gone /> }
-                : { style: <StyleTab />, values: <GroupValues run={run} group={resolved.group} version={version} /> };
+                : // A group is not a style layer, so it has nothing for the Style tab to edit.
+                  { only: <GroupValues run={run} group={resolved.group} version={version} /> };
         case "everything-row":
             return { style: <StyleTab />, values: <EverythingValues /> };
         case "selection-row":
+        case "layer-row":
             return { only: <StyleTab /> };
         default:
             return { only: <AttributeValues path={resolved.path} /> };

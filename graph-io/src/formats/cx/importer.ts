@@ -86,7 +86,6 @@ import {
     CxStructure,
     declareFresh,
     ExactInteger,
-    fitsF32,
     flipY,
     headText,
     inexactLiteral,
@@ -554,7 +553,7 @@ function parseScalar(
         }
         default: {
             if (value === "NaN" || value === "nan") {
-                return NaN;
+                return Number.NaN;
             }
             if (value === "Infinity" || value === "-Infinity") {
                 return Number(value);
@@ -624,7 +623,7 @@ function parseValue(
     for (const item of value as unknown[]) {
         let parsed = item === null ? UNSET : parseScalar(item, type.scalar, long, onPrecision);
         if (parsed === UNSET) {
-            parsed = type.scalar === "double" ? NaN : BAD;
+            parsed = type.scalar === "double" ? Number.NaN : BAD;
         }
         if (parsed === BAD) {
             return BAD;
@@ -2445,11 +2444,11 @@ class CxReader {
                 );
                 continue;
             }
-            if (!fitsF32(value.x) || !fitsF32(value.y)) {
+            if (!Number.isFinite(value.x) || !Number.isFinite(value.y)) {
                 this.report.error(
                     "validation-error",
                     BAD_VALUE_CODE,
-                    `a cartesianLayout element for node ${shown(value.node)} has the coordinates ${String(value.x)}, ${String(value.y)}, beyond what the f32 position column holds; skipped`,
+                    `a cartesianLayout element for node ${shown(value.node)} has the coordinates ${String(value.x)}, ${String(value.y)}, which are not both finite; skipped`,
                     { line, element: "cartesianLayout" },
                 );
                 continue;

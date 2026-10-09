@@ -32,7 +32,7 @@ function cell(snapshot: GraphSnapshot, table: "nodes" | "edges", column: string,
         return undefined;
     }
     const value = c.value(index);
-    return value instanceof Float32Array ? Array.from(value) : value;
+    return value instanceof Float32Array || value instanceof Float64Array ? Array.from(value) : value;
 }
 
 async function load(
@@ -858,9 +858,9 @@ describe("cys robustness: importAll", () => {
 
     it("applies maxUncompressedBytes to the whole call", async () => {
         const zip = multi(5, 4000);
-        const results = await importAllGraphs(zip, { format: "cys", maxUncompressedBytes: 40000 } as never);
+        const results = await importAllGraphs(zip, { format: "cys", maxUncompressedBytes: 40000 });
         expect(results).toHaveLength(5);
-        const err = await failure(importAllGraphs(zip, { format: "cys", maxUncompressedBytes: 12000 } as never));
+        const err = await failure(importAllGraphs(zip, { format: "cys", maxUncompressedBytes: 12000 }));
         expect(fatal(err).code).toBe(CYS_ISSUE.TOO_LARGE);
         expect(fatal(err).message).toContain("tables/4-N2/");
         // the failing network's own report: network 0 pushed its node, network 2 has not yet

@@ -293,9 +293,14 @@ export interface CheckExtras {
     /**
      * Roles the format writes into a fixed slot whose importer reads them back under a fixed name;
      * a role column named otherwise is reported as W_COLUMN_NAME_CHANGED (role -> the name the
-     * importer gives it). Defaults to none.
+     * importer gives it). Defaults to none. `nodeRoleNames` and `edgeRoleNames` override it for one
+     * kind, for a format whose slot exists for nodes only (or edges only).
      */
     readonly roleNames?: Readonly<Record<string, string>> | undefined;
+    /** Like `roleNames`, for node columns only. */
+    readonly nodeRoleNames?: Readonly<Record<string, string>> | undefined;
+    /** Like `roleNames`, for edge columns only: `{}` for a format with no edge slot for any role. */
+    readonly edgeRoleNames?: Readonly<Record<string, string>> | undefined;
     /**
      * False for a format that writes no node or edge attributes except the ones whose role is in
      * `roles`: every other attribute column is reported once as W_COLUMN_DROPPED, instead of the
@@ -318,6 +323,12 @@ export interface CheckExtras {
      * W_WEIGHTS_DROPPED note. Default true.
      */
     readonly weights?: boolean | undefined;
+    /**
+     * The tables the export writes, of "node", "edge" and "graph"; a gap in a table it does not
+     * write is not a loss of this export and gets no note. Default all three. A CSV node table is
+     * `["node"]`, so its notes are about node ids and node columns only.
+     */
+    readonly tables?: readonly ("node" | "edge" | "graph")[] | undefined;
     /**
      * How the format's importer turns id text back into ids ("canonical" for most text formats), so
      * an id that comes back with another type (the text "7" as the number 7) is reported as
@@ -353,7 +364,128 @@ export function checkCapabilities(
     const note = (code: string, message: string, column: string | null = null, count: number | null = null): void => {
         notes.push(Object.freeze({ code, message, column, count }));
     };
+    const tables = extras.tables ?? ["node", "edge", "graph"];
+    const edges = tables.includes("edge");
 
+    if (edges) {
+        checkEdgeStructure(snapshot, caps, options, note);
+    }
+
+    const unrepresentable = countUnrepresentableIds(snapshot, caps.idCharset);
+    if (unrepresentable > 0) {
+        if (caps.idCharset === "dense-1-based") {
+            note(
+                LOSS.ID_RENUMBERED,
+                options.sanitizeIds === "mangle"
+                    ? `${unrepresentable} node id${plural(unrepresentable)} ${agree(unrepresentable, "is", "are")} not their 1-based index; nodes are numbered 1..N, the original ids are written too, and an import with restoreMangledIds: true reads them back as the ids; they are also the labels of nodes without a label value`
+                    : `${unrepresentable} node id${plural(unrepresentable)} ${agree(unrepresentable, "is", "are")} not their 1-based index; nodes are numbered 1..N and ids kept as labels of the nodes without a label value (a node with one loses its id)`,
+                null,
+                unrepresentable,
+            );
+        } else if (options.sanitizeIds === "mangle") {
+            note(
+                LOSS.ID_MANGLED,
+                `${unrepresentable} node id${plural(unrepresentable)} ${charsetText(caps.idCharset, unrepresentable)}, so they are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back`,
+                null,
+                unrepresentable,
+            );
+        } else {
+            note(
+                LOSS.ID_CHARSET,
+                `${unrepresentable} node id${plural(unrepresentable)} ${charsetText(caps.idCharset, unrepresentable)}, so the save fails unless sanitizeIds is "mangle"`,
+                null,
+                unrepresentable,
+            );
+        }
+    }
+
+    if (extras.idsReadBack !== undefined) {
+        let retyped = 0;
+        for (let i = 0; i < snapshot.nodeCount; i++) {
+            const id = snapshot.ids.idOf(i);
+            if (coerceIdText(String(id), extras.idsReadBack) !== id) {
+                retyped++;
+            }
+        }
+        if (retyped > 0) {
+            note(
+                LOSS.ID_TEXT_TYPE,
+                `${retyped} node id${plural(retyped)} ${agree(retyped, "reads", "read")} back with another type (a number as text, or text as a number)`,
+                null,
+                retyped,
+            );
+        }
+    }
+
+    if (edges) {
+        checkWeights(snapshot, extras, note);
+    }
+    if (tables.includes("node")) {
+        checkColumns(snapshot.nodes, "node", caps, extras, note);
+    }
+    if (edges) {
+        checkColumns(snapshot.edges, "edge", caps, extras, note);
+    }
+    const graphColumns = tables.includes("graph") ? snapshot.graph.names() : [];
+    if (graphColumns.length > 0) {
+        if (caps.graphAttributes) {
+            checkColumns(snapshot.graph, "graph", caps, extras, note);
+        } else {
+            notes.push(
+                Object.freeze({
+                    code: LOSS.GRAPH_ATTRIBUTES,
+                    message: `${graphColumns.length} graph attribute${plural(graphColumns.length)} cannot be written`,
+                    column: null,
+                    count: graphColumns.length,
+                    columns: Object.freeze([...graphColumns]),
+                }),
+            );
+        }
+    }
+
+    for (const [name, table] of snapshot.extensions) {
+        // "temporal:node:<column>" is the node table's, "temporal:edge:<column>" the edge table's;
+        // any other extension table is the graph's.
+        const [, kind] = name.split(":");
+        const owner = name.startsWith("temporal:") && (kind === "node" || kind === "edge") ? kind : "graph";
+        if (!tables.includes(owner)) {
+            continue;
+        }
+        if (name.startsWith("temporal:")) {
+            if (caps.temporal !== "dynamic-values") {
+                note(
+                    LOSS.DYNAMIC_VALUES,
+                    `dynamic values of "${name}" (${table.rowCount} row${plural(table.rowCount)}) cannot be written`,
+                    name,
+                    table.rowCount,
+                );
+            }
+        } else {
+            note(
+                LOSS.EXTENSION_TABLE,
+                `extension table "${name}" (${table.rowCount} row${plural(table.rowCount)}) cannot be written`,
+                name,
+                table.rowCount,
+            );
+        }
+    }
+    return notes;
+}
+
+/**
+ * The edge-structure checks of checkCapabilities(): direction, parallel edges, self-loops and
+ * edge ids. Skipped for an export that writes no edge table.
+ * @param snapshot - the snapshot about to be exported
+ * @param caps - the exporter's capabilities
+ * @param options - the resolved common export options
+ * @param note - the recorder
+ */
+function checkEdgeStructure(
+    snapshot: GraphSnapshot,
+    caps: ExportCapabilities,
+    options: ResolvedExportOptions,
+    note: NoteFn,
+): void {
     // mixed direction (design section 3.6): an expanded snapshot carries the pair / directed roles
     const mixed = countMixedEdges(snapshot);
     if (mixed > 0 && !caps.mixedDirection) {
@@ -408,90 +540,6 @@ export function checkCapabilities(
             snapshot.edgeCount,
         );
     }
-
-    const unrepresentable = countUnrepresentableIds(snapshot, caps.idCharset);
-    if (unrepresentable > 0) {
-        if (caps.idCharset === "dense-1-based") {
-            note(
-                LOSS.ID_RENUMBERED,
-                options.sanitizeIds === "mangle"
-                    ? `${unrepresentable} node id${plural(unrepresentable)} ${agree(unrepresentable, "is", "are")} not their 1-based index; nodes are numbered 1..N, the original ids are written too, and an import with restoreMangledIds: true reads them back as the ids; they are also the labels of nodes without a label value`
-                    : `${unrepresentable} node id${plural(unrepresentable)} ${agree(unrepresentable, "is", "are")} not their 1-based index; nodes are numbered 1..N and ids kept as labels of the nodes without a label value (a node with one loses its id)`,
-                null,
-                unrepresentable,
-            );
-        } else if (options.sanitizeIds === "mangle") {
-            note(
-                LOSS.ID_MANGLED,
-                `${unrepresentable} node id${plural(unrepresentable)} ${charsetText(caps.idCharset, unrepresentable)}, so they are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back`,
-                null,
-                unrepresentable,
-            );
-        } else {
-            note(
-                LOSS.ID_CHARSET,
-                `${unrepresentable} node id${plural(unrepresentable)} ${charsetText(caps.idCharset, unrepresentable)}, so the save fails unless sanitizeIds is "mangle"`,
-                null,
-                unrepresentable,
-            );
-        }
-    }
-
-    if (extras.idsReadBack !== undefined) {
-        let retyped = 0;
-        for (let i = 0; i < snapshot.nodeCount; i++) {
-            const id = snapshot.ids.idOf(i);
-            if (coerceIdText(String(id), extras.idsReadBack) !== id) {
-                retyped++;
-            }
-        }
-        if (retyped > 0) {
-            note(
-                LOSS.ID_TEXT_TYPE,
-                `${retyped} node id${plural(retyped)} ${agree(retyped, "reads", "read")} back with another type (a number as text, or text as a number)`,
-                null,
-                retyped,
-            );
-        }
-    }
-
-    checkWeights(snapshot, extras, note);
-    checkColumns(snapshot.nodes, "node", caps, extras, note);
-    checkColumns(snapshot.edges, "edge", caps, extras, note);
-    const graphColumns = snapshot.graph.names();
-    if (graphColumns.length > 0) {
-        if (caps.graphAttributes) {
-            checkColumns(snapshot.graph, "graph", caps, extras, note);
-        } else {
-            note(
-                LOSS.GRAPH_ATTRIBUTES,
-                `${graphColumns.length} graph attribute${plural(graphColumns.length)} cannot be written`,
-                null,
-                graphColumns.length,
-            );
-        }
-    }
-
-    for (const [name, table] of snapshot.extensions) {
-        if (name.startsWith("temporal:")) {
-            if (caps.temporal !== "dynamic-values") {
-                note(
-                    LOSS.DYNAMIC_VALUES,
-                    `dynamic values of "${name}" (${table.rowCount} row${plural(table.rowCount)}) cannot be written`,
-                    name,
-                    table.rowCount,
-                );
-            }
-        } else {
-            note(
-                LOSS.EXTENSION_TABLE,
-                `extension table "${name}" (${table.rowCount} row${plural(table.rowCount)}) cannot be written`,
-                name,
-                table.rowCount,
-            );
-        }
-    }
-    return notes;
 }
 
 /**
@@ -510,6 +558,22 @@ function charsetText(charset: ExportCapabilities["idCharset"], n: number): strin
         default:
             return `cannot be written as ${charset} ids`;
     }
+}
+
+/**
+ * The role names of one kind (CheckExtras.nodeRoleNames / edgeRoleNames, else roleNames).
+ * @param domain - "node", "edge" or "graph"
+ * @param extras - format extras
+ * @returns the role names, or undefined when the extras name none
+ */
+function roleNamesOf(domain: string, extras: CheckExtras): Readonly<Record<string, string>> | undefined {
+    if (domain === "node") {
+        return extras.nodeRoleNames ?? extras.roleNames;
+    }
+    if (domain === "edge") {
+        return extras.edgeRoleNames ?? extras.roleNames;
+    }
+    return extras.roleNames;
 }
 
 /**
@@ -579,8 +643,9 @@ function checkColumns(
             continue;
         }
         const label = `${domain} column "${name}"`;
-        if (role !== null && extras.roleNames !== undefined) {
-            const fixed = extras.roleNames[role];
+        const roleNames = roleNamesOf(domain, extras);
+        if (role !== null && roleNames !== undefined) {
+            const fixed = roleNames[role];
             if (fixed !== undefined && fixed !== name) {
                 note(
                     LOSS.COLUMN_NAME_CHANGED,

@@ -1,3 +1,33 @@
+## 1.3.9 (2026-10-08)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.8 (2026-10-07)
+
+### 🔥 Performance
+
+- **graph-format:** parse wire JSON without a reviver; cheapen the snapshot equality helper ([#1239](https://github.com/graphty-org/graphty-monorepo/issues/1239))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.3.7 (2026-10-07)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.6 (2026-10-06)
+
+### 🩹 Fixes
+
+- **graph-format:** refuse an oversized vertex count before building it ([#769](https://github.com/graphty-org/graphty-monorepo/issues/769))
+- **graph-format:** refuse ids past the id map limit with E_TOO_LARGE ([e83be97a8](https://github.com/graphty-org/graphty-monorepo/commit/e83be97a8))
+- **graph-format:** keep a JSON key named __proto__ as data ([82b2e4af1](https://github.com/graphty-org/graphty-monorepo/commit/82b2e4af1))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.3.5 (2026-10-05)
 
 This was a version bump only for graph-format to align it with other projects, there were no code changes.

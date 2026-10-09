@@ -101,7 +101,10 @@ function createRecordingContext(canvas: RecordedCanvas): unknown {
         });
     };
 
-    const noop = (op: string) => (...args: unknown[]) => record(op, ...args);
+    const noop =
+        (op: string) =>
+        (...args: unknown[]) =>
+            record(op, ...args);
 
     const ctx = {
         canvas,
@@ -316,7 +319,6 @@ export function installCanvasPolyfills(): void {
 
 installCanvasPolyfills();
 
-
 /** Drops every canvas recorded so far. Call before the code under test draws. */
 export function resetRecordedCanvases(): void {
     recordedCanvases.length = 0;
@@ -336,4 +338,3 @@ export function drawOps(op?: string): DrawOp[] {
 export function drawnText(): string[] {
     return drawOps("fillText").map((entry) => String(entry.args[0]));
 }
-

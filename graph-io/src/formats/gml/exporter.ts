@@ -306,6 +306,25 @@ function versionText(text: string): string {
 }
 
 /**
+ * A node or edge table's label role column, which is written under "label" (the key the importer
+ * gives the role back to): the key is marked used so a plain column of that name cannot have it.
+ * @param columns - the written columns
+ * @param label - the table name
+ * @param used - the keys already taken, gaining "label" when there is a label role column
+ * @returns the label role column, or undefined
+ */
+function labelRoleColumn(columns: readonly Column[], label: string, used: Set<string>): Column | undefined {
+    if (label !== "node" && label !== "edge") {
+        return undefined;
+    }
+    const column = columns.find((c) => c.meta.role === "label");
+    if (column !== undefined) {
+        used.add("label");
+    }
+    return column;
+}
+
+/**
  * Select the written columns of a table and assign their keys, recording invalid and reserved
  * keys as notes (or rewriting them under mangle).
  * @param table - the columns
@@ -326,14 +345,13 @@ function selectColumns(
 ): WrittenColumn[] {
     const used = new Set<string>(reserved);
     const out: WrittenColumn[] = [];
-    for (const column of table) {
-        if (!isWritten(column) || !filter(column)) {
-            continue;
-        }
-        const preferred = preferredKey(column.meta);
+    const columns = [...table].filter((c) => isWritten(c) && filter(c));
+    const labelRole = labelRoleColumn(columns, label, used);
+    for (const column of columns) {
+        const preferred = column === labelRole ? "label" : preferredKey(column.meta);
         let key = preferred;
         const valid = isGmlKey(preferred);
-        const taken = used.has(preferred);
+        const taken = column !== labelRole && used.has(preferred);
         if (!valid || taken) {
             const code = valid ? RESERVED_KEY_CODE : INVALID_KEY_CODE;
             let why = "is not a GML key";

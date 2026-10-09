@@ -732,7 +732,7 @@ export class CSVDataSource extends DataSource {
         }
 
         yield* this.chunkData(
-            nodes.map(({ id, data }) => ({ ...data, id })) as unknown as AdHocData[],
+            nodes.map(({ id, data }) => ({ ...data, id })),
             edgeRecords as AdHocData[],
         );
     }

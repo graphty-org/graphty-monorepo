@@ -13,7 +13,7 @@ import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
-import { validateResults } from "./results.mjs";
+import { SKIPPED_FILE, validateResults } from "./results.mjs";
 
 /**
  * Runs a program and resolves with its trimmed stdout. A program that runs longer than
@@ -51,54 +51,86 @@ export function exec(cmd, args, { cwd, input, env } = {}) {
  */
 export const ghRunner = (cwd) => withRetries((args, input) => exec("gh", args, { cwd, input }));
 
-// How gh reports a network that failed (DNS, a dropped or refused connection, a transfer cut
-// short, a call exec stopped) or a GitHub server error. A 4xx, a missing artifact or any other gh
-// error is real and is never retried.
-const TRANSIENT =
-    /could not resolve host|no such host|error connecting to|connection (reset|refused|timed out)|i\/o timeout|TLS handshake timeout|HTTP 5\d\d|unexpected EOF|GOAWAY|stream error|context deadline exceeded|timed out after/i;
+// How gh and git report a network that failed (DNS, a dropped or refused connection, a transfer
+// cut short) or a GitHub server error. A 4xx, an authentication failure, a rejected push, a
+// missing artifact or any other error is real and is never retried.
+export const NETWORK =
+    /could not resolve host|no such host|error connecting to|connection (reset|refused|timed out)|i\/o timeout|TLS handshake timeout|HTTP 5\d\d|returned error: 5\d\d|unexpected EOF|GOAWAY|stream error|context deadline exceeded/i;
+
+// The network failures that happen before a request reaches GitHub (gh's "error connecting to" is
+// its DNS failure), so even a write that is not safe to repeat can be sent again.
+export const UNSENT = /could not resolve host|no such host|error connecting to|connection refused/i;
+
+// A gh read is also retried after exec stopped it for running too long.
+const TRANSIENT = new RegExp(`${NETWORK.source}|timed out after`, "i");
 
 /**
- * The gh calls waiting to retry after a network failure, newest last, each with its error, which
+ * The gh and git calls waiting to retry after a network failure, newest last, each with its error, which
  * try it waits for and until when: the review page shows the newest, so a dropped DNS lookup reads
  * as "retrying" and never as a hang.
  * @type {Set<{ error: string, attempt: number, of: number, until: number }>}
  */
 export const retrying = new Set();
 
+/** Milliseconds before each retry of a call that failed on the network. */
+export const RETRY_DELAYS = [2000, 5000, 15000];
+
+/**
+ * Runs `run` again, after each delay in turn, while it fails on the network. Every failure and
+ * retry is logged to stderr, so the server's log shows what happened.
+ * @template T
+ * @param {(attempt: number) => Promise<T>} run the call; `attempt` counts from 1, so a step that
+ *     may have landed before its connection dropped can check that on a later attempt
+ * @param {object} options how
+ * @param {string} options.label the call, for the log
+ * @param {number[]} [options.delays] milliseconds before each retry
+ * @param {RegExp} [options.on] the errors to retry: gh reads' transient failures by default,
+ *     NETWORK, or UNSENT for a write that is not safe to repeat
+ * @param {(wait: { error: string, attempt: number, of: number, until: number }) => void} [options.onRetry]
+ *     told before each wait
+ * @returns {Promise<T>} what `run` returned
+ */
+export async function retryOnNetwork(run, { label, delays = RETRY_DELAYS, on = TRANSIENT, onRetry = () => {} }) {
+    for (let i = 0; ; i++) {
+        try {
+            return await run(i + 1);
+        } catch (err) {
+            const retry = i < delays.length && on.test(err.message);
+            const next = retry ? `; retrying in ${delays[i] / 1000} s` : "";
+            console.error(`visual-review: ${label} failed${next}: ${err.message}`);
+            if (!retry) {
+                throw err;
+            }
+            const wait = {
+                error: err.message.split("\n")[0],
+                attempt: i + 2,
+                of: delays.length + 1,
+                until: Date.now() + delays[i],
+            };
+            retrying.add(wait);
+            onRetry(wait);
+            await new Promise((resolve) => setTimeout(resolve, delays[i]));
+            retrying.delete(wait);
+        }
+    }
+}
+
 /**
  * Retries a gh runner's calls that failed on the network, after each delay in turn. A write
- * (`--input`) is never retried: GitHub may have applied it before the connection dropped. Every
- * failure and retry is logged to stderr, so the server's log shows what happened.
+ * (`--input`) is never retried here: GitHub may have applied it before the connection dropped
+ * (Finish retries its own writes where that is safe).
  * @param {(args: string[], input?: string) => Promise<string>} gh the gh runner
  * @param {number[]} [delays] milliseconds before each retry
  * @returns {(args: string[], input?: string) => Promise<string>} the retrying runner
  */
 export const withRetries =
-    (gh, delays = [2000, 5000, 15000]) =>
-    async (args, input) => {
-        for (let i = 0; ; i++) {
-            try {
-                return await gh(args, input);
-            } catch (err) {
-                const retry = i < delays.length && !args.includes("--input") && TRANSIENT.test(err.message);
-                // gh's arguments never hold a token (gh keeps its own login), so they are logged whole.
-                const next = retry ? `; retrying in ${delays[i] / 1000} s` : "";
-                console.error(`visual-review: gh ${args.join(" ")} failed${next}: ${err.message}`);
-                if (!retry) {
-                    throw err;
-                }
-                const wait = {
-                    error: err.message.split("\n")[0],
-                    attempt: i + 2,
-                    of: delays.length + 1,
-                    until: Date.now() + delays[i],
-                };
-                retrying.add(wait);
-                await new Promise((resolve) => setTimeout(resolve, delays[i]));
-                retrying.delete(wait);
-            }
-        }
-    };
+    (gh, delays = RETRY_DELAYS) =>
+    (args, input) =>
+        // gh's arguments never hold a token (gh keeps its own login), so they are logged whole.
+        retryOnNetwork(() => gh(args, input), {
+            label: `gh ${args.join(" ")}`,
+            delays: args.includes("--input") ? [] : delays,
+        });
 
 const api = async (gh, path) => JSON.parse(await gh(["api", path]));
 
@@ -197,11 +229,15 @@ export function hurry(wanted) {
     queued.splice(0, queued.length, ...first, ...queued.filter((q) => !wanted(q.dir)));
 }
 
+// An artifact directory that holds a capture's results.json or the not-affected marker.
+const whole = (d) => existsSync(join(d, "results.json")) || existsSync(join(d, SKIPPED_FILE));
+
 /**
  * Downloads one artifact into `dir`, unless it is already there. It is extracted into a sibling
  * temporary directory and renamed into place only once its results.json is there, so `dir` either
  * does not exist or holds a whole artifact; a failed or interrupted download leaves nothing behind.
- * An artifact without results.json is discarded, and its readers report the capture as failed.
+ * An artifact with neither results.json nor the not-affected marker (skipped.json, written for a
+ * project the run left out) is discarded, and its readers report the capture as failed.
  * @param {Function} gh the gh runner
  * @param {number} runId the run
  * @param {string} name the artifact
@@ -209,6 +245,9 @@ export function hurry(wanted) {
  * @returns {Promise<void>} settles when `dir` is complete, or the artifact had no results.json
  */
 function download(gh, runId, name, dir) {
+    if (!downloading.has(dir) && !existsSync(join(dir, "results.json")) && whole(dir)) {
+        return Promise.resolve(); // The not-affected marker: nothing to validate.
+    }
     if (!downloading.has(dir) && existsSync(join(dir, "results.json"))) {
         try {
             JSON.parse(readFileSync(join(dir, "results.json"), "utf8"));
@@ -238,7 +277,7 @@ function download(gh, runId, name, dir) {
             const part = mkdtempSync(`${dir}.part-`);
             try {
                 await gh(["run", "download", String(runId), "-n", name, "-D", part]);
-                if (existsSync(join(part, "results.json"))) {
+                if (whole(part)) {
                     renameSync(part, dir);
                 }
             } finally {
@@ -308,9 +347,7 @@ export async function downloadCaptures(gh, run, projects, tmp, others = [], land
                 const dir = join(tmp, `${run.id}-${a.attempt}`, project);
                 const got = { attempt: a.attempt, bytes: a.bytes };
                 if (a.expired) {
-                    out[project] = existsSync(join(dir, "results.json"))
-                        ? { dir, ...got }
-                        : { dir: null, ...got, expired: true };
+                    out[project] = whole(dir) ? { dir, ...got } : { dir: null, ...got, expired: true };
                 } else {
                     try {
                         await download(gh, run.id, a.name, dir);
@@ -413,3 +450,43 @@ export async function createPullRequest(gh, { title, head, base, body }) {
     const input = JSON.stringify({ title, head, base, body });
     return JSON.parse(await gh(["api", "repos/{owner}/{repo}/pulls", "--input", "-"], input)).html_url;
 }
+
+/**
+ * A pull request's title, description and comments, oldest comment first, for the review page's
+ * context panel: one call for the pull request and one for its comments (the first 100). Every
+ * text in it is untrusted, written by whoever opened or commented on the pull request.
+ * @param {Function} gh the gh runner
+ * @param {number} pr the pull request
+ * @param {string | null} reviewer the login of the person reviewing (gh's own login, `GET /user`),
+ *     taken as the owner when the repository belongs to an organization
+ * @returns {Promise<{ title: string, body: string, author: string | null, owner: string | null,
+ *     createdAt: string | null, comments: { author: string | null, at: string | null, body: string,
+ *     byOwner: boolean }[] }>} the context; `owner` is the repository owner's login
+ */
+export async function pullRequestContext(gh, pr, reviewer) {
+    const p = await api(gh, `repos/{owner}/{repo}/pulls/${pr}`);
+    const comments = await api(gh, `repos/{owner}/{repo}/issues/${pr}/comments?per_page=100`);
+    const repoOwner = p.base?.repo?.owner;
+    const owner = repoOwner?.type === "User" ? (repoOwner.login ?? null) : reviewer;
+    const text = (v) => (typeof v === "string" ? v : "");
+    return {
+        title: text(p.title),
+        body: text(p.body),
+        author: p.user?.login ?? null,
+        owner,
+        createdAt: p.created_at ?? null,
+        comments: (Array.isArray(comments) ? comments : []).map((c) => ({
+            author: c.user?.login ?? null,
+            at: c.created_at ?? null,
+            body: text(c.body),
+            byOwner: owner !== null && c.user?.login === owner,
+        })),
+    };
+}
+
+/**
+ * The login gh is signed in as.
+ * @param {Function} gh the gh runner
+ * @returns {Promise<string | null>} the login
+ */
+export const reviewerLogin = async (gh) => (await api(gh, "user")).login ?? null;

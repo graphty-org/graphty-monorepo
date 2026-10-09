@@ -907,9 +907,7 @@ Register helpers by name in a global registry:
 
 ```typescript
 // System maintains:
-window.__graphtyStyleHelpers = {
-    /* all helpers */
-};
+window.__graphtyStyleHelpers = {/* all helpers */};
 
 // Expressions access via:
 expr: "{ return __graphtyStyleHelpers.color.sequential.coolToHot(arguments[0]) }";

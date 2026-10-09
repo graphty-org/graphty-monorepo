@@ -18,11 +18,11 @@ floor that vetoes the procedure, and a per-screen work list.
 
 Three numbers to hold the next revision to, in this order of importance:
 
-| Metric | Now | Target |
-|---|---|---|
-| Panel scroll height, worst case (AnalyzePanel card list) | 3,060px in a 518px window | under 1,040px (2 screens) |
-| Words per 100px of a 280px column, worst case (DataPanelLoaded panel) | 27 | under 14 |
-| Total visible words, 39 artboards | 14,368 | about 10,700 |
+| Metric                                                                | Now                       | Target                    |
+| --------------------------------------------------------------------- | ------------------------- | ------------------------- |
+| Panel scroll height, worst case (AnalyzePanel card list)              | 3,060px in a 518px window | under 1,040px (2 screens) |
+| Words per 100px of a 280px column, worst case (DataPanelLoaded panel) | 27                        | under 14                  |
+| Total visible words, 39 artboards                                     | 14,368                    | about 10,700              |
 
 The word count is third on purpose. A drafter who hits the word target without
 hitting the pixel targets has not done the job.
@@ -41,21 +41,21 @@ pad    field  gut  field   gap  trail  pad
 
 Constants. These are frozen for 1.6 and every row type below is built from them.
 
-| Name | Value | Note |
-|---|---|---|
-| column width | 280px | activity panel and inspector alike (spec 5.1) |
-| left padding | 16px | |
-| right padding | 8px | asymmetric on purpose: the trailing slot is an icon button whose glyph is optically inset |
-| content band | x = 16 to x = 272, **256px** | every row spans exactly this |
-| body span | 224px | a control that fills the row and still leaves a trailing slot |
-| pair | 108 + 8 + 108 | two fields |
-| triple | 72 + 4 + 72 + 4 + 72 | three segmented buttons, 224 total |
-| trailing slot | 24px at x = 248..272 | always the same x; a row with nothing to put there leaves it empty |
-| control height | 24px | already VOCAB 3; only the label placement was wrong |
-| **row pitch** | **32px** | 24px control centred, giving 8px between consecutive controls |
-| section header | 32px | we keep our 32, we do **not** adopt Figma's 40 -- ours is already tighter |
-| section bottom padding | 8px | then a 1px `#495057` divider |
-| section rhythm | **1 / 32 / 32n / 8** | divider, header, n content rows, pad |
+| Name                   | Value                        | Note                                                                                      |
+| ---------------------- | ---------------------------- | ----------------------------------------------------------------------------------------- |
+| column width           | 280px                        | activity panel and inspector alike (spec 5.1)                                             |
+| left padding           | 16px                         |                                                                                           |
+| right padding          | 8px                          | asymmetric on purpose: the trailing slot is an icon button whose glyph is optically inset |
+| content band           | x = 16 to x = 272, **256px** | every row spans exactly this                                                              |
+| body span              | 224px                        | a control that fills the row and still leaves a trailing slot                             |
+| pair                   | 108 + 8 + 108                | two fields                                                                                |
+| triple                 | 72 + 4 + 72 + 4 + 72         | three segmented buttons, 224 total                                                        |
+| trailing slot          | 24px at x = 248..272         | always the same x; a row with nothing to put there leaves it empty                        |
+| control height         | 24px                         | already VOCAB 3; only the label placement was wrong                                       |
+| **row pitch**          | **32px**                     | 24px control centred, giving 8px between consecutive controls                             |
+| section header         | 32px                         | we keep our 32, we do **not** adopt Figma's 40 -- ours is already tighter                 |
+| section bottom padding | 8px                          | then a 1px `#495057` divider                                                              |
+| section rhythm         | **1 / 32 / 32n / 8**         | divider, header, n content rows, pad                                                      |
 
 A fully collapsed inspector of eight sections is therefore 8 x 33 = 264px and
 never scrolls. That skyline is the point: closed sections are a legible
@@ -91,13 +91,13 @@ allowed to be, and it is a glyph there, not a word.
 Copied from Figma's split, mapped onto our dark palette. Both at 11px --
 hierarchy is colour, not size.
 
-| Ink | Value | Exactly these three roles, and nothing else |
-|---|---|---|
-| value | `#d5d7da` | a value; a live section name; the word `Mixed` |
+| Ink    | Value     | Exactly these three roles, and nothing else                            |
+| ------ | --------- | ---------------------------------------------------------------------- |
+| value  | `#d5d7da` | a value; a live section name; the word `Mixed`                         |
 | chrome | `#7a828e` | a glyph label; a unit suffix; the name of a section that holds nothing |
 
-Reserve `#7a828e` for those three so that *dim* unambiguously means *not the
-answer*. VOCAB 1.5 already gives these tokens; 1.6 changes nothing but their
+Reserve `#7a828e` for those three so that _dim_ unambiguously means _not the
+answer_. VOCAB 1.5 already gives these tokens; 1.6 changes nothing but their
 discipline.
 
 ---
@@ -112,15 +112,15 @@ design error -- there is no eleventh shape.
 
 **The workhorse.** One or two glyph fields on one pitch.
 
-| | |
-|---|---|
-| Height | 24px control on a **32px** pitch |
-| Columns | pair: `16 \| 108 \| 8 \| 108 \| 8 \| 24 \| 8`; single: `16 \| 224 \| 8 \| 24 \| 8` |
-| Glyph | 14px SVG (or one capital letter) in a 16px slot, `#7a828e` |
-| Type | value 11px `#d5d7da`; unit suffix 11px `#7a828e` |
-| Trailing slot | the row's rare control (a door, per RT-1's popover rule), a reset `x`, or empty |
-| Replaces | every label-above-field stack in the set: StylePanel's `Which nodes`, `Attribute`+`Scale`, `Smallest`+`Largest`, `Color`+`Width`; AnalyzePanel's `Method`+`Damping`, `Tolerance`+`Max iterations`; all 16 stacked rows in SettingsPerformance; the ImportOptions header row |
-| Saves | 14.2px of height per row and one word per field |
+|               |                                                                                                                                                                                                                                                                             |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Height        | 24px control on a **32px** pitch                                                                                                                                                                                                                                            |
+| Columns       | pair: `16 \| 108 \| 8 \| 108 \| 8 \| 24 \| 8`; single: `16 \| 224 \| 8 \| 24 \| 8`                                                                                                                                                                                          |
+| Glyph         | 14px SVG (or one capital letter) in a 16px slot, `#7a828e`                                                                                                                                                                                                                  |
+| Type          | value 11px `#d5d7da`; unit suffix 11px `#7a828e`                                                                                                                                                                                                                            |
+| Trailing slot | the row's rare control (a door, per RT-1's popover rule), a reset `x`, or empty                                                                                                                                                                                             |
+| Replaces      | every label-above-field stack in the set: StylePanel's `Which nodes`, `Attribute`+`Scale`, `Smallest`+`Largest`, `Color`+`Width`; AnalyzePanel's `Method`+`Damping`, `Tolerance`+`Max iterations`; all 16 stacked rows in SettingsPerformance; the ImportOptions header row |
+| Saves         | 14.2px of height per row and one word per field                                                                                                                                                                                                                             |
 
 A select is a field row whose 14px chevron sits at the field's right edge,
 inside the box, after the value -- not in the trailing slot.
@@ -138,14 +138,14 @@ Two or three values that belong to **one thing**, inside one box, separated by
 a 1px hairline of panel background (`#1f2428`) rather than a gutter -- so they
 read as one control, not two.
 
-| | |
-|---|---|
-| Height | 24px on a 32px pitch |
-| Columns | one 224px (or 108px) box; sub-fields divided by 1px `#1f2428`; 8px inner padding either side of each hairline |
-| Glyph | the leading sub-field's 16px slot holds a 14px swatch, ramp chip, or glyph |
-| Type | values 11px `#d5d7da`; suffixes 11px `#7a828e` |
+|          |                                                                                                                                                                                          |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Height   | 24px on a 32px pitch                                                                                                                                                                     |
+| Columns  | one 224px (or 108px) box; sub-fields divided by 1px `#1f2428`; 8px inner padding either side of each hairline                                                                            |
+| Glyph    | the leading sub-field's 16px slot holds a 14px swatch, ramp chip, or glyph                                                                                                               |
+| Type     | values 11px `#d5d7da`; suffixes 11px `#7a828e`                                                                                                                                           |
 | Replaces | the four-part colour row (`Color` label + swatch + `#FFFFFF` + `Opacity` label + `100` + `%`); the `Smallest`/`Largest` domain pair; any value that always travels with its own modifier |
-| Saves | 2-4 words per row and one whole row where two were used |
+| Saves    | 2-4 words per row and one whole row where two were used                                                                                                                                  |
 
 Never put two unrelated values in one compound box. If the hairline would be
 lying about the relationship, use RT-1's pair instead.
@@ -154,14 +154,14 @@ lying about the relationship, use RT-1's pair instead.
 
 A closed set of 2 to 6 mutually exclusive options, all of which can be drawn.
 
-| | |
-|---|---|
-| Height | 24px track on a 32px pitch |
-| Columns | track 108px (max 3 buttons) or 224px (max 6); 1px inner padding; buttons `flex: 1`, height 22, radius 3 |
-| Glyph | 14px, `#7a828e` inactive, `#d5d7da` active on a `#374047` button |
-| Type | none, except the hybrid below |
+|          |                                                                                                                                                                                                                              |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Height   | 24px track on a 32px pitch                                                                                                                                                                                                   |
+| Columns  | track 108px (max 3 buttons) or 224px (max 6); 1px inner padding; buttons `flex: 1`, height 22, radius 3                                                                                                                      |
+| Glyph    | 14px, `#7a828e` inactive, `#d5d7da` active on a `#374047` button                                                                                                                                                             |
+| Type     | none, except the hybrid below                                                                                                                                                                                                |
 | Replaces | the `Glow / Outline / Wireframe / Flat shaded` checkbox stack (4 rows, 5 words -> 1 row, 0 words); `Show on: All matched`; the In/Out/All neighbour filter; `Scale: Square root / Linear / Log`; `Shape: Box / Sphere / ...` |
-| Saves | 3-5 words and 1-3 rows per instance |
+| Saves    | 3-5 words and 1-3 rows per instance                                                                                                                                                                                          |
 
 **The threshold.** 2 to 6 options whose difference can be drawn -> icon group.
 More than 6, or a difference that is conceptual rather than visual -> a select
@@ -179,21 +179,21 @@ section 4's Rule 4.
 
 The value is drawn at row size, so the sentence describing it is deleted.
 
-| | |
-|---|---|
-| Height | 14px ramp vertically centred in a 24px box, on a 32px pitch |
-| Columns | `16 \| min 11px \| 4 \| ramp flex, min 120px \| 4 \| max 11px \| 8 \| 24 \| 8` |
-| Glyph | the trailing slot holds the 14px **scale-curve** glyph (a drawn sqrt / linear / log curve); clicking it opens the RT-3 group of three |
-| Type | endpoints 11px `#7a828e`; no other text |
+|          |                                                                                                                                                                          |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Height   | 14px ramp vertically centred in a 24px box, on a 32px pitch                                                                                                              |
+| Columns  | `16 \| min 11px \| 4 \| ramp flex, min 120px \| 4 \| max 11px \| 8 \| 24 \| 8`                                                                                           |
+| Glyph    | the trailing slot holds the 14px **scale-curve** glyph (a drawn sqrt / linear / log curve); clicking it opens the RT-3 group of three                                    |
+| Type     | endpoints 11px `#7a828e`; no other text                                                                                                                                  |
 | Replaces | `Age 45 to 68 maps to sizes 1.0 to 2.0, square root scale.` (12 words); the legend string `1 to 4, sqrt scale`; a colour-domain description; a size-encoding description |
-| Saves | about 11 words per encoding row, roughly 8 encoding rows across the set |
+| Saves    | about 11 words per encoding row, roughly 8 encoding rows across the set                                                                                                  |
 
 Two forms: a colour ramp (sequential or diverging, 14px tall, radius 2, 1px
 `#48525c`) and a size wedge (a triangle from 4px to 14px). The curve of the
 transform is visible in the wedge, which a sentence can only name.
 
 **One exception, and it is load-bearing.** The scale may become a trailing
-glyph *in the panel*. In the **canvas legend** it stays a word, because the
+glyph _in the panel_. In the **canvas legend** it stays a word, because the
 legend travels inside an exported figure where no one can hover it. Floor
 item 5.
 
@@ -202,14 +202,14 @@ item 5.
 A boolean whose concept has no glyph in `REGISTER-1.5.md`. The label is the
 only word on the row.
 
-| | |
-|---|---|
-| Height | 24px on a **24px** pitch -- toggles are the one type that packs tighter |
-| Columns | `16 \| 16px box \| 4 \| label \| ... \| 24 \| 8` |
-| Glyph | none; a 16px checkbox or a 28x16 switch (VOCAB 4) |
-| Type | label 11px `#d5d7da`, one to three words, sentence case |
-| Replaces | nothing structural -- this is the type that **survives** compaction |
-| Saves | the verb only: `Show`, `Enable`, `Activate`, `Use` and `Is` are deleted from every boolean label |
+|          |                                                                                                  |
+| -------- | ------------------------------------------------------------------------------------------------ |
+| Height   | 24px on a **24px** pitch -- toggles are the one type that packs tighter                          |
+| Columns  | `16 \| 16px box \| 4 \| label \| ... \| 24 \| 8`                                                 |
+| Glyph    | none; a 16px checkbox or a 28x16 switch (VOCAB 4)                                                |
+| Type     | label 11px `#d5d7da`, one to three words, sentence case                                          |
+| Replaces | nothing structural -- this is the type that **survives** compaction                              |
+| Saves    | the verb only: `Show`, `Enable`, `Activate`, `Use` and `Is` are deleted from every boolean label |
 
 Two hard sub-rules. **(a) Never alone.** A lone boolean between field rows is
 not a toggle row -- it becomes the trailing 24px slot of the row it modifies,
@@ -223,14 +223,14 @@ The user's own strings. **This is the one place a left-hand text label column
 is correct**, because an id, a node label, an attribute name or a filename is
 data, and data cannot be given a glyph.
 
-| | |
-|---|---|
-| Height | 28px, on a 28px pitch (VOCAB 4 list row, unchanged) |
-| Columns | `8 \| 16px optional icon \| 4 \| name flex \| 8 \| trailing value \| 8`, inside a 4px-radius row |
-| Glyph | 16px leading icon only when the row has a type; otherwise none |
-| Type | name 12px `#d5d7da`; trailing value 11px `#7a828e` |
-| Replaces | nothing -- it is already right |
-| Saves | the repeated unit word: `4 links / 3 links / 3 links` -> a `links` caption on the column header and bare numbers on the rows |
+|          |                                                                                                                              |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Height   | 28px, on a 28px pitch (VOCAB 4 list row, unchanged)                                                                          |
+| Columns  | `8 \| 16px optional icon \| 4 \| name flex \| 8 \| trailing value \| 8`, inside a 4px-radius row                             |
+| Glyph    | 16px leading icon only when the row has a type; otherwise none                                                               |
+| Type     | name 12px `#d5d7da`; trailing value 11px `#7a828e`                                                                           |
+| Replaces | nothing -- it is already right                                                                                               |
+| Saves    | the repeated unit word: `4 links / 3 links / 3 links` -> a `links` caption on the column header and bare numbers on the rows |
 
 **The repetition rule.** A word appearing on three or more rows of one list
 moves to the column header or the section header and is deleted from every row.
@@ -239,17 +239,17 @@ Applies to `links`, `members`, `Text`, `Edge attribute`, `Not set`, `transfer`,
 
 ### RT-7 Action row
 
-| | |
-|---|---|
-| Height | 24px on a 32px pitch |
-| Columns | `16 \| state, resident, left \| flex \| actions, right-aligned, 24px each, 4px gap \| 8` |
-| Glyph | 14px in a 24px hit area, every one carrying its `REGISTER-1.5.md` title |
-| Type | text buttons 11px/500 (VOCAB 4) for the verbs that keep words |
+|          |                                                                                                                                                     |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Height   | 24px on a 32px pitch                                                                                                                                |
+| Columns  | `16 \| state, resident, left \| flex \| actions, right-aligned, 24px each, 4px gap \| 8`                                                            |
+| Glyph    | 14px in a 24px hit area, every one carrying its `REGISTER-1.5.md` title                                                                             |
+| Type     | text buttons 11px/500 (VOCAB 4) for the verbs that keep words                                                                                       |
 | Replaces | ExplorePanel's 21-row stack of full-width text buttons (330px) with two 24px rows plus a `More`; the per-card `Parameters` word with a 12px chevron |
-| Saves | about 50 words across the set, 250px of inspector height |
+| Saves    | about 50 words across the set, 250px of inspector height                                                                                            |
 
-**The hover split, exactly.** An affordance that *acts* is hidden until row
-hover. Anything that *reports state* is resident -- always. Figma's layers
+**The hover split, exactly.** An affordance that _acts_ is hidden until row
+hover. Anything that _reports state_ is resident -- always. Figma's layers
 panel: the eye appears on hover, but a layer that is actually hidden shows its
 closed eye without hover, because state must be readable and only the action
 may hide.
@@ -258,8 +258,8 @@ may hide.
 never list: `Run` in every form, `Cancel`, `import`, `open`, `paste`, `save`,
 `remove`, `sort`, `tag`, `unlock`, `duplicate`, `expand neighbors`,
 `column type`, every label ending in `anyway`, and every destructive verb. A
-play triangle on a card holding Method, Scope and Advanced reads as *preview*,
-not as *spend 40 seconds*.
+play triangle on a card holding Method, Scope and Advanced reads as _preview_,
+not as _spend 40 seconds_.
 
 **Touch.** On a touch pointer every hover-revealed glyph is resident, and its
 title is reachable by long press. Two of our 39 boards are iPad boards; the
@@ -267,14 +267,14 @@ rule is not optional there.
 
 ### RT-8 Section header
 
-| | |
-|---|---|
-| Height | 32px, preceded by a 1px `#495057` divider |
-| Columns | `16 \| 16px chevron \| 4 \| name \| 4 \| info circle \| flex \| actions on a 28px pitch ending at x=272` |
-| Glyph | 12px chevron; 14px action glyphs |
-| Type | name 12px/500. **`#d5d7da` when the section holds a value; `#7a828e` when it holds none** |
+|          |                                                                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Height   | 32px, preceded by a 1px `#495057` divider                                                                                                         |
+| Columns  | `16 \| 16px chevron \| 4 \| name \| 4 \| info circle \| flex \| actions on a 28px pitch ending at x=272`                                          |
+| Glyph    | 12px chevron; 14px action glyphs                                                                                                                  |
+| Type     | name 12px/500. **`#d5d7da` when the section holds a value; `#7a828e` when it holds none**                                                         |
 | Replaces | the 3-word mode toggle currently sitting in the header's right slot; the strings `Not set`, `Default`, `None`, `No results yet`, `engine default` |
-| Saves | 4-6 words per panel, plus 2 words per collapsed section |
+| Saves    | 4-6 words per panel, plus 2 words per collapsed section                                                                                           |
 
 **The empty-section rule.** A section that holds nothing is exactly one 32px
 row: dimmed name, one 24px `+` in the trailing slot, no content rows, no
@@ -282,7 +282,7 @@ empty-state sentence, no placeholder, no `Not set`. Dimming the name says it.
 The `+` commits to a sensible default rather than opening a chooser wherever
 one exists (Figma's Effects `+` adds a drop shadow immediately).
 
-**The conditional rule.** A section the *data* cannot support does not render
+**The conditional rule.** A section the _data_ cannot support does not render
 **at all** -- not collapsed, not dimmed, not with a `+`. Temporal sections on an
 untimed graph, bipartite cards on a non-bipartite graph, directed methods on an
 undirected graph, `Weight` and `Treat as` on an unweighted graph. Collapse is a
@@ -297,14 +297,14 @@ action button.
 A distribution drawn instead of the four numbers that summarise it. It also
 answers what the numbers cannot -- bimodal, long tail.
 
-| | |
-|---|---|
-| Height | one pitch (**32px**: a 24px sparkline or micro-bar) or two pitches (**64px**: a 56px histogram). Never any other height |
-| Columns | `16 \| 224 chart \| 8 \| 24 \| 8`, endpoint labels inset at the chart's two ends |
-| Glyph | bars `#48525c`; the selected or highlighted bin `#4a7ee8`; a 1px `#48525c` baseline |
-| Type | the two axis-end values only, 11px `#7a828e`. No legend, no title, no summary line |
+|          |                                                                                                                                                                                                                                                                                                                               |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Height   | one pitch (**32px**: a 24px sparkline or micro-bar) or two pitches (**64px**: a 56px histogram). Never any other height                                                                                                                                                                                                       |
+| Columns  | `16 \| 224 chart \| 8 \| 24 \| 8`, endpoint labels inset at the chart's two ends                                                                                                                                                                                                                                              |
+| Glyph    | bars `#48525c`; the selected or highlighted bin `#4a7ee8`; a 1px `#48525c` baseline                                                                                                                                                                                                                                           |
+| Type     | the two axis-end values only, 11px `#7a828e`. No legend, no title, no summary line                                                                                                                                                                                                                                            |
 | Replaces | `Links per node (degree distribution): min 2, median 3, max 4, std dev 0.62` (9 words); `2 links: 5 / 3 links: 12 / 4 links: 3` (3 rows); `Linear scale. min 0, median 0.04, mean 0.07, max 0.41, p99 0.36`; the percentile-plus-rank pair on a metric row (a micro-bar carries the percentile, a `#6` chip carries the rank) |
-| Saves | about 30 words across the statistics blocks, more once every result carries a distribution |
+| Saves    | about 30 words across the statistics blocks, more once every result carries a distribution                                                                                                                                                                                                                                    |
 
 Always label the two axis ends with numbers. That is what lets a histogram
 degrade gracefully into a picture of the table it replaced, for a user who has
@@ -316,13 +316,13 @@ not been taught to read one. The exact statistics stay reachable in
 The only place multi-sentence text is allowed, and it exists solely to hold the
 floor. **Three sanctioned instances and no fourth.**
 
-| | |
-|---|---|
-| Height | auto, full 256px band, 8px below the block |
-| Columns | reading: `16 \| 256`; departure and run record: `16 \| 16px mark \| 4 \| text \| 8` |
-| Glyph | departure line only: a 14px warning glyph at `#f7b731` |
-| Type | **reading** 12px/1.5 `#a3a8b1`, max 2 sentences and 220 characters; **departure line** 11px/1.4 `#d5d7da`; **run record** 11px/1.4 `#7a828e`, one line, with a 12px chevron to Details |
-| Replaces | nothing. It is what everything else was pretending to be |
+|          |                                                                                                                                                                                        |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Height   | auto, full 256px band, 8px below the block                                                                                                                                             |
+| Columns  | reading: `16 \| 256`; departure and run record: `16 \| 16px mark \| 4 \| text \| 8`                                                                                                    |
+| Glyph    | departure line only: a 14px warning glyph at `#f7b731`                                                                                                                                 |
+| Type     | **reading** 12px/1.5 `#a3a8b1`, max 2 sentences and 220 characters; **departure line** 11px/1.4 `#d5d7da`; **run record** 11px/1.4 `#7a828e`, one line, with a 12px chevron to Details |
+| Replaces | nothing. It is what everything else was pretending to be                                                                                                                               |
 
 An explanation is not a prose block. It is deleted (if it restates something on
 the same screen) or it goes in the info circle (6.7). There is no third option
@@ -341,30 +341,30 @@ circle it. Stop.
 
 **Rule 1 -- the word gate.** A word may be printed only if it passes one of
 four gates:
-  (a) it **names a place you navigate to** -- a section header (RT-8);
-  (b) it is a **value, or the user's own data** (RT-1, RT-6);
-  (c) it is a **concept or boolean with no glyph in `REGISTER-1.5.md`**, and
-      `REGISTER-1.5.md` is closed -- you may not invent one to pass this gate;
-  (d) it is on the **floor**.
+(a) it **names a place you navigate to** -- a section header (RT-8);
+(b) it is a **value, or the user's own data** (RT-1, RT-6);
+(c) it is a **concept or boolean with no glyph in `REGISTER-1.5.md`**, and
+`REGISTER-1.5.md` is closed -- you may not invent one to pass this gate;
+(d) it is on the **floor**.
 Every other word is a glyph, a suffix, or deleted. Figma's ratio, for
 calibration: 12 words against 35 controls, 0.34 words per control, and nine of
 the twelve are section names. We are at roughly 10x that in a panel 40px wider.
 
 **Rule 2 -- routing.** Ask these in order:
 
-| # | Question | Row type |
-|---|---|---|
-| 1 | Is it the reading, a departure from exact-and-complete, or the run record? | RT-10 |
-| 2 | Is it a section name? | RT-8 |
-| 3 | Is it the user's own string -- an id, label, attribute name, value, filename? | RT-6 |
-| 4 | Is it a distribution, or a set of summary statistics over one? | RT-9 |
-| 5 | Is it a colour, gradient, or a numeric range with a transform? | RT-4 (or RT-2 when it travels with an opacity) |
-| 6 | Is it a closed set of 2-6 options whose difference can be drawn? | RT-3 |
-| 7 | Is it a boolean? glyph in the register -> RT-3 member or the trailing slot; no glyph -> RT-5 (never alone) | RT-3 / RT-5 |
-| 8 | Is it a verb? in the register -> icon in RT-7, hover-revealed if it acts, resident if it reports; not in the register or on the never list -> text button | RT-7 |
-| 9 | Is it two or three values belonging to one thing? | RT-2 |
-| 10 | Is it any other changeable value? pair it with its natural partner | RT-1 |
-| 11 | Is it an explanation? | not a row: delete or circle (Rule 8) |
+| #   | Question                                                                                                                                                  | Row type                                       |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| 1   | Is it the reading, a departure from exact-and-complete, or the run record?                                                                                | RT-10                                          |
+| 2   | Is it a section name?                                                                                                                                     | RT-8                                           |
+| 3   | Is it the user's own string -- an id, label, attribute name, value, filename?                                                                             | RT-6                                           |
+| 4   | Is it a distribution, or a set of summary statistics over one?                                                                                            | RT-9                                           |
+| 5   | Is it a colour, gradient, or a numeric range with a transform?                                                                                            | RT-4 (or RT-2 when it travels with an opacity) |
+| 6   | Is it a closed set of 2-6 options whose difference can be drawn?                                                                                          | RT-3                                           |
+| 7   | Is it a boolean? glyph in the register -> RT-3 member or the trailing slot; no glyph -> RT-5 (never alone)                                                | RT-3 / RT-5                                    |
+| 8   | Is it a verb? in the register -> icon in RT-7, hover-revealed if it acts, resident if it reports; not in the register or on the never list -> text button | RT-7                                           |
+| 9   | Is it two or three values belonging to one thing?                                                                                                         | RT-2                                           |
+| 10  | Is it any other changeable value? pair it with its natural partner                                                                                        | RT-1                                           |
+| 11  | Is it an explanation?                                                                                                                                     | not a row: delete or circle (Rule 8)           |
 
 **Rule 3 -- the label is inside the field.** Zero horizontal pixels are spent
 on a label column. Every label of a changeable value becomes a 14px glyph in
@@ -375,9 +375,9 @@ and the row is wrong.
 
 **Rule 4 -- glyph or word, decided by two tests.** An in-field glyph or an icon
 button is allowed only if **both** hold:
-  (i) the glyph is in `REGISTER-1.5.md`; and
-  (ii) the control is either draggable (a field, whose glyph scrubs) or a verb
-       (a button, whose title names it).
+(i) the glyph is in `REGISTER-1.5.md`; and
+(ii) the control is either draggable (a field, whose glyph scrubs) or a verb
+(a button, whose title names it).
 Fail either test and the word stays. A concept -- betweenness, PageRank,
 k-core, modularity, weight-as-strength-versus-cost, the six caveat classes --
 never becomes a glyph, because an arbitrary symbol is learnable only by someone
@@ -399,12 +399,12 @@ field, beside the number. This deletes the `Fixed | By attribute` segmented
 pair, which appears 5 times on StylePanel and 13 times across the Style boards.
 
 **Rule 7 -- the default does not render.** Three clauses:
-  (a) a control sitting at its default is not drawn; only the **deviation** is
-      drawn, inline, with a 12px reset `x` in the trailing slot;
-  (b) an affordance that **acts** hides until row hover; anything that
-      **reports state** is resident;
-  (c) a section the data cannot support does not render at all -- not
-      collapsed.
+(a) a control sitting at its default is not drawn; only the **deviation** is
+drawn, inline, with a 12px reset `x` in the trailing slot;
+(b) an affordance that **acts** hides until row hover; anything that
+**reports state** is resident;
+(c) a section the data cannot support does not render at all -- not
+collapsed.
 Corollary: an exact, complete, unfiltered run draws **no** departure line at
 all. That is what makes `Approximate (sample of 200)` loud again.
 
@@ -464,8 +464,7 @@ failing a workflow step, not to taste.
    spec 7.1 uses instead of a tour); every capability's plain name; and the
    user's ids, labels, attribute names, values and filename.
 
-The floor on the first-load screen is about **49 words**. Main.dc.html carries
-220. The 171-word band between them is where a compaction pass may work; below
+The floor on the first-load screen is about **49 words**. Main.dc.html carries 220. The 171-word band between them is where a compaction pass may work; below
 49 it is removing the product.
 
 ---
@@ -479,7 +478,7 @@ question-first picker. It does not become search-first, and it does not stay a
 catalogue.**
 
 This is the structural difference from Figma. Figma's Design tab is an index of
-the *selection*; ours is an index of the *product*. Measured: AnalyzePanel's
+the _selection_; ours is an index of the _product_. Measured: AnalyzePanel's
 card list is a 279 x 518px viewport holding **3,060px** of content -- 5.9
 screens -- with only 16 of 26 cards drawn and 43 words clipped out of sight.
 
@@ -543,6 +542,7 @@ A **surface** is one scroll container with one header: the activity panel, the
 inspector, one dialog, one drawer, one menu, the canvas legend, the status bar.
 
 **Render both names:**
+
 - on the **first occurrence** of a concept within a surface;
 - on anything **typed into or searched** -- the filter builder, the Style
   attribute select, the command palette index (spec 6.3 already requires this);
@@ -559,11 +559,12 @@ secondary name stays on that row's info circle, in the control's title, and in
 the palette index, so 6.4 holds.
 
 **Two hard sub-rules.**
-- *The technical name never occupies a line of its own* (spec 6.3). If the pair
+
+- _The technical name never occupies a line of its own_ (spec 6.3). If the pair
   will not fit on one line at 280px, the technical name goes to the info circle
   **for that occurrence, even a first mention**. Three of AnalyzePanel's 15
   pairs currently wrap onto a 20px line and are in breach today.
-- *The pair never renders inside a 24px field.* A field holds the value, not
+- _The pair never renders inside a 24px field._ A field holds the value, not
   the concept's second name.
 
 **Why this is not a novice-versus-expert trade.** `Settings > Appearance`
@@ -585,66 +586,66 @@ this rule.
 
 **R1 -- Glyph literacy. A graph app has more arbitrary glyphs than a drawing
 app.** By NN/g's classification six of our eight rail glyphs are arbitrary
-rather than resemblance icons. *Mitigation:* Rule 11's labels preference,
+rather than resemblance icons. _Mitigation:_ Rule 11's labels preference,
 shipped in the same revision; every icon-only control carries its register
 title; `REGISTER-1.5.md` stays closed, so no glyph exists that has not been
-argued for. *Check:* any glyph a first-time user must decode to complete W14
+argued for. _Check:_ any glyph a first-time user must decode to complete W14
 has a resident text twin.
 
 **R2 -- The scrub is invisible in a static mockup and awkward on touch.** The
-in-field glyph earns the right to drop the word *because it scrubs*. Ship the
+in-field glyph earns the right to drop the word _because it scrubs_. Ship the
 glyph without the scrub and it is a riddle. On iPad there is no hover and drag
-competes with canvas pan. *Mitigation:* the artboards draw the glyph with
+competes with canvas pan. _Mitigation:_ the artboards draw the glyph with
 `cursor: ew-resize` and a `title`; the spec states that pointerdown on the
 glyph scrubs; on a touch pointer the glyph opens a stepper popover instead. Do
 not merge the glyph change ahead of the interaction.
 
-**R3 -- Discovery loss in Analyze.** Stated in full in Decision A. *Check:* a
+**R3 -- Discovery loss in Analyze.** Stated in full in Decision A. _Check:_ a
 first-session user reaches an algorithm they could not have named within three
 clicks.
 
-**R4 -- Hover-only actions strand keyboard and touch users.** *Mitigation:*
+**R4 -- Hover-only actions strand keyboard and touch users.** _Mitigation:_
 spec 6.8's full-text twin in the overflow menu is mandatory, not optional; on a
 touch pointer every hover-revealed glyph is resident.
 
 **R5 -- Tooltip dumping.** Deleting 18 card descriptions into 18 tooltips moves
 the wall of text behind a hover and makes it worse for touch and keyboard. The
 dense-UI literature treats tooltip density as a smell, and essential content
-must never be tooltip-only. *Mitigation:* descriptions live on the **picker
+must never be tooltip-only. _Mitigation:_ descriptions live on the **picker
 row**, at the moment of choosing, where they answer a question -- plus, as a
 candidate, one description slot in the panel that follows focus or hover. **Flag
 that slot as a synthesis: it was not observed in any of the ten peer tools.
 Validate it before committing.**
 
 **R6 -- A chart loses the exact number a methods section needs.** A histogram
-does not give you the median to three places. *Mitigation:* RT-9 always labels
+does not give you the median to three places. _Mitigation:_ RT-9 always labels
 its two axis ends; the full statistics stay in `Copy methods text` and the
-export; floor item 3 protects the run record. *Check:* every RT-9 that replaced
+export; floor item 3 protects the run record. _Check:_ every RT-9 that replaced
 numbers has a path to those numbers within one click.
 
 **R7 -- Default-hidden makes the panel unpredictable between sessions and
 between users.** Two people on two graphs see different panels; a colleague's
 screenshot does not match your screen. Figma accepts this cost; so should we,
-but not silently. *Mitigation:* every section the data *could* support but that
+but not silently. _Mitigation:_ every section the data _could_ support but that
 is unset draws its dimmed name and `+` (RT-8), so the inventory of what you
-have not done stays visible; only sections the data *cannot* support vanish
+have not done stays visible; only sections the data _cannot_ support vanish
 entirely; sections keep a fixed order regardless of which members render; and
 the palette reaches every capability whatever the panel is showing.
 
 **R8 -- Rule 6 can lie.** A field showing a literal when the property was bound
-earlier and is currently overridden reads as "never configured". *Mitigation:*
+earlier and is currently overridden reads as "never configured". _Mitigation:_
 borrow TouchDesigner's 4px corner square in the glyph slot, meaning "set
 earlier, not in effect". Four pixels distinguish a state that otherwise costs a
 sentence or is simply lost.
 
 **R9 -- The escape hatch doubles panel height.** Labels-on mode turns pair rows
-into single rows. *Mitigation:* every layout is drafted so that labels-on
+into single rows. _Mitigation:_ every layout is drafted so that labels-on
 scrolls gracefully rather than breaking; RT-1 pairs degrade to two RT-1
 singles, never to a two-line stack.
 
 **R10 -- A 25% word cut alone will not answer the complaint.** Every deletion
-in section 7 is local; the density win is the row anatomy, not the copy. *Check
-the pixel metrics at the top of this document first.* A drafter who hits 10,700
+in section 7 is local; the density win is the row anatomy, not the copy. _Check
+the pixel metrics at the top of this document first._ A drafter who hits 10,700
 words with 38px control stacks still intact has not done the job.
 
 ---
@@ -674,11 +675,11 @@ circle; `Parameters` word -> 12px chevron (RT-7); `Run` keeps its text (floor
 4); contiguous `Coming` rows -> one group tag; label-above-field parameter
 stacks -> RT-1 pairs; per-card provenance -> RT-10 run record, departures only.
 
-| Artboard | Before | After |
-|---|---|---|
-| AnalyzePanel | 611 | 320 |
-| ExplorePanel | 354 | 235 |
-| IpadPanel | 460 | 300 |
+| Artboard     | Before | After |
+| ------------ | ------ | ----- |
+| AnalyzePanel | 611    | 320   |
+| ExplorePanel | 354    | 235   |
+| IpadPanel    | 460    | 300   |
 
 IpadPanel takes the same moves with the touch exceptions in R2 and R4: action
 glyphs stay resident, the picker is a sheet, in-field glyphs step rather than
@@ -695,14 +696,14 @@ takes the concept from four renderings to one per surface; summary statistics
 -> RT-9; per-row unit words -> column header (RT-6); four `Coming` action rows
 -> one trailing line.
 
-| Artboard | Before | After |
-|---|---|---|
-| ExplorerExpert | 621 | 380 |
-| ExplorerLargeGraph | 458 | 330 |
-| ExplorerAfterCard | 392 | 270 |
-| CompareSplit | 374 | 275 |
-| AnalyzeSweep | 370 | 265 |
-| CategoryTable | 349 | 265 |
+| Artboard           | Before | After |
+| ------------------ | ------ | ----- |
+| ExplorerExpert     | 621    | 380   |
+| ExplorerLargeGraph | 458    | 330   |
+| ExplorerAfterCard  | 392    | 270   |
+| CompareSplit       | 374    | 275   |
+| AnalyzeSweep       | 370    | 265   |
+| CategoryTable      | 349    | 265   |
 
 ExplorerLargeGraph keeps every departure clause it has -- it is the board where
 the floor bites hardest, and its cut is anatomy, not copy.
@@ -716,10 +717,10 @@ into fields (Rule 3) on `Which nodes`, `Attribute`+`Scale`, `Smallest`+
 encoding sentence becomes an RT-4 ramp; `Skybox: None` becomes an empty swatch;
 metric `not run` status becomes a mark, not a word.
 
-| Artboard | Before | After |
-|---|---|---|
-| StylePanel | 276 | 175 |
-| StyleDiverging | 259 | 175 |
+| Artboard       | Before | After |
+| -------------- | ------ | ----- |
+| StylePanel     | 276    | 175   |
+| StyleDiverging | 259    | 175   |
 
 ### Group D -- inspector-led screens
 
@@ -730,12 +731,12 @@ carries them; the affordance-explaining sentence (`Arrows show above or below
 the graph average...`) deleted outright; attribute rows keep their left-hand
 text labels, because they are the user's own strings (RT-6).
 
-| Artboard | Before | After |
-|---|---|---|
-| MultiSelection | 307 | 215 |
-| IpadInspector | 233 | 175 |
-| Main | 220 | 185 |
-| InspectorGenomics | 175 | 130 |
+| Artboard          | Before | After |
+| ----------------- | ------ | ----- |
+| MultiSelection    | 307    | 215   |
+| IpadInspector     | 233    | 175   |
+| Main              | 220    | 185   |
+| InspectorGenomics | 175    | 130   |
 
 Main's floor is 49 words; the 36 cut are the first-load Explore panel's empty
 section labels and two of three insight card descriptions. `Mixed` (Rule 6)
@@ -751,15 +752,15 @@ control labels become noun labels plus a unit suffix (`Repeated edges between
 two nodes` / `Combine into one, count the repeats, sum the weight` ->
 `Repeats [Combine + sum]`); `engine default` x3 -> empty placeholder.
 
-| Artboard | Before | After |
-|---|---|---|
-| ImportLargeFile | 629 | 440 |
-| ImportRecognised | 620 | 420 |
-| ImportOptions | 544 | 380 |
-| ImportAddToGraph | 507 | 360 |
-| TableJoin | 492 | 355 |
-| DataPanelLoaded | 409 | 300 |
-| DataTableDrawer | 339 | 265 |
+| Artboard         | Before | After |
+| ---------------- | ------ | ----- |
+| ImportLargeFile  | 629    | 440   |
+| ImportRecognised | 620    | 420   |
+| ImportOptions    | 544    | 380   |
+| ImportAddToGraph | 507    | 360   |
+| TableJoin        | 492    | 355   |
+| DataPanelLoaded  | 409    | 300   |
+| DataTableDrawer  | 339    | 265   |
 
 These are the largest boards in the set and the smallest proportional cuts,
 because a column mapper is mostly the user's own column names -- floor item 6.
@@ -772,12 +773,12 @@ the two-threshold sentence deleted (the thresholds are the values in the fields
 beneath it); 16 label-above-field stacks -> RT-1 pairs; four `XR ...` labels
 lose the `XR` the section header already says.
 
-| Artboard | Before | After |
-|---|---|---|
-| SettingsShortcuts | 593 | 540 |
-| SettingsPerformance | 536 | 350 |
-| ShortcutsDialog | 409 | 380 |
-| Settings | 262 | 225 |
+| Artboard            | Before | After |
+| ------------------- | ------ | ----- |
+| SettingsShortcuts   | 593    | 540   |
+| SettingsPerformance | 536    | 350   |
+| ShortcutsDialog     | 409    | 380   |
+| Settings            | 262    | 225   |
 
 The two shortcuts boards barely move, correctly: a shortcuts table is a list of
 capability names and their keys, and both are floor item 6. Do not compact
@@ -790,13 +791,13 @@ column header (Rule 9); menu rows already obey the rules; the palette **gains**
 question phrasings and filter tokens under Decision A and may end up longer,
 which is correct.
 
-| Artboard | Before | After |
-|---|---|---|
-| HistoryPopover | 447 | 330 |
-| CommandPalette | 280 | 265 |
-| ContextMenu | 197 | 185 |
-| InsightsWide | 189 | 185 |
-| ViewsMenu | 182 | 170 |
+| Artboard       | Before | After |
+| -------------- | ------ | ----- |
+| HistoryPopover | 447    | 330   |
+| CommandPalette | 280    | 265   |
+| ContextMenu    | 197    | 185   |
+| InsightsWide   | 189    | 185   |
+| ViewsMenu      | 182    | 170   |
 
 InsightsWide is deliberately almost untouched: the strip is exempt from the
 icon rule, its card bodies are reported text, and it is the mitigation that
@@ -810,26 +811,26 @@ Expression switch -> a trailing door; note rows -> RT-6; `Search` label ->
 placeholder; the search-syntax popover -> the field's own placeholder; loading
 and welcome copy trimmed to the floor plus one affordance.
 
-| Artboard | Before | After |
-|---|---|---|
-| AiPanel | 338 | 285 |
-| Welcome | 324 | 290 |
-| PresentPanel | 311 | 245 |
-| FilterBuilderExpert | 357 | 260 |
-| TimeSlider | 259 | 210 |
-| ExplorerLoading | 257 | 215 |
-| ExploreNotesList | 251 | 215 |
-| ExplorerNotes | 177 | 155 |
+| Artboard            | Before | After |
+| ------------------- | ------ | ----- |
+| AiPanel             | 338    | 285   |
+| Welcome             | 324    | 290   |
+| PresentPanel        | 311    | 245   |
+| FilterBuilderExpert | 357    | 260   |
+| TimeSlider          | 259    | 210   |
+| ExplorerLoading     | 257    | 215   |
+| ExploreNotesList    | 251    | 215   |
+| ExplorerNotes       | 177    | 155   |
 
 ### Totals
 
-| | Words | Screens |
-|---|---|---|
-| Before | 14,368 | 39 |
-| After | 10,720 | 39 |
-| Cut | 3,648 | **-25%** |
+|        | Words  | Screens  |
+| ------ | ------ | -------- |
+| Before | 14,368 | 39       |
+| After  | 10,720 | 39       |
+| Cut    | 3,648  | **-25%** |
 
-Of which about 200 words are *relocated* to an unbuilt picker board rather than
+Of which about 200 words are _relocated_ to an unbuilt picker board rather than
 deleted, and 181 are `Coming` scaffolding. The honest design cut is closer to
 3,270 words, **-23%**.
 

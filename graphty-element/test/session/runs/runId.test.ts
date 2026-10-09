@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import type { OptionDescriptor, Scope } from "../../../src/catalog/types";
+import type { OptionDescriptor } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import {
     algorithmSlug,
@@ -8,12 +8,12 @@ import {
     canonicalIdentity,
     canonicalize,
     canonicalizeParams,
-    computeScopeDigest,
     deriveRunId,
     RUN_ID_PATTERN,
     type RunIdentity,
     stableDigest,
 } from "../../../src/session/runs";
+import { mintLayerId } from "../../../src/session/styles/Layer";
 
 const OPTIONS: readonly OptionDescriptor[] = [
     { name: "resolution", plainName: "Resolution", type: "number", default: 1 },
@@ -180,6 +180,20 @@ describe("algorithmSlug", () => {
         assert.strictEqual(algorithmSlug("---"), "run");
         assert.strictEqual(algorithmSlug("123"), "run");
     });
+
+    it("trims trailing separators in linear time", () => {
+        assert.strictEqual(algorithmSlug("acme-_-"), "acme");
+        // `/[-_]+$/` took about 2.4 s on this input and 300 s at ten times the length.
+        const long = `a${"-_".repeat(50_000)}a`;
+        const start = performance.now();
+        assert.strictEqual(algorithmSlug(long), long);
+        assert.isBelow(performance.now() - start, 200);
+    });
+
+    it("gives a layer id the same trimming", () => {
+        assert.strictEqual(mintLayerId("Hubs -_", new Set()), "hubs_1");
+        assert.strictEqual(mintLayerId("-_", new Set()), "layer_1");
+    });
 });
 
 describe("assertRunId", () => {
@@ -198,37 +212,6 @@ describe("assertRunId", () => {
             }
         });
     }
-});
-
-describe("computeScopeDigest", () => {
-    const spec: Scope = "visible";
-
-    it("does not depend on the order the members came out in", () => {
-        assert.strictEqual(
-            computeScopeDigest(spec, ["a", "b", "c"], []),
-            computeScopeDigest(spec, ["c", "a", "b"], []),
-        );
-    });
-
-    it("changes when a member arrives", () => {
-        assert.notStrictEqual(computeScopeDigest(spec, ["a", "b"], []), computeScopeDigest(spec, ["a", "b", "c"], []));
-    });
-
-    it("changes when the specification changes even though the members do not", () => {
-        assert.notStrictEqual(computeScopeDigest("visible", ["a"], []), computeScopeDigest("graph", ["a"], []));
-    });
-
-    it("tells the node 1 apart from the node \"1\"", () => {
-        assert.notStrictEqual(computeScopeDigest(spec, [1], []), computeScopeDigest(spec, ["1"], []));
-    });
-
-    it("notices a swap that an exclusive-or on its own would cancel out", () => {
-        assert.notStrictEqual(computeScopeDigest(spec, ["a", "b"], []), computeScopeDigest(spec, ["c", "d"], []));
-    });
-
-    it("keeps the node half and the edge half apart", () => {
-        assert.notStrictEqual(computeScopeDigest(spec, ["a"], []), computeScopeDigest(spec, [], ["a"]));
-    });
 });
 
 describe("stableDigest", () => {

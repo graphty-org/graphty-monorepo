@@ -7,11 +7,15 @@
 import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
 import { Camera } from '@babylonjs/core';
+import { Color3 } from '@babylonjs/core';
 import { Column } from '@graphty/graph-format';
 import { ColumnHandle } from '@graphty/graph-format';
 import { CommonExportOptions } from '@graphty/graph-io';
 import { CommonImportOptions } from '@graphty/graph-io';
+import { CSV_LOSS } from '@graphty/graph-io';
+import { CX2_LOSS } from '@graphty/graph-io';
 import { DerivedGraph } from '@graphty/graph-format';
+import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
 import { EdgeMask } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core';
@@ -19,11 +23,14 @@ import { EngineInstrumentation } from '@babylonjs/core';
 import { ExportCapabilities } from '@graphty/graph-io';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
+import { GEXF_LOSS } from '@graphty/graph-io';
+import { GML_LOSS } from '@graphty/graph-io';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GraphChoiceOptions } from '@graphty/graph-io';
 import { GraphExporter } from '@graphty/graph-io';
 import { GraphImporter } from '@graphty/graph-io';
 import { GraphListing } from '@graphty/graph-io';
+import { GRAPHML_LOSS } from '@graphty/graph-io';
 import { GraphSink } from '@graphty/graph-format';
 import { GraphSnapshot } from '@graphty/graph-format';
 import { ImportReport as ImporterReport } from '@graphty/graph-io';
@@ -32,17 +39,23 @@ import { ImportInput } from '@graphty/graph-io';
 import { ImportIssue } from '@graphty/graph-io';
 import { InstancedMesh } from '@babylonjs/core';
 import { IssueCategory } from '@graphty/graph-io';
+import { JSON_LOSS } from '@graphty/graph-io';
 import { LayoutResult } from '@graphty/layout';
+import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
 import { maskTest } from '@graphty/graph-format';
+import { Matrix } from '@babylonjs/core';
 import { Mesh } from '@babylonjs/core';
+import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_3 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { Observer } from '@babylonjs/core';
+import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
+import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
@@ -52,6 +65,7 @@ import { Vector2 } from '@babylonjs/core/Maths/math.vector';
 import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
+import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod/v4';
 import * as z4 from 'zod/v4/core';
 import { z as z_2 } from 'zod';
@@ -211,7 +225,7 @@ export type AlgorithmKey = KnownAlgorithm | (string & {});
 
 // @public
 export interface AlgorithmOutput {
-    readonly caveats: Caveats;
+    readonly caveats: Caveats | Omit<Caveats, "facts">;
     readonly edges?: readonly ResultElementValues<EdgeId>[];
     readonly fields: readonly ResultFieldSpec[];
     readonly graph?: Readonly<Record<string, unknown>>;
@@ -352,15 +366,22 @@ export interface CameraViewRegistration {
 }
 
 // @public
+export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "input.empty" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
+
+// @public
 export interface Caveats {
     readonly componentScope?: "all" | "largest";
     readonly converged?: boolean;
     readonly direction: RunDirection;
     readonly exact: boolean;
+    readonly facts: readonly CodedFact<CaveatCode>[];
     readonly filterScope?: boolean;
     readonly iterations?: number;
     readonly method: string;
+    // @deprecated
     readonly notes: readonly string[];
+    readonly partialCause?: CodedFact<PartialCode>;
+    // @deprecated
     readonly partialReason?: string;
     readonly precision: Precision;
     readonly sampleSize?: number;
@@ -421,6 +442,7 @@ export interface DataLoadingError {
     field?: string;
     line?: number;
     message: string;
+    params?: Readonly<Record<string, unknown>>;
 }
 
 // @public
@@ -568,16 +590,34 @@ export type DrawingMode = "2d" | "3d";
 export class Edge {
     constructor(graph: Graph | GraphContext, srcNodeId: NodeIdType, dstNodeId: NodeIdType, edgeId: number, paint: EdgePaint, data: AdHocData, opts?: EdgeOpts);
     applySessionPaint(paint: EdgePaint): void;
+    arrowCap: ArrowCap | null;
     // (undocumented)
     arrowHeadText: RichTextLabel | null;
-    // (undocumented)
+    // @deprecated
     arrowMesh: AbstractMesh | null;
-    // (undocumented)
+    arrowTailCap: ArrowCap | null;
+    // @deprecated
     arrowTailMesh: AbstractMesh | null;
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     get data(): AdHocData;
     dispose(): void;
+    get drawnCaps(): {
+        end: "arrowHead" | "arrowTail";
+        name: string;
+        span: number;
+        visibility: number;
+    }[];
+    get drawnCentre(): Vector3;
+    get drawnCurve(): Vector3[] | null;
+    get drawnLine(): {
+        name: string;
+        length: number;
+        width: number;
+        visibility: number;
+        centre: Vector3;
+    } | null;
+    get drawnPattern(): readonly ArrowCap[];
     // (undocumented)
     readonly dstId: NodeIdType;
     // (undocumented)
@@ -591,7 +631,6 @@ export class Edge {
     isSelected(): boolean;
     // (undocumented)
     label: RichTextLabel | null;
-    // (undocumented)
     mesh: AbstractMesh | PatternedLineMesh;
     // (undocumented)
     opts: EdgeOpts;
@@ -610,7 +649,8 @@ export class Edge {
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     update(): void;
-    static updateRays(g: Graph | GraphContext): void;
+    // @deprecated
+    static updateRays(_g: Graph | GraphContext): void;
     updateStyle(): void;
 }
 
@@ -678,9 +718,17 @@ export { ExportCapabilities }
 export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExportOptions;
 
 // @public
+export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
+
+// @public
+export type ExportLossCode = CodesOf<typeof LOSS> | CodesOf<typeof CSV_LOSS> | CodesOf<typeof CX2_LOSS> | CodesOf<typeof DOT_LOSS> | CodesOf<typeof GEXF_LOSS> | CodesOf<typeof GML_LOSS> | CodesOf<typeof GRAPHML_LOSS> | CodesOf<typeof JSON_LOSS> | CodesOf<typeof NEO4J_LOSS> | CodesOf<typeof PAJEK_LOSS> | CodesOf<typeof XGMML_LOSS> | "W_GRAPHTY_COLUMN_DROPPED" | "W_GRAPHTY_NOTES" | "W_GRAPHTY_TRUNCATED" | "W_GRAPHTY_CSV_NEUTRALIZED" | "W_WEIGHT_NOT_NUMERIC" | "W_RESULT_FIELD_DROPPED";
+
+// @public
 export interface ExportResult {
     readonly bytes: AsyncIterable<Uint8Array>;
     readonly format: FormatId;
+    readonly losses: readonly ExportLoss[];
+    // @deprecated
     readonly lossNotes: readonly LossNote[];
     text(): Promise<string>;
 }
@@ -1331,6 +1379,7 @@ export abstract class LayoutEngine {
     // @deprecated
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null;
     protected abstract pin(n: Node_2): void;
+    protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     readNodePosition(n: Node_2, out: {
         x: number;
@@ -1452,6 +1501,7 @@ class Node_2 {
     // (undocumented)
     pinOnDrag: boolean;
     refreshSelectionOverlay(): void;
+    get roundRadius(): number | null;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
@@ -1628,7 +1678,7 @@ export class OptionValidationError extends Error {
 // @public
 export type OptionValuesOf<O extends OptionsShorthand> = {
     readonly [K in keyof O]: O[K] extends number | string | boolean | {
-        readonly default: NonNullable<unknown>;
+        readonly default: object | string | number | boolean | bigint | symbol;
     } ? ShorthandValue<O[K]> : ShorthandValue<O[K]> | undefined;
 };
 
@@ -1665,6 +1715,9 @@ export type PaletteRegistration = Omit<PaletteDescriptor, "capacity" | "colorbli
     capacity?: number | null;
     colorblindSafe?: PaletteDescriptor["colorblindSafe"];
 };
+
+// @public
+export type PartialCode = "partial.iteration-cap" | "partial.time-box" | "partial.canceled" | "partial.stopped" | "partial.batch-incomplete";
 
 // @public
 export const PATH_FIELD_SPECS: readonly ResultFieldSpec[];

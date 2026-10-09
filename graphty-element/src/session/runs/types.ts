@@ -31,21 +31,15 @@ import type {
 } from "../../catalog/types";
 import type { GraphtyErrorCode } from "../../errors/codes";
 import type { GraphtyError } from "../../errors/GraphtyError";
+import type { JournalId } from "../journal";
 import type { ResultSummary, RunResult } from "../results/types";
+import type { CodedFact } from "../shared";
 import type { StyleSuggestion } from "../styles/derive";
+import type { CaveatCode, PartialCode } from "./caveatFacts";
 
 // ---------------------------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------------------------
-
-/**
- * The identity of a journal entry.
- *
- * Declared here because a run carries the entry its command wrote and the journal itself has
- * not landed. It moves to the journal module when that arrives; nothing should declare a second
- * one in the meantime.
- */
-export type JournalId = string;
 
 /**
  * What a run id is allowed to look like.
@@ -240,12 +234,29 @@ export interface Caveats {
     /** Which method computed them, such as "dijkstra" or "brandes-sampled". */
     readonly method: string;
     /**
-     * Why a run stopped before it finished, when it did. Present exactly when the run resolved
-     * with `partial` set, whatever stopped it: a time box, a cancellation, or the algorithm's own
-     * iteration cap.
+     * Why a run stopped before it finished, when it did, as a code and its values. Present when
+     * the run resolved with `partial` set, whatever stopped it: a time box, a cancellation, a
+     * batch that did not finish, or the algorithm's own iteration cap. Absent for a run an
+     * extension stopped and explained only in words, in {@link Caveats.partialReason}.
+     * @since 3.18.0
+     */
+    readonly partialCause?: CodedFact<PartialCode>;
+    /**
+     * Why a run stopped before it finished, as an English sentence. Present exactly when the run
+     * resolved with `partial` set.
+     * @deprecated Word {@link Caveats.partialCause} yourself. Removed in the next major.
      */
     readonly partialReason?: string;
-    /** Anything else a reader should know, in sentences. */
+    /**
+     * Anything else a reader should know, one fact per remark, in the order a reader reads them.
+     * See {@link CaveatCode} for every code and its parameters.
+     * @since 3.18.0
+     */
+    readonly facts: readonly CodedFact<CaveatCode>[];
+    /**
+     * The same remarks as English sentences, followed by any sentence an extension wrote in words.
+     * @deprecated Word {@link Caveats.facts} yourself. Removed in the next major.
+     */
     readonly notes: readonly string[];
 }
 
@@ -389,7 +400,8 @@ export interface StartOptions extends RunOptions {
     readonly as?: RunId;
     /**
      * What the element paints on first completion. Set false to opt out of the encoding layer it
-     * applies, or `{ size: true }` to size the nodes by a node measurement as well. See
+     * applies, or `{ size: true }` to size the nodes by a node measurement, or widen the edges by an
+     * edge measurement, as well. See
      * {@link RunStyle}.
      */
     readonly style?: RunStyle;
@@ -409,15 +421,18 @@ export interface StartOptions extends RunOptions {
  *
  * - `true`, or left off: the colour suggestion its result shape calls for.
  * - `false`: nothing. The numbers are published and no layer is added.
- * - `{ size }`: the colour suggestion, plus -- for a run whose result is a node measurement
- *   (shape `"node-metric"`: PageRank, degree, betweenness and the rest) -- a node size encoding of
- *   the same field. `size: true` sizes nodes from 1 (the default node size, so the least
- *   important node looks unchanged) to 3; `size: [min, max]` uses that range. `size: false` or
- *   left off adds no size. For any other result shape the size is ignored, without an error,
- *   exactly as the colour suggestion itself depends on the shape.
+ * - `{ size }`: the colour suggestion, plus a size encoding of the same field. For a run whose
+ *   result is a node measurement (shape `"node-metric"`: PageRank, degree, betweenness and the
+ *   rest) that is a node size: `size: true` sizes nodes from 1 (the default node size, so the
+ *   least important node looks unchanged) to 3. For a run whose result is an edge measurement
+ *   (shape `"edge-metric"`: max flow, edge betweenness) it is an edge width: `size: true` draws
+ *   edges from the default edge width to twice it. `size: [min, max]` uses that range, in the
+ *   channel's own units. `size: false` or left off adds no size. For any other result shape the
+ *   size is ignored, without an error, exactly as the colour suggestion itself depends on the
+ *   shape.
  *
- * Every layer this adds is scoped to the nodes carrying the run's value, and is removed with the
- * run.
+ * Every layer this adds is scoped to the elements carrying the run's value, and is removed with
+ * the run.
  */
 export type RunStyle = boolean | { readonly size?: boolean | readonly [min: number, max: number] };
 
@@ -474,6 +489,20 @@ export interface BatchResult {
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * The one option an unnamed run's name was suggested by: a built-in algorithm names its result by
+ * one setting worth telling two of its results apart by (PageRank's `dampingFactor`, Louvain's
+ * `resolution`), once that setting leaves its default. A run's label is worded from it, the
+ * algorithm's catalog name and the value.
+ * @since 3.18.0
+ */
+export interface RunDistinction {
+    /** The option's name, as the algorithm's catalog `options` spell it. */
+    readonly option: string;
+    /** The value the run used, canonicalized. */
+    readonly value: unknown;
+}
+
+/**
  * A frozen, structured-cloneable snapshot of a run.
  *
  * This is what crosses a worker boundary, what an event carries, what the journal stores and
@@ -483,8 +512,28 @@ export interface BatchResult {
 export interface RunRecord {
     /** The run id. */
     readonly id: RunId;
-    /** What the run is called, computed by the element. */
+    /**
+     * What the run is called, computed by the element.
+     * @deprecated Word the run from its `algorithm`, {@link RunRecord.distinguishedBy} and
+     *   {@link RunRecord.siblingsDifferBy} yourself. Removed in the next major.
+     */
     readonly label: string;
+    /**
+     * The option this run's name was suggested by, once it left its default: what tells it apart
+     * from a run of the same algorithm at the defaults. Null for a run at the defaults, a run the
+     * caller named with `as`, a batch, and a run of an algorithm registered with its own
+     * `suggestedName`.
+     * @since 3.18.0
+     */
+    readonly distinguishedBy: RunDistinction | null;
+    /**
+     * What tells this run apart from the other listed runs of its algorithm that go by the same
+     * name: the names of the parameters whose values differ, sorted, or an empty list when only
+     * the scope differs. Null while no other run shares the name.
+     * @since 3.18.0
+     */
+    readonly siblingsDifferBy: readonly string[] | null;
+
     /** Which algorithm ran. */
     readonly algorithm: AlgorithmKey;
     /** The parameters it ran with, canonicalised. */
@@ -535,7 +584,7 @@ export interface RunRecord {
  * - Everything else rejects with a {@link GraphtyError} carrying a code.
  *
  * A time boxed run that hits its box does not reject at all: it RESOLVES, with `partial` set and
- * `caveats.partialReason` saying why. A stopped-early result is data.
+ * `caveats.partialCause` saying why. A stopped-early result is data.
  */
 export interface Run<T = RunResult> extends PromiseLike<T> {
     /** The run id: stable, selector-safe, and author-assignable through `as`. */
@@ -547,8 +596,26 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
      * while it is the only run of that algorithm, gaining the parameter that differs in
      * parentheses the moment a sibling exists. One string, used by the layer row, the legend,
      * the journal and every export.
+     * @deprecated Word the run from its `algorithm`, {@link Run.distinguishedBy} and
+     *   {@link Run.siblingsDifferBy} yourself. Removed in the next major.
      */
     readonly label: string;
+    /**
+     * The option this run's name was suggested by, once it left its default: what tells it apart
+     * from a run of the same algorithm at the defaults. Null for a run at the defaults, a run the
+     * caller named with `as`, a batch, and a run of an algorithm registered with its own
+     * `suggestedName`.
+     * @since 3.18.0
+     */
+    readonly distinguishedBy: RunDistinction | null;
+    /**
+     * What tells this run apart from the other listed runs of its algorithm that go by the same
+     * name: the names of the parameters whose values differ, sorted, or an empty list when only
+     * the scope differs. Null while no other run shares the name.
+     * @since 3.18.0
+     */
+    readonly siblingsDifferBy: readonly string[] | null;
+
     /** Which algorithm is running. */
     readonly algorithm: AlgorithmKey;
     /** The parameters it is running with, canonicalised. */
@@ -598,7 +665,10 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly error?: GraphtyError | undefined;
     /** The frozen, structured-cloneable snapshot of everything above. */
     readonly record: RunRecord;
-    /** The journal entry this run's command wrote, or null until it lands. */
+    /**
+     * The journal entry this run's command wrote (`session.journal.get(run.journalId)`), or null
+     * until the command has finished. A re-run points it at the newer entry.
+     */
     readonly journalId: JournalId | null;
     /**
      * Stop the run.

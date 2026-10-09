@@ -13,13 +13,13 @@
  * graph's meshes.
  */
 
-import type { AbstractActionManager, AbstractMesh, Scene, TransformNode } from "@babylonjs/core";
+import { type AbstractActionManager, AbstractMesh, type Scene, type TransformNode } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { assertScalesLinearly } from "../helpers/cost";
 
 const NODES = 300;
-const EDGES = NODES / 2;
 
 let graph: Graph;
 let container: HTMLElement;
@@ -36,8 +36,19 @@ function graphRoot(scene: Scene): TransformNode {
 }
 
 /**
+ * Whether a mesh is a shared batch that draws many edges' lines or arrowheads as thin instances,
+ * rather than one element's own mesh.
+ * @param mesh - The mesh.
+ * @returns True for a batch.
+ */
+function isBatch(mesh: unknown): mesh is AbstractMesh {
+    return mesh instanceof AbstractMesh && mesh.hasThinInstances;
+}
+
+/**
  * Every mesh the graph's nodes and edges own right now that a test can reach: each element's own
- * mesh, its arrowheads, and the meshes parented to them (a node's label plane).
+ * mesh and the meshes parented to it (a node's label plane). A line or an arrowhead drawn as a
+ * slot in a shared batch owns no mesh; the batches are in {@link batchMeshes}.
  * @returns The meshes.
  */
 function elementMeshes(): Set<AbstractMesh> {
@@ -56,37 +67,59 @@ function elementMeshes(): Set<AbstractMesh> {
     }
 
     for (const edge of data.edges.values()) {
-        if ("getScene" in edge.mesh) {
+        if ("getScene" in edge.mesh && !isBatch(edge.mesh)) {
             add(edge.mesh);
         }
-
-        add(edge.arrowMesh);
-        add(edge.arrowTailMesh);
     }
 
     return meshes;
 }
 
 /**
+ * The shared meshes the graph's edges are drawn by right now: line batches and arrowhead batches.
+ * @returns The batch meshes.
+ */
+function batchMeshes(): Set<AbstractMesh> {
+    const batches = new Set<AbstractMesh>();
+    for (const edge of graph.getDataManager().edges.values()) {
+        for (const mesh of [edge.mesh, edge.arrowCap?.batchMesh, edge.arrowTailCap?.batchMesh]) {
+            if (isBatch(mesh) && !mesh.isDisposed()) {
+                batches.add(mesh);
+            }
+        }
+    }
+
+    return batches;
+}
+
+/**
  * Watch what `scene.removeMesh` has to search while the graph's meshes go.
  * @param scene - The scene.
  * @returns The longest `scene.meshes` and graph-root child list seen while a mesh of the graph
- *     was removed, and a function that stops watching.
+ *     was removed, their lengths summed over every removal, and a function that stops watching.
  */
-function watchRemovals(scene: Scene): { longest: { meshes: number; children: number }; stop: () => void } {
+function watchRemovals(scene: Scene): {
+    longest: { meshes: number; children: number };
+    searched: { meshes: number; children: number };
+    stop: () => void;
+} {
     const root = graphRoot(scene);
     const longest = { meshes: 0, children: 0 };
+    const searched = { meshes: 0, children: 0 };
     const original = scene.removeMesh.bind(scene);
     scene.removeMesh = (mesh: AbstractMesh, recursive?: boolean): number => {
         longest.meshes = Math.max(longest.meshes, scene.meshes.length);
+        searched.meshes += scene.meshes.length;
         if (mesh.parent === root) {
             longest.children = Math.max(longest.children, root.getChildren().length);
+            searched.children += root.getChildren().length;
         }
 
         return original(mesh, recursive);
     };
     return {
         longest,
+        searched,
         stop: () => {
             scene.removeMesh = original;
         },
@@ -109,7 +142,11 @@ describe("tearing many elements down at once", () => {
     let baselineManagers = 0;
     let baselineObservers = 0;
 
-    beforeEach(async () => {
+    /**
+     * Open a graph of `nodes` labelled nodes and half as many edges, with the render loop stopped.
+     * @param nodes - How many nodes.
+     */
+    async function open(nodes: number): Promise<void> {
         container = document.createElement("div");
         container.style.width = "400px";
         container.style.height = "300px";
@@ -135,8 +172,8 @@ describe("tearing many elements down at once", () => {
             type: "json",
             config: {
                 data: JSON.stringify({
-                    nodes: Array.from({ length: NODES }, (_, at) => ({ id: `v${String(at)}` })),
-                    edges: Array.from({ length: EDGES }, (_, at) => ({
+                    nodes: Array.from({ length: nodes }, (_, at) => ({ id: `v${String(at)}` })),
+                    edges: Array.from({ length: nodes / 2 }, (_, at) => ({
                         src: `v${String(2 * at)}`,
                         dst: `v${String(2 * at + 1)}`,
                     })),
@@ -144,18 +181,61 @@ describe("tearing many elements down at once", () => {
             },
         });
         await operationQueueOf(graph).waitForCompletion();
-        assert.strictEqual(session.snapshot().nodeCount, NODES);
+        // One frame by hand, since the render loop is stopped: the update pass is what paints the
+        // style onto the nodes, and so what builds their labels. Painting rebuilds each node's
+        // mesh, and Babylon takes the replaced drag handlers' pointer observers out on a timer of
+        // its own, so let that timer run before anything is counted.
+        graph.update();
+        await new Promise<void>((done) => {
+            setTimeout(done, 0);
+        });
+        assert.strictEqual(session.snapshot().nodeCount, nodes);
+    }
+
+    /** Dispose the open graph. */
+    function close(): void {
+        graph.dispose();
+        container.remove();
+    }
+
+    beforeEach(async () => {
+        await open(NODES);
     });
 
     afterEach(() => {
-        graph.dispose();
-        container.remove();
+        close();
+    });
+
+    it("a clear of a graph four times larger searches about four times as many entries", async () => {
+        // The searched list lengths summed over every removal: with the bulk path each removal
+        // searches what is left of the scene outside the graph, so the sum grows with the meshes
+        // removed; one search of the whole scene per mesh grows with their square.
+        await assertScalesLinearly(
+            async (nodes) => {
+                close();
+                await open(nodes);
+                const scene = graph.getScene();
+                const watch = watchRemovals(scene);
+                try {
+                    await graph.getSession().data.clear();
+                    await operationQueueOf(graph).waitForCompletion();
+                } finally {
+                    watch.stop();
+                }
+
+                assert.strictEqual(scene.meshes.length, baselineMeshes, "nothing was left in the scene");
+                return watch.searched.meshes + watch.searched.children;
+            },
+            { sizes: [100, 400], counter: "scene and graph-root entries searched by a clear's removals" },
+        );
     });
 
     it("a clear empties the scene without searching it once per mesh", async () => {
         const scene = graph.getScene();
         const owned = elementMeshes();
         assert.isAtLeast(owned.size, NODES * 2, "every node drew a mesh and a label");
+        const batches = batchMeshes();
+        assert.isNotEmpty(batches, "the edges are drawn by shared batches");
         const watch = watchRemovals(scene);
         try {
             await graph.getSession().data.clear();
@@ -165,6 +245,11 @@ describe("tearing many elements down at once", () => {
         }
 
         for (const mesh of owned) {
+            assert.isTrue(mesh.isDisposed(), `${mesh.name} was disposed`);
+        }
+
+        // A batch goes with the last edge it draws.
+        for (const mesh of batches) {
             assert.isTrue(mesh.isDisposed(), `${mesh.name} was disposed`);
         }
 
@@ -187,6 +272,8 @@ describe("tearing many elements down at once", () => {
         const scene = graph.getScene();
         const data = graph.getDataManager();
         const before = elementMeshes();
+        const batches = batchMeshes();
+        assert.isNotEmpty(batches, "the edges are drawn by shared batches");
         const removedIds = Array.from({ length: 40 }, (_, at) => `v${String(5 * at)}`);
         const meshCountBefore = scene.meshes.length;
         const rootBefore = new Set(graphRoot(scene).getChildren());
@@ -213,6 +300,14 @@ describe("tearing many elements down at once", () => {
         for (const mesh of after) {
             assert.isFalse(mesh.isDisposed(), `${mesh.name} is still drawn`);
             assert.isTrue(inScene.has(mesh), `${mesh.name} is still in the scene`);
+        }
+
+        // A batch still draws the edges that stay, so it stays drawn: dropping it from the scene
+        // with the edges that went would stop every other edge in it being drawn.
+        for (const mesh of batches) {
+            assert.isFalse(mesh.isDisposed(), `${mesh.name} is still drawn`);
+            assert.isTrue(inScene.has(mesh), `${mesh.name} is still in the scene`);
+            assert.isTrue(onRoot.has(mesh), `${mesh.name} is still on graph-root`);
         }
 
         for (const node of data.nodes.values()) {

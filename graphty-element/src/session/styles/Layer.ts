@@ -63,6 +63,7 @@ import type {
 import { isGraphtyError } from "../../errors";
 import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
+import { trimTrailingSeparators } from "../runs/runId";
 import { type ChannelDescriptor, channelDescriptor, channelsFor, toColorValue } from "./channels";
 import type { CompiledSelector, SelectorSource, SelectorTarget } from "./predicate";
 import type { ScaleRegistry } from "./scales";
@@ -382,10 +383,9 @@ const NO_PROBLEMS: readonly LayerProblem[] = Object.freeze([]);
 export function mintLayerId(name: string, taken: ReadonlySet<LayerId>): LayerId {
     const slug = name
         .toLowerCase()
-        .replace(/[^a-z0-9_-]+/g, "-")
-        .replace(/^[^a-z]+/, "")
-        .replace(/[-_]+$/, "");
-    const base = slug === "" ? ID_FALLBACK : slug;
+        .replaceAll(/[^a-z0-9_-]+/g, "-")
+        .replace(/^[^a-z]+/, "");
+    const base = trimTrailingSeparators(slug) || ID_FALLBACK;
 
     let suffix = 1;
     let id = `${base}_${String(suffix)}`;
@@ -888,7 +888,7 @@ function checkSelector(
         // A selector's parse errors do not depend on which kind of element it speaks about, so an
         // unsettled target is compiled as a node selector to get the rest of the report out. The
         // layer itself is refused either way, because `target` is what decides what it paints.
-        const compiled = compileSelector(spec.selector as Selector, target ?? "node", options.elements);
+        const compiled = compileSelector(spec.selector, target ?? "node", options.elements);
 
         for (const path of compiled.paths) {
             readsPath(log, path);
@@ -1074,7 +1074,7 @@ export function specOf(layer: Layer): LayerSpec {
         name: layer.name,
         target: layer.target,
         kind: layer.kind,
-        selector: layer.selector as LayerSpec["selector"],
+        selector: layer.selector,
         source: layer.source,
         enabled: layer.enabled,
         ...(layer.set === undefined ? {} : { set: layer.set }),

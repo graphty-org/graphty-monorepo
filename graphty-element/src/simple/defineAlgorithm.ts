@@ -93,7 +93,7 @@ const LONG_TASK_MS = 200;
 const warnedLongTask = new Set<string>();
 
 /** A definition with no options, the default of the verb's generic. */
-type NoOptions = Readonly<Record<never, never>>;
+type NoOptions = { readonly [K in never]: never };
 
 /**
  * Check a definition and expand it, refusing a malformed one with E_BAD_COMMAND.
@@ -462,7 +462,9 @@ async function execute(
             ...(convergence ?? {}),
             // Stopping at a cap the caller set publishes what the run has, marked inexact
             // (algorithm.md section 2.2 item 9).
-            ...(convergence?.converged === false ? { exact: false, partialReason: "iteration cap reached" } : {}),
+            ...(convergence?.converged === false
+                ? { exact: false, partialCause: { code: "partial.iteration-cap" as const, params: {} } }
+                : {}),
         }),
     };
 }

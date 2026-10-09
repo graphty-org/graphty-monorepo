@@ -40,7 +40,8 @@ import React from "react";
  * @public
  */
 export interface PanelTextButtonProps
-    extends Omit<ButtonProps, "color" | "style" | "variant">,
+    extends
+        Omit<ButtonProps, "color" | "style" | "variant">,
         Pick<React.ComponentPropsWithoutRef<"button">, "aria-label" | "onClick" | "title"> {
     /** The verb, in full. Floor item 4 keeps it whole. */
     readonly children: React.ReactNode;

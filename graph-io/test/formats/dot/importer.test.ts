@@ -21,6 +21,7 @@ import {
     readMalformedBytes,
 } from "../../helpers/corpus.js";
 import { expectSameSnapshot } from "../../helpers/roundtrip.js";
+import { cpuMilliseconds } from "../../helpers/work-meter.js";
 
 type Options = Parameters<typeof dotImporter.import>[2];
 
@@ -508,7 +509,7 @@ describe("dot importer: the grammar", () => {
         expect(codes(report)).toEqual([DOT_ISSUE.POS_DIMS, DOT_ISSUE.BAD_POS]);
         const position = snapshot.nodes.byRole("position");
         expect(position?.meta.name).toBe("pos");
-        expect(position?.dtype).toBe("f32");
+        expect(position?.dtype).toBe("f64");
         expect(position?.meta.components).toBe(3);
         expect(position?.meta.mutable).toBe(true);
         expect(position?.meta.extra).toEqual({ sourceDims: 2, units: "file" });
@@ -518,6 +519,52 @@ describe("dot importer: the grammar", () => {
         expect(nodeCell(snapshot, "b", "pin")).toBe(true);
         expect(nodeCell(snapshot, "a", "pin")).toBeUndefined();
         expect(cell(snapshot, "edges", "pos", 0)).toBe("e,1,2 3,4");
+    });
+
+    it("reads every pos spelling of a point and rejects the rest", async () => {
+        const spellings: [string, number[] | null, boolean][] = [
+            [" 1.5 , -2e3 ", [1.5, -2000, 0], false],
+            [".5,.5", [0.5, 0.5, 0], false],
+            ["+1,-2,3e-2 ! ", [1, -2, 0.03], true],
+            ["1,2 !", [1, 2, 0], true],
+            ["1e5,2E+3", [100000, 2000, 0], false],
+            ["1.,2", null, false],
+            ["-.5,5.", null, false],
+            ["1,2,", null, false],
+            ["1,2!x", null, false],
+            ["1 2", null, false],
+            ["1,2,3,4", null, false],
+        ];
+        for (const [text, point, pinned] of spellings) {
+            const { snapshot, report } = await load(`digraph { a [pos="${text}"] }`);
+            const position = snapshot.nodes.byRole("position");
+            if (point === null) {
+                expect(codes(report), text).toEqual([DOT_ISSUE.BAD_POS]);
+                expect(position?.isSet(0) ?? false, text).toBe(false);
+                continue;
+            }
+            expect(codes(report), text).toEqual([]);
+            expect(Array.from(position?.value(0) as ArrayLike<number>), text).toEqual(point);
+            expect(nodeCell(snapshot, "a", "pin"), text).toBe(pinned ? true : null);
+        }
+    });
+
+    it("rejects a pathologically long pos in linear time", async () => {
+        // A run of digits, and a run of spaces before a bad character, each took quadratic time
+        // (about 10 s apiece at this length) when the point pattern could split a run two ways.
+        // Each run is measured on its own so a failure names the run that regressed; the limit is
+        // the one both shared when they were measured together.
+        const n = 200_000;
+        const cpu = async (pos: string): Promise<number> => {
+            const text = `digraph { a [pos="${pos}"] }`;
+            return cpuMilliseconds(async () => {
+                const { report } = await load(text);
+                expect(codes(report)).toEqual([DOT_ISSUE.BAD_POS]);
+            });
+        };
+        const digits = await cpu(`${"1".repeat(n)}x`);
+        const spaces = await cpu(`1,1${" ".repeat(n)}x`);
+        expect(digits + spaces, `digit run ${digits} ms, space run ${spaces} ms of CPU`).toBeLessThan(2000);
     });
 
     it("keeps a node pos as written text with positions false", async () => {

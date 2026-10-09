@@ -1,6 +1,7 @@
 import type { Vector2 } from "@babylonjs/core/Maths/math.vector";
 import { Observable } from "@babylonjs/core/Misc/observable";
 
+import type { InputEnabledChangedEvent } from "../events";
 import { BabylonInputSystem } from "../input/babylon-input-system";
 import { MockDeviceInputSystem } from "../input/mock-device-input-system";
 import type { KeyboardInfo, MouseButton, PointerInfo, TouchPoint, WheelInfo } from "../input/types";
@@ -110,7 +111,7 @@ export class InputManager implements Manager {
     async init(): Promise<void> {
         try {
             // Attach input system to canvas
-            this.inputSystem.attach(this.context.canvas as HTMLElement);
+            this.inputSystem.attach(this.context.canvas);
 
             // Set up event bridges to EventManager
             this.setupEventBridges();
@@ -159,10 +160,13 @@ export class InputManager implements Manager {
             // Clear any active states when disabling
             this.inputSystem.detach();
         } else if (enabled && this.inputSystem instanceof BabylonInputSystem) {
-            this.inputSystem.attach(this.context.canvas as HTMLElement);
+            this.inputSystem.attach(this.context.canvas);
         }
 
-        this.context.eventManager.emitGraphEvent("input-enabled-changed", { enabled });
+        this.context.eventManager.emitGraphEvent("input-enabled-changed", { enabled } satisfies Omit<
+            InputEnabledChangedEvent,
+            "type"
+        >);
     }
 
     /**
@@ -242,7 +246,7 @@ export class InputManager implements Manager {
         if (!(this.inputSystem instanceof MockDeviceInputSystem)) {
             this.inputSystem.dispose();
             this.inputSystem = new MockDeviceInputSystem();
-            this.inputSystem.attach(this.context.canvas as HTMLElement);
+            this.inputSystem.attach(this.context.canvas);
             this.setupEventBridges();
         }
 
@@ -404,7 +408,7 @@ export class InputManager implements Manager {
                     mockSystem.simulateTouchEnd(event.data.array as number[]);
                     break;
                 case "input:key-down":
-                    mockSystem.simulateKeyDown(event.data.key as string, event.data as Partial<KeyboardInfo>);
+                    mockSystem.simulateKeyDown(event.data.key as string, event.data);
                     break;
                 case "input:key-up":
                     mockSystem.simulateKeyUp(event.data.key as string);

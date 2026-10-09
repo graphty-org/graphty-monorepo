@@ -254,11 +254,11 @@ describe("node labels do not overlap", () => {
     });
 
     it("keeps a hidden label hidden when its animation starts", async () => {
-        // The element starts every label's animation once the layout settles, and again 100 ms
-        // after init for a layout that settled at once. Neither moves a node or the camera, so
-        // the pass does not run again afterwards: a start that showed a label the pass had hidden
-        // left it drawn over the one it lost to, and whether that happened depended on whether
-        // the timer fired before or after the pass.
+        // The element starts every label's animation once the layout settles, or on the first
+        // frame that finds it at rest. Neither moves a node or the camera, so the pass does not
+        // run again afterwards: a start that showed a label the pass had hidden left it drawn
+        // over the one it lost to, and whether that happened depended on whether the start came
+        // before or after the pass.
         const g = await draw(PILED);
         const label = RichTextLabel.createLabel(g.scene, { text: "A LONG LABEL FOR THIS NODE" });
         const mesh = label.labelMesh;
@@ -531,6 +531,40 @@ describe("the labels guide's example (docs/guide/labels.md)", () => {
         } finally {
             document.removeEventListener("graphty-label-change", onDocument);
             host.remove();
+        }
+    });
+});
+
+describe("waitForStableFrame waits for the label counts to be announced", () => {
+    it("resolves only after graphty-label-change has carried the counts the frame drew", async () => {
+        const tag = document.createElement("graphty-element");
+        tag.style.cssText = `display: block; width: ${String(WIDTH)}px; height: ${String(HEIGHT)}px`;
+        document.body.appendChild(tag);
+        await tag.updateComplete;
+        const heard: NodeLabelCounts[] = [];
+        tag.addEventListener("graphty-label-change", (e) => heard.push(e.detail));
+        try {
+            const g = tag.graph;
+            await operationQueueOf(g).waitForCompletion();
+            await g.addNodes(PILED);
+            await g.addEdges(EDGES);
+            await g.setLayout("fixed", { dim: 3 });
+            tag.layoutBehavior = { labels: { declutter: true } };
+            await tag.session.styles.add({
+                name: "labels",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.label": "A LONG LABEL FOR THIS NODE" },
+            });
+
+            // The counts are published QUIET_FRAMES after the last pass, which is after the
+            // first stable frame: a page reading them on that frame read zeros.
+            await tag.waitForStableFrame();
+
+            assert.notDeepEqual(tag.nodeLabelCounts, { labeled: 0, nodeHidden: 0, hiddenByOverlap: 0 });
+            assert.deepEqual(heard.at(-1), tag.nodeLabelCounts);
+        } finally {
+            tag.remove();
         }
     });
 });

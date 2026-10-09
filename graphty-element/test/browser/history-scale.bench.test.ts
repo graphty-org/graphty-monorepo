@@ -33,7 +33,7 @@
  *   loading the graph, drawn                            1,500 to 2,300 ms
  *   undoing the removal of 1,000 nodes                    110 to 240 ms
  *   undoing a drag, at rest                                40 to 60 ms
- *   undoing a replacing import                          1,400 to 2,300 ms
+ *   undoing a replacing import                          1,400 to 2,300 ms (median of three)
  *   a replacing import, tearing the graph down          1,200 to 2,400 ms
  *   restoreTo(null) over those steps                      210 to 260 ms
  *
@@ -41,7 +41,18 @@
  * about 20 s at this size, because every node's dispose searched and spliced the scene's mesh
  * list, its action manager list and its pointer observer list (issue #543). The data manager now
  * drops what it is about to dispose from each list in one pass first, so the teardown costs about
- * what the load does, and the replacing import below holds it to the same budget as its undo.
+ * what the load does, and the last test holds it to that.
+ *
+ * That test times the teardown against a load in the same window: three replacing imports that
+ * empty the graph, alternating with three that load it again, compared by their medians. Timed
+ * against the load in `beforeAll`, the ratio measured how busy the machine was at each of the two
+ * moments as much as the teardown: with several pre-push gates running at once (load average 50
+ * to 82), it moved from 0.84 to 1.86 on code that did not change (issue #1277). The 20 s teardown
+ * of #543 is ten times a load however busy the machine is.
+ *
+ * A timing still moves with load, so this file gates no push: ci.yml's advisory "performance" job
+ * runs it. The teardown's scaling is pinned, gating, by count in bulk-teardown.test.ts, which
+ * records the length of every scene list a removal searches.
  */
 
 import { Vector3 } from "@babylonjs/core";
@@ -65,6 +76,16 @@ function collectGarbage(): void {
     }
 
     gc();
+}
+
+/**
+ * The middle of an odd number of timings.
+ * @param ms - The timings.
+ * @returns Their median.
+ */
+function median(ms: readonly number[]): number {
+    const sorted = [...ms].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)];
 }
 
 /**
@@ -92,6 +113,8 @@ describe("undo on a real graph at the largest graph it draws", () => {
     let graph: Graph;
     let container: HTMLElement;
     let loadMs = 0;
+    /** The graph, as the JSON document every load here imports. */
+    let json = "";
 
     /** Let what a forward operation queued, and the tasks after it, finish. */
     const idle = async (): Promise<void> => {
@@ -111,7 +134,7 @@ describe("undo on a real graph at the largest graph it draws", () => {
         graph.engine.stopRenderLoop();
         await graph.setLayout("random");
         const session = graph.getSession();
-        const json = JSON.stringify({
+        json = JSON.stringify({
             nodes: Array.from({ length: NODES }, (_, at) => ({ id: `v${String(at)}` })),
             edges: Array.from({ length: EDGES }, (_, at) => ({
                 src: `v${String(2 * at)}`,
@@ -189,23 +212,48 @@ describe("undo on a real graph at the largest graph it draws", () => {
         "undoing a replacing import costs about what the load it brings back cost",
         async () => {
             const session = graph.getSession();
-            const replacing = await time(async () => {
-                await session.data.import(
-                    { type: "json", config: { data: '{"nodes":[{"id":"r"}],"edges":[]}' } },
-                    { mode: "replace" },
+            // Timed against a load in the same window, as the teardown below is: three rounds,
+            // each a replacing import, the graph loaded again by a second one (timed), that load
+            // undone, and then the first import undone (timed), compared by their medians. One
+            // undo against the load in `beforeAll` measured how busy the machine was at two
+            // moments minutes apart, and failed under several pre-push gates at once (issue
+            // #1457). Each round ends where it started, at the same place in the history.
+            const undos: number[] = [];
+            const loads: number[] = [];
+            for (let round = 0; round < 3; round++) {
+                const replacing = await time(async () => {
+                    await session.data.import(
+                        { type: "json", config: { data: '{"nodes":[{"id":"r"}],"edges":[]}' } },
+                        { mode: "replace" },
+                    );
+                    await idle();
+                });
+                report("a replacing import, tearing the graph down", replacing);
+                loads.push(
+                    await time(async () => {
+                        await session.data.import({ type: "json", config: { data: json } }, { mode: "replace" });
+                        await operationQueueOf(graph).waitForCompletion();
+                    }),
                 );
                 await idle();
-            });
-            report("a replacing import, tearing the graph down", replacing);
-            const ms = await time(() => session.undo());
-            report("undoing a replacing import", ms);
-            assert.strictEqual(session.snapshot().nodeCount, NODES - 1000);
+                await session.undo();
+                assert.strictEqual(session.snapshot().nodeCount, 1);
+                await idle();
+                undos.push(await time(() => session.undo()));
+                assert.strictEqual(session.snapshot().nodeCount, NODES - 1000);
+                await idle();
+            }
+
+            report(
+                `undoing a replacing import, median of ${undos.map((ms) => ms.toFixed(0)).join(", ")}`,
+                median(undos),
+            );
+            report(
+                `loading the graph beside it, median of ${loads.map((ms) => ms.toFixed(0)).join(", ")}`,
+                median(loads),
+            );
             // Only the parse is saved; every render object is built again.
-            assert.isBelow(ms, 1.5 * loadMs);
-            // The teardown, checked after the undo so a missed budget does not leave the graph empty
-            // for the tests below.
-            assert.isBelow(replacing, 1.5 * loadMs, "tearing the graph down costs about what loading it did");
-            await idle();
+            assert.isBelow(median(undos), 1.5 * median(loads));
         },
         TIMEOUT_MS,
     );
@@ -218,6 +266,40 @@ describe("undo on a real graph at the largest graph it draws", () => {
             report("restoreTo(null) over those steps", ms);
             assert.strictEqual(session.snapshot().nodeCount, NODES);
             assert.isBelow(ms, loadMs);
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "tearing the graph down costs about what loading it does, timed alternately in the same window",
+        async () => {
+            const session = graph.getSession();
+            const replace = async (data: string): Promise<number> => {
+                await idle();
+                return time(async () => {
+                    await session.data.import({ type: "json", config: { data } }, { mode: "replace" });
+                    await operationQueueOf(graph).waitForCompletion();
+                });
+            };
+            const teardowns: number[] = [];
+            const loads: number[] = [];
+            for (let round = 0; round < 3; round++) {
+                teardowns.push(await replace('{"nodes":[{"id":"r"}],"edges":[]}'));
+                assert.strictEqual(session.snapshot().nodeCount, 1);
+                loads.push(await replace(json));
+                assert.strictEqual(session.snapshot().nodeCount, NODES);
+            }
+
+            report(
+                `tearing the graph down, median of ${teardowns.map((ms) => ms.toFixed(0)).join(", ")}`,
+                median(teardowns),
+            );
+            report(`loading it again, median of ${loads.map((ms) => ms.toFixed(0)).join(", ")}`, median(loads));
+            assert.isBelow(
+                median(teardowns),
+                1.5 * median(loads),
+                "tearing the graph down costs about what loading it does",
+            );
         },
         TIMEOUT_MS,
     );

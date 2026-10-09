@@ -393,13 +393,16 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         const n = s.nodeCount;
         const levels = levelsOf(s, 0);
         const degreeSums = levels.map((level) => level.reduce((sum, v) => sum + (s.rowPtr[v + 1] - s.rowPtr[v]), 0));
-        // the complement after level k: every node of a deeper level or unreached, and its out-degree sum
+        // the complement after level k: every node of a deeper level or unreached; and the in-degree sum of what is
+        // still unclaimed once level k has run, which has claimed level k + 1 (issue #1358)
+        const inDegree = s.inDegree();
+        const inSums = levels.map((level) => level.reduce((sum, v) => sum + inDegree[v], 0));
         let claimed = 0;
-        let claimedDegree = 0;
+        let claimedIn = 0;
         const unvisitedAfter = levels.map((level, k) => {
             claimed += level.length;
-            claimedDegree += degreeSums[k];
-            return { count: n - claimed, degreeSum: s.arcCount - claimedDegree };
+            claimedIn += inSums[k];
+            return { count: n - claimed, degreeSum: s.arcCount - claimedIn - (inSums[k + 1] ?? 0) };
         });
         for (const [name, tuning] of [
             ["default", {}],
@@ -446,7 +449,8 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
                     entry.block.nextDegreeSum,
                     `${label}: nextDegreeSum vs the oracle's sum over level ${k + 1}`,
                 ).toBe(degreeSums[k + 1] ?? 0);
-                // cadence 1: the words are rebuilt from the flags at the top of the submit and no boundary subtracts
+                // cadence 1: the words are rebuilt from the flags at the top of the submit and no boundary subtracts;
+                // bfs-next-degree has taken the next level's in-arcs out of the degree sum
                 expect(entry.block.unvisitedCount, `${label}: unvisitedCount vs the oracle's complement`).toBe(
                     unvisitedAfter[k].count,
                 );
@@ -702,19 +706,21 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         ctx.release(s);
     }, 300_000);
 
-    it("the unvisited bookkeeping (P8-T8 Step 5, PD-18): after the first rebuild on the grid unvisitedCount is n - 1 and unvisitedDegreeSum arcCount - outDegree(source); on the ten-leaf star from the hub both words read 0 after the second boundary (cadence 2: the leaves' 10 arcs are subtracted with the leaves themselves, issue #391) and 0 (not 2^32 - 10) at the production cadence; isolated vertices are counted but not listed; compactCount equals unvisitedListLen on every rebuild", async (t) => {
+    it("the unvisited bookkeeping (P8-T8 Step 5, PD-18): after the first submit on the grid unvisitedCount is n - 1 and unvisitedDegreeSum arcCount minus the in-degrees of the source and its two neighbours (issue #1358); on the ten-leaf star from the hub both words read 0 after the second boundary (cadence 2: the leaves' 10 arcs are subtracted with the leaves themselves, issue #391) and 0 (not 2^32 - 10) at the production cadence; isolated vertices are counted but not listed; compactCount equals unvisitedListLen on every rebuild", async (t) => {
         const ctx = await context(t);
         const grid = snapshotOf(gridEdges(30, 30), { label: "grid-unvisited" });
         const n = grid.nodeCount;
         const gridDepth = bfsOracle(grid, 0).depth;
+        const gridIn = grid.inDegree();
+        const inDegreeThroughLevel1 = Array.from(gridDepth).reduce((sum, d, v) => sum + (d <= 1 ? gridIn[v] : 0), 0);
         let calls = 0;
         await bfsWithTuning(ctx, grid, 0, undefined, {
             levelsPerSubmit: 1,
             onLevel: (level, block, _frontier, compactCount) => {
                 if (level === 0) {
                     expect(block.unvisitedCount, "unvisitedCount after the first rebuild").toBe(n - 1);
-                    expect(block.unvisitedDegreeSum, "unvisitedDegreeSum after the first rebuild").toBe(
-                        grid.arcCount - (grid.rowPtr[1] - grid.rowPtr[0]),
+                    expect(block.unvisitedDegreeSum, "unvisitedDegreeSum after the first submit").toBe(
+                        grid.arcCount - inDegreeThroughLevel1,
                     );
                     expect(block.unvisitedListLen, "unvisitedListLen after the first rebuild").toBe(n - 1);
                 }
@@ -738,9 +744,9 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
                 blocks.push(block);
             },
         });
-        // the first submit holds boundaries 0 and 1: both words are subtracted at the second boundary -- the degree sum
-        // by the out-degree sum bfs-next-degree measured when the leaves were claimed (issue #391), so it reads 0
-        // here where the one-level-stale rule it replaced left the leaves' 10 arcs in the word until the next rebuild
+        // the first submit holds boundaries 0 and 1: the count is subtracted at the second boundary, the degree sum by
+        // bfs-next-degree when the leaves were claimed (issues #391 and #1358), so it reads 0 here where the
+        // one-level-stale rule of before issue #391 left the leaves' 10 arcs in the word until the next rebuild
         expect(blocks[0].unvisitedCount, "star unvisitedCount after the second boundary").toBe(0);
         expect(blocks[0].unvisitedDegreeSum, "star unvisitedDegreeSum after the second boundary").toBe(0);
         const production = await runWithCounters(ctx, star, 0, undefined, {});
@@ -783,12 +789,12 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
                 windows.filter((w) => w.rowFirst <= 0 && w.rowLast >= 0).length,
                 "windows the hub row spans",
             ).toBeGreaterThanOrEqual(2);
-            // alpha U32_MAX makes Beamer's test switch to bottom-up on the first growing level, so the sweep runs
+            // direction bottom-up makes Beamer's test switch to bottom-up on the first growing level, so the sweep runs
             // per window of the reverse core too (the forward core's windows, on this undirected snapshot)
             const variants: readonly (readonly [string, BfsTuning])[] = [
                 ["default cadence", {}],
                 ["cadence 1", { levelsPerSubmit: 1 }],
-                ["bottom-up forced", { alpha: U32_MAX }],
+                ["bottom-up forced", { direction: "bottom-up" }],
             ];
             for (const source of [0, n - 1]) {
                 const want = bfsOracle(s, source);
@@ -832,7 +838,7 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
                     expect(windowed.visitedCount, `${label}: visitedCount`).toBe(whole.visitedCount);
                     expect(windowed.levels, `${label}: levels`).toBe(whole.levels);
                     expect(windowed.switches, `${label}: switches`).toBe(whole.switches);
-                    if (tuning.alpha === U32_MAX) {
+                    if (tuning.direction === "bottom-up") {
                         expect(windowed.switches, `${label}: the sweep ran`).toBeGreaterThanOrEqual(1);
                     }
                 }

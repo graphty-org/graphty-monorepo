@@ -49,6 +49,8 @@ function runOf(
     return {
         id,
         label: `The ${id} run`,
+        distinguishedBy: null,
+        siblingsDifferBy: null,
         algorithm: id,
         params: {},
         shape,
@@ -781,7 +783,7 @@ describe("when the element has finished painting a run", () => {
 describe("a refusal in a real session", () => {
     it("reaches a listener rather than being swallowed, and the run is still recorded", async () => {
         const session = await fixtureSession();
-        const dispatcher = dispatcherOf(session as ElementSession);
+        const dispatcher = dispatcherOf(session);
         const stack = dispatcher.services.styles;
         assert.isDefined(stack);
         // The stack refuses every encoding: the element plans the run's suggestion into the step

@@ -353,6 +353,41 @@ export interface RepaintEngine extends ElementPaint {
         dirty: ElementIndices,
         context: RepaintContext,
     ): Promise<RepaintReport>;
+    /**
+     * Carry what each element shows to the index a renumbering freeze moved it to, then paint the
+     * elements nothing was carried to, and the named ones, from the whole stack.
+     *
+     * What a removal from the middle of the rows costs the picture: the elements after it move
+     * down, and moving their paint is a copy per column rather than every layer evaluated over
+     * every element again. Only right when no layer's paint of one element depends on another
+     * element, which the caller decides.
+     * @param stack - The stack to paint from, bottom first.
+     * @param moved - The freeze's remaps, old index to new, or null for a kind it did not renumber.
+     * @param kept - How many elements of each kind, from index zero up, were painted before it.
+     * @param kept.node - Nodes.
+     * @param kept.edge - Edges.
+     * @param dirty - Further indices to repaint, in the new index space.
+     * @param context - The signal to stop on and the progress channel.
+     * @param still - Whether `moved` still describes the rows, asked once the pass has its turn:
+     *     when the rows moved again while it waited, it repaints every element instead.
+     * @returns How much was painted.
+     */
+    repaintMoved(
+        stack: readonly CompiledLayer[],
+        moved: ElementRemaps,
+        kept: { readonly node: number; readonly edge: number },
+        dirty: ElementIndices,
+        context: RepaintContext,
+        still: () => boolean,
+    ): Promise<RepaintReport>;
+}
+
+/** A renumbering per kind of element: old index to new, INVALID_INDEX for one dropped. */
+export interface ElementRemaps {
+    /** The node remap, or null when nodes kept their indices. */
+    readonly node: ArrayLike<number> | null;
+    /** The edge remap, or null when edges kept their indices. */
+    readonly edge: ArrayLike<number> | null;
 }
 
 /** Dense indices per kind of element. */
@@ -496,6 +531,41 @@ function growColumn(column: ChannelColumn, capacity: number): void {
     }
 
     column.values.length = capacity;
+}
+
+/**
+ * An empty column of the same channel and kind, at a new capacity.
+ * @param column - The column.
+ * @param capacity - The row count.
+ * @returns The arrays, painted nowhere.
+ */
+function emptyLike(column: ChannelColumn, capacity: number): ChannelColumn {
+    return makeColumn(column.channel, capacity);
+}
+
+/**
+ * Move one column's values to the rows a renumbering moved them to, in place on the column
+ * object, which prepared layers hold.
+ * @param column - The column.
+ * @param sourceOf - For each new row, the old row it came from, or -1.
+ * @param capacity - The new row count.
+ */
+function moveColumn(column: ChannelColumn, sourceOf: Int32Array, capacity: number): void {
+    const next = emptyLike(column, capacity);
+    for (let row = 0; row < sourceOf.length; row++) {
+        const from = sourceOf[row];
+        if (from >= 0) {
+            next.values[row] = column.values[from];
+            if (next.kind === "ref" && column.kind === "ref" && next.plainText !== null && column.plainText !== null) {
+                next.plainText[row] = column.plainText[from];
+            }
+        }
+    }
+
+    column.values = next.values;
+    if (column.kind === "ref" && next.kind === "ref") {
+        column.plainText = next.plainText;
+    }
 }
 
 /**
@@ -1665,10 +1735,11 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
         const mine = inFlight.then(body, body);
 
-        // Counted down on the chain the next pass waits on, not on `mine`. A `finally` on the
-        // caller's promise moves the microtask every caller resumes on, and a layer added before
-        // a load and not awaited then goes unpainted (test/browser/first-paint-after-load.test.ts
-        // and style-layer-ordering.test.ts both catch it).
+        // Counted down on the chain the next pass waits on, so the caller's promise is `mine`
+        // itself. Nothing depends on that any more: a style edit writes the stack when it is
+        // dispatched, before any pass is asked for, and passes run in the order they were asked
+        // for, so no pass paints a stack older than one already painted. Which microtask a caller
+        // resumes on cannot leave a layer unpainted (test/browser/layer-before-load-resume-points).
         const finished = (): void => {
             unfinished--;
         };
@@ -1709,24 +1780,114 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             ),
         );
 
+    /** Put every element of both kinds in the dirty set. */
+    const markEverything = (): void => {
+        for (const store of [stores.node, stores.edge]) {
+            for (let index = 0; index < store.count; index++) {
+                markDirty(store, index);
+            }
+        }
+    };
+
+    /**
+     * Carry one kind of element's paint through a renumbering.
+     * @param store - The store.
+     * @param remap - Old index to new; an index at or past the new count is dropped.
+     * @param kept - How many elements, from index zero, carry paint worth keeping.
+     * @param count - How many elements there are now.
+     * @returns The new indices nothing was carried to.
+     */
+    const follow = (store: TargetStore, remap: ArrayLike<number> | null, kept: number, count: number): number[] => {
+        const holes: number[] = [];
+        if (remap === null) {
+            for (let row = Math.min(kept, count); row < count; row++) {
+                holes.push(row);
+            }
+
+            return holes;
+        }
+
+        let { capacity } = store;
+        while (capacity < count) {
+            capacity *= 2;
+        }
+
+        const sourceOf = new Int32Array(count).fill(-1);
+        const meshKeys = new Float64Array(capacity);
+        const painted = new Uint8Array(capacity);
+        const carried = Math.min(kept, store.count, remap.length);
+        for (let from = 0; from < store.count; from++) {
+            const to = from < carried ? remap[from] : count;
+            if (to < count) {
+                sourceOf[to] = from;
+                meshKeys[to] = store.meshKeys[from];
+                painted[to] = store.painted[from];
+            } else if (store.meshKeys[from] !== 0) {
+                // Gone, or not worth carrying: the mesh it was drawn from loses it.
+                store.meshes.release(store.meshKeys[from]);
+            }
+        }
+
+        for (const column of store.columns.values()) {
+            moveColumn(column, sourceOf, capacity);
+        }
+
+        store.capacity = capacity;
+        store.count = count;
+        store.meshKeys = meshKeys;
+        store.painted = painted;
+        store.stamps = new Int32Array(capacity);
+        store.dirty = new Uint32Array(capacity);
+        for (let row = 0; row < count; row++) {
+            if (sourceOf[row] < 0) {
+                holes.push(row);
+            }
+        }
+
+        return holes;
+    };
+
     return {
         repaint,
 
-        repaintAll(stack: readonly CompiledLayer[], context: RepaintContext): Promise<RepaintReport> {
-            return exclusively(async () =>
-                runPass(
+        repaintMoved(
+            stack: readonly CompiledLayer[],
+            moved: ElementRemaps,
+            kept: { readonly node: number; readonly edge: number },
+            dirty: ElementIndices,
+            context: RepaintContext,
+            still: () => boolean,
+        ): Promise<RepaintReport> {
+            return exclusively(async () => {
+                if (!still()) {
+                    return runPass(stack, context, markEverything, null);
+                }
+
+                const holes = {
+                    node: follow(stores.node, moved.node, kept.node, sources.nodeCount()),
+                    edge: follow(stores.edge, moved.edge, kept.edge, sources.edgeCount()),
+                };
+                return runPass(
                     stack,
                     context,
                     () => {
                         for (const store of [stores.node, stores.edge]) {
-                            for (let index = 0; index < store.count; index++) {
-                                markDirty(store, index);
+                            for (const indices of [holes[store.target], dirty[store.target]]) {
+                                for (let at = 0; at < indices.length; at++) {
+                                    if (indices[at] < store.count) {
+                                        markDirty(store, indices[at]);
+                                    }
+                                }
                             }
                         }
                     },
                     null,
-                ),
-            );
+                );
+            });
+        },
+
+        repaintAll(stack: readonly CompiledLayer[], context: RepaintContext): Promise<RepaintReport> {
+            return exclusively(async () => runPass(stack, context, markEverything, null));
         },
 
         repaintElements(

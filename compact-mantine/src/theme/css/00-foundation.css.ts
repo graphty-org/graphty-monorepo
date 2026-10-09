@@ -12,7 +12,7 @@
  * `compactGlobalCss({ highContrast: true })` works without the attribute (SSR, shadow roots).
  */
 import interLatinWoff2 from "../../fonts/inter-latin-wght-normal.woff2";
-import { cmFont, highContrastDeclarations, tokenDeclarations } from "../tokens";
+import { cmFont, highContrastDeclarations, primaryAccentDeclarations, tokenDeclarations } from "../tokens";
 
 /** The latin subset's range, as @fontsource-variable/inter 5.3.0 declares it. */
 const LATIN_RANGE =
@@ -23,9 +23,17 @@ const FIGMA_SWITCHES = `--cm-field-shadow: none;
     --cm-field-shadow-hover: none;
     --cm-field-border: var(--cm-border);`;
 
+/*
+ * Mantine's `c="dimmed"` color follows the AA secondary text, so `<Text c="dimmed">` meets AA too
+ * (its default, gray-6 / dark-2, does not). `!important` because Mantine declares it under
+ * `:root[data-mantine-color-scheme]`, as specific as this block, from a stylesheet whose order
+ * against this one the consumer decides. The token's light-dark() resolves where the text is, so
+ * a dimmed caption inside a dark menu gets the dark value.
+ */
 const AA_SWITCHES = `--cm-field-shadow: inset 0 0 0 1px var(--cm-field-edge);
     --cm-field-shadow-hover: inset 0 0 0 1px var(--cm-field-edge-hover);
-    --cm-field-border: var(--cm-field-edge);`;
+    --cm-field-border: var(--cm-field-edge);
+    --mantine-color-dimmed: var(--cm-text-secondary) !important;`;
 
 /**
  * The AA token block under a selector.
@@ -58,6 +66,12 @@ const css = `
 }
 
 ${highContrastBlock(':root[data-cm-contrast="high"]')}
+
+/* A theme whose primaryColor is not "brand" (global-styles.ts sets the attribute): the accent
+   tokens follow the primary palette. After the AA block, so a custom accent wins there too. */
+:root[data-cm-accent] {
+    ${primaryAccentDeclarations()}
+}
 
 /* Reduced motion: the few things that move (spec 2.8: a checkbox tick, a switch knob, a hover
    color, the help button's ring, the loading fade) change in one frame. Every such transition

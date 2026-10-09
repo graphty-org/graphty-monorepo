@@ -60,14 +60,7 @@ export type ShellStateAxis = "empty" | "loaded" | "loaded-subset" | "loading" | 
  * is a real surface and not an empty state. Spec 03 sections 4 to 6.
  */
 export type SelectionKind =
-    | "algorithm-result"
-    | "cleaning-step"
-    | "edge"
-    | "multiple"
-    | "node"
-    | "none"
-    | "pattern-match"
-    | "style-layer";
+    "algorithm-result" | "cleaning-step" | "edge" | "multiple" | "node" | "none" | "pattern-match" | "style-layer";
 
 /* -------------------------------------------------------------------------- */
 /* Layout state (build spec 01 section 7; build spec 04 section 6)             */
@@ -398,17 +391,6 @@ export interface CanvasRegionProps {
     readonly docks: CanvasDockState;
     /** Which overlays are shown. */
     readonly overlays: CanvasOverlayVisibility;
-    /**
-     * Tapping the canvas below 1280 px closes an open overlay. Tapping the canvas
-     * TOOLBAR is not tapping the canvas, even though the toolbar is drawn inside the
-     * canvas element (spec 01 section 7 item 5).
-     *
-     * This region reports every tap that was not on its own chrome; whether the tap
-     * SELECTED something -- which design 5.2 also carves out, since the tap that fills
-     * the inspector must not dismiss it -- is known only to the shell, so that decision
-     * lives in the shell's handler and this contract is unchanged by it.
-     */
-    readonly onCanvasTap?: () => void;
     /** The graphty-element wrapper and any additional overlay content. */
     readonly children?: ReactNode;
 }
@@ -558,15 +540,7 @@ export interface TopBarProps {
  * Spec 02 section 4.2.
  */
 export type StatusBarSlotId =
-    | "ai"
-    | "counts"
-    | "issues"
-    | "layout"
-    | "running"
-    | "selection"
-    | "viewing"
-    | "xr"
-    | "zoom";
+    "ai" | "counts" | "issues" | "layout" | "running" | "selection" | "viewing" | "xr" | "zoom";
 
 /**
  * Slot 1. Owns node and edge counts and "shown of loaded of total"; neither is

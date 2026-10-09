@@ -50,6 +50,15 @@ export type NodeId = string | number;
 /** The identity of an edge. */
 export type EdgeId = string;
 
+/**
+ * What `element.elementAt(point)` finds under a point: a node or an edge, by id.
+ *
+ * Only nodes are found today. The edge case is declared so code that switches on `kind` already
+ * handles it, and edges can be returned later without a breaking change.
+ */
+export type ElementAtResult =
+    { readonly kind: "node"; readonly id: NodeId } | { readonly kind: "edge"; readonly id: EdgeId };
+
 /** The identity of a run. Stable, selector-safe and author-assignable. */
 export type RunId = string;
 
@@ -127,6 +136,11 @@ export const KNOWN_ALGORITHMS = [
     "prim",
     "bipartite-matching",
     "link-prediction",
+    "markov-clustering",
+    "spectral-clustering",
+    "hierarchical-clustering",
+    "astar",
+    "edge-betweenness",
 ] as const;
 
 /**
@@ -326,9 +340,15 @@ export type ResultShape = (typeof RESULT_SHAPES)[number];
 export interface FieldBand {
     /** A stable id a consumer may key its own wording on, such as "clear". */
     id: string;
-    /** The band in a few plain words, such as "Clearly separated". */
+    /**
+     * The band in a few plain words, such as "Clearly separated".
+     * @deprecated Word the band from {@link FieldBand.id} yourself. Removed in the next major.
+     */
     plainName: string;
-    /** One plain-language sentence on what a value in this band means. */
+    /**
+     * One plain-language sentence on what a value in this band means.
+     * @deprecated Word the band from {@link FieldBand.id} yourself. Removed in the next major.
+     */
     description: string;
     /** A value strictly greater than this is in the band. */
     above?: number;
@@ -341,7 +361,11 @@ export interface FieldBand {
  * thresholds come from.
  */
 export interface FieldInterpretation {
-    /** One sentence on what the score measures and the value that counts as good. */
+    /**
+     * One sentence on what the score measures and the value that counts as good.
+     * @deprecated Word the scale from the field's name and its bands' ids yourself. Removed in the
+     *   next major.
+     */
     summary: string;
     /** Where the thresholds come from, as a citation a reader can look up. */
     source: string;
@@ -551,7 +575,7 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  * colours. N is the palette's capacity: 8 for the default, Okabe-Ito.
  *
  * - `"other"`: the N largest groups keep the palette's colours in palette order, largest group
- *   first, and every remaining group is painted one dark grey (#505050). The legend lists the
+ *   first, and every remaining group is painted one mid grey (#686868). The legend lists the
  *   grey as its last row, marked `role: "other"` with the elements it paints in `count`.
  * - `"shape"`: node encodings only. Group i is painted colour i mod N and drawn in shape
  *   floor(i / N) from a fixed list (icosphere, box, octahedron, cylinder, cone, torus), so the
@@ -889,8 +913,7 @@ export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "
  * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
  */
 export type AttributeUse =
-    | { readonly kind: "layer"; readonly id: LayerId }
-    | { readonly kind: "run"; readonly id: RunId };
+    { readonly kind: "layer"; readonly id: LayerId } | { readonly kind: "run"; readonly id: RunId };
 
 /** One attribute available on this session, whether it was imported, joined or computed. */
 export interface AttributeDescriptor {
@@ -1267,7 +1290,7 @@ export type PathKind = "simple" | "trail" | "walk" | "cycle";
 /**
  * The catalogue: everything the element can offer, as data.
  *
- * `session.catalog` implements every method here except the six named in
+ * `session.catalog` implements every method here except the ones named in
  * {@link DeprecatedCatalogMethod}, which nothing implements yet.
  */
 export interface CatalogApi {
@@ -1306,9 +1329,16 @@ export interface CatalogApi {
      */
     validate(query: Query, o?: { kind?: "selector" | "filter" | "formula" }): QueryValidation;
     /**
-     * The options for one algorithm or layout, with data-dependent bounds resolved.
-     * @deprecated Not implemented; `algorithms()` and `layouts()` carry the static option
-     * descriptors. Removed at the next major release unless it is implemented first (issue #336).
+     * The options for one algorithm or layout, with data-dependent bounds resolved for a scope.
+     *
+     * A bound written as an {@link OptionBound} reference (or as the bare reference string) comes
+     * back as the number measured over the scope, and a "node-id" or "node-set" option comes back
+     * with `values`: one choice per node in the scope, its value and label the node id as a
+     * string. Every other field is the static descriptor's.
+     * @param key - An algorithm key, looked for first, or a layout id.
+     * @param scope - What to measure; the session's default run scope when absent.
+     * @returns The options, in declaration order.
+     * @throws `E_UNKNOWN_ALGORITHM` when no algorithm or layout is registered under `key`.
      */
     optionsFor(key: AlgorithmKey | LayoutId, scope?: Scope): Promise<readonly OptionDescriptor[]>;
 }
@@ -1319,13 +1349,7 @@ export interface CatalogApi {
  * Implementing one means deleting its name here: `SessionCatalogApi` is derived from this list,
  * so the two cannot drift apart.
  */
-export type DeprecatedCatalogMethod =
-    | "themes"
-    | "functions"
-    | "timeAttributes"
-    | "applicable"
-    | "validate"
-    | "optionsFor";
+export type DeprecatedCatalogMethod = "themes" | "functions" | "timeAttributes" | "applicable" | "validate";
 
 // ---------------------------------------------------------------------------------------------
 // Guards

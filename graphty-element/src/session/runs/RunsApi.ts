@@ -46,6 +46,7 @@ import type { Draft } from "../project/draft";
 import type { RunEntry } from "../project/state";
 import type { RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
+import type { CodedFact } from "../shared";
 import {
     authoredDriving,
     type AutoApplyPolicy,
@@ -56,6 +57,7 @@ import {
 } from "../styles/autoApply";
 import type { StyleSuggestion } from "../styles/derive";
 import type { Layer } from "../styles/Layer";
+import type { HistoryCode } from "../types";
 import {
     ManagedRun,
     type RunBody,
@@ -77,7 +79,7 @@ import {
     type ResultIdentity,
     type RunIdentity,
 } from "./runId";
-import { suggestRunName } from "./suggestedName";
+import { type RunName, suggestRunName } from "./suggestedName";
 import {
     type BatchResult,
     type BatchStep,
@@ -375,6 +377,7 @@ const DEFAULT_CAVEATS: Caveats = Object.freeze({
     weight: null,
     precision: "f64",
     method: "exact",
+    facts: Object.freeze([]),
     notes: Object.freeze([]),
 });
 
@@ -631,7 +634,7 @@ interface ResolvedRun {
     readonly id: RunId;
     readonly derived: boolean;
     /** The name the algorithm suggested, for a run the caller did not name. */
-    readonly name?: SuggestedName;
+    readonly name?: RunName;
 }
 
 /** Starting runs, finding them, and taking them away. */
@@ -658,7 +661,7 @@ class Runs implements SessionRunsApi {
     private readonly derivedIds = new Set<RunId>();
 
     /** The name each minted id was suggested as: the id it tried first, and the run's label. */
-    private readonly names = new Map<RunId, SuggestedName>();
+    private readonly names = new Map<RunId, RunName>();
 
     /** The command each run was started with, which a re-run dispatches again. */
     private readonly commands = new Map<RunId, AlgorithmRunCommand>();
@@ -813,7 +816,12 @@ class Runs implements SessionRunsApi {
             fields: [],
             engine: this.options.engine,
             caveats: this.defaultCaveats,
-            execute: this.batchExecutor(specs, label, () => run),
+            execute: this.batchExecutor(
+                specs,
+                label,
+                { code: "algo.batch", params: { label: options.label ?? null, count: specs.length } },
+                () => run,
+            ),
             publishOnCancel: true,
             ...(options.signal === undefined ? {} : { signal: options.signal }),
             ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
@@ -1148,6 +1156,8 @@ class Runs implements SessionRunsApi {
         };
         const surroundings: RunSurroundings = {
             label: () => this.labelOf(id),
+            distinguishedBy: () => this.names.get(id)?.distinguishedBy ?? null,
+            siblingsDifferBy: () => this.siblingsDifferBy(id),
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
             resolveScope: () => refuseEmptySet(spec, this.options.resolveScope(spec)),
@@ -1330,9 +1340,9 @@ class Runs implements SessionRunsApi {
      * as data, start one here -- and write the run into the command's step when it finishes.
      * @param command - The command.
      * @param ctx - The command's context.
-     * @returns Settles once the run is written; rejects when it failed or was cancelled first.
+     * @returns The run's id, once the run is written; rejects when it failed or was cancelled first.
      */
-    private async execute(command: AlgorithmRunCommand, ctx: UndoableContext): Promise<void> {
+    private async execute(command: AlgorithmRunCommand, ctx: UndoableContext): Promise<RunId> {
         const run = this.adopt(command);
         const body = this.bodies.get(run.id);
 
@@ -1343,7 +1353,7 @@ class Runs implements SessionRunsApi {
                 this.applySuggested(ctx.draft, run);
             }
 
-            return;
+            return run.id;
         }
 
         this.bodies.delete(run.id);
@@ -1387,6 +1397,9 @@ class Runs implements SessionRunsApi {
         if (!wrote) {
             throw run.error ?? new DOMException(`Run "${run.id}" stopped before it was recorded.`, "AbortError");
         }
+
+        // The journal reads which run this command finished from what it resolves with.
+        return run.id;
     }
 
     /**
@@ -1671,19 +1684,18 @@ class Runs implements SessionRunsApi {
         }
 
         const base = this.baseLabelOf(run);
-        const siblings = [...this.runs.values()].filter(
-            (other) =>
-                other.algorithm === run.algorithm &&
-                other.id !== id &&
-                this.listed(other) &&
-                this.baseLabelOf(other) === base,
-        );
+        const differing = this.siblingsDifferBy(id);
 
-        if (siblings.length === 0) {
+        if (differing === null) {
             return base;
         }
 
-        return `${base} (${this.qualifierFor(run, siblings)})`;
+        const qualifier =
+            differing.length === 0
+                ? describeScope(run.scope.spec, this.options.setName)
+                : differing.map((name) => `${name} ${formatParamValue(run.params[name])}`).join(", ");
+
+        return `${base} (${qualifier})`;
     }
 
     /**
@@ -1697,13 +1709,32 @@ class Runs implements SessionRunsApi {
     }
 
     /**
-     * What tells one run apart from its siblings: the parameters that differ, or failing that the
-     * scope it ran over.
-     * @param run - The run being labelled.
-     * @param siblings - The other runs of the same algorithm.
-     * @returns The qualifier, without its parentheses.
+     * What tells one run apart from the other listed runs of its algorithm that go by the same
+     * name: the parameters that differ, or failing that the scope it ran over.
+     * @param id - The run id.
+     * @returns The differing parameter names, sorted; an empty list when only the scope differs;
+     *   null while no other run shares the name.
      */
-    private qualifierFor(run: ManagedRun, siblings: readonly ManagedRun[]): string {
+    private siblingsDifferBy(id: RunId): readonly string[] | null {
+        const run = this.runs.get(id);
+
+        if (run === undefined) {
+            return null;
+        }
+
+        const base = this.baseLabelOf(run);
+        const siblings = [...this.runs.values()].filter(
+            (other) =>
+                other.algorithm === run.algorithm &&
+                other.id !== id &&
+                this.listed(other) &&
+                this.baseLabelOf(other) === base,
+        );
+
+        if (siblings.length === 0) {
+            return null;
+        }
+
         const differing = new Set<string>();
 
         for (const sibling of siblings) {
@@ -1714,14 +1745,7 @@ class Runs implements SessionRunsApi {
             }
         }
 
-        if (differing.size === 0) {
-            return describeScope(run.scope.spec, this.options.setName);
-        }
-
-        return [...differing]
-            .sort((left, right) => (left < right ? -1 : 1))
-            .map((name) => `${name} ${formatParamValue(run.params[name])}`)
-            .join(", ");
+        return Object.freeze([...differing].sort((left, right) => (left < right ? -1 : 1)));
     }
 
     // -- the catalogue ------------------------------------------------------------------------
@@ -1811,12 +1835,14 @@ class Runs implements SessionRunsApi {
      * one transaction, so its members and their layers are one step.
      * @param specs - What to run.
      * @param label - What the batch is called.
+     * @param fact - What its step did.
      * @param handle - The batch's own run, once it exists.
      * @returns The executor.
      */
     private batchExecutor(
         specs: readonly RunSpec[],
         label: string,
+        fact: CodedFact<HistoryCode>,
         handle: () => ManagedRun<BatchResult> | null,
     ): RunExecutor<BatchResult> {
         return async (context) => {
@@ -1863,18 +1889,22 @@ class Runs implements SessionRunsApi {
             };
 
             try {
-                await this.dispatcher.transaction(label, async (tx, signal) => {
-                    // Undo cancelling the batch aborts the transaction; the batch stops with it
-                    // and settles with what it had, which the undo has already taken back.
-                    signal.addEventListener(
-                        "abort",
-                        () => {
-                            handle()?.cancel("The batch was undone.");
-                        },
-                        { once: true },
-                    );
-                    await members((command, options) => tx.dispatch(command, options), signal);
-                });
+                await this.dispatcher.transaction(
+                    label,
+                    async (tx, signal) => {
+                        // Undo cancelling the batch aborts the transaction; the batch stops with it
+                        // and settles with what it had, which the undo has already taken back.
+                        signal.addEventListener(
+                            "abort",
+                            () => {
+                                handle()?.cancel("The batch was undone.");
+                            },
+                            { once: true },
+                        );
+                        await members((command, options) => tx.dispatch(command, options), signal);
+                    },
+                    { fact },
+                );
             } catch (error) {
                 if (!(error instanceof Error && error.name === "AbortError")) {
                     throw error;
@@ -1886,7 +1916,14 @@ class Runs implements SessionRunsApi {
             return {
                 result: Object.freeze({ label, total: specs.length, completed, partial, steps: Object.freeze(steps) }),
                 partial,
-                ...(partial ? { partialReason: `${completed} of ${specs.length} members finished.` } : {}),
+                ...(partial
+                    ? {
+                          partialCause: {
+                              code: "partial.batch-incomplete" as const,
+                              params: { completed, total: specs.length },
+                          },
+                      }
+                    : {}),
             };
         };
     }

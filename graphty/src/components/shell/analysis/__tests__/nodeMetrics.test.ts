@@ -11,7 +11,14 @@
  * the two places this module is allowed to decide something of its own.
  */
 
-import type { GraphSession, Histogram, RankingEntry, ResultSummary, RunResult } from "@graphty/graphty-element/session";
+import {
+    DEFAULT_LIMITS,
+    type GraphSession,
+    type Histogram,
+    type RankingEntry,
+    type ResultSummary,
+    type RunResult,
+} from "@graphty/graphty-element/session";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -64,6 +71,7 @@ function fakeResult(published: Published): RunResult {
             weight: null,
             precision: "f64",
             method: "exact",
+            facts: [],
             notes: [],
         },
         durationMs: 0,
@@ -74,6 +82,7 @@ function fakeResult(published: Published): RunResult {
         ranking: () => ranking,
         summary: () => summary,
         histogram: () => published.histogram ?? NO_DISTRIBUTION,
+        top: () => ({ entries: ranking, leftOut: null, reason: null, threshold: null }),
         graph: published.graph ?? {},
     } as unknown as RunResult;
 }
@@ -411,6 +420,7 @@ describe("metricDistribution", () => {
 
                 return NO_DISTRIBUTION;
             },
+            top: () => ({ entries: [], leftOut: null, reason: null, threshold: null }),
             graph: {},
         } as unknown as RunResult;
         const session = {
@@ -421,6 +431,30 @@ describe("metricDistribution", () => {
 
         expect(asked).toEqual({ bins: METRIC_DISTRIBUTION_MAX_BINS, scale: "auto" });
         expect(stub.started).toEqual([]);
+    });
+});
+
+describe("the drawable threshold", () => {
+    it("asks the element for the top that fits the render ceiling, and carries its cut", () => {
+        let asked: unknown;
+        const drawable = { entries: [], leftOut: null, reason: null, threshold: 7 };
+        const result = {
+            ranking: () => [entry("a", 3, 1)],
+            summary: () => ({ count: 1, measured: 1, min: 3, max: 3, median: 3, tiedAtMin: 1 }),
+            histogram: () => NO_DISTRIBUTION,
+            top: (field: string, n: number) => {
+                asked = { field, n };
+
+                return drawable;
+            },
+            graph: {},
+        } as unknown as RunResult;
+        const session = {
+            runs: { list: () => [{ id: "degree_1", algorithm: "degree", status: "succeeded", result }] },
+        } as unknown as Pick<GraphSession, "runs">;
+
+        expect(readNodeMetricResults(session, "degree").drawable).toBe(drawable);
+        expect(asked).toEqual({ field: "value", n: DEFAULT_LIMITS.renderCeiling });
     });
 });
 

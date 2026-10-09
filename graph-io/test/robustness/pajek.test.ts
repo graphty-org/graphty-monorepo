@@ -5,7 +5,7 @@
  */
 
 import { GraphBuilder, GraphFormatError, type NodeId } from "@graphty/graph-format";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { pajekImporter } from "../../src/formats/pajek/index.js";
 import { importAllGraphs, importGraph, type ImportGraphOptions, type ImportGraphResult } from "../../src/index.js";
@@ -92,6 +92,17 @@ describe("Pajek robustness: counts", () => {
         expect(fatalCode(err)).toBe("E_PAJEK_VERTICES_COUNT");
         expect(err.message).toBe("line 1: *Vertices 3: the sink cannot hold that many (no room)");
         expect(issue(err.report, "E_PAJEK_VERTICES_COUNT").line).toBe(1);
+    });
+
+    it("refuses *Vertices past the builder's id map limit at the header, before any vertex is created", async () => {
+        const sink = new GraphBuilder({ directed: true });
+        const addNode = vi.spyOn(sink, "addNode");
+        const err = await rejects(pajekImporter.import("*Vertices 2000000000\n", sink));
+        expect(addNode).not.toHaveBeenCalled();
+        expect(fatalCode(err)).toBe("E_PAJEK_VERTICES_COUNT");
+        expect(err.message).toMatch(/^line 1: \*Vertices 2000000000: the sink cannot hold that many \(/);
+        expect(issue(err.report, "E_PAJEK_VERTICES_COUNT").line).toBe(1);
+        expect(sink.nodeBound).toBe(0);
     });
 
     it("reports vertices without a line even when other lines were out of range", async () => {
@@ -228,12 +239,11 @@ describe("Pajek robustness: labels and encodings", () => {
         expect(column(snapshot, "nodes", "label")).toEqual([`caf${E_ACUTE}`]);
     });
 
-    it("warns once when a coordinate does not survive the f32 position column", async () => {
+    it("keeps coordinates exactly, beyond f32 precision", async () => {
         const { snapshot, report } = await pajek('*Vertices 2\n1 "a" 0.123456789 0.2\n2 "b" 0.5 0.25\n*Edges\n');
-        expect(codes(report)).toEqual(["W_PRECISION"]);
-        expect(issue(report, "W_PRECISION").line).toBe(2);
+        expect(codes(report)).toEqual([]);
         expect(column(snapshot, "nodes", "position")).toEqual([
-            [Math.fround(0.123456789), Math.fround(0.2), 0],
+            [0.123456789, 0.2, 0],
             [0.5, 0.25, 0],
         ]);
     });

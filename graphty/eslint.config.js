@@ -22,7 +22,7 @@ const ELEMENT_EXPORTS = Object.keys(
     JSON.parse(readFileSync(new URL("../graphty-element/package.json", import.meta.url), "utf8")).exports,
 )
     .filter((key) => key !== ".")
-    .map((key) => key.slice(2).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    .map((key) => key.slice(2).replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`));
 const RULE = "The graphty app consumes graphty-element and nothing else (CLAUDE.md, Architectural Principles).";
 const RESTRICTED_IMPORT_PATTERNS = [
     {
@@ -114,9 +114,11 @@ export default tseslint.config(
     },
 
     // The app's own lint rules are tooling, not app code: their tests read graphty-element's door
-    // list at its source, which is the list the rule enforces against.
+    // list at its source, which is the list the rule enforces against. The build scripts are
+    // tooling too: scripts/write-sample-gml.ts writes the sample files with graph-io at build time,
+    // and nothing it imports reaches the app.
     {
-        files: ["eslint-rules/**/*.ts"],
+        files: ["eslint-rules/**/*.ts", "scripts/**/*.ts"],
         rules: { "@typescript-eslint/no-restricted-imports": "off" },
     },
 );

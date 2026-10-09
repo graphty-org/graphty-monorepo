@@ -77,6 +77,7 @@ function fakeResult(published: Published): RunResult {
             weight: null,
             precision: "f64",
             method: "exact",
+            facts: [],
             notes: [],
         },
         durationMs: 0,
@@ -388,7 +389,7 @@ describe("runCommunityDetection", () => {
         const result = await runCommunityDetection(stub.session);
 
         expect(result).toEqual({
-            runId: expect.any(String) as unknown as string,
+            runId: expect.any(String),
             groupCount: 0,
             largestGroupSize: 0,
             nodeCount: 0,

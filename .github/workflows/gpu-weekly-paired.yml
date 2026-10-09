@@ -2,16 +2,15 @@
 # T4: master's tip against the latest released version (the newest webgpu-graph-algorithms@<version> tag), every
 # benchmark group, with scripts/bench-ab.js's statistics unchanged (4 ABBA rounds, flag above x1.08).
 #
-# Why it exists: a pull request's paired benchmark in gpu.yml runs only the groups its change can move
-# (scripts/bench-groups.js), so a slowdown the import scan cannot see, or one that builds up over several pull
-# requests each under the threshold, is caught here within a week. A regression fails this run and files or
-# rewrites one open issue (labels bug, gpu, priority:high, effort:medium); a clean run closes it. It never runs on a
-# pull request, and it is a workflow of its own rather than a job of gpu.yml so that release.yml's gate, which reads
-# the newest gpu.yml run of a commit, never mistakes it for the lane's verdict on master.
+# Why it exists: the T4 runs nowhere else on a schedule. The release train's T4 run (gpu.yml, called by
+# release.yml) compares the benchmarks against the checked-in baseline but pairs nothing, so a slowdown under that
+# loose threshold, or one that builds up over several merges, is caught here within a week. A regression fails
+# this run and files or rewrites one open issue (labels bug, gpu, priority:high, effort:medium); a clean run closes
+# it. It never runs on a pull request, and it is a workflow of its own so that its verdict never decides a release.
 #
-# Timing: one pass of every group is about 7.7 minutes on the T4 and the paired run makes eight passes plus the
-# base build, about 65 minutes (gpu.yml run 36882775800 hit a 40-minute limit after about 5 of the 8); setup,
-# install and build add about 5.
+# Timing: one pass of every group is 528 s, about 8.8 minutes, on the T4 (the gaps between the group headers of
+# gpu.yml run 37451823822's benchmark pass) and the paired run makes eight passes plus the base build, about 72
+# minutes; setup, install and build add about 5.
 name: GPU weekly paired benchmark
 on:
     schedule:
@@ -27,7 +26,9 @@ concurrency:
 jobs:
     paired:
         name: Paired benchmark, master against the latest release (NVIDIA T4)
-        runs-on: machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand # the same machine.dev T4 as gpu.yml's default
+        # On-demand, like gpu.yml's default (owner decision, 2026-10-08): reclaimed spot runners interrupted T4 jobs,
+        # and a paired run cut short throws away its whole hour of ABBA rounds.
+        runs-on: machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand
         timeout-minutes: 100 # setup about 5 + the paired step's 85
         env:
             GRAPHTY_GPU_REQUIRE: nvidia
@@ -52,7 +53,7 @@ jobs:
             - name: Paired benchmark of every group against the latest release
               id: ab
               continue-on-error: true
-              timeout-minutes: 85 # about 65 measured, with margin
+              timeout-minutes: 85 # about 72 measured, with margin
               run: |
                   tag=$(git tag -l 'webgpu-graph-algorithms@*' --sort=-v:refname | head -1)
                   echo "tag=$tag" >> "$GITHUB_OUTPUT"

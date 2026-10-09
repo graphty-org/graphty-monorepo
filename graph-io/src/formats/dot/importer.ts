@@ -21,7 +21,7 @@
  *   name (fdp's cluster edges) merge into that one node with a warning. Other subgraphs are
  *   transparent grouping; their attributes are reported as dropped.
  * - attribute values are ID strings inferred per column by the sink under the 5.1 grammar, except
- *   `label` (text, role label), `pos` on a node (the position role column, f32 x3, design section
+ *   `label` (text, role label), `pos` on a node (the position role column, f64 x3, design section
  *   5.2), `weight` (THE weight, `weightFrom`) and `key` (cgraph's edge identity, the edge id role).
  * - ids are coerced with the common rule (`canonical` by default: `1` and `"1"` are the same node,
  *   as the DOT grammar says).
@@ -68,7 +68,6 @@ import {
     UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
-import { survivesF32 } from "../../common/format.js";
 import { IdCoercer } from "../../common/ids.js";
 import { canonicalEncoding, readText, throwIfAborted } from "../../common/input.js";
 import {
@@ -177,7 +176,7 @@ export const DOT_ISSUE = Object.freeze({
     CLUSTER_NODE_MERGED: "W_DOT_CLUSTER_NODE_MERGED",
     /** A node mentioned in two unrelated clusters keeps the first. */
     CLUSTER_CONFLICT: "W_DOT_CLUSTER_CONFLICT",
-    /** A node's `pos` is not a point, or is too large for a 32-bit float position; the value was dropped. */
+    /** A node's `pos` is not a point, or has a coordinate that is not finite; the value was dropped. */
     BAD_POS: "W_DOT_BAD_POS",
     /** Node `pos` values mix two and three coordinates; the position column records the first's. */
     POS_DIMS: "W_DOT_POS_DIMS",
@@ -264,8 +263,16 @@ const MAX_ANCESTOR_WALK = 4096;
 const DOT_HEADER = /^\s*(strict\s+)?(di)?graph(?=[\s{"/]|$)(?!\s*\[)/i;
 const TRUE_TEXTS: ReadonlySet<string> = new Set(["true", "yes", "1"]);
 const COMPASS_POINTS: ReadonlySet<string> = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw", "c", "_"]);
-const POINT_TEXT =
-    /^\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*,\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)(?:\s*,\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?))?\s*(!?)\s*$/;
+/**
+ * A DOT number: digits with an optional fraction, or a bare fraction (`.5`), then an exponent.
+ * Written so each digit has exactly one way to match; `[0-9]*\.?[0-9]+` took quadratic time on a
+ * long run of digits.
+ */
+const POINT_NUMBER = String.raw`[-+]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][-+]?\d+)?`;
+/** A point "x,y[,z][!]". The `!` and its trailing space are one optional group, so spaces cannot split two ways. */
+const POINT_TEXT = new RegExp(
+    String.raw`^\s*(${POINT_NUMBER})\s*,\s*(${POINT_NUMBER})(?:\s*,\s*(${POINT_NUMBER}))?\s*(?:(!)\s*)?$`,
+);
 
 /** An attribute as written: name, value text and the line of the assignment. */
 interface DotAttribute {
@@ -506,7 +513,7 @@ function countGraphs(lexer: DotTokenizer, first: DotToken): number {
         if (!isPunct(token, "{")) {
             throw new DotSyntaxError(`expected "{" after the graph header, found ${describeToken(token)}`, token.line);
         }
-        for (let depth = 1; depth > 0; ) {
+        for (let depth = 1; depth > 0;) {
             token = lexer.next();
             if (token.kind === "eof") {
                 throw new DotSyntaxError('missing "}" at the end of a graph', token.line);
@@ -1664,24 +1671,15 @@ class DotParser {
         const z = match[3] === undefined ? 0 : Number(match[3]);
         const dims = match[3] === undefined ? 2 : 3;
         const point = [x, y, z];
-        if (point.some((v) => !Number.isFinite(Math.fround(v)))) {
-            // the position column is f32: a half-infinite point would be a half-valid position
+        if (point.some((v) => !Number.isFinite(v))) {
+            // a half-infinite point would be a half-valid position
             this.report.warning(
                 "validation-error",
                 DOT_ISSUE.BAD_POS,
-                `pos ${JSON.stringify(text)} is beyond the f32 range of the position column; dropped`,
+                `pos ${JSON.stringify(text)} has a coordinate that is not finite; dropped`,
                 { line, element },
             );
             return;
-        }
-        if (!point.every(survivesF32)) {
-            this.report.warnOnce(
-                "precision",
-                DOT_ISSUE.PRECISION,
-                `pos ${JSON.stringify(text)} has a coordinate the f32 position column rounds (warned once; positions=false keeps pos as written)`,
-                { line, element },
-                `${DOT_ISSUE.PRECISION}:pos`,
-            );
         }
         if (this.posDims === 0) {
             this.posDims = dims;
@@ -1761,7 +1759,7 @@ class DotParser {
     }
 
     /**
-     * The position column (f32 x3, role position, design section 5.2), declared on the first `pos`.
+     * The position column (f64 x3, role position, design section 5.2), declared on the first `pos`.
      * @param dims - the dimensions of the first value, recorded in extra.sourceDims
      * @returns the handle
      */
@@ -1769,7 +1767,7 @@ class DotParser {
         if (this.positionHandle === INVALID_INDEX) {
             this.positionHandle = this.declare("node", {
                 name: POS_ATTRIBUTE,
-                dtype: "f32",
+                dtype: "f64",
                 components: 3,
                 nullable: true,
                 mutable: true,

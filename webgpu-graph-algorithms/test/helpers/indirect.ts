@@ -22,15 +22,7 @@ import { type CheckReport, mergeReports, ratioOf } from "./sabotage.js";
 
 /** The nine counts: the 1D / 2D boundary of the 16,776,960 rule, the 4M fill count of the indirect-dispatch case, and the largest u32. */
 export const INDIRECT_COUNTS: readonly number[] = Object.freeze([
-    0,
-    1,
-    255,
-    256,
-    257,
-    16_776_960,
-    16_776_961,
-    4_000_000,
-    0xffffffff,
+    0, 1, 255, 256, 257, 16_776_960, 16_776_961, 4_000_000, 0xffffffff,
 ]);
 
 /** The 36 words the finalize must write for INDIRECT_COUNTS: (x, y, 1, count) per slot by planIndirect's rule. */
@@ -61,7 +53,7 @@ export function indirectBuffers(ctx: GpuContext): IndirectBuffers {
     const counters = uploadBuffer(ctx, new Uint32Array(INDIRECT_COUNTS), "indirect/counters");
     const args = uploadBuffer(
         ctx,
-        new Uint32Array(INDIRECT_COUNTS.length * INDIRECT_ARGS_STRIDE / 4),
+        new Uint32Array((INDIRECT_COUNTS.length * INDIRECT_ARGS_STRIDE) / 4),
         "indirect/args",
         BufferUsage.INDIRECT,
     );

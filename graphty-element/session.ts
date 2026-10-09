@@ -60,6 +60,7 @@
 // ---------------------------------------------------------------------------------------------
 
 import type { RuleTree, SelectionDirection } from "./src/catalog/types";
+import { englishReading, type ReadingOptions, type RunResult } from "./src/session/results";
 import type { SelectionOp } from "./src/session/selection";
 
 export type {
@@ -90,6 +91,7 @@ export type {
     GraphSession,
     GraphStatistics,
     HistoryCause,
+    HistoryCode,
     HistoryOutcome,
     HistoryStep,
     HistoryStepId,
@@ -150,7 +152,7 @@ export { createGraphSession } from "./src/session";
  * `data-loaded` and `data-loading-complete`.
  */
 export type { EndpointSpelling } from "./src/data/endpoints";
-export type { ImportReport, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
+export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
 
 // ---------------------------------------------------------------------------------------------
 // The node coordinates
@@ -167,7 +169,7 @@ export type { ReadonlyElementPositions } from "./src/session";
 // Which arrangement suits a graph
 // ---------------------------------------------------------------------------------------------
 
-export type { LayoutRecommendation, LayoutRecommendationOptions } from "./src/session";
+export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./src/session";
 export { recommendLayout } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
@@ -183,8 +185,10 @@ export { LOAD_ROLES } from "./src/session";
 export type {
     BatchResult,
     BatchStep,
+    CaveatCode,
     Caveats,
     EngineVersions,
+    PartialCode,
     Precision,
     Progress,
     QueueEntry,
@@ -193,6 +197,7 @@ export type {
     Run,
     RunChange,
     RunDirection,
+    RunDistinction,
     RunExecutionContext,
     RunExecutor,
     RunOptions,
@@ -242,6 +247,7 @@ export type {
     Normalization,
     NumericColumnView,
     RankingEntry,
+    ReadingCode,
     ReadingOptions,
     ResultsApi,
     ResultSummary,
@@ -251,13 +257,19 @@ export type {
     SummaryGroup,
     TopRanking,
 } from "./src/session/results";
-export {
-    defaultReading,
-    RESULT_FIELD_NAMES,
-    RESULT_ROOT,
-    RESULT_SHAPE_CONTRACTS,
-    resultPath,
-} from "./src/session/results";
+export { RESULT_FIELD_NAMES, RESULT_ROOT, RESULT_SHAPE_CONTRACTS, resultPath } from "./src/session/results";
+
+/**
+ * Write one English sentence saying what a result means: the sentence `result.reading()` returns,
+ * worded from `result.readingFact()`.
+ * @param result - The result to read.
+ * @param options - The locale to print numbers in, and whether to use plain or technical words.
+ * @returns The sentence.
+ * @deprecated Read `result.readingFact()` and word it yourself. Removed in the next major.
+ */
+export function defaultReading(result: RunResult, options: ReadingOptions): string {
+    return englishReading(result, options);
+}
 
 // ---------------------------------------------------------------------------------------------
 // Which elements a piece of work is allowed to look at
@@ -304,6 +316,12 @@ export type {
     NoteTargetStatus,
     Problem,
 } from "./src/session/notes/types";
+
+// ---------------------------------------------------------------------------------------------
+// The journal: the record of the commands a session ran, as `session.journal`
+// ---------------------------------------------------------------------------------------------
+
+export type { JournalApi, JournalEntry, JournalId } from "./src/session/journal";
 
 // ---------------------------------------------------------------------------------------------
 // The project file: the whole session saved to one file and opened again, as `session.project`
@@ -426,7 +444,10 @@ export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    ChannelAgreement,
     ChannelExplanation,
+    ChannelRefusalCode,
+    ChannelShare,
     ColumnEncodingSpec,
     ElementLayerSpec,
     EncodingOptions,
@@ -436,6 +457,7 @@ export type {
     EncodingSpec,
     EncodingSuggestion,
     ExplainTarget,
+    FieldResult,
     FieldWords,
     HighlightSpec,
     HighlightSuggestion,
@@ -443,19 +465,24 @@ export type {
     LayerPosition,
     LayerProblem,
     LegendBlock,
+    LegendFact,
+    LegendFactCode,
     LegendReading,
     LegendSwatch,
     RepaintReason,
     RepaintReport,
     SessionStylesApi,
+    StyleAgreement,
     StyleChange,
     StyleContribution,
+    StyleCounts,
     StyleExplanation,
     StylesApi,
     StyleSuggestion,
     TemplateOptions,
     TemplateReport,
     UnboundLayer,
+    UnboundLayerCode,
     ValidationResult,
 } from "./src/session/styles";
 export { quotePath } from "./src/session/styles";

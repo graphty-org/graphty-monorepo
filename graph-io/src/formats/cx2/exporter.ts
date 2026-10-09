@@ -229,7 +229,7 @@ function nonFiniteCount(column: Column): number {
             if ((value as readonly number[]).some((v) => !Number.isFinite(v))) {
                 count++;
             }
-        } else if (!Number.isFinite(value as number)) {
+        } else if (!Number.isFinite(value)) {
             count++;
         }
     }
@@ -270,18 +270,26 @@ function planAttributes(
     return plans;
 }
 
+/** A note-recording callback. */
+type Note = (code: string, message: string, column?: string | null, count?: number | null) => void;
+
 /**
- * Plan an export: the notes, the fatal condition and what is written.
+ * The generic notes of checkCapabilities(), adapted to CX2: bypass columns hold any JSON value,
+ * ids are counted by planNodeIds(), nested values are written as JSON text, and only the node
+ * label is written into the "n" slot (an edge label keeps its own name but loses its role).
  * @param snapshot - the snapshot
  * @param common - the resolved common options
- * @returns the plan
+ * @param notes - the notes so far, appended to
+ * @param note - the recorder
+ * @returns the fatal condition, or null
  */
-function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
-    const notes: LossNote[] = [];
+function capabilityNotes(
+    snapshot: GraphSnapshot,
+    common: ResolvedExportOptions,
+    notes: LossNote[],
+    note: Note,
+): GraphFormatError | null {
     let fatal: GraphFormatError | null = null;
-    const note = (code: string, message: string, column: string | null = null, count: number | null = null): void => {
-        notes.push(Object.freeze({ code, message, column, count }));
-    };
     // bypass columns are written as bypasses, which hold any JSON value
     const bypassNames = new Set(
         [...snapshot.nodes, ...snapshot.edges].filter((c) => isBypass(c) || isZ(c)).map((c) => c.meta.name),
@@ -289,12 +297,10 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     for (const gen of checkCapabilities(snapshot, CX2_CAPABILITIES, common, {
         roles: SLOT_ROLES,
         roleNames: ROLE_NAMES,
+        // only the node label is written into the "n" slot; an edge label keeps its own name
+        edgeRoleNames: {},
     })) {
-        if (gen.column !== null && bypassNames.has(gen.column) && (gen.code === LOSS.JSON || gen.code === LOSS.DTYPE)) {
-            continue;
-        }
-        if (gen.code === LOSS.ID_CHARSET || gen.code === LOSS.ID_MANGLED) {
-            // counted below: CX2 also keeps integer ids beyond 2^53, which the generic rule refuses
+        if (!keepGenericNote(gen, bypassNames)) {
             continue;
         }
         if (gen.code === LOSS.JSON) {
@@ -311,6 +317,111 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
         }
         notes.push(gen);
     }
+    const edgeLabel = snapshot.edges.byRole("label");
+    if (edgeLabel !== null) {
+        note(
+            LOSS.ROLE,
+            `edge column "${edgeLabel.meta.name}" (label) is written as a plain attribute; CX2 edges have no label slot and the role is lost`,
+            edgeLabel.meta.name,
+            edgeLabel.length - edgeLabel.nullCount,
+        );
+    }
+    return fatal;
+}
+
+/**
+ * Whether a generic note applies to CX2 as it stands.
+ * @param gen - the generic note
+ * @param bypassNames - the names of the columns written as bypasses
+ * @returns false for a note CX2 drops or replaces
+ */
+function keepGenericNote(gen: LossNote, bypassNames: ReadonlySet<string>): boolean {
+    if (gen.column !== null && bypassNames.has(gen.column) && (gen.code === LOSS.JSON || gen.code === LOSS.DTYPE)) {
+        return false;
+    }
+    // ids are counted by planNodeIds(): CX2 also keeps integer ids beyond 2^53, which the generic rule refuses
+    return gen.code !== LOSS.ID_CHARSET && gen.code !== LOSS.ID_MANGLED;
+}
+
+/**
+ * Note the NaN and infinite values written as null: attribute cells, explicit weights, positions.
+ * @param snapshot - the snapshot
+ * @param attrs - every planned attribute
+ * @param weights - the explicit weights
+ * @param position - the position column, or null
+ * @param note - the recorder
+ */
+function nonFiniteNote(
+    snapshot: GraphSnapshot,
+    attrs: readonly AttributePlan[],
+    weights: ExplicitWeights,
+    position: Column | null,
+    note: Note,
+): void {
+    let nonfinite = 0;
+    for (const p of attrs) {
+        nonfinite += nonFiniteCount(p.column);
+    }
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        if (weights.isExplicit(e) && !Number.isFinite(weights.value(e))) {
+            nonfinite++;
+        }
+    }
+    if (position !== null) {
+        nonfinite += nonFinitePositions(position);
+    }
+    if (nonfinite > 0) {
+        note(
+            CX2_LOSS.NONFINITE_AS_NULL,
+            `${nonfinite} NaN or infinite value${plural(nonfinite)} cannot be written in CX2; written as null, they read back unset`,
+            null,
+            nonfinite,
+        );
+    }
+}
+
+/**
+ * Plan the edge attributes, noting a plain `weight` column that clashes with the weight key.
+ * @param snapshot - the snapshot
+ * @param weights - the explicit weights
+ * @param note - the recorder
+ * @returns the edge attribute plans
+ */
+function planEdgeAttributes(snapshot: GraphSnapshot, weights: ExplicitWeights, note: Note): AttributePlan[] {
+    const plainWeight = snapshot.edges.get(WEIGHT_ATTRIBUTE);
+    if (plainWeight !== null && plainWeight.meta.role === null) {
+        note(
+            LOSS.WEIGHT_KEY_CLASH,
+            weights.weighted
+                ? `edge column "${WEIGHT_ATTRIBUTE}" is not written: the explicit weights are written under that name`
+                : `edge column "${WEIGHT_ATTRIBUTE}" reads back as the edge weight`,
+            WEIGHT_ATTRIBUTE,
+            null,
+        );
+    }
+    return planAttributes(
+        snapshot.edges,
+        (c) =>
+            (c.meta.role !== null && (SKIPPED_ROLES.has(c.meta.role) || c.meta.role === "id")) ||
+            isBypass(c) ||
+            (weights.weighted && c === plainWeight),
+        (c) => c.meta.name,
+        weights.weighted ? new Set([WEIGHT_ATTRIBUTE]) : new Set(),
+    );
+}
+
+/**
+ * Plan an export: the notes, the fatal condition and what is written.
+ * @param snapshot - the snapshot
+ * @param common - the resolved common options
+ * @returns the plan
+ */
+function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
+    const notes: LossNote[] = [];
+    const note: Note = (code, message, column = null, count = null) => {
+        notes.push(Object.freeze({ code, message, column, count }));
+    };
+    let fatal = capabilityNotes(snapshot, common, notes, note);
 
     const folding = pairFolding(snapshot);
     directionNotes(snapshot, folding, common, CX2_LOSS.UNDIRECTED_AS_DIRECTED, note);
@@ -329,54 +440,15 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
         (c) => (c === label && !snapshot.nodes.has("name") ? "name" : c.meta.name),
         ids !== null && ids.changed > 0 ? new Set([ORIGINAL_ID_ATTRIBUTE]) : new Set(),
     );
-    const plainWeight = snapshot.edges.get(WEIGHT_ATTRIBUTE);
-    const weightColumnClash = plainWeight !== null && plainWeight.meta.role === null;
-    if (weightColumnClash) {
-        note(
-            LOSS.WEIGHT_KEY_CLASH,
-            weights.weighted
-                ? `edge column "${WEIGHT_ATTRIBUTE}" is not written: the explicit weights are written under that name`
-                : `edge column "${WEIGHT_ATTRIBUTE}" reads back as the edge weight`,
-            WEIGHT_ATTRIBUTE,
-            null,
-        );
-    }
-    const edgeAttrs = planAttributes(
-        snapshot.edges,
-        (c) =>
-            (c.meta.role !== null && (SKIPPED_ROLES.has(c.meta.role) || c.meta.role === "id")) ||
-            isBypass(c) ||
-            (weights.weighted && c === plainWeight),
-        (c) => c.meta.name,
-        weights.weighted ? new Set([WEIGHT_ATTRIBUTE]) : new Set(),
-    );
+    const edgeAttrs = planEdgeAttributes(snapshot, weights, note);
     const graphAttrs = planAttributes(
         snapshot.graph,
         () => false,
         (c) => c.meta.name,
     ).map((p) => ({ ...p, key: p.name }));
 
-    let nonfinite = 0;
-    for (const p of [...nodeAttrs, ...edgeAttrs, ...graphAttrs]) {
-        nonfinite += nonFiniteCount(p.column);
-    }
-    for (let e = 0; e < snapshot.edgeCount; e++) {
-        if (weights.isExplicit(e) && !Number.isFinite(weights.value(e))) {
-            nonfinite++;
-        }
-    }
     const position = snapshot.nodes.byRole("position");
-    if (position !== null) {
-        nonfinite += nonFinitePositions(position);
-    }
-    if (nonfinite > 0) {
-        note(
-            CX2_LOSS.NONFINITE_AS_NULL,
-            `${nonfinite} NaN or infinite value${plural(nonfinite)} cannot be written in CX2; written as null, they read back unset`,
-            null,
-            nonfinite,
-        );
-    }
+    nonFiniteNote(snapshot, [...nodeAttrs, ...edgeAttrs, ...graphAttrs], weights, position, note);
 
     const edgeIds = planEdgeIds(snapshot, note);
     const z = [...snapshot.nodes].find(isZ) ?? null;

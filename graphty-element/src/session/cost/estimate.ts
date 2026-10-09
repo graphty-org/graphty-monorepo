@@ -37,6 +37,8 @@ import {
     type Scope,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { caveat, type CaveatCode, noted } from "../runs/caveatFacts";
+import type { CodedFact } from "../shared";
 import type { GraphStatistics } from "../types";
 
 // ---------------------------------------------------------------------------------------------
@@ -1053,7 +1055,15 @@ export type CostGateDecision =
           readonly sampleSize: number;
           /** Whether the method takes a seed, so `caveats.seed` can be filled or left null. */
           readonly seeded: boolean;
-          /** Sentences for `caveats.notes`, stating plainly what the numbers are. */
+          /**
+           * Facts for `caveats.facts`, stating plainly what the numbers are.
+           * @since 3.18.0
+           */
+          readonly facts: readonly CodedFact<CaveatCode>[];
+          /**
+           * The same facts as English sentences, for `caveats.notes`.
+           * @deprecated Word `facts` yourself. Removed in the next major.
+           */
           readonly notes: readonly string[];
       }
     | {
@@ -1189,7 +1199,7 @@ function fittingScopes(
         if (estimate.available && estimate.seconds <= cap) {
             fitting.push(
                 Object.freeze({
-                    scope: "largest-component" as Scope,
+                    scope: "largest-component",
                     label: "The largest connected piece",
                     nodes: largestSize,
                     edges,
@@ -1393,20 +1403,21 @@ function approximateDecision(
 ): CostGateDecision {
     const estimate = estimateCost({ ...input, sample: sampleSize });
     const nodes = input.scope?.nodes ?? input.statistics.nodeCount;
-    const notes = [
-        `Sampled rather than exact: ${approximable.plainName} over ${group(sampleSize)} of ${group(nodes)} nodes.`,
+    const facts = [
+        caveat("sampled.instead-of-exact", {
+            method: approximable.method,
+            name: approximable.plainName,
+            sampleSize,
+            nodes,
+        }),
     ];
 
     if (exactEstimate.seconds > cap) {
-        notes.push(
-            `An exact run was estimated at ${exactEstimate.seconds.toPrecision(3)} s, past the ${cap} s cap, so the approximate method was used instead.`,
-        );
+        facts.push(caveat("sampled.exact-past-cap", { seconds: exactEstimate.seconds, cap }));
     }
 
     if (estimate.seconds > cap) {
-        notes.push(
-            `The sampled run is itself estimated at ${estimate.seconds.toPrecision(3)} s, which is still past the cap.`,
-        );
+        facts.push(caveat("sampled.still-past-cap", { seconds: estimate.seconds, cap }));
     }
 
     return {
@@ -1417,7 +1428,7 @@ function approximateDecision(
         plainName: approximable.plainName,
         sampleSize,
         seeded: approximable.seeded,
-        notes: Object.freeze(notes),
+        ...noted(facts),
     };
 }
 

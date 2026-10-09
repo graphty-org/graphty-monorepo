@@ -1,8 +1,8 @@
+import { EMPTY_SUM, hashNodeId, membershipDigestOf, memberSum } from "../../../src/catalog/sets/hash";
 import type { AlgorithmDescriptor, EdgeId, NodeId, RunId, Scope } from "../../../src/catalog/types";
 import type { ResultSummary, RunResult } from "../../../src/session/results/types";
 import {
     type Caveats,
-    computeScopeDigest,
     type EngineVersions,
     type ResolvedScope,
     type RunExecutionContext,
@@ -23,6 +23,7 @@ export const CAVEATS: Caveats = Object.freeze({
     weight: null,
     precision: "f64",
     method: "test",
+    facts: [],
     notes: [],
 });
 
@@ -191,7 +192,11 @@ export class FakeGraph {
         edges: new Set(this.edges),
         nodeCount: this.nodes.size,
         edgeCount: this.edges.size,
-        digest: computeScopeDigest(spec, this.nodes, this.edges),
+        // The rule production uses (`digestOf` in src/session/sets/resolve.ts): the members only.
+        digest: membershipDigestOf(
+            { count: this.nodes.size, sum: memberSum(Array.from(this.nodes, hashNodeId)) },
+            { count: this.edges.size, sum: EMPTY_SUM },
+        ),
         spec,
         resolvedAt: new Date().toISOString(),
     });
@@ -259,11 +264,12 @@ export function stubResult(runId: RunId): RunResult {
             median: Number.NaN,
         }),
         ranking: () => [],
-        top: () => ({ entries: [], leftOut: null, reason: null }),
+        top: () => ({ entries: [], leftOut: null, reason: null, threshold: null }),
         histogram: () => ({ bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" }),
         groupSizes: () => ({ bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" }),
         summary: stubSummary,
         reading: () => "A stub result.",
+        readingFact: () => ({ code: "reading.metric-empty", params: { field: "value" } }),
         band: () => undefined,
     };
 }

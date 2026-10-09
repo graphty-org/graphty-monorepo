@@ -76,7 +76,7 @@ const SENTINEL = `${String.fromCodePoint(0)}graph-io`;
 const NONSTANDARD_TOKENS: readonly (readonly [string, number])[] = [
     ["-Infinity", -Infinity],
     ["Infinity", Infinity],
-    ["NaN", NaN],
+    ["NaN", Number.NaN],
 ];
 
 /** A JSON integer literal (no fraction, no exponent, no leading zero), as CANONICAL_INTEGER in common/ids.ts. */
@@ -1655,7 +1655,7 @@ export const POSITION_COLUMN = "position";
 const Z_COLUMN = "z";
 
 /**
- * The position column of a Cytoscape-family importer: f32 x3, y-up, 2 source dimensions.
+ * The position column of a Cytoscape-family importer: f64 x3, y-up, 2 source dimensions.
  * @param format - the importer's format name
  * @param sourceDims - 3 when z goes into the position (zAs "position")
  * @returns the declaration
@@ -1664,7 +1664,7 @@ const Z_COLUMN = "z";
 export function positionDecl(format: string, sourceDims = 2): ColumnDecl {
     return {
         name: POSITION_COLUMN,
-        dtype: "f32",
+        dtype: "f64",
         components: 3,
         role: "position",
         mutable: true,
@@ -1688,17 +1688,6 @@ export function zDecl(format: string): ColumnDecl {
         origin: { format, id: null, namespace: "cytoscape" },
         extra: { cytoscape: "z" },
     };
-}
-
-/**
- * Whether a coordinate fits the f32 position column: finite once rounded to f32 (1e39 and the
- * Infinity of a literal like 1e400 do not, nor does NaN).
- * @param value - the coordinate
- * @returns true when the column can hold it
- * @category Plugin helpers
- */
-export function fitsF32(value: number): boolean {
-    return Number.isFinite(Math.fround(value));
 }
 
 /**

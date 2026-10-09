@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { isolatedGitEnv } from "../isolated-git-env.mjs";
 import { decide, globToRegExp, lineHash, mapOldLine, nosonarComment, parseHunks } from "../sonar-gate.mjs";
 
 const GATE = join(dirname(fileURLToPath(import.meta.url)), "..", "sonar-gate.mjs");
@@ -20,22 +21,10 @@ const SERVER_ID = "FAKE-SERVER-ID";
 const scratch = mkdtempSync(join(tmpdir(), "sonar-gate-test-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 
-// A fixture repository's git: no global or system config, so no signing and no hooks of the owner's.
-const gitEnv = {
-    ...process.env,
-    GIT_CONFIG_GLOBAL: "/dev/null",
-    GIT_CONFIG_NOSYSTEM: "1",
-    GIT_AUTHOR_NAME: "t",
-    GIT_AUTHOR_EMAIL: "t@example.com",
-    GIT_COMMITTER_NAME: "t",
-    GIT_COMMITTER_EMAIL: "t@example.com",
-};
+// A fixture repository's git: no global or system config, so no signing and no hooks of the owner's,
+// and none of the GIT_* variables a hook exports (they would point git at the real repository).
+const gitEnv = isolatedGitEnv();
 for (const k of Object.keys(gitEnv)) if (k.startsWith("SONAR_")) delete gitEnv[k];
-// Inside a git hook git exports GIT_DIR and friends; left in, every git command below acts on the
-// real repository instead of the throwaway one (see tools/prepush.sh).
-for (const k of execFileSync("git", ["rev-parse", "--local-env-vars"], { encoding: "utf8" }).split("\n")) {
-    if (k) delete gitEnv[k];
-}
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, env: gitEnv, encoding: "utf8" }).trim();
 
 const BASE = ["export function a() {", "    return 1;", "}", "export const b = 2;", ""].join("\n");
@@ -224,7 +213,7 @@ describe("sonar-gate: the verdict", () => {
         const work = join(dir, ".git/sonar", dir.split("/").pop());
         const recorded = JSON.parse(readFileSync(join(work, "args.json"), "utf8"));
         assert.ok(recorded.hasToken, "the scanner got the token in its environment");
-        assert.ok(recorded.args.includes("-Dsonar.inclusions=src/a.ts"));
+        assert.ok(recorded.args.includes("-Dsonar.sources=src/a.ts"));
         assert.ok(
             recorded.args.every((a) => !a.includes(TOKEN)),
             "not in the scanner's arguments",

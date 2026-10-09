@@ -2,6 +2,7 @@ import PQueue from "p-queue";
 import toposort from "toposort";
 
 import { OBSOLESCENCE_RULES } from "../constants/obsolescence-rules";
+import type { OperationCancelledEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { OperationMetadata, OperationProgress } from "../types/operations";
 import type { EventManager } from "./EventManager";
@@ -851,7 +852,7 @@ export class OperationQueueManager implements Manager {
                 this.eventManager.emitGraphEvent("operation-cancelled", {
                     id,
                     reason: "Queue cleared",
-                });
+                } satisfies Omit<OperationCancelledEvent, "type">);
             }
         });
 
@@ -1005,7 +1006,7 @@ export class OperationQueueManager implements Manager {
             this.eventManager.emitGraphEvent("operation-cancelled", {
                 id: operationId,
                 reason: "Manual cancellation",
-            });
+            } satisfies Omit<OperationCancelledEvent, "type">);
 
             return true;
         }
@@ -1123,7 +1124,12 @@ export class OperationQueueManager implements Manager {
             if (result) {
                 // Queue the custom triggered operation
                 this.fireAndForget(
-                    this.queueTriggeredOperation(result.category, operation.metadata, result.execute, result.description),
+                    this.queueTriggeredOperation(
+                        result.category,
+                        operation.metadata,
+                        result.execute,
+                        result.description,
+                    ),
                 );
             }
         }

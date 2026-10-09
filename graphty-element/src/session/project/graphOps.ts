@@ -296,9 +296,10 @@ export interface GraphWriter {
      * @param target - Node or edge.
      * @param id - Its id.
      * @param values - The new values.
+     * @param replace - The values are the whole new record: a key they lack is dropped.
      * @returns False when the graph holds no such element.
      */
-    setAttributes(target: RecordTarget, id: NodeId, values: GraphRecord): boolean;
+    setAttributes(target: RecordTarget, id: NodeId, values: GraphRecord, replace?: boolean): boolean;
     /**
      * Set graph-level values: the import report, graph-level results.
      * @param values - The values by name.
@@ -472,13 +473,12 @@ export class GraphOps {
     setPinned(draft: Draft | null, ids: readonly NodeId[], pinned: boolean): NodeId[] {
         const pins = this.home.pins();
         const changed = [...new Set(ids)].filter((id) => pins.has(id) !== pinned);
-        if (changed.length === 0) {
-            return changed;
+        if (changed.length > 0) {
+            const entry = new PinsEntry(this, changed, pinned);
+            entry.redo();
+            draft?.log(entry);
         }
 
-        const entry = new PinsEntry(this, changed, pinned);
-        entry.redo();
-        draft?.log(entry);
         return changed;
     }
 
@@ -620,6 +620,29 @@ export function restoresNodes(log: readonly OpLogEntry[]): boolean {
         (entry) =>
             entry instanceof GraphEntry && entry.ops.some((op) => op.kind === "remove" && op.rows.nodes.length > 0),
     );
+}
+
+/**
+ * The nodes an op log created rows for: a node the graph held no row for, and an endpoint an edge
+ * brought in. Each starts unplaced.
+ * @param log - The op log.
+ * @returns Their ids, in the order they were created.
+ */
+export function createdNodes(log: readonly OpLogEntry[]): NodeId[] {
+    const out: NodeId[] = [];
+    for (const entry of log) {
+        if (entry instanceof GraphEntry) {
+            for (const op of entry.ops) {
+                if (op.kind === "node" && !op.existed) {
+                    out.push(op.id);
+                } else if (op.kind === "edge") {
+                    out.push(...op.created);
+                }
+            }
+        }
+    }
+
+    return out;
 }
 
 /**
@@ -1161,7 +1184,7 @@ class Writer implements GraphWriter {
         }
     }
 
-    setAttributes(target: RecordTarget, id: NodeId, values: GraphRecord): boolean {
+    setAttributes(target: RecordTarget, id: NodeId, values: GraphRecord, replace = false): boolean {
         const map = (target === "node" ? this.graph.slice.nodes : this.graph.slice.edges) as Map<NodeId, GraphRecord>;
         const key = target === "node" ? id : String(id);
         const prior = map.get(key);
@@ -1174,6 +1197,7 @@ class Writer implements GraphWriter {
         // revisions, as every attribute write does (design/sets 6.2): comparing values to spare a
         // bump would cost a deep equality per field for no correctness gain.
         if (
+            (!replace || Object.keys(prior).length === Object.keys(values).length) &&
             Object.entries(values).every(
                 ([name, value]) => Object.hasOwn(prior, name) && deepEquals(prior[name], value),
             )
@@ -1184,7 +1208,7 @@ class Writer implements GraphWriter {
         }
 
         this.begin();
-        const next = frozenRecord({ ...prior, ...values });
+        const next = frozenRecord(replace ? values : { ...prior, ...values });
         map.set(key, next);
         if (target === "edge") {
             writeCapacity(this.store, edgeCounterOf(String(key)), next);

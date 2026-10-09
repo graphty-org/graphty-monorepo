@@ -1,5 +1,5 @@
-import { ForceAtlas2Simulation } from "./forceatlas2";
-import { FruchtermanReingoldSimulation } from "./fruchterman-reingold";
+import { ForceAtlas2Simulation } from "./forceatlas2.js";
+import { FruchtermanReingoldSimulation } from "./fruchterman-reingold.js";
 import type {
     ForceAtlas2Options,
     FruchtermanReingoldOptions,
@@ -7,7 +7,7 @@ import type {
     LayoutSimulation,
     SimulationType,
     SpringElectricalOptions,
-} from "./types";
+} from "./types.js";
 
 /**
  * The layout-side dispatcher (design 9.3): the accelerator's method when it has one, else the CPU simulation;
@@ -31,15 +31,15 @@ export function createSimulation(
         case "fruchtermanReingold":
         case "spring":
             return accelerator?.fruchtermanReingold !== undefined
-                ? accelerator.fruchtermanReingold(options as FruchtermanReingoldOptions | undefined)
-                : new FruchtermanReingoldSimulation(options as FruchtermanReingoldOptions | undefined);
+                ? accelerator.fruchtermanReingold(options)
+                : new FruchtermanReingoldSimulation(options);
         case "spring-electrical":
             if (accelerator?.springElectrical === undefined) {
                 throw new Error(
                     'createSimulation: "spring-electrical" has no CPU simulation; inject an accelerator that implements springElectrical',
                 );
             }
-            return accelerator.springElectrical(options as SpringElectricalOptions | undefined);
+            return accelerator.springElectrical(options);
         default: {
             const never: never = type;
             throw new Error(`createSimulation: unknown simulation type ${String(never)}`);

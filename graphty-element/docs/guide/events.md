@@ -28,6 +28,11 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 | `data-loading-complete` | A load finished                                                                    | `{ nodesLoaded, edgesLoaded, report, loadId, ... }`              |
 | `data-loading-error`    | A load failed                                                                      | `{ error, format, loadId, ... }`                                 |
 | `layout-progress`       | A layout reported how far its arrangement has got                                  | `{ layoutType, fraction, message? }`                             |
+| `graph-started`         | The render loop started                                                            | `{ timestamp }`                                                  |
+| `layout-changed`        | A new layout is now running                                                        | `{ layoutType, options }`                                        |
+| `operation-cancelled`   | A queued operation was aborted                                                     | `{ id, reason }`                                                 |
+| `stats-update`          | Every 60 graph updates, with the performance counters                              | `{ totalUpdates, stats }`                                        |
+| `input-enabled-changed` | `setInputEnabled()` switched canvas input on or off                                | `{ enabled }`                                                    |
 | `error`                 | Error occurred                                                                     | `{ error, context }`                                             |
 
 `cause` on the three data events is set when undo, redo, a restore or a rolled-back change added
@@ -169,10 +174,16 @@ event as the detail:
 
 ```javascript
 element.addEventListener("selection-changed", (e) => {
-    const { node, previousNode } = e.detail;
-    console.log("Selection:", node?.id, "Previous:", previousNode?.id);
+    const { currentNodeId, previousNodeId } = e.detail;
+    console.log("Selection:", currentNodeId, "Previous:", previousNodeId);
 });
 ```
+
+In TypeScript these are typed by the element's own `addEventListener` and `removeEventListener`,
+not on the global `HTMLElementEventMap`, because the names carry no prefix. On a variable typed as
+the element (`document.querySelector("graphty-element")` gives you one), `e.detail` is typed with
+no cast; `GraphtyForwardedEventMap` lists the names and their events. A listener added on the
+document, or on an element typed only as `HTMLElement`, gets a plain `Event`.
 
 ### Three more the element mirrors on its own account
 
@@ -188,8 +199,8 @@ renderer is about to dispose.
 ```javascript
 // A run started, made progress, or finished. This is what a progress bar hangs off.
 element.addEventListener("graphty-run-change", (e) => {
-    const { run, phase } = e.detail; // phase: "start" | "progress" | "end" | "error"
-    console.log(run.label, phase, run.progress);
+    const { run, phase } = e.detail; // phase: "queued" | "start" | "progress" | "end" | "removed" | "restored"
+    console.log(run.id, phase, run.status); // how far it got arrives as graphty-progress-change
 });
 
 // Elements joined or left the selection. Only a real movement arrives -- selecting what is
@@ -247,7 +258,8 @@ See [Labels](./labels).
 ### graphty-history-change
 
 The undo history changed: a step was recorded, merged, undone or redone, or pending work started
-or finished. The detail is plain values, enough for an Undo and a Redo button:
+or finished. The detail (the exported type `GraphtyHistoryChangeDetail`) is plain values, enough
+for an Undo and a Redo button:
 
 ```javascript
 element.addEventListener("graphty-history-change", (e) => {

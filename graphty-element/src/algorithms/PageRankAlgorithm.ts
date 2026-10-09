@@ -5,6 +5,7 @@ import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type InferOptions, parseOptions } from "../config";
 import type { Graph } from "../Graph";
 import type { ResultElementValues } from "../session/results";
+import { caveat, noted } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
@@ -158,7 +159,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
         },
         weight: {
             type: "string",
-            default: null as unknown as string,
+            default: null,
             label: "Weight Attribute",
             description: "Edge attribute name for weighted PageRank (empty = unweighted)",
             advanced: true,
@@ -271,37 +272,28 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             measured.push({ id: nodeId, values: rank === undefined ? {} : { value: rank } });
         });
 
-        const notes = [
-            `A reader follows a link with probability ${String(dampingFactor)} and jumps to a random node otherwise.`,
-            "The ranks sum to 1 across the graph.",
-        ];
+        const facts = [caveat("pagerank.damping", { dampingFactor }), caveat("pagerank.sums-to-one")];
 
         if (!snapshot.directed) {
-            notes.push("The graph is undirected, so every edge carries rank both ways.");
+            facts.push(caveat("pagerank.undirected"));
         }
 
         if (personalization !== undefined) {
             /* An entry naming a node outside this run's graph -- outside a scope, say -- has no
                node to land on, so it is left out and the rest share the jump. When nothing is
-               left, the port jumps anywhere, as an unpersonalized run does, and the notes say
+               left, the port jumps anywhere, as an unpersonalized run does, and the caveats say
                that rather than claiming a personalization that never applied. */
             const outside = [...personalization.keys()].filter((id) => ids.indexOf(id) === INVALID_INDEX).length;
             const applies = perNode(snapshot, personalization, 0).some((share) => share > 0);
-            notes.push(
-                applies
-                    ? "The random jump lands on the personalization vector's nodes, in proportion to their values."
-                    : "No personalization entry gives a node of this graph a positive share, so the random jump lands on any node.",
-            );
+            facts.push(caveat(applies ? "pagerank.personalized" : "pagerank.personalization-unmatched"));
 
             if (outside > 0) {
-                notes.push(
-                    `${String(outside)} personalization ${outside === 1 ? "entry names a node" : "entries name nodes"} outside this graph, left out of the random jump.`,
-                );
+                facts.push(caveat("pagerank.personalization-outside", { count: outside }));
             }
         }
 
         if (weight === null) {
-            notes.push("Edge weights are not read.");
+            facts.push(caveat("weights.unread"));
         }
 
         return {
@@ -316,7 +308,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
                 method: "power-iteration",
                 converged: value.converged,
                 iterations: value.iterations,
-                notes,
+                ...noted(facts),
             },
         };
     }

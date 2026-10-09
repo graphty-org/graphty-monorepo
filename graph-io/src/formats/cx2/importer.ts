@@ -79,7 +79,6 @@ import {
     CxStructure,
     declareFresh,
     ExactInteger,
-    fitsF32,
     flipY,
     headText,
     inexactLiteral,
@@ -709,7 +708,7 @@ function readDescriptor(value: unknown, line: number, doc: Cx2Document, report: 
     const text = typeof raw === "string" || typeof raw === "number" ? String(raw) : "";
     // the major version: "2.0", "2.1", "2.0.1", "2.1-beta", " 2.0" are all CX2
     const match = /^\s*(\d+)(?=$|[.\s-])/.exec(text);
-    const major = match === null ? NaN : Number(match[1]);
+    const major = match === null ? Number.NaN : Number(match[1]);
     if (major === 1) {
         report.fail(
             CX2_ISSUE.VERSION,
@@ -1638,11 +1637,11 @@ class Cx2Reader {
                 `${CX2_ISSUE.PARTIAL_LAYOUT}:z`,
             );
         }
-        if (x !== null && y !== null && (!fitsF32(x) || !fitsF32(y))) {
+        if (x !== null && y !== null && (!Number.isFinite(x) || !Number.isFinite(y))) {
             this.report.error(
                 "validation-error",
                 BAD_VALUE_CODE,
-                `${element}: the coordinates ${String(x)}, ${String(y)} are beyond what the f32 position column holds; the position is unset`,
+                `${element}: the coordinates ${String(x)}, ${String(y)} are not both finite; the position is unset`,
                 { line, element },
             );
         } else if (x !== null && y !== null) {

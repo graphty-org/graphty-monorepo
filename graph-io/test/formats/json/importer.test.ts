@@ -115,7 +115,7 @@ const EXPECTED: Record<string, { dialect: string; directed: boolean }> = {
 describe("corpus", () => {
     for (const entry of corpusFiles("json")) {
         it(`imports ${entry.path} with the manifest's counts`, async () => {
-            const { s, report } = await load(readCorpusText("json", entry.path), entry.options as Options);
+            const { s, report } = await load(readCorpusText("json", entry.path), entry.options);
             expect(s.nodeCount).toBe(entry.expectedNodes);
             expect(s.edgeCount).toBe(entry.expectedEdges);
             expect(report.counts.nodes).toBe(entry.expectedNodes);
@@ -966,12 +966,12 @@ describe("cytoscape", () => {
         expect(report.issues[0]?.category).toBe("missing-value");
         const position = s.nodes.byRole("position");
         expect(position?.meta.name).toBe("position");
-        expect(position?.dtype).toBe("f32");
+        expect(position?.dtype).toBe("f64");
         expect(position?.meta.components).toBe(3);
         expect(position?.meta.mutable).toBe(true);
         expect(position?.meta.extra).toEqual({ sourceDims: 2, units: "file" });
         expect(position?.meta.origin?.namespace).toBe("cytoscape");
-        expect(Array.from(position?.value(1) as ArrayLike<number>)).toEqual([Math.fround(0.1), -2, 0]); // stored y-up
+        expect(Array.from(position?.value(1) as ArrayLike<number>)).toEqual([0.1, -2, 0]); // stored y-up
         expect(position?.isSet(0)).toBe(false);
         expect(s.nodes.byRole("classes")?.value(1)).toEqual(["a", "b"]);
         expect(s.nodes.byRole("classes")?.value(2)).toEqual(["c"]);

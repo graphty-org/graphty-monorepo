@@ -18,14 +18,33 @@
  * `reheat()` sets it to `floor(0.7 * iterations)` (a drag or an unpin gets a small temperature and the remaining 30%
  * of the budget) and `load()` to 0 (a full run); the temperature can never go negative because the budget
  * `iterationsDone >= iterations` stops the run first.
+ *
+ * Adaptive cooling (`cooling: "adaptive"`, Yifan Hu 2005 section 3.2): the GPU simulation's rule, step for step
+ * (webgpu-graph-algorithms/src/wgsl/fa2-stats-finalize.wgsl.ts, the STATS_MODE 1 block of K1, and its f64 oracle
+ * webgpu-graph-algorithms/test/oracle/fruchterman-reingold.ts fold()). Each iteration records its free force energy
+ * `sum |F|^2` (F the full displacement before the temperature cap, fixed nodes left out). At the START of the next
+ * iteration -- never the first after load() -- that energy is compared with the previous one: strictly lower is a
+ * fall (the progress counter grows, and at FR_COOLING_PATIENCE it resets and the temperature is divided by
+ * FR_COOLING_STEP); equal or higher is a rise (the counter resets and the temperature is multiplied by
+ * FR_COOLING_STEP). The previous energy starts at +infinity, so the first comparison is a fall. The temperature then
+ * caps that iteration's moves. `iterations` is only a cap (default FR_ADAPTIVE_MAX_ITERATIONS); reheat() restarts the
+ * controller at 0.1 and the budget at 0, as the GPU simulation's reheat() does, and keeps the last iteration's
+ * energy pending, so the next iteration compares it with +infinity.
  */
 
 import { type F32, type GraphSnapshot, maskTest, type NodeMask, type U32 } from "@graphty/graph-format";
 
-import { FA2_COINCIDENT_SQ, FA2_DEFAULTS, FA2_DISTANCE_FLOOR } from "./constants";
-import { kickDir } from "./forceatlas2";
-import { seedPositions } from "./seed";
-import type { FruchtermanReingoldOptions, LayoutSimulation } from "./types";
+import {
+    FA2_COINCIDENT_SQ,
+    FA2_DEFAULTS,
+    FA2_DISTANCE_FLOOR,
+    FR_ADAPTIVE_MAX_ITERATIONS,
+    FR_COOLING_PATIENCE,
+    FR_COOLING_STEP,
+} from "./constants.js";
+import { kickDir } from "./forceatlas2.js";
+import { seedPositions } from "./seed.js";
+import type { FruchtermanReingoldOptions, LayoutSimulation } from "./types.js";
 
 /** The legacy loop's starting temperature (fruchterman-reingold.ts line 81; design 7.20). */
 const FR_START_TEMPERATURE = 0.1;
@@ -88,6 +107,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
     private readonly seed: number | null;
     private readonly kOption: number | null;
     private readonly iterations: number;
+    private readonly adaptive: boolean;
     private readonly settleThreshold: number;
     private readonly settleWindow: number;
     private readonly iterationsPerStep: number;
@@ -112,6 +132,12 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
     private dt = 0;
     /** The current temperature. */
     private t = FR_START_TEMPERATURE;
+    /** Adaptive cooling: the energy the last controller update compared against (+infinity after a reset). */
+    private previousEnergy = Number.POSITIVE_INFINITY;
+    /** Adaptive cooling: consecutive iterations of falling energy. */
+    private progress = 0;
+    /** Adaptive cooling: the last iteration's free force energy, not yet compared; null on the first iteration after load(). */
+    private pendingEnergy: number | null = null;
 
     private iterationsDoneValue = 0;
     private settledCountValue = 0;
@@ -151,9 +177,17 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
             }
             this.kOption = k;
         }
+        const cooling = options.cooling ?? "linear";
+        if (cooling !== "linear" && cooling !== "adaptive") {
+            throw new RangeError(
+                `FruchtermanReingoldSimulation: cooling must be "linear" or "adaptive", got ${String(cooling)}`,
+            );
+        }
+        this.adaptive = cooling === "adaptive";
+        // under adaptive cooling `iterations` is only a cap, so its default is the adaptive budget, not the schedule's 50
         this.iterations = checkNumber(
             "iterations",
-            options.iterations ?? FR_DEFAULT_ITERATIONS,
+            options.iterations ?? (this.adaptive ? FR_ADAPTIVE_MAX_ITERATIONS : FR_DEFAULT_ITERATIONS),
             0,
             Number.MAX_SAFE_INTEGER,
             true,
@@ -191,8 +225,9 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
     }
 
     /**
-     * The iteration index, which is also the temperature index.
-     * @returns the iterations run since load(), or since the last reheat() plus its 70% restart point
+     * The iteration index, which is also the temperature index under linear cooling.
+     * @returns the iterations run since load(), or since the last reheat() plus its 70% restart point (linear) or
+     *   since the last reheat() (adaptive)
      */
     get iterationsDone(): number {
         return this.iterationsDoneValue;
@@ -224,7 +259,8 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
 
     /**
      * The cooling schedule's current value.
-     * @returns the temperature in layout units per iteration
+     * @returns the temperature in layout units per iteration: linear, the next iteration's; adaptive, the one the last
+     *   iteration moved with (the next iteration's controller update may change it)
      */
     get temperature(): number {
         return this.t;
@@ -278,6 +314,8 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         this.k = this.kOption ?? 1.0 / Math.sqrt(n);
         this.dt = FR_START_TEMPERATURE / (this.iterations + 1);
         this.t = FR_START_TEMPERATURE;
+        this.resetAdaptive();
+        this.pendingEnergy = null;
 
         this.writeInitialStatistics();
         this.iterationsDoneValue = 0;
@@ -372,15 +410,22 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
     }
 
     /**
-     * Reheats (D8, design 7.20): the settle window restarts and the iteration index becomes
+     * Reheats (D8, design 7.20): the settle window restarts. Linear cooling: the iteration index becomes
      * `floor(0.7 * iterations)`, so the run continues at a small temperature for the remaining 30% of the budget.
-     * Nothing else changes. Allowed before load().
+     * Adaptive cooling: the budget restarts at 0 and the controller at the start temperature, as the GPU simulation's
+     * reheat() does. Nothing else changes. Allowed before load().
      */
     reheat(): void {
         this.assertNotDisposed();
-        this.iterationsDoneValue = Math.floor(FR_REHEAT_FRACTION * this.iterations);
         this.settledCountValue = 0;
-        this.t = FR_START_TEMPERATURE - this.dt * this.iterationsDoneValue;
+        if (this.adaptive) {
+            this.iterationsDoneValue = 0;
+            this.t = FR_START_TEMPERATURE;
+            this.resetAdaptive();
+        } else {
+            this.iterationsDoneValue = Math.floor(FR_REHEAT_FRACTION * this.iterations);
+            this.t = FR_START_TEMPERATURE - this.dt * this.iterationsDoneValue;
+        }
         if (this.state === "loaded") {
             this.settledValue = this.n === 0 || this.computeSettled();
         }
@@ -404,6 +449,9 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
      * One iteration of the legacy loop (fruchterman-reingold.ts lines 86-155) plus the settle fold of design 7.17.
      */
     private iterate(): void {
+        if (this.adaptive && this.pendingEnergy !== null) {
+            this.updateAdaptive(this.pendingEnergy);
+        }
         const { n, k, t, positions: pos, displacement: disp, rowPtr, colIdx, fixed } = this;
         // Calculate repulsive forces (lines 88-91): the displacement starts at 0
         disp.fill(0);
@@ -480,13 +528,17 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         let sumSq = 0;
         let moved = 0;
         let free = 0;
+        let energy = 0;
         for (let i = 0; i < n; i++) {
             if (fixed === null || !maskTest(fixed, i)) {
                 const mx = disp[3 * i];
                 const my = disp[3 * i + 1];
                 const mz = disp[3 * i + 2];
                 // Calculate displacement magnitude (line 141)
-                const magnitude = Math.sqrt(mx * mx + my * my + mz * mz);
+                const magnitudeSq = mx * mx + my * my + mz * mz;
+                const magnitude = Math.sqrt(magnitudeSq);
+                // The free force energy of adaptive cooling (the GPU's K5 `dot(f, f)`)
+                energy += magnitudeSq;
                 // Limit maximum displacement by temperature (line 144)
                 const limitedMagnitude = Math.min(magnitude, t);
                 // Update position (lines 147-150)
@@ -510,8 +562,12 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
             sumSq += qx * qx + qy * qy + qz * qz;
         }
 
-        // Cool temperature (line 154)
-        this.t -= this.dt;
+        // Cool temperature (line 154); adaptive cooling compares this iteration's energy at the start of the next one
+        if (this.adaptive) {
+            this.pendingEnergy = energy;
+        } else {
+            this.t -= this.dt;
+        }
 
         // The K1 fold (design 7.17): centroid, RMS radius about the previous centroid, mean free-node displacement
         // (0 when every node is fixed, never NaN), the settle counter
@@ -520,6 +576,32 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         this.meanDisplacementValue = free === 0 ? 0 : moved / free;
         this.settledCountValue =
             this.meanDisplacementValue <= this.settleThreshold * this.rmsRadiusValue ? this.settledCountValue + 1 : 0;
+    }
+
+    /** Adaptive cooling's reset (load and reheat): temperature 0.1 is set by the caller; +infinity energy, no progress. */
+    private resetAdaptive(): void {
+        this.previousEnergy = Number.POSITIVE_INFINITY;
+        this.progress = 0;
+    }
+
+    /**
+     * Yifan Hu's step control over the previous iteration's free force energy (the GPU's K1, STATS_MODE 1 with
+     * FA2_FLAG_ADAPTIVE): a strict fall counts toward FR_COOLING_PATIENCE and grows the temperature by
+     * 1 / FR_COOLING_STEP when it is reached; anything else shrinks it by FR_COOLING_STEP.
+     * @param energy - the previous iteration's sum |F|^2 over the free nodes
+     */
+    private updateAdaptive(energy: number): void {
+        if (energy < this.previousEnergy) {
+            this.progress++;
+            if (this.progress >= FR_COOLING_PATIENCE) {
+                this.progress = 0;
+                this.t /= FR_COOLING_STEP;
+            }
+        } else {
+            this.progress = 0;
+            this.t *= FR_COOLING_STEP;
+        }
+        this.previousEnergy = energy;
     }
 
     /** Writes every free node's layout position back to the owner's array as `layout * scale + center`. */

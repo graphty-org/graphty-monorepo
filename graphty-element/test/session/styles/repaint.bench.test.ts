@@ -28,15 +28,29 @@
  *   runner with fewer cores is worse -- the CONTRACT is one frame, and the printed number,
  *   measured with this file running on its own, is the one to read.
  *
+ * IT GATES NO PUSH. A ratio between two stopwatches read at different moments still moves with
+ * whatever else the machine is doing (24.7 ms against a 24.55 ms ceiling in a busy pre-push gate),
+ * so this file runs in ci.yml's advisory "performance" job and by hand. What it times is pinned by
+ * counts in the gating tests: repaint.test.ts proves an edit reads only the elements its run
+ * measured and repaints nothing for a layer that matches nothing, and selector.test.ts that a
+ * compiled selector reads each element's column once.
+ *
  * EVERY MEASUREMENT IS PRINTED, pass or fail, so a CI log carries the numbers and a regression
  * shows up as a trend rather than as a sudden red.
  */
+
+import { existsSync, readFileSync } from "node:fs";
 
 import jmespath from "jmespath";
 import { assert, describe, it } from "vitest";
 
 import type { Path } from "../../../src/catalog/types";
-import { createStylesApi, type ElementLayerSpec, type RepaintContext, type SessionStylesApi } from "../../../src/session/styles/index";
+import {
+    createStylesApi,
+    type ElementLayerSpec,
+    type RepaintContext,
+    type SessionStylesApi,
+} from "../../../src/session/styles/index";
 import { createStyleInterner } from "../../../src/session/styles/intern";
 import type { SelectorSource } from "../../../src/session/styles/predicate";
 import { createLayerRepaint, type RepaintEngine } from "../../../src/session/styles/repaint";
@@ -143,8 +157,14 @@ function quietContext(): RepaintContext {
  * changes the stack it was made against and cannot be made twice; the FASTEST round is the
  * estimate, so what is reported is steady-state work rather than the first pass through code the
  * engine has not compiled yet.
+ *
+ * EIGHT AND NOT FOUR because main-thread time still moves with where the thread ran: on a hybrid
+ * processor an efficiency core, or a performance core whose sibling hyperthread is busy, takes
+ * longer over the same work. Under a fully loaded machine four rounds left the edit's best between
+ * 20 and 32 ms and the margin as low as 1.11x; eight gave a lowest margin of 1.70x on the same
+ * machine in the same hour. A round costs a few tens of milliseconds, so the extra four are cheap.
  */
-const ROUNDS = 4;
+const ROUNDS = 8;
 
 interface Harness {
     /** The engine under test. */
@@ -164,20 +184,39 @@ interface Measurement {
 }
 
 /**
- * How much processor time this process has used, in milliseconds.
+ * Where Linux keeps how long the calling thread has been on a processor, in nanoseconds.
+ */
+const THREAD_SCHEDSTAT = "/proc/thread-self/schedstat";
+
+/** Whether {@link THREAD_SCHEDSTAT} can be read here; it is Linux-only. */
+const HAS_THREAD_SCHEDSTAT = existsSync(THREAD_SCHEDSTAT);
+
+/**
+ * How much processor time THIS THREAD has used, in milliseconds.
  *
  * WHY THE BUDGET IS ASSERTED AGAINST THIS AND NOT THE CLOCK. The suite runs many files at once on
  * a machine with fewer cores than files, so a pass doing 10 ms of work takes 28 ms of clock while
  * the scheduler is running somebody else, and a clock ceiling would be a test of how busy the
  * runner is.
  *
- * It is an UPPER BOUND on the main-thread work the design's budget is stated in, never an
- * understatement: it counts every thread this process has, so V8's background collector and its
- * background compiler are in it too. On an idle machine it measures 13.7 ms where the clock says
- * 10.0 ms, and both are printed.
- * @returns Milliseconds of user plus system time.
+ * WHY THIS THREAD AND NOT THE PROCESS. The budget is main-thread work, and the process's total
+ * (`process.cpuUsage()`) also counts V8's background collector and compiler threads. The colour
+ * edit allocates heavily, so they ran beside it for a large and varying share: one idle machine
+ * measured the same edit at 17.8 to 31.5 ms of process time while its clock read 13 to 20 ms, and
+ * the ratio below failed a pre-push gate by 1.5% on a branch that did not touch the repaint
+ * (issue #1365). The kernel's per-thread run time is exact to the nanosecond and counts only the
+ * thread the test runs on. `process.threadCpuUsage()` would say the same thing in name, but on a
+ * tick-accounting kernel it moves in 4 ms steps, which is a third of the edit being measured.
+ *
+ * Off Linux there is no such file, and this falls back to the whole process's time, which can
+ * only overstate the work and never hides a slower repaint.
+ * @returns Milliseconds this thread has spent on a processor.
  */
 function cpuMs(): number {
+    if (HAS_THREAD_SCHEDSTAT) {
+        return Number(readFileSync(THREAD_SCHEDSTAT, "utf8").split(" ")[0]) / 1e6;
+    }
+
     const { user, system } = process.cpuUsage();
 
     return (user + system) / 1000;
@@ -299,7 +338,12 @@ describe("a single-layer edit stays inside one frame", () => {
     }
 
     it("measures the selector pass it is being held against", () => {
-        report("jmespath.search, 50,000 calls", searchPass, FRAME_MS, `${((searchPass * 1e6) / ELEMENTS).toFixed(0)} ns each`);
+        report(
+            "jmespath.search, 50,000 calls",
+            searchPass,
+            FRAME_MS,
+            `${((searchPass * 1e6) / ELEMENTS).toFixed(0)} ns each`,
+        );
 
         // Not a budget, a sanity check: a reference of nothing would make every ratio below
         // meaningless, and that is exactly how a benchmark quietly stops testing anything.
@@ -316,7 +360,12 @@ describe("a single-layer edit stays inside one frame", () => {
         );
         const { ms, harness } = measurement;
 
-        reportEdit("colour encoding, 50,000 nodes", measurement, FRAME_MS, `${String(harness.engine.meshCount("node"))} meshes`);
+        reportEdit(
+            "colour encoding, 50,000 nodes",
+            measurement,
+            FRAME_MS,
+            `${String(harness.engine.meshCount("node"))} meshes`,
+        );
 
         // The pass really did paint: a benchmark that measures an edit which was refused, or one
         // that matched nothing, is a benchmark that measures nothing.
@@ -455,8 +504,8 @@ describe("interning is a hash, not a scan", () => {
      *
      * THE TOTAL IS THIRTY-TWO THOUSAND AND NOT EIGHT, and that is a measurement fix rather than a
      * threshold one. At eight thousand the window was a single millisecond, and
-     * {@link cpuMs} charges this process's BACKGROUND COLLECTOR to it -- so one collection landing
-     * inside the window read as eight times the work, and the ratio this test asserts failed
+     * {@link cpuMs} then counted the whole process, BACKGROUND COLLECTOR included -- so one
+     * collection landing inside the window read as eight times the work, and the ratio this test asserts failed
      * roughly one full-suite run in six with nothing wrong with the code. Four times the work per
      * window puts the collection's share back in proportion; every threshold below is unchanged.
      * @param distinct - How many distinct styles one run builds.

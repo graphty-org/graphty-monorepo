@@ -18,6 +18,7 @@ const CAVEATS: Caveats = {
     direction: "undirected",
     precision: "f64",
     method: "degree",
+    facts: [],
     notes: [],
 };
 
@@ -783,6 +784,13 @@ describe("the top of a ranking, cut only between tie groups", () => {
         );
         assert.deepStrictEqual(top.leftOut, { value: 3, count: 12 });
         assert.match(top.reason ?? "", /12 tie at 3/);
+        assert.strictEqual(top.threshold, 3, "above 3 selects exactly the three taken");
+    });
+
+    it("names the threshold that selects exactly the top, or null when everything is in it", () => {
+        assert.strictEqual(metricResult(CAT_DEGREES).top("value", 15).threshold, 2);
+        assert.strictEqual(metricResult(CAT_DEGREES).top("value", 20).threshold, null);
+        assert.strictEqual(metricResult([3, 3, 3, 3, 3, 3]).top("value", 2).threshold, 3);
     });
 
     it("takes nothing from a regular graph whose one tie group is larger than n, and says why", () => {

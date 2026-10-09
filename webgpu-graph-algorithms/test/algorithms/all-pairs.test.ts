@@ -9,7 +9,7 @@
  * `n * n` stays small -- the empty graph, one node, a self-loop, karate, the 30 x 30 grid, the 500-path, the
  * 1000-star, K64, the 101-cycle, seeded G(n, m) with and without self-loops and parallels, directed and undirected,
  * weighted and not, a disconnected graph -- plus the two sizes the blocking alone can get wrong: 33 nodes and
- * `32 x 33 + 1 = 1057` (`randomBig`; 50 on a software adapter), where exactly one tile of each kind is a partial edge tile. Then `weighted: false`, the
+ * `32 x 33 + 1 = 1057` (`randomBig`; 129 under coverage, 50 on a software adapter), where exactly one tile of each kind is a partial edge tile. Then `weighted: false`, the
  * refusals (a negative or non-finite weight, a wrong `dest`, an aborted signal, the node count one above the
  * device's ceiling), the submit split, and the ceiling arithmetic.
  */
@@ -57,11 +57,18 @@ interface Fixture {
 }
 
 /**
- * The largest n of the scaled fixtures on this adapter: 1057 on hardware, 50 on a software adapter at 1 / 50. A
- * function, read inside the test: the setup probes the adapter in a beforeAll, after this module is collected.
+ * The largest n of the scaled fixtures on this adapter: 1057 on hardware, 50 on a software adapter at 1 / 50, and
+ * `32 x 4 + 1 = 129` on hardware under coverage, which slows the O(n^3) CPU references several-fold (1057 nodes cost
+ * randomBig/uniform/directed about 20 s idle there). 129 still reaches every tile case 1057 does: the same one-row
+ * partial last tile in all three phases, five rounds whose middle pivots have blocks on both sides (the strip and
+ * phase-2 index skips both taken and not), and `4 x 4` phase-2 blocks off the pivot (`i != j`). A function, read
+ * inside the test: the setup probes the adapter in a beforeAll, after this module is collected.
  */
 function big(): number {
-    return gpuScale() < 1 ? 50 : 1057;
+    if (gpuScale() < 1) {
+        return 50;
+    }
+    return process.env.GRAPHTY_COVERAGE_RUN === "1" ? 129 : 1057;
 }
 
 const FIXTURES: readonly Fixture[] = [
@@ -119,6 +126,10 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
         ctx.dispose();
     });
 
+    // The slowest fixture, grid30/integer, takes 6.3-6.9 s alone on lavapipe with coverage (18.6 s before it stopped
+    // sweeping a second Floyd-Warshall), nearly all of it the blocked f32 reference; 120 s covers a busy machine.
+    // On the NVIDIA card with coverage it takes 6.2 s idle and 11.7-16.8 s beside 32 busy cores; randomBig/uniform/
+    // directed, at 129 nodes under coverage (see big()), 0.06 s idle and 0.1-0.3 s loaded (19.6 s and 48.3 s at 1057).
     for (const fixture of FIXTURES) {
         it(`${fixture.name}: the matrix against the references, the invariants, run twice bitwise, the snapshot unchanged`, async (t: TestContext) => {
             requireGpu(t);
@@ -136,10 +147,19 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
                 expect(first.dist.length).toBe(n * n);
                 expectBitwiseEqual(first.dist, second.dist, `${fixture.name}: dist run twice`);
                 if (weighted) {
+                    const blocked = blockedF32(s, true);
                     expect(Array.from(first.dist), `${fixture.name}: dist vs the blocked f32 reference`).toEqual(
-                        Array.from(blockedF32(s, true)),
+                        Array.from(blocked),
                     );
-                    const f64 = floydWarshallOracle(s, { weighted: true, precision: "f64" });
+                    // Integer weights whose path sums stay below 2^24 add exactly in f32, so every order of
+                    // additions reaches the same matrix and the textbook f64 sweep IS the blocked f32 one (the
+                    // oracle suite checks the two orders agree on integer weights). Sweeping it again was 12.9 s of
+                    // grid30/integer's 18.6 s on lavapipe with coverage, and checked nothing new.
+                    const exact =
+                        s.weights !== null &&
+                        s.weights.every(Number.isInteger) &&
+                        blocked.every((x) => x === Infinity || x < 2 ** 24);
+                    const f64 = exact ? blocked : floydWarshallOracle(s, { weighted: true, precision: "f64" });
                     const spread = relSpread(first.dist, f64);
                     console.warn(`[all-pairs] ${fixture.name}: f32 vs the f64 textbook sweep, relative ${spread}`);
                     expect(spread, `${fixture.name}: dist vs the f64 reference`).toBeLessThanOrEqual(WEIGHTED_REL);

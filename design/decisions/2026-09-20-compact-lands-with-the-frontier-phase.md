@@ -36,7 +36,7 @@ The rejected argument was to build `compact` and `dedupe` in P4 because design 6
 P4 first among their consumers:
 
 > `compact(batch, flags: Binding, count, out, outCount)` and `dedupe(batch, queue, count, owner:
-> Binding, out, outCount)` | flag + scan + scatter (3-7 dispatches); dedupe by Davidson's
+Binding, out, outCount)` | flag + scan + scatter (3-7 dispatches); dedupe by Davidson's
 > ownership trick (note 04 section 2.3) written race-free for WGSL [...] | O(count) | filter /
 > Set | P4 (grid hub cells), P7 (WCC), P8
 

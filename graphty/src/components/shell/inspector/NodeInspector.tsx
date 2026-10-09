@@ -81,7 +81,6 @@ export type NodeActionId =
  * @public
  */
 const DEFAULT_NODE_COMING_ACTIONS: readonly NodeActionId[] = [
-    "egoNetwork",
     "radialLayout",
     "distanceFromHere",
     "likelyMissingLinks",
@@ -193,6 +192,8 @@ export interface NodeInspectorProps {
     readonly onAddNote: (text: string) => void;
     /** Deletes a note. */
     readonly onDeleteNote: (noteId: string) => void;
+    /** Marks a note done, or not done. */
+    readonly onSetNoteDone: (noteId: string, done: boolean) => void;
     /** Selects a neighbour. */
     readonly onSelectNeighbor: (nodeId: string) => void;
     /** Annotates the relationship to a neighbour -- the stopgap while edge selection is unbuilt. */
@@ -321,6 +322,7 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
         onShowAllAttributes,
         onAddNote,
         onDeleteNote,
+        onSetNoteDone,
         onSelectNeighbor,
         onNoteRelationship,
         onShowNeighborsInTable,
@@ -536,6 +538,7 @@ export function NodeInspector(props: NodeInspectorProps): React.JSX.Element {
                 notes={notes}
                 onAddNote={onAddNote}
                 onDeleteNote={onDeleteNote}
+                onSetNoteDone={onSetNoteDone}
             />
 
             {/* BLOCK 5 -- Neighbors. Guaranteed to reach the first screen. */}

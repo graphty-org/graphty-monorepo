@@ -1,3 +1,78 @@
+## 0.6.40 (2026-10-08)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.9
+- Updated algorithms to 3.3.11
+- Updated layout to 2.2.12
+
+## 0.6.39 (2026-10-08)
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.3.10
+- Updated layout to 2.2.11
+
+## 0.6.38 (2026-10-08)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** weigh the GPU BFS bottom-up step by in-arcs ([#1358](https://github.com/graphty-org/graphty-monorepo/issues/1358))
+- **graphty-element:** key the large-graph story generator on the unordered pair ([#228](https://github.com/graphty-org/graphty-monorepo/pull/228))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.3.9
+- Updated layout to 2.2.10
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.37 (2026-10-07)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.8
+- Updated algorithms to 3.3.8
+- Updated layout to 2.2.9
+
+## 0.6.36 (2026-10-07)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** bind attraction only after the superseded check ([#96](https://github.com/graphty-org/graphty-monorepo/issues/96))
+- **webgpu-graph-algorithms:** window a core first requested narrow ([#92](https://github.com/graphty-org/graphty-monorepo/issues/92))
+- **webgpu-graph-algorithms:** resolve degree's fill pipeline before encoding ([#94](https://github.com/graphty-org/graphty-monorepo/issues/94))
+- **webgpu-graph-algorithms:** refuse a pull over a core of another weights pattern ([#91](https://github.com/graphty-org/graphty-monorepo/issues/91))
+- **webgpu-graph-algorithms:** settle label propagation on ordered paths ([#694](https://github.com/graphty-org/graphty-monorepo/issues/694))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.7
+- Updated algorithms to 3.3.7
+- Updated layout to 2.2.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.35 (2026-10-06)
+
+### 🩹 Fixes
+
+- **layout:** run cooling "adaptive" on the CPU Fruchterman-Reingold ([#98](https://github.com/graphty-org/graphty-monorepo/issues/98))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.6
+- Updated algorithms to 3.3.6
+- Updated layout to 2.2.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.34 (2026-10-05)
 
 ### 🧱 Updated Dependencies

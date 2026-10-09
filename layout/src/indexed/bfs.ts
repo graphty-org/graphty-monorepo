@@ -1,9 +1,9 @@
 import { type GraphSnapshot, type NodeRef, resolveNode } from "@graphty/graph-format";
 
-import type { LayoutResult } from "../positions";
-import { toLayoutSnapshot } from "../simulation/snapshot";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common";
-import { type LayerAlign, layeredRows, multipartitePlace } from "./multipartite";
+import type { LayoutResult } from "../positions.js";
+import { toLayoutSnapshot } from "../simulation/snapshot.js";
+import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
+import { type LayerAlign, layeredRows, multipartitePlace } from "./multipartite.js";
 
 /** Options of the index-based breadth-first layout. */
 export interface BfsLayoutOptions extends CommonLayoutOptions {
@@ -30,7 +30,7 @@ function bfsLayers(g: GraphSnapshot, start: number): number[][] {
     visited[start] = 1;
     let reached = 1;
     const layers: number[][] = [[start]];
-    for (let layer = layers[0]; ; ) {
+    for (let layer = layers[0]; ;) {
         const next: number[] = [];
         for (const u of layer) {
             for (let a = g.rowPtr[u]; a < g.rowPtr[u + 1]; a++) {

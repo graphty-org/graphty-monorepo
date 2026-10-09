@@ -1,8 +1,8 @@
 import { type F64, type GraphSnapshot, type NodeMask, type NodeSet, resolveNodeMask } from "@graphty/graph-format";
 
-import type { LayoutResult } from "../positions";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common";
-import { type LayerAlign, layeredRows } from "./multipartite";
+import type { LayoutResult } from "../positions.js";
+import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
+import { type LayerAlign, layeredRows } from "./multipartite.js";
 
 /** Options of the index-based bipartite layout. */
 export interface BipartiteLayoutOptions extends CommonLayoutOptions {

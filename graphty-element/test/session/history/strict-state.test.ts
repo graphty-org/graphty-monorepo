@@ -18,7 +18,7 @@ import type { Node } from "../../../src/Node";
 import { createGraphSession, type GraphSession } from "../../../src/session";
 import { LegacyWrites, openLegacyScope } from "../../../src/session/commands/algo";
 import { dispatcherOf } from "../../../src/session/GraphSession";
-import { retainArray, verifyRetainedArrays } from "../../../src/session/project/strict";
+import { retainArray, strictArrayChecks, verifyRetainedArrays } from "../../../src/session/project/strict";
 import { makeSession } from "../helpers";
 
 /**
@@ -243,6 +243,49 @@ describe("strict state: typed arrays state keeps", () => {
     });
 });
 
+describe("strict state: what one dispatch checks", () => {
+    it("checks a number of arrays bounded by the history, however many captures were ever taken", async () => {
+        // Issue #584: each dispatch checked every capture not yet collected, and a roomy heap can
+        // go thousands of dispatches without the full collection that clears them, so a long run
+        // on one session slowed down without bound. Counted, not timed.
+        const { session } = makeSession();
+        session.history.limitSteps = 8;
+        await session.data.addNodes([{ id: "n1" }, { id: "n2" }]);
+        const { arrangement } = dispatcherOf(session);
+        const checks: number[] = [];
+        for (let i = 0; i < 300; i++) {
+            arrangement.capture();
+            const before = strictArrayChecks();
+            await session.positions.set([{ id: i % 2 === 0 ? "n1" : "n2", x: i, y: 0, z: 0 }]);
+            checks.push(strictArrayChecks() - before);
+        }
+
+        const early = Math.max(...checks.slice(0, 50));
+        const late = Math.max(...checks.slice(-50));
+        assert.isAbove(late, 0, "a dispatch still checks the arrays its state keeps");
+        assert.isAtMost(late, early, `checks per dispatch grew from ${early} to ${late}`);
+    });
+
+    it("still finds, at the next dispatch, a capture the history keeps written in place", async () => {
+        const { session } = makeSession();
+        await session.data.addNodes([{ id: "n1" }, { id: "n2" }]);
+        await session.positions.set([{ id: "n1", x: 1, y: 2, z: 3 }]);
+        await session.positions.set([{ id: "n2", x: 4, y: 5, z: 6 }]);
+        const { history } = dispatcherOf(session);
+        const kept = [...history.arrangementArrays()];
+        assert.isNotEmpty(kept);
+        const bytes = new Uint8Array(kept[0].buffer, kept[0].byteOffset, kept[0].byteLength);
+        const was = bytes[0];
+
+        bytes[0] = was ^ 0xff;
+        try {
+            await rejectsNaming(session.data.addNodes([{ id: "n3" }]), "arrangement slice");
+        } finally {
+            bytes[0] = was;
+        }
+    });
+});
+
 describe("strict state: the narrowed public surface", () => {
     it("gives session.positions and the store's coordinates no writer, even through a cast", async () => {
         const { session } = makeSession();
@@ -381,10 +424,11 @@ export function narrowedAtCompileTime(parts: {
     session: GraphSession;
 }): void {
     const { graph, dataManager, layoutManager, engine, node, edge, session } = parts;
+    const { styles } = graph;
     // @ts-expect-error `Graph.styles` is readonly
-    graph.styles = null as unknown as typeof graph.styles;
+    graph.styles = styles;
     // @ts-expect-error `Graph.operationQueue` is private
-    void graph.operationQueue;
+    const _queue = graph.operationQueue;
     // @ts-expect-error the node map is read-only
     dataManager.nodes.set(node.id, node);
     // @ts-expect-error the edge map is read-only

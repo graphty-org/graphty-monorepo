@@ -1,10 +1,11 @@
 import { SegmentedControl } from "@mantine/core";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React, { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SecondaryToolbar, Toolbar, ToolButton, ToolGroup, type ToolItem } from "../../../src";
+import { compactThemeWithoutTooltips } from "../theme-without-tooltips";
 import { renderShell } from "./render";
 
 const SHAPES: ToolItem[] = [
@@ -68,8 +69,10 @@ describe("Toolbar", () => {
         expect(within(screen.getByRole("toolbar")).queryByRole("button", { name: "Rectangle" })).not.toHaveFocus();
     });
 
+    // Real key presses, without tooltips: each focus move would mount one (see
+    // theme-without-tooltips.ts), and the test is about where focus goes.
     it("moves with the arrows, Home and End, wrapping", async () => {
-        renderShell(<Editor />);
+        renderShell(<Editor />, compactThemeWithoutTooltips);
         await userEvent.tab();
         await userEvent.keyboard("{ArrowRight}");
         expect(screen.getByRole("button", { name: "Move tools" })).toHaveFocus();
@@ -96,11 +99,37 @@ describe("ToolButton", () => {
         renderShell(<ToolButton label="Actions" icon={<span />} />);
         expect(screen.getByRole("button", { name: "Actions" })).not.toHaveAttribute("aria-pressed");
     });
+
+    it("stays focusable but ignores clicks while disabled, and says why", async () => {
+        const onClick = vi.fn();
+        renderShell(
+            <Toolbar aria-label="Canvas">
+                <ToolButton label="Analyze" icon={<span />} disabledReason="Nothing is drawn" onClick={onClick} />
+                <ToolButton label="Actions" icon={<span />} />
+            </Toolbar>,
+        );
+        const button = screen.getByRole("button", { name: "Analyze" });
+        expect(button).toHaveAttribute("aria-disabled", "true");
+        expect(button).toHaveAttribute("aria-description", "Nothing is drawn");
+        await userEvent.click(button);
+        expect(onClick).not.toHaveBeenCalled();
+        screen.getByRole("button", { name: "Actions" }).focus();
+        await userEvent.keyboard("{ArrowLeft}");
+        expect(button).toHaveFocus();
+    });
 });
 
 // The overlays theme clamps the menu's height to the viewport, which jsdom reports as zero, so
 // the open dropdown is display:none here and its rows are queried with `hidden: true`. The
 // browser suite (tests/figma/shell.browser.test.tsx) opens the flyout for real.
+//
+// The flyout tests click with fireEvent, not user-event. user-event focuses each button it
+// clicks, and focus mounts that button's tooltip at once (it is only held hidden for the delay).
+// Positioning a tooltip or the menu makes floating-ui read the computed style of every ancestor,
+// and jsdom re-matches the whole package stylesheet on each read after a DOM change, so one
+// user-event click cost 100-300 ms of CPU. Under the pre-push gate's load that passed the 5 s
+// test timeout (issue #1483). fireEvent opens and picks with a quarter of the style reads; real
+// pointer picking is covered by the browser suite.
 const HIDDEN = { hidden: true } as const;
 
 describe("ToolGroup", () => {
@@ -110,24 +139,24 @@ describe("ToolGroup", () => {
         expect(screen.getByRole("button", { name: "Rectangle" })).toHaveAttribute("aria-pressed", "true");
     });
 
-    it("picks a tool from the flyout, makes it the face and closes", async () => {
+    it("picks a tool from the flyout, makes it the face and closes", () => {
         const onToolChange = vi.fn();
         renderShell(<Editor onToolChange={onToolChange} />);
-        await userEvent.click(screen.getByRole("button", { name: "Shape tools" }));
-        const rows = await screen.findAllByRole("menuitemradio", HIDDEN);
+        fireEvent.click(screen.getByRole("button", { name: "Shape tools" }));
+        const rows = screen.getAllByRole("menuitemradio", HIDDEN);
         expect(rows).toHaveLength(2);
         expect(rows[0]).toHaveAttribute("aria-checked", "true");
-        await userEvent.click(screen.getByRole("menuitemradio", { ...HIDDEN, name: /Ellipse/ }));
+        fireEvent.click(screen.getByRole("menuitemradio", { ...HIDDEN, name: /Ellipse/ }));
         expect(onToolChange).toHaveBeenLastCalledWith("ellipse");
         expect(screen.getByRole("button", { name: "Ellipse" })).toHaveAttribute("aria-pressed", "true");
         expect(screen.queryByRole("menuitemradio", HIDDEN)).not.toBeInTheDocument();
     });
 
-    it("keeps the last picked face when another group's tool is chosen", async () => {
+    it("keeps the last picked face when another group's tool is chosen", () => {
         renderShell(<Editor />);
-        await userEvent.click(screen.getByRole("button", { name: "Shape tools" }));
-        await userEvent.click(await screen.findByRole("menuitemradio", { ...HIDDEN, name: /Ellipse/ }));
-        await userEvent.click(screen.getByRole("button", { name: "Move" }));
+        fireEvent.click(screen.getByRole("button", { name: "Shape tools" }));
+        fireEvent.click(screen.getByRole("menuitemradio", { ...HIDDEN, name: /Ellipse/ }));
+        fireEvent.click(screen.getByRole("button", { name: "Move" }));
         expect(screen.getByRole("button", { name: "Ellipse" })).toHaveAttribute("aria-pressed", "false");
     });
 

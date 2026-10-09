@@ -54,8 +54,7 @@ import {
 } from "./force-simulation.js";
 import { resolveNodeMass, resolveWeights } from "./inputs.js";
 import {
-    type AttractionBindings,
-    bindAttraction,
+    compileAttraction,
     describeValue,
     invalid,
     isPositiveInteger,
@@ -344,19 +343,14 @@ export class ForceAtlas2Model
 
     /**
      * Compiles the pipelines of one load: K1, K5, toScene and fill together, then K3 + K4 through RepulsionExact on
-     * the exact tier, K2 over the degree tiers through bindAttraction (none when arcCount === 0), and G1-G7 + K4
+     * the exact tier, K2 over the degree tiers through compileAttraction (none when arcCount === 0), and G1-G7 + K4
      * through RepulsionGrid on the grid tier (PD-18). The K2 TIER 1 / 2 pipelines compile on the first load whose
      * degrees need them (P4 PD-7), a one-time cost at that load.
      * @param resources - the graph, the shared and model buffers, the ring and the cache
      * @param overrides - the merged override set
-     * @param attractionBindings - K2's group-1 / group-2 bindings
      * @returns the pipelines
      */
-    protected async compile(
-        resources: ModelResources,
-        overrides: Overrides,
-        attractionBindings: AttractionBindings,
-    ): Promise<CompiledModel<RepulsionExact>> {
+    protected async compile(resources: ModelResources, overrides: Overrides): Promise<CompiledModel<RepulsionExact>> {
         const { n, pipelines, caps } = resources;
         const [k1, k5, toScene, fill] = await Promise.all([
             pipelines.kernel(kernelSpec("fa2-stats-finalize")),
@@ -369,9 +363,7 @@ export class ForceAtlas2Model
                 ? null
                 : await RepulsionExact.create(pipelines, caps, repulsionOverrides(overrides));
         const attraction =
-            resources.core.colIdx !== null
-                ? await bindAttraction(resources, subset(overrides, K2_DEFAULTS), attractionBindings)
-                : null;
+            resources.core.colIdx !== null ? await compileAttraction(resources, subset(overrides, K2_DEFAULTS)) : null;
         const grid =
             resources.tier === "grid"
                 ? await RepulsionGrid.create(

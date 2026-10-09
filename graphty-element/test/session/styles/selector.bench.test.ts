@@ -16,6 +16,10 @@
  * magnitude, not a percent. The RATIO against `jmespath.search()` measured in this same process
  * is the machine-independent one: it is the same arithmetic on the same hardware at the same
  * moment, so it stays meaningful wherever this runs.
+ *
+ * It gates no push: ci.yml's advisory "performance" job runs it, because a stopwatch on a busy
+ * machine measures the machine. selector.test.ts pins the mechanism by count: a compiled selector
+ * reads each element's column once and never re-parses.
  */
 
 import jmespath from "jmespath";
@@ -23,7 +27,7 @@ import { assert, describe, it } from "vitest";
 
 import type { NodeId } from "../../../src/catalog/types";
 import type { ElementPredicate, SelectorSource } from "../../../src/session/styles/predicate";
-import { compileSelector,type Selector } from "../../../src/session/styles/selector";
+import { compileSelector, type Selector } from "../../../src/session/styles/selector";
 
 /** The element count the budget is stated at. */
 const ELEMENTS = 50_000;

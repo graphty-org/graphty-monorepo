@@ -538,7 +538,7 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, esc
     const notes = checkCapabilities(snapshot, CAPABILITIES, options, {
         roles: SLOT_ROLES,
         roleNames: ROLE_NAMES,
-        positionDtype: "f32",
+        positionDtype: "f64",
     }).filter((n) => n.code !== LOSS.JSON);
     const note: NoteFn = (code, message, column = null, count = null): void => {
         notes.push(Object.freeze({ code, message, column, count }));
@@ -772,7 +772,7 @@ function valueText(value: unknown, dtype: string | null, escapes: boolean): stri
     } else if (typeof value === "number") {
         text = dtype === "f32" ? formatF32(value) : formatF64(value);
     } else if (typeof value === "string") {
-        text = escapes ? value.replace(/\n/g, "\\n").replace(/\t/g, "\\t") : value;
+        text = escapes ? value.replaceAll("\n", String.raw`\n`).replaceAll("\t", String.raw`\t`) : value;
     } else if (ArrayBuffer.isView(value)) {
         text = JSON.stringify(Array.from(value as unknown as ArrayLike<number>));
     } else {
@@ -986,10 +986,11 @@ function coordsOf(plan: Plan, zColumn: Column | null, node: number): [string, st
     const xyz = cellOf(plan.position, node);
     if (xyz !== null) {
         const [x, y, z] = Array.from(xyz as ArrayLike<number>);
+        const fmt = plan.position?.dtype === "f32" ? formatF32 : formatF64;
         if (Number.isFinite(x) && Number.isFinite(y)) {
-            out.push(["x", formatF32(x)], ["y", formatF32(y === 0 ? 0 : -y)]);
+            out.push(["x", fmt(x)], ["y", fmt(y === 0 ? 0 : -y)]);
             if (zColumn === null && z !== undefined && z !== 0 && Number.isFinite(z)) {
-                out.push(["z", formatF32(z)]);
+                out.push(["z", fmt(z)]);
             }
         }
     }

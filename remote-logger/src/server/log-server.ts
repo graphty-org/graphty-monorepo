@@ -18,10 +18,11 @@ import * as http from "http";
 import * as https from "https";
 import * as os from "os";
 import * as path from "path";
-import { fileURLToPath,URL } from "url";
+import { fileURLToPath, URL } from "url";
 
 import { JsonlWriter } from "./jsonl-writer.js";
 import { type LogEntry, LogStorage } from "./log-storage.js";
+import { parseIntegerSetting } from "./parse-integer.js";
 import type { ProxyInstance } from "./proxy.js";
 import { certFilesExist, readCertFiles } from "./self-signed-cert.js";
 
@@ -73,7 +74,6 @@ let sharedProxy: ProxyInstance | null = null;
 export function setProxy(proxy: ProxyInstance): void {
     sharedProxy = proxy;
 }
-
 
 // Browser bundle cache (loaded on first request)
 let browserBundleCache: string | null | undefined;
@@ -366,7 +366,14 @@ function handleRequest(
     // Handle recent logs endpoint - GET last N logs across all sessions
     if (url.startsWith("/logs/recent") && req.method === "GET") {
         const urlObj = new URL(url, `${protocol}://${host}:${port}`);
-        const count = parseInt(urlObj.searchParams.get("n") ?? "50", 10);
+        let count: number;
+        try {
+            count = parseIntegerSetting("n", urlObj.searchParams.get("n") || "50", 1);
+        } catch (error) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: (error as Error).message }));
+            return;
+        }
         const errorsOnly = urlObj.searchParams.get("errors") === "true";
 
         const storage = getLogStorage();
@@ -514,15 +521,7 @@ export interface CreateLogServerResult {
  * @returns The server instance
  */
 export function createLogServer(options: CreateLogServerOptions): CreateLogServerResult {
-    const {
-        port,
-        host,
-        storage,
-        quiet = true,
-        logReceiveOnly = false,
-        certPath,
-        keyPath,
-    } = options;
+    const { port, host, storage, quiet = true, logReceiveOnly = false, certPath, keyPath } = options;
 
     // Set the shared storage
     setLogStorage(storage);
@@ -693,7 +692,11 @@ export function parseArgs(args: string[]): ParseArgsResult {
         switch (arg) {
             case "--port":
             case "-p":
-                options.port = parseInt(nextArg, 10);
+                try {
+                    options.port = parseIntegerSetting("--port", nextArg, 1, 65535);
+                } catch (error) {
+                    return { options, showHelp: false, error: (error as Error).message };
+                }
                 i++;
                 break;
             case "--host":

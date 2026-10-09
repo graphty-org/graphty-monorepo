@@ -15,7 +15,7 @@ import { type OptionsSchema, toZodSchema } from "../config/OptionsSchema";
 import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
-import type { GraphSnapshotReplacedEvent } from "../events";
+import type { GraphSnapshotReplacedEvent, LayoutChangedEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
 import { LayoutEngine, layoutEngineInternals, StaticLayoutEngine } from "../layout/LayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
@@ -1217,6 +1217,7 @@ export class LayoutManager implements Manager {
                 // accelerator reads -- only through this call, and an engine that never made it
                 // rendered perfectly while leaving every node unplaced.
                 engine.publishPositions();
+                this.putOnPlane(engine);
 
                 // STARTED, NOT RESUMED, so a simulation its pre-steps settled is not reheated. The
                 // frame loop stops a settled layout, and when one of its frames landed while the
@@ -1243,7 +1244,7 @@ export class LayoutManager implements Manager {
             this.eventManager.emitGraphEvent("layout-changed", {
                 layoutType: type,
                 options: layoutOpts,
-            });
+            } satisfies Omit<LayoutChangedEvent, "type">);
         } catch (error) {
             // THE ENGINE THAT FAILED IS TOLD TO LET GO. It is discarded here and never used
             // again, and it never became the running layout, so no later switch will reach it --
@@ -1486,6 +1487,9 @@ export class LayoutManager implements Manager {
             const dimensionOpts = LayoutEngine.getOptionsForDimensionByType(choice.engine, dimension);
             const redraws = dimensionOpts !== null && Object.keys(dimensionOpts).length > 0;
             if (this.engineDimension === dimension || !redraws) {
+                // An engine that draws the same in both still holds its nodes on the plane in 2D.
+                this.engineDimension = dimension;
+                this.putOnPlane(this.layoutEngine);
                 this.#built = choice;
                 return;
             }
@@ -1535,6 +1539,21 @@ export class LayoutManager implements Manager {
         }
 
         engine.loadArrangement();
+        this.putOnPlane(engine);
+    }
+
+    /**
+     * Under a 2D engine, move every placed node with a Z onto the Z = 0 plane, keeping its X and Y.
+     *
+     * THE ENGINE IS NOT TRUSTED TO DO IT. An engine that computes a 2D arrangement publishes Z = 0
+     * on its own, but one that echoes the stored coordinates back -- `fixed` keeps every placed row
+     * exactly as it found it, whatever `dim` it was built with, and a third party's engine may do
+     * the same -- carries a 3D Z straight into 2D. The camera hides it; the node's edges, flat
+     * quads as long as the 3D distance, do not. Run after anything that can put a Z into the array
+     * under a 2D engine: a build (its first publish) and a restore (`loadArrangement`).
+     * @param engine - The current engine.
+     */
+    private putOnPlane(engine: LayoutEngine): void {
         if (this.engineDimension !== 2) {
             return;
         }
@@ -1758,7 +1777,7 @@ export class LayoutManager implements Manager {
         this.preStepsOwed = false;
 
         if (engine instanceof SimulationLayoutEngine) {
-            for (let remaining = preSteps; remaining > 0 && !engine.isSettled; ) {
+            for (let remaining = preSteps; remaining > 0 && !engine.isSettled;) {
                 const chunk = Math.min(remaining, MAX_ITERATIONS_PER_STEP_CHUNK);
                 await engine.stepAsync(chunk);
                 if (!live()) {

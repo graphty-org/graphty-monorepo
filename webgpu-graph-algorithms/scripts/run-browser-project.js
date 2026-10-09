@@ -21,12 +21,18 @@
  * which is treated as the limit case. A stale browser-results.json is deleted before the run so an old file
  * can never turn a hung run green. The summary line "numTotalTests / numPassedTests / numFailedTests" is
  * printed whenever the JSON is present.
+ *
+ * The machine-wide test slot (tools/test-slots.mjs) is taken BEFORE the limit starts, and the spawned command
+ * gets GRAPHTY_TEST_SLOT_HELD so the nested vitest takes none: time queued for a slot never counts against the
+ * 600 s. Under a caller that already holds a slot (the pre-push gate's shard wrapper) no second one is taken.
  */
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { acquire, HELD, off } from "../../tools/test-slots.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -124,31 +130,40 @@ export function hasGnuTimeout() {
 /**
  * Run the browser project and return the process exit code.
  * @param {readonly string[]} extraArgs - arguments appended to the vitest command line
- * @returns {number} the exit code
+ * @param {{ command?: readonly string[], limitSeconds?: number }} [options] - the timed command (default: pnpm
+ * exec vitest ... with extraArgs) and its limit (default TIMEOUT_SECONDS); tools/test-slots.test.mjs sets both
+ * @returns {Promise<number>} the exit code
  */
-export function main(extraArgs) {
+export async function main(extraArgs, options = {}) {
+    const { command = ["pnpm", ...VITEST_ARGS, ...extraArgs], limitSeconds = TIMEOUT_SECONDS } = options;
     const resultsPath = resolve(packageRoot, RESULTS_FILE);
     rmSync(resultsPath, { force: true });
-    const vitestArgs = [...VITEST_ARGS, ...extraArgs];
+    const release = off() ? () => {} : await acquire({ label: "webgpu-graph-algorithms: run-browser-project.js" });
+    const env = { ...process.env, [HELD]: String(process.pid) };
     let status;
-    if (hasGnuTimeout()) {
-        const args = ["-k", String(KILL_AFTER_SECONDS), String(TIMEOUT_SECONDS), "pnpm", ...vitestArgs];
-        console.error(`[run-browser-project] timeout ${args.join(" ")}`);
-        const result = spawnSync("timeout", args, { cwd: packageRoot, stdio: "inherit" });
-        status = result.status ?? 1;
-    } else {
-        console.error(
-            `[run-browser-project] no GNU timeout on PATH: pnpm ${vitestArgs.join(" ")} ` +
-                `with a ${TIMEOUT_SECONDS} s Node-side limit`,
-        );
-        const result = spawnSync("pnpm", vitestArgs, {
-            cwd: packageRoot,
-            stdio: "inherit",
-            timeout: TIMEOUT_SECONDS * 1000,
-            killSignal: "SIGTERM",
-        });
-        status =
-            result.error !== undefined && result.error.code === "ETIMEDOUT" ? EXIT_TIMED_OUT : (result.status ?? 1);
+    try {
+        if (hasGnuTimeout()) {
+            const args = ["-k", String(KILL_AFTER_SECONDS), String(limitSeconds), ...command];
+            console.error(`[run-browser-project] timeout ${args.join(" ")}`);
+            const result = spawnSync("timeout", args, { cwd: packageRoot, stdio: "inherit", env });
+            status = result.status ?? 1;
+        } else {
+            console.error(
+                `[run-browser-project] no GNU timeout on PATH: ${command.join(" ")} ` +
+                    `with a ${limitSeconds} s Node-side limit`,
+            );
+            const result = spawnSync(command[0], command.slice(1), {
+                cwd: packageRoot,
+                stdio: "inherit",
+                env,
+                timeout: limitSeconds * 1000,
+                killSignal: "SIGTERM",
+            });
+            status =
+                result.error !== undefined && result.error.code === "ETIMEDOUT" ? EXIT_TIMED_OUT : (result.status ?? 1);
+        }
+    } finally {
+        release();
     }
     const summary = readSummary(resultsPath);
     if (summary !== null) {
@@ -166,5 +181,5 @@ export function main(extraArgs) {
 
 const isMain = process.argv[1] !== undefined && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 if (isMain) {
-    process.exit(main(process.argv.slice(2)));
+    process.exit(await main(process.argv.slice(2)));
 }

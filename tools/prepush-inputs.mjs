@@ -309,8 +309,13 @@ export function testsPassed(log) {
             .map((part, i) => (i === 0 ? part : part.slice(part.indexOf("m") + 1)))
             .join("")
             .trim();
-        const passed = line.startsWith("Tests ") ? /(\d+) passed/.exec(line) : null;
-        n += passed ? Number(passed[1]) : 0;
+        // The number before the first " passed" ("Tests  2 failed | 5 passed (7)" -> 5).
+        const at = line.startsWith("Tests ") ? line.indexOf(" passed") : -1;
+        let from = at;
+        while (from > 0 && line[from - 1] >= "0" && line[from - 1] <= "9") {
+            from--;
+        }
+        n += from < at ? Number(line.slice(from, at)) : 0;
     }
     return n;
 }

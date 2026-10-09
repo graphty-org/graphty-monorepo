@@ -123,8 +123,14 @@ export async function hover(element: Element, point: Point): Promise<void> {
  */
 export async function click(element: Element, point: Point, modifiers?: Modifiers): Promise<void> {
     await mouseEvent("mouseMoved", element, point, 0, modifiers);
-    await mouseEvent("mousePressed", element, point, 1, modifiers);
-    await mouseEvent("mouseReleased", element, point, 0, modifiers);
+    // Press and release sent together, not one awaited after the other: the element counts a
+    // press held over 300 ms as no click (Graph.ts CLICK_MAX_DURATION_MS), and on a loaded machine
+    // the round trip between two awaited sends alone can take that long. The protocol delivers
+    // them in order.
+    await Promise.all([
+        mouseEvent("mousePressed", element, point, 1, modifiers),
+        mouseEvent("mouseReleased", element, point, 0, modifiers),
+    ]);
 }
 
 /**

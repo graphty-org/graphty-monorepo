@@ -11,6 +11,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **A selection's origin changing alone now has its own event,
+  `selection:origin-changed` `{ origin }`**; `selection:changed` stays membership-only. Root cause of
+  "Enter on a second rule that selects the same edges keeps 'press Enter'": `applyNow` set `#origin` but
+  notified only on a member move (`#delta`). Now `#delta` takes the origin before the call and calls
+  the new source hook `onOriginChange` when no member moved and the origin differs (`deepEquals`);
+  `GraphSession` notifies the scope notifier and publishes the event; the app's graph-place
+  `useSessionVersion` listens. And the bare-number `suggestion` is attached only when the rewrite
+  parses (`suggestBackticks` in `predicate.ts`; `x >= 10x` gets none). Tests
+  `selection-origin.test.ts`, `selector.test.ts` (both fail without the change). Evidence
+  `tmp/r2-dry2-element-selection-origin-and-suggestion/{A/06,B/03,B/04}.png`, `walk.sh`.
+
 - (2026-10-09) **A missing notice in a pilot screenshot is first a timing question.** T22B's
   "silent" Escape went through the app's one clear path; its notice was up and gone: the step took
   about 8 s to settle under load (11.png and 12.png ran back to back, 7.9 s apart) and a notice
@@ -25,17 +36,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-09) **Recent projects' date is written as a note's** ("Oct 9, 5:58 AM", the year only
   for another year), spaces non-breaking (`whenWords`, `project/words.ts`). Test "Recent projects'
   date" in `project.test.tsx` (word boxes per line); evidence `.../a/13.png`.
-- (2026-10-09) **Find's hints show the reader's own rule, not an example.** graphty-element's
-  `number-needs-backticks` refusal now carries `details.suggestion` (the selector with each bare
-  number in backticks; `backtickNumbers` in `session/styles/predicate.ts` skips quoted text and
-  names such as `col2`). `FindBox.tsx` shows it: "Put numbers in backticks:" with the rule on its
-  own line (`\n` + `.ws-find-refusal { white-space: pre-line }`), and for a condition typed
-  without "=" "Start with = to select by a value:" then `=<rule>` as a block line
-  (`.ws-find-example`). `exampleRule` stays only for a lone "=". The find list's scrollbar was
-  already right: Medici lists 8 rows, not 7 (a "Values" heading and "Select where name is Medici"
-  sit below the cut; content 362 px in a 298 px scroller), so nothing changed there; a test now
-  pins "scrollbar only on overflow". Tests: `selector.test.ts` (suggestion), `GraphPlace.test.tsx`.
-  Evidence `tmp/r2-dry1-find-box-hints/{bus,lesmis}/*.png`, `probe.mjs` (scroller numbers).
+- (2026-10-09, condensed) **Find's hints show the reader's own rule, not an example.** The
+  element's `number-needs-backticks` refusal carries `details.suggestion` (only when it parses);
+  `FindBox.tsx` shows "Put numbers in backticks:" with the rule on its own line, and for a
+  condition typed without "=" "Start with = to select by a value:" `=<rule>`. Tests
+  `selector.test.ts`, `GraphPlace.test.tsx`; evidence `tmp/r2-dry1-find-box-hints/`.
 - (2026-10-09) **The Data page's footer is pinned by its own grid again; the format has its own
   place.** Root cause of "Load jumps when Higher means appears": the Data page and the Data place
   both used the root class `.dp`, so `data-place.css`'s `display: flex` replaced the page's grid
@@ -80,6 +85,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `"<name>#n"`; `--drop` over CDP; `--brief` folders hold participant files only.
 
 ## Decisions and reasons
+
+- (2026-10-09) **A new event rather than an empty `selection:changed`.** Its TSDoc promises "only
+  a real movement arrives", so an empty delta would change what an existing event does (breaking)
+  and make every listener redraw for nothing. The new event fires only when no member moved, so
+  one call never fires both. Recorded under "decided by the team" in `owner-decisions.md`.
+- (2026-10-09) **A suggestion the selector would refuse is no suggestion.** Validated by parsing
+  the rewrite; a rewrite equal to the input is skipped first, which also stops the parse from
+  asking for its own suggestion again.
 
 - (2026-10-09) **No forced focus ring after a pointer click.** `focus({ focusVisible: true })`
   after Save would make the note card the one control that rings after a mouse click (spec 2.7,
@@ -220,6 +233,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-09) Worked: proving a test fails without the fix by copying the changed sources aside,
+  writing `git show HEAD:<file>` over them, running the test, and copying them back (no stash).
+  Did not work as a first guess: notifying only the internal scope notifier -- the app listens
+  only through `session.on`, so the fix needed a public event.
 
 - (2026-10-09) Worked: a pilot's exact steps are in its agent transcript under
   `.claudehistory/<session>/subagents/workflows/<wf>/agent-*.jsonl` (tool_use commands); two

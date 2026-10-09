@@ -375,7 +375,8 @@ function badSelector(
  * - `pipe-not-supported`: a single `|`.
  * - `expression-reference-not-supported`: a single `&`.
  * - `number-needs-backticks`: a bare number, such as `weight > 3`, where `` `3` `` is meant
- *   (`details.suggestion`: the expression with every bare number put between backticks).
+ *   (`details.suggestion`: the expression with every bare number put between backticks, present
+ *   only when that rewrite is itself a selector that parses).
  * - `bad-character`: a character no selector can contain (`details.character`).
  * - `dot-needs-name`: a `.` with no attribute name after it.
  * - `name-contains-dot`: a quoted attribute name holding a `.` (`details.segment`).
@@ -521,6 +522,26 @@ function backtickNumbers(where: Query): string {
         at = end;
     }
     return out;
+}
+
+/**
+ * The `number-needs-backticks` refusal's suggestion, offered only when the rewrite parses: a
+ * suggestion the selector would refuse in turn (`x >= 10x` becomes `` x >= `10`x ``) is no help.
+ * @param where - The refused expression.
+ * @returns `{ suggestion }`, or nothing when the rewrite does not parse.
+ */
+function suggestBackticks(where: Query): { readonly suggestion?: string } {
+    const suggestion = backtickNumbers(where);
+    // A rewrite that still holds a bare number would ask for its own suggestion, forever.
+    if (suggestion === where) {
+        return {};
+    }
+    try {
+        parseExpression(suggestion);
+        return { suggestion };
+    } catch {
+        return {};
+    }
 }
 
 /**
@@ -692,10 +713,7 @@ function tokenize(where: Query): readonly Token[] {
                 "A number in a selector goes between backticks, so write `5` rather than 5",
                 where,
                 at,
-                {
-                    character,
-                    suggestion: backtickNumbers(where),
-                },
+                { character, ...suggestBackticks(where) },
             );
         }
 

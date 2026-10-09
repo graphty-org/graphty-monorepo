@@ -3201,6 +3201,9 @@ export interface SessionEventMap {
     "project:status": ProjectStatus;
     "run:changed": RunChange;
     "selection:changed": SelectionDelta;
+    "selection:origin-changed": {
+        readonly origin: SelectionTarget | null;
+    };
     "set:changed": SetChange;
     "style:changed": StyleChange;
     "style:problem": StyleProblem;

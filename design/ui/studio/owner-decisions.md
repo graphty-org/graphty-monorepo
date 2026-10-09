@@ -4,6 +4,24 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-09 -- Decided by the team: a selection's origin has its own event (`selection:origin-changed`)
+
+**What.** A session publishes `selection:origin-changed` with `{ origin }` when a selection call
+changes `selection.origin` while no member joins or leaves: a rule that selects exactly what is
+already selected, or clearing a selection a rule left empty. `selection:changed` is unchanged and
+still fires only when members move; when it does, `selection.origin` is already current, so the
+new event never fires for the same call. Additive: a new key in `SessionEventMap`.
+
+**Why.** Typing ``=minutes >= `10` ``, pressing Enter, then changing it to ``=minutes > `9` `` and
+pressing Enter selects the same three edges. The origin became the new rule, but nothing told
+the graphty app, so its find box kept "Rule: press Enter to select matches" under a rule that had
+already run. Firing `selection:changed` with an empty delta would break its documented promise
+("only a real movement arrives"), and every consumer redrawing on it would do work for nothing.
+
+**Alternatives.** Fire `selection:changed` with an empty delta (changes what an existing event
+does); have the app re-read the selection after its own `apply` resolves (works for one consumer
+only, and misses an origin change made by anyone else).
+
 ## 2026-10-09 -- For the owner: a compact-mantine number box given `value` follows it even when it is undefined
 
 **What.** `StyleNumberInput` is controlled whenever its caller passes the `value` prop, including
@@ -45,6 +63,10 @@ architecture forbids.
 grammar, wrong inside a quoted name or a column called `col2`); accepting bare numbers (changes
 what an existing API accepts: already an owner question under `E_BAD_SELECTOR`); an example
 number far from the data (still not the reader's rule).
+
+**Since (2026-10-09).** `suggestion` is present only when the rewritten selector itself parses.
+`shared_chapters >= 10x` would have suggested ``shared_chapters >= `10`x``, which is refused in
+turn, so it now carries no suggestion and the app shows no rewrite.
 
 ## 2026-10-08 -- Decided by the team: a layer update's history step names the channels it changed (`channels`)
 

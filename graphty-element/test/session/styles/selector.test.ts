@@ -585,6 +585,9 @@ describe("every selector refusal says why, as a code", () => {
             "col2 > `1.5` && 'a 3' == data.b || `4` < `-2e3`",
         );
         assert.strictEqual(suggestionOf("data.a == #"), undefined);
+        // `x >= \`10\`x` would be refused in turn, so nothing is suggested.
+        assert.strictEqual(suggestionOf("x >= 10x"), undefined);
+        assert.strictEqual(suggestionOf("x >= 10"), "x >= `10`");
     });
 
     it("gives each expression mistake its own reason", () => {

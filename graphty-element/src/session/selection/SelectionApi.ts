@@ -42,6 +42,7 @@ import type { ResultsApi } from "../results/types";
 import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
 import { edgeSpaceOf, nodeSpaceOf, type ScopeResolver } from "../scope/ScopeApi";
 import { createSetAs } from "../sets/SetsApi";
+import { deepEquals } from "../styles/predicate";
 import { ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "../types";
 import {
     resolveTarget,
@@ -383,6 +384,13 @@ export interface SelectionSources {
      * @param delta - What joined, what left, what the selection holds now, and who asked.
      */
     readonly onChange?: (delta: SelectionDelta) => void;
+    /**
+     * Called when {@link Selection.origin} changes while the membership does not -- a rule that
+     * selects exactly what is already selected -- so a host can tell its own subscribers without
+     * publishing a membership event that moved nothing.
+     * @param origin - The origin now.
+     */
+    readonly onOriginChange?: (origin: SelectionTarget | null) => void;
     /** Called on every version bump of either mask, which is what advances the session input tick. */
     readonly onMaskVersion?: () => void;
 }
@@ -754,6 +762,7 @@ class Selection implements SelectionOwner {
         const cap = this.#cap();
         const members = resolveTarget(target, this.#context());
         const before = this.#capture();
+        const originBefore = this.#origin;
 
         if (op === "replace") {
             this.#nodes.clear();
@@ -780,7 +789,7 @@ class Selection implements SelectionOwner {
         this.#origin =
             op === "replace" && cause === "api" && !this.#truncated ? deepFreeze(structuredClone(target)) : null;
 
-        return this.#delta(before, members.unmatched, members.unresolvedPaths, cause, members.skipped);
+        return this.#delta(before, originBefore, members.unmatched, members.unresolvedPaths, cause, members.skipped);
     }
 
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void {
@@ -794,12 +803,13 @@ class Selection implements SelectionOwner {
     clear(): SelectionDelta {
         this.#sync();
         const before = this.#capture();
+        const originBefore = this.#origin;
         this.#nodes.clear();
         this.#edges.clear();
         this.#truncated = false;
         this.#origin = null;
 
-        return this.#delta(before, EMPTY_STRINGS, EMPTY_PATHS, "api");
+        return this.#delta(before, originBefore, EMPTY_STRINGS, EMPTY_PATHS, "api");
     }
 
     /**
@@ -1003,6 +1013,7 @@ class Selection implements SelectionOwner {
      * A row that the graph itself dropped is not reported: it has no id any more, and naming the
      * element that now sits at its index would be a lie.
      * @param before - The membership before the mutation.
+     * @param originBefore - The origin before the mutation.
      * @param unmatched - The pasted ids that named nothing.
      * @param unresolvedPaths - The paths nothing in this session answers.
      * @param cause - Who asked.
@@ -1011,6 +1022,7 @@ class Selection implements SelectionOwner {
      */
     #delta(
         before: CapturedMembership,
+        originBefore: SelectionTarget | null,
         unmatched: readonly string[],
         unresolvedPaths: readonly Path[],
         cause: SelectionCause,
@@ -1056,6 +1068,8 @@ class Selection implements SelectionOwner {
 
         if (added.length > 0 || removed.length > 0) {
             this.#sources.onChange?.(delta);
+        } else if (!deepEquals(originBefore, this.#origin)) {
+            this.#sources.onOriginChange?.(this.#origin);
         }
 
         return delta;

@@ -103,3 +103,31 @@ describe("session.selection.originPaths", () => {
         session.dispose();
     });
 });
+
+describe("selection:origin-changed", () => {
+    it("tells subscribers when a rule selects exactly what is already selected", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "Station" }, { id: "Stadium" }, { id: "Park" }]);
+        await session.data.addEdges([
+            { source: "Station", target: "Stadium", minutes: 12 },
+            { source: "Stadium", target: "Park", minutes: 3 },
+        ]);
+        const membership: number[] = [];
+        const origins: unknown[] = [];
+        session.on("selection:changed", (delta) => membership.push(delta.edges));
+        session.on("selection:origin-changed", ({ origin }) => origins.push(origin));
+
+        await session.selection.apply({ text: "=minutes >= `10`" });
+        assert.deepStrictEqual(membership, [1]);
+        assert.deepStrictEqual(origins, [], "the members moved, so selection:changed said it");
+
+        await session.selection.apply({ text: "=minutes > `9`" });
+        assert.deepStrictEqual(session.selection.origin, { text: "=minutes > `9`" });
+        assert.deepStrictEqual(membership, [1], "no member moved");
+        assert.deepStrictEqual(origins, [{ text: "=minutes > `9`" }]);
+
+        await session.selection.apply({ text: "=minutes > `9`" });
+        assert.strictEqual(origins.length, 1, "the same rule again changes nothing");
+        session.dispose();
+    });
+});

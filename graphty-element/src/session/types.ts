@@ -1483,6 +1483,14 @@ export interface SessionEventMap {
      * could act on, and is not published.
      */
     "selection:changed": SelectionDelta;
+    /**
+     * A selection call changed `selection.origin` while the members stayed as they were: a rule
+     * that selects exactly what is already selected, or clearing a selection a rule left empty.
+     *
+     * A call that moves members arrives as `selection:changed` instead, and `selection.origin` is
+     * current when it does.
+     */
+    "selection:origin-changed": { readonly origin: SelectionTarget | null };
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
     /**

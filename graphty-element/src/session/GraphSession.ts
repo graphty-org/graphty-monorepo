@@ -2562,6 +2562,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             notifier.notify({ kind: "selection" });
             publish(watchers, "selection:changed", delta);
         },
+        // The origin moved with no member: `selection:changed` stays a membership event, so the
+        // origin has its own.
+        onOriginChange: (origin) => {
+            notifier.notify({ kind: "selection" });
+            publish(watchers, "selection:origin-changed", { origin });
+        },
         onMaskVersion: advanceTick,
     });
 

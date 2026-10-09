@@ -22,6 +22,7 @@
  */
 
 import { pipelineKey } from "../../src/kernel/pipeline-cache.js";
+import { composeWgsl } from "../../src/kernel/wgsl.js";
 import { type KernelEntry, type KernelId, KERNELS, kernelSpec } from "../../src/kernels.js";
 import { type PlanCaps } from "../../src/types/context.js";
 
@@ -316,4 +317,75 @@ export function matrixCovers(
         }
     }
     return { ok: missing.length === 0, missing };
+}
+
+/**
+ * The overrides and module-scope constants a composed module reads, directly or through other module-scope `const` /
+ * `override` declarations, where the device's limits are checked at pipeline creation: the `@workgroup_size(...)`
+ * arguments and the element count of every `var<workgroup>` array (maxComputeInvocationsPerWorkgroup,
+ * maxComputeWorkgroupStorageSize). Comments are stripped first; a function-scope `const` of the same name only makes
+ * the answer larger, never smaller.
+ * @param code - a composed module (composeWgsl(...).code)
+ * @returns the names in the closure
+ */
+export function limitCheckedNames(code: string): Set<string> {
+    const stripped = code.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+    const definitions = new Map<string, string>();
+    for (const m of stripped.matchAll(/^\s*(?:const|override)\s+(\w+)\s*(?::[^=;\n]*)?=([^;]*);/gm)) {
+        definitions.set(m[1], m[2]);
+    }
+    const pending: string[] = [];
+    for (const m of stripped.matchAll(/@workgroup_size\(([^)]*)\)/g)) {
+        pending.push(m[1]);
+    }
+    for (const m of stripped.matchAll(/var<workgroup>\s*\w+\s*:\s*array<([^\n;]*)>\s*;/g)) {
+        pending.push(m[1]);
+    }
+    const names = new Set<string>();
+    for (let expr = pending.pop(); expr !== undefined; expr = pending.pop()) {
+        for (const [name] of expr.matchAll(/\b[A-Za-z_]\w*\b/g)) {
+            if (names.has(name)) {
+                continue;
+            }
+            names.add(name);
+            const definition = definitions.get(name);
+            if (definition !== undefined) {
+                pending.push(definition);
+            }
+        }
+    }
+    return names;
+}
+
+/**
+ * The cases test/browser/compile-matrix.test.ts compiles on a Chromium context with `caps` (issue #1741). The full
+ * OVERRIDE_MATRIX compiles under Tint on Dawn in the node project (test/kernel/wgsl-compile.test.ts: lavapipe and
+ * backend=null, both twins). What a browser can add is what differs between it and Dawn-node, and all of it is a
+ * property of the module text or of the context, never of a module override's value: the module text does not depend
+ * on the case's overrides (they are pipeline constants; only snippets change the text), the device-derived WG /
+ * SUBGROUP_MIN / SUBGROUP_MAX are the same for every case on one context, and the subgroups feature is the context's.
+ * So Chromium compiles, per kernel and per feature setting:
+ *   - one case per distinct composed module text (the first in matrix order: the defaults; segmented-reduce has one
+ *     per VALUE snippet), and
+ *   - EVERY case of a kernel whose case overrides reach a limit-checked expression (limitCheckedNames), because then
+ *     the override value decides whether the browser's limits accept the pipeline. No kernel does today; the guard in
+ *     test/kernel/wgsl-compile.test.ts pins that list.
+ * @param caps - the context's caps (the feature context or the twin)
+ * @returns the selected cases, in matrix order
+ */
+export function browserCompileCases(caps: PlanCaps): readonly OverrideCase[] {
+    const texts = new Set<string>();
+    return OVERRIDE_MATRIX.filter((c) => {
+        const { code } = composeWgsl(kernelSpec(c.id, c.overrides, c.snippets), caps);
+        const limited = limitCheckedNames(code);
+        if (Object.keys(c.overrides).some((name) => limited.has(name))) {
+            return true;
+        }
+        const text = `${c.id}\n${code}`;
+        if (texts.has(text)) {
+            return false;
+        }
+        texts.add(text);
+        return true;
+    });
 }

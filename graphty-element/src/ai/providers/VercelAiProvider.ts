@@ -3,6 +3,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, type LanguageModel, type ModelMessage, streamText, type Tool } from "ai";
 
+import { aiProviderDescriptor, type AiProviderId } from "../../catalog/ai";
 import type {
     LlmProvider,
     LlmResponse,
@@ -14,16 +15,17 @@ import type {
 } from "./types";
 
 /** Supported provider types */
-export type VercelProviderType = "openai" | "anthropic" | "google";
+export type VercelProviderType = Exclude<AiProviderId, "webllm" | "mock">;
 
 /**
- * The model each provider uses when `configure` is given none. Each is a current model id from
- * the provider's own model list (checked 2026-10-07); a retired id fails every request.
+ * The model each provider uses when `configure` is given none: its `defaultModel` in the AI
+ * catalogue. Each is a current model id from the provider's own model list (checked 2026-10-07);
+ * a retired id fails every request.
  */
 const DEFAULT_MODELS: Readonly<Record<VercelProviderType, string>> = {
-    openai: "gpt-4o",
-    anthropic: "claude-haiku-4-5-20251001",
-    google: "gemini-3.8-flash",
+    openai: aiProviderDescriptor("openai").defaultModel,
+    anthropic: aiProviderDescriptor("anthropic").defaultModel,
+    google: aiProviderDescriptor("google").defaultModel,
 };
 
 /**

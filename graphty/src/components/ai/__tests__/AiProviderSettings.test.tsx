@@ -219,7 +219,7 @@ describe("AiProviderSettings", () => {
 
             expect(
                 screen.getByText(
-                    "Keys are encrypted and stored in this browser only. They are sent to the provider you choose and nowhere else.",
+                    "Keys are stored in this browser only, obscured but not encrypted: anyone with access to this page or this browser profile can read them. They are sent to the provider you choose and nowhere else.",
                 ),
             ).toBeInTheDocument();
         });

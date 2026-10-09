@@ -1884,7 +1884,7 @@ export async function startDaemon({
         await run("incidents", async () => {
             linkFixes(nodes);
             await incidentSteps();
-            if (config.lanes.release || config.release) checkRelease(m, ms, derived);
+            if (config.lanes.release || config.release) await checkRelease(m, ms, derived);
         });
         if (pace.level === "normal") {
             await run("prs", () => pollPrs(gh, nodes, branch, t));
@@ -2704,31 +2704,61 @@ export async function startDaemon({
     }
 
     /**
-     * Release truth: records the last release and raises a failed or stalled release.
+     * Release truth: records the last release and raises a failed or stalled release. A failed
+     * release names its newest failed run and that run's failed jobs, never a skipped or cancelled
+     * run after it, and keeps the key it was raised under while it stays open, so its job is not
+     * cancelled and made again when a later run is skipped or fails again.
      * @param {any} m the master record
      * @param {number} ms the poll's time
      * @param {(args: any) => void} derived raises an escalation that clears when it stops holding
      */
-    function checkRelease(m, ms, derived) {
+    async function checkRelease(m, ms, derived) {
         const rs = releaseState(m, m.lanes, config, commits, ms);
         m.lastRelease = rs.lastRelease;
         m.releaseEligibleSince = rs.releaseEligibleSince;
+        const lane = m.lanes.release;
         if (rs.failed) {
-            derived({
-                key: `release-failed:${m.lanes.release.runId}`,
+            // No failed run on the page read (an older state): the newest run, as before.
+            const red = lane.redRun ?? { runId: lane.runId, sha: lane.sha, failedJobs: null };
+            if (red.failedJobs === undefined) {
+                // ponytail: one failed read leaves the jobs unnamed until the lane's failed run changes.
+                red.failedJobs = await failingJobs(red.runId).then(
+                    (jobs) => jobs.map((/** @type {any} */ j) => j.name),
+                    () => null,
+                );
+            }
+            const jobs = red.failedJobs?.length ? `: ${red.failedJobs.join(", ")} failed` : "";
+            const open = Object.values(state.escalations ?? {}).find(
+                (/** @type {any} */ e) => e.kind === "release-failed" && !e.resolvedAt,
+            );
+            raiseRelease(derived, {
+                key: open?.key ?? `release-failed:${red.runId}`,
                 kind: "release-failed",
-                summary: `release run ${m.lanes.release.runId} failed`,
+                summary: `release run ${red.runId} on ${String(red.sha).slice(0, 9)} failed${jobs}`,
                 clearWhen: "release-green",
+                runId: red.runId,
             });
         }
         if (rs.stalled) {
-            derived({
+            raiseRelease(derived, {
                 key: `release-stalled:${rs.lastRelease?.sha ?? "none"}`,
                 kind: "release-stalled",
-                summary: `release train run ${m.lanes.release?.scheduled?.runId} ended ${m.lanes.release?.scheduled?.conclusion} with a release due since ${rs.releaseEligibleSince?.slice(0, 16)} UTC`,
+                summary: `release train run ${lane?.scheduled?.runId} ended ${lane?.scheduled?.conclusion} with a release due since ${rs.releaseEligibleSince?.slice(0, 16)} UTC`,
                 clearWhen: "released",
+                runId: lane?.scheduled?.runId ?? null,
             });
         }
+    }
+
+    /**
+     * Raises a release escalation, or brings an open one's summary and run up to date.
+     * @param {(args: any) => void} derived raises an escalation that clears when it stops holding
+     * @param {{key: string, kind: string, summary: string, clearWhen: string, runId: number | null}} args
+     *   the escalation, and the run it is about now
+     */
+    function raiseRelease(derived, { runId, ...args }) {
+        derived(args);
+        Object.assign(state.escalations[args.key], { summary: args.summary, runId });
     }
 
     /**

@@ -41,7 +41,10 @@ const INCIDENT_DONE = /** @type {Record<string, string>} */ ({
     master: "the failing workflow's newest run on master is green at a commit that contains your fix.",
     low: "the failing workflow's newest run on master is green at a commit that contains your fix.",
     shared: "the failing check passes on master at a commit with your fix, and on one other open pull request after it is updated from master.",
-    release: "npm has every version the release tagged, and master has the release's version commit.",
+    release:
+        "the release escalation is gone: npm has every version the release tagged, and master has the release's version commit. " +
+        "When a pull request carries the fix (yours or another session's, such as one already in the merge queue), report done with pr " +
+        "and commits set to the fix commit(s) it contains; githerd then watches the release itself and offers this job again if a later run fails.",
     local: "the pre-push gate passes on the last green commit of master.",
 });
 
@@ -282,6 +285,7 @@ const TYPE_REFRESH =
 function factLines(job, { refresh, verdict }) {
     if (refresh) return [TRIAGE_TYPES, ...refreshLines(job.facts)];
     if (verdict) return verdictLines({ key: job.target, ...job.facts });
+    if (job.kind === "incident" && job.facts?.failure) return [`FAILURE: ${job.facts.failure}`];
     if (job.kind === "pr") return job.facts?.held ? [HELD] : [];
     if (job.kind === "issue" && job.facts?.batch?.length > 1) return [bundleLine(job)];
     if (job.kind !== "triage") return [];

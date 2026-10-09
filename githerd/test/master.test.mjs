@@ -170,6 +170,26 @@ describe("updateLane", () => {
         expect(red.events[2]).toEqual([]);
     });
 
+    it("keeps the failed run of a red lane when a skipped run follows it, and drops it once green", () => {
+        const red = polls("release", [[run(10, "a", "failure")], [run(10, "a", "failure")]]);
+        const skipped = polls("release", [
+            [run(10, "a", "failure")],
+            [run(10, "a", "failure")],
+            [run(11, "b", "skipped"), run(10, "a", "failure")],
+        ]);
+        expect(skipped.lane).toMatchObject({ runId: 11, verdict: "red", redRun: { runId: 10, sha: "a" } });
+        expect(red.lane.redRun).toEqual({ runId: 10, attempt: 1, sha: "a", conclusion: "failure" });
+        const again = updateLane(
+            "release",
+            skipped.lane,
+            [run(12, "c", "failure"), run(11, "b", "skipped")],
+            CONFIG,
+            T0,
+        );
+        expect(again.lane.redRun?.runId).toBe(12);
+        expect(updateLane("release", again.lane, [run(13, "d", "success")], CONFIG, T0).lane.redRun).toBeUndefined();
+    });
+
     it("reports a run queued past maxMinutes once", () => {
         const queued = run(20, "q", null, { status: "queued" });
         // gpu's maxMinutes is 240; polls an hour apart.

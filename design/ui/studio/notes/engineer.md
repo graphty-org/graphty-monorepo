@@ -11,6 +11,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **A cut section title shows the shared tooltip.** compact-mantine's
+  `ControlSection` draws its title through `EllipsizedName` (as tree rows do) in place of the native
+  `title` attribute: the themed tooltip only while the header cuts the title, none when it fits; the
+  group is still named by the title's own text. A technical name inside it takes the tooltip's
+  secondary ink (`overlays.css.ts`). Tests "ControlSection title cut short" in
+  `ControlSection.browser.test.tsx` (the cut case fails without the change). Evidence
+  `tmp/r2-dry2-cm-section-title-tooltip/06.png` (T23B's "Medici and 11 connections within 2 ho...").
+  Note for `real.mjs`: a section heading's text matches 4 things (section, group, span, status);
+  hover it as `"<text>#3"`, the span.
+
 - (2026-10-09) **A selection's origin changing alone now has its own event,
   `selection:origin-changed` `{ origin }`**; `selection:changed` stays membership-only. Root cause of
   "Enter on a second rule that selects the same edges keeps 'press Enter'": `applyNow` set `#origin` but
@@ -22,35 +32,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `selection-origin.test.ts`, `selector.test.ts` (both fail without the change). Evidence
   `tmp/r2-dry2-element-selection-origin-and-suggestion/{A/06,B/03,B/04}.png`, `walk.sh`.
 
-- (2026-10-09) **A missing notice in a pilot screenshot is first a timing question.** T22B's
-  "silent" Escape went through the app's one clear path; its notice was up and gone: the step took
-  about 8 s to settle under load (11.png and 12.png ran back to back, 7.9 s apart) and a notice
-  lasts 6 s (`NOTICE_MS`). Proven with `--key Escape --wait 6500` on the frozen build (same pixels
-  as 12.png). `real.mjs` now prints `a notice showed and went before this screenshot: "..."`
-  (`goneNotices`; live regions watched in every session). Test of both routes
-  `undoWords.real-element.test.tsx`; evidence `tmp/r2-dry1-selection-and-saving/frozen-b4`, `b/05.png`.
-- (2026-10-09) **Focus after Save already returns to what opened it** (the note card, or the Main
-  menu button); after a pointer click on Save the browser draws no mark until the next key
-  (`:focus-visible`), as for every control. No app change. Test "focus after Save" in
-  `Project.real-element.test.tsx`; evidence `tmp/r2-dry1-selection-and-saving/a/save-11-12.png`.
-- (2026-10-09) **Recent projects' date is written as a note's** ("Oct 9, 5:58 AM", the year only
-  for another year), spaces non-breaking (`whenWords`, `project/words.ts`). Test "Recent projects'
-  date" in `project.test.tsx` (word boxes per line); evidence `.../a/13.png`.
-- (2026-10-09, condensed) **Find's hints show the reader's own rule, not an example.** The
-  element's `number-needs-backticks` refusal carries `details.suggestion` (only when it parses);
-  `FindBox.tsx` shows "Put numbers in backticks:" with the rule on its own line, and for a
-  condition typed without "=" "Start with = to select by a value:" `=<rule>`. Tests
-  `selector.test.ts`, `GraphPlace.test.tsx`; evidence `tmp/r2-dry1-find-box-hints/`.
-- (2026-10-09) **The Data page's footer is pinned by its own grid again; the format has its own
-  place.** Root cause of "Load jumps when Higher means appears": the Data page and the Data place
-  both used the root class `.dp`, so `data-place.css`'s `display: flex` replaced the page's grid
-  and the footer followed the content. With a table taller than the window (bus-stops at 1440x900)
-  the shrink hid it; with a short table it moved 62 px. The page's root is now `.dp-page`. The
-  format button ("CSV auto") left the "Each row is" row for the file heading's line, under a
-  visible "File settings" label (the words the problem block already tells readers to look for).
-  Test: "keeps the file's format apart from 'Each row is', and Load in place..." in
-  `DataPage.real-element.test.tsx` (failed at 519 vs 457 before the rename). Evidence
-  `tmp/r2-dry1-import-page-layout/{bus/04,bus/06,trails/04,trails/08}.png`.
+- (2026-10-09, condensed) **A missing notice in a pilot screenshot is first a timing question:**
+  a notice lasts 6 s (`NOTICE_MS`) and a step can take 8 s to settle; `real.mjs` prints `a notice
+  showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-element.test.tsx`.
+- (2026-10-09, condensed) **Save and Recent projects:** focus after Save returns to what opened it
+  (no mark after a pointer click, `:focus-visible`); Recent projects' date reads like a note's
+  (`whenWords`, non-breaking spaces). Tests in `Project.real-element.test.tsx`, `project.test.tsx`.
+- (2026-10-09, condensed) **Find's hints show the reader's own rule** (`details.suggestion` from the
+  element, only when it parses; "Start with = to select by a value:"). Tests `selector.test.ts`,
+  `GraphPlace.test.tsx`.
+- (2026-10-09, condensed) **The Data page's root is `.dp-page`** (sharing `.dp` with the Data place
+  let `display: flex` replace its grid, so Load moved); the format button sits on the file heading's
+  line under "File settings". Test in `DataPage.real-element.test.tsx`.
 - (2026-10-09, condensed) **Panels:** the Graph title opens the graph's Overview (`fromRow` in
   `inspector/inspected.ts` resolves "graph"); the open filter step's row is marked; the
   neighborhood wears its node's header; `OptionsForm` passes no `value` at a default. Tests in

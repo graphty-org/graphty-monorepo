@@ -11,6 +11,7 @@ import { useDevWarning } from "../utils/dev-warning";
 import { isRtl, useDirection } from "../utils/rtl";
 import { Caret } from "./chrome/Caret";
 import { InfoCircle } from "./InfoCircle";
+import { EllipsizedName } from "./rows/EllipsizedName";
 import { TrailingSlot } from "./rows/TrailingSlot";
 
 // Figma's properties-panel section (design/figma-spec.md 9.2): a 40px header padded 0 8 0 16,
@@ -250,24 +251,28 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
     const toggleName = isOpen ? labels.collapseSection(label) : labels.expandSection(label);
     const addName = labels.addToSection(label);
 
-    // The plain-then-technical pair, as one label. `fullName` is what a pointer
-    // and a screen reader get; the drawn halves differ only in weight and ink.
-    const fullName = technicalName === undefined ? label : `${label} (${technicalName})`;
+    // The plain-then-technical pair, as one label, in the group's accessible name. While the
+    // header cuts it short, the shared tooltip shows it whole, as a cut tree row's name does.
     const name = (
-        <Box
-            component="span"
+        <EllipsizedName
             id={nameId}
-            title={fullName}
-            data-testid="control-section-name"
+            testId="control-section-name"
             className="cm-section-title"
-        >
-            {label}
-            {technicalName === undefined ? null : (
-                <Box component="span" data-testid="control-section-technical-name" className="cm-section-technical">
-                    {` (${technicalName})`}
-                </Box>
-            )}
-        </Box>
+            name={
+                <>
+                    {label}
+                    {technicalName === undefined ? null : (
+                        <Box
+                            component="span"
+                            data-testid="control-section-technical-name"
+                            className="cm-section-technical"
+                        >
+                            {` (${technicalName})`}
+                        </Box>
+                    )}
+                </>
+            }
+        />
     );
 
     // Accessibility: the APG "Disclosure (Show/Hide)" pattern. The header is a

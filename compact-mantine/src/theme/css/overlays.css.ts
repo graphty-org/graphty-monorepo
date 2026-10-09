@@ -213,6 +213,8 @@ const css = `
 /* TooltipShortcut: the label, then the shortcut 12px after it in the secondary text color. */
 .cm-tooltip-shortcut-row { display: flex; align-items: center; white-space: nowrap; }
 .cm-tooltip-shortcut { margin-inline-start: 12px; color: var(--cm-text-menu-secondary); }
+/* A cut section title's technical name, in the tooltip's own secondary ink. */
+.cm-tooltip .cm-section-technical { color: var(--cm-text-menu-secondary); }
 
 /* ---------------------------------------------------------------- 8.4 light popover */
 

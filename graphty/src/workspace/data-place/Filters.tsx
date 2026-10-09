@@ -25,7 +25,17 @@ import React, { useEffect, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
-import { applyName, chipTip, chipWords, ENDS_LINE, outcomeWords, savedWords, statusWords } from "./filterWords";
+import {
+    applyName,
+    applyTip,
+    chipTip,
+    chipWords,
+    ENDS_LINE,
+    outcomeWords,
+    savedWords,
+    saveLabel,
+    statusWords,
+} from "./filterWords";
 import { useVisibilityVersion } from "./useVisibilityVersion";
 
 /** Nodes left before the first step and after each step that is on, by step id. */
@@ -104,16 +114,18 @@ export function FiltersSection(): React.JSX.Element {
             dimmed: !step.on,
             strong: false,
             actions: (
-                <span data-pinned="">
-                    <Checkbox
-                        size="xs"
-                        aria-label={applyName(words)}
-                        checked={step.on}
-                        onChange={(event) => {
-                            setOn(step, event.currentTarget.checked);
-                        }}
-                    />
-                </span>
+                <Tooltip label={applyTip(step.on)}>
+                    <span data-pinned="">
+                        <Checkbox
+                            size="xs"
+                            aria-label={applyName(words)}
+                            checked={step.on}
+                            onChange={(event) => {
+                                setOn(step, event.currentTarget.checked);
+                            }}
+                        />
+                    </span>
+                </Tooltip>
             ),
         };
     });
@@ -308,8 +320,9 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     // A neighbors step keeps its own seeds unless the editor opened on a new selection.
     const kept = step?.rule.kind === "neighborhood" ? step.rule.seeds : [];
     const rule = ruleOf(fields, attribute, seeds.length > 0 ? seeds : kept);
-    // Save step waits for a change: a rule that is the step's own saves nothing.
-    const unchanged = step !== undefined && rule !== null && sameRule(rule, step.rule);
+    // Save step waits for a change: a rule that is the step's own saves nothing. An off step's
+    // "Save and turn on" does something either way.
+    const unchanged = step?.on === true && rule !== null && sameRule(rule, step.rule);
 
     if (session === null || (step === undefined && id !== NEW && filled === "")) {
         return (
@@ -435,7 +448,7 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                         void commit();
                     }}
                 >
-                    {step === undefined ? "Add step" : "Save step"}
+                    {step === undefined ? "Add step" : saveLabel(step.on)}
                 </Button>
             </Group>
         </Stack>

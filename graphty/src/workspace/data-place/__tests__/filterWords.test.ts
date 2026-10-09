@@ -2,6 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import {
     applyName,
+    applyTip,
     chipTip,
     chipWords,
     historyNotice,
@@ -9,6 +10,7 @@ import {
     outcomeWords,
     ruleWords,
     savedWords,
+    saveLabel,
     statusWords,
 } from "../filterWords";
 
@@ -28,16 +30,13 @@ describe("the Filters words", () => {
             "team is red or blue",
         );
         assert.equal(ruleWords({ kind: "member", of: "largest-component" }, NAMES), "in the largest component");
-        assert.equal(ruleWords({ kind: "neighborhood", seeds: ["Ava"], depth: 1 }, NAMES), "neighbors of Ava");
+        // A neighborhood leads with its hop count, so a cut row still tells two steps apart.
+        assert.equal(ruleWords({ kind: "neighborhood", seeds: ["Ava"], depth: 1 }, NAMES), "within 1 hop of Ava");
         assert.equal(
             ruleWords({ kind: "neighborhood", seeds: ["Ava", "Ben"], depth: 1 }, NAMES),
-            "neighbors of 2 nodes",
+            "within 1 hop of 2 nodes",
         );
-        // A neighborhood past one hop says how far it reaches.
-        assert.equal(
-            ruleWords({ kind: "neighborhood", seeds: ["Ava"], depth: 2 }, NAMES),
-            "neighbors of Ava within 2 hops",
-        );
+        assert.equal(ruleWords({ kind: "neighborhood", seeds: ["Ava"], depth: 2 }, NAMES), "within 2 hops of Ava");
     });
 
     it("gives a step's outcome, and says off in words for a step that is off", () => {
@@ -70,14 +69,21 @@ describe("the Filters words", () => {
         assert.equal(savedWords("weight is at least 4"), 'Saved "weight is at least 4". The step is on.');
     });
 
+    it("says what the checkbox and the save button do", () => {
+        assert.equal(applyTip(true), "Turn this step off");
+        assert.equal(applyTip(false), "Turn this step on");
+        assert.equal(saveLabel(true), "Save step");
+        assert.equal(saveLabel(false), "Save and turn on");
+    });
+
     it("names the steps that are on in the chip's tooltip", () => {
         assert.equal(
             chipTip(["weight is at least 4"]),
-            'Step on: "weight is at least 4". Turn it off in the Filters list.',
+            'Showing only: "weight is at least 4". Click to open Filters, where you can turn it off.',
         );
         assert.equal(
             chipTip(["weight is at least 4", "in the largest component"]),
-            'Steps on: "weight is at least 4", "in the largest component". Turn them off in the Filters list.',
+            'Showing only: "weight is at least 4", "in the largest component". Click to open Filters, where you can turn them off.',
         );
     });
 });

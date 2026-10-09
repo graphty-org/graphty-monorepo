@@ -87,7 +87,11 @@ describe("Filters on the real element", () => {
             // The chip's tooltip names the step that is on.
             const chip = screen.getByRole("button", { name: "Filter: 5 of 8 nodes" });
             await userEvent.hover(chip);
-            await screen.findByText('Step on: "value is at least 9". Turn it off in the Filters list.');
+            await screen.findByText(
+                'Showing only: "value is at least 9". Click to open Filters, where you can turn it off.',
+                {},
+                { timeout: 3000 },
+            );
             await userEvent.unhover(chip);
             await waitFor(() => {
                 assert.equal(store.get().announcement, "Filter on: 5 of 8 nodes, 4 edges");
@@ -100,8 +104,14 @@ describe("Filters on the real element", () => {
             const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
             await inspector.findByText("On");
 
+            // The checkbox's tooltip says what a click does.
+            const tick = screen.getByRole("checkbox", { name: "Apply step: value is at least 9" });
+            await userEvent.hover(tick);
+            await screen.findByText("Turn this step off", {}, { timeout: 3000 });
+            await userEvent.unhover(tick);
+
             // Untick: the full graph, the chip gone, the row and the editor say off.
-            await userEvent.click(screen.getByRole("checkbox", { name: "Apply step: value is at least 9" }));
+            await userEvent.click(tick);
             await waitFor(() => {
                 assert.isFalse(session.visibility.steps[0]?.on);
             });
@@ -115,12 +125,11 @@ describe("Filters on the real element", () => {
             });
             assert.equal(store.get().announcement, "Filter off");
 
-            // Editing the step while it is off: Save step waits for a change, and saving turns it on.
+            // Editing the step while it is off: the button says saving turns it on.
             act(() => {
                 store.set({ inspected: { kind: "filter-step", id: step.id } });
             });
-            const save = await inspector.findByRole("button", { name: "Save step" });
-            assert.isTrue(save.hasAttribute("disabled"));
+            const save = await inspector.findByRole("button", { name: "Save and turn on" });
             const value = inspector.getByRole("textbox", { name: "Value" });
             await userEvent.clear(value);
             await userEvent.type(value, "10");

@@ -21,7 +21,7 @@ function num(value: number): string {
 }
 
 /**
- * A rule as one sentence: "weight is at least 4", "in the largest component", "neighbors of Ava".
+ * A rule as one sentence: "weight is at least 4", "in the largest component", "within 2 hops of Ava".
  * @param rule - the step's rule.
  * @param names - reads attribute and node names.
  * @returns the sentence.
@@ -43,11 +43,9 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
         case "member":
             return rule.of === "largest-component" ? "in the largest component" : "in a set";
         case "neighborhood": {
-            const of =
-                rule.seeds.length === 1
-                    ? `neighbors of ${names.node(rule.seeds[0])}`
-                    : `neighbors of ${String(rule.seeds.length)} nodes`;
-            return rule.depth > 1 ? `${of} within ${String(rule.depth)} hops` : of;
+            // The hop count leads: a cut row still tells two steps on the same node apart.
+            const who = rule.seeds.length === 1 ? names.node(rule.seeds[0]) : `${String(rule.seeds.length)} nodes`;
+            return `within ${String(rule.depth)} ${rule.depth === 1 ? "hop" : "hops"} of ${who}`;
         }
         default:
             return "a rule";
@@ -82,15 +80,32 @@ export function savedWords(words: string): string {
 }
 
 /**
- * The header chip's tooltip: the steps that are on, and where to turn them off.
+ * The header chip's tooltip: what is showing, and that a click opens Filters to turn it off.
+ * The Filters list is not on the Graph page, so the words say how to reach it.
  * @param on - the sentences of the steps that are on.
  * @returns the words.
  */
 export function chipTip(on: readonly string[]): string {
     const named = on.map((words) => `"${words}"`).join(", ");
-    return on.length === 1
-        ? `Step on: ${named}. Turn it off in the Filters list.`
-        : `Steps on: ${named}. Turn them off in the Filters list.`;
+    return `Showing only: ${named}. Click to open Filters, where you can turn ${on.length === 1 ? "it" : "them"} off.`;
+}
+
+/**
+ * The step checkbox's tooltip, by what a click does.
+ * @param on - whether the step is on.
+ * @returns the words.
+ */
+export function applyTip(on: boolean): string {
+    return on ? "Turn this step off" : "Turn this step on";
+}
+
+/**
+ * The step editor's save button: saving an off step turns it on, so the button says so.
+ * @param on - whether the step being edited is on.
+ * @returns the label.
+ */
+export function saveLabel(on: boolean): string {
+    return on ? "Save step" : "Save and turn on";
 }
 
 /**

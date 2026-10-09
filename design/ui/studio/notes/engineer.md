@@ -11,6 +11,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **Filters say what each control does (app only, no API).** The step checkbox has a
+  tooltip by state ("Turn this step off" / "on", `applyTip`); an off step's editor button reads
+  "Save and turn on" (`saveLabel`) and is enabled even with the rule unchanged, since it does
+  something; an on step keeps "Save step", disabled until a change. Chip tooltip: 'Showing only:
+  "<step>". Click to open Filters, where you can turn it off.' A neighbors step reads "within N
+  hop(s) of Ava" (hop count first, also at one hop), whole in the 240-wide row. Rows, chip and
+  answers.md's T17 follow-up ("Save step") now differ: the key's wording is the next editor's to
+  update. Evidence `tmp/r1-dry3-app-filters/` (T17A/07,10-12; T17B/07-11; T23A/07-08).
 - (2026-10-08) **Study tool records the served build, finds relative setups (tool only).**
   `session.json` `commit` is the served build's (stamp in `REAL_DIST/index.html`, resolved to the
   full sha; else the frozen folder's `-<sha>` suffix); the checkout's HEAD is `toolCommit`. Reason:
@@ -40,16 +48,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (compact-mantine `overlayBehavior.ts`, `data-cm-still`). The theme's open delay is 1000 ms, so a
   test waits with `findByText(hint, {}, { timeout })`, not the default 1 s. OPEN: an `opened`-prop
   tooltip under a resting pointer stays hidden until a move. Evidence `tmp/r1-dry3-cm-tooltip-pointer-move/`.
-- (2026-10-08, condensed) Study tool: after setup `real.mjs` blurs focus and moves the pointer
-  off the page (`--prove` checks it). Notes: a saved note takes focus (`focusWhenDrawn`); delete
-  note is `GLYPHS.delete` (trash). Evidence `tmp/r1-dry2-study-tool-handover/`, `tmp/r1-dry2-notes-polish/`.
-- (2026-10-08, condensed) Path form: a panel's Escape waits for inner controls (`isPanelEscape`
-  false when `defaultPrevented` or the target has `data-expanded`); Made with's Weight is
-  `weightRead(caveats)` -> `{ value, note }`, the note on its own line; runs show time to the second.
-  OPEN: Columns after "=" omit run results; Dijkstra always undirected.
-- (2026-10-08, condensed) Filter steps: a step row's outcome ("77 to 26 nodes", "off") is a second
-  line via compact-mantine `TreeNodeData.descriptionVisible`; saving a step turns it on; the header
-  chip's tooltip names the steps on. Evidence under `tmp/` (filter steps).
+- (2026-10-08, condensed) Study tool blurs focus and moves the pointer off the page after setup;
+  a saved note takes focus; a panel's Escape waits for inner controls (`isPanelEscape`); Made
+  with's Weight is `weightRead(caveats)`; runs show time to the second. OPEN: Columns after "="
+  omit run results; Dijkstra always undirected.
 - (2026-10-08, condensed) Earlier dry-run fixes: focus after an action goes to the inspector's
   title (`focusInspectorTitle`; element `data-pointer-focus` hides the click ring); a load that
   leaves rows out wears a warning, a Sources child opens what it names (`tableRows`); find keeps
@@ -61,6 +63,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **A button that changes state says so before the click.** "Save and turn on" on an
+  off step, not a status line after it (the save already announces). Rejected: keeping it disabled
+  when unchanged -- a button that names an action and refuses it is a new flaw. A neighborhood's
+  words lead with the hop count at every depth (one pattern, and the count is what tells two such
+  steps apart when the row is cut).
 - (2026-10-08) **A weight's follow-up choice goes below the control that caused it.** Inserting
   Higher means above the roles moved them ~62 px under the pointer (T20A). Below the roles,
   before the grid, nothing above the pointer moves. Rejected: reserving the line's height while
@@ -188,6 +195,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) A tooltip assertion after `userEvent.hover` needs `{ timeout: 3000 }`: the theme's
+  1000 ms open delay equals findBy's default timeout, so the chip-tooltip check failed until given room.
 - (2026-10-08) Worked: one pilot script per task in `tmp/<task>/T*.sh`, run under
   `with-browser.sh`, on a dist copy. "New from data..." then "choose a file..." --upload; a second
   table via "Add a table" > "File...". A role select is `--click "role=combobox:Role of <col>"`
@@ -208,24 +217,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   diff and commit at once.
 - (2026-10-08) Worked: re-piloting T4 from answers.md's success path (no session.json setup list
   for an `empty` start) on a dist copy in my tmp folder.
-- (2026-10-08) Did not work: `MenuDropdown` theme `onKeyDown` to mark Escape (never ran: the
-  capture-phase close unmounts first). Did not work: redirecting a disabled first focus once --
-  Mantine's focus trap refocuses row 1 from a second timer; `data-autofocus` on the target fixes
-  it. Did not work: weight 550 for the chosen segment (crop compare old/new identical to the eye).
-  Worked: "fails without" for a file another agent had dirty by commenting my two listener lines
-  in place, not `git apply -R` (context mismatch); a my-hunks-only patch built from `git show
-HEAD:` plus my blocks.
-- (2026-10-08) Did not work: Tooltip `vars` installing listeners that must see events before the
-  first tooltip (vars run only when the tooltip renders). A same-pixel move after the pointer left
-  the window is real (the vitest harness does this between tests). Never revert-and-restore a file
-  another agent is editing to prove a test fails: their edits in the window are lost.
-
-- (2026-10-08) Worked: proving a tool fix by commenting the line out in place, running `--prove`
-  with its own `REAL_PROVE_DIR`, restoring (no copy of real.mjs needed for a one-line change).
-- (2026-10-08) Did not work: reading "tooltip under the key" from a screenshot -- two dark
-  surfaces abutting look like clipping. Worked: a probe (`tmp/r1-dry2-notes-polish/probe.mjs`)
-  printing the tooltip's ancestor chain and z-index, plus a zoomed crop showing what covers what.
-  `elementFromPoint` is no evidence here: tooltips have `pointer-events: none`, so it returns the card.
+- (2026-10-08, condensed) Menus and tooltips: a theme `onKeyDown` on `MenuDropdown` never runs
+  (capture-phase close unmounts first); a disabled first focus needs `data-autofocus` (Mantine's
+  trap refocuses row 1); Tooltip `vars` run only when the tooltip renders; read "tooltip under X"
+  with a probe of ancestors and z-index, never from a screenshot (`elementFromPoint` skips
+  `pointer-events: none`). Never revert-and-restore a file another agent is editing to prove a
+  test fails; comment my lines out in place instead.
 - (2026-10-08) Worked: `pilot/rewalk.sh` with `HERE=<my tmp>` and `REAL_DIST=graphty/dist` re-pilots
   a task on a fresh build; step N lands in screenshot N+1 (01 is the start).
 - (2026-10-08) Did not work: rerunning a path with the same From and To to show two times -- it
@@ -237,16 +234,9 @@ HEAD:` plus my blocks.
 - (2026-10-08, condensed) Did not work: `focus({ focusVisible: false })` (Chrome 143 ignores it).
   Worked: a probe page showing script focus inherits keyboard modality; `--sr` "focus:" lines plus
   a computed-style probe tell "not focused" from "focused, no ring".
-- (2026-10-08) Worked: logging the node box's x/y/z extents and calling `zoomToFit()` in a probe
-  (`tmp/r1-dry2-import-page-sources/probe-replace.mjs`) split "framed wrong" from "laid out
-  differently" in one run. Did not work: `graph.waitForSettled()` right after a second load -- it
-  resolves on the OLD settlement; poll `isSettled && !running`. A column label click already opened
-  its role list on this build (the pilot's miss did not reproduce at 728,205 or 662,201); a test pins it.
-- (2026-10-08) Did not work: expecting `data.name()` to read a
-  `name` field -- it returns the id until `knownFields.nodeLabelPath` is set (an import sets it);
-  a headless test sets it. Did not work: `max-height` from row bottoms alone; border-box counts
-  the list's 1 px border, so the list ended 1 px above the row.
-
+- (2026-10-08, condensed) A probe logging node extents plus `zoomToFit()` splits "framed wrong"
+  from "laid out differently"; after a second load poll `isSettled && !running`, not
+  `waitForSettled()`; `data.name()` returns the id until `knownFields.nodeLabelPath` is set.
 - (2026-10-08) Others' rebuilds empty `graphty/dist`: pilot on a copy in tmp. Prettier an index-built blob.
 
 - (2026-10-08) A test must fail without the fix: a contrast check passed on the old gray (compare

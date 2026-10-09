@@ -1,5 +1,7 @@
 import * as Sentry from "@sentry/react";
 
+import { privacyFilters } from "./sentryPrivacy";
+
 let initialized = false;
 /**
  * The one replay integration of this page. Sentry throws "Multiple Sentry Session Replay
@@ -12,6 +14,8 @@ interface SentryConfig {
     dsn?: string;
     environment?: string;
     isProd?: boolean;
+    /** Where events go; Sentry's own by default. Tests pass one that records them. */
+    transport?: Sentry.BrowserOptions["transport"];
 }
 
 /**
@@ -54,6 +58,9 @@ export function initSentry(config?: SentryConfig): void {
         replaysSessionSampleRate: 1,
         replaysOnErrorSampleRate: 1,
         integrations: [replay],
+        // Every event, transaction and breadcrumb is cut down to an allowlist before it is sent.
+        ...privacyFilters,
+        transport: effectiveConfig.transport,
     });
     if (restart) {
         // The integration sets itself up once per page; on a later start it records only when asked.

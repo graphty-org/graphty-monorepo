@@ -1,4 +1,4 @@
-import { afterEach, assert, test } from "vitest";
+import { afterEach, assert, test, vi } from "vitest";
 
 import type { CameraStateChangedEvent } from "../../../src/events.js";
 import { Graph } from "../../../src/Graph.js";
@@ -10,6 +10,16 @@ let graph: Graph;
 afterEach(() => {
     cleanupTestGraph(graph);
 });
+
+/**
+ * Wait until an animation has started moving the camera away from where it stood.
+ * @param from - The camera position before the animation was asked for.
+ */
+async function cameraLeft(from: { x: number; y: number; z: number } | undefined): Promise<void> {
+    await vi.waitFor(() => {
+        assert.notDeepEqual(graph.getCameraState().position, from, "the animation has moved the camera");
+    });
+}
 
 /**
  * Phase 2 Integration Tests
@@ -114,6 +124,7 @@ test("camera animation works during rendering activity", async () => {
     // This simulates the scenario where the camera is animating while
     // other operations might be happening in the graph
     const targetPos = { x: 50, y: 50, z: 50 };
+    const start = graph.getCameraState().position;
 
     // Fire off animation
     const animationPromise = graph.setCameraState(
@@ -121,9 +132,8 @@ test("camera animation works during rendering activity", async () => {
         { animate: true, duration: 500 },
     );
 
-    // Wait a bit to ensure animation is in progress
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait until the animation is in progress
+    await cameraLeft(start);
 
     // Do some other camera operation during animation
     void graph.setCameraState({ position: { x: 25, y: 25, z: 25 }, target: { x: 0, y: 0, z: 0 } }, { animate: false });

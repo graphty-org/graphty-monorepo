@@ -32,9 +32,8 @@ describe("Video Capture - 2D Orthographic Camera", () => {
         await configureGraph(graph, { viewMode: "2d", layout: "fixed" });
         setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
 
-        // Wait for camera to be activated
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Wait for the view mode and layout to be applied
+        await graph.waitForSettled();
 
         // Verify 2D mode is active
         assert.isTrue(graph.getViewMode() === "2d", "Graph should be in 2D mode");
@@ -110,9 +109,8 @@ describe("Video Capture - 2D Animated Camera", () => {
         await configureGraph(graph, { viewMode: "2d", layout: "fixed" });
         setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
 
-        // Wait for camera to be activated
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Wait for the view mode and layout to be applied
+        await graph.waitForSettled();
 
         // Verify 2D mode is active
         assert.isTrue(graph.getViewMode() === "2d", "Graph should be in 2D mode");
@@ -255,9 +253,8 @@ describe("Video Capture - 2D Camera Preservation", () => {
         await configureGraph(graph, { viewMode: "2d", layout: "fixed" });
         setBehavior(graph, { layout: { minDelta: 0.001, zoomStepInterval: 5 } });
 
-        // Wait for camera to be activated
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Wait for the view mode and layout to be applied
+        await graph.waitForSettled();
     });
 
     afterEach(() => {
@@ -281,15 +278,15 @@ describe("Video Capture - 2D Camera Preservation", () => {
 
     test("2D video capture supports cancellation", async () => {
         // Start a long capture
+        const recording = graph.eventManager.waitFor("animation-progress");
         const capturePromise = graph.captureAnimation({
             duration: 5000,
             fps: 30,
             cameraMode: "stationary",
         });
 
-        // Wait a bit then cancel
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Cancel once it is recording
+        await recording;
 
         // Should be capturing
         assert.ok(graph.isAnimationCapturing(), "Should be capturing before cancel");

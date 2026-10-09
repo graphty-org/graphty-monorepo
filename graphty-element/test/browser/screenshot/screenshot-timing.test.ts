@@ -1,4 +1,4 @@
-import { afterEach, assert, test } from "vitest";
+import { afterEach, assert, test, vi } from "vitest";
 
 import type { AuthoredLayoutDescriptor } from "../../../src/catalog/types";
 import type { Edge } from "../../../src/Edge";
@@ -6,13 +6,27 @@ import { type Graph, operationQueueOf } from "../../../src/Graph";
 import { type EdgePosition, LayoutEngine, type Position } from "../../../src/layout/LayoutEngine";
 import { layoutManagerInternals } from "../../../src/managers/LayoutManager";
 import type { Node } from "../../../src/Node";
+import { SCREENSHOT_CONSTANTS } from "../../../src/screenshot/constants";
+import { nextFrame } from "../../helpers/real-input";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
 
 afterEach(() => {
+    vi.useRealTimers();
     cleanupTestGraphWithData(graph);
 });
+
+/**
+ * Wait until a capture is waiting for the layout to settle: it has added its `graph-settled`
+ * listener, and started its settle timeout in the same step.
+ * @param before - The graph's listener count before the capture was asked for.
+ */
+async function captureWaitingForSettle(before: number): Promise<void> {
+    await vi.waitFor(() => {
+        assert.isAbove(graph.listenerCount(), before, "the capture is listening for graph-settled");
+    });
+}
 
 // Mock layout engine for testing
 class MockLayoutEngine extends LayoutEngine {
@@ -111,6 +125,7 @@ test("waitForSettle waits for layout to settle", async () => {
     layoutEngine.setSettled(false);
 
     let captured = false;
+    const listenersBefore = graph.listenerCount();
     const capturePromise = graph
         .captureScreenshot({
             timing: { waitForSettle: true },
@@ -119,9 +134,8 @@ test("waitForSettle waits for layout to settle", async () => {
             captured = true;
         });
 
-    // Should not capture immediately
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Should not capture while it waits for the layout
+    await captureWaitingForSettle(listenersBefore);
     assert.equal(captured, false, "Should not capture before settling");
 
     // Settle layout
@@ -136,8 +150,7 @@ test("waitForSettle waits for layout to settle", async () => {
     assert.equal(captured, true, "Should capture after settling");
 });
 
-// eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-test("waitForSettle times out if layout never settles", { timeout: 35000 }, async () => {
+test("waitForSettle times out if layout never settles", async () => {
     graph = await createTestGraphWithData();
 
     // Set up mock layout engine
@@ -148,25 +161,37 @@ test("waitForSettle times out if layout never settles", { timeout: 35000 }, asyn
     assert.ok(layoutEngine, "Layout engine should be set");
     layoutEngine.setSettled(false);
 
-    // Set a short timeout for testing
-    try {
-        await graph.captureScreenshot({
+    // The settle timeout runs on a fake clock, so the test does not wait it out.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const listenersBefore = graph.listenerCount();
+    const outcome = graph
+        .captureScreenshot({
             timing: { waitForSettle: true },
-        });
-        assert.fail("Should have thrown timeout error");
-    } catch (error) {
-        assert.ok(error instanceof Error, "Should throw an error");
-        assert.match(error.message, /settle|timeout/i, "Error message should mention settling or timeout");
-    }
+        })
+        .then(
+            () => null,
+            (error: unknown) => error,
+        );
+    await captureWaitingForSettle(listenersBefore);
+    await vi.advanceTimersByTimeAsync(SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS);
+
+    const error = await outcome;
+    assert.ok(error instanceof Error, "Should throw an error");
+    assert.match(error.message, /settle|timeout/i, "Error message should mention settling or timeout");
 });
 
 test("waitForOperations waits for pending operations", async () => {
     graph = await createTestGraphWithData();
 
-    // Queue a long operation (use style-apply to avoid triggering layout-update)
+    // Queue an operation that stays pending until the test releases it (use style-apply to
+    // avoid triggering layout-update)
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+    });
     let operationComplete = false;
     const longOperation = operationQueueOf(graph).queueOperationAsync("style-apply", async () => {
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        await gate;
         operationComplete = true;
     });
 
@@ -179,12 +204,14 @@ test("waitForOperations waits for pending operations", async () => {
             captured = true;
         });
 
-    // Should not capture immediately
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // Should not capture while the operation is pending, however many frames are drawn
+    for (let frame = 0; frame < 5; frame++) {
+        await nextFrame();
+    }
     assert.equal(captured, false, "Should not capture before operations complete");
 
-    // Wait for operation to complete
+    // Let the operation complete
+    release();
     await longOperation;
     assert.equal(operationComplete, true, "Long operation should complete");
 

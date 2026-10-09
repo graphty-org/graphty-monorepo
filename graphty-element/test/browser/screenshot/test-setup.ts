@@ -26,9 +26,8 @@ export async function createTestGraphWithData(): Promise<Graph> {
     // This prevents waitForLayoutSettle from timing out
     await graph.setLayout("fixed");
 
-    // Wait for initial render
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait for the data and layout to be applied
+    await graph.waitForSettled();
 
     return graph;
 }

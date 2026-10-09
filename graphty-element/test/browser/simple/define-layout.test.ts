@@ -36,6 +36,7 @@ import { Graph } from "../../../index.js";
 import { GraphtyLogger } from "../../../logging";
 import { operationQueueOf } from "../../../src/Graph";
 import { expandOptions } from "../../../src/simple/options";
+import { nextFrame } from "../../helpers/real-input";
 
 /**
  * Six nodes carrying every attribute the three toy layouts read. "f" carries none of them, so
@@ -59,9 +60,6 @@ const EDGES = [
     { src: "e", dst: "f" },
 ];
 
-/** Roughly one animation frame. */
-const FRAME_MS = 16;
-
 /** How long a wait may take before it is called a failure. */
 const PATIENCE_MS = 5000;
 
@@ -70,18 +68,6 @@ interface Coords {
     x: number;
     y: number;
     z: number;
-}
-
-/**
- * Wait one frame.
- * @param ms - How long.
- * @returns A promise that resolves after it.
- */
-function delay(ms: number): Promise<void> {
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    return new Promise((resolve) => {
-        setTimeout(resolve, ms);
-    });
 }
 
 /**
@@ -120,7 +106,7 @@ describe("defineLayout on a rendered graph", () => {
                 return;
             }
 
-            await delay(FRAME_MS);
+            await nextFrame();
         }
 
         throw new Error(`timed out waiting for ${what}`);

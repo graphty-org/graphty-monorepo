@@ -377,7 +377,7 @@ export function queueChecks(text) {
             .slice(2)
             .split(" #")[0]
             .trim()
-            .replaceAll(/^["']|["']$/g, "");
+            .replaceAll(/(^["'])|(["']$)/g, "");
         const prefix = ["check-success=", "-check-failure="].find((p) => cond.startsWith(p));
         const name = prefix && cond.slice(prefix.length);
         if (name && name !== CONTEXT) names.add(name);

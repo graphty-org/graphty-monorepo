@@ -152,7 +152,6 @@ export class ApiKeyManager {
     clear(): void;
     disablePersistence(clearStorage?: boolean): void;
     enablePersistence(config?: PersistenceConfig): Promise<void>;
-    enablePersistence(config?: PersistenceConfig): void;
     enablePersistenceWithPassphrase(passphrase: string, config?: PassphrasePersistenceConfig): Promise<void>;
     getConfiguredProviders(): ProviderType[];
     getDefaultProvider(): ProviderType | null;

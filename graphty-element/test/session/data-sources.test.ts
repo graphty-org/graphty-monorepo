@@ -118,7 +118,10 @@ describe("session.data.sources", () => {
         await load(session, MESSAGES, "messages.csv", "merge");
         const rows = (each: LoadedSource): unknown => [each.tables, each.tableRows];
         assert.deepStrictEqual(session.data.sources().map(rows), [
-            [["people.csv", "passes.csv"], ["nodes", "edges"]],
+            [
+                ["people.csv", "passes.csv"],
+                ["nodes", "edges"],
+            ],
             [["messages.csv"], ["edges"]],
         ]);
 

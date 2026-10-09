@@ -472,7 +472,7 @@ function isMeaning(value: unknown): value is WeightMeaning["meaning"] {
 }
 
 /** What a run read as its weight: a short value for a row, and the explanation for a line under it. */
-export interface WeightRead {
+interface WeightRead {
     /** "km (farther)", "weight (read as closer)" or "None". */
     readonly value: string;
     /** Why, or how, when the value alone does not say it; null when it does. */

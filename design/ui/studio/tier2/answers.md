@@ -301,15 +301,15 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   project in Recent projects (`--click friends`; in B click-at 624,108, its row: the sample of the
   same name is also on the start screen; `--click "Florentine families"` reports the name as
   shared with the sample's button and takes the Recent projects row, which also works); `--click
-  "Notes"`. The menus' "Add note" (a node's canvas menu, the inspector "...") and the Notes place
+"Notes"`. The menus' "Add note" (a node's canvas menu, the inspector "...") and the Notes place
   "+" are the same command.
 - **The save:** Control+S on this build opens "Save friends as" and keeps the project in this
   browser ("Saved friends in this browser."); Recent projects lists it after reopening as "friends
-  - In this browser - 20 nodes" (`rounds/r1d2/pilot/T19A/08.png`, `09.png`, `11.png`). That save
-  alone counts as kept. The start screen also says "This browser can clear projects kept here.
-  Save a local copy of any project you need to keep."; a participant who saves a local copy as
-  well took no detour. The header's "Local only" label reads the same before and after the save,
-  and nothing lasting on screen says the project is saved: only the toast, which fades.
+    - In this browser - 20 nodes" (`rounds/r1d2/pilot/T19A/08.png`, `09.png`, `11.png`). That save
+      alone counts as kept. The start screen also says "This browser can clear projects kept here.
+      Save a local copy of any project you need to keep."; a participant who saves a local copy as
+      well took no detour. The header's "Local only" label reads the same before and after the save,
+      and nothing lasting on screen says the project is saved: only the toast, which fades.
 - **S:** both notes, each on the right target, there after reopening, and the participant shows
   the Notes place (or the inspector's "1 note" link). **SD:** one note on the wrong target fixed
   after a detour; or the reminders kept but found only after searching. **F:** `not-kept` (no save,
@@ -423,7 +423,7 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   also tells the participant the run was redone.
 - **Success path (A):** `--click "Values"` (to read the first name before); `--click "Data"`;
   `--rclick "friends.csv"` (the Sources row; its "..." menu works too); `--click "Replace with
-  file..." --upload friends-v2.csv`; `--click "Load"` (the app returns to the Graph page with the
+file..." --upload friends-v2.csv`; `--click "Load"` (the app returns to the Graph page with the
   run's inspector open on its Values, where it was); `--click "Rerun"` (the run's inspector stays
   open through the replacement when it was open before; otherwise `--click "PageRank"`, the run
   row now marked out of date, comes first, and its absence or presence is not a deviation). "First
@@ -464,21 +464,21 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   with thick blue bands (`rounds/r1d2/pilot/T22B/06.png`).
 - **The count can be read in three places:** the line under the find box, the inspector (header,
   Summary or Selection), and the rows of the "Selected edges" table.
-- **Success path (A):** `--key /`; `--type "=minutes >= \`10\`"` (a gray line under the box reads
-  "Rule: press Enter to select matches"); `--key Enter`; read the line under the box or the
-  inspector. B: `--type "=shared_chapters >= \`10\`"`. A bare number (`=minutes >= 10`) is refused
-  with "Put numbers in backticks:" with an example from the open data's own column (A: "minutes >
-  `9`"; B: "shared_chapters > `16`") in red under the box as it is typed, before Enter
-  (`rounds/r1d2/pilot/T22A/04.png`, `T22B/03.png`): a correction after it is not a detour, it is
-  the path; Enter on a refused rule changes nothing (`T22A/05.png`, `T22B/04.png`). A lone "="
-  lists the columns a rule can use (A: id as a node column, minutes as an edge column; B: id, name
-  as node columns, shared_chapters as an edge column; the PageRank values are not listed) above
-  the layer list, with "Type a rule, such as minutes > `9`" (B: "shared_chapters > `16`",
-  `rounds/r1d2/pilot/T22A/03.png`, `T22B/02.png`). An accepted rule stays in the box after Enter
-  (with no visible text highlight), and the line under it reads "3 edges selected" (B "13 edges
-  selected") until the selection is cleared, when it goes back to the Rule line. A second Enter on
-  the accepted rule changes nothing and is not a detour. Escape clears the box and keeps the
-  selection (`T22A/09.png`, `T22B/08.png`). On B the example 16 sits near the task's 10; record any
+- **Success path (A):** `--key /`; `--type "=minutes >= \`10\`"`(a gray line under the box reads
+"Rule: press Enter to select matches");`--key Enter`; read the line under the box or the
+inspector. B: `--type "=shared_chapters >= \`10\`"`. A bare number (`=minutes >= 10`) is refused
+with "Put numbers in backticks:" with an example from the open data's own column (A: "minutes >
+`9`"; B: "shared_chapters > `16`") in red under the box as it is typed, before Enter
+(`rounds/r1d2/pilot/T22A/04.png`, `T22B/03.png`): a correction after it is not a detour, it is
+the path; Enter on a refused rule changes nothing (`T22A/05.png`, `T22B/04.png`). A lone "="
+lists the columns a rule can use (A: id as a node column, minutes as an edge column; B: id, name
+as node columns, shared_chapters as an edge column; the PageRank values are not listed) above
+the layer list, with "Type a rule, such as minutes > `9`" (B: "shared_chapters > `16`",
+`rounds/r1d2/pilot/T22A/03.png`, `T22B/02.png`). An accepted rule stays in the box after Enter
+(with no visible text highlight), and the line under it reads "3 edges selected" (B "13 edges
+selected") until the selection is cleared, when it goes back to the Rule line. A second Enter on
+the accepted rule changes nothing and is not a detour. Escape clears the box and keeps the
+selection (`T22A/09.png`, `T22B/08.png`). On B the example 16 sits near the task's 10; record any
   participant who uses 16.
 - **Other routes, graded by the end state:** clicking each line with Shift held (A: 3 lines; not
   checked on this build); a color on Everything's edges that separates exactly the 10-or-more ties.

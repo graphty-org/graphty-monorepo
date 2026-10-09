@@ -202,7 +202,7 @@ export function overflowLine(hidden: number): string {
 }
 
 /** How the key names the row behind a block, and the entry of a fixed-value row. */
-export interface KeyNames {
+interface KeyNames {
     /** The name of the row that paints the block: its run's, else its layer's. */
     readonly row: (block: LegendBlock) => string;
     /** The entry of a fixed-value row: a highlight's words ("On the path"), else the layer's name. */
@@ -210,7 +210,7 @@ export interface KeyNames {
 }
 
 /** One section of the key: its title, the block it draws, and a fixed-value row's entry. */
-export interface KeySection {
+interface KeySection {
     readonly title: string;
     readonly block: LegendBlock;
     readonly entry: string;

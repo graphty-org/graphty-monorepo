@@ -489,9 +489,7 @@ function ReadyMark({ ready, leftOut = 0 }: { ready: boolean; leftOut?: number })
         return <GLYPHS.empty size={14} role="img" aria-label="Not ready" />;
     }
     if (leftOut > 0) {
-        return (
-            <GLYPHS.warning size={14} color="var(--cm-text-danger)" role="img" aria-label={leftOutWords(leftOut)} />
-        );
+        return <GLYPHS.warning size={14} color="var(--cm-text-danger)" role="img" aria-label={leftOutWords(leftOut)} />;
     }
     return <GLYPHS.ready size={14} color="var(--mantine-color-green-6)" role="img" aria-label="Ready" />;
 }
@@ -512,7 +510,9 @@ function TableRow({ page, draft, table }: PartProps & { draft: LoadDraft; table:
             component="button"
             label={table.fixed ? kind : `${kind}: ${table.name}`}
             description={
-                leftOut > 0 ? `${plural(table.rowCount, "row")}, ${count(leftOut)} left out` : plural(table.rowCount, "row")
+                leftOut > 0
+                    ? `${plural(table.rowCount, "row")}, ${count(leftOut)} left out`
+                    : plural(table.rowCount, "row")
             }
             active={page.tableId === table.id}
             aria-current={page.tableId === table.id ? "true" : undefined}

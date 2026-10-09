@@ -85,16 +85,23 @@ the worker's `gh pr create`, comments, issue creation and every other `gh` write
 run for real and write nothing to GitHub. Its worktree (`.worktrees/githerd-<job>`) is installed
 and built in the background first; sessions open one at a time, urgent ones first.
 
-Every session gets the thirteen tools of design section 6 from the MCP server in `.mcp.json`:
+Every session gets the fourteen tools of design section 6 from the MCP server in `.mcp.json`:
 `githerd_status`, `githerd_next`, `githerd_claim`, `githerd_wait`, `githerd_expect`, `githerd_push`,
 `githerd_rerun`, `githerd_read`, `githerd_done`, `githerd_ask_owner`, `githerd_record`,
-`githerd_mine` and `githerd_verdict`. A master failure that matches none of the classifier's
+`githerd_mine`, `githerd_offers` and `githerd_verdict`. A master failure that matches none of the classifier's
 unambiguous patterns (a credential, paid capacity, a lost runner, a package mirror or DNS outage)
 is unclassified: githerd holds merges, re-runs the job once and queues an urgent verdict job, and
 the session that takes it calls `githerd_verdict` with code or environment. Only a code verdict
 allows a revert; an environment verdict lifts the hold. When a job waits in the queue with no
 free worker slot, githerd messages the sessions in this repository with room once per job, inviting
-them to call `githerd_next` and claim it. A session has room while it is idle, or while the
+them to call `githerd_next` and claim it. A session the owner adds to `workers.sessions` first gets one
+onboarding message, before any invitation: the owner made it a githerd worker; take jobs with
+`githerd_next` and `githerd_claim`, do each job's work in background subagents, answer the status
+questions with `githerd_expect` and report with `githerd_done`; start now unless the owner says
+otherwise. It is sent once per membership (taking the session out of `workers.sessions` and back in
+sends it again). A session the owner has busy with other work calls `githerd_offers` with `pause`
+true, or runs `githerd pause-offers` from its shell: githerd invites it to nothing, and the board
+says so, until `pause` false or `githerd resume-offers`. It stays in `workers.sessions`. A session has room while it is idle, or while the
 `capacity` it last gave in `githerd_expect` (how many more jobs it can work in parallel) is above
 the jobs it claimed since. No fixed allowance limits a session; the shared resources do: while
 pushes wait in the push queue, the repository's Actions runs wait for a runner, or every test slot

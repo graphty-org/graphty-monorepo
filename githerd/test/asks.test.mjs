@@ -7,6 +7,8 @@ import {
     disown,
     inviteStep,
     markMine,
+    onboardStep,
+    setOffersPaused,
     statusStep,
     tellAccepted,
     tellCancelled,
@@ -226,6 +228,101 @@ describe("asking the live sessions whose a failed pull request is", () => {
     });
 });
 
+/** The invitation's last line, for a session that missed the onboarding message. */
+const POINTER =
+    "New to githerd? Its onboarding message explains it, as does githerd/README.md; githerd_offers with pause " +
+    "true (or `githerd pause-offers`) stops these offers.";
+
+describe("onboarding the sessions the owner made githerd workers", () => {
+    const config = { workers: { sessions: ["graphty-13"] } };
+
+    it("tells each member once, before any invitation, and nobody outside workers.sessions", async () => {
+        const state = {};
+        const f = fake();
+        const lines = await onboardStep(state, { ...f.opts(), config });
+        expect(f.sent).toHaveLength(1);
+        const [socket, text] = f.sent[0];
+        expect(socket).toBe("/s1.sock");
+        expect(text).toMatch(/^githerd: the owner has made this session \(graphty-13\) a githerd worker\./);
+        for (const part of [
+            "githerd_next",
+            "githerd_claim",
+            "`githerd mine <pr>`",
+            "background subagent",
+            "githerd_expect",
+            "githerd_done",
+            "githerd/README.md",
+            "each job's text",
+            "Start taking jobs now, unless the owner tells you otherwise.",
+            "`githerd pause-offers`",
+        ]) {
+            expect(text).toContain(part);
+        }
+        expect(/^[\x20-\x7e\n]*$/.test(text)).toBe(true);
+        expect(state.onboarded).toEqual({ "graphty-13": { session: "s1", at: NOW.toISOString() } });
+        expect(lines).toEqual([{ kind: "session-onboarded", session: "graphty-13", sent: ["graphty-13"], failed: [] }]);
+        // A restart reads the record: never twice.
+        expect(await onboardStep(state, { ...f.opts(), config })).toEqual([]);
+        expect(f.sent).toHaveLength(1);
+    });
+
+    it("onboards again once a session leaves workers.sessions and is added back", async () => {
+        const state = {};
+        const f = fake();
+        await onboardStep(state, { ...f.opts(), config });
+        await onboardStep(state, { ...f.opts(), config: { workers: { sessions: [] } } });
+        expect(state.onboarded).toEqual({});
+        await onboardStep(state, { ...f.opts(), config });
+        expect(f.sent).toHaveLength(2);
+    });
+
+    it("onboards nobody while workers.sessions names none, and retries a send that failed", async () => {
+        const state = {};
+        const f = fake(["/s1.sock"]);
+        expect(await onboardStep(state, { ...f.opts(), config: { workers: { sessions: null } } })).toEqual([]);
+        await onboardStep(state, { ...f.opts(), config });
+        expect(state.onboarded).toEqual({});
+        const ok = fake();
+        await onboardStep(state, { ...ok.opts(), config });
+        expect(ok.sent).toHaveLength(1);
+    });
+
+    it("in dry-run sends nothing, records nothing and writes a would-do", async () => {
+        const state = {};
+        const f = fake();
+        const lines = await onboardStep(state, { ...f.opts({ acting: false }), config });
+        expect(f.sent).toEqual([]);
+        expect(state).toEqual({ onboarded: {} });
+        expect(lines).toEqual([
+            { kind: "would-do", group: "workers", op: "onboard graphty-13 as a githerd worker", session: "graphty-13" },
+        ]);
+    });
+});
+
+describe("pausing offers to a session", () => {
+    it("invites a paused session to nothing until it resumes, and keeps every other session's offers", async () => {
+        const state = {
+            jobs: { "issue-5": newJob({ kind: "issue", target: "#5", id: "issue-5" }, NOW) },
+        };
+        const at = NOW.toISOString();
+        expect(setOffersPaused(state, { name: "graphty-13", session: "s1", paused: true, at, by: "tool" })).toEqual({
+            text: "githerd offers graphty-13 no jobs until it resumes offers",
+            entry: { kind: "offers-paused", name: "graphty-13", session: "s1", by: "tool" },
+        });
+        expect(state.offersPaused).toEqual({ "graphty-13": { session: "s1", at, by: "tool" } });
+        const f = fake();
+        const allIdle = () => SESSIONS.map((s) => ({ ...s, status: "idle" }));
+        await inviteStep(state, { ...f.opts({ sessions: allIdle }), offered: [{ job: "issue-5", reason: "bug" }] });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock"]);
+        expect(setOffersPaused(state, { name: "graphty-13", session: "s1", paused: false, at, by: "cli" }).text).toBe(
+            "githerd offers graphty-13 jobs again",
+        );
+        expect(state.offersPaused).toEqual({});
+        await inviteStep(state, { ...f.opts({ sessions: allIdle }), offered: [{ job: "issue-5", reason: "bug" }] });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock", "/s1.sock"]);
+    });
+});
+
 describe("inviting idle sessions to pull work", () => {
     /**
      * A state with queued jobs.
@@ -247,11 +344,13 @@ describe("inviting idle sessions to pull work", () => {
         expect(f.sent).toEqual([
             [
                 "/s1.sock",
-                "githerd has work queued (issue-5, high bug). If you're free, call githerd_next and claim a job; otherwise ignore this.",
+                "githerd has work queued (issue-5, high bug). If you're free, call githerd_next and claim a job; otherwise ignore this.\n" +
+                    POINTER,
             ],
             [
                 "/s1.sock",
-                "githerd has work queued (triage-new-1, triage of new issues). If you're free, call githerd_next and claim a job; otherwise ignore this.",
+                "githerd has work queued (triage-new-1, triage of new issues). If you're free, call githerd_next and claim a job; otherwise ignore this.\n" +
+                    POINTER,
             ],
         ]);
         expect(lines.map((l) => [l.kind, l.job, l.sent])).toEqual([

@@ -105,7 +105,7 @@ async function call(ctx, name, args, meta = { session: "w1", job: "pr-7", nonce:
 }
 
 describe("sessionToolSet", () => {
-    it("serves every one of the twelve tools", () => {
+    it("serves every one of the fourteen tools", () => {
         const { ctx } = setup({ jobs: {} });
         expect(sessionToolSet(ctx).map((t) => t.name)).toEqual(TOOLS.map((t) => t.name));
     });
@@ -155,6 +155,32 @@ describe("sessionToolSet", () => {
             delete state.prOwners[710];
             await call(ctx, "githerd_mine", { pr: 710 }, { session: "o2" });
             expect(state.asks[710]).toMatchObject({ head: HEAD, owner: { session: "o2", name: "o2" } });
+        } finally {
+            rmSync(home, { recursive: true, force: true });
+        }
+    });
+
+    it("githerd_offers pauses and resumes job offers to the calling session, by its registry name", async () => {
+        const home = mkdtempSync(join(tmpdir(), "githerd-offers-"));
+        try {
+            mkdirSync(join(home, ".claude", "sessions"), { recursive: true });
+            writeFileSync(
+                join(home, ".claude", "sessions", "4242.json"),
+                JSON.stringify({ pid: 4242, sessionId: "o1", name: "graphty-monorepo-13" }),
+            );
+            const state = { jobs: {} };
+            const { ctx, commits } = setup(state, { home });
+            const owner = { session: "o1", pid: 4242 };
+            expect((await call(ctx, "githerd_offers", { pause: true }, owner)).text).toBe(
+                "githerd offers graphty-monorepo-13 no jobs until it resumes offers",
+            );
+            expect(state.offersPaused).toEqual({
+                "graphty-monorepo-13": { session: "o1", at: NOW.toISOString(), by: "tool" },
+            });
+            await call(ctx, "githerd_offers", { pause: false }, owner);
+            expect(state.offersPaused).toEqual({});
+            expect(commits.map((c) => c.kind)).toEqual(["offers-paused", "offers-resumed"]);
+            expect((await call(ctx, "githerd_offers", { pause: true })).text).toMatch(/^this worker works on pr-7/);
         } finally {
             rmSync(home, { recursive: true, force: true });
         }

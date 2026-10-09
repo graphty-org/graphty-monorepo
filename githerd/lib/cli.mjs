@@ -77,6 +77,8 @@ const USAGE = `usage: githerd <command>
                                            another pull request, or a branch whose pull request is
                                            not open yet, to merge; githerd does not ask its status
                                            meanwhile and tells the session when it merges or closes
+  pause-offers | resume-offers             from inside a Claude session: githerd offers it no jobs
+                                           (it stays a worker session) until it resumes offers
   answer <item> <words>                    answer an owner item ("not yet" keeps it open)
   order <N...> <words>                     record an order: these issues, in this order
   policy [freeze-merges | park-gate <lane> | hold-package <name>] <words>
@@ -533,6 +535,26 @@ async function cmdWait(c) {
     return answer.ok ? 0 : 1;
 }
 
+/**
+ * `pause-offers` and `resume-offers`: for the Claude session this command runs under, as `mine <pr>`
+ * finds it, stop or restart githerd's job offers (`githerd_offers`).
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdOffers(c) {
+    const s = c.session();
+    if (!s) {
+        c.err(`githerd ${c.name} acts for the Claude session it runs under, and none is up this process chain`);
+        return 2;
+    }
+    const port = await daemonPort(c);
+    if (port === null) return 1;
+    const cmd = { op: "session-offers", paused: c.name === "pause-offers", session: s.sessionId };
+    const answer = await post(port, "/owner", cmd, callerHeader(c.env, c.tty));
+    (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
+    return answer.ok ? 0 : 1;
+}
+
 /** The policy switches that name a lane, service or package. */
 const VALUE_SWITCHES = new Set(["park-gate", "hold-package"]);
 
@@ -979,6 +1001,8 @@ const HANDLERS = {
     mine: cmdMine,
     disown: cmdMine,
     wait: cmdWait,
+    "pause-offers": cmdOffers,
+    "resume-offers": cmdOffers,
     answer: cmdRecord,
     order: cmdRecord,
     policy: cmdRecord,

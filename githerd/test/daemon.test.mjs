@@ -445,7 +445,7 @@ describe("HTTP endpoints", () => {
         expect(daemon.url).toBe(`http://127.0.0.1:${daemon.port}`);
     });
 
-    it("lists the thirteen session tools on /rpc", async () => {
+    it("lists the fourteen session tools on /rpc", async () => {
         const daemon = await start();
         const res = await fetch(`${daemon.url}/rpc`, {
             method: "POST",
@@ -454,7 +454,7 @@ describe("HTTP endpoints", () => {
         });
         const names = (await res.json()).result.tools.map((t) => t.name);
         expect(names).toEqual(TOOLS.map((t) => t.name));
-        expect(names).toHaveLength(13);
+        expect(names).toHaveLength(14);
     });
 
     it("persists a job claim before replying, and a notification gets 202", async () => {

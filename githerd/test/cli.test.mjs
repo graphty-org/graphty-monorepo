@@ -576,6 +576,26 @@ describe("mine and disown from inside a Claude session", () => {
         expect((await cli(["wait", "pr", "739", "--until-merged", "1"], worker)).code).toBe(1);
     });
 
+    it("pauses and resumes githerd's job offers to the session it runs under", async () => {
+        const d = await daemon({ peers: { sessions: () => [], registered: () => registered } });
+        const agent = { session: inSession(), tty: false, extraEnv: { CLAUDECODE: "1" } };
+        expect(await cli(["pause-offers"], agent)).toMatchObject({
+            code: 0,
+            out: "githerd offers graphty-14 no jobs until it resumes offers",
+        });
+        expect(d.state.offersPaused).toEqual({ "graphty-14": expect.objectContaining({ session: "s14", by: "cli" }) });
+        expect((await readLedger(d.stateDir)).at(-1)).toMatchObject({ kind: "offers-paused", name: "graphty-14" });
+        expect(await cli(["resume-offers"], agent)).toMatchObject({
+            code: 0,
+            out: "githerd offers graphty-14 jobs again",
+        });
+        expect(d.state.offersPaused).toEqual({});
+        const none = { pid: 30, procDir: join(dir, "no-proc"), sessionsDir: join(dir, "no-registry") };
+        expect((await cli(["pause-offers"], { session: none })).code).toBe(2);
+        const worker = { session: inSession(), tty: false, extraEnv: { GITHERD_JOB: "pr-710" } };
+        expect((await cli(["pause-offers"], worker)).code).toBe(1);
+    });
+
     it("refuses outside a Claude session, and refuses a worker", async () => {
         const d = await daemon({ peers: { sessions: () => [], registered: () => registered } });
         d.state.prs = { 710: { headSha: "a".repeat(40) } };

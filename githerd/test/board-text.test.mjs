@@ -56,6 +56,15 @@ describe("renderBoard", () => {
         expect(text.split("\n").slice(1)).toEqual(["JOBS: none", "  invited 2 idle sessions at 11:42"]);
     });
 
+    it("names the sessions that paused githerd's offers under the jobs", () => {
+        const paused = { "graphty-13": { session: "s1", at: "2026-10-03T11:30:00.000Z", by: "tool" } };
+        expect(
+            renderBoard(view({ offersPaused: paused }), NOW, "jobs")
+                .split("\n")
+                .slice(1),
+        ).toEqual(["JOBS: none", "  offers paused for graphty-13 since 11:30"]);
+    });
+
     it("names what holds new work back under the jobs, and nothing while the shared resources have room", () => {
         const held = view({
             pressure: ["2 pushes waiting in the push queue", "1 GitHub Actions run queued for a runner"],

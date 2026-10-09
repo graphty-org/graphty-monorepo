@@ -24,7 +24,8 @@
  *
  * The same messaging asks each owner session holding a job for its status and whether it can take
  * another job (`statusStep`), asks the owner of a broken pull request whether it is fixing it
- * (`brokenOwned`), and invites sessions with room to pull work (`inviteStep`).
+ * (`brokenOwned`), invites sessions with room to pull work (`inviteStep`), and first tells each
+ * session the owner made a worker what that means (`onboardStep`).
  */
 
 import { askFor, askProblems, failingRequired, headIsGitherds, jobInUse, jobOnPr, prOf, prWork } from "./queue.mjs";
@@ -265,18 +266,99 @@ export async function askStep(state, { now, acting, sessions, transport, session
 }
 
 /**
- * The invitation for one queued job.
+ * The invitation for one queued job, ending with a line for a session that missed the onboarding
+ * message (`onboardText`).
  * @param {any} job the job record
  * @param {string} reason its one-line reason from the queue order
+ * @param {string} cli the githerd command line a session without githerd's tools runs
  * @returns {string} the message
  */
-function inviteText(job, reason) {
+function inviteText(job, reason, cli) {
     // A verdict job names the exact failure key githerd_verdict takes.
     const key = job.facts?.scope === "verdict" ? ` githerd_verdict takes its key exactly: ${job.target}.` : "";
     return (
         `githerd has work queued (${job.id}, ${reason}). If you're free, call githerd_next and claim a job; ` +
-        `otherwise ignore this.${key}`
+        `otherwise ignore this.${key}\n` +
+        "New to githerd? Its onboarding message explains it, as does githerd/README.md; githerd_offers with pause " +
+        `true (or \`${cli} pause-offers\`) stops these offers.`
     );
+}
+
+/**
+ * The one message a session hears when the owner adds it to `workers.sessions`, before any
+ * invitation: written for a session that has never heard of githerd.
+ * @param {string} name the session's name
+ * @param {string} cli the githerd command line a session without githerd's tools runs
+ * @returns {string} the message
+ */
+function onboardText(name, cli) {
+    return (
+        `githerd: the owner has made this session (${name}) a githerd worker. githerd is this repository's job ` +
+        "queue: it turns the owner's issues, pull requests and CI failures into jobs and offers them to its " +
+        "workers.\n" +
+        "What that means for you: githerd will message you when work is queued. Take a job with githerd_next " +
+        "(the queue, with each job's text) and githerd_claim. Do each job's work in a background subagent or " +
+        "workflow, so this conversation stays free to answer githerd's status questions with githerd_expect. " +
+        "Report each job's result with githerd_done. A session without githerd's tools answers about its pull " +
+        `requests from its shell instead: \`${cli} mine <pr>\` and \`${cli} disown <pr>\`.\n` +
+        "Read more in githerd/README.md and in each job's text.\n" +
+        "Start taking jobs now, unless the owner tells you otherwise. If the owner has you busy with other work, " +
+        `call githerd_offers with pause true (or run \`${cli} pause-offers\`) and githerd offers you nothing ` +
+        `until you resume (pause false, or \`${cli} resume-offers\`).`
+    );
+}
+
+/**
+ * Tells each live session in `workers.sessions` that it has become a githerd worker
+ * (`onboardText`), once: `state.onboarded[<name>]` = `{session, at}` records it, so a restart does
+ * not repeat it, and drops when the name leaves `workers.sessions`, so adding it back tells it again.
+ * Nothing is recorded for a send that failed (the next pass retries it) nor in dry-run, where each
+ * send is a would-do line. With `workers.sessions` naming none, every session is messageable and
+ * nobody was made a worker, so nobody is told. Runs before `inviteStep`.
+ * @param {any} state the daemon state, changed in place
+ * @param {{acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
+ *   transport: import("./peers.mjs").Transport, now: Date, config?: any, cli?: string}} opts
+ *   whether the `workers` write group acts, the sessions githerd may message, the transport, the
+ *   clock, the config and the githerd command line
+ * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
+ */
+export async function onboardStep(state, { acting, sessions, transport, now, config, cli = DEFAULT_CLI }) {
+    const members = config?.workers?.sessions;
+    if (!members) return [];
+    state.onboarded ??= {};
+    for (const name of Object.keys(state.onboarded)) if (!members.includes(name)) delete state.onboarded[name];
+    const lines = [];
+    for (const s of sessions()) {
+        if (!members.includes(s.name) || state.onboarded[s.name]) continue;
+        if (!acting) {
+            const op = `onboard ${s.name} as a githerd worker`;
+            lines.push({ kind: "would-do", group: "workers", op, session: s.name });
+            continue;
+        }
+        const out = await tellSessions([s], onboardText(s.name, cli), transport);
+        if (out.sent.length) state.onboarded[s.name] = { session: s.sessionId, at: now.toISOString() };
+        lines.push({ kind: "session-onboarded", session: s.name, ...out });
+    }
+    return lines;
+}
+
+/**
+ * Pauses or resumes githerd's job offers to one session (`githerd_offers`, or `githerd
+ * pause-offers` / `resume-offers` from its shell): `state.offersPaused[<name>]` = `{session, at,
+ * by}`. A paused session is invited to nothing (`inviteStep`); it stays in `workers.sessions`.
+ * @param {any} state the daemon state, changed in place
+ * @param {{name: string, session: string, paused: boolean, at: string, by: string}} who the
+ *   session's name and id, whether to pause, the time and how it said so
+ * @returns {{text: string, entry: {kind: string} & Record<string, unknown>}} the answer and its ledger entry
+ */
+export function setOffersPaused(state, { name, session, paused, at, by }) {
+    state.offersPaused ??= {};
+    if (paused) state.offersPaused[name] = { session, at, by };
+    else delete state.offersPaused[name];
+    return {
+        text: paused ? `githerd offers ${name} no jobs until it resumes offers` : `githerd offers ${name} jobs again`,
+        entry: { kind: paused ? "offers-paused" : "offers-resumed", name, session, by },
+    };
 }
 
 /**
@@ -419,22 +501,24 @@ function dueInvites(state, queue, live, { config, now }) {
  * `{[session]: at}` (a job's older `invitedAt` counts as heard by every session). githerd's own
  * workers are never among them (`liveSessions` leaves them out). A session is invited only to a job
  * it could claim (`jobInUse` with that session, the rule githerd_next and githerd_claim apply), so a
- * review is never announced to the pull request's author. The last invitation is kept in
- * `state.invited` for the board.
+ * review is never announced to the pull request's author, and a session that paused offers
+ * (`setOffersPaused`) is invited to nothing. The last invitation is kept in `state.invited` for the
+ * board.
  * @param {any} state the daemon state, changed in place
  * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
  *   transport: import("./peers.mjs").Transport, offered: {job: string, reason: string}[],
- *   config?: any}} opts the clock, whether the `workers` write group acts (else each send is a
- *   would-do line), the live sessions in this repository, the transport, the queued jobs githerd
- *   would offer, in order, and the config
+ *   config?: any, cli?: string}} opts the clock, whether the `workers` write group acts (else each
+ *   send is a would-do line), the live sessions in this repository, the transport, the queued jobs
+ *   githerd would offer, in order, the config, and the githerd command line
  * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
  */
-export async function inviteStep(state, { now, acting, sessions, transport, offered, config }) {
+export async function inviteStep(state, { now, acting, sessions, transport, offered, config, cli = DEFAULT_CLI }) {
     const lines = [];
     const queue = offered.filter(({ job }) => state.jobs?.[job]?.state === "queued");
     // A saturated shared resource holds every invitation to new work back (pressure.mjs).
     if (!queue.length || state.pressure?.length) return lines;
-    const live = sessions();
+    // A session that paused offers (setOffersPaused) hears none until it resumes.
+    const live = sessions().filter((s) => !state.offersPaused?.[s.name]);
     state.inviteRooms ??= {};
     for (const id of Object.keys(state.inviteRooms)) {
         if (!live.some((s) => s.sessionId === id)) delete state.inviteRooms[id];
@@ -452,7 +536,7 @@ export async function inviteStep(state, { now, acting, sessions, transport, offe
             const op = `invite ${names.length} idle session(s) to take ${id}`;
             lines.push({ kind: "would-do", group: "workers", op, job: id });
         }
-        const out = acting ? await tellSessions(to, inviteText(job, reason), transport) : { sent: [], failed: [] };
+        const out = acting ? await tellSessions(to, inviteText(job, reason, cli), transport) : { sent: [], failed: [] };
         state.invited = { at, count: acting ? out.sent.length : names.length, acting };
         lines.push({ kind: "sessions-invited", job: id, sessions: names, ...out });
     }

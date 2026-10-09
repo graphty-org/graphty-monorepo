@@ -98,7 +98,7 @@ describe("the probes", () => {
         expect(await probeHook(server.url, "Stop", { input: "{}", env: {} })).toBeNull();
     });
 
-    it("serve the thirteen tools over stdio and forward calls", async () => {
+    it("serve the fourteen tools over stdio and forward calls", async () => {
         const r = createResponder({ org: "o", token: "t" });
         const server = await serveResponder(r);
         const input = new PassThrough();
@@ -109,7 +109,7 @@ describe("the probes", () => {
         input.end('{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"githerd_next","arguments":{}}}\n');
         await done;
         await server.close();
-        expect(out[0].result.tools).toHaveLength(13);
+        expect(out[0].result.tools).toHaveLength(14);
         expect(out[1].result.content[0].text).toBe(jobText("o"));
     });
 

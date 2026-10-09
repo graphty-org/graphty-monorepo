@@ -269,7 +269,11 @@ const RENDER = {
         // Issues a session deferred, until their revision changes (done.mjs).
         const deferred = Object.entries(v.state.deferred ?? {}).map(([n, d]) => `  deferred #${n} -- ${d.reason}`);
         const held = newWorkLines(v.state.pressure);
-        if (!jobs.length) return ["JOBS: none", ...held, ...invited, ...deferred];
+        // Sessions that paused githerd's offers (asks.mjs setOffersPaused).
+        const paused = Object.entries(v.state.offersPaused ?? {}).map(
+            ([name, p]) => `  offers paused for ${name} since ${when(p.at).slice(6)}`,
+        );
+        if (!jobs.length) return ["JOBS: none", ...held, ...paused, ...invited, ...deferred];
         const waits = jobWaits(v.state);
         return [
             `JOBS (${jobs.length}):`,
@@ -279,6 +283,7 @@ const RENDER = {
                 ...(j.status ? [`    status ${when(j.status.at)}: ${j.status.text}`] : []),
             ]),
             ...held,
+            ...paused,
             ...invited,
             ...deferred,
         ];

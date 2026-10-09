@@ -78,6 +78,8 @@ import {
     disown,
     inviteStep,
     markMine,
+    onboardStep,
+    setOffersPaused,
     statusStep,
     tellAccepted,
     tellCancelled,
@@ -1916,6 +1918,7 @@ export async function startDaemon({
         if (state.trust.login) {
             await run("invites", async () => {
                 state.pressure = await backPressure({ root, repo: config.repo, get: (path) => gh.get(path) });
+                await onboardWorkers(t);
                 await inviteIdle(t);
                 await askStatus(t);
             });
@@ -2151,6 +2154,23 @@ export async function startDaemon({
     }
 
     /**
+     * Tells each session the owner added to `workers.sessions` that it is a githerd worker, once,
+     * before any invitation (asks.mjs onboardStep); in dry-run each message is a would-do line.
+     * @param {Date} t the poll's time
+     */
+    async function onboardWorkers(t) {
+        const lines = await onboardStep(state, {
+            now: t,
+            acting: writeMode("workers") === "acting",
+            sessions: messageable,
+            transport: peers.transport ?? socketTransport(),
+            config,
+            cli: cliCommand,
+        });
+        for (const line of lines) void ledger(line);
+    }
+
+    /**
      * Invites the idle sessions in this repository to take the queued jobs no worker slot took
      * (asks.mjs, the owner's decision of 2026-10-05); in dry-run each invitation is a would-do line.
      * @param {Date} t the poll's time
@@ -2167,6 +2187,7 @@ export async function startDaemon({
             transport: peers.transport ?? socketTransport(),
             offered,
             config,
+            cli: cliCommand,
         });
         for (const line of lines) void ledger(line);
     }
@@ -3433,7 +3454,7 @@ export async function startDaemon({
     ];
 
     /**
-     * The thirteen tools of design section 6, for every session. It serves
+     * The fourteen tools of design section 6, for every session. It serves
      * the current tool protocol, and the previous one while a live session may still speak it; a
      * call in any other protocol is refused before anything runs (design 9.8).
      */
@@ -3550,6 +3571,7 @@ export async function startDaemon({
                 "session-mine",
                 "session-disown",
                 "session-wait",
+                "session-offers",
             ].includes(cmd?.op)
         ) {
             return { status: 403, text: `${cmd.op} is the owner's: a worker cannot run it` };
@@ -3567,6 +3589,7 @@ export async function startDaemon({
         if (["mine", "mine-list", "mine-drop"].includes(cmd?.op)) return ownerMine(cmd);
         if (cmd?.op === "session-mine" || cmd?.op === "session-disown") return sessionAnswer(cmd);
         if (cmd?.op === "session-wait") return sessionWait(cmd);
+        if (cmd?.op === "session-offers") return sessionOffers(cmd);
         if (["answer", "order", "policy", "policy-end"].includes(cmd?.op))
             return ownerCommand(state, cmd, now(), worker);
         if (CONTROL_OPS.has(cmd?.op)) {
@@ -3576,7 +3599,8 @@ export async function startDaemon({
         return {
             status: 400,
             text:
-                "op must be ack, veto, mine, mine-list, mine-drop, session-mine, session-disown, session-wait, answer, " +
+                "op must be ack, veto, mine, mine-list, mine-drop, session-mine, session-disown, session-wait, " +
+                "session-offers, answer, " +
                 "order, policy, " +
                 "policy-end, pause, resume, " +
                 "workers, keep or release",
@@ -3669,6 +3693,28 @@ export async function startDaemon({
             text: `#${pr} disowned: ${what}; only a new push, a claim or mine by ${s.name} makes it its again`,
             entry: { kind: "pr-disowned", pr: Number(pr), session: s.sessionId, name: s.name },
         };
+    }
+
+    /**
+     * `githerd pause-offers` and `githerd resume-offers` run from inside a Claude session: what
+     * `githerd_offers` does for that session (asks.mjs setOffersPaused). It acts for the session the
+     * CLI runs under, which must be a live entry in Claude Code's session registry.
+     * @param {any} cmd `{op: "session-offers", paused, session}`
+     * @returns {any} the answer
+     */
+    function sessionOffers(cmd) {
+        const sessionsDir = join(env.HOME ?? homedir(), ".claude", "sessions");
+        const s = (peers.registered ?? registeredSessions)({ sessionsDir }).find((x) => x.sessionId === cmd.session);
+        if (!s) return { status: 404, text: `no live Claude Code session ${cmd.session} in the session registry` };
+        const at = now().toISOString();
+        const { text, entry } = setOffersPaused(state, {
+            name: s.name,
+            session: s.sessionId,
+            paused: cmd.paused === true,
+            at,
+            by: "cli",
+        });
+        return { status: 200, text, entry };
     }
 
     /**

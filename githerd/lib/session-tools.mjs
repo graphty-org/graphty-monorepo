@@ -1,5 +1,5 @@
 /**
- * The handlers of the thirteen tools of design section 6, as the daemon serves them to every session:
+ * The handlers of the fourteen tools of design section 6, as the daemon serves them to every session:
  * owner sessions and workers. Names, descriptions and schemas are
  * `TOOLS` in mcp.mjs; the session's MCP server forwards calls here with `params._meta.githerd`
  * (the client's protocol, session, job and nonce), and the MCP core refuses a call in a protocol
@@ -17,7 +17,7 @@ import { join } from "node:path";
 import * as board from "./board.mjs";
 import { githerdDone, namesIssue, numberOf } from "./done.mjs";
 import { taskOutputPath } from "./hook.mjs";
-import { atActiveCap, markMine } from "./asks.mjs";
+import { atActiveCap, markMine, setOffersPaused } from "./asks.mjs";
 import { askOwner, recordOwner } from "./owner.mjs";
 import { jobText } from "./job-text.mjs";
 import { isMasterFix } from "./master-fix.mjs";
@@ -202,7 +202,7 @@ function snapshot(ctx) {
 }
 
 /**
- * The thirteen tools with their handlers, bound to one request.
+ * The fourteen tools with their handlers, bound to one request.
  * @param {SessionToolContext} ctx the request context
  * @returns {import("./mcp.mjs").Tool[]} the tools
  */
@@ -412,6 +412,16 @@ export function sessionToolSet(ctx) {
                 head: rec.headSha,
                 until: "this session ends or the pull request closes",
             });
+        },
+        githerd_offers: async (args, caller, client) => {
+            const session = sessionOf(caller, client);
+            if (!session) throw new Error("this session is not identified yet; try again in a moment");
+            if (client.job) throw new Error(`this worker works on ${client.job}; githerd offers its workers nothing`);
+            const name = registryName(ctx.home, client.pid ?? state.sessions?.[session]?.pid, session) ?? session;
+            const at = now.toISOString();
+            const { text, entry } = setOffersPaused(state, { name, session, paused: args.pause, at, by: "tool" });
+            await ctx.commit(entry);
+            return text;
         },
         githerd_verdict: async (args, caller, client) => {
             const session = sessionOf(caller, client);

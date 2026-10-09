@@ -116,7 +116,7 @@ export function radial(s: GraphSnapshot, options: RadialLayoutOptions = {}): Lay
     }
     const step = rings.length > 1 ? scale / (rings.length - 1) : 0;
     // the unreachable nodes, if any, are the last ring: the only one past the root's whose nodes have no parent
-    const last = rings[rings.length - 1];
+    const last = rings.at(-1) ?? [];
     const reachedRings = rings.length > 1 && parent[last[0]] === -1 ? rings.length - 1 : rings.length;
     // leaves under each reached node, deepest ring first
     const leaves = new Float64Array(n);

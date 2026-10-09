@@ -619,7 +619,11 @@ restarts the release. A passing train closes the train hold; a restart that fail
 and comments on it. A failed publish opens a publish hold, a `Release held: publish failed on
 <sha>` issue that names the run: no train retitles, closes or is restarted for it, and it lasts
 until that run is re-run (`gh run rerun <run id> --failed`), which publishes what is missing and
-closes it. The scheduled attempts skip while either hold is open. Never edit or push to a release branch, and never close one
+closes it. The scheduled attempts skip while either hold is open. Every release outcome (a held
+attempt, a release pull request opened, a publish that succeeded or failed, again after a restart or a
+re-run) is announced as a comment on the one open `Release status` issue (label `release-status`) by
+`tools/release-status.mjs`, mentioning the people in the repository variable `RELEASE_NOTIFY`; attempts
+that do nothing announce nothing. Never edit or push to a release branch, and never close one
 unless it must be replaced: while one is open, no new train runs. An ad hoc release cuts the same
 pull request at once, for the owner or an agent the owner asked:
 `gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never
@@ -1007,7 +1011,9 @@ then tests batches of up to 4 queued pull requests, 2 batches at once, each on a
 pull request that runs the full suite on the combined tree; a batch merges when `Queue Checks Pass`
 succeeds there, and a failing batch is split in halves to find the culprit. The visual gate passes a
 batch only when every capture equals an image the owner approved on one of its pull requests, so
-the queue never asks for a new approval. Nobody turns on auto-merge by hand.
+the queue never asks for a new approval. Nobody turns on auto-merge by hand. Mergify posts no
+comments on pull requests (`status_comments: none`, `queue_controls_comment: false`, `post_comment:
+false`): every comment notified the owner. Its state is in its check runs.
 
 - To keep a pull request from merging, add the `hold` label; removing it releases the pull request.
   Adding `hold` also takes an already-queued pull request out of the queue.

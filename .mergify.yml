@@ -22,6 +22,12 @@
 # dequeues the batch (4 of 10 batches on 2026-10-06).
 merge_queue:
     max_parallel_checks: 2
+    # No comments on pull requests. Every pull request is opened by the owner's account, so each Mergify comment
+    # notified the owner; the queue's state is in Mergify's check runs, which notify nobody, and nothing reads
+    # these comments. status_comments: none drops the queue status comments (queued, checking, merged, dequeued),
+    # queue_controls_comment: false the "Queue / Requeue this pull request" checkbox comments.
+    status_comments: none
+    queue_controls_comment: false
 
 # Two kinds of pull request go to the front of the queue: the daily release train (its branch and author,
 # not a label) and a fix for a red master (label it "priority:critical"). Neither interrupts the batches
@@ -92,6 +98,8 @@ queue_rules:
 # the queue's own queue_conditions still gate it. (pull_request_rules would need Mergify's Workflow
 # Automation product, which this repository does not use.)
 merge_protections_settings:
+    # No merge protections summary comment either (same reason as merge_queue's status_comments above).
+    post_comment: false
     auto_merge_conditions:
         - base=master
         - -draft

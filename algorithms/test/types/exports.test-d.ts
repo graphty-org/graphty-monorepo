@@ -188,6 +188,7 @@ expectTypeOf(algorithms.commonNeighborsForPairs).toEqualTypeOf<
 expectTypeOf(algorithms.commonNeighborsPrediction).toEqualTypeOf<
     (s: GraphSnapshot, o?: LinkPredictionOptions) => LinkPredictionResult
 >();
+expectTypeOf<LinkPredictionOptions["uniquePairs"]>().toEqualTypeOf<boolean | undefined>();
 expectTypeOf(algorithms.compareAdamicAdarWithCommonNeighbors).toEqualTypeOf<
     (
         s: GraphSnapshot,

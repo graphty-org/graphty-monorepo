@@ -3,7 +3,7 @@
  * (design/figma-spec.md 10.1), the Alt+Arrow keyboard move, pointer selection, the caret, rename,
  * drag and drop, and virtualization. Every key here is a real key press through Playwright.
  */
-import { Menu } from "@mantine/core";
+import { Menu, ScrollArea } from "@mantine/core";
 import { screen, within } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -1059,8 +1059,32 @@ describe("ResultRow", () => {
 
     it("draws a name as typed, with no arrow ligature for ->", async () => {
         await renderThemed(<ResultRow name="Station -> Stadium" />);
-        const name = screen.getByTitle("Station -> Stadium");
+        const name = screen.getByText("Station -> Stadium");
         expect(getComputedStyle(name).fontFeatureSettings).toBe('"calt" 0');
+    });
+
+    it("ends a long name in ... inside a list that scrolls only up and down, and shows it whole on hover", async () => {
+        const long = "A very long node name that cannot fit in a narrow find list at all";
+        const { container } = await renderThemed(
+            <ScrollArea.Autosize mah={200} w={200} scrollbars="y">
+                <div role="listbox" aria-label="Results">
+                    <ResultRow id="r1" name={long} path="name: a value just as long as the name above it" />
+                </div>
+            </ScrollArea.Autosize>,
+        );
+        const viewport = container.querySelector<HTMLElement>(".mantine-ScrollArea-viewport");
+        if (viewport === null) {
+            throw new Error("no ScrollArea viewport");
+        }
+        // Before: the content took the widest row's width, so the row ran past the area's edge.
+        expect(viewport.scrollWidth).toBeLessThanOrEqual(viewport.clientWidth);
+        const name = screen.getByText(long);
+        expect(getComputedStyle(name).textOverflow).toBe("ellipsis");
+        expect(name.scrollWidth).toBeGreaterThan(name.clientWidth);
+        expect(name.getBoundingClientRect().right).toBeLessThanOrEqual(viewport.getBoundingClientRect().right);
+        await userEvent.hover(name);
+        const tip = await screen.findByRole("tooltip", {}, { timeout: 3000 });
+        expect(tip.textContent).toContain(long);
     });
 });
 

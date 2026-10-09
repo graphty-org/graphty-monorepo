@@ -422,6 +422,11 @@ const css = `
 
 /* ---------------------------------------------------------------- 8.7 overlay scrollbar */
 
+/* A ScrollArea that scrolls only up and down (scrollbars="y") is never wider than itself: its
+   content takes the area's width, so a long row ellipsizes instead of widening the content past
+   an edge it cannot scroll to. Mantine sizes that content to its widest row (min-content). */
+.cm-scroll-viewport[data-scrollbars="y"] > div { min-width: 0; }
+
 /* Track 10 wide, padding 2, transparent; shown only while the pointer is over the container.
    Mantine's hover rule is :where(scheme) .m_x:hover (0,2,0) and its thumb rule under it (0,3,0),
    answered with the same weight. */

@@ -402,9 +402,11 @@ export function FindBox(): React.JSX.Element {
                 disabled={session === null}
             />
             {found !== null && options.length > 0 ? (
-                // The scrollbar is drawn while the list overflows, so more rows below are seen.
+                // The scrollbar is drawn while the list overflows, so more rows below are seen. It
+                // scrolls only up and down: a long name ends in "..." rather than widening the list.
                 <ScrollArea.Autosize
                     type="auto"
+                    scrollbars="y"
                     className="ws-find-list"
                     classNames={{ viewport: "ws-find-viewport" }}
                     ref={listRef}

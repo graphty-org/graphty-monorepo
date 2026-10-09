@@ -374,6 +374,28 @@ describe("the Graph place", () => {
         });
     });
 
+    it("ends a long name in ... and never scrolls the list sideways", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        // Wider than any window the test runs in.
+        const long = `Jean Valjean ${"also known as Monsieur Madeleine, ".repeat(20)}`.trim();
+        await session.data.addNodes([{ id: long }]);
+        renderPlace(session);
+
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "valjean");
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        const viewport = list.closest<HTMLElement>(".ws-find-viewport");
+        assert.isNotNull(viewport);
+        assert.isAtMost(viewport.scrollWidth, viewport.clientWidth, "the list scrolls sideways");
+        const name = within(within(list).getByRole("group", { name: "Nodes" }))
+            .getByRole("option")
+            .querySelector<HTMLElement>(".cm-result-name");
+        assert.isNotNull(name);
+        assert.equal(getComputedStyle(name).textOverflow, "ellipsis");
+        assert.isAbove(name.scrollWidth, name.clientWidth, "the name is cut short, so it ends in ...");
+        assert.isAtMost(name.getBoundingClientRect().right, viewport.getBoundingClientRect().right);
+    });
+
     it("counts every match of a kind on its heading, past the rows listed", async () => {
         const session = createGraphSession();
         sessions.push(session);

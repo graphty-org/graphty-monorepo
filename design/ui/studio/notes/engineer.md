@@ -11,18 +11,22 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **A list that scrolls only up and down says so: `scrollbars="y"`, and
+  compact-mantine makes such content as wide as the area.** Mantine's ScrollArea.Autosize sizes
+  its content to `min-content` (the widest row), so a long find result widened the list and it
+  scrolled sideways with no "..." (`.cm-result-name` already ellipsized; it was never narrower
+  than its text). Fix: `.cm-scroll-viewport[data-scrollbars="y"] > div { min-width: 0 }` in
+  compact-mantine `overlays.css.ts`, `scrollbars="y"` on the find list, and `ResultRow` now draws
+  its name through `EllipsizedName` (themed tooltip only while cut, carrying the path line too)
+  instead of a native `title`. Tests: compact-mantine `Tree.browser.test.tsx` "ends a long name
+  in ..." (fails without the CSS: content 383 px in a 200 px area) and graphty
+  `GraphPlace.test.tsx` "never scrolls the list sideways" (fails without `scrollbars="y"`:
+  3957 px in 414). Real app, long-names.csv: `design/ui/studio/tmp/t2r1-9/s1/04-06.png`. Any
+  other vertical list over long text should pass `scrollbars="y"` too.
 - (2026-10-09) **The selection halo draws only its back faces, so a selected node keeps its own
-  color.** `createOverlaySource` (`Node.ts`) drew the 40% gold halo sphere with both faces, so its
-  front hemisphere veiled the node: a black node read (102, 86, 0) olive. Now
-  `backFaceCulling = true, cullBackFaces = false` for the halo only (the context point keeps both
-  faces: nothing inside it). The back hemisphere hides behind the node by depth and shows past
-  its edge as a ring; from inside the sphere every visible face is a back face, so it still draws.
-  Test `graphty-element/test/browser/selection-halo-rings-without-tinting.test.ts` reads pixels
-  (black centre equals unselected black; ring gold; camera-inside tints the view) and fails both
-  without the fix and with front-only culling. Real app (Florentine, Medici selected,
-  `design/ui/studio/tmp/t2r1-12/s1/02.png`): centre (72, 74, 175) equals the unselected node.
-  Selection story baselines change and go to visual review.
-
+  color** (`createOverlaySource` in `Node.ts`; test
+  `graphty-element/test/browser/selection-halo-rings-without-tinting.test.ts`). Selection story
+  baselines change and go to visual review.
 - (2026-10-09) **Round 1 critique: the dry runs walked only success paths, so build defects
   reached participants on detours.** Four dry runs plus a walk of the study build left every
   success path clean (all `session.log` empty, no grade decided by a defect), but participants took
@@ -140,13 +144,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   but shows no ring after a click: the ring is keyboard-only everywhere (spec 2.7), and
   `focus({ focusVisible: true })` does nothing in Chrome 143 (probe: `optionSupported=false`).
   Forcing one would need a compact-mantine attribute ring, a second ring rule for one control.
-- (2026-10-08) **Dismissal follows the pressed control, not the tooltip element.** A tooltip can
-  mount after the click (open delay not over) or remount (a label change), so a mark on the
-  element misses it. The pressed control is found with `closest(...)` so moving onto its padding
-  from the label span is not leaving. A menu's open source is the last input (key vs pointer-down),
-  not Mantine's `openedViaClick` (not exposed on the dropdown). Rejected: delaying the dismissal
-  by time (an arbitrary timeout), and a per-app `opened` prop on the toggle (every caller would
-  repeat it).
+- (2026-10-08, condensed) **Tooltip dismissal follows the pressed control** (found with
+  `closest(...)`), not the tooltip element, which can mount late or remount. Rejected: a timed
+  dismissal, and a per-app `opened` prop.
 
 - (2026-10-08) **A study tool reads a range as a screen reader speaks it, not as Chromium stores
   it.** ARIA has assistive technology prefer `aria-valuetext`; Chromium derives it from the
@@ -165,21 +165,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   unchanged; a follow-up choice goes below the control that caused it (Higher above the roles moved
   them ~62 px under the pointer); a script-focused heading gets an underline, not a box (read as an
   editable name), shared in compact-mantine.
-- (2026-10-08) **A left-out row opens its load's whole account, each part under its own heading,
-  what it names first.** The task asks how many arrived AND what was dropped, so the counts stay
-  (the small inspector hid them, T4A/12 of r1d2). But under one "Added" heading the counts read as
-  describing the left-out row, and the two inspectors were identical (r1d3 T4A/11, T4B/12-13).
-  Order is the only difference between them: it says which row was selected. Tried and kept:
-  reorder whole `ControlSection`s by `child === "left-out"`; the test asserts DOM order with
-  `compareDocumentPosition` and fails on the old component ("Unable to find ... Left out").
-- (2026-10-08) **A shared control's defect is fixed in compact-mantine, and an app-specific
-  look is an option with today's look as default.** The child band is right where selecting a
-  parent selects its children (Figma), wrong in this app; so an option, not a removal. Menu
-  Escape is marked in the document's capture phase, not on Menu.Dropdown: React flushes the
-  close after the capture handler, and the dropdown's bubble handler never ran (test proved it).
-  Disabled first row: focus the first enabled row rather than nothing, matching Mantine's
-  keyboard model for button menus (the context menu's "pointer opens with no position" stays).
-  Chosen segment: 550 (the strong role) was invisible at 11 px in a crop compare; 600 reads.
+- (2026-10-08, condensed) **A left-out row opens its load's whole account, what it names first**
+  (whole `ControlSection`s reordered by `child === "left-out"`; DOM-order test).
+- (2026-10-08, condensed) **A shared control's defect is fixed in compact-mantine; an
+  app-specific look is an option with today's look as default** (the Tree child band). Menu
+  Escape is marked in the document's capture phase; a disabled first row focuses the first
+  enabled row; a chosen segment is 600.
 - (2026-10-08, condensed) Small calls: the pointer leaves the page after setup ((-1,-1), not an
   in-page spot); a saved note takes focus, not "+" (its tooltip covered the note); Delete note has
   its own `delete` glyph (minus stays "take out of this list"); a run's time shows seconds (two
@@ -230,6 +221,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Worked: finding the sideways-scrolling find list's cause in Mantine's CSS
+  (`.m_d57069b5:where([data-autosize]) .m_b1336c6 { min-width: min-content }`) before touching the
+  row. Did not need: an app tooltip; the shared row's EllipsizedName already does it.
 - (2026-10-09) Worked: reading `scores.md` beside `insights.md` -- the skeptics weakened edge width
   from severity 3 to 2 (thick after deselect, `r1-s45/26.png`), so scores alone overstates it.
 - (2026-10-09) Worked: `long-names.csv` (with PageRank, Size and every label drawn, setup in the
@@ -244,17 +238,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   starts with a project, viewport 1440 x 900; `saveAs` now takes the current name. A stand-in
   element in a unit test needs `isFrameStable` and `add/removeEventListener` once the card reads
   them.
-- (2026-10-08) Did not work: `--prove` on `graphty/dist` while another agent rebuilt it (two
-  setup checks failed: "no production build", then a dead session socket). Worked: `cp -r
-graphty/dist` into the task folder and run `--prove` and every pilot with `REAL_DIST` on the
-  copy. Also: a command that does `rm -rf` plus copies into `tier2/rounds/` was refused by the
-  permission prompt; cite `../tmp/<task>/` screenshots from the answer key instead.
-- (2026-10-08) Answer key re-pilot on build 8b24133cd (Follow, Edit source, Esc fixes):
-  T18A Follow "Out | All" on All, Made with "Follow All", same chain; T18B no Follow row
-  (undirected); T20B Esc keeps the chosen file, route 7.5 with Follow All; Edit source opens
-  "Replace: friends.csv" on the old file and keeps 20/41; T23A `role=radio:2` gives 14 within 2
-  hops. Seen, not mine: in T23A after Filter to neighbors, Hops 1 + Follow Out hides the "Filter
-  to neighbors" button while the header chip still says "15 of 20 nodes" (`T23A/09.png`).
+- (2026-10-08, condensed) Pilot and `--prove` on a `cp -r graphty/dist` copy with `REAL_DIST`;
+  others' rebuilds break runs on the live dist.
+- (2026-10-08, condensed) Answer key re-pilot on build 8b24133cd: Follow, Edit source and Esc
+  routes all held (details in the answer key). Seen, not mine: after Filter to neighbors, Hops 1
+  plus Follow Out hides the button while the chip still says "15 of 20 nodes" (`T23A/09.png`).
 
 - (2026-10-08) Did not work first time: a T22B setup on the new build (Les Miserables sample)
   missed "Run" (Playwright: button visible, enabled and stable, click not done in 3 s), and the

@@ -94,7 +94,7 @@ console.log(top.map((link) => `${link.target.id()} ${link.score.toFixed(2)}`));
 // ["2 4.72", "0 2.71", "1 2.25"]
 ```
 
-The `...Prediction` methods, such as `graphtyCommonNeighborsPrediction`, list every unlinked pair. On an undirected graph each pair appears twice, once in each order with the same score. With `directed: true` each pair appears in one order only, with the node that comes first in the collection as `source`; to score both orders, use the `...ForPairs` or `...CandidatesForNode` methods.
+The `...Prediction` methods, such as `graphtyCommonNeighborsPrediction`, list every unlinked pair once, with the node that comes first in the collection as `source`, so `topK` counts distinct pairs. With `directed: true` that is the score of the order `source` to `target`; to score both orders, use the `...ForPairs` or `...CandidatesForNode` methods.
 
 To measure how well a score predicts links on your graph, see `graphtyEvaluateAdamicAdar` in [the reference](../reference/algorithms#graphtyevaluateadamicadar).
 

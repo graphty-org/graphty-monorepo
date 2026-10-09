@@ -10,6 +10,7 @@ import "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, describe, it } from "vitest";
+import { page, userEvent as realInput } from "vitest/browser";
 
 import { APP_HIGHLIGHT_COLOR } from "../../../constants/highlight";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -156,4 +157,28 @@ describe("the workspace frame on the real element", () => {
         },
         TIMEOUT_MS,
     );
+
+    it("opens the shortcuts sheet with ? while a closed Select's list is mounted on the page", async () => {
+        // The inspector has room at the design's width, and its Layout group holds a Select.
+        await page.viewport(1366, 768);
+        const session = await openWorkspace();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        await session.data.addEdges([{ src: "a", dst: "b" }]);
+        // Mantine keeps a closed Select's options mounted, hidden: the case that once switched
+        // every single-key shortcut off.
+        await waitFor(
+            () => {
+                const lists = [...document.querySelectorAll('[role="listbox"]')];
+                assert.isTrue(
+                    lists.some((list) => !list.checkVisibility()),
+                    "a hidden list is on the page",
+                );
+            },
+            { timeout: TIMEOUT_MS },
+        );
+
+        await realInput.keyboard("?");
+
+        await screen.findByRole("region", { name: "Keyboard shortcuts" });
+    });
 });

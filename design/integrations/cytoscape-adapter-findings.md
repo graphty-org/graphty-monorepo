@@ -122,7 +122,10 @@ The integration also found defects, each now covered by a test or documented in 
 - `PriorityDeltaPageRank` adds the teleport share twice, so its result is PageRank mixed with a
   uniform share.
 - On an undirected graph, link prediction lists every pair twice, so `topK` counts both
-  orientations.
+  orientations. Since issue #723, `uniquePairs: true` on `commonNeighborsPrediction` and
+  `adamicAdarPrediction` lists each pair once (lower index first) and graphty-element and
+  cytoscape-extensions pass it. Making it the default is a breaking change of @graphty/algorithms,
+  registered here (change 8) for its next planned major, alongside the closeness rename.
 - GPU eigenvector centrality at `tolerance: 1e-9` throws `ConvergenceError` (single precision
   cannot get there) while the CPU succeeds.
 - **Betweenness overflow is silent.** GPU betweenness counts paths in u32. Grids of 19 x 19 and up

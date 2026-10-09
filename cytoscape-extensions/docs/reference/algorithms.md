@@ -107,10 +107,10 @@ Returns `PredictedLink[]`. Reads no edge weights. Takes no `field`. No Async twi
 
 With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.
 
-| Option            | Type      | Default            | Meaning                                                                                                                                                                                                                                                                                         |
-| ----------------- | --------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                                                                                                               |
-| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order, and `topK` counts rows, not pairs. A directed graph lists each pair once (see above). |
+| Option            | Type      | Default            | Meaning                                                                                                                                                                                                                                                                                           |
+| ----------------- | --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                                                                                                                 |
+| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. Each pair is listed once, so `topK` counts distinct pairs; on an undirected graph `source` is the node that comes first in the collection (see above). |
 
 ### `graphtyAdamicAdarScore`
 
@@ -220,10 +220,10 @@ Returns `PredictedLink[]`. Reads no edge weights. Takes no `field`. No Async twi
 
 With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.
 
-| Option            | Type      | Default            | Meaning                                                                                                                                                                                                                                                                                         |
-| ----------------- | --------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                                                                                                               |
-| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order, and `topK` counts rows, not pairs. A directed graph lists each pair once (see above). |
+| Option            | Type      | Default            | Meaning                                                                                                                                                                                                                                                                                           |
+| ----------------- | --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                                                                                                                 |
+| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. Each pair is listed once, so `topK` counts distinct pairs; on an undirected graph `source` is the node that comes first in the collection (see above). |
 
 ### `graphtyCommonNeighborsScore`
 
@@ -776,16 +776,16 @@ No options of its own.
 
 Returns `Partition<{ loss: number; iterations: number; converged: boolean; }>`. Reads no edge weights. No Async twin: it runs on the CPU only.
 
-On an 80-node graph the defaults (`maxIterations: 100`, `learningRate: 0.01`) end with `converged: false` and mixed clusters. Check `converged`; there, `maxIterations: 2000, learningRate: 0.05` converges in about 750 iterations. `converged: true` does not mean the clusters are right: each isolated node or extra component takes one of the `numClusters` centers, so add 3 isolated nodes to that graph and, with the same settings, it converges with three of the four groups merged. Run it on the component you want to cluster, or raise `numClusters` by the number of extra components.
+Unconnected parts of the graph come apart at convergence, but connected communities blur: run to convergence, the embeddings of nodes joined by edges drift together. On an 80-node graph of 4 communities the defaults converge in about 100 iterations with each community spread over several clusters; `maxIterations: 10` stops before that and finds the 4 communities on most such graphs, with `converged: false`. `converged: true` does not mean the clusters are right: each isolated node or extra component takes one of the `numClusters` centers, so add 3 isolated nodes to that graph and the defaults give two communities the same cluster. Run it on the component you want to cluster, or raise `numClusters` by the number of extra components.
 
-| Option          | Type     | Default  | Meaning                                                          |
-| --------------- | -------- | -------- | ---------------------------------------------------------------- |
-| `numClusters`   | `number` | required | Number of cluster centers: an integer in `[1, nodeCount]`.       |
-| `maxIterations` | `number` | `100`    | Iteration cap.                                                   |
-| `tolerance`     | `number` | `1e-6`   | Stop when the loss changes by less than this between iterations. |
-| `seed`          | `number` | `42`     | Seed of the embedding initialization and the center draws.       |
-| `learningRate`  | `number` | `0.01`   | Gradient step.                                                   |
-| `lambda`        | `number` | `0.1`    | Weight of the neighbor-reconstruction and regularization terms.  |
+| Option          | Type     | Default  | Meaning                                                                                                                                                                                                |
+| --------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `numClusters`   | `number` | required | Number of cluster centers: an integer in `[1, nodeCount]`.                                                                                                                                             |
+| `maxIterations` | `number` | `1000`   | Iteration cap.                                                                                                                                                                                         |
+| `tolerance`     | `number` | `1e-6`   | Stop when the loss changes by less than this between iterations.                                                                                                                                       |
+| `seed`          | `number` | `42`     | Seed of the embedding initialization and the center draws.                                                                                                                                             |
+| `learningRate`  | `number` | `0.5`    | Fraction of the full step each node takes. The full step (1) moves a node to the sum of its out-neighbors' embeddings over (out-degree + 1). Stable up to 1; above 0.5 a bipartite part can oscillate. |
+| `lambda`        | `number` | `0.1`    | Weight of the neighbor and regularization terms in the loss (and its convergence test).                                                                                                                |
 
 ### `graphtyTeraHAC`
 

@@ -12,7 +12,8 @@ import "@graphty/graphty-element";
 
 import { browserProjects, type GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
-import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
+import { page } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -139,15 +140,16 @@ async function buildProject(store: WorkspaceStore): Promise<{ session: GraphSess
  * before the app has recorded the file in Recent projects and closed the dialog, and while the
  * dialog is open it keeps the keys (F2 does nothing).
  * @param name - the name to save under.
+ * @param current - the project's name before.
  */
-async function saveAs(name: string): Promise<void> {
+async function saveAs(name: string, current = "Florentine families"): Promise<void> {
     await userEvent.keyboard("{Control>}s{/Control}");
-    const dialog = await screen.findByRole("dialog", { name: "Save Florentine families as" });
+    const dialog = await screen.findByRole("dialog", { name: `Save ${current} as` });
     const field = within(dialog).getByRole<HTMLInputElement>("textbox", { name: "Name" });
     await waitFor(() => {
         assert.strictEqual(document.activeElement, field);
     });
-    assert.equal(field.value.slice(field.selectionStart ?? 0, field.selectionEnd ?? 0), "Florentine families");
+    assert.equal(field.value.slice(field.selectionStart ?? 0, field.selectionEnd ?? 0), current);
     await userEvent.keyboard(`${name}{Enter}`);
     await waitFor(
         () => {
@@ -409,5 +411,97 @@ describe("T14: save and reopen, on the real element", () => {
             assert.isNull(store.get().project);
         },
         TIMEOUT_MS,
+    );
+});
+
+/**
+ * Twenty friends and their 41 ties (the study's friends.csv): drawn, the graph clears the
+ * legend card's corner, so the card arriving after the first framing moves nothing.
+ */
+const FRIENDS =
+    "Ava-Ben Ava-Chloe Ava-Dev Ben-Chloe Ben-Eli Chloe-Dev Chloe-Farah Dev-Eli Dev-Gus Eli-Farah Farah-Gus " +
+    "Farah-Hana Gus-Hana Gus-Ivan Hana-Ivan Hana-Jada Ivan-Jada Ivan-Kofi Jada-Kofi Jada-Lena Kofi-Lena " +
+    "Kofi-Milo Lena-Milo Lena-Nora Milo-Nora Milo-Omar Nora-Omar Nora-Pia Omar-Pia Omar-Quinn Pia-Quinn " +
+    "Pia-Ravi Quinn-Ravi Quinn-Sana Ravi-Sana Ravi-Theo Sana-Theo Sana-Ava Theo-Ben Theo-Ava Ivan-Ava";
+
+/**
+ * Where the graph's nodes stand on screen: the box around their centers, in CSS pixels.
+ * @returns left, right, top and bottom.
+ */
+function drawnBounds(): number[] {
+    const element = document.querySelector("graphty-element");
+    const session = element?.session;
+    assert.isDefined(session);
+    const at = (session?.data.nodes() ?? []).flatMap((node) => element?.nodeScreenPosition(node.id) ?? []);
+    assert.isNotEmpty(at);
+    const xs = at.map((point) => point.x);
+    const ys = at.map((point) => point.y);
+    return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+}
+
+/**
+ * Waits for the element's picture to be final, and for the legend card to have reserved its box.
+ * @param store - the workspace store.
+ */
+async function framedWithLegend(store: WorkspaceStore): Promise<void> {
+    await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+    await waitFor(
+        () => {
+            assert.notDeepEqual(store.get().viewInsets, {});
+        },
+        { timeout: TIMEOUT_MS },
+    );
+    await document.querySelector("graphty-element")?.waitForStableFrame();
+}
+
+describe("a reopened project's framing, on the real element", () => {
+    beforeAll(async () => {
+        await page.viewport(1440, 900);
+    });
+
+    it(
+        "frames the graph where it was when saved, though the legend card comes up with the graph",
+        async () => {
+            const store = createWorkspaceStore({ project: { name: "Friends", id: 1 } });
+            render(<Workspace store={store} />);
+            const session = await elementSession();
+            const edges = FRIENDS.split(" ").map((pair) => {
+                const [source, target] = pair.split("-");
+                return { source, target };
+            });
+            await session.data.addNodes(
+                [...new Set(edges.flatMap((edge) => [edge.source, edge.target]))].map((id) => ({ id })),
+            );
+            await session.data.addEdges(edges);
+            await document.querySelector("graphty-element")?.waitForStableFrame();
+            // PageRank paints color, so the legend card comes up after the graph was framed.
+            await session.runs.start("pagerank");
+            await session.styles.settled();
+            await framedWithLegend(store);
+            const saved = drawnBounds();
+
+            await saveAs("Friends framed", "Friends");
+            await closeFromMenu();
+            await userEvent.click(await screen.findByRole("gridcell", { name: /^Friends framed/ }));
+            const reopened = await elementSession(session);
+            await waitFor(
+                () => {
+                    assert.match(store.get().notice?.message ?? "", OPENED("Friends framed"));
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.isAbove(reopened.runs.list().length, 0);
+            await framedWithLegend(store);
+            const bounds = drawnBounds();
+            bounds.forEach((side, at) => {
+                assert.approximately(
+                    side,
+                    saved[at],
+                    3,
+                    `side ${String(at)} of ${JSON.stringify(bounds)} against ${JSON.stringify(saved)}`,
+                );
+            });
+        },
+        TIMEOUT_MS * 2,
     );
 });

@@ -359,6 +359,9 @@ describe("the legend card", () => {
             const zoomToFit = vi.fn();
             const element = {
                 autoFrame: true,
+                isFrameStable: true,
+                addEventListener: vi.fn(),
+                removeEventListener: vi.fn(),
                 nodesInRect: vi.fn(() => (hides ? ["n1"] : [])),
                 zoomToFit,
             } as unknown as GraphtyElement;

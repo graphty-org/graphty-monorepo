@@ -113,11 +113,22 @@ function useReservedMargin(): React.RefObject<HTMLElement | null> {
                 }
             }
         };
-        const observer = new ResizeObserver(report);
+        // A card that comes up with the graph (a project opening) waits for the element's own
+        // framing of it to land first, as a card made later does: an inset set before that framing
+        // shrinks it, so the reopened project would be framed smaller than it was saved.
+        const reportWhenFramed = (): void => {
+            if (element !== null && !element.isFrameStable) {
+                element.addEventListener("graph-frame-stable", report, { once: true });
+                return;
+            }
+            report();
+        };
+        const observer = new ResizeObserver(reportWhenFramed);
         observer.observe(card);
         observer.observe(canvas);
-        report();
+        reportWhenFramed();
         return () => {
+            element?.removeEventListener("graph-frame-stable", report);
             observer.disconnect();
             store.set({ viewInsets: {} });
         };

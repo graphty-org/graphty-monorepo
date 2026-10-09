@@ -11,6 +11,22 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **A reopened project is framed as a fresh fit of the final state; the legend card
+  waits for that fit (app only).** Mechanism (probe `tmp/r1-dry4-reopen-framing/probe.mjs`, logs
+  every `viewInsets` set and `zoomToFit`): on a first open the element frames before any legend
+  exists; on a reopen the card mounts in the open's own transaction and its inset (top 130, bottom
+  72) reached the element BEFORE its first-settlement fit, so that fit framed smaller and lower
+  (camera distance 85.7 against 65.9). `useReservedMargin` in `LegendCard.tsx` now waits for
+  `graph-frame-stable` while `element.isFrameStable` is false, then reports and does its usual
+  "refit only when the card hides a node". friends (T19A): node centers within 10 px (the rest is
+  the Size binding: the first fit framed smaller spheres). OPEN, owner door: Florentine (T19B)
+  still reopens ~60 px lower, because its session refit for the card at one section tall and the
+  card grew afterwards; only a saved camera can reproduce that, and the owner's rule is that the
+  camera is not saved (`design/undo/undo-design.md`); asked in `owner-decisions.md`. Test:
+  `Project.real-element.test.tsx` "frames the graph where it was when saved..." (friends data,
+  1440 x 900; fails without by 48 px). Florentine cannot be the test: its card hides Pazzi, so the
+  in-session refit makes both paths agree with or without the fix.
+
 - (2026-10-08) **Undo, Redo and Escape say what they did (app, plus one element param).** One
   words table, `graphty/src/workspace/frame/historyWords.ts`, words every `HistoryCode` from its
   params (filter steps keep their rule words through `stepChange` in `filterSteps.ts`). Undo/Redo
@@ -43,44 +59,25 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   other agents rebuild graphty/dist in the shared worktree mid-session ("no production build").
   Evidence `tmp/r1-dry4-words-placement/` (T20A/07, T22B/02, T12RA/05, T12RB/05).
 
-- (2026-10-08) **The inspector title takes focus with no mark; Rerun and Back keep focus off the
-  page (app only).** The title (`INSPECTOR_TITLE_ID`, tabIndex -1 heading) has `outline: none` and
-  no underline: a heading focused so a screen reader starts there is not a control (a box read as
-  a field, an underline as a link). `cm-focus-underline` is deleted from compact-mantine. Both
-  Rerun buttons in `RunStateBar` call `focusInspectorTitle()` on click (the title stays mounted
-  through the run). Back/Esc to Degree now runs on every render of `NodeValues`, not only a mount.
-  "After Back nothing shows focus" was mis-measured: focus WAS on Degree (Tab went on to Collapse
-  Results); a pointer click on Back leaves Chromium in pointer modality, so the keyboard-only ring
-  stays hidden, as spec 2.7 means; Esc shows it. Evidence `tmp/r1-dry4-inspector-focus/`
-  (`probe.mjs`; T23B/03 clean title, T23B/05 Esc ring, T23B/07 Tab after Back; T12RA/02;
-  T21A/06 `--read` starts at the inspector after Rerun).
-- (2026-10-08) **A click keeps its trigger's tooltips closed until the pointer leaves; a
-  pointer-opened menu highlights nothing** (compact-mantine `overlayBehavior.ts`). Mechanism, from
-  a probe on the frozen build: the click on "Filter to neighbors" came before the 1000 ms open
-  delay ran out, so no tooltip existed to dismiss; the tooltip mounted afterwards (same button
-  element, new tooltip, the new label) under the resting pointer. Now a pointer-down records the
-  control it landed on (`pressed`, `closest(button, a, input, ..., [role], [tabindex])`) and any
-  tooltip that mounts for a trigger containing it is `data-cm-dismissed`, until a real move off it
-  or the pointer leaving the window. Menus: `keyLast` (last key after last pointer-down) decides
-  `skipDisabledFirstRow`: a key open goes to the first enabled row, a pointer open to the menu
-  itself; ArrowDown then lands on the first enabled row. To check: a pointer-opened menu whose
-  first row is ENABLED likely still highlights it (Mantine's focus trap focuses the first row; the
-  theme turns the placeholder off for axe); not seen in a pilot yet. Evidence `tmp/r1-dry4-shared-tooltip-menu/` (`probe.mjs`,
-  T23A/05-07, T23B/05, T22B/03-04, 07).
+- (2026-10-08, condensed) **The inspector title takes focus with no mark; Rerun and Back keep
+  focus off the page (app only).** Title (`INSPECTOR_TITLE_ID`, tabIndex -1) has no outline or
+  underline (`cm-focus-underline` deleted); both Rerun buttons call `focusInspectorTitle()`;
+  Back/Esc to Degree on every render of `NodeValues`. A pointer click leaves Chromium in pointer
+  modality, so the keyboard ring stays hidden (spec 2.7). Evidence `tmp/r1-dry4-inspector-focus/`.
+- (2026-10-08, condensed) **A click keeps its trigger's tooltips closed until the pointer leaves;
+  a pointer-opened menu highlights nothing** (compact-mantine `overlayBehavior.ts`): a click
+  before the 1000 ms open delay left a tooltip to mount later under the resting pointer; now a
+  pointer-down marks its control (`pressed`) and a tooltip mounting for it is `data-cm-dismissed`
+  until a move off. `keyLast` decides `skipDisabledFirstRow`. To check: a pointer-opened menu
+  whose first row is enabled may still highlight it. Evidence `tmp/r1-dry4-shared-tooltip-menu/`.
 - (2026-10-08, condensed) **Check what a finding measured before fixing the code it names.**
   "Damping 0.8500000238418579" was the study tool reading Chromium's 32-bit range value; the DOM
   and `valuetext` say 0.85. `real.mjs --read` now prints `valuetext`. Evidence
   `tmp/r1-dry4-option-precision/`.
-- (2026-10-08) **Path Follow: element option, app row.** Dijkstra and Bellman-Ford take
-  `direction: "out" | "in" | "all"` (default "all" = undirected search; "in" uses `transpose()`).
-  The app (PathForm.tsx) draws "Follow: Out | All" between To and Weight only when
-  `session.status.directed`, starting on All, and always sends `direction` on a directed graph;
-  Made with shows one "Follow All/Out" row (not again under Advanced run settings) on a directed
-  graph and none on an undirected one. `isPathFollow()` in analyze/words.ts names the option for
-  both. In stays off the form (From and To swapped asks the same). Note: a friends.csv loaded with
-  no Direction choice is DIRECTED. Selection order is insertion order, not apply order. Evidence
-  `tmp/r1-dry4-path-direction-app/` (T18A/02 Follow on All, 05 Made with "Follow All"; T18B no
-  row). Baselines that will change: path popover and Made with stories on directed data.
+- (2026-10-08, condensed) **Path Follow: element option, app row.** Dijkstra and Bellman-Ford
+  take `direction: "out" | "in" | "all"` (default "all"); PathForm.tsx shows "Follow: Out | All"
+  only on a directed graph and always sends it there; Made with shows one Follow row.
+  friends.csv loaded with no Direction choice is DIRECTED. Evidence `tmp/r1-dry4-path-direction-app/`.
 - (2026-10-08, condensed) **Style tab: one name style (app only).** Every line's name is `Text xs`
   in one column (`PaintLine` in SetLine.tsx); the paint field sits under it (fixed 156 px). The
   Selection row has Nodes (halo) and Edges (`edgeColor`/`edgeOpacity`/`edgeScale`) parts. Evidence
@@ -97,10 +94,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `labels[0]`. Both have `--prove` checks. Earlier: `session.json` `commit` is the served build,
   `toolCommit` the checkout; `setup:<file>` looks in cwd, `tier2/`, `rounds/tier-2/setups/`.
   Evidence `tmp/r1-dry4-tool-and-key/` (`T21A-read.log`, `T23A/06.png`, `prove.log`).
-
-- (2026-10-08, condensed) **Import page (app only).** Data page text `sm`, captions `xs`; Add /
-  Leave out tooltips (`UNMATCHED_HINTS`); WeightLine after RoleList so Weight moves no role box.
-  Evidence `tmp/r1-dry3-app-import-page/`.
 
 - (2026-10-08, condensed) **Sources and left-out rows (app only).** Counts as a visible second
   line; the left-out child wears `GLYPHS.warning`; a load and its left-out child show "Added" and
@@ -125,6 +118,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **The camera stays unsaved; a reopen reproduces only fresh framings.** Making the
+  first open move the drawing when the legend grows was rejected (it undoes "insets never move
+  the drawing"); delaying the card's inset makes reopen match first open whenever the session's
+  own framing was a fresh fit. Import page (app, condensed): Data page text `sm`, captions `xs`,
+  `UNMATCHED_HINTS` tooltips, WeightLine after RoleList.
 - (2026-10-08) **A step is named by what changed, not by a guess at intent.** "Size by
   PageRank" (the dry run's wish) needs to know a binding was added, not removed; the update fact
   says only which channels changed, so the words are "changing Size on PageRank", true for both.
@@ -231,6 +229,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Did not work first: a reopen-framing test on the Florentine sample passed WITHOUT
+  the fix (the card hid Pazzi on the first open, so the session refit with insets and both paths
+  agreed). Worked: the friends graph added through `session.data` in a `Workspace` whose store
+  starts with a project, viewport 1440 x 900; `saveAs` now takes the current name. A stand-in
+  element in a unit test needs `isFrameStable` and `add/removeEventListener` once the card reads
+  them.
 - (2026-10-08) Did not work: `--prove` on `graphty/dist` while another agent rebuilt it (two
   setup checks failed: "no production build", then a dead session socket). Worked: `cp -r
 graphty/dist` into the task folder and run `--prove` and every pilot with `REAL_DIST` on the

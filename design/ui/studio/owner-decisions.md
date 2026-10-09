@@ -78,6 +78,24 @@ the hits of each kind in all, past the window"), `compact-mantine/tests/exports.
 app adding them up); an optional field (every consumer then handles a missing count the element
 always has).
 
+## 2026-10-08 -- For the owner: should a project file keep where the camera was looking?
+
+**What.** Not done; a question. Today a project file saves no camera (the rule: the camera is view
+state, not saved), so a reopened project is framed afresh from the saved positions. The proposal
+is to save the camera beside the selection in the `graphty-view-state` member, which is already
+view state that a file carries and never needs to open, and to place the camera there on open
+instead of framing. An older file without it would open as today.
+
+**Why.** A fresh framing can only match the saved picture when that picture was itself a fresh
+framing of the final state. It often is not: with the Florentine families sample, the legend card
+first appeared over a node, so the graph was framed clear of the card as it was then (one section
+tall); the card then grew a section and hid nothing, so nothing moved. Reopened, the graph is
+framed clear of the taller card, about 60 px lower and smaller than when it was saved. The app now
+holds its legend card's margin until the element's first framing of an opening has landed, which
+fixes the common case (the friends file reopens within 10 px), but this case needs the saved
+camera. Evidence: `tmp/r1-dry4-reopen-framing/` (`fixed-florentine/`, `T19B/02.png` against
+`T19B/05.png`).
+
 ## 2026-10-08 -- For the owner: a compact-mantine fold's content is no longer a named region
 
 **What.** compact-mantine's `ControlSubGroup` drops `role="region"` and `aria-labelledby` from the

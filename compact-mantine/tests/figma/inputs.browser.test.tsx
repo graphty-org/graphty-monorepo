@@ -392,6 +392,7 @@ describe.skipIf(!available)("6.2 text input and search", () => {
         input.blur();
         await settle();
         expectMeasured(field(container), { outlineColor: "#0d99ff" });
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 150));
         expectMeasured(field(container), { outlineColor: "#00000000" });
     });
@@ -815,6 +816,7 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         await userEvent.keyboard("c");
         expect(highlighted()).toBe("Center");
         expect(document.getElementById(input.getAttribute("aria-activedescendant") ?? "")?.textContent).toBe("Center");
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 600));
         await userEvent.keyboard("o");
         expect(highlighted()).toBe("Outside");

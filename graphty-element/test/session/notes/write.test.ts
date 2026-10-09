@@ -349,6 +349,7 @@ describe("notes.add", () => {
     // checkpoint copied the whole draft, so the n-th add walked n entries (50 million in all);
     // checkpoints are now a position in the draft's journal. The test asserts that work, not
     // a time: the entries walked per add stay constant. The 30 s limit is vitest's default.
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("refuses a note larger than 256 KB saved, and a session past 10,000 notes", async () => {
         const { session } = notesHarness();
         const big = refuses(session, () =>

@@ -199,6 +199,7 @@ describe("a lit node's surface", () => {
     let graph: Graph;
     let surface: Surface;
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeAll(async () => {
         ({ container, graph } = await mountOneNode("3d"));
         surface = surfaceOf(await readFrame(graph, FRAMES));
@@ -258,6 +259,7 @@ describe("a 2D node's surface", () => {
     let graph: Graph;
     let surface: Surface;
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeAll(async () => {
         ({ container, graph } = await mountOneNode("2d"));
         surface = surfaceOf(await readFrame(graph, FRAMES));

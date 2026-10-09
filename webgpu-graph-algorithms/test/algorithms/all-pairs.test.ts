@@ -131,6 +131,7 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
     // On the NVIDIA card with coverage it takes 6.2 s idle and 11.7-16.8 s beside 32 busy cores; randomBig/uniform/
     // directed, at 129 nodes under coverage (see big()), 0.06 s idle and 0.1-0.3 s loaded (19.6 s and 48.3 s at 1057).
     for (const fixture of FIXTURES) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(`${fixture.name}: the matrix against the references, the invariants, run twice bitwise, the snapshot unchanged`, async (t: TestContext) => {
             requireGpu(t);
             const s = snapshotOf(typeof fixture.edges === "function" ? fixture.edges(big()) : fixture.edges, {
@@ -338,6 +339,7 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
         });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the sabotage report passes on the real kernels (factor 0)", async (t) => {
         requireGpu(t);
         const report = await allPairsReport(ctx);

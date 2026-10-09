@@ -49,6 +49,7 @@ describe("useAiManager", () => {
         const { result } = renderHook(() => useAiManager({ defaultProvider: "openai" }));
 
         // Wait a bit to ensure no async init happens
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         expect(result.current.isReady).toBe(false);

@@ -199,6 +199,7 @@ describe("FA2 vs @graphty/layout's ForceAtlas2Simulation: the second reference (
             const compat = compatOf(tuning);
             const label = `${graph}/${compat}`;
             const asserted = ASSERTED[compat];
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${label}: twice bitwise; within fa2-layout-oracle of the layout simulation after ${asserted.join(", ")} iterations; ${PRINTED} printed (chaotic, G3-F3)`,
                 async (t) => {
@@ -259,6 +260,7 @@ describe("FA2 vs @graphty/layout's ForceAtlas2Simulation: the second reference (
         }
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         `writes the GPU's and the CPU class's ${LAYOUT5_GRAPH}/paper positions after ${LAYOUT5_HORIZON} iterations as the layout5 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
         async (t) => {

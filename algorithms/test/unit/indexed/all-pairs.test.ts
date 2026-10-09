@@ -504,6 +504,7 @@ describe("indexed.allPairsShortestPath -- paths", () => {
     const cases = allFixtures().flatMap(({ name, graph }) =>
         (["floyd-warshall", "per-source"] as const).map((method) => ({ name, graph, method })),
     );
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it.each(cases)("walks every reachable pair: $name, $method", { timeout: 10_000 }, ({ graph, method }) => {
         const s = checksummedSnapshot(graph);
         const own = allPairsShortestPath(s, { method, paths: true });

@@ -35,6 +35,7 @@ afterEach(() => {
  */
 async function until(condition: () => boolean, what: string): Promise<void> {
     for (let wait = 0; wait < 1000 && !condition(); wait++) {
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 10));
     }
 
@@ -143,6 +144,7 @@ async function drop(graph: Graph, node: Node): Promise<void> {
 }
 
 describe("a node drag under undo", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "with the layout running at drag start, undo puts every node back where it was at drag start",
         async () => {
@@ -168,6 +170,7 @@ describe("a node drag under undo", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "an undo during the drag ends it: the lane is the drag-start capture, no step, and the drop does nothing",
         async () => {
@@ -190,6 +193,7 @@ describe("a node drag under undo", () => {
             handler(node).onDragUpdate(held.add(DELTA));
             assert.isTrue(node.mesh.position.equals(held), "the rest of the gesture moves nothing");
             handler(node).onDragEnd();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 100));
             assert.lengthOf(session.history.steps, steps, "no step was recorded");
             assert.isFalse(node.isPinned(), "the drop did not pin");
@@ -198,6 +202,7 @@ describe("a node drag under undo", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a drag held until the layout settles is sealed into the drag, never into the step below",
         async () => {
@@ -224,6 +229,7 @@ describe("a node drag under undo", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "a reheat after undo starts from the restored coordinates",
         async () => {

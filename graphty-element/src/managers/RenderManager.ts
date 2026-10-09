@@ -189,6 +189,51 @@ const GRAPH_ROOT_NAME = "graph-root";
 /** What the scene is cleared to when nothing names a colour. Whitesmoke. */
 const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
 
+/** How often a disposed graph checks whether the GPU has finished its last frames. */
+const RELEASE_POLL_MS = 16;
+
+/**
+ * Gives a disposed graph's WebGL context back to the browser, once the GPU has finished with it.
+ *
+ * Kept until garbage collection instead, a page that creates and disposes graphs runs into
+ * Chrome's limit on live contexts (16) and has its oldest LIVE context evicted. But
+ * `loseContext()` is a synchronization point: it blocks the page until the GPU has drawn every
+ * frame still queued for the context. On a software GPU a graph of 1000 labels that was drawn
+ * faster than SwiftShader keeps up with leaves minutes of frames queued, and losing the context
+ * at once blocked `dispose()` for that long. So a fence goes in after the last command, and the
+ * context is lost only once the fence has signalled, which costs the page nothing.
+ * @param gl - The context of an engine that has just been disposed.
+ */
+function releaseWhenIdle(gl: WebGLRenderingContext | WebGL2RenderingContext): void {
+    const lose = (): void => {
+        if (!gl.isContextLost()) {
+            gl.getExtension("WEBGL_lose_context")?.loseContext();
+        }
+    };
+
+    if (gl.isContextLost() || !("fenceSync" in gl)) {
+        lose();
+        return;
+    }
+
+    const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    gl.flush();
+    const poll = (): void => {
+        // A lost context answers null rather than a status, which also ends the wait.
+        if (fence !== null && !gl.isContextLost() && gl.getSyncParameter(fence, gl.SYNC_STATUS) === gl.UNSIGNALED) {
+            setTimeout(poll, RELEASE_POLL_MS);
+            return;
+        }
+
+        if (fence !== null && !gl.isContextLost()) {
+            gl.deleteSync(fence);
+        }
+
+        lose();
+    };
+    poll();
+}
+
 /**
  * Manages Babylon.js scene, engine, and render loop
  */
@@ -240,10 +285,6 @@ export class RenderManager implements Manager {
             this.config.engine ??
             new Engine(this.canvas, true, {
                 preserveDrawingBuffer: true, // Required for screenshots
-                // Disposing a graph gives its WebGL context back to the browser at once. Kept
-                // until garbage collection instead, a page that creates and disposes graphs runs
-                // into Chrome's limit on live contexts and has its oldest ones evicted.
-                loseContextOnDispose: true,
             });
 
         // Create scene
@@ -324,8 +365,12 @@ export class RenderManager implements Manager {
         this.camera.dispose();
 
         // Dispose scene and engine
+        const gl = this.engine instanceof Engine ? (this.engine._gl as WebGLRenderingContext | undefined) : undefined;
         this.scene.dispose();
         this.engine.dispose();
+        if (gl !== undefined) {
+            releaseWhenIdle(gl);
+        }
     }
 
     /**

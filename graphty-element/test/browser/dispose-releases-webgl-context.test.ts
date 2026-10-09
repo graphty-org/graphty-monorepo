@@ -6,6 +6,11 @@
  * A disposed graph used to keep its context until garbage collection, so a page that creates and
  * disposes graphs -- a dashboard switching views, a story gallery, a test file -- had a LIVE graph's
  * context evicted from under it once enough disposed ones had piled up.
+ *
+ * The context is released once the GPU has finished the frames still queued for it, not inside
+ * `dispose()` itself: losing a context waits for those frames, which on a software GPU blocked
+ * `dispose()` of a 1000-label graph for minutes. So these tests wait for the release, and
+ * `dispose()` has to return before it.
  */
 
 import { assert, describe, it } from "vitest";
@@ -40,6 +45,29 @@ function contextOf(graph: Graph): WebGLRenderingContext | WebGL2RenderingContext
     return gl;
 }
 
+/**
+ * Resolves when a canvas's context is lost, or at once when it already is.
+ * @param gl - The context to watch.
+ * @returns A promise of the release.
+ */
+function released(gl: WebGLRenderingContext | WebGL2RenderingContext): Promise<void> {
+    const canvas = gl.canvas as HTMLCanvasElement;
+    return new Promise((resolve) => {
+        if (gl.isContextLost()) {
+            resolve();
+            return;
+        }
+
+        canvas.addEventListener(
+            "webglcontextlost",
+            () => {
+                resolve();
+            },
+            { once: true },
+        );
+    });
+}
+
 describe("disposing a graph releases its WebGL context", () => {
     it("loses each disposed graph's context, and a live graph's context survives", async () => {
         const liveContainer = makeContainer();
@@ -50,19 +78,22 @@ describe("disposing a graph releases its WebGL context", () => {
             liveLost++;
         });
 
-        const lostAfterDispose: boolean[] = [];
+        let releasedCount = 0;
         try {
             for (let i = 0; i < GRAPHS; i++) {
                 const container = makeContainer();
                 const graph = new Graph(container);
                 await graph.init();
                 const gl = contextOf(graph);
+                const release = released(gl);
                 graph.dispose();
                 container.remove();
-                lostAfterDispose.push(gl.isContextLost());
+                await release;
+                assert.isTrue(gl.isContextLost());
+                releasedCount++;
             }
 
-            assert.deepEqual(lostAfterDispose, new Array<boolean>(GRAPHS).fill(true));
+            assert.strictEqual(releasedCount, GRAPHS);
             assert.isFalse(contextOf(live).isContextLost(), "the live graph's context was evicted");
             assert.strictEqual(liveLost, 0, "the live graph's canvas saw webglcontextlost");
         } finally {
@@ -76,7 +107,9 @@ describe("disposing a graph releases its WebGL context", () => {
         const first = new Graph(container);
         await first.init();
         const firstContext = contextOf(first);
+        const release = released(firstContext);
         first.dispose();
+        await release;
         assert.isTrue(firstContext.isContextLost());
 
         const second = new Graph(container);

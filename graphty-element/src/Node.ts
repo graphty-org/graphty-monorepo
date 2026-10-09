@@ -1537,7 +1537,7 @@ export class Node {
         switch (location) {
             case "left":
             case "right":
-                return 1.0; // Larger offset for horizontal positions
+                return 1; // Larger offset for horizontal positions
             case "center":
                 return 0; // No offset for center
             default:

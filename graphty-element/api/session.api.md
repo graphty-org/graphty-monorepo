@@ -3609,6 +3609,7 @@ export interface TopRanking {
 
 // @public
 export interface TransactionOptions {
+    readonly after?: HistoryStepId;
     readonly provenance?: Readonly<Record<string, string>>;
 }
 

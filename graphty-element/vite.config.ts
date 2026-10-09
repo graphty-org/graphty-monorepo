@@ -1,5 +1,6 @@
-import { readFileSync } from "fs";
-import { resolve } from "path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { defineConfig, loadEnv, UserConfig } from "vite";
 import VitePluginCustomElementsManifest from "vite-plugin-cem";
 // import eslint from "vite-plugin-eslint";

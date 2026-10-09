@@ -1,6 +1,6 @@
-import crypto from "crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
+import crypto from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { BenchmarkResult, BenchmarkSession } from "../benchmark-result";
 import { formatSystemInfo, getSystemInfo } from "./system-info";

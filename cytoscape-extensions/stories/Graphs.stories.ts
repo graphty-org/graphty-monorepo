@@ -92,9 +92,9 @@ export const Dataset: StoryObj<DatasetArgs> = {
 };
 
 /**
- * cy.graphtyExport then cy.graphtyImport: lays out a dataset, writes it in the chosen format (the text is shown
- * under the graph), clears the core and reads the text back. Formats that carry positions keep the picture; the
- * others are laid out again.
+ * cy.graphtyExport then cy.graphtyImport: loads the bundled karate dataset into Cytoscape, lays it out, writes the live
+ * graph in the chosen format (the text is shown under the graph), clears the core and reads the text back. Formats
+ * that carry positions keep the picture; the others are laid out again.
  */
 export const ExportAndImport: StoryObj<ExportArgs> = {
     args: { ...networkArgs, format: "graphml" },
@@ -118,10 +118,21 @@ export const ExportAndImport: StoryObj<ExportArgs> = {
             },
             async (cy) => {
                 await cy.graphtyDataset("karate");
-                return `karate, ${counts(cy)}`;
+                return `karate (built-in dataset, ${counts(cy)})`;
             },
+            // the source is the live Cytoscape graph, not a file
+            (graph) => `${graph} in Cytoscape -> written as ${args.format.toUpperCase()} -> read back`,
         );
         root.append(pre);
         return root;
     },
 };
+
+/** Export and import in GEXF, a format that carries the node positions, so the picture comes back as it was. */
+export const ExportAndImportGexf: StoryObj<ExportArgs> = {
+    ...ExportAndImport,
+    args: { ...networkArgs, format: "gexf" },
+};
+
+/** cy.graphtyDataset with a larger dataset than karate: the 2000 American college football season, by conference. */
+export const DatasetFootball: StoryObj<DatasetArgs> = { ...Dataset, args: { ...networkArgs, dataset: "football" } };

@@ -141,9 +141,33 @@ export function newCore(container: HTMLElement, elements: ElementDefinition[] = 
         layout: { name: "preset" },
     });
     live.push(cy);
+    // the container's size can change after the layout fitted the graph to it (the window or Storybook's panels
+    // resize, the toolbar's full-screen button): fit it again, so the graph always fills the space it has
+    let size = `${container.clientWidth}x${container.clientHeight}`;
+    const watch = new ResizeObserver(() => {
+        const now = `${container.clientWidth}x${container.clientHeight}`;
+        if (now !== size) {
+            size = now;
+            fitToContainer(cy);
+        }
+    });
+    watch.observe(container);
+    cy.one("destroy", () => watch.disconnect());
     // for poking at from the browser console
     (window as unknown as { cy?: Core }).cy = cy;
     return cy;
+}
+
+/** The space left around the graph when it is fitted, in pixels: Cytoscape's default layout padding. */
+const FIT_PADDING = 30;
+
+/**
+ * Fits the graph to the container's current size: cy.resize() reads the size, cy.fit() zooms and pans to it.
+ * @param cy - the core
+ */
+export function fitToContainer(cy: Core): void {
+    cy.resize();
+    cy.fit(undefined, FIT_PADDING);
 }
 
 /** Destroys every core the demo made, before a story draws new ones. */
@@ -222,6 +246,7 @@ interface Demo {
  * @param title - what is being run, for the status line
  * @param run - the work: returns which backend ran
  * @param load - puts the graph into the empty core and describes it; default: the network the args pick
+ * @param headline - the status line's first line from the graph's description; default "<title> on <graph>"
  * @returns the story's root element
  */
 export function renderDemo(
@@ -229,11 +254,13 @@ export function renderDemo(
     title: string,
     run: (d: Demo) => Promise<Outcome>,
     load?: (cy: Core) => Promise<string>,
+    headline: (graph: string) => string = (graph) => `${title} on ${graph}`,
 ): HTMLElement {
     retireAll();
 
     const root = document.createElement("div");
-    root.style.cssText = "display:flex;flex-direction:column;height:100vh;font:13px system-ui,sans-serif;";
+    // the whole viewport: the status bar on top, the graph in all the rest (Storybook's layout is "fullscreen")
+    root.style.cssText = "display:flex;flex-direction:column;width:100%;height:100vh;font:13px system-ui,sans-serif;";
     const bar = document.createElement("div");
     // a fixed height: a status line that grows would shrink the canvas under a graph already fitted to it
     bar.style.cssText =
@@ -245,7 +272,7 @@ export function renderDemo(
     status.style.cssText = "white-space:pre-wrap;flex:1;";
     bar.append(button, status);
     const canvas = document.createElement("div");
-    canvas.style.cssText = "flex:1;min-height:400px;";
+    canvas.style.cssText = "flex:1;min-height:0;position:relative;";
     root.append(bar, canvas);
 
     const setStatus = (text: string, kind: "info" | "ok" | "error" = "info"): void => {
@@ -276,14 +303,16 @@ export function renderDemo(
                 g === undefined
                     ? await (load as (cy: Core) => Promise<string>)(cy)
                     : `${args.network}, ${g.nodeCount.toLocaleString()} nodes, ${g.src.length.toLocaleString()} edges, seed ${args.seed}`;
-            setStatus(`${title} on ${graph}: running...`);
+            setStatus(`${headline(graph)}: running...`);
             const t0 = performance.now();
             const out = await run({ cy, root, gpuMode: GPU_MODE[args.backend], extra, setStatus });
+            // a layout fits the graph to the size the container had when it started; fit it to the size it has now
+            fitToContainer(cy);
             const ms = Math.round(out.ms ?? performance.now() - t0);
             const why = out.detail ? `\n${out.ran === "gpu" ? "device" : "why the CPU"}: ${out.detail}` : "";
             const time = CAPTURE ? "" : ` in ${ms.toLocaleString()} ms`;
             setStatus(
-                `${title} on ${graph}\nran on ${out.ran.toUpperCase()}${time}${why}${out.note ? `\n${out.note}` : ""}`,
+                `${headline(graph)}\nran on ${out.ran.toUpperCase()}${time}${why}${out.note ? `\n${out.note}` : ""}`,
                 "ok",
             );
         } catch (e) {

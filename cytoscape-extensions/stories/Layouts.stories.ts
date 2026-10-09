@@ -57,3 +57,30 @@ export const StaticLayouts: Story = {
         iterations: { table: { disable: true } },
     },
 };
+
+// Fixed variations, so a capture shows more than the defaults (a capture takes each story at its default args).
+
+/** ForceAtlas2 on 2,000 nodes, drawn once at the end (no animation). */
+export const ForceAtlas2At2000Nodes: Story = {
+    ...ForceSimulations,
+    args: { ...networkArgs, size: "medium", layout: "forceatlas2", iterations: 100, animate: false },
+};
+
+/** Fruchterman-Reingold on 100 nodes, drawn once at the end. */
+export const FruchtermanReingold: Story = {
+    ...ForceSimulations,
+    args: { ...networkArgs, layout: "fruchterman-reingold", iterations: 100, animate: false },
+};
+
+/** The circular layout of a 2,000-node Watts-Strogatz ring: the ring, with its few rewired shortcuts across it. */
+export const CircularWattsStrogatz2000Nodes: Story = {
+    ...StaticLayouts,
+    args: {
+        ...networkArgs,
+        network: "watts-strogatz",
+        size: "medium",
+        layout: "circular",
+        iterations: 100,
+        animate: false,
+    },
+};

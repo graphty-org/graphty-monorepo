@@ -158,21 +158,19 @@ describe("advance: the block-mapped expansion and the edge queue (design 6 row 8
         await checkFixture(t, "star-hub", star, [[0]]);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("gridEdges(100, 100) at every level of the oracle's BFS from the corner", async (t) => {
         const grid = snapshotOf(gridEdges(100, 100));
         const levels = levelsOf(grid, 0);
         expect(levels).toHaveLength(199);
         expect(levels.reduce((sum, level) => sum + level.length, 0)).toBe(grid.nodeCount);
         await checkFixture(t, "grid", grid, levels);
-    }, 600_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("rmatEdges(16, 10, 1) over 65,536 nodes (some of degree 0) with the whole vertex set: 256 workgroups, hubs balanced inside their block", async (t) => {
         const rmat = snapshotOf(rmatEdges(16, 10, 1), { nodeCount: 65_536 });
         expect(rmat.nodeCount).toBe(65_536);
         await checkFixture(t, "rmat", rmat, [iota(rmat.nodeCount)]);
-    }, 300_000);
+    });
 
     it("the overflow rule (PD-23): a FAKED 4,096 capacity under the star hub -- edgeCountUnclamped 10,000, edgeCount 10,000 before role 1 and 4,096 after, the 4,096 words a sub-multiset of the oracle, the path word switched to the fused retry, overflowLevels 1", async (t) => {
         const ctx = await context(t);
@@ -216,7 +214,7 @@ describe("advance: the block-mapped expansion and the edge queue (design 6 row 8
         expectBitwiseEqual(sortedU32(fits.queue), oracle, "the whole edge queue when the capacity fits");
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 11 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
     it("windowed (P8-T12, DEP-P8-E lifted): at a FAKED 1 MiB binding limit (>= 8 windows, the hub row longer than one window) the sorted edge queue (edgeQueue buffer) and the counters block of the hub alone and of the whole vertex set equal the unwindowed run's and the oracle, twice", async (t) => {
         const ctx = await context(t);
         const scale = gpuScale();
@@ -263,13 +261,12 @@ describe("advance: the block-mapped expansion and the edge queue (design 6 row 8
         ctx.release(s);
     }, 300_000);
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the sabotage check passes on the real kernel (factor 0)", async (t) => {
         const ctx = await context(t);
         const report = await advanceReport(ctx);
         expect(report.worst).toBe(0);
         assertCheckPasses(report);
-    }, 120_000);
+    });
 
     it("a level outside the submit or a frontier of another n is E_INVALID_ARGUMENT naming it before anything is recorded; an unwindowed core is one window over every arc", async (t) => {
         const ctx = await context(t);

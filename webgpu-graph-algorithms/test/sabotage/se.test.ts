@@ -39,7 +39,6 @@ import {
 import { type SeOracleTraceRecord, SpringElectricalOracle } from "../oracle/spring-electrical.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
 const P5_KERNELS: readonly KernelId[] = [
     "fa2-attraction",
     "fa2-repulsion-exact",
@@ -170,47 +169,35 @@ describe("sabotage: the spring-electrical branches against the P5 spring checks 
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "the pristine kernels pass every check (the baseline the mutants are measured against)",
-        async (t) => {
-            requireGpu(t);
-            const ctx = await acquire({ label: "sabotage/se/baseline" });
-            try {
-                for (const id of P5_KERNELS) {
-                    const report = await stageCheck(ctx, id);
-                    console.warn(
-                        `[sabotage] se baseline ${id}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
-                    );
-                    assertCheckPasses(report);
-                }
-                const trace = await traceCheck(ctx);
+    it("the pristine kernels pass every check (the baseline the mutants are measured against)", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "sabotage/se/baseline" });
+        try {
+            for (const id of P5_KERNELS) {
+                const report = await stageCheck(ctx, id);
                 console.warn(
-                    `[sabotage] se baseline trace ratio ${trace.worst.toExponential(3)} at ${trace.worstLabel}`,
+                    `[sabotage] se baseline ${id}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
                 );
-                assertCheckPasses(trace);
-            } finally {
-                ctx.dispose();
+                assertCheckPasses(report);
             }
-        },
-        CASE_TIMEOUT,
-    );
+            const trace = await traceCheck(ctx);
+            console.warn(`[sabotage] se baseline trace ratio ${trace.worst.toExponential(3)} at ${trace.worstLabel}`);
+            assertCheckPasses(trace);
+        } finally {
+            ctx.dispose();
+        }
+    });
 
     for (const id of P5_KERNELS) {
         for (const row of rowsOf(id)) {
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-            it(
-                `${id}/${row.name}: fails its check by >= ${row.minFactor}x the tolerance`,
-                async (t) => {
-                    requireGpu(t);
-                    const report = await withSabotage(id, row, checkFor(id, row));
-                    console.warn(
-                        `[sabotage] ${id}/${row.name}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
-                    );
-                    expect(report.worst, `${id}/${row.name}: detection factor`).toBeGreaterThanOrEqual(row.minFactor);
-                },
-                CASE_TIMEOUT,
-            );
+            it(`${id}/${row.name}: fails its check by >= ${row.minFactor}x the tolerance`, async (t) => {
+                requireGpu(t);
+                const report = await withSabotage(id, row, checkFor(id, row));
+                console.warn(
+                    `[sabotage] ${id}/${row.name}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
+                );
+                expect(report.worst, `${id}/${row.name}: detection factor`).toBeGreaterThanOrEqual(row.minFactor);
+            });
         }
     }
 });

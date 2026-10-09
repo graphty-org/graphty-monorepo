@@ -7,7 +7,7 @@
 
 import type { Core } from "cytoscape";
 
-import { markDone, newCore, type Outcome, reportFailure, retireAll } from "./demo.js";
+import { failureWords, markDone, newCore, type Outcome, reportFailure, retireAll } from "./demo.js";
 
 export interface Tile {
     /** The heading, such as the method call. */
@@ -65,7 +65,7 @@ export function renderGallery(intro: string, tiles: Tile[]): HTMLElement {
                 status.textContent = `${out.ran.toUpperCase()}${why}${out.note ? `\n${out.note}` : ""}`;
                 status.style.color = "#14532d";
             } catch (e) {
-                status.textContent = `failed: ${(e as Error).message}`;
+                status.textContent = `failed: ${failureWords(e)}`;
                 status.style.color = "#b00020";
                 reportFailure(t.title, e);
             }

@@ -11,53 +11,27 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-08) **A run's kind is its tree row's (app only, no API).** `runRowKind(run)` in
-  `graph-place/rows.ts` is the one rule (a grouping, or a primary field that is not one value per
-  element -- path, set -- is `run-row`; else `measure-row`); the paint tree and the inspector header
-  both read it, so a path run draws one glyph (Shapes) in both. Doors still open a run as either
-  kind (toolbar run, notes, Why this look), so `isInspectedRow` matches a run row on either: the
-  path row is marked selected after Find path. `reads.rowKindOf` stays only as RunValues' "is a
-  grouping" test. The "three things named Weight" were the Path popover's box plus the inspector's
-  Made with Weight stat (a `role=group` named by its label span), not PathForm: `real.mjs` now
-  ranks controls before text (a name a control has wins over a group or span that only reads it),
-  `--prove` all ok. Evidence `tmp/r1-dry3-app-path-run/` (T18A/09, 12; T18B/07, 14). Test:
-  PathRun.real-element (fails on the old code: aria-selected false).
-
-- (2026-10-08) **Inspector title, actions button and neighborhood focus (app + compact-mantine,
-  no element API).** The title that takes focus after a run, find pick or Find path is a level-2
-  heading (`role="heading" aria-level={2}`) marked by the new shared `cm-focus-underline` (2px
-  underline in `--cm-border-selected`, no outline), so it no longer reads as an editable name
-  field. Every inspector's actions button has its name as a Tooltip (Menu.Target > Tooltip >
-  ActionIcon). NeighborList focuses `input:checked` (the Hops choice), never the first row.
-  `neighborhoodWords(center, count, hops)`: one hop "Ava's 6 connections", past it "Ava's 14
-  connections within 2 hops". Evidence `tmp/r1-dry3-app-inspector-header-neighborhood/`
-  (friends/03-08, florentine2/02-04). OPEN: an edge picked from Find leaves focus in the Find box
-  (friends/07), not on the title; the underline might read as a link (watch the sessions).
-- (2026-10-08) **Sources rows and left-out rows (app only, no API).** A Sources row passes its
-  counts as `description` + `descriptionVisible` (two-line row) instead of `count`, so
-  "people.csv and messages.csv" and "12 nodes, 22 edges" both show whole. The left-out child's
-  glyph is `GLYPHS.warning` in `var(--cm-text-danger)`, as the import page's. Its inspector is
-  subtitled "Left out of <load name>" (`leftOutOf`, header `kind` override) and shows the whole
-  load (Added Nodes/Edges, sentence, rows); left-out lines are wrapping `Text size="sm"`, not
-  `DataRow` names. Evidence `tmp/r1-dry3-app-sources-left-out/` (T4A/08-10, T4B/09). Shared worktree trap: Inspector.tsx and
-  words.ts held another agent's uncommitted edits (an "Edge actions" Tooltip, runRowKind); `git
-  add` took them, so I rebuilt the index from HEAD~1 plus my hunks and amended. Stage by hunk.
-- (2026-10-08) **Shared tree and menu fixes (compact-mantine + app, team door).** `Tree` takes
-  `childBand?: boolean` (default true, Figma's band); the app passes false on Sources and the paint
-  tree, so a selected source no longer paints its three children as selected (T4A/10, T4B/10).
-  Tree type-ahead takes letters and digits only (`TYPEAHEAD_KEY`), so "/" on a row reaches Find.
-  `overlayBehavior.ts`: a document capture `keydown` marks the Escape inside a `.cm-menu` used
-  (`preventDefault`), so useCommandKeys skips "clear selection" (13 ties stay, second Escape
-  clears); a `focusin` moves a disabled first focus to the first enabled row and marks it
-  `data-autofocus` (Mantine's focus trap focuses twice, two timers). Menu CSS: highlight rules
-  carry `:not([data-disabled], :disabled)`. SegmentedControl chosen label weight 600. Evidence
-  `tmp/r1-dry3-cm-tree-menus/` (T4A/06-10, T4B/10, T22B/03-05, T22B-find/03, sc-compare.png).
-  Baselines that will change: compact-mantine SegmentedControl, Toolbar, Tabs, ToggleRow(Group),
-  AlignmentMatrix stories; graphty CompactControls, CompactOverview, Frame stories.
-
-- (2026-10-08, condensed) A tooltip opens on hover only after a real pointer move onto its target
-  (compact-mantine overlayBehavior.ts, `data-cm-still`); Tab still shows it. Evidence
-  `tmp/r1-dry3-cm-tooltip-pointer-move/`.
+- (2026-10-08) **Import page sizes, Add / Leave out, weight line (app only, no API).** Sentences,
+  links, SegmentedControls and buttons on the Data page are `sm` (11 px; buttons 24 tall); dimmed
+  captions stay `xs`, except the filtered-grid sentence ("1 unmatched row: z has no node row"),
+  `sm` while a filter is on. Add / Leave out options carry tooltips (`UNMATCHED_HINTS`, words.ts;
+  a Tooltip around a span in the option label). WeightLine renders after RoleList, so choosing
+  Weight moves no role box (y 203 before and after, T20A/05-06, T20B/05-06); Higher means stays
+  unset. Commit bba626d9a. Evidence `tmp/r1-dry3-app-import-page/` (T4A, T4B, T20A, T20B and
+  their scripts). Baselines that will change: graphty DataPage stories.
+- (2026-10-08, condensed) **Sources and left-out rows (app only).** Sources counts are a visible
+  second line (`description` + `descriptionVisible`); the left-out child wears `GLYPHS.warning` in
+  danger ink and opens "Left out of <load>" with the whole load's counts; left-out lines wrap.
+  Evidence `tmp/r1-dry3-app-sources-left-out/`.
+- (2026-10-08, condensed) **Shared tree and menu fixes (compact-mantine).** `Tree childBand?`
+  (default true; the app passes false); type-ahead takes letters and digits only; a menu's Escape
+  is marked used in the capture phase; a disabled first focus moves to the first enabled row
+  (`data-autofocus`); menu highlights skip disabled rows; chosen segment weight 600. Evidence
+  `tmp/r1-dry3-cm-tree-menus/`.
+- (2026-10-08, condensed) **A tooltip opens on hover only after the pointer moves onto its target**
+  (compact-mantine `overlayBehavior.ts`, `data-cm-still`). The theme's open delay is 1000 ms, so a
+  test waits with `findByText(hint, {}, { timeout })`, not the default 1 s. OPEN: an `opened`-prop
+  tooltip under a resting pointer stays hidden until a move. Evidence `tmp/r1-dry3-cm-tooltip-pointer-move/`.
 - (2026-10-08, condensed) Study tool: after setup `real.mjs` blurs focus and moves the pointer
   off the page (`--prove` checks it). Notes: a saved note takes focus (`focusWhenDrawn`); delete
   note is `GLYPHS.delete` (trash). Evidence `tmp/r1-dry2-study-tool-handover/`, `tmp/r1-dry2-notes-polish/`.
@@ -79,6 +53,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **A weight's follow-up choice goes below the control that caused it.** Inserting
+  Higher means above the roles moved them ~62 px under the pointer (T20A). Below the roles,
+  before the grid, nothing above the pointer moves. Rejected: reserving the line's height while
+  hidden (empty space on every node table). Tooltips on Add / Leave out, not a sentence under
+  them: the report row is one line and the words are needed only before choosing.
 - (2026-10-08) **A script-focused heading gets an underline, not a box.** Five pilots read the
   1px box around the inspector title as an editable name. The mark is a shared class in
   compact-mantine (a focus style is shared UI), documented in figma-spec.md's focus table.
@@ -201,6 +180,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Worked: one pilot script per task in `tmp/<task>/T*.sh`, run under
+  `with-browser.sh`, on a dist copy. "New from data..." then "choose a file..." --upload; a second
+  table via "Add a table" > "File...". A role select is `--click "role=combobox:Role of <col>"`
+  (the bare column name also matches the grid's header button). Did not work: "Open project or
+  file..." for an import -- it loads the CSV straight to the graph.
+- (2026-10-08) Worked: "fails without" for a file only I had dirty: copy mine aside, write
+  `git show HEAD:<file>` over it, run, copy back (both new assertions failed at 9px).
 - (2026-10-08) Did not work: `findByRole("tooltip")` for the Edge actions tooltip in
   Inspector.test (testing-library judged it inaccessible); `findByText` then `closest('[role=
   "tooltip"]')` works, as the measurement-gloss test already does. A row that looks highlighted
@@ -237,12 +223,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   name but keeps a 2.5em stub, so "weight is at least 4" + "20 to 19 nodes" became "weight is at
   least..." + "20 to ...". An old test passed because `textContent` includes a `hidden` span:
   assert `checkVisibility()` on visible words.
-- (2026-10-08) Did not work: `focus({ focusVisible: false })` (HTML standard) -- Chrome 143
-  ignores it, still draws the ring. Worked: a plain probe page (`fv-probe3.mjs`: input, key,
-  click a canvas in a delegatesFocus shadow root) showed every script focus inherits the
-  keyboard modality there, with or without preventDefault; `real.mjs --sr` "focus:" lines and a
-  computed-style probe (`title-ring-probe.mjs`) told "not focused" from "focused, no ring"
-  (Mantine's `mantine-focus-never` erases outlines; `cm-focus-outside` restores one).
+- (2026-10-08, condensed) Did not work: `focus({ focusVisible: false })` (Chrome 143 ignores it).
+  Worked: a probe page showing script focus inherits keyboard modality; `--sr` "focus:" lines plus
+  a computed-style probe tell "not focused" from "focused, no ring".
 - (2026-10-08) Worked: logging the node box's x/y/z extents and calling `zoomToFit()` in a probe
   (`tmp/r1-dry2-import-page-sources/probe-replace.mjs`) split "framed wrong" from "laid out
   differently" in one run. Did not work: `graph.waitForSettled()` right after a second load -- it

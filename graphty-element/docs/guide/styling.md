@@ -184,7 +184,7 @@ A channel is one visual property with one name. These are all of them:
 | Edge channel              | Takes                                                                      |
 | ------------------------- | -------------------------------------------------------------------------- |
 | `edge.color`              | any CSS colour                                                             |
-| `edge.width`              | a number                                                                   |
+| `edge.width`              | a thickness in world units, 40 to one unit (see below); the default is 4.5 |
 | `edge.opacity`            | 0 to 1                                                                     |
 | `edge.style`              | `solid`, `dash`, `dot`, `zigzag`, ...                                      |
 | `edge.patternCount`       | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
@@ -204,6 +204,13 @@ A channel is one visual property with one name. These are all of them:
 | `edge.animationSpeed`     | a number                                                                   |
 | `edge.label`              | the words to draw                                                          |
 | `edge.labelStyle`         | as `node.labelStyle`                                                       |
+
+`edge.width` is a length in the graph's own world, the space nodes are sized and placed in:
+40 is one world unit, so the default of 4.5 is about a ninth of a unit. Every kind of line --
+solid, patterned, curved, animated, 2D and 3D -- draws the same width at the same thickness.
+Because it is a world length, an edge grows and shrinks with zoom as a node does, and in 3D a
+farther edge looks thinner only by normal perspective, exactly as much as a node at the same
+distance; it is not tapered beyond that.
 
 Writing `node.label` or `edge.label` is what switches a label on. To switch node labels on
 without choosing the words, write `{ enabled: true }` to `node.labelStyle`: each node is labelled

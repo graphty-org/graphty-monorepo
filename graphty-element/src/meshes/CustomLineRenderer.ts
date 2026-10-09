@@ -26,7 +26,7 @@ interface LineGeometry {
 
 interface CustomLineOptions {
     points: Vector3[]; // Path points
-    width: number; // Line width in pixels
+    width: number; // Line width in world units
     color: string; // Line color (hex)
     opacity?: number; // Opacity 0-1
     enableInstancing?: boolean; // Enable instancing support (required for mesh caching)
@@ -42,7 +42,7 @@ interface CustomLineOptions {
  *
  * Architecture:
  * - Geometry: Quad strip along path (2 triangles per segment)
- * - Vertex Shader: Screen-space width expansion
+ * - Vertex Shader: camera-facing expansion by a width in world units
  * - Fragment Shader: Pattern rendering (dash, dot, etc.)
  *
  * Performance:
@@ -156,31 +156,18 @@ void main() {
         perpendicular = vec2(-screenDir.y, screenDir.x);
     }
 
-    // Calculate offset in screen space
-    // Half-width because we offset in both directions
-    vec2 offset = perpendicular * width * 0.5 * side;
-
-    // Apply screen-space sizing with perspective tapering
-    // NOTE: Removed * vertexClip.w to enable perspective tapering
-    // GPU will apply perspective divide (/= w), making distant lines smaller
-    // Divide by resolution to convert from pixels to NDC (-1 to +1)
-    offset /= resolution;
+    // The width is in WORLD UNITS, facing the camera. A world length L at clip depth w spans
+    // L * projection[1][1] * resolution.y / (2w) pixels, for a perspective and an orthographic
+    // camera alike. The perspective divide supplies the 1 / w, so the clip-space offset carries
+    // none: the line thins with distance exactly as a node does, and no more. Dividing by the
+    // resolution turns the pixel-space direction into NDC; half the width goes to each side.
+    vec2 offset = perpendicular * side * width * 0.5 * projection[1][1] * resolution.y / resolution;
 
     // Apply offset in clip space
     gl_Position = vertexClip;
     gl_Position.xy += offset;
 
-    // World-space line width for patterns: the width in pixels (the pixel length of a
-    // 'width / resolution' NDC offset, which is width / 2) over the segment's length in pixels,
-    // times the segment's length in world units. Both lengths are in pixels, so the ratio does
-    // not depend on the canvas's aspect ratio.
-    float screenSpaceDist = length(perpendicular) * width * 0.5;
-    float worldSegmentLength = length(segmentEnd - segmentStart);
-    float worldPerScreen = (screenDirLength > 0.5)
-        ? worldSegmentLength / screenDirLength
-        : 0.0;
-
-    vWorldSpaceLineWidth = screenSpaceDist * worldPerScreen;
+    vWorldSpaceLineWidth = width;
 
     // Pass to fragment shader
     vUV = uv;
@@ -712,7 +699,7 @@ void main(void) {
         const colorObj = Color3.FromHexString(options.color);
         shaderMaterial.setVector3("color", new Vector3(colorObj.r, colorObj.g, colorObj.b));
 
-        // Set width uniform (in pixels)
+        // Set width uniform (in world units)
         shaderMaterial.setFloat("width", options.width);
 
         // Set opacity
@@ -743,7 +730,7 @@ void main(void) {
      * This is the most common use case for edges in graphs
      * @param src - Source point position
      * @param dst - Destination point position
-     * @param width - Line width in pixels
+     * @param width - Line width in world units
      * @param color - Line color as hex string
      * @param scene - Babylon.js scene
      * @param opacity - Line opacity (0-1)
@@ -775,7 +762,7 @@ void main(void) {
      * Guarantees perfect alignment between lines and arrow heads.
      * @param geometry - LineGeometry from createLineGeometry() or arrow generators
      * @param options - Styling options (width, color, opacity)
-     * @param options.width - Line width in pixels
+     * @param options.width - Line width in world units
      * @param options.color - Line color as hex string
      * @param options.opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene

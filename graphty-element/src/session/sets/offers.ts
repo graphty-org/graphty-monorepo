@@ -26,6 +26,7 @@ import { compareIds } from "../../catalog/sets/canonical";
 import { parseSetDefinition } from "../../catalog/sets/parse";
 import type { EdgeId, NodeId, ResultItem, ResultShape, RuleTree, RunId, SetDefinition } from "../../catalog/types";
 import { edgeRowOf } from "../../data/edgeIdentity";
+import { otherIdSpelling, rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { RunResult } from "../results/types";
 import type { FilterRunResult } from "../visibility/filter";
@@ -519,7 +520,7 @@ export function createOffering(sources: OfferSources): Offering {
             const context = sources.context();
             const graph = context.snapshot;
             const isNode = "node" in element;
-            const index = isNode ? graph.ids.indexOf(element.node) : edgeRowOf(graph, element.edge);
+            const index = isNode ? rowOfEitherSpelling(graph.ids, element.node) : edgeRowOf(graph, element.edge);
             if (index === INVALID_INDEX) {
                 throw new GraphtyError({
                     code: "E_BAD_COMMAND",
@@ -584,7 +585,18 @@ function holds(set: ElementSet, isNode: boolean, index: number, context: Resolve
 
     // A fixed set's node half is its nodes plus its edges' endpoints; with no edges, its nodes.
     if (definition.kind === "fixed" && listedEdgesOf(definition).length === 0) {
-        const has = (node: number): boolean => holdsNode(definition.nodes, snapshot.ids.idOf(node));
+        // The definition may name an integer node in the other spelling, which the resolver reads
+        // as this node unless the graph holds that spelling too.
+        const has = (node: number): boolean => {
+            const id = snapshot.ids.idOf(node);
+            const other = otherIdSpelling(id);
+            return (
+                holdsNode(definition.nodes, id) ||
+                (other !== undefined &&
+                    snapshot.ids.indexOf(other) === INVALID_INDEX &&
+                    holdsNode(definition.nodes, other))
+            );
+        };
 
         return isNode ? has(index) : has(snapshot.edgeSource(index)) && has(snapshot.edgeTarget(index));
     }

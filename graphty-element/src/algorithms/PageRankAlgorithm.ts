@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type InferOptions, parseOptions } from "../config";
+import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { Graph } from "../Graph";
 import type { ResultElementValues } from "../session/results";
 import { caveat, noted } from "../session/runs/caveatFacts";
@@ -80,7 +81,8 @@ const PAGERANK_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 });
 
 /**
- * One value per node of a snapshot, read out of a Map the caller keyed by node id.
+ * One value per node of a snapshot, read out of a Map the caller keyed by node id. An integer id
+ * may be written either way: a key `"34"` names node `34`.
  * @param snapshot - The graph the values are for.
  * @param values - The caller's Map.
  * @param fill - What a node the Map does not name gets.
@@ -89,7 +91,9 @@ const PAGERANK_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 function perNode(snapshot: GraphSnapshot, values: ReadonlyMap<AlgorithmNodeId, number>, fill: number): F64 {
     const out = new Float64Array(snapshot.nodeCount);
     for (let index = 0; index < out.length; index++) {
-        out[index] = values.get(snapshot.ids.idOf(index)) ?? fill;
+        const id = snapshot.ids.idOf(index);
+        const other = values.has(id) ? undefined : otherIdSpelling(id);
+        out[index] = values.get(other ?? id) ?? fill;
     }
 
     return out;
@@ -270,7 +274,9 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
                node to land on, so it is left out and the rest share the jump. When nothing is
                left, the port jumps anywhere, as an unpersonalized run does, and the caveats say
                that rather than claiming a personalization that never applied. */
-            const outside = [...personalization.keys()].filter((id) => ids.indexOf(id) === INVALID_INDEX).length;
+            const outside = [...personalization.keys()].filter(
+                (id) => rowOfEitherSpelling(ids, id) === INVALID_INDEX,
+            ).length;
             const applies = perNode(snapshot, personalization, 0).some((share) => share > 0);
             facts.push(caveat(applies ? "pagerank.personalized" : "pagerank.personalization-unmatched"));
 

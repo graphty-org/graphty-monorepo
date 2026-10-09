@@ -7,6 +7,7 @@ import { type RegisterOptions, SharedImplementationMap } from "../catalog/plugin
 import { publishAlgorithmDescriptor } from "../catalog/registry";
 import type { AlgorithmDescriptor, FieldDescriptor, NodeId, SuggestedName } from "../catalog/types";
 import { type OptionsSchema as ZodOptionsSchema } from "../config";
+import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
 import type { RunResult } from "../session/results";
@@ -617,7 +618,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * @throws A `GraphtyError` with `E_OPTION_RANGE` when the graph has no such node.
      */
     protected nodeIndex(snapshot: GraphSnapshot, option: string, id: NodeId): number {
-        const index = snapshot.ids.indexOf(id);
+        const index = rowOfEitherSpelling(snapshot.ids, id);
 
         if (index === INVALID_INDEX) {
             throw new GraphtyError({

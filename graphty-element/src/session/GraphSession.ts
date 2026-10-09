@@ -47,7 +47,7 @@ import { defaultNodeStyle } from "../config/NodeStyle";
 import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore, type Renumbering } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
-import { otherIdSpelling } from "../data/nodeIdSpelling";
+import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
@@ -1736,7 +1736,7 @@ function encodingSourceOf(runs: RunsApi): EncodingSource {
  */
 function nodeIndexOf(readSnapshot: () => GraphSnapshot): (id: NodeId) => number | undefined {
     return (id: NodeId): number | undefined => {
-        const index = readSnapshot().ids.indexOf(id);
+        const index = rowOfEitherSpelling(readSnapshot().ids, id);
 
         return index === INVALID_INDEX ? undefined : index;
     };

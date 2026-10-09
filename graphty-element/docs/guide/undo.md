@@ -184,6 +184,22 @@ await session.transaction("Load and colour", async (tx) => {
 
 `element.batchOperations(async (tx) => { ... })` is the same thing on the element.
 
+**One step from several short transactions.** Work that waits between its changes -- on a person,
+a network or a model -- need not hold a transaction open while it waits. Pass the step an earlier
+transaction recorded as `after`, and what this transaction changes merges into that step while it
+is still the newest one:
+
+```typescript
+await session.transaction("Tidy up", (tx) => tx.styles.add(highlight));
+const tidy = session.history.steps.at(-1)?.id;
+// ...wait for anything...
+await session.transaction("Tidy up", (tx) => tx.layout.set("circular"), { after: tidy });
+```
+
+If anything else was recorded on top of that step in between, or it was undone, the transaction
+records as a step of its own, with `provenance.after` naming the step it continued. While such a
+transaction is open, an undo cancels it rather than undoing the step it continues.
+
 **Two writers at once.** While a transaction is open, a change made outside it that touches a node
 or edge the transaction added, removed or edited fails at once with `E_HELD_BY_TRANSACTION`, rather
 than wait for a transaction that may be waiting on it. Make that change through the transaction's
@@ -377,6 +393,29 @@ element.getAiManager()?.registerCommand({
 A change made through `graph` instead is a step of its own and is not rolled back when the message
 fails. Stop when `ctx.abortSignal` fires: that is the message being cancelled, or undone while it
 is still going.
+
+Each batch of tool calls the model returns runs in its own short transaction, which is recorded
+before the model is asked again, and each batch continues the message's step (`after`, above). So
+nothing is held while the model thinks: the reader can go on editing, even the nodes the message
+has just added. `ctx.tx` belongs to one batch; do not keep it past your command's own call. Every
+step a message records carries `provenance.via` `"assistant"` and the same `provenance.message`.
+
+What happens when the reader edits during a message:
+
+- **An edit between two batches splits the message.** The batches after it record as their own
+  step on top of the reader's, with `provenance.after` naming the message's earlier step, because
+  undo takes steps back in the order they happened.
+- **Cancelling the message, a tool that throws, or a failed model call** takes back every step the
+  message recorded, newest first, for as long as each is the next thing undo would undo. It stops
+  at the reader's own step, or at pending work of theirs: the message's steps under it stay, and
+  undo takes them back in order. The reader's edit is never reverted to clear the way.
+- **An undo while the message is going** cancels the batch that is running, or, while the model
+  thinks, undoes the message's newest step. Either ends the message, and what the message still
+  has on top of the history is taken back with it.
+- **The same node or edge edited by both** never conflicts: a batch's transaction is open only
+  while its tools run, and a reader's edit to something an open batch holds fails with
+  `E_HELD_BY_TRANSACTION` exactly as for any other transaction. A setting or the style stack is
+  handed over as described under "Two writers at once".
 
 ## Plugin algorithms without a descriptor
 

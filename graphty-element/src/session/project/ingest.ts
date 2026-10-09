@@ -21,6 +21,7 @@ import { decideRepeat } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
+import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import {
     type ImportReport,
     type ImportTally,
@@ -439,12 +440,14 @@ export class Ingest<K extends KnownEdge> {
      * @param mutation - The mutation.
      * @param writer - The command's writer.
      * @param resolve - The id a row is held under, for an id the caller may have spelled
-     *     differently; the id as given by default.
+     *     differently; by default the other spelling of an integer node id when the graph holds
+     *     only that, so `"34"` reaches node `34`. An edge id is read by the edge writer, which
+     *     already takes the number it spells.
      */
     apply(
         mutation: DataMutation,
         writer: GraphWriter,
-        resolve: (target: "node" | "edge", id: NodeIdType) => NodeIdType = (_target, id) => id,
+        resolve: (target: "node" | "edge", id: NodeIdType) => NodeIdType = (target, id) => this.heldId(target, id),
     ): void {
         switch (mutation.kind) {
             case "add-nodes":
@@ -581,6 +584,21 @@ export class Ingest<K extends KnownEdge> {
             this.duplicateIds = "first";
             this.measure = null;
         }
+    }
+
+    /**
+     * The id the graph holds a row under, for an id that may be the other spelling of an integer.
+     * @param target - Node or edge.
+     * @param id - The id as given.
+     * @returns The id the graph holds, or the one given when it holds neither spelling.
+     */
+    private heldId(target: "node" | "edge", id: NodeIdType): NodeIdType {
+        if (target === "edge") {
+            return id;
+        }
+
+        const other = this.hasNode(id) ? undefined : otherIdSpelling(id);
+        return other !== undefined && this.hasNode(other) ? other : id;
     }
 
     /**

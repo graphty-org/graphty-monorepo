@@ -53,6 +53,7 @@ import type {
     Scope,
     SelectionDirection,
 } from "../../catalog/types";
+import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 import { rankEntries, topOfRanking } from "../results/statistics";
 import { type ComponentLabels, edgeSpaceOf, type ElementMask } from "../scope/index";
@@ -1070,7 +1071,7 @@ function neighborhoodTest(context: CompileContext, seeds: readonly NodeId[], dep
     let frontier: number[] = [];
 
     for (const id of seeds) {
-        const index = graph.ids.indexOf(id);
+        const index = rowOfEitherSpelling(graph.ids, id);
 
         if (index !== INVALID_INDEX && reached[index] === 0) {
             reached[index] = 1;

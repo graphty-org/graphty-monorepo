@@ -1170,11 +1170,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 return nodeMaskValue.has(node);
             }
 
-            if (typeof id !== "string") {
-                return false;
-            }
-
-            const edge = edgeMaskValue.indexOf(id);
+            // An edge id is text; the number it spells names the same edge.
+            const edge = edgeMaskValue.indexOf(String(id));
 
             return edge !== INVALID_INDEX && edgeMaskValue.has(edge);
         },
@@ -1197,7 +1194,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             if (cachedEdgeSet === null || cachedEdgeIds !== ids) {
                 cachedEdgeIds = ids;
-                cachedEdgeSet = sealedSet(ids, VISIBLE_HINT);
+                cachedEdgeSet = sealedSet(ids, VISIBLE_HINT, otherIdSpelling);
             }
 
             return cachedEdgeSet;

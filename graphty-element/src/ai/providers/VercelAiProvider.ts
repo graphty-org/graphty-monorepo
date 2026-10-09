@@ -3,6 +3,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, type LanguageModel, type ModelMessage, streamText, type Tool } from "ai";
 
+import { toSafeError } from "../safeError";
 import type {
     LlmProvider,
     LlmResponse,
@@ -110,6 +111,28 @@ export class VercelAiProvider implements LlmProvider {
         tools: ToolDefinition[],
         options?: { signal?: AbortSignal; toolChoice?: "auto" | "none" },
     ): Promise<LlmResponse> {
+        try {
+            return await this.generateUnsafe(messages, tools, options);
+        } catch (error) {
+            throw toSafeError(error, [this.apiKey]);
+        }
+    }
+
+    /**
+     * {@link generate} without the error cleaning: what it throws may carry the request and the
+     * response, so it never leaves this class.
+     * @param messages - Conversation messages
+     * @param tools - Available tools for the LLM
+     * @param options - Generation options
+     * @param options.signal - Optional abort signal
+     * @param options.toolChoice - "none" for a text answer only; "auto" (default) lets the model call tools
+     * @returns Promise resolving to LLM response
+     */
+    private async generateUnsafe(
+        messages: Message[],
+        tools: ToolDefinition[],
+        options?: { signal?: AbortSignal; toolChoice?: "auto" | "none" },
+    ): Promise<LlmResponse> {
         const model = this.getModel();
         const convertedMessages = this.convertMessages(messages);
         const convertedTools = this.convertTools(tools);
@@ -159,6 +182,10 @@ export class VercelAiProvider implements LlmProvider {
             maxOutputTokens: this.maxTokens,
             temperature: this.temperature,
             abortSignal: signal,
+            // The SDK's default writes the raw error, request and response included, to
+            // console.error, where an error reporter's console breadcrumbs pick it up. The error
+            // still arrives below as an "error" part, cleaned.
+            onError: () => undefined,
         });
 
         let accumulatedText = "";
@@ -205,7 +232,7 @@ export class VercelAiProvider implements LlmProvider {
                     }
 
                     case "error":
-                        callbacks.onError(new Error(String(event.error)));
+                        callbacks.onError(toSafeError(event.error, [this.apiKey]));
                         break;
 
                     default:
@@ -226,8 +253,9 @@ export class VercelAiProvider implements LlmProvider {
                         : undefined,
             });
         } catch (error) {
-            callbacks.onError(error instanceof Error ? error : new Error(String(error)));
-            throw error;
+            const safe = toSafeError(error, [this.apiKey]);
+            callbacks.onError(safe);
+            throw safe;
         }
     }
 

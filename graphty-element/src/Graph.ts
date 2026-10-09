@@ -125,7 +125,7 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node } from "./Node";
-import { pickNodeId } from "./NodeBehavior";
+import { pickNodeId, pointerEventTime } from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -3463,14 +3463,16 @@ export class Graph implements GraphContext {
             }
 
             if (pointerInfo.type === PointerEventTypes.POINTERDOWN) {
-                clickStartTime = Date.now();
+                clickStartTime = pointerEventTime(pointerInfo.event);
                 clickStartPos = {
                     x: this.scene.pointerX,
                     y: this.scene.pointerY,
                 };
             } else if (pointerInfo.type === PointerEventTypes.POINTERUP) {
                 // Check if this was a click (short duration, minimal movement)
-                const duration = Date.now() - clickStartTime;
+                // From the events' own stamps: a quick click whose pointerup waited behind a busy
+                // frame is still a click (see pointerEventTime).
+                const duration = pointerEventTime(pointerInfo.event) - clickStartTime;
                 const dx = this.scene.pointerX - clickStartPos.x;
                 const dy = this.scene.pointerY - clickStartPos.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);

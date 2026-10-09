@@ -596,6 +596,60 @@ describe("mine and disown from inside a Claude session", () => {
         expect((await cli(["pause-offers"], worker)).code).toBe(1);
     });
 
+    it("takes, answers about and finishes a job through the session tools, as the session it runs under", async () => {
+        const d = await daemon({ peers: { sessions: () => [], registered: () => registered } });
+        const job = { ...newJob({ kind: "issue", target: "#741", id: "issue-741" }, new Date()), facts: {} };
+        d.state.jobs = { "issue-741": job };
+        // GITHERD_DEV_STATE alone names the daemon's state directory, as for the MCP server.
+        const agent = {
+            session: inSession(),
+            tty: false,
+            extraEnv: { CLAUDECODE: "1", HOME: join(dir, "elsewhere"), GITHERD_DEV_STATE: d.stateDir },
+        };
+
+        const next = await cli(["next"], agent);
+        expect(next.code).toBe(0);
+        const listed = JSON.parse(next.out);
+        expect(listed.offered.map((/** @type {any} */ j) => j.id)).toEqual(["issue-741"]);
+
+        const claim = ["claim", "issue-741", "--snapshot", String(listed.snapshot.version), "--overlap"];
+        expect(
+            await cli([...claim, "independent", "--plan", "fix it", "nothing", "else", "touches", "it"], agent),
+        ).toMatchObject({ code: 0 });
+        expect(job.holder).toMatchObject({ session: "s14" });
+        expect(job.claim).toMatchObject({
+            plan: "fix it",
+            overlap: { decision: "independent", reason: "nothing else touches it" },
+        });
+        expect(job.state).toBe("working");
+
+        expect(await cli(["status-answer", "issue-741", "--capacity", "2", "tests", "running"], agent)).toMatchObject({
+            code: 0,
+        });
+        expect(job.status.text).toBe("tests running");
+        expect(d.state.capacity.s14).toMatchObject({ n: 2 });
+
+        await cli(
+            ["done", "issue-741", "--outcome", "done", "--pr", "742", "--commits", "abc1234,def5678", "fixed", "it"],
+            agent,
+        );
+        expect(job.report).toMatchObject({
+            outcome: "done",
+            pr: 742,
+            commits: ["abc1234", "def5678"],
+            findings: "fixed it",
+            defects: [],
+            session: "s14",
+        });
+
+        expect((await cli(["claim", "issue-741"], agent)).code).toBe(2);
+        const none = { pid: 30, procDir: join(dir, "no-proc"), sessionsDir: join(dir, "no-registry") };
+        expect(await cli(["next"], { session: none })).toMatchObject({
+            code: 2,
+            err: "githerd next acts for the Claude session it runs under, and none is up this process chain",
+        });
+    });
+
     it("refuses outside a Claude session, and refuses a worker", async () => {
         const d = await daemon({ peers: { sessions: () => [], registered: () => registered } });
         d.state.prs = { 710: { headSha: "a".repeat(40) } };

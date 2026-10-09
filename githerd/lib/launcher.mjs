@@ -1069,9 +1069,10 @@ export async function ensureDaemon(ctx) {
     // A development daemon (`githerd dev`) runs from a worktree before githerd is on the default
     // branch; GITHERD_URL points the MCP server at it, so nothing is installed or started here.
     // GITHERD_DEV_STATE names its state directory instead, and the URL is read from its daemon.json
-    // at every lookup, so a restart on a new port costs one failed call, not a reconnect.
-    const devUrl = ctx.env.GITHERD_DEV_STATE ? devStateUrl(ctx.env.GITHERD_DEV_STATE) : ctx.env.GITHERD_URL;
-    if (devUrl) return devDaemon(devUrl, ctx.root);
+    // at every lookup, so a restart on a new port costs one failed call, not a reconnect. A
+    // GITHERD_URL that stops answering gives way to a daemon.json the same way (urlDaemon).
+    if (ctx.env.GITHERD_DEV_STATE) return devDaemon(devStateUrl(ctx.env.GITHERD_DEV_STATE), ctx.root);
+    if (ctx.env.GITHERD_URL) return urlDaemon(ctx);
     const target = await targetCode(ctx);
     const up = await upAnswer(ctx, target);
     if (up) return up;
@@ -1100,6 +1101,31 @@ function devStateUrl(dir) {
         throw new Error(`GITHERD_DEV_STATE ${dir} has no readable daemon.json`);
     }
     return `http://127.0.0.1:${port}`;
+}
+
+/**
+ * The daemon GITHERD_URL names, or when it does not answer, the one a daemon.json names now: the
+ * state directory's, then the development daemon's of the worktree this code runs from. A URL fixed
+ * when a session started goes stale when the daemon restarts on a new port, and must not strand
+ * the session until the owner reconnects it.
+ * @param {LauncherContext} ctx the context
+ * @returns {Promise<{url: string, action: "warm" | "down", fatal?: string}>} the answer
+ */
+async function urlDaemon(ctx) {
+    try {
+        return await devDaemon(/** @type {string} */ (ctx.env.GITHERD_URL), ctx.root);
+    } catch (err) {
+        for (const dir of [ctx.stateDir, join(PACKAGE_DIR, "..", ".githerd-dev")]) {
+            const port = dir ? readJson(join(dir, "daemon.json"))?.port : null;
+            if (!port) continue;
+            try {
+                return await devDaemon(`http://127.0.0.1:${port}`, ctx.root);
+            } catch {
+                // not this one either
+            }
+        }
+        throw err;
+    }
 }
 
 /**

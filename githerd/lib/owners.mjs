@@ -506,7 +506,8 @@ function worktreeOwner(branch, { root, ownWorktrees, byPid, cwds, may }) {
  * `tools/push-queue.sh` makes for the push log.
  * @param {{pid: number, procDir?: string, sessionsDir: string}} opts the process, the proc file
  *   system and the registry directory
- * @returns {{sessionId: string, name: string} | null} the session, or null outside one
+ * @returns {{sessionId: string, name: string, pid: number} | null} the session and its claude
+ *   process, or null outside one
  */
 export function callingSession({ pid, procDir = "/proc", sessionsDir }) {
     for (let p = pid, hops = 0; p > 1 && hops < 64; hops++) {
@@ -520,7 +521,7 @@ export function callingSession({ pid, procDir = "/proc", sessionsDir }) {
         try {
             const e = JSON.parse(readFileSync(join(sessionsDir, `${p}.json`), "utf8"));
             if (typeof e.sessionId === "string" && String(e.procStart ?? fields[19]) === fields[19]) {
-                return { sessionId: e.sessionId, name: typeof e.name === "string" ? e.name : `pid ${p}` };
+                return { sessionId: e.sessionId, name: typeof e.name === "string" ? e.name : `pid ${p}`, pid: p };
             }
         } catch {
             // No entry for this process.

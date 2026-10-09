@@ -278,7 +278,8 @@ function inviteText(job, reason, cli) {
     const key = job.facts?.scope === "verdict" ? ` githerd_verdict takes its key exactly: ${job.target}.` : "";
     return (
         `githerd has work queued (${job.id}, ${reason}). If you're free, call githerd_next and claim a job; ` +
-        `otherwise ignore this.${key}\n` +
+        `otherwise ignore this.${key} Without githerd's tools, or when they fail: \`${cli} next\` and ` +
+        `\`${cli} claim <job> ...\` from your shell.\n` +
         "New to githerd? Its onboarding message explains it, as does githerd/README.md; githerd_offers with pause " +
         `true (or \`${cli} pause-offers\`) stops these offers.`
     );
@@ -299,8 +300,11 @@ function onboardText(name, cli) {
         "What that means for you: githerd will message you when work is queued. Take a job with githerd_next " +
         "(the queue, with each job's text) and githerd_claim. Do each job's work in a background subagent or " +
         "workflow, so this conversation stays free to answer githerd's status questions with githerd_expect. " +
-        "Report each job's result with githerd_done. A session without githerd's tools answers about its pull " +
-        `requests from its shell instead: \`${cli} mine <pr>\` and \`${cli} disown <pr>\`.\n` +
+        "Report each job's result with githerd_done. A session without githerd's tools, or whose tools fail, " +
+        `runs each step from its shell instead: \`${cli} next\`, \`${cli} claim <job> --snapshot <version> ` +
+        `--overlap independent --plan "<plan>" "<overlap reason>"\`, \`${cli} status-answer <job> --capacity <n> ` +
+        `"<status>"\`, \`${cli} done <job> --outcome done --pr <n> "<summary>"\`, and about its pull requests ` +
+        `\`${cli} mine <pr>\` and \`${cli} disown <pr>\` (\`${cli} help\` lists every flag).\n` +
         "Read more in githerd/README.md and in each job's text.\n" +
         "Start taking jobs now, unless the owner tells you otherwise. If the owner has you busy with other work, " +
         `call githerd_offers with pause true (or run \`${cli} pause-offers\`) and githerd offers you nothing ` +
@@ -609,14 +613,16 @@ function roomText(pressure) {
  * @param {any} state the daemon state
  * @param {any[]} jobs the jobs, each due an answer
  * @param {number} minutes how often githerd asks
+ * @param {string} cli the githerd command line a session without githerd's tools runs
  * @returns {string} the message
  */
-function statusText(state, jobs, minutes) {
+function statusText(state, jobs, minutes, cli) {
     return (
         "githerd: status check on the jobs this session holds:\n" +
         jobs.map((j) => `- ${j.id} (${j.target})\n${waitersLine(state, j)}`).join("") +
         "Answer by calling githerd_expect once per listed job, with job set to its id, reason set to one line on " +
-        "where it stands. " +
+        `where it stands (without githerd's tools, or when they fail: \`${cli} status-answer <job> --capacity <n> ` +
+        '"<status>"` from your shell). ' +
         roomText(state.pressure) +
         `${NOT_COUNTED}: count only jobs you are actively ` +
         "working when you answer capacity. " +
@@ -1078,7 +1084,7 @@ async function askSession(state, { session, jobs, prs, target }, { now, acting, 
         lines.push({ kind: "would-do", group: "workers", op, jobs: ids });
     }
     const text = [
-        ...(jobs.length ? [statusText(state, jobs, minutes)] : []),
+        ...(jobs.length ? [statusText(state, jobs, minutes, cli)] : []),
         ...prs.map((p) => brokenText(p, cli, minutes)),
     ].join("\n");
     const out = acting ? await tellSessions(target, text, transport) : { sent: [], failed: [] };

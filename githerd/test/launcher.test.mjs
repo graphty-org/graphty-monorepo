@@ -608,6 +608,25 @@ describe("a development daemon", () => {
         }
     });
 
+    it("gives way to the daemon daemon.json names when GITHERD_URL stops answering", async () => {
+        const live = createServer((_req, res) => res.end(JSON.stringify({ name: "githerd", root })));
+        const gone = createServer();
+        await Promise.all([live, gone].map((s) => new Promise((r) => s.listen(0, "127.0.0.1", () => r(undefined)))));
+        const [port, stale] = [live, gone].map((s) => /** @type {import("node:net").AddressInfo} */ (s.address()).port);
+        await new Promise((r) => gone.close(r));
+        const sd = join(dir, "moved");
+        mkdirSync(sd, { recursive: true });
+        writeFileSync(join(sd, "daemon.json"), JSON.stringify({ port }));
+        const ctx = /** @type {any} */ ({ env: { GITHERD_URL: `http://127.0.0.1:${stale}` }, root, stateDir: sd });
+        try {
+            expect(await ensureDaemon(ctx)).toEqual({ url: `http://127.0.0.1:${port}`, action: "warm" });
+            rmSync(join(sd, "daemon.json"));
+            await expect(ensureDaemon(ctx)).rejects.toThrow(/does not answer as a githerd daemon/);
+        } finally {
+            live.close();
+        }
+    });
+
     it("is never another repository's daemon", async () => {
         const other = createServer((_req, res) =>
             res.end(JSON.stringify({ name: "githerd", root: "/elsewhere/main" })),

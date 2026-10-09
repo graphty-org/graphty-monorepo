@@ -101,7 +101,9 @@ questions with `githerd_expect` and report with `githerd_done`; start now unless
 otherwise. It is sent once per membership (taking the session out of `workers.sessions` and back in
 sends it again). A session the owner has busy with other work calls `githerd_offers` with `pause`
 true, or runs `githerd pause-offers` from its shell: githerd invites it to nothing, and the board
-says so, until `pause` false or `githerd resume-offers`. It stays in `workers.sessions`. A session has room while it is idle, or while the
+says so, until `pause` false or `githerd resume-offers`. A session whose githerd tools fail, or that has none, does every
+step of a job from its shell with `githerd next`, `claim`, `status-answer` and `done` (the tools of
+the same names, for the session the command runs under); every message githerd sends prints them. It stays in `workers.sessions`. A session has room while it is idle, or while the
 `capacity` it last gave in `githerd_expect` (how many more jobs it can work in parallel) is above
 the jobs it claimed since. No fixed allowance limits a session; the shared resources do: while
 pushes wait in the push queue, the repository's Actions runs wait for a runner, or every test slot
@@ -248,6 +250,10 @@ githerd veto <proposal id>       # stop a pending close or revert
 githerd mine <pr> <session-name> # that live session owns the pull request: never offered or asked about
 githerd mine --list | --drop <pr> # the owner records, or remove one
 githerd mine <pr> | disown <pr>   # from inside a Claude session: for that session only
+githerd next                     # from inside a Claude session: what githerd_next answers
+githerd claim <job> --snapshot <version> --overlap independent|join|wait [--with <job>] --plan "<plan>" "<reason>"
+githerd status-answer <job> [--capacity <n>] "<status>"   # githerd_expect: the status answer
+githerd done <job> --outcome <outcome> [--pr <n>] [--commits <sha,...>] [--reason "<why>"] "<summary>"
 githerd install                  # prepare the daemon and print the servherd command that starts it
 githerd ensure                   # find or start the daemon, e.g. after a container restart
 githerd restart                  # servherd restart githerd

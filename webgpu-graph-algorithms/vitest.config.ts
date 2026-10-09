@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
 
 /**
  * The Chromium flag sets: the two of spec 12.2 (GRAPHTY_BROWSER_GPU "nvidia" | "swiftshader", default swiftshader)
@@ -265,7 +265,7 @@ export default defineConfig({
         // verbose prints a line per test: useful locally, needless noise in CI
         reporters: [
             ...(process.env.CI ? ["default"] : ["verbose"]),
-            ...ciJunitReporter(
+            ...ciReporters(
                 process.env.GRAPHTY_GPU_NO_SUBGROUPS ? { classnameTemplate: "no-subgroups/{filepath}" } : {},
             ),
         ],

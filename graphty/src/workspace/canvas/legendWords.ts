@@ -302,7 +302,7 @@ export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): Sc
  * @param block - the block.
  * @returns the name.
  */
-export function rowName(session: GraphSession, block: LegendBlock): string {
+function rowName(session: GraphSession, block: LegendBlock): string {
     const run = block.runId === undefined ? undefined : session.runs.get(block.runId);
     return run === undefined ? (session.styles.get(block.layerId)?.name ?? block.layerId) : runName(session, run);
 }

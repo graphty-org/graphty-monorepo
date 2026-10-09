@@ -1,6 +1,6 @@
 import { ForceAtlas2Simulation, type LayoutAccelerator, type LayoutSimulation } from "@graphty/layout";
 import cytoscape, { type Core, type ElementDefinition, type EventObject, type LayoutOptions } from "cytoscape";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { registerGpuProvider } from "../src/gpu";
 import graphtyCytoscape, { LAYOUT_NAMES } from "../src/index";
@@ -221,14 +221,21 @@ describe("simulations", () => {
             boundingBox: BOX,
         } as unknown as LayoutOptions);
         layout.on(EVENTS, (e: EventObject) => seen.push(e.type));
-        const done = layout.pon("layoutstop");
-        layout.run();
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((r) => setTimeout(r, 50));
-        layout.stop();
-        await done;
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((r) => setTimeout(r, 50));
+        // fake timers drive the frame loop (setTimeout under Node), so the test steps it frame by frame
+        vi.useFakeTimers();
+        try {
+            const done = layout.pon("layoutstop");
+            layout.run();
+            // the first frame is drawn inside run(): the loop is going and the next frame is scheduled
+            expect(seen).toEqual(["layoutstart", "layoutready"]);
+            layout.stop();
+            vi.runAllTimers();
+            await done;
+            // no frame is left to emit a second layoutstop
+            expect(vi.getTimerCount()).toBe(0);
+        } finally {
+            vi.useRealTimers();
+        }
         expect(seen).toEqual(["layoutstart", "layoutready", "layoutstop"]);
         expectPlaced(cy);
     });

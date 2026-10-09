@@ -20,6 +20,10 @@ export default defineConfig({
         globals: true,
         environment: "node",
         include: ["test/**/*.test.ts"],
+        // The monorepo's suite limit (vitest.shared.config.ts): the slowest tests spawn tsc, a Vite build or a
+        // child Node and wait for it to exit (6 s for the strict-consumer tsc run on an idle machine).
+        testTimeout: 30000,
+        hookTimeout: 30000,
         reporters: process.env.CI ? ["default"] : ["verbose"],
         coverage: {
             provider: "v8",

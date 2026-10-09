@@ -266,9 +266,11 @@ describe("indexed.DeltaPageRank", () => {
             const s = snapshotOf(g);
             const [legacyUnknown, legacyMixed] = legacyResult() as [Map<NodeId, number>, Map<NodeId, number>];
             const port = new DeltaPageRank(s, { weights: exactArcWeights(s) });
-            port.compute();
-            const onlyUnknown = [legacyUnknown, toMap(s, port.update([s.nodeCount, -1]))];
-            const mixed = [legacyMixed, toMap(s, port.update([0, Number.NaN, s.nodeCount + 5]))];
+            // the legacy engine split deltas evenly unless asked to weight them
+            const even = { weighted: false };
+            port.compute(even);
+            const onlyUnknown = [legacyUnknown, toMap(s, port.update([s.nodeCount, -1], even))];
+            const mixed = [legacyMixed, toMap(s, port.update([0, Number.NaN, s.nodeCount + 5], even))];
             for (const [l, p] of [onlyUnknown, mixed]) {
                 expect(p.size).toBe(l.size);
                 for (const [id, score] of l) {

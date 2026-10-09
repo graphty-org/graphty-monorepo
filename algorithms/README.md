@@ -85,7 +85,7 @@ integration can register them all without keeping its own table. Each entry's `f
 import { ALGORITHMS } from "@graphty/algorithms";
 
 const dijkstra = ALGORITHMS.dijkstra;
-console.log(dijkstra.direction, dijkstra.weights); // any always
+console.log(dijkstra.direction, dijkstra.weights); // any by-default
 console.log(dijkstra.inputs.map((i) => `${i.name}: ${i.kind}`).join(", ")); // source: node
 console.log(dijkstra.result, dijkstra.values.join(", ")); // shortest-paths dist, predArc
 console.log(dijkstra.dispatch, dijkstra.accelerator); // sssp sssp
@@ -95,8 +95,8 @@ console.log(undirectedOnly.map((a) => a.name).join(", ")); // connectedComponent
 ```
 
 - `direction`: `"any"`, `"directed"` or `"undirected"`; an algorithm throws on the other kind of graph.
-- `weights`: `"never"`, `"always"`, `"by-default"` (read unless `weighted: false`) or `"on-request"` (read only
-  with `weighted: true`).
+- `weights`: `"by-default"` (the graph's edge weights are read when it has some, unless `weighted: false`) or
+  `"never"` (weights make no difference, and `weighted: true` is refused with the code `E_BAD_OPTION`).
 - `inputs`: the positional arguments between the graph and the options, each a name and a kind (`"node"`,
   `"node-values"`, `"node-labels"`, `"seed-labels"`, `"node-pairs"`, `"heuristic"`, `"graph"`).
 - `requiredOptions`: options with no default, such as `spectralClustering`'s `k`.

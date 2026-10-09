@@ -86,6 +86,44 @@ function toLegacy(s: GraphSnapshot, r: LinkPredictionResult): LinkPredictionScor
     }));
 }
 
+/**
+ * What 2.x listed, given the full 3.x list (every pair, no `topK`): without `directed`, each pair in both orders,
+ * the reverse right after; with `directed`, only the pairs with u < v. Then it cut the list at `topK`. 3.x lists
+ * each pair once and, under `directed` on a directed graph, both orders.
+ */
+function asLegacyList(full: LinkPredictionResult, o: { directed?: boolean; topK?: number }): LinkPredictionResult {
+    const ordered = o.directed === true;
+    const sources: number[] = [];
+    const targets: number[] = [];
+    const scores: number[] = [];
+    full.scores.forEach((x, k) => {
+        const u = full.sources[k];
+        const v = full.targets[k];
+        if (!ordered || u < v) {
+            sources.push(u);
+            targets.push(v);
+            scores.push(x);
+        }
+        if (!ordered) {
+            sources.push(v);
+            targets.push(u);
+            scores.push(x);
+        }
+    });
+    const end = o.topK !== undefined && o.topK > 0 ? o.topK : scores.length;
+    return {
+        sources: Uint32Array.from(sources.slice(0, end)),
+        targets: Uint32Array.from(targets.slice(0, end)),
+        scores: Float64Array.from(scores.slice(0, end)),
+    };
+}
+
+/** The full list cut at `topK`, as 3.x cuts it. */
+function cut(full: LinkPredictionResult, topK: number | undefined): number[][] {
+    const end = topK !== undefined && topK > 0 ? topK : full.scores.length;
+    return [Array.from(full.sources.slice(0, end)), Array.from(full.targets.slice(0, end))];
+}
+
 function expectClose(actual: number, expected: number, at: string): void {
     expect(Math.abs(actual - expected), `${at}: ${String(actual)} vs ${String(expected)}`).toBeLessThanOrEqual(
         1e-9 * Math.max(1, Math.abs(expected)),
@@ -184,16 +222,22 @@ describe("indexed link prediction, against legacy", () => {
             const s = c.snapshot;
 
             it("predictions: same pairs, same order, same scores", () => {
-                // A topK that is not positive keeps every pair.
+                // A topK that is not positive keeps every pair. Each pair is listed once now, so the recorded 2.x
+                // lists are compared with the full list put back into the 2.x shape.
                 for (const o of [...OPTIONS, { topK: 0 }, { topK: -2 }]) {
                     const at = `${c.name} ${JSON.stringify(o)}`;
+                    const whole = { ...o, topK: undefined };
+                    const cn = commonNeighborsPrediction(s, whole);
+                    const aa = adamicAdarPrediction(s, whole);
+                    expect(cut(commonNeighborsPrediction(s, o), undefined), at).toEqual(cut(cn, o.topK));
+                    expect(cut(adamicAdarPrediction(s, o), undefined), at).toEqual(cut(aa, o.topK));
                     expectScoresMatch(
-                        toLegacy(s, commonNeighborsPrediction(s, o)),
+                        toLegacy(s, asLegacyList(cn, o)),
                         legacyResult() as LinkPredictionScore[],
                         `common neighbours ${at}`,
                     );
                     expectRankingMatch(
-                        toLegacy(s, adamicAdarPrediction(s, o)),
+                        toLegacy(s, asLegacyList(aa, o)),
                         legacyResult() as LinkPredictionScore[],
                         () => legacyResult() as number,
                         `Adamic-Adar ${at}`,
@@ -318,13 +362,49 @@ describe("indexed link prediction", () => {
         expect(adamicAdarScore(s, s.ids.indexOf("x"), s.ids.indexOf("y"))).not.toBe(1 / Math.log(3));
     });
 
-    it("ranks the one missing pair, in both orientations, and nothing else", () => {
+    it("ranks the one missing pair, once, and nothing else", () => {
         const s = square();
-        const r = commonNeighborsPrediction(s);
-        expect([...r.sources]).toEqual([1, 3]);
-        expect([...r.targets]).toEqual([3, 1]);
-        expect([...r.scores]).toEqual([2, 2]);
+        for (const r of [commonNeighborsPrediction(s), adamicAdarPrediction(s)]) {
+            expect([...r.sources]).toEqual([1]);
+            expect([...r.targets]).toEqual([3]);
+        }
+        expect([...commonNeighborsPrediction(s).scores]).toEqual([2]);
         s.validate({ checksum: true });
+    });
+
+    it("counts topK in distinct pairs", () => {
+        // The path 0-1-2-3-4: the missing pairs with a common neighbour are (0,2), (1,3) and (2,4).
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 0; i < 5; i++) {
+            b.addNode(i);
+        }
+        for (let i = 0; i < 4; i++) {
+            b.addEdge(i, i + 1);
+        }
+        const s = b.freeze();
+        const r = commonNeighborsPrediction(s, { topK: 3 });
+        expect([...r.sources]).toEqual([0, 1, 2]);
+        expect([...r.targets]).toEqual([2, 3, 4]);
+    });
+
+    it("scores both orders of a pair under directed: true on a directed snapshot", () => {
+        // 0 -> 1 -> 2 and 2 -> 3 -> 0: the paths 0 -> 1 -> 2 and 2 -> 3 -> 0 make (0, 2) and (2, 0) one each.
+        const b = new GraphBuilder({ directed: true });
+        for (let i = 0; i < 4; i++) {
+            b.addNode(i);
+        }
+        for (const [u, v] of [
+            [0, 1],
+            [1, 2],
+            [2, 3],
+            [3, 0],
+        ]) {
+            b.addEdge(u, v);
+        }
+        const s = b.freeze();
+        const r = commonNeighborsPrediction(s, { directed: true });
+        const pairs = Array.from(r.sources, (u, k) => `${String(u)}-${String(r.targets[k])}`).sort();
+        expect(pairs).toEqual(["0-2", "1-3", "2-0", "3-1"]);
     });
 
     it("scores an out-of-range node zero", () => {

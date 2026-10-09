@@ -3,14 +3,8 @@
  * their results and other position forms, and the steppable simulations.
  */
 
-import * as layouts from "./indexed/index.js";
-
 // Re-export all types
 export * from "./types/index.js";
-
-// The deprecated rescale utilities (rescaleLayout, rescaleLayoutDict). A star re-export, because naming a
-// deprecated export here trips @typescript-eslint/no-deprecated.
-export * from "./utils/rescale.js";
 
 // Conversions between layout results, PositionMap and the scene position column
 export * from "./positions.js";
@@ -47,12 +41,6 @@ export {
     spiral,
     type SpiralLayoutOptions,
 } from "./indexed/index.js";
-
-/**
- * The layouts under their 1.x namespace.
- * @deprecated Every layout is a top-level export since 2.0.0: `indexed.circular` is `circular`. Removed in 3.0.0.
- */
-export const indexed = layouts;
 
 // Re-export the simulation seam (design/webgpu/webgpu-acceleration-plan.md section 9.3)
 export * from "./simulation/index.js";

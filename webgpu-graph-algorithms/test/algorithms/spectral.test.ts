@@ -414,7 +414,7 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
     it("HITS whose two chains stop after a different number of iterations (an odd maxIterations, one chain converging in the first batch) returns the latest hub vector AND the latest authority vector, never two of one kind", async (t) => {
         const ctx = await context(t);
         const s = snapshotOf(randomEdges(60, 200, 11), { directed: true, label: "odd-chains" });
-        const options = { maxIterations: 9, tolerance: 3.2e-3 };
+        const options = { maxIterations: 9, tolerance: 4.3e-2 };
         // the two chains as hits() runs them, to learn where each stopped: a multiple of 8, or maxIterations
         const shared = { normMode: 1 as const, alpha: 1, beta: 0, uniformP: 0, ...options, weights: undefined };
         const forward = coreOf(ctx, s, "hits");

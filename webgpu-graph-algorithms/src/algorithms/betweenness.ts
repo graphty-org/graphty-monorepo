@@ -46,7 +46,9 @@
  * is the UNSCALED sum over the sources run, reported beside `sourcesUsed`. `endpoints: true` is refused: the CPU's
  * endpoints branch (`algorithms/src/algorithms/centrality/betweenness.ts`, `predecessors.length === 0 && w !==
  * source`) can never fire for a vertex on the Brandes stack, so there is no behaviour to be in parity with.
- * Betweenness is breadth-first on both packages; weights are ignored. Parallel edges are distinct shortest paths
+ * Betweenness here is breadth-first: a snapshot with weights other than 1 is E_UNSUPPORTED { option: "weighted" }
+ * unless `weighted: false` asks for hops (the CPU package measures paths by weight). Parallel edges are distinct
+ * shortest paths
  * here (each arc adds to sigma), where the CPU package refuses them or, with `allowParallelEdges`, collapses them to
  * one: on a multigraph the two packages' scores differ.
  */
@@ -711,11 +713,24 @@ function normaliser(s: GraphSnapshot, normalized: boolean | undefined): number {
 /**
  * The checks every entry makes before any device work.
  * @param ctx - the context
+ * @param s - the snapshot
  * @param options - the options
  */
-async function precheck(ctx: GpuContext, options: BetweennessAcceleratorOptions | undefined): Promise<void> {
+async function precheck(
+    ctx: GpuContext,
+    s: GraphSnapshot,
+    options: BetweennessAcceleratorOptions | undefined,
+): Promise<void> {
     ctx.assertReady();
     await assertDeviceComputes(ctx);
+    // The one weight rule: weights are read when the snapshot has them. This kernel counts hops, so a weighted
+    // snapshot is refused rather than answered as if it had none; weighted: false asks for hops.
+    if (options?.weighted !== false && s.weights !== null && !s.flags.allWeightsOne) {
+        throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: shortest paths by edge weight are not supported`, {
+            option: "weighted",
+            hint: "pass weighted: false to count hops, or run betweennessCentrality from @graphty/algorithms, which measures paths by weight",
+        });
+    }
     if (options?.endpoints === true) {
         throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: endpoints: true is not supported`, {
             feature: "betweenness.endpoints",
@@ -739,7 +754,7 @@ export async function betweennessWithTuning(
     options: (BetweennessAcceleratorOptions & GpuRunOptions) | undefined,
     tuning: BetweennessTuning,
 ): Promise<GpuBetweennessResult> {
-    await precheck(ctx, options);
+    await precheck(ctx, s, options);
     const n = s.nodeCount;
     const scores = checkDest(ALGORITHM, options?.dest, n) ?? new Float32Array(n);
     const sources = resolveSources(options, n);
@@ -782,7 +797,7 @@ export async function edgeBetweennessWithTuning(
     tuning: BetweennessTuning,
     onArcs?: (perArc: F32) => void,
 ): Promise<GpuEdgeScoresResult> {
-    await precheck(ctx, options);
+    await precheck(ctx, s, options);
     const n = s.nodeCount;
     const scores = checkDest("edgeBetweennessCentrality", options?.dest, s.edgeCount) ?? new Float32Array(s.edgeCount);
     const sources = resolveSources(options, n);
@@ -809,7 +824,8 @@ export async function edgeBetweennessWithTuning(
  * Exact over every vertex by default; `sources` or `k` gives the SAMPLED form, whose scores are the unscaled sum over
  * the sources run (`sourcesUsed` beside them; multiply by `n / sourcesUsed` for the estimator of the full sum). The
  * CPU package's convention: halved on an undirected snapshot, `normalized` divides by `(n - 1)(n - 2)` directed or
- * half that undirected. Weights are ignored (breadth-first on both packages). `endpoints: true` is E_UNSUPPORTED.
+ * half that undirected. Paths are counted in hops: a snapshot with weights other than 1 is E_UNSUPPORTED unless
+ * `weighted: false`. `endpoints: true` is E_UNSUPPORTED.
  * The path counts are f32 rescaled per depth, so a lattice's astronomically many shortest paths are counted exactly
  * enough; `sigmaOverflow` is true only when the counts at one depth spread wider than f32's exponent range (about
  * 2^226): the scores are then wrong, and the `@graphty/algorithms` dispatcher throws instead of returning them.

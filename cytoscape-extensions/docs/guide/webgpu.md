@@ -136,7 +136,7 @@ which condition applied:
   in-degree; or the hub rule below.
 - `graphtyEigenvectorCentralityAsync`: `startVector` is set; the graph is directed, has parallel
   edges, or has a bipartite component.
-- `graphtyClosenessCentralityAsync`: `normalized: true`, `cutoff`, or `harmonic: true` with
+- `graphtyClosenessCentralityAsync`: `normalization` other than `"none"`, `cutoff`, or `harmonic: true` with
   `sources` or `k`; `sources` or `k` on a directed graph.
 - `graphtyBetweennessCentralityAsync`: `endpoints: true`, or the graph has parallel edges.
 - `graphtyEdgeBetweennessCentralityAsync`: the graph has parallel edges.

@@ -9,6 +9,7 @@ import {
 import { withCode } from "../errors.js";
 import { type ArcOrderOption, checkArcOrder } from "./bfs.js";
 import { type LabelResult, withGroups } from "./components.js";
+import { refuseWeights } from "./weights.js";
 
 /** Result of {@link condensation}. @public */
 export interface CondensationResult {
@@ -34,6 +35,7 @@ export interface CondensationResult {
  * @public
  */
 export function stronglyConnectedComponents(g: AdjacencyView, options: ArcOrderOption = {}): LabelResult {
+    refuseWeights("stronglyConnectedComponents", options);
     const { labels, count } = tarjan(g, options);
     return withGroups(labels, count);
 }
@@ -130,6 +132,7 @@ function tarjan(g: AdjacencyView, options: ArcOrderOption = {}): { labels: U32; 
  * @public
  */
 export function condensation(s: GraphSnapshot, options: ArcOrderOption = {}): CondensationResult {
+    refuseWeights("condensation", options);
     const components = stronglyConnectedComponents(s, options);
     const condensed = s.contract(components.labels, { selfLoops: "drop", parallel: "merge", weights: "first" });
     return { components, condensed };

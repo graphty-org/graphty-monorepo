@@ -72,6 +72,52 @@ describe("a path run's Values", () => {
     );
 
     it(
+        "names the total by the weight column it read, so it carries its unit",
+        async () => {
+            const store = createWorkspaceStore({ project: { name: "Trail", id: 1 } });
+            const view = render(<Workspace store={store} />);
+            let session: GraphSession | undefined;
+            await waitFor(
+                () => {
+                    session = document.querySelector("graphty-element")?.session;
+                    assert.isDefined(session);
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            if (session === undefined) {
+                throw new Error("the element never came up");
+            }
+            await session.data.import(
+                { type: "csv", config: { data: "source,target,minutes\na,b,4\nb,c,6\nc,d,4\na,d,20\n" } },
+                {
+                    mapping: {
+                        rowsAre: "edges",
+                        source: "source",
+                        target: "target",
+                        weight: "minutes",
+                        weightMeaning: "distance",
+                    },
+                },
+            );
+            const run = session.runs.start("shortest-path", { source: "a", target: "d" });
+            await act(async () => {
+                await run;
+                await session?.styles.settled();
+            });
+
+            act(() => {
+                store.set({ inspected: { kind: "measure-row", id: run.id }, tabs: { "measure-row": "values" } });
+            });
+            const inspector = within(view.getByRole("complementary", { name: "Inspector" }));
+            await waitFor(() => {
+                assert.isNotNull(inspector.getByText("Total minutes"));
+            });
+            assert.isNull(inspector.queryByText("Total distance"));
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
         "opens on Values as a Path, and its tree row gives the path's size, not every element it measured",
         async () => {
             const store = createWorkspaceStore({ project: { name: "Line", id: 1 } });

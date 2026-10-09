@@ -144,6 +144,23 @@ describe("the Analyze popover's words", () => {
         assert.equal(runName(session, { algorithm: "plugin-x", label: "Plugin X run" }), "Plugin X run");
     });
 
+    it("finds Shortest path by chain, quickest, link and between, and says it goes by weight", () => {
+        for (const word of ["chain", "quickest", "link", "between"]) {
+            const names = groupAlgorithms(BUILT_IN_ALGORITHMS, word).flatMap((group) =>
+                group.entries.map((d) => wordsFor(d).name),
+            );
+            assert.include(names, "Shortest path", word);
+        }
+        const path = BUILT_IN_ALGORITHMS.find((d) => d.key === "shortest-path");
+        assert.isDefined(path);
+        if (path !== undefined) {
+            assert.equal(
+                wordsFor(path).answers,
+                "The fewest steps, or the shortest path by weight, between two nodes.",
+            );
+        }
+    });
+
     it("words the weight a run read, the one it skipped, and none, never as a strength", () => {
         // A short value for the row; any explanation is a sentence of its own for a line under it.
         assert.deepEqual(weightRead({ weight: { attribute: "km", meaning: "distance" } }), {
@@ -160,7 +177,7 @@ describe("the Analyze popover's words", () => {
         });
         assert.deepEqual(skipped, {
             value: "None",
-            note: "Not read -- emails means closer, and a path needs a distance.",
+            note: "Each edge counts as 1. emails means closer, and a path needs a distance.",
         });
         const unset = weightRead({
             weight: null,
@@ -169,7 +186,7 @@ describe("the Analyze popover's words", () => {
                 params: { attribute: "w", meaning: null, reads: "distance" },
             },
         });
-        assert.equal(unset.note, "Not read -- w's meaning is not set, and a path needs a distance.");
+        assert.equal(unset.note, "Each edge counts as 1. w's meaning is not set.");
         // A meaning nobody set: the value says how it was read, the note that it was assumed,
         // never "meaning not set" and "closer" in one value.
         const assumed = weightRead({ weight: { attribute: "w", meaning: "strength", assumed: true } });

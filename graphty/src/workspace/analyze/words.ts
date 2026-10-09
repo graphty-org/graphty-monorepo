@@ -127,8 +127,8 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
     },
     "shortest-path": {
         name: "Shortest path",
-        answers: "The fewest steps, or the shortest route by weight, between two nodes.",
-        aliases: ["route", "dijkstra", "how are they connected"],
+        answers: "The fewest steps, or the shortest path by weight, between two nodes.",
+        aliases: ["route", "dijkstra", "how are they connected", "chain", "quickest", "link", "between"],
         startHere: true,
     },
     astar: {
@@ -497,7 +497,7 @@ interface WeightRead {
  * @param caveats - the run's caveats.
  * @returns the value ("emails (closer)", "w (read as closer)", "None") and its note ("Its meaning
  *     was not set, so this run assumed a higher weight means closer.", "Each edge counts as 1.",
- *     "Not read -- emails means closer, and a path needs a distance."), or no note.
+ *     "Each edge counts as 1. emails means closer, and a path needs a distance."), or no note.
  */
 export function weightRead(caveats: Pick<Caveats, "weight" | "weightSkipped">): WeightRead {
     const skipped = caveats.weightSkipped;
@@ -505,9 +505,15 @@ export function weightRead(caveats: Pick<Caveats, "weight" | "weightSkipped">): 
         const { attribute, meaning, reads } = skipped.params;
         const column = String(attribute);
         // "Meaning not set" is the Data page's own word for a weight nobody gave a meaning.
-        const has = isMeaning(meaning) ? `${column} means ${MEANING_WORDS[meaning]}` : `${column}'s meaning is not set`;
+        // Said in the form of the unweighted note: what the run did, then why the weight was left.
+        if (!isMeaning(meaning)) {
+            return { value: "None", note: `Each edge counts as 1. ${column}'s meaning is not set.` };
+        }
         const needs = isMeaning(reads) ? NEEDS[reads] : "this analysis reads another kind";
-        return { value: "None", note: `Not read -- ${has}, and ${needs}.` };
+        return {
+            value: "None",
+            note: `Each edge counts as 1. ${column} means ${MEANING_WORDS[meaning]}, and ${needs}.`,
+        };
     }
     const read = caveats.weight;
     if (read === null || read === undefined) {

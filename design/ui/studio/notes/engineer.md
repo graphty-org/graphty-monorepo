@@ -87,6 +87,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   other agents rebuild graphty/dist in the shared worktree mid-session ("no production build").
   Evidence `tmp/r1-dry4-words-placement/` (T20A/07, T22B/02, T12RA/05, T12RB/05).
 
+- (2026-10-09) **Four word fixes on the path and Replace screens.** The path total is named by the
+  weight column it read ("Total minutes 14", `RunValues.tsx` `PathValues`); a weight the path left
+  unread says "Each edge counts as 1. weight's meaning is not set." (`weightRead`, `analyze/words.ts`;
+  a set but wrong meaning keeps its reason: "Each edge counts as 1. emails means closer, and a path
+  needs a distance."); the Replace page's button says "Replace" (`Footer` takes `action`); Shortest
+  path answers chain, quickest, link and between and says "shortest path by weight". Tests:
+  analyze `words.test.ts`, `PathRun.real-element.test.tsx` "names the total by the weight column",
+  `Replace.real-element.test.tsx`. Real app: `design/ui/studio/tmp/t2r1-14/s1/13.png`, `16-19.png`,
+  `s2/10.png`, `s2/14.png`.
 - (2026-10-08, condensed) **The inspector title takes focus with no mark; Rerun and Back keep
   focus off the page (app only).** Title (`INSPECTOR_TITLE_ID`, tabIndex -1) has no outline or
   underline (`cm-focus-underline` deleted); both Rerun buttons call `focusInspectorTitle()`;
@@ -109,6 +118,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-09) **A skipped weight's note leads with what the run did.** "Not read -- w's meaning is
+  not set, and a path needs a distance" read as gibberish to a participant; the note now opens with
+  the unweighted line ("Each edge counts as 1.") and then the one fact that explains it. When the
+  meaning is unset, the "needs a distance" clause is dropped: the reader cannot act on it until a
+  meaning is set, and the Data page's Higher means row says that already.
 - (2026-10-09) **The page that names the graph announces its load.** Rejected: having the canvas
   read the header name at load end (the rename comes after `page.load()` resolves), and writing
   the line on a timer after the place mounts (a timer is a guess; a region that is always present
@@ -219,6 +233,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Did not work: leaving my edits uncommitted while another agent committed in the
+  same files. Their commit (`17bf87085`) swept my `RunValues.tsx`, `DataPage.tsx` and Replace test
+  hunks into its own message. Commit a file's hunks as soon as they pass, or at least before another
+  agent's commit window.
+- (2026-10-09) Did not work: `open(p, "w").write(f(open(p).read()))` in Python. The write-mode open
+  runs first and empties the file, so the read sees nothing; it wiped another agent's uncommitted
+  notes. Recovered by replaying that agent's edit scripts from its transcript onto HEAD (byte count
+  matched). Always read into a variable, then open for writing.
 - (2026-10-09) Worked: `real.mjs --sr` with the two-tables setup, then `--key Tab` from Cancel to
   Load and `--key Enter`: the live line printed once with no "unconfirmed" mark. Typing a refused
   rule printed the refusal once; a further digit kept the same words and printed nothing. Did not

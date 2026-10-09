@@ -947,7 +947,20 @@ async function find(page, raw, out) {
                 if (seen.size || behind) break;
                 loc = page.getByPlaceholder(name, { exact });
             }
-            for (const el of await loc.filter({ visible: true }).elementHandles()) {
+            let handles = await loc.filter({ visible: true }).elementHandles();
+            // a radio or checkbox drawn only by its label (a segmented control hides its input):
+            // the label is what a person sees and clicks
+            if (role && !handles.length)
+                handles = (
+                    await Promise.all(
+                        (await loc.elementHandles()).map(async (h) =>
+                            (
+                                await h.evaluateHandle((e) => (e.labels?.[0]?.checkVisibility() ? e.labels[0] : null))
+                            ).asElement(),
+                        ),
+                    )
+                ).filter(Boolean);
+            for (const el of handles) {
                 const [key, desc, control] = await el.evaluate((e, tip) => {
                     // a tooltip bubble, hidden text and the graph's canvas are not controls
                     if (e.closest(`${tip}, [aria-hidden=true], graphty-element, canvas`)) return [null];
@@ -1503,6 +1516,9 @@ async function prove() {
             x.code === 0 && !/nothing on screen is called/.test(x.out),
             x.out,
         );
+        // a segmented control hides its radio inputs; role=radio:<name> clicks the label a person sees
+        x = step(A, "--key", "Enter", "--key", "g", "--click", "role=radio:2", "--expect", "within 2 hops");
+        check("role=radio clicks a segment whose input is hidden", x.code === 0, x.out);
         x = step(A, "--key", "Escape", "--click", "Main menu", "--click", "Export...", "--click", "role=button:Export");
         check(
             "a download is saved into the session folder and printed",

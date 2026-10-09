@@ -278,14 +278,19 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   "Milo", Weight "None" with the line "Not read -- weight's meaning is not set, and a path needs a
   distance." under it, then a collapsed "Advanced run settings" whose Method select reads
   "Dijkstra, chosen automatically" (`rounds/r1d3/pilot/T18A/10.png`, `11.png`). Made with has no
-  Weight select. The Graph tree row reads "Shortest path 4 hops". The tie numbers are runs
+  Weight select. friends.csv loads directed, so the Path popover has a Follow row between To and
+  Weight, "Out | All", with All chosen, and Made with lists "Follow All" between To and Weight; the
+  chain is the same (`../tmp/r1-dry4-tool-and-key/T18A/06.png`, `08.png`). Follow Out searches
+  only along the arrows (not piloted); running together goes both ways, so a chain reported from
+  an Out run that differs from the one above is `meaning-wrong`. The Graph tree row reads "Shortest path 4 hops". The tie numbers are runs
   together, not distances: a participant who sets them as a distance gets a different chain and
   is wrong for this task (`meaning-wrong`).
 - **B (Florentine families): Strozzi, Ridolfi, Medici, Salviati, Pazzi -- 4 marriages, 3
   families in between; the only chain of that length.** Values as in A; Made with From "Strozzi",
   To "Pazzi", Weight "None" with the line "Each edge counts as 1." under it
   (`rounds/r1d3/pilot/T18B/06.png`; `07.png` with Advanced run settings open). The sample has no weight column, so the Path popover shows no
-  "Not read" line on B.
+  "Not read" line on B. The Florentine graph is undirected, so neither the popover nor Made with
+  has a Follow row on B (`../tmp/r1-dry4-tool-and-key/T18B/02.png`, `03.png`).
 - **Follow-up answers:** A, Ben to Nora: Ben, Theo, Ravi, Pia, Nora, 5 nodes, 4 edges; Made with
   From "Ben", To "Nora", Weight "None" (`rounds/r1d3/pilot/T18A/15.png`; the only chain of that
   length, by a count over friends.csv). B, Peruzzi to Ginori: Peruzzi, Bischeri, Guadagni, Albizzi,
@@ -321,8 +326,9 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   on the path (about 713,604, `rounds/r1d3/pilot/T18B/10.png`). A chain read off the drawing with
   names on is still SD, as below; record any participant who names a node from such an overlap.
   On A the drawing shows each tie's arrowhead in the file's direction, and the chain runs against
-  some of them (Ivan to Chloe, Kofi to Ivan, `T18A/10.png`); nothing on screen says a path counts
-  ties both ways. Record any participant who doubts the chain for that reason.
+  some of them (Ivan to Chloe, Kofi to Ivan, `T18A/10.png`); the Follow row, "All", is the only
+  sign that a path counts ties both ways. Record any participant who doubts the chain for that
+  reason.
 - **S:** names in order and the count (4 introductions, or 3 people between, or 5 people in the
   chain) read off the Values or the drawing with names on. **SD:** right chain after a detour, or
   read from the highlighted drawing with names put on. **F:** a longer chain, or a guess from the
@@ -427,10 +433,9 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   before a role is chosen the summary reads "Weight: none (each edge counts 1)"
   (`rounds/r1d3/pilot/T20A/04.png`, `T20B/04.png`). Screenshot numbers depend on how the steps are
   grouped; match the screen.
-- **Escape on the import page:** one Escape on the "Open as a new graph" page with no list open
-  throws away the whole import (the file, the column roles) without asking and returns to the
-  start screen (`rounds/r1d3/pilot/T20B/05.png` to `06.png`). A participant who loses the setup
-  that way and loads again has taken a detour; record each one.
+- **Escape on the import page:** once a file is chosen, Escape with no list open leaves the "Open
+  as a new graph" page as it was, file and roles kept (`../tmp/r1-dry4-tool-and-key/T20B/04.png`
+  to `05.png`); Cancel is the way out.
 - **"Capacity" under Higher means:** not walked. A participant who chooses it is graded by the
   end state (the route, the total and what Made with says), and graders record the choice.
 - **Numbers beside the route:** the Graph tree row reads "Shortest path 4 hops"; 4 given as the
@@ -452,9 +457,12 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   (farther, loaded)" is shown only in the Path popover's Weight box before the run
   (`rounds/r1d3/pilot/T20B/12.png`, `T20A/14.png`). Pointing to that box before the run also
   counts. "Total distance" has no unit on screen (`rounds/r1d3/pilot/T20B/16.png`).
-- **Direction on B:** "As the file says" loads trails.csv directed, so each trail is followed only
-  from its first column to its second. The right route survives because every trail on it points
-  toward the Summit; a participant who sets the graph undirected gets the same route. **SD:** the
+- **Direction on B:** "As the file says" loads trails.csv directed (Overview "Direction
+  Directed"), so the Path popover has a Follow row, "Out | All", starting on All, and Made with
+  lists "Follow All"; with All, direction is ignored. The route and total are the same
+  (`../tmp/r1-dry4-tool-and-key/T20B/14.png`, `15.png`), and a participant who sets the graph
+  undirected or picks Follow Out gets the same route too, since every trail on it points toward
+  the Summit. **SD:** the
   per-run route; or the load-time route found after a detour. **F:** `weight-not-read` ("Date or
   time" chosen counts here); `read-wrong` (4); Closer chosen (paths then ignore the number: same
   wrong routes); a total added by hand from a wrong route.
@@ -499,8 +507,10 @@ file..." --upload friends-v2.csv`; `--click "Load"` (the app returns to the Grap
   `stale-read` (Farah, or Hal on B). The row's right-click menu opens with neither item
   highlighted, with "Edit source..." first, above "Replace with file..."
   (`rounds/r1d3/pilot/T21A/04.png`, `T21B/04.png`); the open menu covers the end of the row's own
-  counts. "Edit source..." opens "Add to friends" and its
-  Load doubles the ties (41 to 82, `check-notes-sources/05.png`): `added-not-replaced`. Control+O
+  counts. "Edit source..." opens "Replace: friends.csv" on the old file itself ("Was 20 nodes, 41
+  edges; now 20, 41"), and its Load keeps 20 nodes and 41 edges and the old run
+  (`../tmp/r1-dry4-tool-and-key/T21A-edit/04.png`, `T21A-edit2/02.png`): nothing changed, so a top
+  name read after it is the old one (`stale-read` if reported as the new list). Control+O
   with friends-v2.csv goes to the same "Add to" page (not piloted). Opening friends-v2.csv as a new
   project and running PageRank again gives the right name but loses the earlier work: SD at best
   (`work-lost` if the participant claims the work was kept). On B the PageRank row still says 12
@@ -610,8 +620,10 @@ Selection layer row (`rounds/r1d3/pilot/T22A/09.png`, `T22B/08.png`). On B the e
 - **Success path (A):** `--key /`; `--type Ava`; `--key Enter` (selects Ava); `--key g` (the list
   opens at Hops 1, headed "Ava's 6 connections", and already sets Selection to 7, Ava and her 6
   ringed, `rounds/r1d3/pilot/T23A/05.png`; screenshot numbers depend on how the steps are grouped,
-  so match the screen, not the number); `--click 2` (the Hops segment; the tool reports the name as
-  shared with the button "Dev 2" in A and takes the segment); `--click "Filter to neighbors"`. On
+  so match the screen, not the number); `--click role=radio:2` (the Hops segment, a radio in the
+  group "Hops"; a bare "2" also matches the "2" in Dev's row on A; the list then reads "Ava's 14
+  connections within 2 hops", Selection 15, `../tmp/r1-dry4-tool-and-key/T23A/06.png`);
+  `--click "Filter to neighbors"` (`T23A/07.png`). On
   B, type Medici. A node's canvas menu "Neighborhood" and the Degree row's route open the same
   list.
 - **Wrong answers:** 6 (one step only: Hops 1, on both datasets); on A, 6 with Follow Out
@@ -629,7 +641,7 @@ Selection layer row (`rounds/r1d3/pilot/T22A/09.png`, `T22B/08.png`). On B the e
   alphabetical order (Ben 3, Chloe 5, Dev 2, Ivan 1, Sana 1, Theo 1), with the focus ring on the
   Hops "1" segment, not on a table row (`rounds/r1d3/pilot/T23A/05.png`), and Hops 2 a plain list
   of names; record any participant who reads the change as another feature. On B (no weights) both
-  are plain alphabetical lists, and `--click 2` is not ambiguous. "Filter to neighbors" is drawn as
+  are plain alphabetical lists; `--click role=radio:2` works on both. "Filter to neighbors" is drawn as
   an outlined button before it is clicked; after the click it stays a filled blue chip, reported
   as pressed, and its tooltip "Showing only this neighborhood. Press again to show every node"
   opens just below it while the pointer rests there, covering the list's first two names (A Ben

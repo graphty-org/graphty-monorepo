@@ -89,9 +89,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (`FindResult.totals`); list scroll-snaps to whole rows. Filter controls say what they do ("Save
   and turn on", "within N hop(s) of X"). Evidence `tmp/r1-dry3-app-find-list-graph-title/`,
   `tmp/r1-dry3-app-filters/`.
-- (2026-10-08, condensed) **Study tool records the served build** (`session.json` `commit`; the
-  checkout's HEAD is `toolCommit`) and finds `setup:<file>` in cwd, `tier2/`, then
-  `rounds/tier-2/setups/`. Evidence `tmp/r1-dry3-studio-tool-records/`.
+- (2026-10-08) **Study tool reads a table row by its cells and clicks a hidden radio by its
+  label.** `--read` printed each histogram row as "row (no name)": a row has no name, its cells
+  carry it; `rowSays` now prints `row "0.03779 to 0.0391: 1 node" | "1"`. `--click role=radio:2`
+  missed ("nothing on screen is called 2"): Mantine's SegmentedControl input is hidden, so the
+  visible-filter dropped it; a role target with no visible match now takes a visible
+  `labels[0]`. Both have `--prove` checks. Earlier: `session.json` `commit` is the served build,
+  `toolCommit` the checkout; `setup:<file>` looks in cwd, `tier2/`, `rounds/tier-2/setups/`.
+  Evidence `tmp/r1-dry4-tool-and-key/` (`T21A-read.log`, `T23A/06.png`, `prove.log`).
 
 - (2026-10-08, condensed) **Import page (app only).** Data page text `sm`, captions `xs`; Add /
   Leave out tooltips (`UNMATCHED_HINTS`); WeightLine after RoleList so Weight moves no role box.
@@ -226,6 +231,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Did not work: `--prove` on `graphty/dist` while another agent rebuilt it (two
+  setup checks failed: "no production build", then a dead session socket). Worked: `cp -r
+graphty/dist` into the task folder and run `--prove` and every pilot with `REAL_DIST` on the
+  copy. Also: a command that does `rm -rf` plus copies into `tier2/rounds/` was refused by the
+  permission prompt; cite `../tmp/<task>/` screenshots from the answer key instead.
+- (2026-10-08) Answer key re-pilot on build 8b24133cd (Follow, Edit source, Esc fixes):
+  T18A Follow "Out | All" on All, Made with "Follow All", same chain; T18B no Follow row
+  (undirected); T20B Esc keeps the chosen file, route 7.5 with Follow All; Edit source opens
+  "Replace: friends.csv" on the old file and keeps 20/41; T23A `role=radio:2` gives 14 within 2
+  hops. Seen, not mine: in T23A after Filter to neighbors, Hops 1 + Follow Out hides the "Filter
+  to neighbors" button while the header chip still says "15 of 20 nodes" (`T23A/09.png`).
+
 - (2026-10-08) Did not work first time: a T22B setup on the new build (Les Miserables sample)
   missed "Run" (Playwright: button visible, enabled and stable, click not done in 3 s), and the
   setup went on without PageRank; the next start of the same setup ran clean, as did the frozen
@@ -237,7 +254,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   own files.
 - (2026-10-08) Worked: re-piloting T21A from its `session.json` setup list (written to
   `t21a-setup.txt` in the task folder, `setup:t21a-setup.txt`), then `--click Data`, `--rclick
-  friends.csv`, `--click "Edit source..."`, `--click Load`, `--expect "20 nodes, 41 edges"`.
+friends.csv`, `--click "Edit source..."`, `--click Load`, `--expect "20 nodes, 41 edges"`.
   T20B's import page: "New from data..." then "choose a file..." `--upload trails.csv`.
 - (2026-10-08, condensed) Proving "fails without" with no stash: copy my fixed files aside, write
   `git show HEAD:<file>` over them, run, copy back; for a file another agent has dirty, comment my

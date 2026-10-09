@@ -43,14 +43,12 @@ const SEEDS = [1, 17, 4242, 90210, 2026];
 const NUM_RUNS = Number(process.env.FC_NUM_RUNS ?? 60);
 /** Longest sequence tried. */
 const MAX_COMMANDS = 30;
-/**
- * Per seed: a coverage run of the whole model is slower than the project's 30 s default. This is
- * also what fails a sequence that hangs. Every clock, queue turn and run here is held by the
- * model, so a sequence that never settles is waiting on something that will never come, and no
- * per-sequence deadline is needed to find one: a deadline would only fail a slow machine. When
- * the limit fails a seed, the test prints the sequence that was running (see `runSeed`).
+/*
+ * No per-seed deadline: a seed takes about 2 s locally and well under 10 s in CI's coverage run,
+ * inside the project's 30 s budget. Every clock, queue turn and run here is held by the model, so
+ * a sequence that never settles is waiting on something that will never come, and the project's
+ * budget fails it; the test then prints the sequence that was running (see `runSeed`).
  */
-const SEED_TIMEOUT_MS = 90_000;
 
 /** Where a sequence starts. */
 const STARTS = ["setup", "setup-import", "first-load", "cleared", "failed-import"] as const;
@@ -184,7 +182,7 @@ async function begin(start: Start): Promise<{ real: Real; model: Model }> {
  * @param numRuns - How many sequences to try.
  */
 async function runSeed(seed: number, numRuns: number): Promise<void> {
-    // fast-check reports a failing sequence, but not one the seed's time limit stopped, so the test
+    // fast-check reports a failing sequence, but not one the test's time budget stopped, so the test
     // keeps the running one at hand and prints it however the seed fails.
     let run = -1;
     let running = (): string => "no sequence had started";
@@ -233,42 +231,36 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
 describe("random sequences of edits, pending work and history moves, from every starting state", () => {
     const only = process.env.FC_SEED;
     for (const seed of only === undefined ? SEEDS : [Number(only)]) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(`holds for seed ${String(seed)}`, () => runSeed(seed, NUM_RUNS), SEED_TIMEOUT_MS);
+        it(`holds for seed ${String(seed)}`, () => runSeed(seed, NUM_RUNS));
     }
 });
 
 describe("eviction folds the arrangement of every evicted step into the baseline", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "2000 placements with coalescing off and a limit of 1000 steps, all undone, leave every evicted placement in place",
-        async () => {
-            const clock = fakeClock();
-            const session = await fixtureSession({ now: clock.now });
-            const real: Real = { session, clock, layout: fakeLayout(session) };
-            session.history.limitSteps = 1000;
-            const expected = laneOf(real);
-            const ids = ["n1", "n2", "n3"];
-            const placed: [string, string][] = [];
-            for (let step = 1; step <= 2000; step++) {
-                const id = ids[step % ids.length];
-                await session.positions.set([{ id, x: step, y: step, z: -step }]);
-                placed.push([id, `${String(step)},${String(step)},${String(-step)}`]);
-                // Past the coalescing window, so every placement is a step of its own.
-                clock.advance(COALESCE_MS + 1);
-            }
+    it("2000 placements with coalescing off and a limit of 1000 steps, all undone, leave every evicted placement in place", async () => {
+        const clock = fakeClock();
+        const session = await fixtureSession({ now: clock.now });
+        const real: Real = { session, clock, layout: fakeLayout(session) };
+        session.history.limitSteps = 1000;
+        const expected = laneOf(real);
+        const ids = ["n1", "n2", "n3"];
+        const placed: [string, string][] = [];
+        for (let step = 1; step <= 2000; step++) {
+            const id = ids[step % ids.length];
+            await session.positions.set([{ id, x: step, y: step, z: -step }]);
+            placed.push([id, `${String(step)},${String(step)},${String(-step)}`]);
+            // Past the coalescing window, so every placement is a step of its own.
+            clock.advance(COALESCE_MS + 1);
+        }
 
-            const kept = session.history.steps.length;
-            assert.isAtMost(kept, 1000);
-            assert.isAbove(2000 - kept, 1000, "most placements were evicted");
-            for (const [id, value] of placed.slice(0, 2000 - kept)) {
-                expected.set(id, value);
-            }
+        const kept = session.history.steps.length;
+        assert.isAtMost(kept, 1000);
+        assert.isAbove(2000 - kept, 1000, "most placements were evicted");
+        for (const [id, value] of placed.slice(0, 2000 - kept)) {
+            expected.set(id, value);
+        }
 
-            await session.history.restoreTo(null);
-            assert.deepEqual(laneOf(real), expected, "the baseline, with every evicted placement applied");
-            session.dispose();
-        },
-        SEED_TIMEOUT_MS,
-    );
+        await session.history.restoreTo(null);
+        assert.deepEqual(laneOf(real), expected, "the baseline, with every evicted placement applied");
+        session.dispose();
+    });
 });

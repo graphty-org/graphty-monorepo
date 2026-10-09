@@ -13,7 +13,9 @@ import {
     type RunIdentity,
     stableDigest,
 } from "../../../src/session/runs";
+import { trimTrailingSeparators } from "../../../src/session/runs/runId";
 import { mintLayerId } from "../../../src/session/styles/Layer";
+import { assertScalesLinearly } from "../../helpers/cost";
 
 const OPTIONS: readonly OptionDescriptor[] = [
     { name: "resolution", plainName: "Resolution", type: "number", default: 1 },
@@ -181,14 +183,45 @@ describe("algorithmSlug", () => {
         assert.strictEqual(algorithmSlug("123"), "run");
     });
 
-    it("trims trailing separators in linear time", () => {
+    it("trims trailing separators in linear time", async () => {
         assert.strictEqual(algorithmSlug("acme-_-"), "acme");
-        // `/[-_]+$/` took about 2.4 s on this input and 300 s at ten times the length.
-        const long = `a${"-_".repeat(50_000)}a`;
-        const start = performance.now();
+        // `/[-_]+$/` retried from every separator: about 2.4 s on 100,000 of them that do not end
+        // the text, and 300 s at ten times that. The loop that replaced it reads each trailing
+        // separator once and nothing before them, counted here by the characters it reads.
+        const reads = (text: string, trimmed: string): number => {
+            let count = 0;
+            const counted = new Proxy(new String(text), {
+                get(target, key) {
+                    if (typeof key === "string" && /^\d+$/.test(key)) {
+                        count++;
+                    }
+
+                    const value: unknown = Reflect.get(target, key);
+                    return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+                },
+            });
+            assert.strictEqual(trimTrailingSeparators(counted as unknown as string), trimmed);
+            return count;
+        };
+        await assertScalesLinearly(
+            (size) => {
+                const text = `a${"-_".repeat(size)}a`;
+                return reads(text, text);
+            },
+            {
+                sizes: [1_000, 4_000],
+                growth: "constant",
+                counter: "characters read with separators inside the text",
+            },
+        );
+        await assertScalesLinearly((size) => reads(`a${"-_".repeat(size)}`, "a"), {
+            sizes: [1_000, 4_000],
+            counter: "characters read with separators ending the text",
+        });
+
+        // And the slug goes through that loop: at this length the regex would take minutes.
+        const long = `a${"-_".repeat(500_000)}a`;
         assert.strictEqual(algorithmSlug(long), long);
-        // eslint-disable-next-line local/no-test-timing -- the regression it guards is seconds against milliseconds; a counted bound needs the slug's steps exposed, tracked in #1636
-        assert.isBelow(performance.now() - start, 200);
     });
 
     it("gives a layer id the same trimming", () => {

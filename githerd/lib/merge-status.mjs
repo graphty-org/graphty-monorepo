@@ -357,6 +357,27 @@ export function mergifyRequires(text) {
 }
 
 /**
+ * The checks a `.mergify.yml` keeps a pull request out of its merge queue on: every
+ * `check-success=` and `-check-failure=` condition outside a `merge_conditions` list (those are
+ * judged on the queue's batch, not on the pull request). `githerd/merge` is githerd's own and left
+ * out.
+ * ponytail: reads condition lines by indentation, not as YAML; a flow-style list is missed.
+ * @param {string | null} text the file on the default branch, or null when it could not be read
+ * @returns {string[]} the check names
+ */
+export function queueChecks(text) {
+    const names = new Set();
+    let section = "";
+    for (const line of (text ?? "").split("\n")) {
+        const key = /^\s*([a-z_]+):/.exec(line);
+        if (key) section = key[1];
+        const cond = /^\s*-\s*["']?(?:check-success|-check-failure)=(.+?)["']?\s*(?:#.*)?$/.exec(line);
+        if (cond && section !== "merge_conditions" && cond[1] !== CONTEXT) names.add(cond[1]);
+    }
+    return [...names];
+}
+
+/**
  * The merge gate's part of the invariant check (design 9.5): every open pull request into the
  * default branch has a current `githerd/merge`, and no native auto-merge is armed (faults); and
  * the banner while master's `.mergify.yml` does not wait for `githerd/merge`. While the `statuses`

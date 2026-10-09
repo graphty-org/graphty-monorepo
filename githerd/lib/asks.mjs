@@ -29,6 +29,7 @@
 
 import { askFor, askProblems, failingRequired, headIsGitherds, jobInUse, jobOnPr, prOf, prWork } from "./queue.mjs";
 import { ownerHeld } from "./board.mjs";
+import { failingWords } from "./prs.mjs";
 import { releaseOwnerJob } from "./jobs.mjs";
 import { tellSessions } from "./peers.mjs";
 import { jobWaits, mergeNews, mergeWhat } from "./waits.mjs";
@@ -555,7 +556,7 @@ function broken(state, n, rec) {
     // skipping it left a stale push holding a broken pull request with nobody asked.
     if (!prWork(n, rec, state) || jobOnPr(state, n)) return null;
     const failing = rec.ownerGate ? [] : failingRequired(rec);
-    if (failing.length) return `required check failing: ${failing.join(", ")}`;
+    if (failing.length) return failingWords(rec);
     return (rec.conflictSightings ?? 0) >= 2 ? `conflicting with ${rec.baseRef ?? "its base"}` : null;
 }
 

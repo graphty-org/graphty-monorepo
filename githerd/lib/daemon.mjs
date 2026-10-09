@@ -131,6 +131,7 @@ import {
     npmLookup,
     openPr,
     postMergeStatuses,
+    queueChecks,
     readDependencies,
 } from "./merge-status.mjs";
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
@@ -2731,6 +2732,7 @@ export async function startDaemon({
                 .filter((/** @type {any} */ l) => l.verdict === "red")
                 .flatMap((/** @type {any} */ l) => (l.redJobs ?? []).map((/** @type {any} */ r) => r.key)),
             advisory: state.advisory ?? null,
+            queueChecks: queueChecks(mergify ?? null),
         };
         const prs = updatePrs(state.prs, nodes, view, config, iso);
         await runnerRefusals(gh, nodes, t.getTime(), prs);

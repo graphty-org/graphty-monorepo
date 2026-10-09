@@ -620,3 +620,40 @@ describe("a rented runner refused for its balance", () => {
         expect(prWork("704", rec, owner)).toBe("required check failing: All Checks Pass");
     });
 });
+
+describe("a check the merge queue's conditions name", () => {
+    const owner = { trust: { login: "apowers313" }, escalations: {} };
+    // master's .mergify.yml (#1656): `-check-failure=Link PR Issue` in the default queue's conditions.
+    const QUEUED = { ...GREEN, queueChecks: ["Link PR Issue"] };
+    const unlinked = () =>
+        withChecks(node(), [
+            run("All Checks Pass", "SUCCESS"),
+            run("Lint PR Title", "SUCCESS"),
+            run("Link PR Issue", "FAILURE"),
+        ]);
+
+    it("failing keeps a pull request green on its required checks out of the queue: it is broken", () => {
+        const rec = updatePrs({}, [unlinked()], QUEUED, config, NOW)["704"];
+        expect(rec.required["Link PR Issue"]).toBe("FAILURE");
+        expect(rec.queueFailing).toEqual(["Link PR Issue"]);
+        expect(askProblems(rec)).toEqual(["Link PR Issue"]);
+        expect(prWork("704", rec, owner)).toMatch(
+            /^kept out of the merge queue: Link PR Issue failing; add to the pull request's description "Fixes #N".*"No issue"; editing the description re-runs the check/,
+        );
+        expect(stuck(rec)[0]).toMatch(/^kept out of the merge queue: Link PR Issue failing/);
+    });
+
+    it("passing or not reported holds nothing, and a check no condition names stays outside", () => {
+        const passing = withChecks(node(), [
+            run("All Checks Pass", "SUCCESS"),
+            run("Lint PR Title", "SUCCESS"),
+            run("Link PR Issue", "SUCCESS"),
+        ]);
+        for (const n of [passing, node()]) {
+            const rec = updatePrs({}, [n], QUEUED, config, NOW)["704"];
+            expect(Object.keys(rec.required)).toEqual(["All Checks Pass", "Lint PR Title"]);
+            expect(prWork("704", rec, owner)).toBeNull();
+        }
+        expect(prWork("704", updatePrs({}, [unlinked()], GREEN, config, NOW)["704"], owner)).toBeNull();
+    });
+});

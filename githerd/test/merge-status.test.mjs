@@ -9,6 +9,7 @@ import {
     foldHead,
     mergeGateChecks,
     mergifyRequires,
+    queueChecks,
     npmLookup,
     openPr,
     isMergeQueuePr,
@@ -466,6 +467,25 @@ describe("the merge gate's invariants", () => {
         expect(mergifyRequires(withC1)).toBe(true);
         expect(mergifyRequires(queued("          - check-success=githerd/merge\n"))).toBe(false);
         expect(mergifyRequires(null)).toBe(false);
+    });
+
+    it("reads the checks that keep a pull request out of the queue, not the batch's merge conditions", () => {
+        const text = [
+            "queue_rules:",
+            "    - name: default",
+            "      queue_conditions:",
+            "          - label!=hold",
+            "          - -check-failure=Link PR Issue",
+            '          - "check-success=Docs"',
+            "          - check-success=githerd/merge",
+            "      merge_conditions:",
+            "          - check-success=Queue Checks Pass",
+            "merge_protections_settings:",
+            "    auto_merge_conditions:",
+            "        - -check-failure=Docs # again",
+        ].join("\n");
+        expect(queueChecks(text)).toEqual(["Link PR Issue", "Docs"]);
+        expect(queueChecks(null)).toEqual([]);
     });
 
     it("faults a head without a current status and an armed auto-merge", () => {

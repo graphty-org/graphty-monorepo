@@ -244,6 +244,26 @@ export function namesIssue(rec, body, issue) {
 }
 
 /**
+ * What the pull request's own state lacks: its base, draft, failing checks, the owner's rejects and
+ * a `githerd/merge` line a worker can fix.
+ * @param {any} rec the polled pull request record
+ * @param {number} number the pull request
+ * @param {string} branch the default branch
+ * @returns {string[]} the gaps
+ */
+function stateGaps(rec, number, branch) {
+    const gaps = [];
+    if (rec.baseRef !== branch) gaps.push(`#${number} is based on ${rec.baseRef}, not ${branch}`);
+    if (rec.draft) gaps.push(`#${number} is a draft`);
+    const failing = failingRequired(rec);
+    if (rec.ownerRejected) gaps.push("the owner rejected images: fix the captures the owner named");
+    else if (failing.length) gaps.push(`required checks failing: ${failing.join(", ")}`);
+    const gate = rec.mergeStatus;
+    if (gate?.state === "failure" && WORKER_LINES.has(gate.line)) gaps.push(`githerd/merge: ${gate.description}`);
+    return gaps;
+}
+
+/**
  * The done-condition of one pull request: base master, not draft, head is the pushed commit,
  * required checks green or waiting only on the owner, `githerd/merge` not failing a worker line.
  * @param {number} number the pull request
@@ -255,12 +275,9 @@ export function namesIssue(rec, body, issue) {
 async function prAnswer(number, pushed, view, issue = null) {
     const rec = view.state.prs?.[String(number)];
     if (!rec) return mergedAnswer(number, view, issue);
-    const branch = view.state.master?.branch ?? "master";
-    const gaps = [];
+    const gaps = stateGaps(rec, number, view.state.master?.branch ?? "master");
     // Gaps in the report or the push, which the session closes without new work: they do not count.
     const fix = [];
-    if (rec.baseRef !== branch) gaps.push(`#${number} is based on ${rec.baseRef}, not ${branch}`);
-    if (rec.draft) gaps.push(`#${number} is a draft`);
     if (issue !== null && !(await mentions(rec, number, issue, view))) {
         fix.push(
             `#${number} does not reference #${issue}: add "Fixes #${issue}" to its description, or "Refs #${issue}" when it does part of the issue and the issue stays open; or, ${COMMITS_HINT}`,
@@ -270,11 +287,6 @@ async function prAnswer(number, pushed, view, issue = null) {
     if (head === null) return null;
     if (head !== true) fix.push(issue === null ? head : `${head}; or, ${COMMITS_HINT}`);
     const required = Object.entries(rec.required ?? {});
-    const failing = failingRequired(rec);
-    if (rec.ownerRejected) gaps.push("the owner rejected images: fix the captures he named");
-    else if (failing.length) gaps.push(`required checks failing: ${failing.join(", ")}`);
-    const gate = rec.mergeStatus;
-    if (gate?.state === "failure" && WORKER_LINES.has(gate.line)) gaps.push(`githerd/merge: ${gate.description}`);
     if (gaps.length) return { missing: [...fix, ...gaps] };
     if (fix.length) return { missing: fix, fixable: true };
     // A cancelled check is no result yet: githerd re-runs it, or someone pushes again.

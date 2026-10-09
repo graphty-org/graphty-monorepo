@@ -6,6 +6,7 @@
 
 import * as fs from "fs";
 import * as http from "http";
+import type { AddressInfo } from "net";
 import * as os from "os";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -13,14 +14,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { JsonlWriter } from "../../src/server/jsonl-writer.js";
 import { createLogServer } from "../../src/server/log-server.js";
 import { LogStorage } from "../../src/server/log-storage.js";
-
-// Use a sequential port counter to avoid collisions between tests
-let portCounter = 0;
-
-function getNextPort(): number {
-    // Use 8400-8499 range for JSONL streaming tests (different from browser.test.ts 8300 range)
-    return 7700 + (portCounter++ % 100);
-}
 
 describe("JSONL streaming integration", () => {
     let server: http.Server;
@@ -39,11 +32,11 @@ describe("JSONL streaming integration", () => {
         // Create storage with JSONL writer
         storage = new LogStorage({ jsonlWriter });
 
-        // Create server with shared storage - use sequential port to avoid collisions
-        port = getNextPort();
+        // Create server with shared storage. It listens on a port the OS picks, so no other
+        // test or process can hold it and a request can never reach another server's socket.
         // HTTP is the default (HTTPS requires certPath and keyPath)
         const result = createLogServer({
-            port,
+            port: 0,
             host: "127.0.0.1",
             storage,
         });
@@ -51,8 +44,9 @@ describe("JSONL streaming integration", () => {
 
         // Wait for server to be ready
         await new Promise<void>((resolve) => {
-            server.listen(port, "127.0.0.1", () => resolve());
+            server.listen(0, "127.0.0.1", () => resolve());
         });
+        ({ port } = server.address() as AddressInfo);
     });
 
     afterEach(async () => {
@@ -91,7 +85,6 @@ describe("JSONL streaming integration", () => {
         sessionId: string,
         logs: Array<{ time: string; level: string; message: string }>,
         projectMarker?: string,
-        retries = 3,
     ): Promise<void> {
         const body = JSON.stringify({
             sessionId,
@@ -99,55 +92,39 @@ describe("JSONL streaming integration", () => {
             projectMarker,
         });
 
-        const attempt = (): Promise<void> =>
-            new Promise((resolve, reject) => {
-                const req = http.request(
-                    {
-                        hostname: "127.0.0.1",
-                        port,
-                        path: "/log",
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Content-Length": Buffer.byteLength(body),
-                        },
+        await new Promise<void>((resolve, reject) => {
+            const req = http.request(
+                {
+                    hostname: "127.0.0.1",
+                    port,
+                    path: "/log",
+                    method: "POST",
+                    // A fresh connection per request: no kept-alive socket to be reset under it.
+                    agent: false,
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Content-Length": Buffer.byteLength(body),
                     },
-                    (res) => {
-                        let data = "";
-                        res.on("data", (chunk) => {
-                            data += chunk;
-                        });
-                        res.on("end", () => {
-                            if (res.statusCode === 200) {
-                                resolve();
-                            } else {
-                                reject(new Error(`HTTP ${res.statusCode}: ${data}`));
-                            }
-                        });
-                    },
-                );
+                },
+                (res) => {
+                    let data = "";
+                    res.on("data", (chunk) => {
+                        data += chunk;
+                    });
+                    res.on("end", () => {
+                        if (res.statusCode === 200) {
+                            resolve();
+                        } else {
+                            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+                        }
+                    });
+                },
+            );
 
-                req.on("error", reject);
-                req.write(body);
-                req.end();
-            });
-
-        // Retry with exponential backoff for transient connection errors
-        for (let i = 0; i < retries; i++) {
-            try {
-                await attempt();
-                return;
-            } catch (err) {
-                const error = err as NodeJS.ErrnoException;
-                // Only retry on connection reset errors
-                if (error.code === "ECONNRESET" && i < retries - 1) {
-                    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-                    await new Promise((r) => setTimeout(r, 10 * (i + 1)));
-                    continue;
-                }
-                throw err;
-            }
-        }
+            req.on("error", reject);
+            req.write(body);
+            req.end();
+        });
     }
 
     it("streams logs to file as they arrive via HTTP", async () => {

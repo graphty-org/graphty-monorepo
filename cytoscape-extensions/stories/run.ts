@@ -52,7 +52,7 @@ interface LayoutRun {
     gpuMode: GpuMode;
     seed: number;
     /**
-     * Simulations: a fixed iteration count (maxIter for ForceAtlas2, iterations for Fruchterman-Reingold), or 0 to run
+     * Simulations: a fixed iteration count (iterations for Fruchterman-Reingold, maxIter for the others), or 0 to run
      * until the layout settles, capped by settleCap().
      */
     iterations: number;
@@ -74,12 +74,8 @@ export async function runLayout(cy: Core, layout: string, run: LayoutRun): Promi
         throw new Error("kamada-kawai needs memory in the square of the node count; pick 2,000 nodes or fewer");
     }
     const options: Record<string, unknown> = { name: `graphty-${layout}`, seed: run.seed, ...layoutInputs(cy, layout) };
-    let note: string | undefined;
     if (simulation) {
         Object.assign(options, { gpu: run.gpuMode, animate: run.animate, ...budget(layout, run.iterations, cy) });
-        if (layout === "spring-electrical" && run.iterations > 0) {
-            note = "spring-electrical takes no iteration budget yet and ran until it settled (issue #1766)";
-        }
     } else if (run.gpuMode === "require") {
         throw new Error(`graphty-${layout} has no GPU implementation; only the force simulations do`);
     } else if (run.animate) {
@@ -91,12 +87,13 @@ export async function runLayout(cy: Core, layout: string, run: LayoutRun): Promi
     if (!backend) {
         return { ran: "cpu", detail: "a one-shot layout: there is no GPU implementation" };
     }
-    return { ran: backend.ran, detail: backend.ran === "gpu" ? backend.device : backend.reason, note };
+    return { ran: backend.ran, detail: backend.ran === "gpu" ? backend.device : backend.reason };
 }
 
 /**
  * The cap on a run until settled: generous, so it only stops a layout that never settles. ForceAtlas2 settles in
- * about 320 to 450 iterations on 10,000 to 50,000 nodes, Fruchterman-Reingold's adaptive cooling in about 180.
+ * about 320 to 450 iterations on 10,000 to 50,000 nodes, Fruchterman-Reingold's adaptive cooling in about 180;
+ * spring-electrical gets five times the cap.
  * @param n - the node count
  * @returns the cap
  */
@@ -106,8 +103,7 @@ function settleCap(n: number): number {
 
 /**
  * A simulation's budget options: a fixed count when one is given; else run until settled under settleCap(), with
- * Fruchterman-Reingold on adaptive cooling (its linear schedule always runs the whole budget). Spring-electrical
- * takes no budget (issue #1766) and always runs until it settles.
+ * Fruchterman-Reingold on adaptive cooling (its linear schedule always runs the whole budget).
  * @param layout - the simulation name without "graphty-"
  * @param iterations - the fixed count, or 0
  * @param cy - the core, for its node count
@@ -116,12 +112,13 @@ function settleCap(n: number): number {
 function budget(layout: string, iterations: number, cy: Core): Record<string, unknown> {
     const cap = iterations > 0 ? iterations : settleCap(cy.nodes().length);
     switch (layout) {
-        case "forceatlas2":
-            return { maxIter: cap };
         case "fruchterman-reingold":
             return iterations > 0 ? { iterations } : { iterations: cap, cooling: "adaptive" };
+        case "spring-electrical":
+            // it settles slowly: 2,338 iterations at 10,000 nodes, 4,474 at 50,000
+            return { maxIter: iterations > 0 ? iterations : 5 * cap };
         default:
-            return {};
+            return { maxIter: cap };
     }
 }
 

@@ -1,8 +1,8 @@
 /**
  * @file An assistant message is one undoable step.
  *
- * Every tool the message calls writes through `ctx.tx`, the message's transaction: one undo takes
- * back everything the message did, a tool that throws rolls back everything the message had done
+ * Every tool the message calls writes through `ctx.tx`, the transaction of its batch of tool calls,
+ * and the batches continue one step: one undo takes back everything the message did, a tool that throws rolls back everything the message had done
  * so far, and an undo while the message is still going ends it -- no further tool runs, and the
  * running tool sees `ctx.abortSignal` fire. See design/undo/undo-design.md section 5.3.
  */
@@ -157,6 +157,7 @@ describe("an assistant message under undo", () => {
 
         const message = graph.aiCommand("slow message");
         for (let wait = 0; wait < 500 && running === undefined; wait++) {
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 10));
         }
 

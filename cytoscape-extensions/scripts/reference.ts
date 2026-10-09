@@ -124,7 +124,7 @@ const BETWEENNESS_SOURCES: Override = {
 };
 const PREDICTION_TOP_K: Override = {
     default: "every pair above 0",
-    doc: "Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order, and `topK` counts rows, not pairs. A directed graph lists each pair once (see above).",
+    doc: "Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. Each pair is listed once, so `topK` counts distinct pairs; on an undirected graph `source` is the node that comes first in the collection (see above).",
 };
 const CANDIDATES_TOP_K: Override = {
     default: "`10`",
@@ -513,7 +513,7 @@ const METHOD_NOTES: Readonly<Record<string, string>> = {
     graphtySpectralClustering:
         "Every connected component, an isolated node included, takes a cluster of its own before any component is split. On an 80-node graph of 4 communities, `k: 4` finds the communities; add 3 isolated nodes and it returns the 80 nodes as one cluster plus 3 single nodes. Run it on the component you want to cluster, or raise `k` by the number of extra components.",
     graphtySyncClustering:
-        "On an 80-node graph the defaults (`maxIterations: 100`, `learningRate: 0.01`) end with `converged: false` and mixed clusters. Check `converged`; there, `maxIterations: 2000, learningRate: 0.05` converges in about 750 iterations. `converged: true` does not mean the clusters are right: each isolated node or extra component takes one of the `numClusters` centers, so add 3 isolated nodes to that graph and, with the same settings, it converges with three of the four groups merged. Run it on the component you want to cluster, or raise `numClusters` by the number of extra components.",
+        "Unconnected parts of the graph come apart at convergence, but connected communities blur: run to convergence, the embeddings of nodes joined by edges drift together. On an 80-node graph of 4 communities the defaults converge in about 100 iterations with each community spread over several clusters; `maxIterations: 10` stops before that and finds the 4 communities on most such graphs, with `converged: false`. `converged: true` does not mean the clusters are right: each isolated node or extra component takes one of the `numClusters` centers, so add 3 isolated nodes to that graph and the defaults give two communities the same cluster. Run it on the component you want to cluster, or raise `numClusters` by the number of extra components.",
     graphtyLabelPropagation: LPA_REPORT,
     graphtyLabelPropagationSemiSupervised:
         'Cluster numbers are not seed labels: they follow node order, not the order of `seeds` or the values in the seed field, and `field` writes those numbers. To find the cluster a label spread to, ask one of its seed nodes: with `seeds: ["#33", "#0"]`, `result.cluster("#33")` is the cluster of the first label.',
@@ -542,7 +542,7 @@ const LAYOUT_NOTES: Readonly<Record<string, string>> = {
     bfs: "When a node cannot be reached from `root`, `run()` throws `bfs_layout didn't include all nodes. Graph may be disconnected.` and emits no events ([failures before the run](../guide/layouts#events)).",
     radial: "The nodes `root` cannot reach go on one extra ring outside the others.",
     "spring-electrical":
-        'Runs only on the GPU. With no GPU for any reason (`gpu: "off"`, `accelerator: null`, a browser with no `navigator.gpu`, no usable device), `run()` returns normally and the layout then emits `layouterror`, with an error whose message starts `graphty-spring-electrical has no CPU simulation and runs only on the GPU; no GPU ran because` and names the reason (for example `gpu: "off" was requested`), and then `layoutstop`. No node moves and `layout.backend` stays undefined. It has no iteration cap: it runs until it settles (see `settleThreshold` and `settleWindow`) or until you call `layout.stop()`.',
+        'Runs only on the GPU. With no GPU for any reason (`gpu: "off"`, `accelerator: null`, a browser with no `navigator.gpu`, no usable device), `run()` returns normally and the layout then emits `layouterror`, with an error whose message starts `graphty-spring-electrical has no CPU simulation and runs only on the GPU; no GPU ran because` and names the reason (for example `gpu: "off" was requested`), and then `layoutstop`. No node moves and `layout.backend` stays undefined. Without `maxIter` it runs until it settles (see `settleThreshold` and `settleWindow`) or until you call `layout.stop()`; with it, it stops at whichever comes first.',
 };
 
 // What each file format is, and what an import expects.

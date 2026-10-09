@@ -91,6 +91,7 @@ async function mount(): Promise<Graphty> {
             throw new Error("the element never finished initialising");
         }
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 20));
     }
 
@@ -109,6 +110,7 @@ describe("a layer added before a load and not awaited", () => {
 
     for (const [loadName, load] of Object.entries(LOADS)) {
         for (const [resumeName, resume] of Object.entries(RESUME_POINTS)) {
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `is painted on nodes loaded through ${loadName} when the caller resumes ${resumeName}`,
                 async () => {

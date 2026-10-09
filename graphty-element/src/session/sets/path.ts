@@ -13,6 +13,7 @@
 import { INVALID_INDEX, makeMask } from "@graphty/graph-format";
 
 import type { EdgeMember, NodeId, PathKind, SetDefinition } from "../../catalog/types";
+import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import {
     addEdgeRow,
     bindEdgeMembers,
@@ -81,7 +82,7 @@ export function resolvePath(definition: PathDefinition, context: ResolveContext,
     const n = snapshot.nodeCount;
     const nodes = makeMask(n);
     const edges = makeMask(snapshot.edgeCount);
-    const index = definition.nodes.map((id) => ids.indexOf(id));
+    const index = definition.nodes.map((id) => rowOfEitherSpelling(ids, id));
     const absent = new Set<NodeId>();
     index.forEach((at, i) => {
         if (at === INVALID_INDEX) {

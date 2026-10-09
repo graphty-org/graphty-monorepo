@@ -80,7 +80,13 @@ import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema"
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
 import { GraphtyError } from "./errors";
-import { EventCallbackType, EventOfType, EventType } from "./events";
+import {
+    EventCallbackType,
+    EventOfType,
+    EventType,
+    type XRSessionEndedEvent,
+    type XRSessionStartedEvent,
+} from "./events";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import {
     type AddEdgesOptions,
@@ -160,7 +166,7 @@ const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
 import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
 import type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./utils/queue-migration";
-import { XRSessionManager } from "./xr/XRSessionManager";
+import { type XRSessionEndCause, XRSessionManager } from "./xr/XRSessionManager";
 // import {createXrButton} from "./xr-button";
 
 /**
@@ -712,7 +718,7 @@ export class Graph implements GraphContext {
             const { graph } = this.styles.config;
             if (changed("background")) {
                 this.renderManager.applyBackground(graph.background, (url) => {
-                    this.eventManager.emitGraphEvent("skybox-loaded", { graph: this, url });
+                    this.eventManager.emit("skybox-loaded", { graph: this, url });
                 });
                 this.updateManager.meshesAdded();
             }
@@ -762,7 +768,7 @@ export class Graph implements GraphContext {
             //
             // The detail is COUNTS AND WORDS, never layers: it crosses to listeners that may
             // structure-clone it, and a consumer that wants the stack reads `styles.list()`.
-            this.eventManager.emitGraphEvent("style-changed", {
+            this.eventManager.emit("style-changed", {
                 reason: change.reason,
                 layers: change.layers.length,
                 painted: change.painted,
@@ -1465,7 +1471,7 @@ export class Graph implements GraphContext {
             // The configured background reaches the scene here, whether it was set through
             // `element.background` before the element was attached or left at its default.
             this.renderManager.applyBackground(this.styles.config.graph.background, (url) => {
-                this.eventManager.emitGraphEvent("skybox-loaded", { graph: this, url });
+                this.eventManager.emit("skybox-loaded", { graph: this, url });
             });
 
             // Start the graph system (render loop, etc.)
@@ -3955,6 +3961,11 @@ export class Graph implements GraphContext {
             settings.graph.immersive = mode;
         });
         this.writeSceneDimension(false);
+        this.eventManager.emit("xr-session-started", {
+            mode,
+            requestedReferenceSpace: this.graphContext.getConfig().xr?.[mode].referenceSpaceType ?? "local-floor",
+            referenceSpace: this.xrSessionManager.getReferenceSpaceType() ?? "viewer",
+        } satisfies Omit<XRSessionStartedEvent, "type">);
     }
 
     /**
@@ -4530,7 +4541,7 @@ export class Graph implements GraphContext {
 
         // Set up progress event handler
         const onProgress = (progress: number): void => {
-            this.eventManager.emitGraphEvent("animation-progress", { progress });
+            this.eventManager.emit("animation-progress", { progress });
         };
 
         try {
@@ -4674,7 +4685,7 @@ export class Graph implements GraphContext {
 
         // Emit cancellation event
         if (cancelled) {
-            this.eventManager.emitGraphEvent("animation-cancelled", {});
+            this.eventManager.emit("animation-cancelled", {});
         }
 
         return cancelled;
@@ -4858,7 +4869,7 @@ export class Graph implements GraphContext {
         if (!options || !options.animate || options.skipQueue) {
             this.applyCameraStateImmediate(resolvedState);
             // Emit event
-            this.eventManager.emitGraphEvent("camera-state-changed", { state: resolvedState });
+            this.eventManager.emit("camera-state-changed", { state: resolvedState });
 
             return;
         }
@@ -4888,7 +4899,7 @@ export class Graph implements GraphContext {
                     } else {
                         // Unknown controller, apply immediately
                         this.applyCameraStateImmediate(resolvedState);
-                        this.eventManager.emitGraphEvent("camera-state-changed", { state: resolvedState });
+                        this.eventManager.emit("camera-state-changed", { state: resolvedState });
                     }
                 } catch (error) {
                     // Check if error is due to cancellation
@@ -4899,7 +4910,7 @@ export class Graph implements GraphContext {
                     console.error("Camera animation failed:", error);
                     // Fallback to immediate
                     this.applyCameraStateImmediate(resolvedState);
-                    this.eventManager.emitGraphEvent("camera-state-changed", { state: resolvedState });
+                    this.eventManager.emit("camera-state-changed", { state: resolvedState });
                 }
             },
             {
@@ -5117,7 +5128,7 @@ export class Graph implements GraphContext {
             });
 
             // Animate the dummy object
-            const animatable = this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1.0, () => {
+            const animatable = this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1, () => {
                 // Cleanup observer
                 this.scene.onBeforeRenderObservable.remove(observer);
 
@@ -5313,7 +5324,7 @@ export class Graph implements GraphContext {
                     }
                 };
 
-                this.scene.beginAnimation(orbitController.pivot, 0, frameCount, false, 1.0, () => {
+                this.scene.beginAnimation(orbitController.pivot, 0, frameCount, false, 1, () => {
                     // Wait for distance animation to complete
                     const finalize = async (): Promise<void> => {
                         if (distanceAnimation) {
@@ -5357,7 +5368,7 @@ export class Graph implements GraphContext {
                         orbitController.updateCameraPosition();
 
                         // Emit completion event
-                        this.eventManager.emitGraphEvent("camera-state-changed", {
+                        this.eventManager.emit("camera-state-changed", {
                             state: targetState,
                         });
 
@@ -5386,7 +5397,7 @@ export class Graph implements GraphContext {
         } else if (distanceAnimation) {
             // Only distance animation
             await distanceAnimation;
-            this.eventManager.emitGraphEvent("camera-state-changed", {
+            this.eventManager.emit("camera-state-changed", {
                 state: targetState,
             });
         }
@@ -5574,7 +5585,7 @@ export class Graph implements GraphContext {
             });
 
             // Animate dummy object
-            const animatable = this.scene.beginDirectAnimation(dummy, animations, 0, frameCount, false, 1.0, () => {
+            const animatable = this.scene.beginDirectAnimation(dummy, animations, 0, frameCount, false, 1, () => {
                 // Apply final values exactly from dummy (already calculated during animation)
                 if (targetState.pan) {
                     twoDController.camera.position.x = dummy.posX;
@@ -5588,7 +5599,7 @@ export class Graph implements GraphContext {
                     twoDController.camera.orthoBottom = dummy.orthoBottom;
                 }
 
-                this.eventManager.emitGraphEvent("camera-state-changed", {
+                this.eventManager.emit("camera-state-changed", {
                     state: targetState,
                 });
 
@@ -6395,13 +6406,13 @@ export class Graph implements GraphContext {
             // and the DOM however it was started.
             adapter.onActiveChange((active, reason) => {
                 if (active) {
-                    this.eventManager.emitGraphEvent("ai-voice-start", {});
+                    this.eventManager.emit("ai-voice-start", {});
                 } else {
-                    this.eventManager.emitGraphEvent("ai-voice-end", { reason });
+                    this.eventManager.emit("ai-voice-end", { reason });
                 }
             });
             adapter.onInput((transcript, isFinal) => {
-                this.eventManager.emitGraphEvent("ai-voice-transcript", { transcript, isFinal });
+                this.eventManager.emit("ai-voice-transcript", { transcript, isFinal });
             });
 
             this.voiceAdapter = adapter;
@@ -6507,6 +6518,9 @@ export class Graph implements GraphContext {
             vr: xrConfig.vr,
             ar: xrConfig.ar,
             handTracking: xrConfig.input.handTracking,
+            onSessionEnded: ({ mode, cause }) => {
+                this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
+            },
         });
 
         // Determine which modes are available by actually checking device support. WebXR draws
@@ -6541,6 +6555,34 @@ export class Graph implements GraphContext {
                 }
             })();
         };
+    }
+
+    /**
+     * A session the XR session manager started has ended. One the headset or browser ended leaves
+     * the graph still in VR or AR, so it is left the way `setViewMode("3d")` leaves it, which also
+     * lets the next `setViewMode("vr")` start a new session. Either way, `xr-session-ended` says so
+     * once the graph is back in 3D.
+     * @param mode - The kind of session that ended
+     * @param cause - `"exit"` when the element left it, `"device"` otherwise
+     */
+    private xrSessionEnded(mode: "vr" | "ar", cause: XRSessionEndCause): void {
+        const emit = (): void => {
+            this.eventManager.emit("xr-session-ended", { mode, cause } satisfies Omit<XRSessionEndedEvent, "type">);
+        };
+        if (cause === "exit") {
+            emit();
+            return;
+        }
+
+        // The XR camera controller stops now, not when the queue reaches the command below: the
+        // session it reads from is gone. Its cleanup runs before exitXR's first await.
+        void this.exitXR();
+        dispatcherOf(this.session)
+            .dispatch({ op: "view.immersive", mode: null })
+            .catch((error: unknown) => {
+                console.warn("[Graph] Failed to leave XR after the device ended the session:", error);
+            })
+            .finally(emit);
     }
 
     /**

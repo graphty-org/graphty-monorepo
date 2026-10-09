@@ -11,7 +11,8 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { afterEach, assert, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { findSample, SAMPLE_MANIFEST, type SampleRecord } from "../../../data/sampleManifest";
 import { fireEvent, render, screen, waitFor, within } from "../../../test/test-utils";
@@ -173,6 +174,7 @@ describe("AppShell with the real graphty-element", () => {
     });
 
     for (const record of SAMPLE_MANIFEST) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `loads ${record.name} with the manifest's counts and draws it`,
             async () => {
@@ -182,6 +184,7 @@ describe("AppShell with the real graphty-element", () => {
         );
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "fails when a sample's file is not the format it claims",
         async () => {
@@ -196,6 +199,7 @@ describe("AppShell with the real graphty-element", () => {
         LOAD_TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "fails when a sample's file is cut short",
         async () => {
@@ -249,6 +253,7 @@ function hopsFrom(edges: readonly { source: unknown; target: unknown }[], seed: 
 }
 
 describe("the ego network with the real graphty-element", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "shows exactly a node's 2-hop neighborhood, and Clear shows the whole graph again",
         async () => {
@@ -308,6 +313,7 @@ describe("the inspector's Pin verb on the real graphty-element", () => {
     /* Karate's GML ids are integers, so the element holds node 34 under the number while the
        shell prints and passes "34". The Pinned badge reads the element's own pinned set, which
        is the only thing that answers for either spelling. */
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "pins a numeric node by its printed id and draws the Pinned badge",
         async () => {
@@ -365,6 +371,7 @@ describe("the command palette's node and edge search on the real graphty-element
         fireEvent.change(await screen.findByLabelText(COMMAND_PALETTE_PLACEHOLDER), { target: { value: text } });
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "selects a node typed by its id and frames it",
         async () => {
@@ -389,6 +396,7 @@ describe("the command palette's node and edge search on the real graphty-element
         LOAD_TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "selects an edge found by one of its values",
         async () => {
@@ -410,4 +418,103 @@ describe("the command palette's node and edge search on the real graphty-element
         },
         LOAD_TEST_TIMEOUT_MS,
     );
+});
+
+/**
+ * The reader's main flows, with real input: every click and key below is made by the browser
+ * (vitest's `userEvent`, which drives Playwright), so focus, a focus trap's timing and a
+ * controlled field that discards keystrokes behave as they do for a person. `fireEvent.change`
+ * writes a field's value directly and passes all three.
+ */
+describe("the shell's main flows, by real input, on the real graphty-element", () => {
+    beforeAll(async () => {
+        await page.viewport(1440, 900);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it("opens the command palette with its field focused, so typing goes straight in", async () => {
+        const cat = findSample("cat-social-network");
+        assert.isDefined(cat);
+        await mountSampleThroughWelcome(cat);
+
+        await userEvent.click(screen.getByRole("button", { name: new RegExp(COMMAND_PALETTE_PLACEHOLDER) }));
+        const field = await screen.findByLabelText<HTMLInputElement>(COMMAND_PALETTE_PLACEHOLDER);
+        // Mantine's focus trap picks its target in a zero-delay timer after the dialog opens
+        // (use-focus-trap.mjs); let that timer run, as it has by the time a hand types.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await userEvent.keyboard("Mr_W");
+
+        assert.strictEqual(field.value, "Mr_W", "the keys went into the palette's field");
+    });
+
+    it("lets the reader type in the Explore search", async () => {
+        const cat = findSample("cat-social-network");
+        assert.isDefined(cat);
+        await mountSampleThroughWelcome(cat);
+
+        if (screen.queryByRole("region", { name: "Explore" }) === null) {
+            await userEvent.click(screen.getByRole("button", { name: "Explore" }));
+        }
+        const search = await screen.findByTestId<HTMLInputElement>("explore-search-input");
+        await userEvent.click(search);
+        await userEvent.keyboard("Mr");
+
+        assert.strictEqual(search.value, "Mr", "the field kept what was typed");
+    });
+
+    it("keeps a second metric's layers over the first's on the element", async () => {
+        const cat = findSample("cat-social-network");
+        assert.isDefined(cat);
+        const { element } = await mountSampleThroughWelcome(cat);
+        const runLayers = (): string[] =>
+            element.session.styles
+                .list()
+                .map((layer) => layer.source)
+                .filter((source) => source.by === "run")
+                .map((source) => (source as { algorithm?: string }).algorithm ?? "");
+
+        /**
+         * Runs one of the Analyze panel's suggested cards and waits for its layer.
+         * @param card - the card's name.
+         * @param algorithm - the algorithm whose layer it paints.
+         */
+        async function runCard(card: string, algorithm: string): Promise<void> {
+            if (screen.queryByRole("region", { name: "Analyze" }) === null) {
+                await userEvent.click(screen.getByRole("button", { name: "Analyze" }));
+            }
+            await userEvent.click(await screen.findByRole("button", { name: `Run ${card}` }));
+            await waitFor(
+                () => {
+                    assert.include(runLayers(), algorithm);
+                },
+                { timeout: LOAD_TEST_TIMEOUT_MS },
+            );
+        }
+
+        await runCard("Most connected", "degree");
+        await runCard("Influence", "pagerank");
+
+        assert.includeMembers(runLayers(), ["degree", "pagerank"], "the first run's layer is still in the stack");
+    });
+
+    it("keeps the image format the reader picks in the Present panel and captures in it", async () => {
+        const cat = findSample("cat-social-network");
+        assert.isDefined(cat);
+        const { element } = await mountSampleThroughWelcome(cat);
+        const capture = vi.spyOn(element, "captureScreenshot");
+
+        await userEvent.click(screen.getByRole("button", { name: "Present" }));
+        await userEvent.click(await screen.findByRole("combobox", { name: "Image format" }));
+        await userEvent.click(await screen.findByRole("option", { name: "JPEG" }));
+        await waitFor(() => {
+            assert.strictEqual(screen.getByRole<HTMLInputElement>("combobox", { name: "Image format" }).value, "JPEG");
+        });
+
+        await userEvent.click(screen.getByRole("button", { name: "Export image" }));
+
+        assert.deepEqual(capture.mock.calls[0]?.[0], { format: "jpeg", destination: { download: true } });
+    });
 });

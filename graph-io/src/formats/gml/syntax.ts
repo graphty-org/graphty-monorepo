@@ -94,10 +94,10 @@ export const SYNTAX_STRING_CODE = SYNTAX_CODE;
  */
 export const SYNTAX_BRACKET_CODE = SYNTAX_CODE;
 
-const KEY_TEXT = /^[A-Za-z_][0-9A-Za-z_]*$/;
-const STRICT_KEY_TEXT = /^[A-Za-z][0-9A-Za-z_]*$/;
-const INT_TEXT = /^[+-]?[0-9]+$/;
-const REAL_TEXT = /^[+-]?(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)$/;
+const KEY_TEXT = /^[A-Za-z_]\w*$/;
+const STRICT_KEY_TEXT = /^[A-Za-z]\w*$/;
+const INT_TEXT = /^[+-]?\d+$/;
+const REAL_TEXT = /^[+-]?(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+)$/;
 const NON_FINITE_TEXT = /^[+-]?(?:inf|infinity|nan)$/i;
 const NON_FINITE_WORD = /^(?:inf|infinity|nan)$/i;
 

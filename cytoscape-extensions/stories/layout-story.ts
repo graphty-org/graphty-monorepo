@@ -11,7 +11,7 @@ export interface LayoutArgs extends RunArgs {
     layout: string;
     /**
      * Simulations: 0 runs until the layout settles (capped generously by the node count); a number fixes the
-     * iterations (maxIter for ForceAtlas2, iterations for Fruchterman-Reingold; spring-electrical takes none yet).
+     * iterations (iterations for Fruchterman-Reingold, maxIter for the others).
      */
     iterations: number;
     animate: boolean;

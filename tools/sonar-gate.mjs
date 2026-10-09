@@ -45,7 +45,7 @@ import {
 const TOOLS_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs", ".html", ".css", ".py"]);
 const REPO_OF = { ".ts": "typescript", ".tsx": "typescript", ".js": "javascript", ".mjs": "javascript" };
-const SCORE_RULES = /:(S3776|S107)$/;
+const SCORE_RULES = /:(S3776|S107|S5843)$/;
 const NOSONAR_FORM = /NOSONAR\((S\d+)\): .{10,}/;
 const SETUP_FIX = "run `node tools/sonar-baseline.mjs --setup` once (the owner, with the admin token)";
 const TOKEN_FIX = "put a valid SonarQube user token in .env as SONAR_TOKEN (My Account > Security > Generate token)";
@@ -150,7 +150,7 @@ function readProperty(text, key) {
     return line ? line.slice(key.length + 1).trim() : "";
 }
 
-// The first number in an S3776 / S107 message: the complexity score, or the parameter count.
+// The first number in an S3776 / S107 / S5843 message: the complexity score, or the parameter count.
 const scoreOf = (message) => Number(message.match(/\d+/)?.[0] ?? Number.NaN);
 
 const isVulnerability = (issue) =>
@@ -195,8 +195,8 @@ function masterHasIssue(issue, f, masterIssues) {
     if (!SCORE_RULES.test(issue.rule)) {
         return masterIssues.some((m) => m.rule === issue.rule && m.hash && m.hash === issue.hash);
     }
-    // S3776 / S107 are reported on the signature, which the edit usually changes: match by place,
-    // and let it through only when the score did not rise.
+    // S3776 / S107 are reported on the signature, and S5843 on the regex itself, which the edit
+    // usually changes: match by place, and let it through only when the score did not rise.
     const prior = masterIssues.find((m) => {
         if (m.rule !== issue.rule || !m.line) return false;
         const where = mapOldLine(f.hunks, m.line);

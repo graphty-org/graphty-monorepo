@@ -302,12 +302,12 @@ function bind(model: Model, member: EdgeMember, seed: number | undefined): numbe
         return seed;
     }
 
+    const [source, target] = [held(model, member.source), held(model, member.target)];
     const hits: number[] = [];
     for (const [counter, edge] of model.edges) {
         const pair = model.ordered
-            ? edge.s === member.source && edge.t === member.target
-            : (edge.s === member.source && edge.t === member.target) ||
-              (edge.s === member.target && edge.t === member.source);
+            ? edge.s === source && edge.t === target
+            : (edge.s === source && edge.t === target) || (edge.s === target && edge.t === source);
         if (!pair) {
             continue;
         }
@@ -324,6 +324,25 @@ function bind(model: Model, member: EdgeMember, seed: number | undefined): numbe
     }
 
     return verdict(hits);
+}
+
+/**
+ * The node an id names: itself, or the other spelling of an integer id when only that is held
+ * (`"1"` names node `1`), as every element lookup reads an id.
+ * @param model - The model.
+ * @param id - The id as a set names it.
+ * @returns The id the model holds, or the id as named when it holds neither spelling.
+ */
+function held(model: Model, id: NodeId): NodeId {
+    if (model.nodes.has(id)) {
+        return id;
+    }
+
+    if (typeof id === "number") {
+        return model.nodes.has(String(id)) ? String(id) : id;
+    }
+
+    return /^-?\d+$/.test(id) && model.nodes.has(Number(id)) ? Number(id) : id;
 }
 
 /**
@@ -382,7 +401,8 @@ function expect(model: Model, real: Driver, set: ModelSet): Expected {
         nodes.add(edge.t);
     };
 
-    for (const id of set.nodes) {
+    for (const named of set.nodes) {
+        const id = held(model, named);
         if (model.nodes.has(id)) {
             nodes.add(id);
         } else if (set.kind === "fixed") {
@@ -425,7 +445,7 @@ function expect(model: Model, real: Driver, set: ModelSet): Expected {
     };
 
     for (let i = 0; i + 1 < set.nodes.length; i++) {
-        const [from, to] = [set.nodes[i], set.nodes[i + 1]];
+        const [from, to] = [held(model, set.nodes[i]), held(model, set.nodes[i + 1])];
         const step = set.steps?.[i] ?? null;
         const found: number[] = [];
         if (step === null) {

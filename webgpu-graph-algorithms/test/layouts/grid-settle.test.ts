@@ -185,6 +185,7 @@ describe("grid tier: settle, determinism, saturation, 3D and R-24 (design 13 row
         ctx = await acquire({ label: "grid-settle" });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "(1) isolated: the shared rule settles the core, not only the strays; a bbox normaliser would have fired >= 20 iterations earlier while the core still moved",
         async (t) => {
@@ -254,6 +255,7 @@ describe("grid tier: settle, determinism, saturation, 3D and R-24 (design 13 row
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "(2) deterministic: true on rmat14: two run({ maxIter: 100 }) are bitwise identical in positions, stats and trace (spec 7.16)",
         async (t) => {
@@ -290,6 +292,7 @@ describe("grid tier: settle, determinism, saturation, 3D and R-24 (design 13 row
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "(3) the software saturation case: gridMax2D 32 on random20k gives G = 32, an occupancy max >= 2, finite after 50 iterations",
         async (t) => {
@@ -316,6 +319,7 @@ describe("grid tier: settle, determinism, saturation, 3D and R-24 (design 13 row
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "(4) 3D on random20k: 50 iterations finite, the pyramid buffer is the spec's, and the pyramid is <= 40 MB at every size up to the G = 128 cap",
         async (t) => {
@@ -349,6 +353,7 @@ describe("grid tier: settle, determinism, saturation, 3D and R-24 (design 13 row
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "(5) R-24 measured: hubcell at nearMax 8 under the resampled near field, against the same graph from its uniform start (random20k): finite, settled within the budget, the rule's verdict printed",
         async (t) => {

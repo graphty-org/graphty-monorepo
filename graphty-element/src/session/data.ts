@@ -27,7 +27,7 @@ import { isPairConfig } from "../data/CSVDataSource";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
-import { otherIdSpelling } from "../data/nodeIdSpelling";
+import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ImportReport, LoadReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
@@ -609,29 +609,31 @@ export class SessionData implements SessionDataApi {
 
     /**
      * One node, by id.
-     * @param id - the node id, compared without coercion
-     * @returns the record, or undefined when the graph has no such node
+     * @param id - the node id; an integer id may be written either way, `34` or `"34"`
+     * @returns the record, carrying the id as the graph holds it, or undefined when the graph has
+     *     no such node
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     node(id: NodeId): NodeRecord | undefined {
         const snapshot = this.current();
-        const index = snapshot.ids.indexOf(id);
+        const index = rowOfEitherSpelling(snapshot.ids, id);
         if (index === INVALID_INDEX) {
             return undefined;
         }
 
-        return this.nodeAt(index, id);
+        return this.nodeAt(index, snapshot.ids.idOf(index));
     }
 
     /**
      * What a node is called: the name {@link SessionData.neighbors} gives it.
-     * @param id - the node id, compared without coercion
+     * @param id - the node id; an integer id may be written either way, `34` or `"34"`
      * @returns the name, or undefined when the graph has no such node
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     name(id: NodeId): string | undefined {
-        const index = this.current().ids.indexOf(id);
-        return index === INVALID_INDEX ? undefined : this.nameOf(index, id);
+        const { ids } = this.current();
+        const index = rowOfEitherSpelling(ids, id);
+        return index === INVALID_INDEX ? undefined : this.nameOf(index, ids.idOf(index));
     }
 
     /**
@@ -667,8 +669,9 @@ export class SessionData implements SessionDataApi {
 
     /**
      * One edge, by the element-assigned edge id.
-     * @param id - the edge id
-     * @returns the record, or undefined when the graph has no such edge
+     * @param id - the edge id; the number it spells finds it too, `17` for `"17"`
+     * @returns the record, carrying the id as the graph holds it, or undefined when the graph has
+     *     no such edge
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     edge(id: EdgeId): EdgeRecord | undefined {
@@ -681,7 +684,7 @@ export class SessionData implements SessionDataApi {
             return undefined;
         }
 
-        return this.edgeAt(snapshot, index, id);
+        return this.edgeAt(snapshot, index, edgeIdOf(counter));
     }
 
     /**
@@ -804,7 +807,7 @@ export class SessionData implements SessionDataApi {
         // which moves the tick.
         const visible = this.pages.resolve("visible").nodes;
         const revision = this.pages.revision();
-        const node = snapshot.ids.indexOf(id);
+        const node = rowOfEitherSpelling(snapshot.ids, id);
         if (node === INVALID_INDEX) {
             throw new GraphtyError({
                 code: "E_UNKNOWN_ELEMENT",
@@ -1105,7 +1108,7 @@ export class SessionData implements SessionDataApi {
         const space = edgeSpaceOf(snapshot);
         const members = scope === undefined ? null : this.pages.resolve(scope);
         const count = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const end = touching === undefined ? INVALID_INDEX : rowOfEitherSpelling(snapshot, touching);
+        const end = touching === undefined ? INVALID_INDEX : rowOfEitherSpelling(snapshot.ids, touching);
         const rows: number[] = [];
         // ponytail: `touching` scans every edge once per revision; read the undirected CSR if a
         // host pages the edges of many nodes per revision.
@@ -1576,7 +1579,7 @@ export function recordsInRowOrder(
 }
 
 /** A JMESPath expression that is nothing but a top-level property name. */
-const PLAIN_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const PLAIN_KEY = /^[A-Za-z_]\w*$/;
 
 /** A JMESPath quoted identifier: a top-level property name written as a JSON string. */
 const QUOTED_KEY = /^"(?:[^"\\]|\\.)*"$/;
@@ -1843,16 +1846,4 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
     }
 
     return detect(undefined);
-}
-
-/**
- * The row of a node named in either spelling of an integer id, so `touching: "34"` finds node `34`.
- * @param snapshot - The snapshot.
- * @param id - The node, as the caller wrote it.
- * @returns The row, or INVALID_INDEX when the graph holds neither spelling.
- */
-function rowOfEitherSpelling(snapshot: GraphSnapshot, id: NodeId): number {
-    const row = snapshot.ids.indexOf(id);
-    const other = row === INVALID_INDEX ? otherIdSpelling(id) : undefined;
-    return other === undefined ? row : snapshot.ids.indexOf(other);
 }

@@ -380,6 +380,54 @@ export interface GraphtyElementJSXProps {
      */
     "oninput-enabled-changed"?: (event: CustomEvent<EventOfType<"input-enabled-changed">>) => void;
     /**
+     * Emitted for each key press and release on the canvas while input is enabled.
+     */
+    "oninput:key-down"?: (event: CustomEvent<EventOfType<"input:key-down">>) => void;
+    /**
+     * Emitted for each key press and release on the canvas while input is enabled.
+     */
+    "oninput:key-up"?: (event: CustomEvent<EventOfType<"input:key-up">>) => void;
+    /**
+     * Emitted for each pointer press, move and release on the canvas while input is enabled.
+     */
+    "oninput:pointer-down"?: (event: CustomEvent<EventOfType<"input:pointer-down">>) => void;
+    /**
+     * Emitted for each pointer press, move and release on the canvas while input is enabled.
+     */
+    "oninput:pointer-move"?: (event: CustomEvent<EventOfType<"input:pointer-move">>) => void;
+    /**
+     * Emitted for each pointer press, move and release on the canvas while input is enabled.
+     */
+    "oninput:pointer-up"?: (event: CustomEvent<EventOfType<"input:pointer-up">>) => void;
+    /**
+     * Emitted for the undo, redo and select-all keyboard shortcuts on the canvas while input is enabled.
+     */
+    "oninput:redo"?: (event: CustomEvent<EventOfType<"input:redo">>) => void;
+    /**
+     * Emitted for the undo, redo and select-all keyboard shortcuts on the canvas while input is enabled.
+     */
+    "oninput:select-all"?: (event: CustomEvent<EventOfType<"input:select-all">>) => void;
+    /**
+     * Emitted when touches end on the canvas while input is enabled.
+     */
+    "oninput:touch-end"?: (event: CustomEvent<EventOfType<"input:touch-end">>) => void;
+    /**
+     * Emitted when touches start or move on the canvas while input is enabled.
+     */
+    "oninput:touch-move"?: (event: CustomEvent<EventOfType<"input:touch-move">>) => void;
+    /**
+     * Emitted when touches start or move on the canvas while input is enabled.
+     */
+    "oninput:touch-start"?: (event: CustomEvent<EventOfType<"input:touch-start">>) => void;
+    /**
+     * Emitted for the undo, redo and select-all keyboard shortcuts on the canvas while input is enabled.
+     */
+    "oninput:undo"?: (event: CustomEvent<EventOfType<"input:undo">>) => void;
+    /**
+     * Emitted for each wheel turn over the canvas while input is enabled.
+     */
+    "oninput:wheel"?: (event: CustomEvent<EventOfType<"input:wheel">>) => void;
+    /**
      * Emitted when a new layout engine has been built and is now the running layout.
      */
     "onlayout-changed"?: (event: CustomEvent<EventOfType<"layout-changed">>) => void;
@@ -412,6 +460,14 @@ export interface GraphtyElementJSXProps {
      * Emitted after the style stack changed and the graph was repainted for it.
      */
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
+    /**
+     * Emitted when a VR or AR session has ended and the graph is back in its 3D view.
+     */
+    "onxr-session-ended"?: (event: CustomEvent<EventOfType<"xr-session-ended">>) => void;
+    /**
+     * Emitted when a VR or AR session has started and the graph is drawing into it.
+     */
+    "onxr-session-started"?: (event: CustomEvent<EventOfType<"xr-session-started">>) => void;
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
 }
 

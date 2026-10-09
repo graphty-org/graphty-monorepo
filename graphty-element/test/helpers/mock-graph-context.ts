@@ -192,7 +192,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         addListener(type: string, listener: (event: { type: string }) => void): void {
             listeners.set(type, [...(listeners.get(type) ?? []), listener]);
         },
-        emitGraphEvent(type: string): void {
+        emit(type: string): void {
             announce(type);
         },
     };
@@ -265,6 +265,9 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         },
         transaction: <T>(_label: string, fn: (tx: GraphSession, signal: AbortSignal) => T | Promise<T>) =>
             Promise.resolve().then(() => fn(mockSession, new AbortController().signal)),
+        // A history that records nothing, so an assistant message has no step to continue or undo.
+        history: { steps: [], position: 0, nextUndo: null },
+        on: () => () => undefined,
     } as unknown as GraphSession;
 
     // The renderer's door onto that stack. A test that wants to know what a command actually

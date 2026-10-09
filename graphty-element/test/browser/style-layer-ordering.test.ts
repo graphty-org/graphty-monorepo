@@ -190,6 +190,7 @@ afterEach(async () => {
 });
 
 describe("a layer issued before the data arrives, and not awaited", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "is in the stack once the queue has drained",
         async () => {
@@ -206,6 +207,7 @@ describe("a layer issued before the data arrives, and not awaited", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "paints the rows that arrived after it",
         async () => {
@@ -225,6 +227,7 @@ describe("a layer issued before the data arrives, and not awaited", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "settles its run, whichever way the queue decides",
         async () => {
@@ -244,6 +247,7 @@ describe("a layer issued before the data arrives, and not awaited", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "keeps both layers of a two-layer stack issued in the same tick",
         async () => {
@@ -271,6 +275,7 @@ describe("a layer issued before the data arrives, and not awaited", () => {
 });
 
 describe("every write verb, issued in the same tick as the data", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "settles add",
         async () => {
@@ -283,6 +288,7 @@ describe("every write verb, issued in the same tick as the data", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "settles update",
         async () => {
@@ -296,6 +302,7 @@ describe("every write verb, issued in the same tick as the data", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "settles remove",
         async () => {
@@ -309,6 +316,7 @@ describe("every write verb, issued in the same tick as the data", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "settles move",
         async () => {
@@ -325,6 +333,7 @@ describe("every write verb, issued in the same tick as the data", () => {
 });
 
 describe("a graph read by a data source", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "is painted from the style stack even with no layer added at all",
         async () => {
@@ -341,6 +350,7 @@ describe("a graph read by a data source", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "paints a layer that was added before the load",
         async () => {
@@ -358,6 +368,7 @@ describe("a graph read by a data source", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "paints every node it loaded, not only the first",
         async () => {

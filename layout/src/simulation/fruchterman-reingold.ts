@@ -311,7 +311,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         }
 
         // Optimal distance between nodes (line 76-78) and the cooling schedule (lines 81-83)
-        this.k = this.kOption ?? 1.0 / Math.sqrt(n);
+        this.k = this.kOption ?? 1 / Math.sqrt(n);
         this.dt = FR_START_TEMPERATURE / (this.iterations + 1);
         this.t = FR_START_TEMPERATURE;
         this.resetAdaptive();

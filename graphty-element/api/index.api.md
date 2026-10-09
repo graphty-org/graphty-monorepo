@@ -132,6 +132,9 @@ export type AdHocData<KeyType extends string | number = string> = Record<KeyType
     readonly __brand?: "AdHocData";
 };
 
+// @public (undocumented)
+export type AiEventType = AiEvent["type"];
+
 // @public
 abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<string, unknown>> {
     constructor(g: Graph, options?: Partial<TOptions>);
@@ -1381,6 +1384,7 @@ export type EventCallbackType = (evt: GraphEvent | NodeEvent | EdgeEvent | AiEve
 export class EventManager implements Manager {
     addListener(type: EventType, callback: EventCallbackType): symbol;
     dispose(): void;
+    emit(type: EmittableEventType, data: Record<string, unknown>): void;
     emitDataAdded(dataType: "nodes" | "edges", count: number, shouldStartLayout: boolean, shouldZoomToFit: boolean, cause?: HistoryCause): void;
     emitDataCleared(): void;
     emitDataLoadingComplete(format: string, nodesLoaded: number, edgesLoaded: number, duration: number, errors: number, warnings: number, success: boolean, report: ImportReport, loadId?: number): void;
@@ -1397,6 +1401,7 @@ export class EventManager implements Manager {
     emitElementsRemoved(nodes: NodeId[], edges: EdgeId[], cause?: HistoryCause): void;
     emitGraphDataLoaded(graph: Graph | GraphContext, chunksLoaded: number, dataSourceType: string, report: ImportReport, loadId?: number): void;
     emitGraphError(graph: Graph | GraphContext | null, error: Error, context: GraphErrorEvent["context"], details?: Record<string, unknown>): void;
+    // @deprecated
     emitGraphEvent(type: string, data: Record<string, unknown>): void;
     emitGraphSettled(graph: Graph): void;
     emitLayoutInitialized(layoutType: string, shouldZoomToFit: boolean): void;
@@ -1870,7 +1875,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -2673,6 +2678,24 @@ export interface InputEnabledChangedEvent {
 }
 
 // @public
+export interface InputKeyEvent {
+    // (undocumented)
+    altKey: boolean;
+    // (undocumented)
+    code: string;
+    // (undocumented)
+    ctrlKey: boolean;
+    // (undocumented)
+    key: string;
+    // (undocumented)
+    metaKey: boolean;
+    // (undocumented)
+    shiftKey: boolean;
+    // (undocumented)
+    type: "input:key-down" | "input:key-up";
+}
+
+// @public
 export class InputManager implements Manager {
     constructor(context: ManagerContext, config?: InputManagerConfig);
     dispose(): void;
@@ -2706,6 +2729,52 @@ export class InputManager implements Manager {
     startRecording(): void;
     stopRecording(): RecordedInputEvent[];
     updateConfig(config: Partial<InputManagerConfig>): void;
+}
+
+// @public
+export interface InputPointerEvent {
+    // (undocumented)
+    type: "input:pointer-down" | "input:pointer-move" | "input:pointer-up";
+    x: number;
+    y: number;
+}
+
+// @public
+export interface InputShortcutEvent {
+    // (undocumented)
+    type: "input:undo" | "input:redo" | "input:select-all";
+}
+
+// @public
+export interface InputTouchEndEvent {
+    array: {
+        value: number;
+    }[];
+    // (undocumented)
+    type: "input:touch-end";
+}
+
+// @public
+export interface InputTouchEvent {
+    array: {
+        x: number;
+        y: number;
+    }[];
+    // (undocumented)
+    type: "input:touch-start" | "input:touch-move";
+}
+
+// @public
+export interface InputWheelEvent {
+    deltaMode: number;
+    // (undocumented)
+    deltaX: number;
+    // (undocumented)
+    deltaY: number;
+    // (undocumented)
+    deltaZ: number;
+    // (undocumented)
+    type: "input:wheel";
 }
 
 // @public
@@ -4476,6 +4545,23 @@ export interface XRModeConfig {
     enabled: boolean;
     optionalFeatures?: string[];
     referenceSpaceType: XRReferenceSpaceType_2;
+}
+
+// @public
+export interface XRSessionEndedEvent {
+    cause: "exit" | "device";
+    mode: "vr" | "ar";
+    // (undocumented)
+    type: "xr-session-ended";
+}
+
+// @public
+export interface XRSessionStartedEvent {
+    mode: "vr" | "ar";
+    referenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded" | "viewer";
+    requestedReferenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded";
+    // (undocumented)
+    type: "xr-session-started";
 }
 
 // @public

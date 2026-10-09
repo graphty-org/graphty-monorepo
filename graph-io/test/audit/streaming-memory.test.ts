@@ -137,6 +137,7 @@ function expectStreams(label: string, inputBytes: number, p: HeapProfile, highWa
 }
 
 describe.skipIf(!BENCH)("streaming audit: memory (IO_BENCH=1)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "CSV: 1M edges through a 64 KiB file stream keeps the retained heap flat",
         async () => {
@@ -154,6 +155,7 @@ describe.skipIf(!BENCH)("streaming audit: memory (IO_BENCH=1)", () => {
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Pajek: 1M arcs through a 64 KiB file stream keeps the retained heap flat",
         async () => {
@@ -171,6 +173,7 @@ describe.skipIf(!BENCH)("streaming audit: memory (IO_BENCH=1)", () => {
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Neo4j: 100k nodes + 1M relationships through 64 KiB file streams keep the retained heap flat",
         async () => {
@@ -197,6 +200,7 @@ describe.skipIf(!BENCH)("streaming audit: memory (IO_BENCH=1)", () => {
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "GraphML: 200k edges through a 64 KiB file stream keeps the retained heap flat",
         async () => {
@@ -214,6 +218,7 @@ describe.skipIf(!BENCH)("streaming audit: memory (IO_BENCH=1)", () => {
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "GEXF: 200k edges through a 64 KiB file stream is single-pass and bounded (PINS a defect)",
         async () => {
@@ -234,6 +239,7 @@ describe.skipIf(!BENCH)("streaming audit: memory (IO_BENCH=1)", () => {
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "CSV as one string: rows are delivered incrementally, not as one parse result (PINS a defect)",
         async () => {
@@ -264,6 +270,7 @@ describe.skipIf(!BENCH)("streaming audit: memory (IO_BENCH=1)", () => {
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "CSV with 12-character string ids: the id map, not the input, is what survives the import",
         async () => {
@@ -281,6 +288,7 @@ describe.skipIf(!BENCH)("streaming audit: memory (IO_BENCH=1)", () => {
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "CSV with 15-character string ids: the ids pin the decoded input chunks (PINS a defect)",
         async () => {
@@ -304,6 +312,7 @@ describe.skipIf(!BENCH)("streaming audit: memory (IO_BENCH=1)", () => {
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "CSV with 15-character string ids as a Uint8Array: the snapshot retains the decoded text (PINS the same defect)",
         async () => {

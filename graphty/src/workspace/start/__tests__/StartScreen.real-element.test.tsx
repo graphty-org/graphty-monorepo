@@ -67,6 +67,7 @@ afterEach(() => {
 });
 
 describe("T1 and T2: first launch and pick a sample, on the real element", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "answers the usage data card, then opens Les Miserables with nothing run",
         async () => {
@@ -106,6 +107,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
     );
 
     for (const sample of SAMPLES) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `opens ${sample.name} with the source's counts, nothing run and no style layer`,
             async () => {

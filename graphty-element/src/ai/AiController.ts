@@ -5,12 +5,13 @@
 
 import type { AiEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
-import type { TransactionScope } from "../session/types";
+import type { GraphSession, HistoryStepId, TransactionScope } from "../session/types";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, CommandResult } from "./commands/types";
 import { MAX_TOOL_TURNS } from "./prompt/SystemPromptBuilder";
 import type { LlmProvider, Message, ToolCall } from "./providers/types";
+import { toSafeError } from "./safeError";
 import type { SchemaManager } from "./schema";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
@@ -50,6 +51,55 @@ function joinTexts(texts: readonly string[]): string | undefined {
     return texts.length === 0 ? undefined : texts.join("\n");
 }
 
+/** Numbers each message, so its steps can be found in the history by their provenance. */
+let messageCount = 0;
+
+/**
+ * The newest applied step a message recorded.
+ * @param session - The session.
+ * @param message - The message's number, as its steps' `provenance.message` carries it.
+ * @returns The step, or undefined when the message has recorded none that is applied.
+ */
+function latestStepOf(session: GraphSession, message: string): HistoryStepId | undefined {
+    const { steps, position } = session.history;
+    for (let index = position - 1; index >= 0; index--) {
+        if (steps[index].provenance.message === message) {
+            return steps[index].id;
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * Whether one of a message's steps has been undone.
+ * @param session - The session.
+ * @param message - The message's number.
+ * @returns True when a step it recorded is past the history's cursor.
+ */
+function undoneStepOf(session: GraphSession, message: string): boolean {
+    const { steps, position } = session.history;
+    return steps.slice(position).some((step) => step.provenance.message === message);
+}
+
+/**
+ * Take back what a message recorded: undo its steps while one of them is what the next undo would
+ * undo. Stops at a step of anyone else's, or at pending work, which the person's own later edit
+ * is: reverting under it could clobber it, so the message's older steps stay, undoable in order.
+ * @param session - The session.
+ * @param message - The message's number.
+ */
+async function revertMessage(session: GraphSession, message: string): Promise<void> {
+    for (;;) {
+        const next = session.history.nextUndo;
+        if (next?.kind !== "undo" || next.step.provenance.message !== message) {
+            return;
+        }
+
+        await session.undo();
+    }
+}
+
 /** Event emitter callback type */
 export type AiEventEmitter = (event: AiEvent) => void;
 
@@ -74,8 +124,8 @@ export interface ExecutionResult extends CommandResult {
 }
 
 /**
- * A tool threw, so the message's transaction rolled back everything its tools did. Carries the
- * result the reader is told, which reports the failure.
+ * A tool threw, so its batch's transaction rolled back, and the message's earlier batches are
+ * taken back too. Carries the result the reader is told, which reports the failure.
  */
 class MessageRolledBack extends Error {
     constructor(readonly result: ExecutionResult) {
@@ -138,7 +188,7 @@ export class AiController {
      * @returns Promise resolving to the execution result
      */
     async execute(input: string): Promise<ExecutionResult> {
-        logger.debug("User input", { input });
+        logger.debug("User input", { inputLength: input.length });
 
         if (this.disposed) {
             return {
@@ -154,7 +204,8 @@ export class AiController {
         this.lastError = null;
 
         // Create new abort controller for this execution
-        this.abortController = new AbortController();
+        const abortController = new AbortController();
+        this.abortController = abortController;
 
         // Emit command start event
         this.emitAiEvent({
@@ -166,18 +217,28 @@ export class AiController {
         // Transition to submitted state
         this.statusManager.submit();
 
+        // One message is one undoable step, made of short transactions: each batch of tool calls
+        // the model returns runs in its own, which commits before the model is asked again, so
+        // nothing is held while the model thinks and the person's own edits go through. Every
+        // batch after the first continues the message's step (`after`), merging into it while it
+        // is the newest step. An undo of one of its steps while the message is going ends it.
+        const message = String(++messageCount);
+        let stopWatching: (() => void) | undefined;
         try {
-            // One message is one undoable step: everything its tools do through `ctx.tx` joins
-            // the transaction, a tool that throws rolls all of it back, and an undo while the
-            // message is still going aborts it, which stops the model and every tool.
+            const session = this.graph.getSession();
+            stopWatching = session.on("history:changed", () => {
+                if (!abortController.signal.aborted && undoneStepOf(session, message)) {
+                    abortController.abort(new DOMException("The message was undone.", "AbortError"));
+                }
+            });
+
             let result: ExecutionResult;
             try {
-                result = await this.graph
-                    .getSession()
-                    .transaction(input, (tx, signal) => this.converse(input, tx, signal), {
-                        provenance: { via: "assistant" },
-                    });
+                result = await this.converse(input, session, message, abortController.signal);
             } catch (error) {
+                // A tool threw, the message was cancelled or undone, or the model failed: what the
+                // message's earlier batches recorded is taken back, as one transaction's rollback was.
+                await revertMessage(session, message);
                 if (!(error instanceof MessageRolledBack)) {
                     throw error;
                 }
@@ -197,8 +258,10 @@ export class AiController {
 
             return result;
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            const errorObj = error instanceof Error ? error : new Error(errorMessage);
+            // Any provider's error, a consumer's own included, may carry the prompt and the
+            // response; only its name, message and stack go on.
+            const errorObj = toSafeError(error);
+            const errorMessage = errorObj.message;
 
             this.lastError = errorObj;
 
@@ -217,6 +280,7 @@ export class AiController {
                 message: `Error: ${errorMessage}`,
             };
         } finally {
+            stopWatching?.();
             this.abortController = null;
             this.currentInput = null;
         }
@@ -251,33 +315,30 @@ export class AiController {
      * @returns Array of messages
      */
     private buildMessages(input: string): Message[] {
-        const messages: Message[] = [];
+        // Build a system prompt with available commands
+        const commands = this.commandRegistry.getAll();
+        const commandDescriptions = commands.map((cmd) => `- ${cmd.name}: ${cmd.description}`).join("\n");
 
-        // Only include system prompt if provider supports it with tools
-        // Some providers (like WebLLM with Hermes models) don't support custom system prompts with tool calling
-        const supportsSystemPrompt = this.provider.supportsSystemPromptWithTools !== false;
+        // Build schema section if available
+        const schemaSection = this.buildSchemaSection();
 
-        if (supportsSystemPrompt) {
-            // Build a system prompt with available commands
-            const commands = this.commandRegistry.getAll();
-            const commandDescriptions = commands.map((cmd) => `- ${cmd.name}: ${cmd.description}`).join("\n");
-
-            // Build schema section if available
-            const schemaSection = this.buildSchemaSection();
-
-            const systemPrompt = `You are an AI assistant that helps users interact with a graph visualization.
+        const systemPrompt = `You are an AI assistant that helps users interact with a graph visualization.
 
 Available commands:
 ${commandDescriptions}
 ${schemaSection}
 When the user asks you to perform an action, use the appropriate tool. If no tool is needed, respond conversationally.`;
 
-            messages.push({ role: "system", content: systemPrompt });
+        // Some providers (WebLLM's Hermes models) refuse a custom system prompt alongside tools:
+        // the instructions then lead the user's turn instead, so the model still gets them.
+        if (this.provider.supportsSystemPromptWithTools === false) {
+            return [{ role: "user", content: `${systemPrompt}\n\n${input}` }];
         }
 
-        messages.push({ role: "user", content: input });
-
-        return messages;
+        return [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: input },
+        ];
     }
 
     /**
@@ -299,31 +360,30 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     }
 
     /**
-     * One message, inside its transaction: ask the model, then run the tools it calls.
+     * One message: ask the model, then run the tools it calls, each batch in a short transaction.
      * @param input - The user's natural language input
-     * @param tx - The message's transaction, which the tools write through
-     * @param signal - Fires when the message is cancelled or its transaction aborted
+     * @param session - The session the batches' transactions open on
+     * @param message - The message's number, stamped on its steps' provenance
+     * @param aborted - Fires when the message is cancelled or undone
      * @returns The execution result
      */
-    private async converse(input: string, tx: TransactionScope, signal: AbortSignal): Promise<ExecutionResult> {
-        // The transaction's abort (an undo during the message) stops the model and every tool.
-        const { abortController } = this;
-        signal.addEventListener(
-            "abort",
-            () => {
-                abortController?.abort(signal.reason);
-            },
-            { once: true },
-        );
-        const aborted = abortController?.signal ?? signal;
-
+    private async converse(
+        input: string,
+        session: GraphSession,
+        message: string,
+        aborted: AbortSignal,
+    ): Promise<ExecutionResult> {
         // Build messages for LLM
         const messages: Message[] = this.buildMessages(input);
 
         // Get tool definitions from registry
         const tools = this.commandRegistry.toToolDefinitions();
 
-        logger.debug("Request", { messages, tools: tools.map((t) => t.name) });
+        logger.debug("Request", {
+            messageCount: messages.length,
+            promptLength: messages.reduce((sum, m) => sum + m.content.length, 0),
+            tools: tools.map((t) => t.name),
+        });
 
         // Transition to streaming state
         this.statusManager.startStreaming();
@@ -348,8 +408,8 @@ When the user asks you to perform an action, use the appropriate tool. If no too
 
             logger.debug("Response", {
                 turn,
-                text: response.text || "(no text)",
-                toolCalls: response.toolCalls.map((tc) => ({ name: tc.name, arguments: tc.arguments })),
+                textLength: response.text.length,
+                toolCalls: response.toolCalls.map((tc) => this.knownToolName(tc.name)),
             });
 
             // Append any text response and emit stream chunk event
@@ -371,12 +431,29 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             // Transition to executing state
             this.statusManager.startExecuting();
 
-            const step = await this.executeToolCalls(response.toolCalls, tx, aborted);
-            results.push(...step.results);
+            const { toolCalls } = response;
+            const step = await session.transaction(
+                input,
+                async (tx, signal) => {
+                    // The batch's abort (an undo while it runs) stops the model and every tool.
+                    signal.addEventListener(
+                        "abort",
+                        () => {
+                            this.abortController?.abort(signal.reason);
+                        },
+                        { once: true },
+                    );
+                    const ran = await this.executeToolCalls(toolCalls, tx, aborted);
+                    results.push(...ran.results);
+                    if (ran.threw) {
+                        // Thrown inside the batch, so its own transaction rolls back.
+                        throw new MessageRolledBack(this.combineResults(results, joinTexts(texts)));
+                    }
 
-            if (step.threw) {
-                throw new MessageRolledBack(this.combineResults(results, joinTexts(texts)));
-            }
+                    return ran;
+                },
+                { provenance: { via: "assistant", message }, after: latestStepOf(session, message) },
+            );
 
             if (turn === MAX_TOOL_TURNS) {
                 logger.debug("Out of tool turns: asking for a text answer only", { turns: turn });
@@ -398,7 +475,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     /**
      * Execute one turn's tool calls, in order, stopping at the first that fails.
      * @param toolCalls - Tool calls to execute
-     * @param tx - The message's transaction
+     * @param tx - The batch's transaction
      * @param signal - Fires when the message is cancelled
      * @returns The result of each tool that ran, and whether one threw, which rolls the message back.
      */
@@ -475,18 +552,28 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     }
 
     /**
+     * A tool name safe to log: a registered command's name, never a name the model made up,
+     * which is model output and may carry anything.
+     * @param name - The name the model called.
+     * @returns The name when a command is registered under it, otherwise "(unknown)".
+     */
+    private knownToolName(name: string): string {
+        return this.commandRegistry.get(name) ? name : "(unknown)";
+    }
+
+    /**
      * Execute a single tool call.
      * @param toolCall - The tool call to execute
-     * @param tx - The message's transaction, handed to the command as `ctx.tx`
+     * @param tx - The batch's transaction, handed to the command as `ctx.tx`
      * @returns Command result
      */
     private async executeToolCall(toolCall: ToolCall, tx: TransactionScope): Promise<CommandResult> {
-        logger.debug("Executing command", { name: toolCall.name, arguments: toolCall.arguments });
+        logger.debug("Executing command", { name: this.knownToolName(toolCall.name) });
 
         const command = this.commandRegistry.get(toolCall.name);
 
         if (!command) {
-            logger.debug("Command result: FAILED - Unknown command", { name: toolCall.name });
+            logger.debug("Command result: FAILED - Unknown command", { nameLength: toolCall.name.length });
             return {
                 success: false,
                 message: `Unknown command: ${toolCall.name}. Command not found in registry.`,
@@ -499,10 +586,16 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         let validatedArguments: Record<string, unknown>;
         try {
             validatedArguments = command.parameters.parse(toolCall.arguments);
-            logger.debug("Validated arguments", { arguments: validatedArguments });
+            logger.debug("Validated arguments", {
+                name: command.name,
+                argumentCount: Object.keys(validatedArguments).length,
+            });
         } catch (validationError) {
             const errorMessage = validationError instanceof Error ? validationError.message : String(validationError);
-            logger.debug("Command result: FAILED - Invalid arguments", { error: errorMessage });
+            logger.debug("Command result: FAILED - Invalid arguments", {
+                name: command.name,
+                errorType: validationError instanceof Error ? validationError.name : typeof validationError,
+            });
             return {
                 success: false,
                 message: `Invalid arguments for ${toolCall.name}: ${errorMessage}`,
@@ -514,10 +607,10 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             graph: this.graph,
             tx,
             abortSignal: this.abortController?.signal ?? new AbortController().signal,
-            emitEvent: (type: string, data: unknown) => {
+            emitEvent: (type: string, _data: unknown) => {
                 // Bridge from string-based events to AiEvent
                 // Commands can emit events using simple type/data format
-                logger.debug("Command emitted event", { type, data });
+                logger.debug("Command emitted event", { name: command.name, type });
             },
             updateStatus: (updates) => {
                 if (updates.stageMessage) {
@@ -530,9 +623,10 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         const result = await command.execute(this.graph, validatedArguments, context);
 
         logger.debug("Command result", {
+            name: command.name,
             success: result.success,
-            message: result.message,
-            data: result.data,
+            messageLength: result.message.length,
+            hasData: result.data !== undefined,
         });
 
         return result;

@@ -72,6 +72,7 @@ test("camera animation can be interrupted", async () => {
         });
 
     // Wait a bit longer to ensure first animation actually starts and moves camera
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     // Start second animation (should interrupt first)
@@ -115,6 +116,7 @@ test("an interrupted animation stops moving the camera", async () => {
         .catch(() => {
             /* Expected to be cancelled */
         });
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 300));
     await graph.setCameraState(
         { position: { x: 50, y: 50, z: 50 }, target: { x: 0, y: 0, z: 0 } },
@@ -122,6 +124,7 @@ test("an interrupted animation stops moving the camera", async () => {
     );
 
     // Past the end of the cancelled run: nothing it started may still be writing the camera.
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     await new Promise((resolve) => setTimeout(resolve, 1200));
 
     const { position } = graph.getCameraState();

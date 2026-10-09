@@ -346,6 +346,25 @@ describe("the arrangement under undo and redo", () => {
         session.dispose();
     });
 
+    it("answers either spelling of an integer id from the visible, scope and pinned node sets", async () => {
+        const session = await fixtureSession();
+        await session.data.addNodes([{ id: 34 }, { id: "35" }]);
+        await session.positions.pin([34, "35"]);
+
+        const { nodes: scoped } = await session.scope.resolve("graph");
+        const sets = { visible: session.visibility.nodes, scope: scoped, pinned: session.positions.pinned };
+        for (const [name, set] of Object.entries(sets)) {
+            assert.isTrue(set.has(34), `${name}: the numeric node under its own id`);
+            assert.isTrue(set.has("34"), `${name}: the numeric node under its string spelling`);
+            assert.isTrue(set.has("35"), `${name}: the string node under its own id`);
+            assert.isTrue(set.has(35), `${name}: the string node under its numeric spelling`);
+            assert.includeMembers([...set], [34, "35"], `${name}: yields only the ids the graph holds`);
+            assert.notInclude([...set], "34", `${name}: never yields the other spelling`);
+        }
+
+        session.dispose();
+    });
+
     it("answers a string id exactly when it does not spell an integer", async () => {
         const session = await fixtureSession();
         await session.data.addNodes([{ id: "x" }, { id: "3.5" }, { id: "12" }]);

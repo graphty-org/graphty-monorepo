@@ -94,7 +94,7 @@ async function bench(label, code, n, iters = 10) {
     });
     const ub = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     device.queue.writeBuffer(ub, 0, new Uint32Array([n, 0, 0, 0]));
-    device.queue.writeBuffer(ub, 4, new Float32Array([2.0]));
+    device.queue.writeBuffer(ub, 4, new Float32Array([2]));
     const bg = device.createBindGroup({
         layout: pipe.getBindGroupLayout(0),
         entries: [

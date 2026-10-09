@@ -285,6 +285,20 @@ describe("AiController", () => {
             assert.strictEqual(result.llmText, "Zoomed to the servers.");
         });
 
+        it("puts the instructions in the user's turn for a provider that refuses a system prompt with tools", async () => {
+            registerEcho("look");
+            const provider = { ...scriptedProvider([]), supportsSystemPromptWithTools: false };
+            const noSystem = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+
+            await noSystem.execute("find servers");
+
+            const [first] = provider.asks;
+            assert.strictEqual(first.length, 1);
+            assert.strictEqual(first[0].role, "user");
+            assert.include(first[0].content, "- look: look");
+            assert.isTrue(first[0].content.endsWith("find servers"));
+        });
+
         it("hands a failed tool's result back, so the model can correct it", async () => {
             registerEcho("broken", false);
             const fixed = registerEcho("fixed");

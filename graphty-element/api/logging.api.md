@@ -140,6 +140,9 @@ export function parseLoggingURLParams(): ParsedLoggingParams | null;
 export function parseLogLevel(level: string): LogLevel | undefined;
 
 // @public
+export function redactSecrets(text: string, secrets?: readonly (string | undefined)[]): string;
+
+// @public
 export interface RemoteSinkOptions {
     batchIntervalMs?: number;
     maxRetries?: number;

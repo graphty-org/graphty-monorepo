@@ -46,6 +46,7 @@ export {
     type LoggerConfig,
     resetLoggingConfig,
 } from "./LoggerConfig.js";
+export { redactSecrets } from "./redactSecrets.js";
 export { type ConsoleSinkOptions, createConsoleSink } from "./sinks/ConsoleSink.js";
 export { createRemoteSink, type RemoteSinkOptions } from "./sinks/RemoteSink.js";
 export { clearLoggingConfig, loadLoggingConfig, saveLoggingConfig } from "./storage.js";

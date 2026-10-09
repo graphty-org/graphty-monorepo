@@ -1,6 +1,7 @@
 // Tests of tools/test-slots.mjs, the machine-wide limit on concurrent test runs: a slot is taken and
 // given back, waiters start in arrival order, a dead holder's slot is reclaimed, a nested run takes
-// no second slot, and every package's vitest config takes a slot.
+// no second slot, the GPU browser runner queues before its time limit starts, and every package's
+// vitest config takes a slot.
 //
 //   node --test tools/test-slots.test.mjs
 import assert from "node:assert/strict";
@@ -9,12 +10,13 @@ import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { acquire, HELD, liveTickets, slotCount } from "./test-slots.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = join(ROOT, "tools/test-slots.mjs");
+const BROWSER_RUNNER = join(ROOT, "webgpu-graph-algorithms/scripts/run-browser-project.js");
 
 // Long-lived processes to stand in for the runs that hold slots.
 const children = [];
@@ -119,6 +121,50 @@ describe("test-slots", () => {
         assert.equal(r.status, 3);
         assert.match(r.stdout, /^\d+\n$/);
         assert.deepEqual(readdirSync(dir), [], "the slot was given back");
+    });
+
+    it("takes the slot before the GPU browser runner's time limit starts, so the wait never counts against it", async () => {
+        const dir = fresh();
+        const holder = sleeper();
+        const releaseHolder = await acquire({ ...quiet, dir, slots: 1, pid: holder.pid, label: "holder" });
+        // The timed command takes a slot the way vitest does: if the runner did not hold one, it would queue
+        // behind the holder inside the 1 s limit and be killed.
+        const command = [process.execPath, SCRIPT, process.execPath, "-e", "console.log('timed command ran')"];
+        const runner = spawn(
+            process.execPath,
+            [
+                "--input-type=module",
+                "-e",
+                `const { main } = await import(${JSON.stringify(pathToFileURL(BROWSER_RUNNER).href)});
+                 process.exit(await main([], { command: ${JSON.stringify(command)}, limitSeconds: 1 }));`,
+            ],
+            {
+                env: {
+                    ...process.env,
+                    GRAPHTY_TEST_SLOTS_DIR: dir,
+                    GRAPHTY_TEST_SLOTS: "1",
+                    GITHUB_ACTIONS: "",
+                    [HELD]: "",
+                },
+                stdio: ["ignore", "pipe", "pipe"],
+            },
+        );
+        let output = "";
+        runner.stdout.on("data", (d) => (output += d));
+        runner.stderr.on("data", (d) => (output += d));
+        const exited = new Promise((r) => runner.once("exit", r));
+        // Someone has queued behind the holder: the runner itself, or (were it not holding the slot) its command.
+        while (liveTickets(dir).length < 2) {
+            await tick(20);
+        }
+        // Queued for longer than the limit.
+        await tick(1500);
+        assert.doesNotMatch(output, /timed command ran|limit hit/, "nothing started while the slot was held");
+        releaseHolder();
+        assert.equal(await exited, 0, output);
+        assert.match(output, /timed command ran/);
+        assert.doesNotMatch(output, /limit hit/);
+        assert.deepEqual(readdirSync(dir), [], "the runner gave its slot back");
     });
 
     it("is listed as a globalSetup by every package's vitest config", () => {

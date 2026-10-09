@@ -98,6 +98,7 @@ describe("zoom-to-fit framing", () => {
     async function draw(frames = 5): Promise<void> {
         for (let at = 0; at < frames; at++) {
             graph.scene.render();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise<void>((done) => {
                 setTimeout(done, 10);
             });
@@ -262,6 +263,7 @@ describe("zoom-to-fit framing", () => {
             assert.closeTo(box.max.y, 3 + half, 1e-4);
         });
 
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             "takes in every node label wherever it is anchored, and reaches past the nodes on that side",
             async () => {
@@ -331,6 +333,7 @@ describe("zoom-to-fit framing", () => {
         const mode = viewMode ?? "3d";
 
         describe(`every label stays on screen in ${mode}`, () => {
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 "after zoom-to-fit on a small graph, at every anchor",
                 async () => {

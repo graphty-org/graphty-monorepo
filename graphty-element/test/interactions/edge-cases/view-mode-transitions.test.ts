@@ -80,6 +80,7 @@ describe("View Mode Transitions", () => {
         const modes: ("2d" | "3d")[] = ["2d", "3d", "2d", "3d", "2d", "3d"];
         for (const mode of modes) {
             await graph.setViewMode(mode);
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 20));
         }
 
@@ -115,23 +116,6 @@ describe("View Mode Transitions", () => {
         await graph.waitForStableFrame();
         return node1;
     }
-
-    test("a node moved off the plane in 3D is drawn at its Z", async () => {
-        assert.equal(graph.getViewMode(), "3d", "Should start in 3D mode");
-
-        const node1 = await liftNode1();
-
-        assert.closeTo(node1.mesh.position.z, 5, 0.01, "Node Z should be 5 before transition");
-    });
-
-    test("3D -> 2D flattens Z coordinates", async () => {
-        const node1 = await liftNode1();
-
-        await graph.setViewMode("2d");
-        await graph.waitForStableFrame();
-
-        assert.closeTo(node1.mesh.position.z, 0, 0.01, "Node Z should be flattened to 0 in 2D mode");
-    });
 
     test("3D -> 2D -> 3D keeps the node on the plane, and undoing the 2D switch gives its Z back", async () => {
         // The Z a 2D switch flattens is kept in history only, as it is for a pinned node: a switch

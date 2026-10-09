@@ -138,6 +138,7 @@ async function drag(graph: Graph): Promise<void> {
     handler.onDragUpdate(start.add(DRAG));
     handler.onDragEnd();
     for (let wait = 0; wait < 500 && session.history.steps.length === steps; wait++) {
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 10));
     }
 
@@ -235,6 +236,7 @@ const CASES: readonly PictureCase[] = [
 
 describe("undo restores the picture", () => {
     for (const each of CASES) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `${each.name}, then undo, draws the picture from before`,
             async () => {

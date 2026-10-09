@@ -454,7 +454,7 @@ export interface ComponentStatistics {
     readonly truncatedSizes: boolean;
     /**
      * Which component a node belongs to.
-     * @param id - the node id
+     * @param id - the node id; an integer id may be written either way, `34` or `"34"`
      * @returns the component number, or undefined when the graph has no such node
      */
     componentOf(id: NodeId): number | undefined;
@@ -733,8 +733,10 @@ export interface SessionDataApi {
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
     /**
      * One node, by id.
-     * @param id - the node id, compared without coercion: 1 and "1" are two different nodes
-     * @returns the record, or undefined when the graph has no such node
+     * @param id - the node id. An integer id may be written either way: `"34"` finds node `34` and
+     *     `34` finds node `"34"`; a graph that holds both answers each by its own id
+     * @returns the record, carrying the id as the graph holds it, or undefined when the graph has
+     *     no such node
      */
     node(id: NodeId): NodeRecord | undefined;
     /**
@@ -746,14 +748,15 @@ export interface SessionDataApi {
      * ```ts
      * const title = session.data.name(nodeId) ?? String(nodeId); // "Javert"
      * ```
-     * @param id - the node id, compared without coercion
+     * @param id - the node id; an integer id may be written either way, as {@link node} takes it
      * @returns the name, or undefined when the graph has no such node
      */
     name(id: NodeId): string | undefined;
     /**
      * One edge, by the element-assigned edge id.
-     * @param id - the edge id
-     * @returns the record, or undefined when the graph has no such edge
+     * @param id - the edge id; the number it spells finds it too, `17` for `"17"`
+     * @returns the record, carrying the id as the graph holds it, or undefined when the graph has
+     *     no such edge
      */
     edge(id: EdgeId): EdgeRecord | undefined;
     /**
@@ -814,7 +817,7 @@ export interface SessionDataApi {
      * other than `id` itself: a self-loop never makes a node its own neighbor, and A->B with
      * B->A under `"all"` is one neighbor with `edgeCount` 2. `total` counts neighbors, not edges.
      * One walk of the node's adjacency, the order cached per revision.
-     * @param id - the node
+     * @param id - the node; an integer id may be written either way, as {@link node} takes it
      * @param options - the direction, the weight, the scope, the order and the window
      * @returns the page, with what it measured and the revision it was read at
      * @throws A `GraphtyError` with `E_UNKNOWN_ELEMENT` (`details: { kind: "node", id }`) for an

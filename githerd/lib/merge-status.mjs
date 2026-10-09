@@ -371,8 +371,16 @@ export function queueChecks(text) {
     for (const line of (text ?? "").split("\n")) {
         const key = /^\s*([a-z_]+):/.exec(line);
         if (key) section = key[1];
-        const cond = /^\s*-\s*["']?(?:check-success|-check-failure)=(.+?)["']?\s*(?:#.*)?$/.exec(line);
-        if (cond && section !== "merge_conditions" && cond[1] !== CONTEXT) names.add(cond[1]);
+        const item = line.trim();
+        if (!item.startsWith("- ") || section === "merge_conditions") continue;
+        const cond = item
+            .slice(2)
+            .split(" #")[0]
+            .trim()
+            .replaceAll(/^["']|["']$/g, "");
+        const prefix = ["check-success=", "-check-failure="].find((p) => cond.startsWith(p));
+        const name = prefix && cond.slice(prefix.length);
+        if (name && name !== CONTEXT) names.add(name);
     }
     return [...names];
 }

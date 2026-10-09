@@ -99,121 +99,101 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await page.viewport(1366, 768);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T7: Analyze > PageRank runs, lands painted, and Analyze then offers to update its row",
-        async () => {
-            const session = await openKarate();
+    it("T7: Analyze > PageRank runs, lands painted, and Analyze then offers to update its row", async () => {
+        const session = await openKarate();
 
-            await analyze("PageRank", "PageRank");
-            // Running closes the popover; a screen reader hears the run start.
-            await waitFor(() => {
-                assert.isNull(screen.queryByRole("searchbox", { name: "Filter analyses" }));
-            });
-            assert.isNotNull(screen.getByText("PageRank added, running"));
-            // Focus goes back to Analyze, not to the page.
-            await waitFor(() => {
-                assert.equal(document.activeElement, analyzeTool());
-            });
+        await analyze("PageRank", "PageRank");
+        // Running closes the popover; a screen reader hears the run start.
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("searchbox", { name: "Filter analyses" }));
+        });
+        assert.isNotNull(screen.getByText("PageRank added, running"));
+        // Focus goes back to Analyze, not to the page.
+        await waitFor(() => {
+            assert.equal(document.activeElement, analyzeTool());
+        });
 
-            const runId = await finished(session, "pagerank");
-            // The run's suggested style landed as a layer bound to the run: it paints.
-            await waitFor(() => {
-                assert.isAbove(session.runs.bindings(runId).length, 0);
-            });
+        const runId = await finished(session, "pagerank");
+        // The run's suggested style landed as a layer bound to the run: it paints.
+        await waitFor(() => {
+            assert.isAbove(session.runs.bindings(runId).length, 0);
+        });
 
-            // Picking it again revises the same row, so the button says so.
-            await userEvent.click(analyzeTool());
-            const recent = await screen.findByRole("region", { name: "Recent" });
-            await userEvent.click(within(recent).getByRole("button", { name: /^PageRank/ }));
-            assert.isNotNull(await screen.findByRole("button", { name: "Update PageRank row" }));
-            await userEvent.keyboard("{Escape}");
-            assert.isNotNull(await screen.findByRole("searchbox", { name: "Filter analyses" }));
-            await userEvent.keyboard("{Escape}");
-            await waitFor(() => {
-                assert.isNull(screen.queryByRole("searchbox", { name: "Filter analyses" }));
-            });
-        },
-        TIMEOUT_MS,
-    );
+        // Picking it again revises the same row, so the button says so.
+        await userEvent.click(analyzeTool());
+        const recent = await screen.findByRole("region", { name: "Recent" });
+        await userEvent.click(within(recent).getByRole("button", { name: /^PageRank/ }));
+        assert.isNotNull(await screen.findByRole("button", { name: "Update PageRank row" }));
+        await userEvent.keyboard("{Escape}");
+        assert.isNotNull(await screen.findByRole("searchbox", { name: "Filter analyses" }));
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("searchbox", { name: "Filter analyses" }));
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T8: after Betweenness, Analyze > Find groups > Louvain runs and paints",
-        async () => {
-            const session = await openKarate();
+    it("T8: after Betweenness, Analyze > Find groups > Louvain runs and paints", async () => {
+        const session = await openKarate();
 
-            // "brokers" finds Betweenness, the design's filter example.
-            await analyze("brokers", "Betweenness");
-            await finished(session, "betweenness");
-            await analyze("communities", "Louvain");
-            const louvain = await finished(session, "louvain");
-            await waitFor(() => {
-                assert.isAbove(session.runs.bindings(louvain).length, 0);
-            });
-        },
-        TIMEOUT_MS,
-    );
+        // "brokers" finds Betweenness, the design's filter example.
+        await analyze("brokers", "Betweenness");
+        await finished(session, "betweenness");
+        await analyze("communities", "Louvain");
+        const louvain = await finished(session, "louvain");
+        await waitFor(() => {
+            assert.isAbove(session.runs.bindings(louvain).length, 0);
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T11: the Layout popover shows the recommended layout and choosing another lays out again, one undo step",
-        async () => {
-            const session = await openKarate();
-            const before = session.layout.id;
+    it("T11: the Layout popover shows the recommended layout and choosing another lays out again, one undo step", async () => {
+        const session = await openKarate();
+        const before = session.layout.id;
 
-            await userEvent.click(screen.getByRole("button", { name: "Layout" }));
-            // The graph's inspector shows the same group; this one is the popover's.
-            const popover = await screen.findByRole("dialog", { name: "Layout" });
-            const method = within(popover).getByRole("combobox", { name: "Method" });
-            // The sample opened on the layout the element recommends, and the group says so.
-            assert.match((method as HTMLInputElement).value, / - Recommended$/);
+        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        // The graph's inspector shows the same group; this one is the popover's.
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        const method = within(popover).getByRole("combobox", { name: "Method" });
+        // The sample opened on the layout the element recommends, and the group says so.
+        assert.match((method as HTMLInputElement).value, / - Recommended$/);
 
-            await userEvent.click(method);
-            await userEvent.click(await within(popover).findByRole("option", { name: /^Circle/ }));
-            await waitFor(() => {
-                assert.equal(session.layout.id, "circular");
-            });
-
-            // Re-run layout, from Quick actions, lays the same method out again.
-            await userEvent.keyboard("{Escape}");
-            const { generation } = session.positions;
-            await userEvent.keyboard("{Control>}k{/Control}");
-            await userEvent.click(await screen.findByRole("option", { name: /Re-run layout/ }));
-            await waitFor(() => {
-                assert.notEqual(session.positions.generation, generation);
-            });
+        await userEvent.click(method);
+        await userEvent.click(await within(popover).findByRole("option", { name: /^Circle/ }));
+        await waitFor(() => {
             assert.equal(session.layout.id, "circular");
+        });
 
-            // Undo takes back the re-run, then the change of method.
-            await session.undo();
-            await session.undo();
-            assert.equal(session.layout.id, before);
-        },
-        TIMEOUT_MS,
-    );
+        // Re-run layout, from Quick actions, lays the same method out again.
+        await userEvent.keyboard("{Escape}");
+        const { generation } = session.positions;
+        await userEvent.keyboard("{Control>}k{/Control}");
+        await userEvent.click(await screen.findByRole("option", { name: /Re-run layout/ }));
+        await waitFor(() => {
+            assert.notEqual(session.positions.generation, generation);
+        });
+        assert.equal(session.layout.id, "circular");
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "switches to 2D with 5, and selects a node's neighbors from the selection bar",
-        async () => {
-            const session = await openKarate();
+        // Undo takes back the re-run, then the change of method.
+        await session.undo();
+        await session.undo();
+        assert.equal(session.layout.id, before);
+    });
 
-            // The graph's inspector holds the Layout group, whose closed Select stays mounted; a
-            // single-key shortcut must still fire beside it.
-            await userEvent.keyboard("5");
-            await waitFor(() => {
-                assert.equal(session.layout.dimension, "2d");
-            });
+    it("switches to 2D with 5, and selects a node's neighbors from the selection bar", async () => {
+        const session = await openKarate();
 
-            const node = session.data.nodes()[0].id;
-            await session.selection.apply({ nodes: [node] });
-            const bar = await screen.findByRole("toolbar", { name: "Selection" });
-            await userEvent.click(within(bar).getByRole("button", { name: "Neighborhood" }));
-            await waitFor(() => {
-                assert.isAbove(session.selection.nodes.length, 1);
-            });
-        },
-        TIMEOUT_MS,
-    );
+        // The graph's inspector holds the Layout group, whose closed Select stays mounted; a
+        // single-key shortcut must still fire beside it.
+        await userEvent.keyboard("5");
+        await waitFor(() => {
+            assert.equal(session.layout.dimension, "2d");
+        });
+
+        const node = session.data.nodes()[0].id;
+        await session.selection.apply({ nodes: [node] });
+        const bar = await screen.findByRole("toolbar", { name: "Selection" });
+        await userEvent.click(within(bar).getByRole("button", { name: "Neighborhood" }));
+        await waitFor(() => {
+            assert.isAbove(session.selection.nodes.length, 1);
+        });
+    });
 });

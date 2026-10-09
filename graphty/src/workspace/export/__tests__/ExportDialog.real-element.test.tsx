@@ -59,58 +59,53 @@ afterEach(() => {
 });
 
 describe("Export: save a picture and the numbers (task T13)", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "saves the drawing as a PNG and the node table with the run's result columns",
-        async () => {
-            const saved = catchDownloads();
-            // A new, empty project; the graph goes in through the element's session.
-            render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
-            let session: GraphSession | undefined;
-            await waitFor(
-                () => {
-                    session = document.querySelector("graphty-element")?.session;
-                    assert.isDefined(session);
-                },
-                { timeout: TIMEOUT_MS },
-            );
-            if (session === undefined) {
-                throw new Error("the element never came up");
-            }
-            await session.data.addNodes(NODES);
-            await session.data.addEdges(EDGES);
-            await session.runs.start("degree");
-            const [root] = session.results.roots;
-            assert.isDefined(root, "Degree published a result");
+    it("saves the drawing as a PNG and the node table with the run's result columns", async () => {
+        const saved = catchDownloads();
+        // A new, empty project; the graph goes in through the element's session.
+        render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
+        let session: GraphSession | undefined;
+        await waitFor(
+            () => {
+                session = document.querySelector("graphty-element")?.session;
+                assert.isDefined(session);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        await session.data.addNodes(NODES);
+        await session.data.addEdges(EDGES);
+        await session.runs.start("degree");
+        const [root] = session.results.roots;
+        assert.isDefined(root, "Degree published a result");
 
-            // Export... (Mod+E) opens the dialog on Image; Export saves the picture.
-            await userEvent.keyboard("{Control>}e{/Control}");
-            const dialog = await screen.findByRole("dialog", { name: "Export" });
-            await within(dialog).findByRole("img", {}, { timeout: TIMEOUT_MS });
-            await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-            await screen.findByText("Exported untitled_current-view.png", {}, { timeout: TIMEOUT_MS });
-            const picture = saved.find(({ name }) => name === "untitled_current-view.png");
-            assert.isDefined(picture, "the picture was saved");
-            assert.equal(picture?.blob.type, "image/png");
-            assert.isAbove(picture?.blob.size ?? 0, 0);
+        // Export... (Mod+E) opens the dialog on Image; Export saves the picture.
+        await userEvent.keyboard("{Control>}e{/Control}");
+        const dialog = await screen.findByRole("dialog", { name: "Export" });
+        await within(dialog).findByRole("img", {}, { timeout: TIMEOUT_MS });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await screen.findByText("Exported untitled_current-view.png", {}, { timeout: TIMEOUT_MS });
+        const picture = saved.find(({ name }) => name === "untitled_current-view.png");
+        assert.isDefined(picture, "the picture was saved");
+        assert.equal(picture?.blob.type, "image/png");
+        assert.isAbove(picture?.blob.size ?? 0, 0);
 
-            // Data: the node table, one row per node, every result headed by its result path.
-            await userEvent.keyboard("{Control>}e{/Control}");
-            const again = await screen.findByRole("dialog", { name: "Export" });
-            await userEvent.click(within(again).getByText("Data"));
-            assert.isNotNull(within(again).getByText(/^One row per node, with every computed value/));
-            const header = session.results.path(root.runId, "value");
-            await waitFor(() => {
-                assert.include(within(again).getByLabelText("Preview of the exported data").textContent, header);
-            });
-            await userEvent.click(within(again).getByRole("button", { name: "Export" }));
-            await screen.findByText("Exported untitled_nodes.csv");
-            const table = saved.find(({ name }) => name === "untitled_nodes.csv");
-            assert.isDefined(table, "the table was saved");
-            const lines = (await table?.blob.text())?.trim().split(/\r?\n/) ?? [];
-            assert.include(lines[0], header, "the result column is headed by its result path");
-            assert.lengthOf(lines, NODES.length + 1, "one row per node, under one header");
-        },
-        TIMEOUT_MS * 2,
-    );
+        // Data: the node table, one row per node, every result headed by its result path.
+        await userEvent.keyboard("{Control>}e{/Control}");
+        const again = await screen.findByRole("dialog", { name: "Export" });
+        await userEvent.click(within(again).getByText("Data"));
+        assert.isNotNull(within(again).getByText(/^One row per node, with every computed value/));
+        const header = session.results.path(root.runId, "value");
+        await waitFor(() => {
+            assert.include(within(again).getByLabelText("Preview of the exported data").textContent, header);
+        });
+        await userEvent.click(within(again).getByRole("button", { name: "Export" }));
+        await screen.findByText("Exported untitled_nodes.csv");
+        const table = saved.find(({ name }) => name === "untitled_nodes.csv");
+        assert.isDefined(table, "the table was saved");
+        const lines = (await table?.blob.text())?.trim().split(/\r?\n/) ?? [];
+        assert.include(lines[0], header, "the result column is headed by its result path");
+        assert.lengthOf(lines, NODES.length + 1, "one row per node, under one header");
+    });
 });

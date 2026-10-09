@@ -51,7 +51,6 @@ import {
 import { type FrOracleTraceRecord, FruchtermanReingoldOracle } from "../oracle/fruchterman-reingold.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 /** The four kernels P5 adds branches to, each with its two branch prefixes (FR, then the spring preset's). */
 const BRANCHES: readonly { readonly id: KernelId; readonly fr: number; readonly spring: number }[] = [
@@ -260,49 +259,39 @@ describe("sabotage coverage of the P5 table (spec 11.9 item 1, 13 rule f; PD-8)"
 });
 
 describe("sabotage: the Fruchterman-Reingold branches against the P5 FR checks (spec 11.9 item 1)", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "the pristine kernels pass every check (the baseline the mutants are measured against)",
-        async (t) => {
-            requireGpu(t);
-            const ctx = await acquire({ label: "sabotage/fr/baseline" });
-            try {
-                for (const b of BRANCHES) {
-                    const report = await stageCheck(ctx, b.id);
-                    console.warn(
-                        `[sabotage] fr baseline ${b.id}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
-                    );
-                    assertCheckPasses(report);
-                }
-                const pinned = await pinnedCheck(ctx);
-                const trace = await traceCheck(ctx);
+    it("the pristine kernels pass every check (the baseline the mutants are measured against)", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "sabotage/fr/baseline" });
+        try {
+            for (const b of BRANCHES) {
+                const report = await stageCheck(ctx, b.id);
                 console.warn(
-                    `[sabotage] fr baseline pinned ratio ${pinned.worst.toExponential(3)}, trace ratio ${trace.worst.toExponential(3)}`,
+                    `[sabotage] fr baseline ${b.id}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
                 );
-                assertCheckPasses(pinned);
-                assertCheckPasses(trace);
-            } finally {
-                ctx.dispose();
+                assertCheckPasses(report);
             }
-        },
-        CASE_TIMEOUT,
-    );
+            const pinned = await pinnedCheck(ctx);
+            const trace = await traceCheck(ctx);
+            console.warn(
+                `[sabotage] fr baseline pinned ratio ${pinned.worst.toExponential(3)}, trace ratio ${trace.worst.toExponential(3)}`,
+            );
+            assertCheckPasses(pinned);
+            assertCheckPasses(trace);
+        } finally {
+            ctx.dispose();
+        }
+    });
 
     for (const b of BRANCHES) {
         for (const row of rowsOf(b.id).filter(isFr)) {
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-            it(
-                `${b.id}/${row.name}: fails its check by >= ${row.minFactor}x the tolerance`,
-                async (t) => {
-                    requireGpu(t);
-                    const report = await withSabotage(b.id, row, checkFor(b.id, row));
-                    console.warn(
-                        `[sabotage] ${b.id}/${row.name}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
-                    );
-                    expect(report.worst, `${b.id}/${row.name}: detection factor`).toBeGreaterThanOrEqual(row.minFactor);
-                },
-                CASE_TIMEOUT,
-            );
+            it(`${b.id}/${row.name}: fails its check by >= ${row.minFactor}x the tolerance`, async (t) => {
+                requireGpu(t);
+                const report = await withSabotage(b.id, row, checkFor(b.id, row));
+                console.warn(
+                    `[sabotage] ${b.id}/${row.name}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
+                );
+                expect(report.worst, `${b.id}/${row.name}: detection factor`).toBeGreaterThanOrEqual(row.minFactor);
+            });
         }
     }
 });

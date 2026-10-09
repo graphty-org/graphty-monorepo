@@ -264,7 +264,7 @@ describe("segmentedReduce thread-per-row (GPU)", () => {
         ctx.release(bare);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 13 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
     it("row-count ladder 0, 1, 255, 256, 257, 4097, 65537 and 2^20 (scaled): weighted randoms vs the oracle", async (t) => {
         const ctx = await context(t);
         const ladder = [0, 1, 255, 256, 257, 4097, 65_537, Math.max(2, Math.round(2 ** 20 * gpuScale()))];
@@ -284,7 +284,6 @@ describe("segmentedReduce thread-per-row (GPU)", () => {
         }
     }, 120_000);
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the 1D / 2D dispatch boundary: MAX_1D_ITEMS + 1 rows (scaled) with no arcs -> every row F32_MAX under min", async (t) => {
         const ctx = await context(t);
         const n = Math.max(1, Math.round((MAX_1D_ITEMS + 1) * gpuScale()));
@@ -304,7 +303,7 @@ describe("segmentedReduce thread-per-row (GPU)", () => {
             }
         }
         ctx.release(s);
-    }, 120_000);
+    });
 
     it("accumulate = true combines into out: the sum doubles, min / max are unchanged", async (t) => {
         const ctx = await context(t);

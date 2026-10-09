@@ -5,42 +5,35 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-09 (second round 2 dry run, every task piloted on fabc16247403).
+Last updated: 2026-10-09 (third round 2 dry run, every task half piloted on eaea2a75d95b).
 
 ## Top of mind
 
-- 2026-10-09: SECOND ROUND 2 DRY RUN on fabc16247403 (`tier2/dry-run-r2-2.md`): 102 pilot items;
-  15 fix in eight units, 41 design, 40 no change, 3 owner, 3 process. Participants would now meet
-  few build defects: most items are design questions or deliberate behavior. Refreeze, re-pilot
-  every task (T21B never got a browser), then start the sessions.
-- 2026-10-09: The study tool hid every native scrollbar: Playwright's headless Chromium adds
-  `--hide-scrollbars`. Any plain `overflow: auto` pane looked unscrollable to participants (the
-  import preview, 2 pilots). Launch without it; check other headless defaults the same way.
-- 2026-10-09: Five pilot claims did not hold on checking (focus ring left on a note, drawing
-  reshaped after reopen, graph title dead, find list bar with every row fitting, '...' menus
-  highlighting). Keep checking every claim in source or screenshot before classing it.
-- 2026-10-09: ROUND 2 DRY RUN on ddf8b3b63 (`tier2/dry-run-r2-1.md`, second part): 79 rows; 22
-  fixes in six groups (words, shared controls, import page, find box, panels, selection and
-  saving), 32 design questions left alone. No session starts until the fixes are in a refrozen
-  build and every task is piloted again on it.
-- 2026-10-09: Pilots now mostly report design questions and known overlap, not breakage: the dry
-  run works. The remaining traps were words true in one case and false in another (", out of
-  date" under a filter; "Added" after Replace) and examples close to the task's own numbers.
-- 2026-10-09: TIER 2 ROUND 1 DECIDED (`tier2/rounds/round-1/decisions.md`): 15 changes. Measurement
-  first (tool, missing bar scripts, a dry run that walks detours by pointer and keyboard), then
-  find's hint to the rule (T22), "..." menu on the source inspector (T21), the start screen's Open
-  through the Data page (T20), focus/keys, load words, find ellipsis, ", out of date" on the key,
-  no silent Everything in `writeLine`, the selection halo drawn back faces only (element).
-- 2026-10-09: The dry run removed every fault on the routes it walked, and walked only the answer
-  key's routes, by pointer only, with the study tool never dry-run. Rule from now on: a dry run
-  walks each task's success path plus its two commonest wrong turns, presses Enter/Tab/Escape in
-  every field, once by pointer and once by keyboard, and the tool runs the same detours.
-- 2026-10-09: A bar scored by a script that does not exist cannot hold. Build bars 2, 7, 8, 9's
-  scripts (with planted failures) before round 2 starts, not during it.
-- 2026-10-09: The round 1 browser overrun has no named mechanism yet: `real.mjs` already holds a
-  slot per session until `--end`. Find what ran outside the gate before "fixing" it.
-- 2026-10-09: Expect bar 10 to fail again in round 2 on drawn names overlapping: it is
-  graphty-element label placement, too large between rounds. Bring the owner that evidence.
+- 2026-10-09: THIRD ROUND 2 DRY RUN on eaea2a75d95b (`tier2/dry-run-r2-3.md`): 120 pilot items;
+  13 fix in four units (shared menus, import page, neighbor list, study tool), 61 design, 40 no
+  change, 4 owner. Participants would now meet few build defects; refreeze, re-pilot only the
+  halves the fixes touch (T4, T20, T21A, T23B, T24) plus one setup of every task, then start.
+- 2026-10-09: The study tool is the biggest remaining risk to a session, not the app. Its 3000 ms
+  click limit counts Playwright's wait after the click, so on a loaded machine (load 90 to 115) a
+  landed click reads as "could not click" and a missed one can pass setup. In a session that
+  tells the participant a click failed when it worked. Check the instrument on a loaded machine.
+- 2026-10-09: A shared rule tested on one shape only is not a rule. "A pointer-opened menu
+  highlights nothing" held only for menus whose first row is disabled (the test used one). Every
+  shared-behavior test needs the common case, not just the case that was reported.
+- 2026-10-09: Pilots repeat known items (no focus mark on a heading, tooltips covering things,
+  "on 20 nodes"). Name a recurring reason once in the triage and point to it; do not re-argue.
+- 2026-10-09: Reversed: the "Add a table" tooltip that covers the "E" is fixed now (opens left).
+  Reported in every dry run, and it costs one prop; "transient" was no reason to keep paying it.
+- 2026-10-09: The study tool hid every native scrollbar (`--hide-scrollbars`); fixed. Check other
+  headless defaults the same way.
+- 2026-10-09: Check every pilot claim in source or screenshot before classing; the second dry run
+  found five that did not hold.
+- 2026-10-09: TIER 2 ROUND 1 DECIDED (`tier2/rounds/round-1/decisions.md`): 15 changes;
+  measurement first, then one door per problem so round 2 can credit each change.
+- 2026-10-09: Dry run rule: each task's success path plus its two commonest wrong turns, Enter,
+  Tab and Escape in every field, by pointer and by keyboard; the tool runs the same detours.
+- 2026-10-09: Expect bar 10 to fail in round 2 on drawn names overlapping (element label
+  placement, too large between rounds). Bring the owner that evidence.
 - 2026-10-09: "Select where..." on a column waits for the find hint to fail (3+ looking in one
   place). Bare numbers in rules stay an owner question.
 - 2026-10-08: TIER 2 CRITERIA FROZEN (`tier2/criteria.md`). 11 bars; "not scored" never holds; no
@@ -196,6 +189,17 @@ Last updated: 2026-10-09 (second round 2 dry run, every task piloted on fabc1624
   counts from that inspector) rather than new words. The import preview's cut rows are a tool
   fix, not an app one: the pane scrolls; the headless browser hid its bar.
 
+- 2026-10-09 -- Third round 2 dry run triage (me, `tier2/dry-run-r2-3.md`). Fixed: the shared
+  menu's pointer rule for menus with an enabled first row (compact-mantine
+  `skipDisabledFirstRow` returns early for an enabled row, so Edge actions opened highlighted);
+  the preview caption "The first 17 rows of 17" (says "All 17 rows" when whole); the neighbor list
+  opening one hop out under a 2-hop filter (`selection.neighborhood` ignores the filter's reach)
+  and its cut heading (drawn whole, which also removes the tooltip over Hops); the tool's click
+  timeouts and empty tooltip report. Kept, with reasons named once: focus on a heading (tried
+  boxed and underlined, each read as a control), transient tooltips and menus, "on N nodes".
+  Kept "auto" on the import page as a naming question. Reversed one keep: the "Add a table"
+  tooltip opens left, since it was reported every round and costs one prop.
+
 ## Tried: worked / did not work
 
 - 2026-09-27..10-03 (summarized) -- Eight rounds on mocks: places right, behavior after the click
@@ -261,6 +265,12 @@ Last updated: 2026-10-09 (second round 2 dry run, every task piloted on fabc1624
   answer key copying pilot claims as facts ("the scrollbar is drawn when every row fits"); the
   key needs the same check as a defect.
 
+- 2026-10-09 (third round 2 dry run) -- Worked: reading the shared code a pilot's symptom
+  passes through. The menu highlight looked like a regression but was a rule never built for the
+  common case. Worked: separating the tool's faults from the app's; two of the 120 items could put
+  a participant in the wrong start state, which no app fix would catch. Did not work: the tool's
+  fixed 3000 ms limit on a machine with other agents at load 90 to 115.
+
 ## Thinking
 
 - **What tier 2 needs before its first round:** tasks and answers for filter, shortest chain,
@@ -279,6 +289,7 @@ Last updated: 2026-10-09 (second round 2 dry run, every task piloted on fabc1624
 
 ## Sources
 
+- Tier 2 round 2 dry runs (2026-10-09): `tier2/dry-run-r2-{1,2,3}.md`, pilots in `tier2/rounds/r2d{1,2}/pilot/`.
 - Tier 2 (2026-10-08): `tier2/dry-run-r1-4.md` (pilots in `tier2/rounds/r1d3/pilot/`), `tier2/dry-run-r1-1.md`, `tier2/dry-run-r1-2.md` (pilots in `tier2/rounds/r1d1/pilot/`), `tier2/dry-run-r1-3.md` (pilots in `tier2/rounds/r1d2/pilot/`), `tier2/criteria.md` (frozen), `tier2/tasks.md`, `tier2/roster.md` ("Where each
   session starts"), `rounds/tier-2/setups/*-ranked*.txt`; reviews in `notes/researcher.md`,
   `notes/user.md`, `notes/redteam.md`.

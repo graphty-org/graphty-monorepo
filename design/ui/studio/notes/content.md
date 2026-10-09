@@ -7,37 +7,33 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- 2026-10-07 TIER 2 word proposal made (see Thinking, "Tier 2 words"). Three word conflicts between
-  refined B and the glossary must be settled before building: neighborhood "Out, In or Both" vs
-  glossary "Follow: Out | In | All"; Path popover "Direction" vs glossary (Direction is the
-  graph's property only -> "Follow"); weight meaning "Stronger | Farther | Capacity" vs glossary
-  roles similarity/distance/capacity/unknown. Proposed: glossary wins on Follow; refined B's
-  meaning words stay on screen, glossary updated to map them, plus a "Not set" state.
-- 2026-10-07 Shortest path on friends.csv reads tie strength as distance: a WRONG ANSWER, not a
-  wording gap. Words cannot fix it: an unset meaning must never be read as distance (element).
-  "Shortest route" in the legend uses a rejected synonym ("route"); say "path".
-- 2026-10-07 Select where: "=weight > 3" fails silently (uncaught throw). Need a code from the
-  element and a refusal under the box; whether the element accepts bare numbers is a query-format
-  change -> one-way door, owner-decisions.md.
-- 2026-10-07 Path row crash (RunValues histogram on a boolean): the path row's Data tab is
-  Summary, Members, Made with, Notes per refined B -- route by the run's kind, not a word issue.
-- 2026-10-07 Method naming not finished: layout "Group by: Communities", key "Group 1..6",
-  "Measure from PageRank, Oct 7". One name per run on every surface, including layout forms.
-- 2026-10-07 Element English leaks in layout refusals; element must return code + params. File it.
-- 2026-10-07 Deferred, push into round 4: one refusal for a damaged file on both routes; "Undirected,
-  from the file: directed 0" overflow; "Edges per ..." truncation; raw hex "Color 6366F1".
-- 2026-10-07 CSV export headers `results.louvain.group` -- confirm whether a format contract
+- 2026-10-09 TIER 2 ROUND 1 word proposals (see Decisions 2026-10-09). Biggest: the find box's
+  "No match" for a typed condition (4 of 4, T22 under its floor) -- add one hint line naming
+  how a rule starts, only when the text holds a comparison sign. Words, not a new route.
+- 2026-10-09 "Total distance 14" has no unit (7 of 7): label it "Total <weight column>", the
+  2026-09-29 rule. Never "distance" for a value the data names.
+- 2026-10-09 "Not read -- weight's meaning is not set, and a path needs a distance" was
+  "gibberish" on a correct unweighted path (4 sessions). Lead with what the run did:
+  "Each edge counts as 1" plus the cause; never point at a remedy route the screen lacks.
+- 2026-10-09 Out-of-date run: the key must carry the tree's own words ", out of date" (bar 5
+  fails); the Replace status says "rows out of date" where it means runs.
+- 2026-10-09 One name per thing broke again: the load status says "Untitled" (fallback in
+  `project/actions.ts` headerName) while the header shows the graph's name.
+- 2026-10-09 Keep "hops" (field term, glossary) -- serve readers with Analyze aliases
+  ("chain", "quickest", "link", "between"), never a rename; the T23 task title says "step".
+- 2026-10-09 Dry-run lesson: participants met no broken control on dry-run routes; word
+  problems came from routes and detours the dry run never walked. Walk the commonest detours.
+- 2026-10-07 Shortest path on friends.csv reading tie strength as distance is a wrong answer,
+  not wording; an unset meaning must never be read as distance (element).
+- 2026-10-07 Bare numbers in rules (backticks) is a query-format change -> owner list; the app
+  words the element's refusal code and never works around it.
+- 2026-10-07 Element English leaks (layout refusals) are element defects: code + params.
+- 2026-10-07 CSV export headers `results.louvain.group` -- check whether a format contract
   (one-way door) before renaming.
-- 2026-10-07 Keep word for word: "N labels, M hidden" + "Show all labels", the Open-route refusal,
-  the usage card, "Saved in this browser".
 - 2026-10-06 Words cannot fix a missing route; fix by deletion first; refusals sit next to the
   control that failed; a word never promises what the screen does not do.
-- 2026-10-06 The app writes ALL reader-facing words; an English string from the element is an
-  element defect, never reworded in the app.
-- 2026-10-06 Budgets: at rest <= 50 words, inspector ~30 (max 40). Bar 9 never run.
+- 2026-10-06 Budgets: at rest <= 50 words, inspector ~30 (max 40). Bar 9 never counted.
 - 2026-10-06 Simulated evidence: a fail is strong, a pass weak; task wording never echoes a fix.
-- 2026-10-06 One name per thing: header "Les Mis work" vs outline "Graph Les Miserables"; and now
-  the Sources list shows only the last file and the header reads "From <last file>" (tier 2 audit).
 
 ## Priorities and values
 
@@ -132,7 +128,27 @@ I read this file at the start of every session and update it as I decide and lea
   rejected for round 2 (two changes at once); "Show all labels" beside the hidden count deferred
   behind wheel zoom; at-rest wording ("directed 0", "Edges per n...") deferred to bar 9's count.
 
+- 2026-10-09 Tier 2 round 1 proposals (mine, to the studio, reversible, untested): (1) find box,
+  text with a comparison sign and no match: second line "Rules start with =, such as <rule>",
+  the rule from the typed column when it is one (`graph-place/FindBox.tsx` exampleRule);
+  (2) "Total <weight column>" for "Total distance" (`inspector/RunValues.tsx`); (3) unweighted
+  path note "Each edge counts as 1. <column>'s meaning is not set" (`analyze/words.ts`
+  weightRead); (4) key title ", out of date" from the staleness fact; "N runs out of date"
+  (`data-page/words.ts` replacedWords); (5) load status uses the header's name and adds
+  "N rows left out"; (6) Replace page button "Replace" not "Load" (`DataPage.tsx`); (7) Shortest
+  path: aliases chain, quickest, link, between; its line says "path", not "route". Kept as is:
+  hops, Select endpoints, Dijkstra, Higher means, the Replace report, "N of M nodes" chip.
+  Reason: each fixes a confirmed finding with the fewest words; none adds text at rest.
+
 ## Tried: worked / did not work
+
+- 2026-10-09 WORKED (tier 2 round 1): "Higher means" on the load page (every participant who
+  reached it chose right); "Loaded weight minutes (farther)"; the Replace page title and "Was N;
+  now M"; the filter chip agreeing with the Filters row; the Analyze line "The fewest steps ...
+  between two nodes" led most T18 participants. 0 false "done", 0 weights read backwards.
+- 2026-10-09 DID NOT WORK: "No match for ..." on a typed condition (4 of 4); "Total distance 14"
+  (7 of 7); the "Not read --" weight note (4); "Select endpoints" guessed (4 of 4, all found it);
+  "As the file says" on a CSV, which loads directed (behavior first: graph-io/element fact).
 
 - 2026-10-07 WORKED (re-pilot, round 3 build): method names on every run surface listed above;
   "Show all labels" reached every name on two datasets in 5 steps; the count shortening kept words
@@ -267,13 +283,11 @@ I read this file at the start of every session and update it as I decide and lea
   (3) does "Show all labels" read as the route to every name, without the task echoing it; (4) do
   load/run announcements speak once, with the method name; (5) bar 9 word count on the served
   build; (6) does anyone misstate what PageRank measures with no on-screen basis.
-- **Round 2 watch list (closed).** (1) method names live on every surface; (2) does anyone still miss the
-  neighbor list once Neighborhood opens it -- if so, then the Degree-row cue; (3) do people zoom
-  to hidden names now, or still click the count; (4) exported CSV and warning wording (check
-  whether column names are a contract first); (5) the refusal line's wording as participants
-  report it.
 
 ## Sources
+
+- `design/ui/studio/tier2/rounds/round-1/insights.md`, `scores.md`, `expert/` (figma, a11y, visual);
+  screenshot `sessions/r1-s46/12.png`; transcripts r1-s05, r1-s19 (2026-10-09)
 
 - `design/ui/studio/rounds/round-1/insights.md`, `decisions.md`, `rounds/r1/pilot/all/pilot.md`
   (2026-10-06)

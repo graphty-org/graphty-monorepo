@@ -5,58 +5,37 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-08 (fourth dry run before tier 2 round 1 triaged).
+Last updated: 2026-10-09 (tier 2 round 1 decisions for round 2).
 
 ## Top of mind
 
-- 2026-10-08: FOURTH DRY RUN (`tier2/dry-run-r1-4.md`) on frozen build 8c4eef472: 97 items, 25
-  fix, 39 left, 33 no change. Three would have shaped sessions: "Edit source..." doubling every
-  tie, a tooltip hiding names being counted, one Escape discarding a whole import. Two fixes undo
-  third-run fixes that made new defects (menu highlight, title underline); one is a decided
-  feature never built (path Follow). Round 1 still needs a new frozen build and a re-pilot that
-  finds no (a) item on a task path.
-- 2026-10-08: Every dry run has found a decided-but-unbuilt item or a fix that made a new defect.
-  Before freezing, list each tier 2 design decision as built or not on the build (the round 2
-  lesson), and re-pilot the exact screens each fix touched.
-- 2026-10-08: The open questions are unchanged after four dry runs and are NOT polish: names not
-  drawn by default; nodes and labels overlap in the 3D drawing; how a stale run is marked; where
-  the path form lives. Watch them in round 1; bring the owner the evidence, not a guess.
-- 2026-10-08: The discarded sessions show the real T20 question: 4 of 5 opened with "Open project
-  or file", found no place to set the weight's meaning after load, and went back to "New from
-  data". Left for the sessions on purpose (dry-run items 58, 60, S10, S16).
-- 2026-10-08: TIER 2 CRITERIA FROZEN (`tier2/criteria.md`). 11 bars: 1 success per task (8/8 size
-  7 of 8, T4 6 of 6, 4-session tasks 4 of 4, T12R 2 of 2); 2 work kept (scripted open-work list);
-  3 sev-4; 4 silent commit; 5 numbers vs drawing; 6 false done; 7 weight read as loaded (EVERY
-  algorithm x every meaning + no-column check); 8 axe/focus; 9 words (tier 1 screen <= 50; tier 2
-  screens never above round 1); 10 expert walkthrough + screenshot audit (0 confirmed sev 3-4,
-  count never rises); 11 core-four median steps <= 2x. "Not scored" never holds.
-- 2026-10-08: Before round 1 the preflight still owes: re-pilot every task whose start changed and
-  T12R and the T17/T18 follow-ups; re-record answers; `--prove` 5 in a row (it went 3 of 4,
-  first-save fault untraced); bars.mjs for bars 8-10 with planted cases; bar 7 (a) script; the
-  open-work lister for bar 2; the wording check incl. follow-ups.
-- 2026-10-08: Starts are ranked + colored + sized by PageRank (`*-ranked*.txt`, all 7 run clean on
-  the study build); only T4 and T20 start empty (new files). No round cap; stall = no progress
-  (< 3 more core-four successes of 32, no core sev 3-4 closed, no failing bar newly held).
-- 2026-10-07: TIER 2 DESIGN DECIDED: `next-steps/tier2-design.md`. In: filters (element-owned
-  steps), Path popover, Notes place, Sources listing every load, weight meaning at load + every run
-  on the loaded weight (REQUIRED, owner rule), neighborhood hops/Follow in the list header,
-  Replace with file + stale by content, edge picking + selected-edge mark, Find rule errors.
-- 2026-10-07: Tier 2 WAITS (with reasons in the doc): several node types / Links to (no task needs
-  it; biggest format door -- owner design first), node weight (no reader), Select where dialog
-  (Find "=" is the one home), multi-query path rows, Add as steps, selection bar, OR/NOT.
-- 2026-10-07: Distance readers given a similarity/unset weight count hops and say so with a code;
-  never read strength as distance. Similarity readers read unset as similarity (glossary 11).
-- 2026-10-07: Words: glossary wins over refined B. "Follow: Out | In | All" (path: Out | All, directed
-  only); weight "Higher means: Closer | Farther | Capacity" (no "strength"/"Stronger" on screen);
-  never "route". Filter chip only while a step is on.
-- 2026-10-07: Owner one-way doors still open in `owner-decisions.md` (screenshot legend, undirected
-  arrowheads, export group rank, legend covered layer -> recommend master's `legend.painted-over`,
-  `optionsFor`, canvas `aria-label`, 2D zoom doc) plus the round 3 and tier 2 doors; also
-  usage-data card wording, tooltip delay (500 vs 1000 ms), a run's style above a reader's layer.
-- 2026-10-07: Severity 4 needs a wrong conclusion a reader would act on, from what the participant
-  could perceive. Never prime graders with the outcome to look for.
-- Before a new element API, grow an existing method (`CodedFact`, `CameraViewInput.current`,
-  `WeightMeaning`, `ElementAtResult` already exist). Remove before adding; words at rest never rise.
+- 2026-10-09: TIER 2 ROUND 1 DECIDED (`tier2/rounds/round-1/decisions.md`): 15 changes. Measurement
+  first (tool, missing bar scripts, a dry run that walks detours by pointer and keyboard), then
+  find's hint to the rule (T22), "..." menu on the source inspector (T21), the start screen's Open
+  through the Data page (T20), focus/keys, load words, find ellipsis, ", out of date" on the key,
+  no silent Everything in `writeLine`, the selection halo drawn back faces only (element).
+- 2026-10-09: The dry run removed every fault on the routes it walked, and walked only the answer
+  key's routes, by pointer only, with the study tool never dry-run. Rule from now on: a dry run
+  walks each task's success path plus its two commonest wrong turns, presses Enter/Tab/Escape in
+  every field, once by pointer and once by keyboard, and the tool runs the same detours.
+- 2026-10-09: A bar scored by a script that does not exist cannot hold. Build bars 2, 7, 8, 9's
+  scripts (with planted failures) before round 2 starts, not during it.
+- 2026-10-09: The round 1 browser overrun has no named mechanism yet: `real.mjs` already holds a
+  slot per session until `--end`. Find what ran outside the gate before "fixing" it.
+- 2026-10-09: Expect bar 10 to fail again in round 2 on drawn names overlapping: it is
+  graphty-element label placement, too large between rounds. Bring the owner that evidence.
+- 2026-10-09: "Select where..." on a column waits for the find hint to fail (3+ looking in one
+  place). Bare numbers in rules stay an owner question.
+- 2026-10-08: The open questions after the dry runs were NOT polish: names not drawn by default;
+  3D overlap; stale marks; where the path form lives. Round 1 confirmed overlap and stale marks.
+- 2026-10-08: TIER 2 CRITERIA FROZEN (`tier2/criteria.md`). 11 bars; "not scored" never holds; no
+  round cap; stall = no progress (< 3 more core-four successes of 32, no core sev 3-4 closed, no
+  failing bar newly held).
+- 2026-10-07: TIER 2 DESIGN in `next-steps/tier2-design.md`; waits: several node types, node weight,
+  Select where dialog, multi-query path rows, Add as steps, selection bar, OR/NOT.
+- 2026-10-07: Words: glossary wins. "Follow: Out | In | All"; "Higher means: Closer | Farther |
+  Capacity"; never "route" on screen. Severity 4 needs a wrong conclusion a reader would act on.
+- Before a new element API, grow an existing method. Remove before adding; words at rest never rise.
 
 ## Priorities and values
 
@@ -160,25 +139,28 @@ Last updated: 2026-10-08 (fourth dry run before tier 2 round 1 triaged).
   turns it on. Left every time: names by default, 3D overlap, where the path form lives, stale
   marks, weight meaning after load, saved-state mark, Recent row, units on a total.
 
-- 2026-10-08 -- Fourth dry run triage (me, `tier2/dry-run-r1-4.md`, pilots in
-  `tier2/rounds/r1d3/pilot/`), on the frozen build 8c4eef472: 97 items, 25 fix, 39 sessions, 33 no
-  change. Fix now: a click keeps its target's tooltip closed until the pointer leaves (a toggle's
-  new label remounted the tooltip over the names being counted: one pilot counted 12 for 14), and
-  "Filter to neighbors" tooltips open to the right; a pointer-opened menu highlights nothing even
-  when its first row is disabled (regression of the third run's fix); left-out inspector with
-  "Added" and "Left out" sections, left-out first on its own row; the path form's Follow (Out | All)
-  that the tier 2 design decided and nobody built -- element gains `direction` on shortest path,
-  default "all" (additive, team, `owner-decisions.md`); "Edit source..." replaces its source instead
-  of adding a copy (41 ties became 82), and is not offered where a source cannot be replaced; Escape
-  on the import page leaves only while nothing is chosen; Replace summary drops a zero count; Undo
-  and Redo name their step from `HistoryStep.fact`, and Escape that clears a selection says what it
-  cleared; the inspector title takes no visible focus mark (a focused heading, not a control; the
-  box read as a field, the underline as a link); focus after Rerun to the title and after "Back to"
-  to Degree; the "farther" example fits any data; the find hint's example wraps whole; reopen
-  framing traced; damping factor's single-precision value traced. Reversed my own third-run (n) on
-  the neighbors tooltip: here the covered row is the answer. Kept (n): default cursor on the chip,
-  a tooltip over the rail. Reason: each fix is a seam a participant trips on; each left item is the
-  question its task asks.
+- 2026-10-08 -- Fourth dry run triage (me, `tier2/dry-run-r1-4.md`): 97 items, 25 fix, 39 left
+  for sessions, 33 no change. Fixed tooltips covering counted names, menu highlight regression,
+  "Edit source..." adding a copy instead of replacing, the unbuilt path Follow (element
+  `direction`, additive), Escape discarding an import, focus after Rerun and "Back to". Left on
+  purpose: weight meaning after load (the T20 question).
+
+- 2026-10-09 -- Tier 2 round 1 decisions (me, `tier2/rounds/round-1/decisions.md`), from insights,
+  eight proposals and the red team, each code claim checked in source. Took the red team on five
+  points, each verified: (1) T20's cause is one command doing two things -- `openInSession` with
+  `fresh` loads a data file at once, inside a project it opens the Data page -- so fix that branch,
+  not a second home for "Higher means" on the column; "Back to start" already asks over unsaved
+  changes (`DiscardDialog`), so no undo for it. (2) T22: words first, as decided before the round;
+  the app asks the element (`scope.count({ where: "=" + text })`) whether the text is a rule, so it
+  parses nothing. (3) Replace: the source is the only inspector kind without a "..." menu
+  (`kindMenus.ts`), so reuse that pattern, no visible buttons. (4) Stale: one mark, ", out of date"
+  on the key, the run list's own words. (5) Edges-to-Everything: `writeLine`'s default
+  `EVERYTHING_LAYER` is the shared cause; remove the default, show no side a row cannot write.
+  Took the visual designer over four roles on the halo: `createOverlaySource` sets
+  `backFaceCulling = false` on a 40% sphere, so the node is seen through gold; a rendering defect,
+  not a design choice. Deferred: column "Select where...", fit-to-labels and overlap (one element
+  issue), compact-mantine toast role and segmented fill, bare numbers (owner). Reason throughout:
+  one door per problem so round 2 can credit each change; measurement before any app change.
 
 ## Tried: worked / did not work
 
@@ -258,6 +240,13 @@ Last updated: 2026-10-08 (fourth dry run before tier 2 round 1 triaged).
   a table row's name, not the app. Did not work: the third run's fixes for a disabled first menu
   row and a boxed title focus each made the next defect. Lesson: a focus or highlight fix needs
   both a keyboard and a pointer walk on the exact screen before it is called done.
+
+- 2026-10-09 (tier 2 round 1) -- Worked: four dry runs left 0 broken controls on walked routes
+  (all logs empty, no grade decided by a defect). Did not work: walking only the answer key's
+  routes by pointer; participants met four defects on detours and the tool caused more trouble than
+  the build. Did not work: starting a round with bar scripts unbuilt -- four bars could not hold.
+  Worked: the red team reading proposals in source found the T20 cause (one command, two
+  behaviors) that six roles missed, and the shared `writeLine` default behind one caller's bug.
 
 ## Thinking
 

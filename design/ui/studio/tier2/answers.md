@@ -79,12 +79,12 @@ across tasks for 909b19b578d4 above still hold, except:
   example times in this key are only examples. Match a run by its time changing, not by the text.
 
 **The study build now, 946256efb876 (graphty@0.8.56).** Round 1 runs on build 946256efb876
-(`criteria.md`, first line; buildStamp `946256efb876 graphty@0.8.56`). Every task half but T18 B
-was piloted on it from its start, with screenshots in `rounds/r1d4/pilot/<task><half>/` (for
+(`criteria.md`, first line; buildStamp `946256efb876 graphty@0.8.56`). Every task half was
+piloted on it from its start (T18 B last, its walk recorded in its entry), with screenshots in `rounds/r1d4/pilot/<task><half>/` (for
 example `rounds/r1d4/pilot/T4A/11.png`). Every success path landed on the first try with no script
 errors, console errors or failed requests, and every reference value held. Where this build's
-screen differs, the task's entry below gives this build's screen and cites `rounds/r1d4/`; T18 B's
-entry still cites `rounds/r1d3/`. The notes above still hold, except:
+screen differs, the task's entry below gives this build's screen and cites `rounds/r1d4/`. The
+notes above still hold, except:
 
 - After the find box picks a node, focus is in the inspector (a read of the page finds it at the
   node's title heading), but no focus mark is drawn: the title is plain white text, with no ring,
@@ -105,6 +105,25 @@ entry still cites `rounds/r1d3/`. The notes above still hold, except:
   (`T17A/12.png`, `T17B/11.png`, `T23B/17.png`). On T23 A the button's tooltip printed "" in both
   states (`T23A/07.png`, `13.png`). A participant who clicks and keeps the pointer still sees no
   tooltip.
+
+**Routes the round 2 build adds (not walked yet).** Three round 2 changes open routes this key did
+not list: the find box answers a typed condition with the rule that would read it (T22), the
+source's inspector gets the "..." menu holding Replace with file... and Edit source... (T21), and a
+data file opened with "Open project or file..." from the start screen goes through the Data page
+(T20). Each task's entry gives the route as a "Round 2 route" with its step count, counted the way
+the success paths are counted (one `real.mjs` step per screenshot) from the steps measured on
+946256efb876 and the change as specified. None of the three changes is built yet, so these counts
+are not measurements: the round 2 pilot walks each route on the round 2 build and corrects the
+route, its screens and its count here before any session. Bar 11 and the steps measure keep the
+success paths' counts (T18 4, T20 11, T21 6, T22 3); a round 2 route is graded like the success
+path (S when it ends right with no detour), and a session that takes it is compared with the same
+limit.
+
+**Scripted exits.** A participant who gives up because the persona file's own rule says to (for
+example "the second failure ends the session") is still graded G, and every count stays as it is.
+Graders write "scripted exit" beside the grade, quote the persona file's rule with its path and
+line, and name the two attempts it counted. A give-up the rule does not cover (the participant
+leaves before the rule's limit, or for another reason) gets no label. `criteria.md`, "Grades".
 
 **Where each setup leaves the screen.** A ranked setup (`friends-ranked.txt`, `team-ranked.txt`,
 `bus-stops-ranked.txt`, `lesmis-ranked.txt`, `florentine-ranked.txt`) ends on the PageRank run's
@@ -335,6 +354,28 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   (`rounds/r1d3/pilot/T18B/06.png`; `07.png` with Advanced run settings open). The sample has no weight column, so the Path popover shows no
   "Not read" line on B. The Florentine graph is undirected, so neither the popover nor Made with
   has a Follow row on B (`../tmp/r1-dry4-tool-and-key/T18B/02.png`, `03.png`).
+- **The B walk on 946256efb876** (`rounds/r1d4/pilot/T18B/`, setup `florentine-ranked.txt`, every
+  screenshot looked at; `session.log` empty: no script, console or request errors). The start is
+  the PageRank run's Style tab, nodes orange and sized by PageRank, no names drawn (`01.png`). `p`
+  opens the Shortest path popover over the lower third of the drawing: From "Where the path
+  starts", To "Where the path ends", Weight "None" with no line under it, a collapsed Advanced and
+  Find path (`02.png`). Typing Strozzi in From lists one option, Strozzi, which covers the To field
+  (`03.png`); picking it moves on to To. Typing Pazzi lists one option, which covers the Weight
+  field (`04.png`); picking it puts the focus ring on Find path (`05.png`). Find path closes the
+  popover and opens the run on its Values: "Path 5 nodes, 4 edges"; Nodes in order Strozzi 1,
+  Ridolfi 2, Medici 3, Salviati 4, Pazzi 5; Made with Analysis "Shortest path", Ran "Oct 8,
+  10:35:38 PM", From "Strozzi", To "Pazzi", Weight "None" with "Each edge counts as 1." under it,
+  and a collapsed Advanced run settings; the Graph tree's new row reads "Shortest path 4 hops"; the
+  legend adds "Shortest path" over one black "On the path" swatch; the five nodes and four ties are
+  black on the orange drawing (`06.png`). Advanced run settings opens to Method "Dijkstra, chosen
+  automatically" (`07.png`). The follow-up: `p` again brings back empty From and To and covers the
+  lower end of the drawn path (`08.png`); Peruzzi to Ginori (`09.png`) gives Peruzzi 1, Bischeri 2,
+  Guadagni 3, Albizzi 4, Ginori 5, "5 nodes, 4 edges", Ran "10:36:11 PM", and the first chain is
+  gone from the drawing and the tree (still one "Shortest path 4 hops" row, `10.png`). The
+  highlighted tie from Guadagni down to Peruzzi passes straight through an orange node not on the
+  path (about 713,604, `10.png`), as on 8c4eef4722ac. Main prompt: 5 screenshots after the start
+  here because typing and picking were separate steps; the key's count stays 4. Every value agrees
+  with the entry above; no difference from 8c4eef4722ac was seen.
 - **Follow-up answers:** A, Ben to Nora: Ben, Theo, Ravi, Pia, Nora, 5 nodes, 4 edges; Made with
   From "Ben", To "Nora", Weight "None" (`rounds/r1d3/pilot/T18A/15.png`; the only chain of that
   length, by a count over friends.csv). B, Peruzzi to Ginori: Peruzzi, Bischeri, Guadagni, Albizzi,
@@ -492,6 +533,15 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   before a role is chosen the summary reads "Weight: none (each edge counts 1)"
   (`rounds/r1d3/pilot/T20A/04.png`, `T20B/04.png`). Screenshot numbers depend on how the steps are
   grouped; match the screen.
+- **Round 2 route (T20), not walked yet:** on the round 2 build, "Open project or file..." from the
+  start screen sends a data file to the same Data page "New from data..." opens, with the file
+  already chosen and "Higher means" asked before anything loads (a `.graphty` project still opens
+  at once). Steps: `--click "No thanks"`; `--click "Open project or file..." --upload
+  bus-stops.csv` (B: trails.csv); the minutes column's role box; `--click "Weight"`; `--click
+  "Farther"`; `--click "Load"`; `--key p`; From Depot; To Harbor; `--click "Find path"` -- **10
+  steps**, one fewer than the success path, since one step opens the page and chooses the file.
+  Grade it as the success path: S when it ends right with no detour. Its screens (the page's
+  title, where the role box sits) are the round 2 pilot's to record.
 - **Escape on the import page:** once a file is chosen, Escape with no list open leaves the "Open
   as a new graph" page as it was, file and roles kept (`../tmp/r1-dry4-tool-and-key/T20B/04.png`
   to `05.png`); Cancel is the way out.
@@ -504,8 +554,10 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   the path run counts links: Depot, Station, Harbor, no total, Made with "Weight: none (each edge
   counts 1)" (walked as "Time" on build ca8b3b916c22, `preflight/T20A-time/13.png`). It is
   `weight-not-read`.
-- **The per-run route:** opened from "Open project or file..." the file loads straight in with no
-  weight: no "Loaded weight" row in the Overview. (The Data page cannot tell the routes apart: even
+- **The per-run route:** on 946256efb876, opened from "Open project or file..." on the start
+  screen, the file loads straight in with no weight; on the round 2 build the same command shows
+  the Data page first, and a participant who presses Load with "Higher means" still "Not set"
+  reaches the same state. Either way there is no "Loaded weight" row in the Overview. (The Data page cannot tell the routes apart: even
   after the load-time route it names no weight, `rounds/r1d2/pilot/T20B/17.png`.) The Path
   popover's Weight list then offers "minutes (farther)", which gives the right route and total
   (`T20A-open/05.png`), but only for that run. **Grade it SD**: the route is right, but the task
@@ -562,6 +614,17 @@ file..." --upload friends-v2.csv`; `--click "Load"` (the app returns to the Grap
   open through the replacement when it was open before; otherwise `--click "PageRank"`, the run
   row now marked out of date, comes first, and its absence or presence is not a deviation). "First
   before" is read from the Values before the replacement (or from the setup's open run).
+- **Round 2 route (T21), not walked yet:** on the round 2 build, the source's inspector (shown by a
+  left click on the Sources row) has a "..." header menu holding "Edit source..." and "Replace with
+  file...", the same items and the same rule as the row's right-click menu (on a graph made of two
+  loads it offers Edit source... only). Steps: `--click "Values"`; `--click "Data"`; `--click
+  "friends.csv"` (a left click; the source's inspector opens); the inspector's "..." (its accessible
+  name is the pilot's to record); `--click "Replace with file..." --upload friends-v2.csv`; the
+  Replace page's confirm button (Load on 946256efb876; the round 2 build renames it "Replace");
+  `--click "Rerun"` -- **7 steps**, one more than the right-click route because the menu needs
+  the inspector first. Grade it as the success path: S when it ends right with no detour.
+  "Edit source..." from this menu leads to the same page on the old file as from the row, with the
+  same `stale-read` trap below.
 - **Traps on this build:** after Load, the old colors stay on the drawing and the key keeps the old
   range (A 0.03779 to 0.06394; B 0.03273 to 0.1293) until Rerun: reading the top person then is
   `stale-read` (Farah, or Hal on B). The row's right-click menu opens with neither item
@@ -629,6 +692,20 @@ changes nothing and is not a detour. Escape in the box clears the box and keeps 
 line under the box goes with the text, so the count is then read from the inspector or the
 Selection layer row (`rounds/r1d3/pilot/T22A/09.png`, `T22B/08.png`). On B the example 16 sits
   near the task's 10; record any participant who uses 16.
+- **Round 2 route (T22), not walked yet:** on the round 2 build, plain text in the find box that
+  matches nothing and that graphty-element reads as a rule once "=" is put in front (accepted, or
+  refused only for a bare number) no longer gets only "No match": the line under the box reads "To
+  select by a value, start with =, such as" and an example rule from the open data's own column in
+  monospace (A "minutes > `9`", B "shared_chapters > `16`", as the refusal's example on
+  946256efb876; the round 2 pilot records the screen). Text that is no rule (a name with no match)
+  still gets "No match". Steps: `--key /`; `--type "minutes >= 10"` (the hint shows); select the
+  text and type the rule, `--key Control+a --type "=minutes >= \`10\`"` (B: `=shared_chapters >=
+  \`10\``); `--key Enter` -- **4 steps**, one more than the success path. Typing only "=" in front
+  (`=minutes >= 10`) gets the bare-number refusal next, and its correction adds one step (5).
+  Following the hint and then the refusal is the path, not a detour: grade S when the end state is
+  right. Record whether the participant used the hint's example as written (A "> `9`" means 10 or
+  more only because minutes are whole numbers; B "> `16`" is the wrong number: `read-wrong` if the
+  count comes from it).
 - **Other routes, graded by the end state:** clicking each line with Shift held (A: 3 lines; not
   checked on this build); a color on Everything's edges that separates exactly the 10-or-more ties.
   A filter step ("minutes is at least 10") narrows the drawing to the slow links and their stops

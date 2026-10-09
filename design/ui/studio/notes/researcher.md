@@ -10,6 +10,10 @@ made and evidence comes in.
 
 ## Top of mind
 
+- 2026-10-09 -- ROUND 2 KEY WRITTEN BEFORE THE BUILD: the workflow applies key changes before the
+  app changes land, so the T20/T21/T22 "Round 2 routes" (10, 7, 4 steps) are counted from round 1's
+  measured steps plus the spec, marked "not walked yet"; the round 2 pilot must walk and correct
+  them. Bar 11 keeps the success paths' counts. "Scripted exit" = label only, grade stays G.
 - 2026-10-09 -- ROUND 2 CHANGE SET PROPOSED (critique): five app-only changes, each reusing a
   path that already works -- find box no-match line points to rules (FindBox.tsx 355); source
   verbs in the source inspector's "..." (Inspector.tsx MENUS); "Set what higher means..." on a
@@ -91,6 +95,16 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-09 (researcher, round 2 key and grading wording) -- Added "Round 2 route" entries to T20
+  (start-screen Open through the Data page, 10), T21 (source inspector "...", 7), T22 (find hint to
+  a rule, 4), graded like the success path; kept bar 11 on the old success-path counts so no limit
+  moved (a shorter T20 route would otherwise lower T20's limit from 22 to 20). Counts are NOT
+  measurements: none of changes 4-6 was built (HEAD bb7560c18, no graphty edits), and the workflow
+  runs this unit before implementation. Recorded the T18 B walk from `rounds/r1d4/pilot/T18B/`
+  (agrees with every value; tie through an orange node still at 713,604). "Scripted exit" defined
+  in criteria "Grades" as a label beside G with the rule quoted; no count changes. Flagged: T22 B's
+  hint example "> `16`" copied verbatim gives a wrong count -- graders record it.
 
 - 2026-10-09 (researcher, tier 2 round 1 critique) -- Proposed the smallest round 2 changes for
   the verified sev 3 problems, each reusing a working route so the change is words or a menu
@@ -195,6 +209,11 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-09 (round 2 key) -- Worked: checking `git status graphty` and the workflow script's order
+  before claiming "measured on the new build" (the build did not exist). Worked: reconstructing a
+  pilot walk with no steps log from its screenshots and `session.json`. Lesson: a pilot without a
+  steps log cannot be re-run exactly; the tool should always write one.
+
 - 2026-10-09 (skeptic verdicts) -- Worked: grepping the persona FILE named in the roster (the `P/`
   path) to settle a skeptic split; viewing the two disputed screenshots myself. Did not work:
   my scoring read a persona-scripted give-up as a screen failure and took first moves the
@@ -228,26 +247,10 @@ reasons, in short:
   Did not work: a setup edited after one half's pilot (T24A ran without "Show all labels"); pilot
   again whenever a setup changes.
 
-- 2026-10-07 (round 3 skeptic check) -- Worked: skeptics measuring the exported picture (dot
-  diameters, label offsets, crops) and checking which sessions actually reached an export; this
-  caught two overcounts (selection ring, r3-s06). Did not work: my scoring treated a grader
-  checklist line and a pre-announced watch item as evidence.
-
-- 2026-10-07 (round 3 scoring, skeptic check and preflight, folded) -- Worked: graders' JSON
-  plus `grade.md` greps of fixed record lines; one row per session in a score script with count
-  asserts; reading every grade's Void line; re-measuring the old build with corrected scripts;
-  looking at every check screenshot; skeptics measuring exported pictures. Did not work: ease
-  regex ("1 of 77"), trusting the tally or a grader checklist line, guessing Tab counts in `--sr`.
-
-- 2026-10-07 (re-pilots) -- Worked: piloting every task, not just changed ones, on the exact
-  build stamp; each pilot named defects by kind (element, app, tool, key). It caught the checkbox
-  wording, T7's missing Values step, and the tool's label double-match before graders met them.
-  Did not cover: keyboard and SR paths (no `--sr` pilot) -- owed at preflight.
-
-- 2026-10-07 (round 3 key and critique, folded) -- Worked: grepping the worktree source for each
-  planned change before writing paths (none had landed, so the key said "not yet walked"), and
-  grepping the element for an existing option before proposing element work (`declutter` existed).
-
+- 2026-10-07 (round 3, folded) -- Worked: skeptics measuring exported pictures; graders' JSON plus
+  `grade.md` greps; re-pilots of every task on the exact build stamp; grepping source before
+  writing paths. Did not work: treating a grader checklist line as evidence; ease regex; no `--sr`
+  pilot.
 - 2026-10-06 to 10-07 (rounds 1-2, folded) -- Worked: one row per session in an `rN-score.py`
   with an assert on the count; grader JSON plus `grade.md` greps; re-walking every success path by
   one script through `lanes.sh` (at most 3 browsers); the short per-step prompt (0 filter stops in

@@ -47,6 +47,13 @@ Two rules learned in tier 1 hold from the first session:
   to have (so a grader can recognize them), but no briefing, watch list or prompt to graders says
   which findings the studio expects.
 
+**A give-up the persona file scripts is labeled, not regraded.** When a participant gives up
+because the persona file's own rule says to (a set number of attempts, a time limit, a phrase it
+says when it leaves), the grade stays G and every count and bar is scored as before; the grader
+writes "scripted exit" beside the grade, quoting the rule with the persona file's path and line
+and naming the attempts it counted. A give-up the rule does not cover gets no label. The label
+lets the skeptics and the severity judgment see which leaving the persona decided.
+
 ## Bars that decide "done" (all must hold in one round)
 
 **How "one round" is scored.** Rounds after the first re-run only some tasks, so a round is
@@ -494,3 +501,14 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   tooltip no longer hiding a name, the screen reader reading each Hops segment twice, and the end
   of Javert's find list. `tasks.md` T20 now records the new line ("longer", "distance", "time") as
   the possible echo. No bar and no prompt changed.
+- **2026-10-09, between rounds 1 and 2: grading wording and the answer key's new routes.** "Grades"
+  now says how a give-up the persona file scripts is graded: still G, every count and bar as
+  before, with "scripted exit" written beside the grade and the rule quoted (in round 1, two of the
+  three give-ups followed one persona file's two-attempt rule, and nothing on the grade said so).
+  `answers.md` adds a "Round 2 route" to T20 (the start screen's "Open project or file..." through
+  the Data page, 10 steps), T21 (the source inspector's "..." menu, 7 steps) and T22 (the find box's
+  hint to a rule, 4 steps), counted from the steps on 946256efb876 and the changes as specified;
+  none is built yet, so the round 2 pilot walks each and corrects it before any session. It also
+  records the walk of T18 B on 946256efb876 (`rounds/r1d4/pilot/T18B/`), which agrees with every
+  value in the key. Bar 11 and the steps measure keep the success paths' counts (T18 4, T20 11,
+  T21 6, T22 3). No bar, floor, step limit or prompt changed.

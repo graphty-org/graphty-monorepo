@@ -606,3 +606,24 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   d5a3bee20b61; only design documents changed between the two commits, so the dry run on
   d5a3bee20b61 (`dry-run-r2-3.md`) holds for this build. No bar, floor, step limit or prompt
   changed.
+
+- **2026-10-09, before round 2: the answer key matched to the pilots on eaea2a75d95b.** Every task
+  half was piloted on the round 2 study build from its start (`rounds/r2d2/pilot/`; T4 B, T17 B and
+  T22 A in folders named `<task><half>-eaea2a75d/`, because their own folders held earlier walks).
+  Every success path landed on the first try with no script errors, console errors or failed
+  requests, every reference value held, and nothing was lost. `answers.md` now names this build,
+  gives a section on it, and corrects what the key still said about fabc16247403: T4's "1 row left
+  out" inspector holds only "Left out" (the note about misreading its counts deleted), Add and
+  Leave out no longer move, the preview's scrollbar is drawn (with "File settings" shifting 15 px),
+  Add sits in a gray track, the "+" menu covers the role control, and Load is enabled with one
+  file and no edges; T17's legend wording and `work.json`'s whole rules and screen names; T18's
+  weight note at row size, the hand pointer over a node and B's suggestion lists covering labels;
+  T19's reopen framing citations, the ambiguous sample click on this build and no focus mark after
+  Find; T20 A's preview caption cutting rows and its result headings; T21's menu covering the
+  key's minimum; T22's red refusal aligned with the gray lines, the same-set Enter showing its
+  count (that note deleted) and B's Escape with no toast; T23's tooltip on the cut heading, the
+  reopened list at Hops 1 with the button pressed for the 2-hop filter, and A's merged halos;
+  T24's menu opening with "Select endpoints" filled and B's Values label; and setup clicks that
+  time out under load, which may or may not have landed, so a session's first screenshot is
+  checked against its start. Citations of d5a3bee20b61 walks whose folders now hold this build's
+  walks point at their `-old-build-d5a3bee/` folders. No bar, floor, step limit or prompt changed.

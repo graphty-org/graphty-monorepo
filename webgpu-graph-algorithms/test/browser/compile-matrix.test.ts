@@ -1,8 +1,10 @@
 /**
- * The browser twin of test/kernel/wgsl-compile.test.ts (spec 5.1, 11.3, 11.6 item 6; contract 5.5 P2): every
- * OVERRIDE_MATRIX case compiles on Chromium (SwiftShader on the default lane, NVIDIA on the GPU lane), twin cases
- * also on a second context created without the subgroups feature (the workgroup twin's browser leg, spec 11.6 item
- * 5), which catches uniform-layout bugs Dawn-node's uniform_buffer_standard_layout masks. PLAN DECISION (P2-T2): the
+ * The browser twin of test/kernel/wgsl-compile.test.ts (spec 5.1, 11.3, 11.6 item 6; contract 5.5 P2): the cases of
+ * browserCompileCases (test/helpers/override-matrix.ts; issue #1741) compile on Chromium (SwiftShader on the default
+ * lane, NVIDIA on the GPU lane) -- one case per kernel and module text, every case of a kernel whose overrides reach a
+ * limit-checked expression -- twin cases also on a second context created without the subgroups feature (the
+ * workgroup twin's browser leg, spec 11.6 item 5), which catches uniform-layout bugs Dawn-node's
+ * uniform_buffer_standard_layout masks. The full OVERRIDE_MATRIX compiles on Dawn in the node project. PLAN DECISION (P2-T2): the
  * file also runs the thread-per-row segmented-reduce on the weighted random1k graph so the browser adapters' noise
  * fixtures and oracle rows exist (G2: "noise-floor rows recorded from the three adapters"); the cross-adapter
  * comparison itself runs in the node primitive test against every committed fixture.
@@ -18,7 +20,12 @@ import {
     recordNoiseRowBrowser,
     writeNoiseFixtureBrowser,
 } from "../helpers/noise-floor-browser.js";
-import { entryOf, OVERRIDE_MATRIX, type OverrideCase, SEGMENTED_REDUCE_SNIPPETS } from "../helpers/override-matrix.js";
+import {
+    browserCompileCases,
+    entryOf,
+    type OverrideCase,
+    SEGMENTED_REDUCE_SNIPPETS,
+} from "../helpers/override-matrix.js";
 import {
     maxAbsError,
     oracleValueOf,
@@ -63,21 +70,22 @@ describe("compile matrix on Chromium", () => {
     });
 
     for (const id of Object.keys(KERNELS) as KernelId[]) {
-        it(`compiles every case of ${id} on Chromium (twin cases on both feature settings)`, async (t) => {
+        it(`compiles the browser cases of ${id} on Chromium (twin cases on both feature settings)`, async (t) => {
             const { ctx: a, twin: b } = await contexts(t);
-            const cases = OVERRIDE_MATRIX.filter((c) => c.id === id);
+            const cases = browserCompileCases(a.caps).filter((c) => c.id === id);
             expect(cases.length).toBeGreaterThan(0);
             await compileAll(a, cases, t.signal);
-            const twins = cases.filter((c) => c.twin);
-            if (twins.length > 0) {
-                await compileAll(b, twins, t.signal);
+            const twins = browserCompileCases(b.caps).filter((c) => c.id === id && c.twin);
+            if (cases.some((c) => c.twin)) {
+                expect(twins.length).toBeGreaterThan(0);
             }
+            await compileAll(b, twins, t.signal);
         });
     }
 
-    it("compiled the whole matrix once (bounded: pipelines.size equals the case count)", async (t) => {
+    it("compiled the browser selection once (bounded: pipelines.size equals the selected case count)", async (t) => {
         const { ctx: a } = await contexts(t);
-        expect(a.pipelines.size).toBe(OVERRIDE_MATRIX.length);
+        expect(a.pipelines.size).toBe(browserCompileCases(a.caps).length);
     });
 
     it("segmented-reduce thread-per-row on random1k (weighted sum): oracle within the analytic bound, twice bitwise, this adapter's noise fixture and oracle row written", async (t) => {

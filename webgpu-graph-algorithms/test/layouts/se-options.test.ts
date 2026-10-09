@@ -83,6 +83,7 @@ class FakeWriter implements StateWriter {
 }
 
 const DEFAULT_RESOLVED = {
+    maxIter: null,
     springLength: 10,
     springCoefficient: null,
     gravity: null,
@@ -116,6 +117,7 @@ describe("resolveSpringElectricalOptions (spec 7.20, 9.3; ngraph's names and def
     it("applies SE_DEFAULTS plus the origin centre and the null seed; the record is frozen", () => {
         expect(resolveSpringElectricalOptions(undefined)).toEqual({
             ...SE_DEFAULTS,
+            maxIter: null,
             gravity: null,
             springCoefficient: null,
             center: [0, 0, 0],
@@ -139,8 +141,10 @@ describe("resolveSpringElectricalOptions (spec 7.20, 9.3; ngraph's names and def
                 settleWindow: 3,
                 iterationsPerStep: 4,
                 maxInFlight: 1,
+                maxIter: 100,
             }),
         ).toEqual({
+            maxIter: 100,
             springLength: 30,
             springCoefficient: 0.5,
             gravity: -1.2,
@@ -183,6 +187,9 @@ describe("resolveSpringElectricalOptions (spec 7.20, 9.3; ngraph's names and def
             [{ settleThreshold: -0.001 }, "settleThreshold"],
             [{ maxInFlight: 0 }, "maxInFlight"],
             [{ maxInFlight: 2.5 }, "maxInFlight"],
+            [{ maxIter: 0 }, "maxIter"],
+            [{ maxIter: 2.5 }, "maxIter"],
+            [{ maxIter: Number.POSITIVE_INFINITY }, "maxIter"],
             [{ iterationsPerStep: 0 }, "iterationsPerStep"],
             [{ iterationsPerStep: MAX_ITERATIONS_PER_STEP + 1 }, "iterationsPerStep"],
             [{ dim: 4 }, "dim"],
@@ -205,6 +212,10 @@ describe("resolveSpringElectricalOptions (spec 7.20, 9.3; ngraph's names and def
         expect(resolveSpringElectricalOptions({}, previous)).toEqual(previous);
         expect(resolveSpringElectricalOptions({ maxInFlight: 4 }, previous)).toEqual(previous);
         expect(resolveSpringElectricalOptions({ seed: null }, previous).seed).toBeNull();
+        expect(resolveSpringElectricalOptions({ maxIter: 50 }, previous)).toEqual({ ...previous, maxIter: 50 });
+        const capped = resolveSpringElectricalOptions({ maxIter: 50 });
+        expect(resolveSpringElectricalOptions({ springLength: 20 }, capped).maxIter).toBe(50);
+        expect(resolveSpringElectricalOptions({ maxIter: null }, capped).maxIter).toBeNull();
         expectCode(() => resolveSpringElectricalOptions({ maxInFlight: 3 }, previous), "E_INVALID_ARGUMENT", {
             argument: "maxInFlight",
             value: 3,

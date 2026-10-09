@@ -15,12 +15,15 @@ import { type TestContext } from "vitest";
 
 import { type GpuContext } from "../../src/context.js";
 import { pipelineKey } from "../../src/kernel/pipeline-cache.js";
+import { composeWgsl } from "../../src/kernel/wgsl.js";
 import { type KernelId, KERNELS, kernelSpec } from "../../src/kernels.js";
 import { CAPS_LAVAPIPE, CAPS_SPEC_DEFAULT } from "../helpers/caps-tables.js";
 import {
+    browserCompileCases,
     canonicalKey,
     entryOf,
     EXPECTED_CASES_BY_PHASE,
+    limitCheckedNames,
     matrixCovers,
     OVERRIDE_MATRIX,
     type OverrideCase,
@@ -165,6 +168,55 @@ describe("OVERRIDE_MATRIX (pure)", () => {
             expect(snippets).toContain(snippet);
         }
         expect(new Set(snippets).size).toBe(4);
+    });
+
+    it("browserCompileCases: limitCheckedNames follows @workgroup_size and workgroup array sizes through const / override declarations", () => {
+        const code = [
+            "override WG: u32 = 64u;",
+            "override K: u32 = 2u;",
+            "override UNUSED: u32 = 3u;",
+            "const N: u32 = K * 4u;",
+            "var<workgroup> a: array<atomic<u32>, N>;",
+            "@compute @workgroup_size(WG) fn main() {}",
+        ].join("\n");
+        const names = limitCheckedNames(code);
+        expect(["WG", "K", "N"].every((name) => names.has(name))).toBe(true);
+        expect(names.has("UNUSED")).toBe(false);
+        const real = limitCheckedNames(composeWgsl(kernelSpec("closeness-level"), CAPS_LAVAPIPE).code);
+        expect(real.has("WG") && real.has("max_words")).toBe(true);
+    });
+
+    // The guard of issue #1741: Chromium compiles a selection, and this fails when a kernel's browser-unique cases
+    // (a module text, a feature setting, an override that reaches a limit) would go uncompiled there.
+    it("browserCompileCases: on both feature settings, covers every kernel, every distinct module text and every case whose overrides reach a limit; no kernel is limit-sensitive today", () => {
+        const sensitive = new Set<string>();
+        for (const caps of [CAPS_LAVAPIPE, CAPS_SPEC_DEFAULT]) {
+            const selected = new Set(browserCompileCases(caps));
+            const textsSelected = new Set<string>();
+            const textsAll = new Set<string>();
+            for (const c of OVERRIDE_MATRIX) {
+                const { code } = composeWgsl(kernelSpec(c.id, c.overrides, c.snippets), caps);
+                const text = `${c.id}\n${code}`;
+                textsAll.add(text);
+                if (selected.has(c)) {
+                    textsSelected.add(text);
+                }
+                const limited = limitCheckedNames(code);
+                if (Object.keys(c.overrides).some((name) => limited.has(name))) {
+                    sensitive.add(c.id);
+                    expect(selected.has(c), `${c.id} ${JSON.stringify(c.overrides)} reaches a limit`).toBe(true);
+                }
+            }
+            expect([...textsAll].filter((text) => !textsSelected.has(text))).toEqual([]);
+            for (const id of Object.keys(KERNELS)) {
+                expect(
+                    [...selected].some((c) => c.id === id),
+                    id,
+                ).toBe(true);
+            }
+            expect(selected.size).toBeLessThan(OVERRIDE_MATRIX.length / 4);
+        }
+        expect([...sensitive]).toEqual([]);
     });
 
     it("matrixCovers: canonicalises omitted defaults and the standard pair, covers both twins in one call, ignores ad hoc ids, reports foreign combinations and snippets", () => {

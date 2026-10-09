@@ -3923,7 +3923,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                         id: `${id}-reply`,
                                         role: "assistant",
                                         content: result.success
-                                            ? (result.message ?? result.text ?? result.llmText ?? "Done.")
+                                            ? result.message || result.llmText || "Done."
                                             : (result.error?.message ?? "The assistant could not answer."),
                                         timestamp: Date.now(),
                                         isError: !result.success,

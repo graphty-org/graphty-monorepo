@@ -342,11 +342,13 @@ jobs:
     # failure or cancelled. On 2026-10-07 (run 37635516841) a GitHub Actions outage left CI's "All Checks Pass"
     # queued for good, its result "abandoned", the CI call ended neither failure nor cancelled, and a list of
     # those two skipped this job: the attempt ended red with no pull request and no issue. always(), so a
-    # cancelled run still reports; a pick that failed (not one that skipped by design) is held too.
+    # cancelled run still reports; a pick that failed (not one that skipped by design) is held too. A train that
+    # opened its pull request and then failed a later step (closing the held issue, an announcement) did not hold
+    # anything: the release is going ahead, so this job does not run and the train reports that failure itself.
     held:
         name: Hold the release
         needs: [pick, ci, t4, hosts, audit, llm, train]
-        if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && needs.train.result != 'success')) }}
+        if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && needs.train.result != 'success' && needs.train.outputs.pr == '')) }}
         runs-on: ubuntu-24.04
         permissions:
             actions: read
@@ -479,6 +481,10 @@ jobs:
             issues: write
             pull-requests: write
             statuses: write
+        # Set as soon as the release pull request exists, so the held job knows this run opened one even when a
+        # later step of this job fails.
+        outputs:
+            pr: ${{ steps.open.outputs.pr }}
         env:
             GH_TOKEN: ${{ github.token }}
         steps:
@@ -608,6 +614,17 @@ jobs:
                   [ "$TRIGGER" != workflow_run ] || restart=(--restart)
                   node tools/release-status.mjs opened --sha "$SHA" --pr "$PR" --tags "$TAGS" "${restart[@]}" \
                       --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+            # A step after the pull request opened failed: the release is not held (the held job skips), but the
+            # failure must not pass unseen. The run ends red, and this says what it means.
+            - name: Report a failure after the release pull request opened
+              if: ${{ failure() && steps.open.outputs.pr != '' }}
+              env:
+                  PR: ${{ steps.open.outputs.pr }}
+              run: |
+                  msg="the release pull request ${PR} is open and the release is going ahead, but a later step of this job failed (see the failed step above); the release is not held"
+                  echo "::error::${msg}"
+                  echo "Release pull request opened, then a bookkeeping step failed: ${msg}" >> "$GITHUB_STEP_SUMMARY"
 
     # Runs on the push that merges a release pull request: Mergify's merge commit names the release branch. The
     # release queue rule merges with merge_method: merge for this reason; a merge-batch commit names only numbers.

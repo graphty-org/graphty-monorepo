@@ -128,7 +128,7 @@ const FORCE_ACCELERATED_MIN_NODES = 2000;
  */
 interface ParsedSimulationOptions {
     scalingFactor?: number;
-    maxIter?: number;
+    maxIter?: number | null;
     jitterTolerance?: number;
     scalingRatio?: number;
     gravity?: number;
@@ -173,7 +173,7 @@ function simulationModel(
             return {
                 ...common,
                 scale: options.scalingFactor,
-                maxIter: options.maxIter,
+                maxIter: options.maxIter ?? undefined,
                 jitterTolerance: options.jitterTolerance,
                 scalingRatio: options.scalingRatio,
                 gravity: options.gravity,
@@ -203,6 +203,7 @@ function simulationModel(
             return {
                 ...common,
                 scale: options.scale,
+                maxIter: options.maxIter,
                 springLength: options.springLength,
                 springCoefficient: options.springCoefficient,
                 gravity: options.gravity,
@@ -1042,7 +1043,7 @@ export class LayoutManager implements Manager {
      * @param how - The dimension, whether this is a restore, and whether the build is still wanted.
      */
     private async _setLayoutInternal(layout: string, opts: object, how: BuildOptions): Promise<void> {
-        this.logger.info("Setting layout", { type: layout, options: opts });
+        this.logger.info("Setting layout", { type: layout, optionCount: Object.keys(opts).length });
 
         // Everything below -- option validation, dimension options, the stored layout type --
         // sees the ENGINE name, so a catalogue id behaves exactly like the engine it names.

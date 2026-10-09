@@ -5,7 +5,7 @@
 
 import type { AiEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
-import type { TransactionScope } from "../session/types";
+import type { GraphSession, HistoryStepId, TransactionScope } from "../session/types";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, CommandResult } from "./commands/types";
@@ -50,6 +50,55 @@ function joinTexts(texts: readonly string[]): string | undefined {
     return texts.length === 0 ? undefined : texts.join("\n");
 }
 
+/** Numbers each message, so its steps can be found in the history by their provenance. */
+let messageCount = 0;
+
+/**
+ * The newest applied step a message recorded.
+ * @param session - The session.
+ * @param message - The message's number, as its steps' `provenance.message` carries it.
+ * @returns The step, or undefined when the message has recorded none that is applied.
+ */
+function latestStepOf(session: GraphSession, message: string): HistoryStepId | undefined {
+    const { steps, position } = session.history;
+    for (let index = position - 1; index >= 0; index--) {
+        if (steps[index].provenance.message === message) {
+            return steps[index].id;
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * Whether one of a message's steps has been undone.
+ * @param session - The session.
+ * @param message - The message's number.
+ * @returns True when a step it recorded is past the history's cursor.
+ */
+function undoneStepOf(session: GraphSession, message: string): boolean {
+    const { steps, position } = session.history;
+    return steps.slice(position).some((step) => step.provenance.message === message);
+}
+
+/**
+ * Take back what a message recorded: undo its steps while one of them is what the next undo would
+ * undo. Stops at a step of anyone else's, or at pending work, which the person's own later edit
+ * is: reverting under it could clobber it, so the message's older steps stay, undoable in order.
+ * @param session - The session.
+ * @param message - The message's number.
+ */
+async function revertMessage(session: GraphSession, message: string): Promise<void> {
+    for (;;) {
+        const next = session.history.nextUndo;
+        if (next?.kind !== "undo" || next.step.provenance.message !== message) {
+            return;
+        }
+
+        await session.undo();
+    }
+}
+
 /** Event emitter callback type */
 export type AiEventEmitter = (event: AiEvent) => void;
 
@@ -74,8 +123,8 @@ export interface ExecutionResult extends CommandResult {
 }
 
 /**
- * A tool threw, so the message's transaction rolled back everything its tools did. Carries the
- * result the reader is told, which reports the failure.
+ * A tool threw, so its batch's transaction rolled back, and the message's earlier batches are
+ * taken back too. Carries the result the reader is told, which reports the failure.
  */
 class MessageRolledBack extends Error {
     constructor(readonly result: ExecutionResult) {
@@ -154,7 +203,8 @@ export class AiController {
         this.lastError = null;
 
         // Create new abort controller for this execution
-        this.abortController = new AbortController();
+        const abortController = new AbortController();
+        this.abortController = abortController;
 
         // Emit command start event
         this.emitAiEvent({
@@ -166,18 +216,28 @@ export class AiController {
         // Transition to submitted state
         this.statusManager.submit();
 
+        // One message is one undoable step, made of short transactions: each batch of tool calls
+        // the model returns runs in its own, which commits before the model is asked again, so
+        // nothing is held while the model thinks and the person's own edits go through. Every
+        // batch after the first continues the message's step (`after`), merging into it while it
+        // is the newest step. An undo of one of its steps while the message is going ends it.
+        const message = String(++messageCount);
+        let stopWatching: (() => void) | undefined;
         try {
-            // One message is one undoable step: everything its tools do through `ctx.tx` joins
-            // the transaction, a tool that throws rolls all of it back, and an undo while the
-            // message is still going aborts it, which stops the model and every tool.
+            const session = this.graph.getSession();
+            stopWatching = session.on("history:changed", () => {
+                if (!abortController.signal.aborted && undoneStepOf(session, message)) {
+                    abortController.abort(new DOMException("The message was undone.", "AbortError"));
+                }
+            });
+
             let result: ExecutionResult;
             try {
-                result = await this.graph
-                    .getSession()
-                    .transaction(input, (tx, signal) => this.converse(input, tx, signal), {
-                        provenance: { via: "assistant" },
-                    });
+                result = await this.converse(input, session, message, abortController.signal);
             } catch (error) {
+                // A tool threw, the message was cancelled or undone, or the model failed: what the
+                // message's earlier batches recorded is taken back, as one transaction's rollback was.
+                await revertMessage(session, message);
                 if (!(error instanceof MessageRolledBack)) {
                     throw error;
                 }
@@ -217,6 +277,7 @@ export class AiController {
                 message: `Error: ${errorMessage}`,
             };
         } finally {
+            stopWatching?.();
             this.abortController = null;
             this.currentInput = null;
         }
@@ -296,24 +357,19 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     }
 
     /**
-     * One message, inside its transaction: ask the model, then run the tools it calls.
+     * One message: ask the model, then run the tools it calls, each batch in a short transaction.
      * @param input - The user's natural language input
-     * @param tx - The message's transaction, which the tools write through
-     * @param signal - Fires when the message is cancelled or its transaction aborted
+     * @param session - The session the batches' transactions open on
+     * @param message - The message's number, stamped on its steps' provenance
+     * @param aborted - Fires when the message is cancelled or undone
      * @returns The execution result
      */
-    private async converse(input: string, tx: TransactionScope, signal: AbortSignal): Promise<ExecutionResult> {
-        // The transaction's abort (an undo during the message) stops the model and every tool.
-        const { abortController } = this;
-        signal.addEventListener(
-            "abort",
-            () => {
-                abortController?.abort(signal.reason);
-            },
-            { once: true },
-        );
-        const aborted = abortController?.signal ?? signal;
-
+    private async converse(
+        input: string,
+        session: GraphSession,
+        message: string,
+        aborted: AbortSignal,
+    ): Promise<ExecutionResult> {
         // Build messages for LLM
         const messages: Message[] = this.buildMessages(input);
 
@@ -368,12 +424,29 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             // Transition to executing state
             this.statusManager.startExecuting();
 
-            const step = await this.executeToolCalls(response.toolCalls, tx, aborted);
-            results.push(...step.results);
+            const { toolCalls } = response;
+            const step = await session.transaction(
+                input,
+                async (tx, signal) => {
+                    // The batch's abort (an undo while it runs) stops the model and every tool.
+                    signal.addEventListener(
+                        "abort",
+                        () => {
+                            this.abortController?.abort(signal.reason);
+                        },
+                        { once: true },
+                    );
+                    const ran = await this.executeToolCalls(toolCalls, tx, aborted);
+                    results.push(...ran.results);
+                    if (ran.threw) {
+                        // Thrown inside the batch, so its own transaction rolls back.
+                        throw new MessageRolledBack(this.combineResults(results, joinTexts(texts)));
+                    }
 
-            if (step.threw) {
-                throw new MessageRolledBack(this.combineResults(results, joinTexts(texts)));
-            }
+                    return ran;
+                },
+                { provenance: { via: "assistant", message }, after: latestStepOf(session, message) },
+            );
 
             if (turn === MAX_TOOL_TURNS) {
                 logger.debug("Out of tool turns: asking for a text answer only", { turns: turn });
@@ -395,7 +468,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     /**
      * Execute one turn's tool calls, in order, stopping at the first that fails.
      * @param toolCalls - Tool calls to execute
-     * @param tx - The message's transaction
+     * @param tx - The batch's transaction
      * @param signal - Fires when the message is cancelled
      * @returns The result of each tool that ran, and whether one threw, which rolls the message back.
      */
@@ -474,7 +547,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     /**
      * Execute a single tool call.
      * @param toolCall - The tool call to execute
-     * @param tx - The message's transaction, handed to the command as `ctx.tx`
+     * @param tx - The batch's transaction, handed to the command as `ctx.tx`
      * @returns Command result
      */
     private async executeToolCall(toolCall: ToolCall, tx: TransactionScope): Promise<CommandResult> {

@@ -1940,7 +1940,10 @@ async function prove() {
     // screen-reader mode: the focused element's role and name after every step, and live-region text
     const D = join(base, "session-d");
     const srSetup = join(base, "setup-sr.txt");
-    await writeFile(srSetup, "--click No thanks\n--click Open project or file\n--upload florentine.gml\n--click Load\n");
+    await writeFile(
+        srSetup,
+        "--click No thanks\n--click Open project or file\n--upload florentine.gml\n--click Load\n",
+    );
     r = node(["--start", D, `setup:${srSetup}`, "--sr"]);
     check(
         "an --sr start prints what has focus and no screenshot path; a setup leaves nothing focused",

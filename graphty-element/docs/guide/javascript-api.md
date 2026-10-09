@@ -508,24 +508,29 @@ With no argument, `enablePersistence()` uses a built-in key, and that key is pub
 package's source. **Keys saved that way are obscured, not encrypted**: they are not in plain
 text, but anyone with access to the page or the browser profile can decrypt them.
 
-To protect them, ask the reader for a passphrase and derive the key from it with
-`deriveKeyFromPassphrase` (PBKDF2 in WebCrypto; you write no crypto yourself):
+To protect them, ask the reader for a passphrase and turn remembering on with it; the key is
+derived with PBKDF2 in WebCrypto, so you write no crypto yourself:
 
 ```typescript
-import { ApiKeyManager, deriveKeyFromPassphrase } from "@graphty/graphty-element/ai";
+import { ApiKeyManager } from "@graphty/graphty-element/ai";
 
 const keys = new ApiKeyManager();
-keys.enablePersistence({ encryptionKey: await deriveKeyFromPassphrase(passphrase, userId) });
+await keys.enablePersistenceWithPassphrase(passphrase, { salt: userId });
 ```
 
-The second argument is a salt: not secret, but one per reader (an account id, or random bytes
-you keep) so a guessed passphrase cannot be tried against every reader at once. It defaults to
-a fixed salt. The same passphrase and salt give the same key on every page, and a wrong
-passphrase loads no keys and leaves the saved ones as they were.
+The salt is not secret, but one per reader (an account id, or random bytes you keep) means a
+guessed passphrase cannot be tried against every reader at once; it defaults to a fixed salt.
+The same passphrase and salt unlock the same keys on every page, and a wrong passphrase loads
+no keys and leaves the saved ones as they were. The key derived from the passphrase is kept in
+memory only, so nothing restores itself after a reload: ask for the passphrase again and call
+`enablePersistenceWithPassphrase` again.
 
-Any `{ encryptionKey }` of at least 10 characters works the same way. The manager remembers it
-in `sessionStorage`, so a reload in the same tab restores the keys and closing the tab ends it;
-after that, call `enablePersistence({ encryptionKey })` again to unlock them.
+`enablePersistence({ encryptionKey })` (at least 10 characters) uses a key you supply instead.
+The manager remembers that key in clear text in `sessionStorage`, so a reload in the same tab
+restores the keys and closing the tab ends it; after that, call
+`enablePersistence({ encryptionKey })` again to unlock them. While the tab is open, anyone with
+access to the page can read the key there, which is why a passphrase goes through
+`enablePersistenceWithPassphrase` instead.
 `new ApiKeyManager({ storage, prefix })` changes where the keys are kept (default
 `localStorage` and `"@graphty-ai-keys"`).
 

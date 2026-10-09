@@ -69,8 +69,6 @@ export class ArfLayout extends SnapshotLayoutEngine {
     static type = "arf";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = arfLayoutOptionsSchema;
-    /** Layout units to scene units. */
-    private static readonly scale = 100;
     protected readonly dimensions: 2 | 3;
     config: ArfLayoutConfigType;
 
@@ -115,13 +113,13 @@ export class ArfLayout extends SnapshotLayoutEngine {
     protected compute(input: SnapshotLayoutInput): F32 {
         return sceneUnits(
             arf(input.graph, {
-                pos: startFrom(input, 2, ArfLayout.scale) ?? this.rowsOfRecord(this.config.pos, 2),
+                pos: startFrom(input, 2, this.config.scalingFactor) ?? this.rowsOfRecord(this.config.pos, 2),
                 scaling: this.config.scaling,
                 a: this.config.a,
                 maxIter: this.config.maxIter,
                 seed: this.config.seed,
             }),
-            ArfLayout.scale,
+            this.config.scalingFactor,
         );
     }
 }

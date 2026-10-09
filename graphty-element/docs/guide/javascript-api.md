@@ -488,14 +488,17 @@ One message is one undoable step. A command you register with
 
 `ApiKeyManager` from `@graphty/graphty-element/ai` holds the reader's provider keys. It
 restores itself after a reload: a new manager finds the keys an earlier page saved and turns
-remembering back on, so the host only enables, disables and sets keys.
+remembering back on, so the host only enables, disables and sets keys. Storage is encrypted with
+the browser's Web Crypto API, which is asynchronous: await `ready()` before reading restored
+keys, and await `enablePersistence()` before reading keys it loads.
 
 ```typescript
 import { ApiKeyManager } from "@graphty/graphty-element/ai";
 
-const keys = new ApiKeyManager(); // restores keys saved by an earlier page
+const keys = new ApiKeyManager();
+await keys.ready(); // keys saved by an earlier page are back
 
-keys.enablePersistence(); // save keys in localStorage, obscured (see below), from now on
+await keys.enablePersistence(); // save keys in localStorage, obscured (see below), from now on
 keys.setKey("anthropic", apiKey);
 keys.setDefaultProvider("anthropic"); // saved with the keys
 
@@ -504,9 +507,12 @@ const provider = keys.getDefaultProvider() ?? keys.getConfiguredProviders()[0];
 keys.disablePersistence(); // forget them on the next load (they stay in memory)
 ```
 
-With no argument, `enablePersistence()` uses a built-in key, and that key is public in the
-package's source. **Keys saved that way are obscured, not encrypted**: they are not in plain
-text, but anyone with access to the page or the browser profile can decrypt them.
+::: warning Without a passphrase, saved keys are only obscured
+With no argument, `enablePersistence()` uses a key built into graphty-element. That key is public
+in the package's source, so keys saved this way are obscured, not encrypted: anyone with access to
+the page (any script running on it) or to the browser profile can read them. They are only kept
+out of plain text.
+:::
 
 To protect them, ask the reader for a passphrase and turn remembering on with it; the key is
 derived with PBKDF2 in WebCrypto, so you write no crypto yourself:
@@ -562,6 +568,10 @@ text only; the Hermes models that can call tools are about 4 to 4.5 GB and need 
 roughly 4 to 5 GB of memory. The browser caches a model after its first download.
 `modelSupportsTools` tells you which kind the provider has, so you can say so to the reader;
 the provider never sends tools to a model that would refuse them.
+
+Keys saved by graphty-element 3.x and earlier use a format Web Crypto cannot read. They are left
+in storage untouched and treated as no stored keys, so the reader enters them once more; the
+first save replaces them.
 
 ### Voice Input
 

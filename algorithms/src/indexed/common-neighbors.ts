@@ -1,5 +1,7 @@
 import type { AdjacencyView, GraphSnapshot } from "@graphty/graph-format";
 
+import { refuseWeights } from "./weights.js";
+
 /** Options of the index-based common-neighbour score. @public */
 export interface CommonNeighborsOptions {
     /** Intersect out(u) with in(v) instead of the two undirected rows. */
@@ -59,5 +61,6 @@ export function sortedRowMerge(
  * @public
  */
 export function commonNeighborsScore(s: GraphSnapshot, u: number, v: number, o: CommonNeighborsOptions = {}): number {
+    refuseWeights("commonNeighborsScore", o);
     return sortedRowMerge(s, o.directed === true ? s.reverse() : s, u, v);
 }

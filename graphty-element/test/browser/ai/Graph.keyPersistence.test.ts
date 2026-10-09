@@ -112,7 +112,7 @@ describe("Graph AI key management", () => {
             const { Graph } = await import("../../../src/Graph");
 
             const keyManager = await Graph.createApiKeyManager();
-            keyManager.enablePersistence({
+            await keyManager.enablePersistence({
                 encryptionKey: "test-secret-key-long",
                 storage: "localStorage",
                 prefix: testPrefix,
@@ -125,7 +125,7 @@ describe("Graph AI key management", () => {
             const { Graph } = await import("../../../src/Graph");
 
             const keyManager = await Graph.createApiKeyManager();
-            keyManager.enablePersistence({
+            await keyManager.enablePersistence({
                 encryptionKey: "test-secret-key-long",
                 storage: "localStorage",
                 prefix: testPrefix,

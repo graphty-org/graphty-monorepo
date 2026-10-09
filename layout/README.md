@@ -389,8 +389,8 @@ try {
 
 ## Common options
 
-Every layout takes these options besides its own. `arf` rescales only when it is given `scale` or `center`; without
-them its result keeps the size the forces settle at, which its `scaling` option sets.
+Every layout takes these options besides its own. Every one-shot layout, `arf` included, ends with its farthest node
+`scale` from `center`.
 
 - **dim** (`2 | 3`): values per node; default 2
 - **scale** (number): size of the layout around its centre; default 1

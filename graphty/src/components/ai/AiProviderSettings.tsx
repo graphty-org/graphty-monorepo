@@ -168,7 +168,7 @@ export interface AiProviderSettingsProps {
     readonly onDefaultProviderChange: (provider: ProviderType | null) => void;
     /** Whether keys survive a reload. */
     readonly isPersistenceEnabled: boolean;
-    /** Starts remembering keys in this browser: obscured, or encrypted when given a key. */
+    /** Starts remembering keys in this browser (obscured, not encrypted, without a passphrase). */
     readonly onEnablePersistence: (encryptionKey?: string) => void;
     /** Stops remembering keys. */
     readonly onDisablePersistence: (clearStorage?: boolean) => void;

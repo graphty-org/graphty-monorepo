@@ -28,8 +28,9 @@ const s = builder.freeze();
 const paths = dijkstra(s, s.ids.requireIndex("a"));
 console.log(paths.dist[s.ids.requireIndex("c")]); // 3
 
-// 2.x: pageRank(graph).ranks -- now one score per node index; toMap keys it by id again
-const ranks = s.ids.toMap(pageRank(s).scores);
+// 2.x: pageRank(graph).ranks -- now one score per node index; toMap keys it by id again. 2.x ignored the
+// edge weights unless asked; from 4.0 they are read unless `weighted: false`.
+const ranks = s.ids.toMap(pageRank(s, { weighted: false }).scores);
 console.log(ranks.get("c")?.toFixed(3)); // 0.521
 ```
 

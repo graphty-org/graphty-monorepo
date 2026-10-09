@@ -363,8 +363,9 @@ export async function pageRankWorstFactor(ctx: GpuContext): Promise<number> {
         bump(iterationFactor(full, expected));
         bump(Math.abs(full.danglingMass - expected.danglingMass) / PR_PARITY);
     }
-    const loose = await pageRank(ctx, karate, { tolerance: 1 });
-    bump(iterationFactor(loose, pageRankOracle(karate, { ...PR_OPTS, tolerance: 1 })));
+    // 2 is above every summed change of a vector summing to 1, the seed's |x0 - 0| = 1 included
+    const loose = await pageRank(ctx, karate, { tolerance: 2 });
+    bump(iterationFactor(loose, pageRankOracle(karate, { ...PR_OPTS, tolerance: 2 })));
     const eigenOpts = { maxIterations: 100, tolerance: 1e-6, weighted: true };
     const eigenEight = await eigenvectorCentrality(ctx, karate, { maxIterations: 8 });
     const eigenExpected = eigenvectorOracle(karate, { ...eigenOpts, maxIterations: 8 });

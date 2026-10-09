@@ -2,6 +2,7 @@ import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
 import { arf, kamadaKawai, type LayoutResult } from "../../src";
+import { rescaledRows } from "./golden";
 
 /*
  * ARF and the 3D Kamada-Kawai start from seeded random positions, and both carry a change of 3e-8 in that start
@@ -84,7 +85,8 @@ function assertRows(actual: LayoutResult, expected: number[][]): void {
 
 describe("layout 1.x drawings of the seeded layouts", () => {
     it("arf draws the story graph as arfLayout did", () => {
-        assertRows(arf(storyGraph(), { scaling: 1, a: 1.1, maxIter: 1000, seed: 42 }), ARF_1X);
+        // arfLayout returned the scale the forces settled at; arf rescales, as every one-shot layout does
+        assertRows(arf(storyGraph(), { scaling: 1, a: 1.1, maxIter: 1000, seed: 42 }), rescaledRows(ARF_1X));
     });
 
     it("kamadaKawai in 3D draws the story graph as kamadaKawaiLayout did", () => {

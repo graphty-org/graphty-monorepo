@@ -151,9 +151,26 @@ data. Today those are the three note values:
 | `graphty.notes.latest`     | The text of the newest of those notes         |
 | `graphty.notes.latestTime` | The `time` of the newest of those notes       |
 
-They work in a layer's `selector` and in a binding's `by`. A label or tooltip bound to one is drawn
-as literal text: a note reading `<bold>x</bold>` shows the tags, never bold text. See
-[Notes](./notes#notes-in-styles).
+They work in a layer's `selector` and in a binding's `by`. See [Notes](./notes#notes-in-styles).
+
+### Label text is drawn as written
+
+A label or tooltip whose words come from a binding -- a data column, a result or a note -- is
+drawn as literal text: a value reading `<bold>x</bold>` shows the tags, never bold text, so data
+can never restyle its own label. Label markup (`<bold>`, `<italic>`, `<color='...'>` and the rest)
+is read only in a literal label the layer itself writes:
+
+```typescript
+await session.styles.add({
+    name: "Hubs",
+    target: "node",
+    selector: { match: "ids", nodes: ["hub"] },
+    set: { "node.label": "<bold>Hub</bold>" }, // drawn bold
+});
+```
+
+A binding's `map`, `missing` and `other` values are part of the binding, so they are drawn as
+written too.
 
 The whole `graphty.` root is reserved for the element, now and in later releases. A data column
 whose name starts `graphty.` is still reachable, as `data.graphty.<name>`, and
@@ -184,7 +201,7 @@ A channel is one visual property with one name. These are all of them:
 | Edge channel              | Takes                                                                      |
 | ------------------------- | -------------------------------------------------------------------------- |
 | `edge.color`              | any CSS colour                                                             |
-| `edge.width`              | a number                                                                   |
+| `edge.width`              | a thickness in world units, 40 to one unit (see below); the default is 4.5 |
 | `edge.opacity`            | 0 to 1                                                                     |
 | `edge.style`              | `solid`, `dash`, `dot`, `zigzag`, ...                                      |
 | `edge.patternCount`       | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
@@ -204,6 +221,13 @@ A channel is one visual property with one name. These are all of them:
 | `edge.animationSpeed`     | a number                                                                   |
 | `edge.label`              | the words to draw                                                          |
 | `edge.labelStyle`         | as `node.labelStyle`                                                       |
+
+`edge.width` is a length in the graph's own world, the space nodes are sized and placed in:
+40 is one world unit, so the default of 4.5 is about a ninth of a unit. Every kind of line --
+solid, patterned, curved, animated, 2D and 3D -- draws the same width at the same thickness.
+Because it is a world length, an edge grows and shrinks with zoom as a node does, and in 3D a
+farther edge looks thinner only by normal perspective, exactly as much as a node at the same
+distance; it is not tapered beyond that.
 
 Writing `node.label` or `edge.label` is what switches a label on. To switch node labels on
 without choosing the words, write `{ enabled: true }` to `node.labelStyle`: each node is labelled

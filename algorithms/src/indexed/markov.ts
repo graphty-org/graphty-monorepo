@@ -2,9 +2,10 @@ import type { AdjacencyView, NumericVector } from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
 import { type LabelResult, withGroups } from "./components.js";
+import type { WeightedOptions } from "./weights.js";
 
 /** Options of the index-based Markov clustering, with the legacy `markovClustering` defaults. @public */
-export interface MarkovOptions {
+export interface MarkovOptions extends WeightedOptions {
     /** Matrix power of each expansion step, an integer of at least 1; default 2. */
     readonly expansion?: number | undefined;
     /** Element-wise power of each inflation step, above 0; default 2. */
@@ -272,7 +273,7 @@ export function markovClustering(s: AdjacencyView, options: MarkovOptions = {}):
     if (!(tolerance >= 0) || !(pruningThreshold >= 0)) {
         throw withCode(new RangeError("tolerance and pruningThreshold must be non-negative"), "E_BAD_OPTION");
     }
-    const weights = options.weights ?? s.weights;
+    const weights = options.weighted === false ? null : (options.weights ?? s.weights);
     if (weights !== null && weights.length !== s.arcCount) {
         throw withCode(
             new RangeError(`weights has ${weights.length} entries; the snapshot has ${s.arcCount} arcs`),

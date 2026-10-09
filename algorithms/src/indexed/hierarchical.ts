@@ -3,6 +3,7 @@ import { type AdjacencyView, INVALID_INDEX } from "@graphty/graph-format";
 import { withCode } from "../errors.js";
 import { type LabelResult, withGroups } from "./components.js";
 import { IntUnionFind } from "./structures/union-find.js";
+import { refuseWeights } from "./weights.js";
 
 /** How the distance between two clusters is taken from their members' hop distances. @public */
 export type Linkage = "single" | "complete" | "average" | "ward";
@@ -132,6 +133,7 @@ function legacyIdRanks(n: number): Uint32Array {
  * @public
  */
 export function hierarchicalClustering(s: AdjacencyView, options: HierarchicalOptions = {}): HierarchicalResult {
+    refuseWeights("hierarchicalClustering", options);
     const linkage = options.linkage ?? "single";
     if (!["single", "complete", "average", "ward"].includes(linkage)) {
         throw withCode(new RangeError(`unknown linkage "${linkage}"`), "E_BAD_OPTION");

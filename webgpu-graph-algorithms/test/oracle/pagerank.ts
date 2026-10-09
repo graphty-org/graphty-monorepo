@@ -1,8 +1,8 @@
 /**
- * The f64 reference of PageRank with NetworkX's semantics over the snapshot indices (spec 8.2, 9.7): x0 = 1/n,
+ * The f64 reference of PageRank (NetworkX's recurrence) over the snapshot indices (spec 8.2, 9.7): x0 = 1/n,
  * per iteration the out-weight sum per node (the out-degree when unweighted), the dangling mass over the nodes
  * whose sum is not positive, x'[v] = (1 - alpha) pv + alpha (sum over the in-arcs of w x[u] / outWeightSum[u] +
- * dangling pv), err = sum |x' - x|, converged when err < n tolerance. `iterations` is the 1-based index of the first
+ * dangling pv), err = sum |x' - x|, converged when err < tolerance. `iterations` is the 1-based index of the first
  * converged iteration. The reverse adjacency is walked the way graph-format materialises it, never the device.
  */
 
@@ -101,7 +101,7 @@ function step(
 }
 
 /**
- * PageRank with NetworkX's semantics in f64, stopping at the first iteration whose L1 error is below n tolerance.
+ * PageRank in f64, stopping at the first iteration whose L1 error is below the tolerance.
  * @param s - the snapshot
  * @param options - alpha, tolerance, maxIterations, weighted
  * @param personalization - the per-node personalization (normalised to sum 1); omitted, 1 / n everywhere
@@ -122,7 +122,7 @@ export function pageRankOracle(
         const { next, err, dangling } = step(p, options.alpha, x);
         x = next;
         danglingMass = dangling;
-        if (err < p.n * options.tolerance) {
+        if (err < options.tolerance) {
             return { scores: x, iterations: iteration, converged: true, danglingMass };
         }
     }

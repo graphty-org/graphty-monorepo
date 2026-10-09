@@ -2,9 +2,10 @@ import { type GraphSnapshot, renumberPartition } from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
 import { type LabelResult, withGroups } from "./components.js";
+import type { WeightedOptions } from "./weights.js";
 
 /** Options of the index-based Louvain, matching the legacy `louvain`. @public */
-export interface LouvainOptions {
+export interface LouvainOptions extends WeightedOptions {
     /** Resolution gamma: above 1 favours smaller communities; default 1. */
     readonly resolution?: number | undefined;
     /** Cap on aggregation levels, and on node visits per node within a level; default 100. */
@@ -44,11 +45,11 @@ interface Level {
 }
 
 /**
- * Level 0: the snapshot's own arcs, with the self-loop arcs moved into `loop`.
- * @param s - An undirected snapshot
- * @returns The first level
+ * Row pointers over the snapshot's arcs with the self-loop arcs left out.
+ * @param s - The snapshot
+ * @returns The row pointers
  */
-function buildLevel0(s: GraphSnapshot): Level {
+function rowPtrWithoutLoops(s: GraphSnapshot): Uint32Array {
     const n = s.nodeCount;
     const rowPtr = new Uint32Array(n + 1);
     for (let u = 0; u < n; u++) {
@@ -61,6 +62,19 @@ function buildLevel0(s: GraphSnapshot): Level {
         }
         rowPtr[u + 1] = rowPtr[u] + kept;
     }
+    return rowPtr;
+}
+
+/**
+ * Level 0: the snapshot's own arcs, with the self-loop arcs moved into `loop`.
+ * @param s - An undirected snapshot
+ * @param weighted - False to give every arc weight 1
+ * @returns The first level
+ */
+function buildLevel0(s: GraphSnapshot, weighted: boolean): Level {
+    const n = s.nodeCount;
+    const weights = weighted ? s.weights : null;
+    const rowPtr = rowPtrWithoutLoops(s);
     const arcs = rowPtr[n];
     const colIdx = new Uint32Array(arcs);
     const w = new Float64Array(arcs);
@@ -72,7 +86,7 @@ function buildLevel0(s: GraphSnapshot): Level {
         const end = s.rowPtr[u + 1];
         for (let a = s.rowPtr[u]; a < end; a++) {
             const v = s.colIdx[a];
-            const weight = s.weights === null ? 1 : s.weights[a];
+            const weight = weights === null ? 1 : weights[a];
             if (v === u) {
                 loop[u] += weight;
             } else {
@@ -312,7 +326,7 @@ export function louvain(s: GraphSnapshot, o: LouvainOptions = {}): LouvainResult
     for (let u = 0; u < n0; u++) {
         labels[u] = u;
     }
-    let level = buildLevel0(s);
+    let level = buildLevel0(s, o.weighted !== false);
     let m2 = 0;
     for (let u = 0; u < n0; u++) {
         m2 += level.deg[u];

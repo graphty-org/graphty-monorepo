@@ -327,9 +327,8 @@ describe("compared with Cytoscape's built-in algorithms", () => {
         const raw = cy.elements().graphtyClosenessCentrality();
         expect(raw.closeness("#b")).toBe(1 / 2);
         expect(raw.score("#a")).toBe(1 / 3);
-        // `normalized` scales by the fraction of the other nodes reached (Wasserman and Faust), which is 1 on a
-        // connected graph; it is not NetworkX's (n - 1) / sum.
-        const ours = cy.elements().graphtyClosenessCentrality({ normalized: true });
+        // "per-other-node" divides by the n - 1 other nodes: r / sum / (n - 1), here 2 / 2 / 2.
+        const ours = cy.elements().graphtyClosenessCentrality({ normalization: "per-other-node" });
         expect(ours.closeness("#b")).toBe(1 / 2);
         expect(cy.elements().graphtyNodeClosenessCentrality({ root: "#a" })).toBe(1 / 3);
         expect(cy.$("#a, #b, #e0").graphtyNodeClosenessCentrality({ root: "#a", weight: "w" })).toBe(1);
@@ -623,15 +622,9 @@ describe("link prediction", () => {
         const e = cy.elements();
         expect(e.graphtyCommonNeighborsScore({ source: "#a", target: "#c" })).toBe(2);
         expect(e.graphtyAdamicAdarScore({ source: "#a", target: "#c" })).toBeCloseTo(2 / Math.log(2), 6);
-        // @graphty/algorithms lists every candidate pair of an undirected graph twice, once per orientation, so
-        // topK: 2 is one pair; topK: 4 is the two pairs.
+        // @graphty/algorithms lists every candidate pair of an undirected graph once, so topK: 4 keeps both pairs.
         const top = e.graphtyCommonNeighborsPrediction({ topK: 4 });
-        expect(top.map((p) => [p.source.id(), p.target.id()].sort().join()).sort()).toEqual([
-            "a,c",
-            "a,c",
-            "b,d",
-            "b,d",
-        ]);
+        expect(top.map((p) => [p.source.id(), p.target.id()].sort().join()).sort()).toEqual(["a,c", "b,d"]);
         expect(top[0]?.score).toBe(2);
         expect(e.graphtyAdamicAdarPrediction({ topK: 1 }).length).toBe(1);
         expect(
@@ -653,7 +646,7 @@ describe("link prediction", () => {
         for (const k of [0, -1]) {
             expect(bar.graphtyTopCandidatesForNode({ ...cand, topK: k }).length).toBe(3);
             expect(bar.graphtyTopAdamicAdarCandidatesForNode({ ...cand, topK: k }).length).toBe(3);
-            expect(e.graphtyCommonNeighborsPrediction({ topK: k }).length).toBe(4);
+            expect(e.graphtyCommonNeighborsPrediction({ topK: k }).length).toBe(2);
         }
         expect(bar.graphtyTopCandidatesForNode({ ...cand, topK: 1 }).length).toBe(1);
         expect(e.graphtyEvaluateCommonNeighbors(held).auc).toBe(1);

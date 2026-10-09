@@ -26,6 +26,16 @@ import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer } from "./PatternedLineRenderer";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
+/**
+ * A style's `line.width` in world units. The one conversion every line renderer is handed its
+ * width through, so the same width draws the same thickness whatever draws the line.
+ * @param width - The style's `line.width`.
+ * @returns The line's thickness in world units.
+ */
+export function lineWidthInWorldUnits(width: number): number {
+    return width / EDGE_CONSTANTS.LINE_WIDTH_PER_WORLD_UNIT;
+}
+
 /** The line types drawn as a run of pattern elements rather than as one line. */
 const PATTERNED_TYPES = new Set(["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"]);
 
@@ -65,12 +75,6 @@ interface ArrowGeometry {
 export class EdgeMesh {
     private static readonly UNIT_VECTOR_POINTS = [0, 0, -0.5, 0, 0, 0.5];
     private static shadersRegistered = false;
-
-    /**
-     * Feature flag: Use custom line renderer instead of GreasedLine
-     * Set to true to test the new custom rendering system
-     */
-    private static readonly USE_CUSTOM_RENDERER = true;
 
     private static _registerShaders(): void {
         if (this.shadersRegistered) {
@@ -244,7 +248,7 @@ void main() {
             style.line?.type as "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag",
             new Vector3(0, 0, -0.5), // Placeholder start (Edge.update() will set real positions)
             new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
-            options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
+            lineWidthInWorldUnits(options.width),
             options.color,
             style.line?.opacity ?? 1,
             scene,
@@ -299,7 +303,7 @@ void main() {
                 `${key}-2d`,
                 () =>
                     Simple2DLineRenderer.createBatchMesh(
-                        options.width / 40, // Convert back from scaled width to match 3D line thickness
+                        lineWidthInWorldUnits(options.width),
                         options.color,
                         style.line?.opacity ?? 1,
                         scene,
@@ -498,49 +502,22 @@ void main() {
 
         _cache: MeshCache,
     ): Mesh {
-        // Use custom line renderer if flag is enabled
-
-        if (this.USE_CUSTOM_RENDERER) {
-            const points = [
-                new Vector3(this.UNIT_VECTOR_POINTS[0], this.UNIT_VECTOR_POINTS[1], this.UNIT_VECTOR_POINTS[2]),
-                new Vector3(this.UNIT_VECTOR_POINTS[3], this.UNIT_VECTOR_POINTS[4], this.UNIT_VECTOR_POINTS[5]),
-            ];
-
-            // CustomLineRenderer only handles solid lines
-            // All patterns are handled by PatternedLineMesh
-            const mesh = CustomLineRenderer.create(
-                {
-                    points,
-                    width: options.width * 20, // Scale factor to match GreasedLine sizing
-                    color: options.color,
-                    opacity: style.line?.opacity,
-                    enableInstancing: true, // Required for MeshCache InstancedMesh
-                },
-                scene,
-            );
-
-            // Apply opacity to mesh visibility (in addition to shader opacity)
-            if (style.line?.opacity !== undefined) {
-                mesh.visibility = style.line.opacity;
-            }
-
-            return mesh;
-        }
-
-        // Fallback to GreasedLine
-        const mesh = CreateGreasedLine(
-            "edge-plain",
+        // CustomLineRenderer only handles solid lines; all patterns are handled by PatternedLineMesh
+        const mesh = CustomLineRenderer.create(
             {
-                points: this.UNIT_VECTOR_POINTS,
-            },
-            {
-                color: Color3.FromHexString(options.color),
-                width: options.width,
+                points: [
+                    new Vector3(this.UNIT_VECTOR_POINTS[0], this.UNIT_VECTOR_POINTS[1], this.UNIT_VECTOR_POINTS[2]),
+                    new Vector3(this.UNIT_VECTOR_POINTS[3], this.UNIT_VECTOR_POINTS[4], this.UNIT_VECTOR_POINTS[5]),
+                ],
+                width: lineWidthInWorldUnits(options.width),
+                color: options.color,
+                opacity: style.line?.opacity,
+                enableInstancing: true, // Required for MeshCache InstancedMesh
             },
             scene,
         );
 
-        // Apply opacity if specified
+        // Apply opacity to mesh visibility (in addition to shader opacity)
         if (style.line?.opacity !== undefined) {
             mesh.visibility = style.line.opacity;
         }
@@ -560,16 +537,10 @@ void main() {
                 points: this.UNIT_VECTOR_POINTS,
             },
             {
-                // IN SCENE UNITS, WHICH IS NOT THE UNIT THE STYLE'S WIDTH IS IN. A greased line
-                // takes its width in world space, and the element's `edge.width` is a screen-space
-                // pixel width -- `CustomLineRenderer` multiplies it by 20 and expands the line by
-                // that many pixels in the vertex shader. Handing the pixel number straight over
-                // drew the element's own width of 8 as a ribbon eight scene units thick, which on
-                // a graph ten units across is a band taller than the graph. `/ 40` is the
-                // conversion the other two world-space renderers already use for exactly this --
-                // see `Simple2DLineRenderer` and `PatternedLineRenderer`, both of which call it
-                // "convert back from scaled width to match 3D line thickness".
-                width: options.width / 40,
+                // A greased line takes its width in world units, as every other line renderer
+                // does. Handing it the style's number unconverted drew the element's own width of
+                // 8 as a ribbon eight units thick, a band taller than a graph ten units across.
+                width: lineWidthInWorldUnits(options.width),
                 colorMode: GreasedLineMeshColorMode.COLOR_MODE_MULTIPLY,
                 // Babylon otherwise binds one colours texture shared by every engine on the page
                 // and disposed with whichever engine goes first. WebGL tolerates the stale

@@ -164,7 +164,12 @@ describe("indexed.betweennessCentrality", () => {
         it(`equals the legacy betweennessCentrality on ${name}`, () => {
             const s = checksummedSnapshot(graph);
             for (const options of OPTION_SETS) {
-                expectNodesMatch(s, betweennessCentrality(s, options).scores, legacyResult() as Record<string, number>);
+                // the legacy function counted hops
+                expectNodesMatch(
+                    s,
+                    betweennessCentrality(s, { ...options, weighted: false }).scores,
+                    legacyResult() as Record<string, number>,
+                );
             }
             s.validate({ checksum: true });
         });
@@ -209,7 +214,7 @@ describe("indexed.edgeBetweennessCentrality", () => {
             for (const options of OPTION_SETS) {
                 expectEdgesMatch(
                     s,
-                    edgeBetweennessCentrality(s, options).scores,
+                    edgeBetweennessCentrality(s, { ...options, weighted: false }).scores,
                     legacyResult() as Map<string, number>,
                 );
             }

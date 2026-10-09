@@ -1,8 +1,9 @@
 /**
- * Layout rescaling utilities
+ * The rescale functions of layout 1.x and 2.x (`rescaleLayout`), removed from the package in
+ * 3.0.0 and kept here as the reference `rescaleInPlace` is checked against.
  */
 
-import { PositionMap } from "../types/index.js";
+import type { PositionMap } from "../../src/types";
 
 /**
  * Returns scaled position array/dict to (-scale, scale) in all axes.
@@ -10,14 +11,7 @@ import { PositionMap } from "../types/index.js";
  * @param scale - Scale factor for positions
  * @param center - Coordinate pair around which to center the layout
  * @returns Rescaled positions dictionary
- * @deprecated Use `rescaleInPlace(positions, dim, scale, center)`
- * over a flat `dim`-stride array. For a plain id-keyed map, copy its rows into a `Float64Array`, rescale it and
- * write the rows back. For the map of a layout run over a graph snapshot, `fromPositionMap(pos, snapshot.ids, dim,
- * fill)` builds the array and `toPositionMap({ positions, dim, n }, snapshot.ids)` reads it back; both need the
- * snapshot's `NodeIdMap`, and `fromPositionMap` builds a `Float32Array`, so values lose f64 precision.
- * `rescaleInPlace` skips a NaN component in the mean and the distance where this function lets it spread, and it
- * returns `dim` components per row whatever the length of `center`; `toPositionMap` also drops a row whose every
- * component is NaN. Removed in 3.0.0.
+ * Removed from the package in 3.0.0; `rescaleInPlace` replaces it.
  */
 export function rescaleLayout(
     pos: PositionMap | number[][],
@@ -41,15 +35,15 @@ export function rescaleLayout(
 
     // Fix Bug #1: Default center should match dimensionality
     if (!center) {
-        center = new Array(dim).fill(0);
+        center = Array(dim).fill(0);
     }
 
     // Use the maximum dimension between positions and center
     const targetDim = Math.max(dim, center.length);
 
     // Calculate center of positions, handling NaN values (Bug #3)
-    const posCenter: number[] = new Array(dim).fill(0);
-    const counts: number[] = new Array(dim).fill(0);
+    const posCenter: number[] = Array(dim).fill(0);
+    const counts: number[] = Array(dim).fill(0);
 
     for (const p of posValues) {
         for (let i = 0; i < dim; i++) {
@@ -70,7 +64,7 @@ export function rescaleLayout(
     let centeredPos: PositionMap | number[][] = {};
     if (Array.isArray(pos)) {
         centeredPos = pos.map((p) => {
-            const centered = new Array(targetDim).fill(0);
+            const centered = Array(targetDim).fill(0);
             for (let i = 0; i < targetDim; i++) {
                 centered[i] = (i < p.length ? p[i] : 0) - (i < posCenter.length ? posCenter[i] : 0);
             }
@@ -78,7 +72,7 @@ export function rescaleLayout(
         });
     } else {
         for (const [node, p] of Object.entries(pos)) {
-            const centered = new Array(targetDim).fill(0);
+            const centered = Array(targetDim).fill(0);
             for (let i = 0; i < targetDim; i++) {
                 centered[i] = (i < p.length ? p[i] : 0) - (i < posCenter.length ? posCenter[i] : 0);
             }
@@ -146,7 +140,7 @@ export function rescaleLayout(
         // All nodes at the same position - extend to target dimensionality
         if (Array.isArray(pos)) {
             (scaledPos as number[][]) = pos.map((p) => {
-                const result = new Array(targetDim);
+                const result = Array(targetDim);
                 for (let i = 0; i < targetDim; i++) {
                     if (i < p.length) {
                         result[i] = Number.isNaN(p[i]) ? Number.NaN : center[i];
@@ -158,7 +152,7 @@ export function rescaleLayout(
             });
         } else {
             for (const [node, p] of Object.entries(pos)) {
-                const result = new Array(targetDim);
+                const result = Array(targetDim);
                 for (let i = 0; i < targetDim; i++) {
                     if (i < p.length) {
                         result[i] = Number.isNaN(p[i]) ? Number.NaN : center[i];
@@ -168,63 +162,6 @@ export function rescaleLayout(
                 }
                 (scaledPos as PositionMap)[node] = result;
             }
-        }
-    }
-
-    return scaledPos;
-}
-
-/**
- * Return a dictionary of scaled positions centered at (0, 0).
- * @param pos - Dictionary of positions
- * @param scale - Scale factor for positions
- * @returns Dictionary of scaled positions
- * @deprecated Use `rescaleInPlace(positions, dim, scale)`
- * over a flat `dim`-stride array. For a plain id-keyed map, copy its rows into a `Float64Array`, rescale it and
- * write the rows back. For the map of a layout run over a graph snapshot, `fromPositionMap(pos, snapshot.ids, dim,
- * fill)` builds the array and `toPositionMap({ positions, dim, n }, snapshot.ids)` reads it back; both need the
- * snapshot's `NodeIdMap`, and `fromPositionMap` builds a `Float32Array`, so values lose f64 precision.
- * `rescaleInPlace` skips a NaN component in the mean and the distance where this function lets it spread, and it
- * returns `dim` components per row whatever the length of `center`; `toPositionMap` also drops a row whose every
- * component is NaN. Removed in 3.0.0.
- */
-export function rescaleLayoutDict(pos: PositionMap, scale: number = 1): PositionMap {
-    if (Object.keys(pos).length === 0) {
-        return {};
-    }
-
-    // Extract positions as array
-    const posArray = Object.values(pos);
-
-    // Find center of positions
-    const center: number[] = [];
-    for (let d = 0; d < posArray[0].length; d++) {
-        center[d] = posArray.reduce((sum, p) => sum + p[d], 0) / posArray.length;
-    }
-
-    // Center positions
-    const centeredPos: PositionMap = {};
-    for (const [node, p] of Object.entries(pos)) {
-        centeredPos[node] = p.map((val, d) => val - center[d]);
-    }
-
-    // Find maximum distance from center
-    let maxDist = 0;
-    for (const p of Object.values(centeredPos)) {
-        const dist = Math.sqrt(p.reduce((sum, val) => sum + val * val, 0));
-        maxDist = Math.max(maxDist, dist);
-    }
-
-    // Scale positions
-    const scaledPos: PositionMap = {};
-    if (maxDist > 0) {
-        for (const [node, p] of Object.entries(centeredPos)) {
-            scaledPos[node] = p.map((val) => (val * scale) / maxDist);
-        }
-    } else {
-        // All points at the center
-        for (const node of Object.keys(centeredPos)) {
-            scaledPos[node] = new Array(centeredPos[node].length).fill(0);
         }
     }
 

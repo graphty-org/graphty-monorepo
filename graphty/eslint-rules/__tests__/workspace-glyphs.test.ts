@@ -12,6 +12,14 @@ import { ESLint } from "eslint";
 import { describe, expect, it } from "vitest";
 
 const graphtyDir = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+
+// Only the import rule runs, and without type information: a probe at a real source path would
+// otherwise build the type-aware program of the whole app (and of graphty-element's source it
+// reads) for every lint, which took over a minute on a CI runner.
+const IMPORTS_ONLY = {
+    ruleFilter: ({ ruleId }: { ruleId: string }) => ruleId === "@typescript-eslint/no-restricted-imports",
+    overrideConfig: { languageOptions: { parserOptions: { project: false, projectService: false } } },
+};
 const RULE = "@typescript-eslint/no-restricted-imports";
 
 /**
@@ -21,7 +29,9 @@ const RULE = "@typescript-eslint/no-restricted-imports";
  * @returns The messages of the no-restricted-imports rule.
  */
 async function restrictedImports(file: string, code: string): Promise<string[]> {
-    const [result] = await new ESLint({ cwd: graphtyDir }).lintText(code, { filePath: resolve(graphtyDir, file) });
+    const [result] = await new ESLint({ cwd: graphtyDir, ...IMPORTS_ONLY }).lintText(code, {
+        filePath: resolve(graphtyDir, file),
+    });
     return result.messages.filter((message) => message.ruleId === RULE).map((message) => message.message);
 }
 
@@ -45,7 +55,7 @@ describe("workspace glyphs", () => {
     });
 
     it("allows lucide-react in glyphs.ts", async () => {
-        const [result] = await new ESLint({ cwd: graphtyDir }).lintFiles(["src/workspace/glyphs.ts"]);
+        const [result] = await new ESLint({ cwd: graphtyDir, ...IMPORTS_ONLY }).lintFiles(["src/workspace/glyphs.ts"]);
 
         expect(result.messages.filter((message) => message.ruleId === RULE)).toEqual([]);
     });

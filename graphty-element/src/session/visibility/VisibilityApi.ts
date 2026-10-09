@@ -51,6 +51,7 @@
 import { type GraphSnapshot, INVALID_INDEX, makeMask, type U8 } from "@graphty/graph-format";
 
 import type { EdgeId, FieldDescriptor, NodeId, Path, Scope } from "../../catalog/types";
+import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 import { VISIBILITY_DEFINITIONS, type VisibilityCommand } from "../commands/visibility";
 import { Dispatcher } from "../project/Dispatcher";
@@ -81,7 +82,6 @@ import {
 } from "../scope/index";
 // The explicit `/index` matters: `src/session/scope.ts` still exists beside the directory and
 // wins a bare `../scope`. It goes when the resolver behind it is retired.
-import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { sealedSet } from "../sealed";
 import { type DependencySources, visibilityCycle } from "../sets/dependencies";
 import type { SetWatch } from "../sets/notify";

@@ -280,7 +280,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             if (element === null) {
                 return;
             }
-            await element.waitForSettled();
+            // Frame selection frames the ends where they are when it is pressed, and the layout is
+            // still moving them after the queue empties: wait for the drawing to stop.
+            await element.waitForStableFrame();
             const view = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
                 name: "View",
             });

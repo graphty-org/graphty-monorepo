@@ -134,8 +134,8 @@ describe("OperationQueueManager", () => {
         });
 
         // Check stats immediately after queueing
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 5)); // Wait for microtask
+        // The batch is scheduled on a microtask; one macrotask yield lets it start
+        await new Promise((resolve) => setTimeout(resolve, 0));
         const stats = queueManager.getStats();
 
         assert.isDefined(stats.pending);
@@ -155,9 +155,9 @@ describe("OperationQueueManager", () => {
             executionOrder.push("data-add");
         });
 
-        // Wait a bit - operation should not execute while paused
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // Operation should not execute while paused: the queue schedules work on a microtask,
+        // so one macrotask yield is past the point it would have run
+        await new Promise((resolve) => setTimeout(resolve, 0));
         assert.equal(executionOrder.length, 0);
 
         queueManager.resume();

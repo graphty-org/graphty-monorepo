@@ -363,7 +363,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
             });
             const grown = session.selection.nodes.length - 1;
-            const words = `${session.data.name(node) ?? String(node)}'s ${String(grown)} connections`;
+            const words = `${session.data.name(node) ?? String(node)}'s ${String(grown)} connections within 2 hops`;
             await screen.findByRole("region", { name: words });
             await waitFor(() => {
                 assert.include(

@@ -1224,15 +1224,6 @@ function UnmatchedLine({
             <Text size="sm">
                 {plural(report.unmatched.rows, "edge row")} {report.unmatched.rows === 1 ? "names" : "name"}{" "}
                 {missingNodes(report.unmatched.values)}.
-                {/* While the unmatched rows show, only the way back ("Show all rows") is offered. */}
-                {page.filter === "unmatched" ? null : (
-                    <>
-                        {" "}
-                        <Anchor component="button" size="sm" onClick={onShow}>
-                            Show the {plural(report.unmatched.rows, "unmatched row")}
-                        </Anchor>
-                    </>
-                )}
             </Text>
             <SegmentedControl
                 size="sm"
@@ -1260,6 +1251,13 @@ function UnmatchedLine({
                     page.setChoices({ ...page.choices, unmatched: value === "add" ? "add" : "leave-out" });
                 }}
             />
+            {/* After the control, so Add | Leave out stays put when the link goes. While the
+                unmatched rows show, only the way back ("Show all rows") is offered. */}
+            {page.filter === "unmatched" ? null : (
+                <Anchor component="button" size="sm" onClick={onShow}>
+                    Show the {plural(report.unmatched.rows, "unmatched row")}
+                </Anchor>
+            )}
         </Group>
     );
 }

@@ -11,6 +11,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **Nothing on the Data page moves when a link goes, and a Sources row shows only what
+  its title names.** The match report's "Show the N unmatched rows" link now follows Add | Leave out
+  (it was inside the sentence, so hiding it slid the control ~150 px left); the "N rows left out"
+  child's inspector shows only "Left out", the load's own row keeps "Loaded" and "Left out". Tests
+  in `DataPage.real-element.test.tsx` (control's left edge before and after; no Loaded/Nodes/Edges
+  under the child), both fail without the change. Evidence
+  `tmp/r2-dry2-app-import-and-left-out/{T4A,T4B}/{06,07,10,11}.png`, `walk.sh`.
 - (2026-10-09) **Study screenshots now draw native scrollbars.** Playwright's headless Chromium
   adds `--hide-scrollbars`; `measure.mjs` exports `LAUNCH = { ignoreDefaultArgs: ["--hide-scrollbars"] }`
   and both `real.mjs` and `bars.mjs` launch with it, so a plain `overflow: auto` pane (the import
@@ -63,11 +70,9 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
 - (2026-10-09, condensed) **A chosen segment is filled** (`--cm-bg-inverse`) and every control shows
   the arrow cursor (one rule in compact-mantine `00-foundation.css.ts`; only Anchor keeps the hand).
 - (2026-10-09, condensed) **A data file opened from the start screen goes through the Data page**
-  (`openInSession`, `project/actions.ts`); Control+O while the page is open lands as a drop
-  (`whileDataPageOpen`). Test `StartScreen.real-element.test.tsx`; evidence `tmp/t2r1-6/a/`.
-- (2026-10-09, condensed) **The source's inspector "..." holds the Sources row menu's verbs** through
-  one hook, `useSourceActions`; on two loads neither offers anything (Edit source would drop the
-  other load). Test `DataPlace.real-element.test.tsx`; evidence `tmp/t2r1-5/a/`.
+  (`openInSession`; Control+O on the page lands as a drop), and the source's inspector "..." holds
+  the Sources row menu's verbs (`useSourceActions`). Tests `StartScreen.real-element.test.tsx`,
+  `DataPlace.real-element.test.tsx`.
 - (2026-10-09, condensed) **The dry run walks the detours as a script: `tier2/pilot/detours.sh all`**
   (30 walks: success paths, `--sr` keyboard walks, round 1's wrong turns, each with `--expect`;
   report `tier2/dry-run-r2-1.md`). Its fixes: pointerdown no longer canceled (2a236410c), short
@@ -88,6 +93,10 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
 
 ## Decisions and reasons
 
+- (2026-10-09) **Move the link, not the control.** Putting the link after the segmented control
+  keeps the sentence, the control and the link in reading order and is the smallest diff; a
+  reserved-width link slot would leave a gap while the unmatched rows show. A row's inspector
+  answers to its title: counts of the whole load under "1 row left out" read as the row's counts.
 - (2026-10-09) **A new event rather than an empty `selection:changed`.** Its TSDoc promises "only
   a real movement arrives", so an empty delta would change what an existing event does (breaking)
   and make every listener redraw for nothing. The new event fires only when no member moved, so
@@ -250,20 +259,14 @@ showed and went before this screenshot` (`goneNotices`). Test `undoWords.real-el
 - (2026-10-09) Did not work: `assert.isDefined(x)` before a nested `function` declaration -- TS
   drops narrowing inside hoisted functions; bind a narrowed `const` outside it.
 
-- (2026-10-09) Seen, not mine: T7 in `inspector/__tests__/tasks.real-element.test.tsx` failed once
-  in a five-file run ("expected '0.5' to equal '0.85'") and passed alone. Mechanism: after Revert
-  it waits for the status bar to empty, then reads the Damping field's `value` attribute outside
-  the wait; the bar clears in one commit and the number field re-syncs in a later one, so a busy
-  browser reads the old value. Fix: read the field inside the `waitFor`.
-- (2026-10-09) Worked: proving a CSS fix's test fails without it by writing `git show HEAD:<file>`
-  over the edited CSS files (backups in the scratchpad), running the tests, copying the backups
-  back -- no stash, no checkout. Worked: `--hover-at` over every control class in one session to
-  find which ones disagree before choosing the rule.
-
-- (2026-10-09) Worked: checking a door change by re-walking the dry-run walks of every task whose
-  path or setup uses that door (`HERE=... LANES=1 tool/with-browser.sh bash tier2/pilot/detours.sh
-T3 T4 T20 T21 T17-P`). It found the silent Control+O loss on the Data page and the 11 setups
-  that opened a data file, neither of which the unit tests saw.
+- (2026-10-09, condensed) Seen, not mine: T7 in `tasks.real-element.test.tsx` reads Damping's
+  `value` outside its `waitFor` after Revert (the field re-syncs a commit later); read it inside.
+  Worked: proving a CSS fix's test fails by copying `git show HEAD:<file>` over it and back;
+  `--hover-at` over every control class before choosing a rule; re-walking every dry-run walk whose
+  path uses a changed door (`detours.sh T3 T4 ...`), which found the silent Control+O loss.
+- (2026-10-09) Worked: a local walk script beside the evidence (`r2-dry2-app-import-and-left-out/walk.sh`)
+  when rewalk.sh's fixed steps stop one click short; a real-element test of "does not move" reads
+  the control's `getBoundingClientRect().left` before and after the click.
 
 - (2026-10-09, condensed) **Test and walk lessons.** A second load in a test needs
   `session.data.import(..., { mode: "merge" })` (default replaces). Prove "nothing follows" by

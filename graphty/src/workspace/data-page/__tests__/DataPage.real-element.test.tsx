@@ -278,10 +278,14 @@ describe("the Data page on the real element", () => {
             const link = within(report).getByRole("button", { name: "3 edge rows" });
             assert.equal(getComputedStyle(link).fontSize, getComputedStyle(sentence!).fontSize);
 
-            // While the unmatched row shows, only Show all rows is offered.
+            // While the unmatched row shows, only Show all rows is offered, and Add | Leave out stays put.
+            const choice = (): number =>
+                within(report).getByRole("radiogroup", { name: "Unmatched ends" }).getBoundingClientRect().left;
+            const before = choice();
             await userEvent.click(within(report).getByRole("button", { name: "Show the 1 unmatched row" }));
             await screen.findByText("1 unmatched row: z has no node row");
             assert.isNull(within(report).queryByRole("button", { name: /Show the 1 unmatched row/ }));
+            assert.equal(choice(), before, "Add | Leave out does not move when the link goes");
             await userEvent.click(screen.getByRole("button", { name: "Show all rows" }));
             await within(report).findByRole("button", { name: "Show the 1 unmatched row" });
 
@@ -557,26 +561,24 @@ describe("the Data page on the real element", () => {
                 within(inspector).getByText("1 edge row was left out: it names a node missing from the node rows."),
             );
 
-            // The left-out child names its load, not "Source", and shows what the load added above
-            // the rows it left out; a table child its own count and its table in the dock.
+            // The left-out child names its load, not "Source", and shows only what it names: the
+            // sentence and the row, never the load's counts under its title; a table child its own
+            // count and its table in the dock.
             await userEvent.click(within(sources).getByText("1 row left out"));
             await waitFor(() => {
                 assert.equal(document.getElementById(INSPECTOR_TITLE_ID)?.textContent, "1 row left out");
             });
             await within(inspector).findByText("Left out of people.csv and passes.csv");
             assert.isNull(within(inspector).queryByText("Source"));
-            await within(inspector).findByText("Loaded");
-            assert.isNotNull(within(inspector).getByText("Nodes"));
-            assert.isNotNull(within(inspector).getByText("Edges"));
             await within(inspector).findByText("Line 4: z has no node row; source c, target z, weight 1");
-            // It leads with what it names: "Left out" over the sentence and the row, "Loaded" below.
             assertInOrder(
                 within(inspector).getByText("Left out"),
                 within(inspector).getByText("1 edge row was left out: it names a node missing from the node rows."),
                 within(inspector).getByText("Line 4: z has no node row; source c, target z, weight 1"),
-                within(inspector).getByText("Loaded"),
-                within(inspector).getByText("Nodes"),
             );
+            assert.isNull(within(inspector).queryByText("Loaded"));
+            assert.isNull(within(inspector).queryByText("Nodes"));
+            assert.isNull(within(inspector).queryByText("Edges"));
             await userEvent.click(within(sources).getByText("passes.csv"));
             await waitFor(() => {
                 assert.equal(document.getElementById(INSPECTOR_TITLE_ID)?.textContent, "passes.csv");

@@ -23,8 +23,9 @@ function keyedLines(lines: readonly string[]): { key: string; line: string }[] {
  * A Sources row in the inspector. A load's row: what it added, then, under "Left out" when it
  * left edge rows out, how many and why and the left-out rows themselves, which the element keeps
  * with the load (through a save and reopen too). A table child shows what it names: a node table
- * what it added as nodes, an edge table as edges. The left-out child shows its whole load, "Left
- * out" first. Every count is the element's (`data.sources()`).
+ * what it added as nodes, an edge table as edges. The left-out child shows only "Left out": its
+ * title names the rows left out, so the load's counts stay on the load's row. Every count is the
+ * element's (`data.sources()`).
  * @param props - Component props
  * @param props.row - The Sources row id, `source:<load>` or `source:<load>:<child>`
  * @returns The values
@@ -40,7 +41,7 @@ export function SourceValues({ row }: Readonly<{ row: string }>): React.JSX.Elem
             </Text>
         );
     }
-    // A table child shows what its table loaded; a load and its left-out child, the whole load.
+    // A table child shows what its table loaded; a load, the whole load; its left-out child, only that.
     // "Loaded", not "Added": true for a first load, a second table and a replacement alike.
     const child = row.split(":").length > 2 ? sourceRowOf(sources, session.data.lastImport(), row)?.kind : undefined;
     const part = child === "nodes" || child === "edges" ? child : "all";
@@ -69,6 +70,5 @@ export function SourceValues({ row }: Readonly<{ row: string }>): React.JSX.Elem
             )}
         </ControlSection>
     );
-    // The left-out row leads with what it names; the load's row with what it added.
-    return <>{child === "left-out" ? [left, added] : [added, left]}</>;
+    return child === "left-out" ? left : <>{[added, left]}</>;
 }

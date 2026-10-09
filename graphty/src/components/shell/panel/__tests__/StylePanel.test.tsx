@@ -116,9 +116,10 @@ describe("StylePanel", () => {
 
             // Spec 04 section 4.2 step 10: "plain name, space, technical name in
             // parentheses in muted ink, inside one label", and FLOOR-1.9 section 1
-            // rules out a title attribute as the only home for it.
+            // rules out a title attribute as its home: a cut name shows whole in the shared
+            // tooltip.
             expect(name).toHaveTextContent("Arrangement (Layout)");
-            expect(name).toHaveAttribute("title", "Arrangement (Layout)");
+            expect(name).not.toHaveAttribute("title");
             expect(screen.getByTestId("style-arrangement")).not.toHaveAttribute("title");
         });
     });

@@ -428,3 +428,33 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   8c4eef4722ac (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d3-8c4eef472/`), a
   fresh build of the worktree's current commit, which holds the fixes found in the third dry run
   (`dry-run-r1-3.md`). `tool/real.mjs --prove` passed on it. No bar changed.
+- **2026-10-08, before round 1: the answer key matched to the third dry run.** Every task half was
+  piloted on 8c4eef4722ac from its start (`rounds/r1d3/pilot/`). Every success path landed on the
+  first try with no script errors, console errors or failed requests, and every reference value
+  held. `answers.md` now names this build, cites `rounds/r1d3/` and gives this build's screens
+  where they differ: a section on the build (focus on the inspector title drawn as underlined text,
+  no focus mark seen after Rerun, run times as times of day); T4's source row in full with no
+  tooltip, the "1 row left out" row with its warning triangle, its inspector subtitled "Left out
+  of ..." with the same Added block as the source's, the left-out line wrapped in full, only the
+  source row highlighted, the "Leave out" tooltip, the import texts at body size, and watch items
+  for the Added heading over the left-out row, the unlabeled "+" and the weight line; T17's "Save
+  and turn on" button in place of "Save step", the checkbox tooltip "Turn this step on", the trap
+  expected to catch fewer people, all 5 ties visible at 5 or more, and the legend's whole-graph
+  range; T18's path icon and highlighted tree row, the overlap at the path's start (Chloe over
+  Farah), a clicked To option moving focus to Find path, Advanced staying open once opened, A's
+  follow-up chain (Ben, Theo, Ravi, Pia, Nora) and the chain running against drawn arrows; T19's
+  two-line Recent projects row with the date, the reopen framing measured again, newest note first
+  and the selection halo over two nodes; T20's role box at 728,203 (728,225 is the type caption),
+  Higher means appearing below the role boxes so they do not move, and Escape on the import page
+  dropping the whole import; T21's blue new people, A's drawing keeping its shape, the reset
+  button's tooltip opening only when the pointer moves, and the on-screen PageRank values; T22's
+  menu opening on "Path between...", Escape in the menu closing only the menu, Escape elsewhere
+  clearing the selection, Control+Z undoing a style change instead, "/" reaching the find box from
+  a layer row, the Selection layer's blue edge color, four places to read the count, and the line
+  under the box going with Escape; T23's "within 2 hops" header, the filter button's tooltip (and
+  its way back), the chip's new tooltip and the full Filters name, focus on the Hops segment, and
+  the button tooltip covering two names; T24's "Edge actions" tooltip, the Hana label hiding the
+  tie's end, B's Stadium label in full and the new screenshot numbers; T12R's counted find-list
+  headings and scrollbar (17 read from "Edges 17" is the right count), focus drawn as underlined
+  text, both halves showing two lit controls in the Neighborhood view, and the header's changed
+  icon. No bar and no prompt changed.

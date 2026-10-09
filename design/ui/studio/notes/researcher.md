@@ -10,21 +10,22 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-08 -- SECOND DRY RUN DONE on the study build 909b19b578d4 (`tier2/rounds/r1d2/pilot/`,
-  all 20 halves incl. T21 A): every success path landed first try, no script, console or request
-  errors, every reference value held. Participants will NOT hit implementation faults on the
-  success paths. The key matches this build (criteria change log, same date).
-- 2026-10-08 -- What participants WILL meet are UX defects, now in the key as watch items: T4's
-  cut source counts, gray "1 row left out" row and the left-out line cut at "fro..."; T17 Save
-  step turning an off step on (ticking after it turns it off); T22 Escape in Selection actions
-  clearing the selection; T23 "Ava's 14 connections" at Hops 2 (reads as direct ties); T12R find
-  list showing 6 of 17 ties with no sign of more; T21 stale values at full contrast until Rerun.
-- 2026-10-08 -- Defects worth fixing between rounds, not mid-round: the T4 cuts above (counts
-  should win the width; the left-out line should wrap); T22 menu Escape propagating to the app's
-  clear-selection; "/" swallowed by a layer-list row; the Selection layer showing gold while ties
-  draw blue; T21 reset button landing under the pointer after Load; T20 Higher means inserted
-  above the role row (layout jump); T18 run icon disagreeing between inspector and tree; T23 chip
-  tooltip "Step on:" and Filters name cut before the hop count; edge actions button unlabeled.
+- 2026-10-08 -- YES, A DRY RUN RAN BEFORE ROUND 1, three times (r1d1, r1d2, r1d3), each walking
+  every task half and fixing what it found before any participant session. THIRD DRY RUN on the
+  study build 8c4eef4722ac (`tier2/rounds/r1d3/pilot/`, all 20 halves): every success path landed
+  first try, no script, console or request errors, every reference value held. Participants will
+  not hit implementation faults on the success paths. Key matched to this build (criteria change
+  log, same date).
+- 2026-10-08 -- The r1d3 pilots found mostly that the key was out of date (fixes landed: T4 rows in
+  full, T17 "Save and turn on", T22 menu Escape, T23 "within 2 hops", T12R "Edges 17"), not new
+  blockers. Remaining defects a participant may meet, now watch items: T22 Escape outside the box
+  clearing the selection (and Control+Z undoing a style instead); T20 Escape on the import page
+  dropping the whole import; T4 left-out row filed under "Added"; T23 filter tooltip covering 2
+  names; T18 A chain against drawn arrows; T24 Hana label hiding Ivan's tie end; T21 B new people
+  in unexplained blue; stale T21 values at full contrast until Rerun.
+- 2026-10-08 -- Fix between rounds, not mid-round: the defects above, plus T12R/T23 two lit controls
+  in the Neighborhood view, focus drawn as underlined text, no focus after Rerun (unconfirmed),
+  T22 menu opening on "Path between...", the "+" Add a table with no words.
 - 2026-10-08 -- Tool defects (engineer's): `real.mjs` resolves `setup:<file>` from the cwd and
   throws an uncaught ENOENT instead of SETUP FAILED (tasks.md now says use an absolute path);
   `session.json` "commit" is the worktree HEAD, not the build (grade by "buildStamp").
@@ -96,24 +97,23 @@ reasons, in short:
 
 ## Decisions and reasons
 
-- 2026-10-08 (researcher, key matched to the second dry run on 909b19b578d4) -- Rewrote the
-  T17 to T12R sections and T4's entries of `tier2/answers.md` from 20 pilot reports; logged in
-  `criteria.md`; one `tasks.md` line (absolute setup paths). No bar, no prompt. Choices: (1) a
-  header section for the build stating cross-task changes once (focus on the inspector title, run
-  times, black path / one legend entry, the session commit field). (2) Where a new screen adds a
-  place to read the answer (T17 Filters row count, T22 result line and "Selected edges" table),
-  the key names it as a valid place, not a detour: the answer was on screen. (3) T17's follow-up
-  trap rewritten, not deleted: the old trap (an off step stays off) is gone, the new one (ticking
-  after Save turns it off) gives the same `read-wrong` for the same reason. (4) T22: Escape in
-  the Selection actions menu clearing the selection becomes `not-marked` unless redone (SD) --
-  graded by the end state, as every T22 route is. (5) T23's "connections" header at Hops 2 is a
-  recorded misreading, not a wrong count: the count is right for the task. (6) T12R: 6 from the
-  find list's visible ties is a wrong count -- tier 1's rule that a stated count must be right.
-  (7) Pucci removed from T23 B's left-out list: the sample has 15 families and the find box says
-  "No match"; the key was wrong, not the build. (8) T4: naming "p13 has no node row" is enough to
-  name the unmatched row, since the cut line still shows it. Rejected: retiring the gray "1 row
-  left out" as a `false-done` risk -- it is the screen's defect to measure, so it stays a watch
-  item.
+- 2026-10-08 (researcher, key matched to the third dry run on 8c4eef4722ac) -- Edited
+  `tier2/answers.md` from 20 pilot reports; logged in `criteria.md`; `tasks.md` unchanged (no
+  prompt was wrong). No bar. Choices: (1) a build section listing only what differs across tasks
+  from 909b19b578d4. (2) T12R: 17 read from the find list's "Edges 17" heading is the right count
+  (the screen now states it); 6 from the visible rows stays wrong. Checked 03.png myself. (3) T22:
+  the count now has four places (the Selection layer row is the only "Selection 3"). (4) T22's new
+  Escape route to `not-marked` (focus outside the box) replaces the menu route, same grade. (5)
+  T17's trap kept with "expect fewer" -- the button names the effect, but ticking still turns it
+  off. (6) T4 left-out inspector under "Added": recorded as a misreading, not a grade change.
+  Checked T4A 11.png myself. (7) Control+Z undoing a style in T22: "record", no grade assigned,
+  since grading codes are frozen.
+
+- 2026-10-08 (researcher, key matched to the second dry run on 909b19b578d4, folded) -- Build
+  header section; a new place to read an answer is valid, not a detour; T17 trap rewritten not
+  deleted; T22 menu Escape `not-marked`; T23 Hops 2 header a recorded misreading; T12R 6 from the
+  find list wrong; Pucci removed (the key was wrong). Rejected: retiring a screen defect as a
+  `false-done` risk -- it is the defect to measure.
 
 - 2026-10-08 (researcher, key matched to pilots on 16dcf3494700 and 3dfe7daf9e45, folded) -- A
   header section per build states cross-task changes once; stale watch notes are deleted, not
@@ -179,6 +179,12 @@ reasons, in short:
 - 2026-09-28 (owner) -- Simulated personas built from public sources, each checked by a skeptic.
 
 ## Tried: worked / did not work
+
+- 2026-10-08 (key vs third dry run) -- Worked: one python file of (old, new) pairs, each asserted
+  to match once; one anchor failed on a paraphrase ("on the reopen" vs "after the reopen") and the
+  assert caught it before any write. Then grep for the old round's folder to find citations left
+  behind, keeping only those whose screen still matches. Not walked: T20's "Capacity", T17's "On"
+  editor header, B's T17 follow-up trap, T21 focus with a screen reader.
 
 - 2026-10-08 (key vs second dry run) -- Worked: rewriting whole task sections from drafts and
   splicing them with a script that asserts the section count, instead of 40 anchored edits;

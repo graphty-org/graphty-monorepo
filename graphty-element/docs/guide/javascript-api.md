@@ -526,6 +526,47 @@ the keys and closing the tab ends it; after that, call `enablePersistence({ encr
 again to unlock them. `new ApiKeyManager({ storage, prefix })` changes where the keys are kept
 (default `localStorage` and `"@graphty-ai-keys"`).
 
+A host that wants a key per reader can make one with `deriveKeyFromPassphrase(passphrase, salt)`
+from the same entry point and pass it as `encryptionKey`. The salt is not secret, but one per
+reader (an account id, or random bytes you keep) means a guessed passphrase cannot be tried
+against every reader at once:
+
+```typescript
+import { ApiKeyManager, deriveKeyFromPassphrase } from "@graphty/graphty-element/ai";
+
+const keys = new ApiKeyManager();
+await keys.enablePersistence({ encryptionKey: await deriveKeyFromPassphrase(passphrase, userId) });
+```
+
+### The In-Browser Model (WebLLM)
+
+With the optional `@mlc-ai/web-llm` package installed, the assistant can run a model in the
+reader's browser over WebGPU, with no key. Only some models can call the assistant's tools --
+select nodes, run a layout, zoom -- because WebLLM accepts tools only for its Hermes models.
+Every other model answers in text only: it can describe and explain, but it changes nothing.
+
+```typescript
+import { getWebLlmProviderClass } from "@graphty/graphty-element/ai";
+
+const WebLlmProvider = await getWebLlmProviderClass();
+for (const m of WebLlmProvider.getAvailableModels()) {
+    console.log(m.id, m.supportsTools, m.downloadMB); // capability and approximate download, in MB
+}
+
+const provider = new WebLlmProvider();
+provider.configure({ model: "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC" }); // can call tools
+await provider.initialize(); // downloads the model the first time; onProgress() reports it
+console.log(provider.modelSupportsTools); // true
+
+await graph.enableAiControl({ provider: "webllm", providerInstance: provider });
+```
+
+The trade-off is the download. The default model, Llama 3.2 1B, is about 500 MB and answers in
+text only; the Hermes models that can call tools are about 4 to 4.5 GB and need a GPU with
+roughly 4 to 5 GB of memory. The browser caches a model after its first download.
+`modelSupportsTools` tells you which kind the provider has, so you can say so to the reader;
+the provider never sends tools to a model that would refuse them.
+
 Keys saved by graphty-element 3.x and earlier use a format Web Crypto cannot read. They are left
 in storage untouched and treated as no stored keys, so the reader enters them once more; the
 first save replaces them.

@@ -251,33 +251,30 @@ export class AiController {
      * @returns Array of messages
      */
     private buildMessages(input: string): Message[] {
-        const messages: Message[] = [];
+        // Build a system prompt with available commands
+        const commands = this.commandRegistry.getAll();
+        const commandDescriptions = commands.map((cmd) => `- ${cmd.name}: ${cmd.description}`).join("\n");
 
-        // Only include system prompt if provider supports it with tools
-        // Some providers (like WebLLM with Hermes models) don't support custom system prompts with tool calling
-        const supportsSystemPrompt = this.provider.supportsSystemPromptWithTools !== false;
+        // Build schema section if available
+        const schemaSection = this.buildSchemaSection();
 
-        if (supportsSystemPrompt) {
-            // Build a system prompt with available commands
-            const commands = this.commandRegistry.getAll();
-            const commandDescriptions = commands.map((cmd) => `- ${cmd.name}: ${cmd.description}`).join("\n");
-
-            // Build schema section if available
-            const schemaSection = this.buildSchemaSection();
-
-            const systemPrompt = `You are an AI assistant that helps users interact with a graph visualization.
+        const systemPrompt = `You are an AI assistant that helps users interact with a graph visualization.
 
 Available commands:
 ${commandDescriptions}
 ${schemaSection}
 When the user asks you to perform an action, use the appropriate tool. If no tool is needed, respond conversationally.`;
 
-            messages.push({ role: "system", content: systemPrompt });
+        // Some providers (WebLLM's Hermes models) refuse a custom system prompt alongside tools:
+        // the instructions then lead the user's turn instead, so the model still gets them.
+        if (this.provider.supportsSystemPromptWithTools === false) {
+            return [{ role: "user", content: `${systemPrompt}\n\n${input}` }];
         }
 
-        messages.push({ role: "user", content: input });
-
-        return messages;
+        return [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: input },
+        ];
     }
 
     /**

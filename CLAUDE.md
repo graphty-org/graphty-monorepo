@@ -211,7 +211,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-io` | `graph-io/` | 0.3.20 | Importers and exporters for 13 formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) for the graph-format snapshot; subpath exports per format |
 | `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
 | `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
-| `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.0 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import (private, not yet published) |
+| `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.4 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import |
 | `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
 | `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
 | `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
@@ -341,7 +341,9 @@ The `tools/` directory contains build scripts:
 | `ci-test-matrix.mjs` | The CI test shards and their commands (ci.yml and `run-tests.sh` both read it) |
 | `test-slots.mjs` | The machine-wide limit on concurrent test runs: every package's vitest config takes a slot through it, and `node tools/test-slots.mjs <command>` holds one for a whole command (each pre-push shard). Off on GitHub Actions and with `GRAPHTY_TEST_SLOTS=0` |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
-| `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast` |
+| `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast`. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
+| `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks), about a minute. `tmp/push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
+| `prepush-inputs.mjs` | Content hashes for the gate: the checkout's fingerprint, and each test shard's input key (its package and the packages it depends on or reads by relative path, their build outputs, the root files, the Node version). `prepush-tests.mjs` skips a shard that already passed on this branch with the same key and prints `[SKIP]` with when and where; `PREPUSH_RERUN_ALL=1` runs every shard |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
 | `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Any problem fails. CI and pre-push |
@@ -372,8 +374,10 @@ from there and never print them. The checked-in `.claude/settings.json` denies a
 
 After the scan, `.husky/pre-commit` runs `tools/format-staged.sh`: prettier on the staged files,
 staged again (it skips a file that also has unstaged changes, `visual-baselines/` and merge commits).
-`tools/prepush.sh` runs its source-only checks (formatting, links, the tool and config checks) before
-the build, and stops at the first failing check instead of running the rest.
+`tools/prepush.sh` runs its source-only checks (formatting, links, the tool and config checks,
+`tools/prepush-source-checks.sh`) before the build, and stops at the first failing check instead of
+running the rest. `tmp/push-queue.sh` runs the same checks before the push waits for a gate slot, so
+a slip fails in about a minute; the gate then skips them if nothing in the checkout changed.
 
 `tools/prepush.sh` stops first if `node_modules` does not match `pnpm-lock.yaml` (pnpm keeps a
 copy of the installed lockfile at `node_modules/.pnpm/lock.yaml`), and `.husky/post-merge` warns

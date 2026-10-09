@@ -15,9 +15,9 @@ export interface PersistenceConfig {
     /**
      * A passphrase the user supplies (minimum 10 characters). The stored keys are encrypted with
      * AES-GCM under a key derived from it with PBKDF2, so a host that passes the user's own
-     * passphrase gets real encryption without writing any crypto code. It is remembered in
-     * `sessionStorage` for the rest of the tab's life, so persistence survives a reload and ends
-     * when the tab closes.
+     * passphrase gets real encryption without writing any crypto code. A key made with
+     * `deriveKeyFromPassphrase` works here too. It is remembered in `sessionStorage` for the rest
+     * of the tab's life, so persistence survives a reload and ends when the tab closes.
      *
      * Default: a built-in key. KEYS SAVED WITHOUT A USER-SUPPLIED PASSPHRASE ARE ONLY OBSCURED, NOT
      * ENCRYPTED: the built-in key is public in this package's source, so any script on the page,
@@ -85,6 +85,10 @@ interface DerivedKey {
  * the encrypted copy follows. `ready()` resolves when every storage operation started so far has
  * finished -- the restore on construction, `enablePersistence`'s load, and every save.
  *
+ * Keys persisted without an `encryptionKey` are obscured, not encrypted: the built-in key is
+ * public, so anyone with access to the page or the browser profile can read them. To protect
+ * them, derive the key from the reader's passphrase with `deriveKeyFromPassphrase`.
+ *
  * Persistence restores itself: a manager constructed after a reload finds the keys an earlier
  * page persisted (with the built-in key, or with a custom key from the same tab) and turns
  * persistence back on once `ready()` resolves. A host calls `enablePersistence()`,
@@ -131,7 +135,8 @@ export class ApiKeyManager {
      *
      * Without `encryptionKey`, the keys are only obscured, not encrypted: anyone with access to
      * the page or the browser profile can read them. Pass a passphrase the user supplies for real
-     * protection.
+     * protection. A key that cannot decrypt what is already stored loads nothing and leaves the
+     * stored keys as they are.
      * @param config - Persistence configuration (default: built-in encryption key)
      * @returns A promise that resolves when stored keys are loaded and the store is saved
      * @throws Error if encryption key is empty or too short (minimum 10 characters)

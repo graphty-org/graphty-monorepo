@@ -39,6 +39,9 @@ patchedDependencies:
   '@vitest/browser@4.1.11':
     hash: 5860fc4758e760f7fedfc33fe2a20f7c1ee40625ab65617bb47a68677bd11e67
     path: patches/@vitest__browser@4.1.11.patch
+  nwsapi@2.2.28:
+    hash: a2332952030d6066a2ed65f160933e77a92205593d6cc349655abe4829e93d86
+    path: patches/nwsapi@2.2.28.patch
 
 importers:
 
@@ -17597,7 +17600,7 @@ snapshots:
       http-proxy-agent: 7.0.2
       https-proxy-agent: 7.0.6
       is-potential-custom-element-name: 1.0.1
-      nwsapi: 2.2.28
+      nwsapi: 2.2.28(patch_hash=a2332952030d6066a2ed65f160933e77a92205593d6cc349655abe4829e93d86)
       parse5: 7.3.0
       rrweb-cssom: 0.8.0
       saxes: 6.0.0
@@ -18430,7 +18433,7 @@ snapshots:
     dependencies:
       boolbase: 1.0.0
 
-  nwsapi@2.2.28: {}
+  nwsapi@2.2.28(patch_hash=a2332952030d6066a2ed65f160933e77a92205593d6cc349655abe4829e93d86): {}
 
   nx@22.7.12:
     dependencies:

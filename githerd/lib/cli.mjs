@@ -79,6 +79,14 @@ const USAGE = `usage: githerd <command>
                                            meanwhile and tells the session when it merges or closes
   pause-offers | resume-offers             from inside a Claude session: githerd offers it no jobs
                                            (it stays a worker session) until it resumes offers
+  next                                     from inside a Claude session, what githerd_next answers:
+                                           the jobs it could take (or its worker job) and the snapshot
+  claim <job> --snapshot <version> --overlap independent|join|wait [--with <job|#issue>]
+        --plan "<plan>" "<overlap reason>" githerd_claim: take a job, judged against next's snapshot
+  status-answer <job> [--capacity <n>] "<status>"
+                                           githerd_expect: answer githerd's status question on a job
+  done <job> --outcome done|split|not-needed|deferred|failed [--pr <n>] [--commits <sha,...>]
+       [--reason "<why>"] "<summary>"      githerd_done: report the end of an attempt
   answer <item> <words>                    answer an owner item ("not yet" keeps it open)
   order <N...> <words>                     record an order: these issues, in this order
   policy [freeze-merges | park-gate <lane> | hold-package <name>] <words>
@@ -299,7 +307,7 @@ function daemonEnv(record, stateDir) {
  * @property {AbortSignal} [signal] ends `githerd board`
  * @property {typeof runSelftest} selftest runs the self-test
  * @property {boolean} tty a person's terminal is attached
- * @property {() => {sessionId: string, name: string} | null} session the Claude session this runs under
+ * @property {() => {sessionId: string, name: string, pid: number} | null} session the Claude session this runs under
  */
 
 /**
@@ -345,7 +353,9 @@ export async function runCli(argv, options = {}) {
         err(`githerd: ${/** @type {Error} */ (e).message}`);
         return 2;
     }
-    const stateDir = env.GITHERD_STATE_DIR ? resolve(cwd, env.GITHERD_STATE_DIR) : defaultStateDir(root, env.HOME);
+    // GITHERD_DEV_STATE, as the MCP server takes it, names the development daemon's state directory.
+    const named = env.GITHERD_STATE_DIR ?? env.GITHERD_DEV_STATE;
+    const stateDir = named ? resolve(cwd, named) : defaultStateDir(root, env.HOME);
     const ctxOptions = { cwd, env, now, stateDir, ...(healthWaitMs ? { healthWaitMs } : {}) };
     return handler({
         name: command,
@@ -553,6 +563,91 @@ async function cmdOffers(c) {
     const answer = await post(port, "/owner", cmd, callerHeader(c.env, c.tty));
     (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
     return answer.ok ? 0 : 1;
+}
+
+/**
+ * The session tool a command calls, and its arguments from the command line: null when one is
+ * missing that the command line must give (the daemon checks the rest against the tool's schema).
+ * @param {Command} c the command
+ * @returns {{tool: string, args: Record<string, unknown>} | null} the call
+ */
+function toolCall(c) {
+    const [job, ...words] = c.positional;
+    const text = words.join(" ");
+    const f = (/** @type {string} */ k) => (typeof c.flags[k] === "string" ? c.flags[k] : undefined);
+    const num = (/** @type {string} */ k) => (f(k) === undefined ? undefined : Number(f(k)));
+    if (c.name === "next") return { tool: "githerd_next", args: {} };
+    if (!job || !text) return null;
+    if (c.name === "claim") {
+        const overlap = { decision: f("overlap"), with: f("with"), reason: text };
+        return { tool: "githerd_claim", args: { job, snapshotVersion: num("snapshot"), overlap, plan: f("plan") } };
+    }
+    if (c.name === "status-answer") {
+        return { tool: "githerd_expect", args: { job, reason: text, capacity: num("capacity") } };
+    }
+    const commits = f("commits")?.split(",");
+    const report = { outcome: f("outcome"), pr: num("pr"), commits, reason: f("reason") ?? text };
+    return { tool: "githerd_done", args: { job, ...report, findings: text, defects: [] } };
+}
+
+/**
+ * `next`, `claim`, `status-answer` and `done`: the session tools a worker needs, called for the
+ * Claude session this command runs under, as `mine <pr>` finds it, through the daemon's own tool
+ * handlers, so a session whose githerd tools fail can still take and finish jobs.
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdSessionTool(c) {
+    const call = toolCall(c);
+    if (!call) {
+        const at = USAGE.split("\n").findIndex((l) => l.startsWith(`  ${c.name} `));
+        c.err(
+            `usage: ${USAGE.split("\n")
+                .slice(at, at + 2)
+                .join("\n")
+                .trim()}`,
+        );
+        return 2;
+    }
+    const s = c.session();
+    if (!s) {
+        c.err(`githerd ${c.name} acts for the Claude session it runs under, and none is up this process chain`);
+        return 2;
+    }
+    const port = await daemonPort(c);
+    if (port === null) return 1;
+    const client = {
+        protocol: TOOL_PROTOCOL,
+        session: s.sessionId,
+        pid: s.pid,
+        cwd: c.cwd,
+        job: c.env.GITHERD_JOB ?? null,
+        nonce: c.env.GITHERD_NONCE ?? null,
+    };
+    const headers = { ...callerHeader(c.env, c.tty), "x-githerd-session": s.sessionId };
+    const answer = await callTool(port, call.tool, call.args, client, headers);
+    (answer.ok ? c.out : c.err)(answer.text);
+    return answer.ok ? 0 : 1;
+}
+
+/**
+ * Calls one of the daemon's session tools over `POST /rpc`.
+ * @param {number} port the daemon's port
+ * @param {string} name the tool
+ * @param {Record<string, unknown>} args its arguments
+ * @param {Partial<import("./mcp.mjs").ClientMeta>} client what the caller says about itself
+ * @param {Record<string, string>} headers the caller headers
+ * @returns {Promise<{ok: boolean, text: string}>} the tool's text, and whether it is an answer or an error
+ */
+async function callTool(port, name, args, client, headers) {
+    const reply = await post(
+        port,
+        "/rpc",
+        { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args, _meta: { githerd: client } } },
+        headers,
+    );
+    const failed = Boolean(reply.result?.isError || reply.error);
+    return { ok: !failed, text: reply.result?.content?.[0]?.text ?? reply.error?.message ?? JSON.stringify(reply) };
 }
 
 /** The policy switches that name a lane, service or package. */
@@ -1003,6 +1098,10 @@ const HANDLERS = {
     wait: cmdWait,
     "pause-offers": cmdOffers,
     "resume-offers": cmdOffers,
+    next: cmdSessionTool,
+    claim: cmdSessionTool,
+    "status-answer": cmdSessionTool,
+    done: cmdSessionTool,
     answer: cmdRecord,
     order: cmdRecord,
     policy: cmdRecord,
@@ -1081,23 +1180,8 @@ async function offlineState(stateDir) {
 async function boardText(stateDir, { root, section, json = false, now, headers = {} }) {
     const { record, health, error } = await probe(/** @type {any} */ ({ stateDir }));
     if (health) {
-        const reply = await post(
-            record.port,
-            "/rpc",
-            {
-                jsonrpc: "2.0",
-                id: 1,
-                method: "tools/call",
-                params: {
-                    name: "githerd_status",
-                    arguments: { ...(json ? { format: "json" } : {}), ...(section ? { section } : {}) },
-                    _meta: { githerd: { protocol: TOOL_PROTOCOL } },
-                },
-            },
-            headers,
-        );
-        const failed = Boolean(reply.result?.isError || reply.error);
-        return { ok: !failed, text: reply.result?.content?.[0]?.text ?? reply.error?.message ?? JSON.stringify(reply) };
+        const args = { ...(json ? { format: "json" } : {}), ...(section ? { section } : {}) };
+        return callTool(record.port, "githerd_status", args, { protocol: TOOL_PROTOCOL }, headers);
     }
     const state = await offlineState(stateDir);
     let written = "never";

@@ -248,6 +248,10 @@ describe("onboarding the sessions the owner made githerd workers", () => {
             "githerd_next",
             "githerd_claim",
             "`githerd mine <pr>`",
+            "`githerd next`",
+            "`githerd claim <job> --snapshot <version> --overlap independent --plan",
+            '`githerd status-answer <job> --capacity <n> "<status>"`',
+            '`githerd done <job> --outcome done --pr <n> "<summary>"`',
             "background subagent",
             "githerd_expect",
             "githerd_done",
@@ -344,12 +348,14 @@ describe("inviting idle sessions to pull work", () => {
         expect(f.sent).toEqual([
             [
                 "/s1.sock",
-                "githerd has work queued (issue-5, high bug). If you're free, call githerd_next and claim a job; otherwise ignore this.\n" +
+                "githerd has work queued (issue-5, high bug). If you're free, call githerd_next and claim a job; otherwise ignore this. " +
+                    "Without githerd's tools, or when they fail: `githerd next` and `githerd claim <job> ...` from your shell.\n" +
                     POINTER,
             ],
             [
                 "/s1.sock",
-                "githerd has work queued (triage-new-1, triage of new issues). If you're free, call githerd_next and claim a job; otherwise ignore this.\n" +
+                "githerd has work queued (triage-new-1, triage of new issues). If you're free, call githerd_next and claim a job; otherwise ignore this. " +
+                    "Without githerd's tools, or when they fail: `githerd next` and `githerd claim <job> ...` from your shell.\n" +
                     POINTER,
             ],
         ]);
@@ -740,6 +746,11 @@ describe("asking an owner session for the status of the job it holds", () => {
         expect(f.sent.map(([socket]) => socket)).toEqual(["/s1.sock"]);
         expect(f.sent[0][1]).toContain("status check on the jobs this session holds:\n- issue-186 (#186)\n");
         expect(f.sent[0][1]).toContain("calling githerd_expect once per listed job");
+        // A session whose tools fail answers from its shell.
+        expect(f.sent[0][1]).toContain(
+            '(without githerd\'s tools, or when they fail: `githerd status-answer <job> --capacity <n> "<status>"` ' +
+                "from your shell)",
+        );
         expect(f.sent[0][1]).toContain(
             "The shared resources (push queue, CI runners, test slots) have room, so this session may take as many " +
                 "jobs as it can work in parallel, each in its own background subagent or workflow. Answer with " +

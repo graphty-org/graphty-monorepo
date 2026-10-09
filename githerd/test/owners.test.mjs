@@ -190,13 +190,13 @@ describe("callingSession", () => {
             ],
         );
         try {
-            expect(callingSession({ pid: 300, ...w })).toEqual({ sessionId: "sb", name: "graphty-b" });
+            expect(callingSession({ pid: 300, ...w })).toEqual({ sessionId: "sb", name: "graphty-b", pid: 200 });
             // A reused pid: the entry's procStart is another process's, so it is skipped.
             writeFileSync(
                 join(w.sessionsDir, "200.json"),
                 JSON.stringify({ pid: 200, sessionId: "sb", procStart: "9" }),
             );
-            expect(callingSession({ pid: 300, ...w })).toEqual({ sessionId: "sa", name: "graphty-a" });
+            expect(callingSession({ pid: 300, ...w })).toEqual({ sessionId: "sa", name: "graphty-a", pid: 100 });
             // No session up the chain: a plain terminal.
             expect(callingSession({ pid: 300, procDir: w.procDir, sessionsDir: join(w.dir, "none") })).toBeNull();
         } finally {

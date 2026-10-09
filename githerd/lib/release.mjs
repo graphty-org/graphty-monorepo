@@ -185,3 +185,37 @@ export function expiredArtifacts(annotations) {
     }
     return null;
 }
+
+/** The title the release workflow gives the issue that holds a release (CLAUDE.md, "Release versioning"). */
+// ponytail: graphty's release.yml wording; a config key if another repository's differs.
+const HOLD_TITLE = "Release held: ";
+
+/**
+ * The newest open issue the release workflow filed to hold the release.
+ * @param {Record<string, any> | undefined} byNumber the issues githerd read
+ * @returns {{number: number, title: string} | null} the issue, or null when none is open
+ */
+export function releaseHold(byNumber) {
+    const holds = Object.entries(byNumber ?? {})
+        .filter(
+            ([, i]) =>
+                i.state === "open" && i.author === "github-actions[bot]" && String(i.text ?? "").startsWith(HOLD_TITLE),
+        )
+        .map(([n, i]) => ({ number: Number(n), title: String(i.text).split("\n")[0] }));
+    return holds.toSorted((x, y) => y.number - x.number)[0] ?? null;
+}
+
+/**
+ * A failed release's summary: its hold issue and the newest failed run githerd saw, never a
+ * skipped or cancelled one.
+ * @param {{number: number, title: string} | null} hold the open hold issue
+ * @param {{runId: number, sha: string, failedJobs?: string[] | null} | null} red the lane's failed run
+ * @returns {string} the summary
+ */
+export function releaseFailedSummary(hold, red) {
+    const jobs = red?.failedJobs?.length ? `: ${red.failedJobs.join(", ")} failed` : "";
+    const run = red ? `release run ${red.runId} on ${String(red.sha).slice(0, 9)} failed${jobs}` : null;
+    const issue = hold ? `#${hold.number} ${hold.title}` : null;
+    if (issue && run) return `${issue}; ${run}`;
+    return issue ?? run ?? "the release failed: no failed run or hold issue seen yet";
+}

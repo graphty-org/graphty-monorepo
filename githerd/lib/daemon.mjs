@@ -122,6 +122,7 @@ import { balanceRefusal, classify, isNoLog, refusedOnly } from "./classify.mjs";
 import { flakePoll, gitBlobs, masterFlakeStep, noteMasterLog, readWorkspace } from "./flakes.mjs";
 import { markShared } from "./shared.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
+import { releaseFailedSummary, releaseHold } from "./release.mjs";
 import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer, servedProtocols } from "./mcp.mjs";
 import { accumulateMerged, backfillRefs, commitRefs, landStacked, searchMerged } from "./merged.mjs";
@@ -2705,9 +2706,12 @@ export async function startDaemon({
 
     /**
      * Release truth: records the last release and raises a failed or stalled release. A failed
-     * release names its newest failed run and that run's failed jobs, never a skipped or cancelled
-     * run after it, and keeps the key it was raised under while it stays open, so its job is not
-     * cancelled and made again when a later run is skipped or fails again.
+     * release is one incident per red stretch of the release lane, keyed on the open "Release
+     * held" issue the release workflow files (or, before githerd has read it, on when the lane went
+     * red), never on a run: a skipped push run or a cancelled restart is no verdict, so it never
+     * makes, re-keys or names the incident. Its summary names the hold issue and the newest failed
+     * run githerd saw with its failed jobs. An open release-failed escalation keeps its key, so its
+     * job is never cancelled and made again; only its summary and run are brought up to date.
      * @param {any} m the master record
      * @param {number} ms the poll's time
      * @param {(args: any) => void} derived raises an escalation that clears when it stops holding
@@ -2718,25 +2722,25 @@ export async function startDaemon({
         m.releaseEligibleSince = rs.releaseEligibleSince;
         const lane = m.lanes.release;
         if (rs.failed) {
-            // No failed run on the page read (an older state): the newest run, as before.
-            const red = lane.redRun ?? { runId: lane.runId, sha: lane.sha, failedJobs: null };
-            if (red.failedJobs === undefined) {
+            const red = lane.redRun ?? null;
+            if (red && red.failedJobs === undefined) {
                 // ponytail: one failed read leaves the jobs unnamed until the lane's failed run changes.
                 red.failedJobs = await failingJobs(red.runId).then(
                     (jobs) => jobs.map((/** @type {any} */ j) => j.name),
                     () => null,
                 );
             }
-            const jobs = red.failedJobs?.length ? `: ${red.failedJobs.join(", ")} failed` : "";
+            const hold = releaseHold(state.issues?.byNumber);
             const open = Object.values(state.escalations ?? {}).find(
                 (/** @type {any} */ e) => e.kind === "release-failed" && !e.resolvedAt,
             );
+            const anchor = hold ? "issue-" + hold.number : "since-" + (lane.redSince ?? "unknown");
             raiseRelease(derived, {
-                key: open?.key ?? `release-failed:${red.runId}`,
+                key: open?.key ?? `release-failed:${anchor}`,
                 kind: "release-failed",
-                summary: `release run ${red.runId} on ${String(red.sha).slice(0, 9)} failed${jobs}`,
+                summary: releaseFailedSummary(hold, red),
                 clearWhen: "release-green",
-                runId: red.runId,
+                runId: red?.runId ?? null,
             });
         }
         if (rs.stalled) {

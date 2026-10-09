@@ -509,6 +509,40 @@ if (!check.valid) {
 `status.stage` and a tool call's `status` can take, for a status display keyed by value. The
 catalogue holds no labels and no order: choose your own.
 
+Every result of `aiCommand()` carries a `code` and its `params`, so you can tell a missing key
+from a cancelled command or a failed tool without reading `result.message`, which is English
+for a log and may change. `AI_RESULT_CODES` lists every code:
+
+```typescript
+import type { AiResultCode } from "@graphty/graphty-element/catalog";
+
+// Your words, keyed by code; AI_RESULT_CODES lists every code to fill in.
+const words: Partial<Record<AiResultCode, string>> = {
+    AI_KEY_MISSING: "Add an API key in Settings first.",
+    AI_CANCELLED: "Stopped.",
+};
+
+const result = await graph.aiCommand(text);
+show(result.success ? (result.llmText ?? "Done.") : (words[result.code] ?? "Something went wrong."));
+```
+
+| Code                        | `success` | `params`              | When                                                     |
+| --------------------------- | --------- | --------------------- | -------------------------------------------------------- |
+| `AI_COMPLETED`              | true      | `toolCalls`           | The model answered, running every tool it called         |
+| `AI_NO_RESPONSE`            | true      |                       | The model wrote nothing and called no tool               |
+| `AI_NOT_ENABLED`            | false     |                       | `enableAiControl()` was not called                       |
+| `AI_DISPOSED`               | false     |                       | The assistant was shut down                              |
+| `AI_KEY_MISSING`            | false     | `provider`            | The provider needs an API key and has none               |
+| `AI_KEY_REJECTED`           | false     | `provider`, `status`  | The provider refused the key (HTTP 401 or 403)           |
+| `AI_PROVIDER_ERROR`         | false     | `provider`, `status`? | The provider or the network failed                       |
+| `AI_CANCELLED`              | false     |                       | `cancelAiCommand()` ended it; its changes are taken back |
+| `AI_UNDONE`                 | false     |                       | It was undone while it ran; its changes are taken back   |
+| `AI_TOOL_UNKNOWN`           | false     | `tool`                | The model called a tool that does not exist              |
+| `AI_TOOL_INVALID_ARGUMENTS` | false     | `tool`                | The model called a tool with arguments it refused        |
+| `AI_TOOL_FAILED`            | false     | `tool`                | A tool ran and reported failure                          |
+| `AI_TOOL_THREW`             | false     | `tool`                | A tool threw; the command's changes are taken back       |
+| `AI_FAILED`                 | false     |                       | Anything else went wrong                                 |
+
 ### Remembering API Keys
 
 `ApiKeyManager` from `@graphty/graphty-element/ai` holds the reader's provider keys. It

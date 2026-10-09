@@ -220,6 +220,8 @@ export class AiManager {
             return {
                 success: false,
                 message: "AI Manager has been disposed. Please re-initialize before using.",
+                code: "AI_DISPOSED",
+                params: {},
             };
         }
 
@@ -227,6 +229,8 @@ export class AiManager {
             return {
                 success: false,
                 message: "AI Manager not initialized. Call init() first.",
+                code: "AI_NOT_ENABLED",
+                params: {},
             };
         }
 

@@ -354,8 +354,14 @@ export const DEFAULT_TEST_EDGES = [
     { src: "node3", dst: "node1" },
 ];
 
+/** How long the simulated button is held: a quick click, well under the element's long-press limit. */
+const CLICK_PRESS_MS = 16;
+
 /**
  * Simulate a click (pointer down + up with no movement) on a specific screen position.
+ *
+ * The two events carry time stamps `CLICK_PRESS_MS` apart, the way a browser stamps a real quick
+ * click, so the element reads a click however long this page takes to get from one to the other.
  *
  * @param graph - The graph instance
  * @param position - Screen position to click at
@@ -368,6 +374,8 @@ export async function clickAtPosition(graph: Graph, position: ScreenPosition): P
     scene.pointerX = position.x;
     scene.pointerY = position.y;
 
+    const pressedAt = performance.now();
+
     // Notify Babylon's PrePointerObservable (used by NodeBehavior)
     // The scene.pick() inside the handler will use scene.pointerX/Y
     scene.onPrePointerObservable.notifyObservers({
@@ -377,12 +385,9 @@ export async function clickAtPosition(graph: Graph, position: ScreenPosition): P
             clientY: position.y,
             buttons: 1,
             button: 0,
+            timeStamp: pressedAt,
         } as PointerEvent,
     } as unknown as Parameters<typeof scene.onPrePointerObservable.notifyObservers>[0]);
-
-    // Small delay for event processing
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 16));
 
     // Pointer up to complete the click
     scene.onPrePointerObservable.notifyObservers({
@@ -392,6 +397,7 @@ export async function clickAtPosition(graph: Graph, position: ScreenPosition): P
             clientY: position.y,
             buttons: 0,
             button: 0,
+            timeStamp: pressedAt + CLICK_PRESS_MS,
         } as PointerEvent,
     } as unknown as Parameters<typeof scene.onPrePointerObservable.notifyObservers>[0]);
 

@@ -244,6 +244,82 @@ describe("Node Selection - Click Interactions", () => {
         // the implementation. We'll add it after the click detection is implemented.
     });
 
+    describe("a click is timed by its events, not by when the page handles them", () => {
+        beforeEach(async () => {
+            graph = await setupTestGraph({
+                mode: "2d",
+                layout: "fixed",
+                nodes: DEFAULT_TEST_NODES,
+                edges: DEFAULT_TEST_EDGES,
+            });
+            await waitForGraphReady(graph);
+        });
+
+        afterEach(() => {
+            vi.restoreAllMocks();
+        });
+
+        /**
+         * Press and release on a point, with the events stamped `heldMs` apart, while the page's
+         * clocks move on by `busyMs` between handling the two -- a frame, a layout step or the OS
+         * that kept the page from getting to the pointerup.
+         * @param at - Where to press.
+         * @param at.x - X on the canvas.
+         * @param at.y - Y on the canvas.
+         * @param heldMs - How long the button was down, by the events' stamps.
+         * @param busyMs - How long the page was busy before it handled the pointerup.
+         */
+        function pressAndRelease(at: { x: number; y: number }, heldMs: number, busyMs: number): void {
+            const { scene } = graph;
+            const send = (type: number, buttons: number, timeStamp: number): void => {
+                scene.pointerX = at.x;
+                scene.pointerY = at.y;
+                scene.onPrePointerObservable.notifyObservers({
+                    type,
+                    event: { clientX: at.x, clientY: at.y, buttons, button: 0, timeStamp } as PointerEvent,
+                } as unknown as Parameters<typeof scene.onPrePointerObservable.notifyObservers>[0]);
+            };
+
+            const pressedAt = performance.now();
+            send(PointerEventTypes.POINTERDOWN, 1, pressedAt);
+
+            const realDate = Date.now.bind(Date);
+            const realPerformance = performance.now.bind(performance);
+            vi.spyOn(Date, "now").mockImplementation(() => realDate() + busyMs);
+            vi.spyOn(performance, "now").mockImplementation(() => realPerformance() + busyMs);
+
+            send(PointerEventTypes.POINTERUP, 0, pressedAt + heldMs);
+        }
+
+        it("a quick click whose pointerup is handled late still selects the node", () => {
+            const at = getNodeScreenPosition(graph, "node2");
+            assert.isNotNull(at);
+
+            pressAndRelease(at, 16, 1000);
+
+            assert.equal(graph.getSelectedNode()?.id, "node2");
+        });
+
+        it("a quick click on the background handled late still deselects", async () => {
+            await clickOnNode(graph, "node1");
+            assert.equal(graph.getSelectedNode()?.id, "node1");
+
+            const { engine } = graph;
+            pressAndRelease({ x: engine.getRenderWidth() - 10, y: engine.getRenderHeight() - 10 }, 16, 1000);
+
+            assert.isNull(graph.getSelectedNode());
+        });
+
+        it("a long press handled at once selects nothing", () => {
+            const at = getNodeScreenPosition(graph, "node2");
+            assert.isNotNull(at);
+
+            pressAndRelease(at, 1000, 0);
+
+            assert.isNull(graph.getSelectedNode());
+        });
+    });
+
     describe("position stability on selection", () => {
         /**
          * Helper to capture all node positions

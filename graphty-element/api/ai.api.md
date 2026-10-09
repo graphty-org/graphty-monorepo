@@ -593,6 +593,11 @@ export interface WebLlmModelInfo {
 }
 
 // @public
+export interface WebLlmProviderOptions {
+    initializeOnFirstUse?: boolean;
+}
+
+// @public
 export const zoomToNodes: GraphCommand;
 
 // (No @packageDocumentation comment for this package)

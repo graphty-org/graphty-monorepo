@@ -542,6 +542,21 @@ select nodes, run a layout, zoom -- because WebLLM accepts tools only for its He
 Every other model answers in text only: it can describe and explain, but it changes nothing.
 
 ```typescript
+import { isGraphtyError } from "@graphty/graphty-element";
+
+try {
+    await graph.enableAiControl({ provider: "webllm", model: "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC" });
+} catch (err) {
+    if (isGraphtyError(err) && err.code === "E_MISSING_PACKAGE") {
+        // err.details.package is the package to install: "@mlc-ai/web-llm"
+    }
+}
+```
+
+The model downloads on the first command. To choose a model from the list, or to show the
+download's progress before the first command, build the provider yourself and pass it in:
+
+```typescript
 import { getWebLlmProviderClass } from "@graphty/graphty-element/ai";
 
 const WebLlmProvider = await getWebLlmProviderClass();

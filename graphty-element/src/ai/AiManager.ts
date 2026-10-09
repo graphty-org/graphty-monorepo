@@ -37,7 +37,11 @@ export interface KeyPersistenceConfig {
  * Configuration options for initializing the AiManager.
  */
 export interface AiManagerConfig {
-    /** The LLM provider to use (e.g., "openai", "anthropic", "google", "mock") */
+    /**
+     * The LLM provider to use (e.g., "openai", "anthropic", "google", "mock", "webllm").
+     * `"webllm"` is built by `enableAiControl`; `AiManager.init` itself needs it as
+     * `providerInstance`.
+     */
     provider: ProviderType;
     /** Optional API key for the provider */
     apiKey?: string;

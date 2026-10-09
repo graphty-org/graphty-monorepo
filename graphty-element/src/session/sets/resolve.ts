@@ -34,6 +34,7 @@ import type {
     SetId,
 } from "../../catalog/types";
 import { EDGE_ID_COLUMN, identityColumnsOf, pairsOrdered } from "../../data/edgeIdentity";
+import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import { canonicalize } from "../runs/runId";
@@ -252,7 +253,7 @@ function addIds(ids: Iterable<NodeId>, mask: U32, context: ResolveContext): numb
     const map = context.ids ?? context.snapshot.ids;
     let missing = 0;
     for (const id of ids) {
-        const index = map.indexOf(id);
+        const index = rowOfEitherSpelling(map, id);
         if (index === INVALID_INDEX) {
             missing++;
         } else {
@@ -972,14 +973,18 @@ function bindByIdentity(
     const hashes = new Map<number, LanePair>();
     for (const i of which) {
         const member = members.at(i) as EdgeMember;
-        const s = ids.indexOf(member.source);
-        const t = ids.indexOf(member.target);
+        const s = rowOfEitherSpelling(ids, member.source);
+        const t = rowOfEitherSpelling(ids, member.target);
         if (s === INVALID_INDEX || t === INVALID_INDEX) {
             continue;
         }
 
         if (member.id !== undefined) {
-            hashes.set(i, hashEdgeMember(member, ordered));
+            // The identity hash is over the ends as the graph holds them, so a member naming an
+            // integer end in the other spelling binds the edge it names.
+            const [source, target] = [snapshot.ids.idOf(s), snapshot.ids.idOf(t)];
+            const held = source === member.source && target === member.target ? member : { ...member, source, target };
+            hashes.set(i, hashEdgeMember(held, ordered));
         }
 
         const key = pairKey(s, t);

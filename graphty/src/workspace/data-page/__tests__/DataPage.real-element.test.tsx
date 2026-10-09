@@ -216,7 +216,8 @@ describe("the Data page on the real element", () => {
             assert.include(report.textContent, "1 edge row names a node missing from the node rows.");
 
             await userEvent.click(within(report).getByRole("button", { name: "Show the 1 unmatched row" }));
-            await screen.findByText("1 unmatched row: z has no node row");
+            const sentence = await screen.findByText("1 unmatched row: z has no node row");
+            assert.equal(getComputedStyle(sentence).fontSize, "11px", "the unmatched sentence at the body size");
             const grid = screen.getByRole("grid", { name: "Rows of ties.csv" });
             // The target end names no node, so its cell is marked; the source end, c, is not.
             const marked = [...grid.querySelectorAll(".dp-missing-end")].map((cell) => cell.textContent);
@@ -273,6 +274,33 @@ describe("the Data page on the real element", () => {
             await waitFor(() => {
                 assert.lengthOf(within(tables).getAllByLabelText("Ready"), 2);
             });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "Add and Leave out read at the body size and each says what it does on hover",
+        async () => {
+            await openFromEmptyApp();
+            await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));
+            await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+            const report = screen.getByRole("region", { name: "Match report" });
+
+            for (const [option, hint] of [
+                ["Add", "Make a node for each missing name"],
+                ["Leave out", "Skip the rows whose end names no node"],
+            ]) {
+                const words = within(report).getByText(option);
+                assert.equal(getComputedStyle(words).fontSize, "11px", `${option} at the body size`);
+                await userEvent.hover(words);
+                // The theme opens a tooltip after a one-second rest.
+                const tip = await screen.findByText(hint, {}, { timeout: TIMEOUT_MS });
+                assert.isNotNull(tip.closest('[role="tooltip"]'));
+                await userEvent.unhover(words);
+                await waitFor(() => {
+                    assert.isNull(screen.queryByText(hint));
+                });
+            }
         },
         TIMEOUT_MS * 2,
     );
@@ -348,10 +376,20 @@ describe("the Data page on the real element", () => {
             assert.isNull(screen.queryByRole("alert"));
             assert.isNull(loadButton().getAttribute("aria-disabled"));
             assert.notEqual(document.activeElement, loadButton(), "an edit back to ready leaves focus where it is");
-            assert.isNotNull(screen.getByText("Weight: none (each edge counts 1)"));
+            const none = screen.getByText("Weight: none (each edge counts 1)");
+            assert.equal(getComputedStyle(none).fontSize, "11px", "the weight sentence at the body size");
 
+            // The weight line sits below the roles, so choosing Weight moves no role box.
+            const roles = screen.getByRole("group", { name: "Column roles" });
+            const before = roles.getBoundingClientRect().top;
             await pick("Role of trips", "Weight");
-            await screen.findByText("Weight: trips");
+            const line = await screen.findByText("Weight: trips");
+            assert.equal(roles.getBoundingClientRect().top, before, "the roles stay where they were");
+            assert.isAtLeast(line.getBoundingClientRect().top, roles.getBoundingClientRect().bottom);
+            assert.isAtLeast(
+                screen.getByText("Higher means").getBoundingClientRect().top,
+                roles.getBoundingClientRect().bottom,
+            );
             await pick("Direction", "Directed");
             await userEvent.click(loadButton());
             await waitFor(

@@ -67,6 +67,7 @@ import {
     roleWords,
     SEPARATORS,
     tooLargeRefusal,
+    UNMATCHED_HINTS,
 } from "./words";
 
 /** The URL / Paste entry pop-out's width. */
@@ -553,7 +554,7 @@ function EntryForm({
                 {kind === "url" ? (
                     <TextInput
                         label="Address"
-                        size="xs"
+                        size="sm"
                         data-autofocus
                         value={value}
                         onChange={(event) => {
@@ -563,7 +564,7 @@ function EntryForm({
                 ) : (
                     <Textarea
                         label="Data"
-                        size="xs"
+                        size="sm"
                         autosize
                         minRows={4}
                         data-autofocus
@@ -574,7 +575,7 @@ function EntryForm({
                     />
                 )}
                 <Group justify="flex-end">
-                    <Button type="submit" size="xs">
+                    <Button type="submit" size="sm">
                         Read
                     </Button>
                 </Group>
@@ -597,9 +598,9 @@ function ProblemBlock({
     return (
         <Alert color="red" variant="light" title={refusal.what} role="alert">
             <Stack gap="xs" align="flex-start">
-                <Text size="xs">{refusal.todo}</Text>
+                <Text size="sm">{refusal.todo}</Text>
                 {refusal.fixable ? null : (
-                    <Button size="xs" onClick={onChooseFiles}>
+                    <Button size="sm" onClick={onChooseFiles}>
                         Choose another file...
                     </Button>
                 )}
@@ -633,7 +634,7 @@ function MainView({ page, onChooseFiles }: PartProps & { onChooseFiles: () => vo
             <Group gap="xs" p="md" role="status">
                 <Loader size="xs" />
                 {/* No running row count until prepare() reports progress (#910). */}
-                <Text size="xs">Reading {sourceName(source)}</Text>
+                <Text size="sm">Reading {sourceName(source)}</Text>
             </Group>
         );
     }
@@ -707,9 +708,9 @@ function TableView({ page, draft, table }: PartProps & { draft: LoadDraft; table
     return (
         <Stack gap="sm">
             <Group gap="md" align="flex-end" wrap="wrap">
-                <Input.Wrapper label="Each row is" description={table.fixed ? "Set by the file" : undefined} size="xs">
+                <Input.Wrapper label="Each row is" description={table.fixed ? "Set by the file" : undefined} size="sm">
                     <SegmentedControl
-                        size="xs"
+                        size="sm"
                         disabled={table.fixed}
                         value={kind}
                         data={[
@@ -723,8 +724,9 @@ function TableView({ page, draft, table }: PartProps & { draft: LoadDraft; table
                 </Input.Wrapper>
                 <FileSettings page={page} />
             </Group>
-            {kind === "edges" && !table.fixed ? <WeightLine page={page} draft={draft} table={table} /> : null}
             <RoleList page={page} draft={draft} table={table} />
+            {/* Below the roles, so choosing Weight for a column moves nothing above the pointer. */}
+            {kind === "edges" && !table.fixed ? <WeightLine page={page} draft={draft} table={table} /> : null}
             {table.rowCount === 0 ? null : <SampleGrid page={page} table={table} />}
         </Stack>
     );
@@ -743,13 +745,13 @@ function WeightLine({ page, draft, table }: PartProps & { draft: LoadDraft; tabl
     if (weight === undefined) {
         // The design offers one number column as the weight ("value is a number: use it as the
         // weight?"). Which column is a judgment the element makes, and it names none yet (#926).
-        return <Text size="xs">Weight: none (each edge counts 1)</Text>;
+        return <Text size="sm">Weight: none (each edge counts 1)</Text>;
     }
     const auto = page.choices.tables[table.id]?.roles[weight] === undefined;
     const meaning = page.choices.tables[table.id]?.weightMeaning ?? null;
     return (
         <Stack gap={2}>
-            <Text size="xs">
+            <Text size="sm">
                 Weight: {weightName(weight, meaning)}
                 {auto ? <span className="dp-auto">auto</span> : null}
             </Text>
@@ -757,10 +759,10 @@ function WeightLine({ page, draft, table }: PartProps & { draft: LoadDraft; tabl
                 label="Higher means"
                 description={meaningGloss(meaning)}
                 inputWrapperOrder={["label", "input", "description"]}
-                size="xs"
+                size="sm"
             >
                 <SegmentedControl
-                    size="xs"
+                    size="sm"
                     value={meaning ?? ""}
                     data={[...HIGHER_MEANS]}
                     onChange={(value) => {
@@ -794,7 +796,7 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
     return (
         <Popout>
             <Popout.Trigger>
-                <Button variant="default" size="xs" aria-label={`File settings: ${line}`}>
+                <Button variant="default" size="sm" aria-label={`File settings: ${line}`}>
                     {line}
                     {settings.type === undefined && draft !== null ? <span className="dp-auto">auto</span> : null}
                 </Button>
@@ -810,7 +812,7 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
                             label="Format"
                             // Its list opens inside the popover, so a pick is not a click outside it.
                             comboboxProps={{ withinPortal: false }}
-                            size="xs"
+                            size="sm"
                             data={[{ value: "", label: "Auto" }, ...READABLE_FORMATS]}
                             value={settings.type ?? ""}
                             allowDeselect={false}
@@ -825,7 +827,7 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
                             <Select
                                 label="Separator"
                                 comboboxProps={{ withinPortal: false }}
-                                size="xs"
+                                size="sm"
                                 data={SEPARATORS.map(({ value, label }) => ({ value, label }))}
                                 value={settings.delimiter ?? ""}
                                 allowDeselect={false}
@@ -840,7 +842,7 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
                         <NumberInput
                             label="Error limit"
                             description="Bad rows read past before the file is refused"
-                            size="xs"
+                            size="sm"
                             min={0}
                             allowDecimal={false}
                             placeholder="100"
@@ -1025,13 +1027,14 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
     return (
         <Stack gap={4}>
             <Group gap="xs">
-                <Text size="xs" c="dimmed">
+                {/* "The first 17 rows" is a caption; "1 unmatched row: z has no node row" is a sentence. */}
+                <Text size={page.filter === "all" ? "xs" : "sm"} c="dimmed">
                     {caption}
                 </Text>
                 {page.filter === "all" ? null : (
                     <Anchor
                         component="button"
-                        size="xs"
+                        size="sm"
                         onClick={() => {
                             page.setFilter("all");
                         }}
@@ -1160,12 +1163,26 @@ function UnmatchedLine({
                 )}
             </Text>
             <SegmentedControl
-                size="xs"
+                size="sm"
                 aria-label="Unmatched ends"
                 value={page.choices.unmatched}
                 data={[
-                    { value: "add", label: "Add" },
-                    { value: "leave-out", label: "Leave out" },
+                    {
+                        value: "add",
+                        label: (
+                            <Tooltip label={UNMATCHED_HINTS.add}>
+                                <span>Add</span>
+                            </Tooltip>
+                        ),
+                    },
+                    {
+                        value: "leave-out",
+                        label: (
+                            <Tooltip label={UNMATCHED_HINTS["leave-out"]}>
+                                <span>Leave out</span>
+                            </Tooltip>
+                        ),
+                    },
                 ]}
                 onChange={(value) => {
                     page.setChoices({ ...page.choices, unmatched: value === "add" ? "add" : "leave-out" });
@@ -1244,7 +1261,7 @@ function Footer({
         <footer className="dp-footer">
             <Select
                 label="Direction"
-                size="xs"
+                size="sm"
                 w={180}
                 data={[
                     { value: "auto", label: "As the file says" },
@@ -1266,12 +1283,12 @@ function Footer({
                         {blocked}
                     </Text>
                 )}
-                <Button variant="default" size="xs" onClick={onCancel}>
+                <Button variant="default" size="sm" onClick={onCancel}>
                     Cancel
                 </Button>
                 <Button
                     ref={loadButton}
-                    size="xs"
+                    size="sm"
                     data-disabled={blocked === null ? undefined : true}
                     aria-disabled={blocked === null ? undefined : true}
                     aria-describedby={blocked === null ? undefined : "dp-load-reason"}

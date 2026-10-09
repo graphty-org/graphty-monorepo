@@ -281,3 +281,9 @@ export const SEPARATORS = [
     { value: ";", label: "Semicolon" },
     { value: "|", label: "Pipe" },
 ] as const;
+
+/** What each answer to an edge naming no node does, shown as its tooltip. */
+export const UNMATCHED_HINTS = {
+    add: "Make a node for each missing name",
+    "leave-out": "Skip the rows whose end names no node",
+} as const;

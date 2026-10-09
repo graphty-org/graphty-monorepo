@@ -4,6 +4,25 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-09 -- Decided by the team: a bare-number refusal carries the rule rewritten (`suggestion`)
+
+**What.** When a selector is refused with the reason `number-needs-backticks`, the error's
+details gain `suggestion`: the same selector text with every bare number put between backticks
+(`minutes >= 10` gives ``minutes >= `10` ``). Additive: the code, the reason, `position` and
+`character` are unchanged, and no other refusal carries it.
+
+**Why.** The graphty app's find box answered a bare number with an example built from a column's
+midpoint ("minutes > `9`", "shared_chapters > `16`"), not from what the reader typed. Two pilots
+of the tier 2 rule task copied an example close to the task's own number and would have selected
+the wrong ties. Only the element's tokenizer knows which characters are numbers in a selector, so
+the app cannot rewrite the reader's text without parsing the grammar itself, which the
+architecture forbids.
+
+**Alternatives.** The app wraps digits in backticks itself (a second parser of the selector
+grammar, wrong inside a quoted name or a column called `col2`); accepting bare numbers (changes
+what an existing API accepts: already an owner question under `E_BAD_SELECTOR`); an example
+number far from the data (still not the reader's rule).
+
 ## 2026-10-08 -- Decided by the team: a layer update's history step names the channels it changed (`channels`)
 
 **What.** The fact of a `style.update-layer` history step gains one param, `channels`: the

@@ -19,7 +19,9 @@ fi
 here=$(cd "$(dirname "$0")" && pwd)
 # real.mjs --step, --end and --brief launch no browser: a step talks to a session that already holds
 # its slot. Wrapped, it waited for a second slot while its own session held one (r1-s04, void).
-if [[ "$*" =~ real\.mjs\ --(step|end|brief)( |$) ]]; then
+# real.mjs --start takes its own slot (it runs its session process through this gate), so wrapped
+# it held one slot with no browser while that process waited for a second.
+if [[ "$*" =~ real\.mjs\ --(start|step|end|brief)( |$) ]]; then
     exec "$@"
 fi
 main=$(dirname "$(git -C "$here" rev-parse --path-format=absolute --git-common-dir)")

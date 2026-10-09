@@ -8,7 +8,7 @@ export const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 export const serious = (v) => v.impact === "serious" || v.impact === "critical";
 
 // Bar 2: the open work a returning user keeps -- runs, style layers, notes, filter steps, sources --
-// each "<key> <what it is>"; null when no graph is open
+// each "<key> <what it is>" (a filter step: "<id> on|off <its rule>"); null when no graph is open
 export function openWork() {
     const s = document.querySelector("graphty-element")?.session;
     if (!s) return null;
@@ -21,7 +21,7 @@ export function openWork() {
         runs: s.runs.list().map((r) => `${r.id} ${short(r.label)}`),
         layers: s.styles.list().map((l) => `${l.id} ${short(l.name)}`),
         notes: s.notes.list().map((n) => `${n.id} ${short(n.text)}`),
-        steps: s.visibility.steps.map((f) => `${f.id} ${f.on ? "on" : "off"}`),
+        steps: s.visibility.steps.map((f) => `${f.id} ${f.on ? "on" : "off"} ${short(JSON.stringify(f.rule))}`),
         sources: s.data.sources().map((x) => short(x.name ?? (x.tables ?? []).join(" and "))),
     };
 }

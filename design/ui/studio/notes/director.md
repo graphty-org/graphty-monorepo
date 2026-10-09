@@ -5,10 +5,17 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-09 (tier 2 round 1 decisions for round 2).
+Last updated: 2026-10-09 (dry run of every tier 2 task on the round 2 build, before its sessions).
 
 ## Top of mind
 
+- 2026-10-09: ROUND 2 DRY RUN on ddf8b3b63 (`tier2/dry-run-r2-1.md`, second part): 79 rows; 22
+  fixes in six groups (words, shared controls, import page, find box, panels, selection and
+  saving), 32 design questions left alone. No session starts until the fixes are in a refrozen
+  build and every task is piloted again on it.
+- 2026-10-09: Pilots now mostly report design questions and known overlap, not breakage: the dry
+  run works. The remaining traps were words true in one case and false in another (", out of
+  date" under a filter; "Added" after Replace) and examples close to the task's own numbers.
 - 2026-10-09: TIER 2 ROUND 1 DECIDED (`tier2/rounds/round-1/decisions.md`): 15 changes. Measurement
   first (tool, missing bar scripts, a dry run that walks detours by pointer and keyboard), then
   find's hint to the rule (T22), "..." menu on the source inspector (T21), the start screen's Open
@@ -162,6 +169,17 @@ Last updated: 2026-10-09 (tier 2 round 1 decisions for round 2).
   issue), compact-mantine toast role and segmented fill, bare numbers (owner). Reason throughout:
   one door per problem so round 2 can credit each change; measurement before any app change.
 
+- 2026-10-09 -- Round 2 dry run triage (me, `tier2/dry-run-r2-1.md`). Reversed one round 1
+  deferral: the chosen segment of a two-option control is fixed now in compact-mantine, because
+  two of four T4 pilots could not tell Add from Leave out, and the build is refrozen for the
+  other fixes anyway, so attribution is no argument. Kept "no mark on the focused inspector
+  title" (fourth dry run: the underline read as a link; a heading is not a control) and the
+  tooltip that stays closed after a click (Figma, macOS), though pilots keep reporting both: the
+  key says so. Find's bare-number hint shows the reader's own rule, rewritten by the element
+  (additive `suggestion` on the refusal, recorded under "decided by the team"), not a column's
+  midpoint that sat near the task's number on both halves. Fixed the tool myself: a wrapped
+  `real.mjs --start` held a slot while its own session waited for a second.
+
 ## Tried: worked / did not work
 
 - 2026-09-27..10-03 (summarized) -- Eight rounds on mocks: places right, behavior after the click
@@ -247,6 +265,12 @@ Last updated: 2026-10-09 (tier 2 round 1 decisions for round 2).
   the build. Did not work: starting a round with bar scripts unbuilt -- four bars could not hold.
   Worked: the red team reading proposals in source found the T20 cause (one command, two
   behaviors) that six roles missed, and the shared `writeLine` default behind one caller's bug.
+
+- 2026-10-09 (round 2 dry run) -- Worked: reading the element's facts before calling a word
+  wrong. `stale.reason` already separated a filter from new data, so ", out of date" under a filter
+  was the app's word, not a missing API. Did not work: pilots naming causes they had not traced
+  ("step-1 off" read from the row's second line; "minutes > `9`" a rewrite of ">= 10"): both were
+  something else in source. Check every cause a pilot guesses before writing its unit.
 
 ## Thinking
 

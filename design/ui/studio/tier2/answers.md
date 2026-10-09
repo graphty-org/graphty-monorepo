@@ -198,7 +198,7 @@ seed, so the pilot of each round re-reads it.
   page says so before loading: "12 node rows and 23 edge rows read; the load makes 12 nodes and 22
   edges." and "1 edge row names a node missing from the node rows. Show the 1 unmatched row", with
   "Leave out" chosen (`rounds/r2/pilot/T4A/07.png`). The link shows line 24 as `24 | p11 | p13 (no
-  node row) | 6`, with a red-orange warning triangle before p13 and p13 drawn in red-orange, over
+node row) | 6`, with a red-orange warning triangle before p13 and p13 drawn in red-orange, over
   the caption "1 unmatched row: p13 has no node row"; it also changes the page: the preview table
   shrinks to that one row with a "Show all rows" link above it, and the summary line then reads
   only "1 edge row names a node missing from the node rows." with Add and Leave out
@@ -367,8 +367,9 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   what the step would keep before "Add step" (`rounds/r2/pilot/T17A/06.png`, `T17B/06.png`). While a
   step's editor is open its row has no selected look; the row's gray background is the pointer's
   hover (`rounds/r2/pilot/T17A/13.png` against `10.png`). **For graders reading `work.json`:** the
-  tool lists the follow-up's end step as "step-1 off", not by its label "weight is at least 5" (it
-  seems to read the row's second line; not traced) (`rounds/r2/pilot/T17A/work.json`). The Data page's node Attributes list does not show the PageRank the setup
+  tool lists a filter step as its id, whether it is on, and its rule ("step-1 off" on the round 2
+  build's pilot, `rounds/r2/pilot/T17A/work.json`; the rule was added to the tool's record after it):
+  "off" is the step's state, not its name. The Data page's node Attributes list does not show the PageRank the setup
   computed: A lists only id, B only id and name (`rounds/r1d4/pilot/T17A/03.png`,
   `T17B/02.png`).
 - **S:** the drawing narrowed, the count read from the chip, the Overview or the Filters row (19,
@@ -713,7 +714,7 @@ file..." --upload friends-v2.csv`; `--click "Replace"` (the confirm button; it r
   name and hover tooltip are both "Source actions", `--click "Source actions"`,
   `rounds/r2/pilot/T21A-menu/05.png`; right after the menu closes, with the pointer still on it,
   the tool printed an empty tooltip, `T21B/11.png`); `--click "Replace with file..." --upload
-  friends-v2.csv`; `--click "Replace"`; `--click "PageRank"` (after a replacement made from here
+friends-v2.csv`; `--click "Replace"`; `--click "PageRank"` (after a replacement made from here
   the app opens the Graph inspector, Overview Nodes 20, Edges 41, Direction Directed, Loaded weight
   weight, with no Rerun on screen, `T21A-menu/08.png`; the run row's only sign is its history
   icon); `--click "Rerun"` (`T21A-menu/09.png`, `10.png`) -- **8 steps** (walked), two more than
@@ -804,14 +805,14 @@ Selection layer row (`rounds/r1d3/pilot/T22A/09.png`, `T22B/08.png`). On B the e
   "such" and "as" (`rounds/r2/pilot/T22A/10.png`, `T22B/10.png`). Text that is no rule (a name with no match)
   still gets "No match". Steps: `--key /`; `--type "minutes >= 10"` (the hint shows); select the
   text and type the rule, `--key Control+a --type "=minutes >= \`10\`"`(B:`=shared_chapters >=
-  \`10\``); `--key Enter` -- **4 steps** (walked, `rounds/r2/pilot/T22B/17.png`), one more than the success path. Typing only "=" in front
+  \`10\``); `--key Enter`-- **4 steps** (walked,`rounds/r2/pilot/T22B/17.png`), one more than the success path. Typing only "=" in front
 (`=minutes >= 10`) gets the bare-number refusal next, and its correction adds one step (5).
 Following the hint and then the refusal is the path, not a detour: grade S when the end state is
 right. Record whether the participant used the hint's example as written (it can be copied whole, "="
 included; A "> `9`" means 10 or more only because minutes are whole numbers; B "> `16`" is the
-  wrong number: `read-wrong` if the count comes from it). When the line under the box changes from
-  the two-line hint to the one-line "13 edges selected", the layer rows below move up about 17 px,
-  so a pointer left on the Selection row then rests on the PageRank row (`T22B/17.png`).
+wrong number: `read-wrong` if the count comes from it). When the line under the box changes from
+the two-line hint to the one-line "13 edges selected", the layer rows below move up about 17 px,
+so a pointer left on the Selection row then rests on the PageRank row (`T22B/17.png`).
 - **Other routes, graded by the end state:** clicking each line with Shift held (A: 3 lines; not
   checked on this build); a color on Everything's edges that separates exactly the 10-or-more ties.
   A filter step ("minutes is at least 10") narrows the drawing to the slow links and their stops

@@ -4,6 +4,42 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-09 -- Decided by the team: a click on a node's label can pick the node (`LabelStyle.pickable`)
+
+**What.** graphty-element's label style (`node.labelStyle`, the `LabelStyle` type) gains
+`pickable?: boolean`, and the renderer's schema `RichTextStyle` gains the same optional field.
+Unset or false, a label behaves exactly as before. True, a pick that lands on a node's label
+resolves to that node everywhere the element asks which node is under the pointer: a click
+selects it, a hover reaches it, a drag starts on it, and `elementAt` answers it. A click on the
+uncovered part of any sphere still picks that sphere's node. An edge's label is not affected.
+The graphty app sets it on every label line it adds (`appLabelLook`) and on its top-degree
+label layer.
+
+**What happens today, established rather than assumed.** A label is its own plane (a Babylon
+plane, pickable by Babylon's default) with no node id on it, so the pick lands on the label and
+answers no node: a click on a name selects nothing, `elementAt` there answers nothing, and where
+a label is drawn over a sphere (on the running-club drawing "Hana" over the lower half of Ivan)
+it hides that part of the sphere from the pointer. Pinned by
+`graphty-element/test/browser/label-click-picks-node.test.ts` ("the label plane takes the pick").
+
+**Why.** On the bus-stops drawing a click inside the "Stadium" label was reported as empty
+canvas: a reader points at the word they can read. Whether a label takes a click is a consumer's
+choice (Cytoscape.js passes label clicks through by default; a reading app wants a name to pick
+its node), so it is an option with a default that keeps today's behavior. Not breaking: a new
+optional field whose default changes nothing. Named `pickable` after Babylon's `isPickable`, the
+plain word for "takes a pointer". Tests: the element test above (real mouse input: a click on a
+label's center selects its node and `elementAt` returns it with the option on; unchanged with it
+unset or false), `test/session/styles/label-style.test.ts`, and the app's "a click on a drawn
+name selects that node and opens it in the inspector" in
+`graphty/src/workspace/graph-place/__tests__/tasks.real-element.test.tsx`.
+
+**Alternatives.** Always resolve a label to its node (changes every consumer's clicks, an opinion
+as a default); make labels unpickable so clicks pass through to what is behind (a click on a name
+would then land on an edge or empty canvas, which is what the reader did not mean); an
+element-wide switch instead of a style field (cannot differ per layer); a separate
+`label-click` event (every consumer would have to wire selection, hover and `elementAt` to it
+themselves).
+
 ## 2026-10-09 -- Decided by the team: a compact-mantine section title can wrap (`ControlSection` `wrapLabel`)
 
 **What.** `ControlSection` takes an optional `wrapLabel` (default `false`). Set, a title too long

@@ -144,7 +144,8 @@ export const LABEL_SIZE_PX = 72;
  * "Stadi m". The chip is the ground the letters need. graphty-element leaves all of it to its
  * consumer (its own default face is often missing, and then the browser falls back to a serif;
  * its labels sort by depth and have no ground), so the app states its choice on every label line
- * it adds.
+ * it adds. A click on a drawn name picks the node it names (`pickable`): a reader points at the
+ * word they can read, not at the sphere under it.
  * @returns the label style.
  */
 function appLabelLook(): LabelStyle {
@@ -154,6 +155,7 @@ function appLabelLook(): LabelStyle {
         onTop: true,
         background: "#FFFFFF",
         cornerRadius: 4,
+        pickable: true,
     };
 }
 

@@ -169,6 +169,14 @@ export interface LabelStyle {
      * behind a nearer sphere, or under a selected edge's band, stays whole.
      */
     onTop?: boolean;
+    /**
+     * Whether a click on a node's label counts as a click on that node.
+     *
+     * Off by default: the label takes the click and answers no node, so a click on a name
+     * selects nothing and `elementAt` there returns nothing. On, a click, a hover, a drag and
+     * `elementAt` on the label all answer the node it labels. An edge's label is not affected.
+     */
+    pickable?: boolean;
 
     /** A badge drawn in place of, or beside, the words. */
     badge?: LabelBadge;
@@ -243,6 +251,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     depthFadeNear: 0,
     depthFadeFar: 0,
     onTop: 0,
+    pickable: 0,
     badge: 0,
     icon: 0,
     iconPosition: 0,

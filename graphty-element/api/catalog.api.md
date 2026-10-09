@@ -953,6 +953,7 @@ export interface LabelStyle {
     outlineWidth?: number;
     overflowSuffix?: string;
     padding?: number;
+    pickable?: boolean;
     pointer?: boolean;
     pointerCurve?: boolean;
     pointerDirection?: LabelPointerDirection;

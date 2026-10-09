@@ -89,6 +89,6 @@ export function topDegreeLabelLayer(input: {
         kind: "custom",
         source: { by: "template", templateId: SHELL_DEFAULTS_TEMPLATE_ID },
         selector: { match: "top", path: resultPath(input.degreeRunId, METRIC_VALUE_FIELD), n: input.labelCount },
-        set: { "node.labelStyle": { enabled: true } },
+        set: { "node.labelStyle": { enabled: true, pickable: true } },
     };
 }

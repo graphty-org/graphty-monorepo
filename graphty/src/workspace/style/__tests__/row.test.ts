@@ -57,6 +57,7 @@ describe("a label line the app adds", () => {
             onTop: true,
             background: "#FFFFFF",
             cornerRadius: 4,
+            pickable: true,
         });
         assert.equal(on.history.steps.length, before + 1);
     });

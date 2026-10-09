@@ -11,6 +11,20 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **A click on a node's drawn name picks the node when its label style sets
+  `pickable: true`** (new, additive, default unset = today: the label plane is pickable by
+  Babylon's default, carries no node id, so it takes the pick and answers no node -- a name click
+  selects nothing and a label over a sphere hides that part from the pointer). `Node.createLabel`
+  writes `{ nodeId }` on the label mesh's metadata, so `pickNodeId` (every pointer handler and
+  `elementAt`) resolves it; edge labels unaffected. Flows `LabelStyle.pickable` ->
+  `StylePainter` `RICH_TEXT_KEYS` -> `RichTextStyle.pickable`. The app sets it in `appLabelLook`
+  (row.ts) and `topDegreeLabelLayer`. Tests: `test/browser/label-click-picks-node.test.ts`
+  (fails without the change), graph-place `tasks.real-element.test.tsx` "a click on a drawn name"
+  (fails with the app's `pickable` off). T24B success point is now 762,145 (752,170 is on the
+  Stadium label). Evidence `tmp/r2-dry4-label-click-picks-node/{T24B-name,T24B-line,T24A,T24A-spheres}`.
+  The transparent margin around a chip is part of the plane, so a click just outside the white
+  chip also picks the node.
+
 - (2026-10-09) **`real.mjs` reports a click by what happened, not by Playwright's timeout.** A
   click whose call log says "click action done" but whose wait afterwards ran out the limit prints
   `slow click (landed): "..."` and is not a miss; setup clicks get 20 s (`SETUP_CLICK_MS`, a
@@ -34,31 +48,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `tmp/r2-dry3-neighbor-list-reach-and-heading/T23B/{05,10,11,12,13}.png`, `T12RA/04`, `T12RB/04`.
   For `real.mjs`: the heading's text now matches 2 things (group, span); hover it as `"<text>#2"`.
 
-- (2026-10-09) **The import preview's caption says "All N rows" when it holds the whole table**
-  ("1 row" for a one-row table), and "The first N rows of M" only when it holds fewer.
-  `previewCaption(shown, total)` in `data-page/words.ts`, unit-tested in `words.test.ts`; the
-  real-element "draws every sample row" test now waits for "All 12 rows". The "Add a table"
-  tooltip opens `position="left"` of its "+", over the empty Tables heading row, so it no longer
-  covers "Each row is". Evidence `tmp/r2-dry3-import-page-caption-and-tooltip/{T20A/05,T20B/06,
-T21A/05,T4A-hover/05}.png`.
+- (2026-10-09, condensed) **Import preview caption** "All N rows" / "The first N rows of M"
+  (`previewCaption`, `data-page/words.ts`); "Add a table" tooltip opens left of its "+".
 
-- (2026-10-09) **A menu opened by a click highlights no row, whatever its first row is.**
-  compact-mantine `overlayBehavior.ts` (`skipDisabledFirstRow`): the row Mantine's focus trap
-  picks (the menu's first menuitem) is redirected to the menu itself when the pointer opened it;
-  opened by a key it stays on (or moves to) the first enabled row. Any other enabled row reached
-  from the menu (type-ahead) is left alone. Tests: two enabled-first-row cases in
-  `MenuKeys.browser.test.tsx` (the pointer one fails without the change); three tests and the
-  Menu story's play function that asserted "a click focuses the first row" now assert the menu
-  has focus and ArrowDown reaches row one; graphty `HelpMenu.test.tsx` likewise. Evidence
-  `tmp/r2-dry3-shared-menu-pointer-highlight/T24A/03.png`, `T24B/` (Edge actions, no row filled).
+- (2026-10-09, condensed) **A pointer-opened menu highlights no row** (compact-mantine
+  `overlayBehavior.ts`; a key-opened one goes to the first enabled row). `MenuKeys.browser.test.tsx`.
 
-- (2026-10-09) **Study build is d5a3bee20b61**, frozen write-protected at
-  `design/ui/studio/tmp/study-builds/tier2-r2d2-d5a3bee20/` (inside the worktree: the main
-  checkout's `.study-builds/` is off limits). All 20 task halves were walked on it with
-  `tier2/pilot/repilot.sh` (sessions `tier2/rounds/r2d2/pilot/`, triage `tier2/dry-run-r2-3.md`):
-  every step landed and none of the second dry run's 15 fixed items came back. The answer key's
-  four false claims (Medici scrollbar, Graph title "does nothing", T19 reshaping, T19 ring beside
-  the new form) are rewritten against that build's screenshots; T21B finally has screens.
+- (2026-10-09, condensed) **Study build is 2dcea6dd5bba** (`tier2/criteria.md` names it; the
+  earlier d5a3bee20b61 is superseded). Re-pilot with `tier2/pilot/repilot.sh`.
 
 - (2026-10-09, condensed) **Find, neighbor list and inspector notes:** the Find refusal starts at
   the hint's x (`.ws-find-refusal`); the neighbor list is named once (its `ControlSection` group);
@@ -101,13 +98,15 @@ plainName`; reports quote names at `NAME_CHARS` = 80. Test `tool/measure.test.mj
 
 ## Decisions and reasons
 
-- (2026-10-09) **A landed click is read from Playwright's own call log, not by a longer limit for
-  everyone.** Playwright counts its wait for scheduled navigations (a `Page.enable` round trip
-  that stalls while the renderer is busy) inside the click's timeout, so at load 90 to 115 a click
-  that worked reported "could not click". Raising the participant's 3 s would hide real
-  not-clickable controls for longer; "click action done" is the only line that proves the click
-  happened. Setup clicks get 20 s because nobody waits on them and a missed setup click silently
-  changes the start state (T22B began without Size bound to PageRank).
+- (2026-10-09) **Label picks are an opt-in style field, not a default and not an event.**
+  Cytoscape.js passes label clicks through; a reading app wants a name to pick its node -- a
+  consumer's choice, so neutral default. Resolving in `pickNodeId` via metadata (one place) means
+  click, hover, drag and `elementAt` cannot disagree. A per-layer field beats an element-wide
+  switch; a `label-click` event would push wiring to every consumer. Recorded in
+  owner-decisions.md "decided by the team".
+
+- (2026-10-09, condensed) **A landed click is read from Playwright's call log** ("click action
+  done"), not by a longer limit for everyone; setup clicks get 20 s.
 
 - (2026-10-09, summarized) **Smaller standing facts:** the path's Weight list starts on the loaded
   weight; a live region is in the page before its words arrive (`Frame.tsx`); the selection halo
@@ -213,6 +212,13 @@ plainName`; reports quote names at `NAME_CHARS` = 80. Test `tool/measure.test.mj
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-09) Worked: an app real-element test that finds a point on a drawn name with public
+  API only -- walk up from `nodeScreenPosition(id)` past its `radius` and take the first point
+  `elementAt` answers the node (the app lint rule `graphty/no-element-mutation` refuses
+  `element.graph`). Seen, not mine: `tsc` in graphty-element flags `maxNodes` in
+  `test/managers/LayoutManager.test.ts` because `layout/dist` predates the master merge (stale
+  build, not a source error).
 
 - (2026-10-09) Did not work: planting a slow click by blocking the main thread from the click
   handler -- with `setTimeout(0)` it blocks Playwright's hit-target `stop()` evaluate, so the click

@@ -111,6 +111,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "progress"
     | "attachTo"
     | "onTop"
+    | "pickable"
     | "plainText"
     | "_badgeType"
     | "_smartSizing"

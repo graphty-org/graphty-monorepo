@@ -2549,7 +2549,7 @@ describe("AppShell", () => {
             expect((added[0].selector as { path: string }).path).toMatch(new RegExp(`\\.${METRIC_VALUE_FIELD}$`));
             /* It switches labels on and leaves the words to graphty-element, which draws each
                node's id. */
-            expect(added[0].set).toEqual({ "node.labelStyle": { enabled: true } });
+            expect(added[0].set).toEqual({ "node.labelStyle": { enabled: true, pickable: true } });
             /* Nothing the shell adds may set a node colour or a node size any more, by either
                a literal or a rule. */
             for (const layer of added) {

@@ -85,7 +85,7 @@ T23B) walk T23B "setup:$SET/florentine-ranked.txt" '--key / --type Medici --key 
     '--hover "Filter to neighbors"' '--click "Graph Florentine families"' ;;
 T24A) walk T24A "setup:$SET/friends-ranked-names.txt" '--click-at 755,586' '--click "Edge actions"' \
     '--click "Select endpoints"' ;;
-T24B) walk T24B "setup:$SET/bus-stops-ranked-names.txt" '--click-at 752,170' '--click "Edge actions"' \
+T24B) walk T24B "setup:$SET/bus-stops-ranked-names.txt" '--click-at 762,145' '--click "Edge actions"' \
     '--click "Select endpoints"' ;;
 T12RA) walk T12RA "setup:$SET/lesmis-ranked.txt" '--key / --type Javert' '--key ArrowDown --key Enter' \
     '--click "Degree"' '--click "Back to Javert"' ;;

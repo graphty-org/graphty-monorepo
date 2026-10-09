@@ -1414,7 +1414,14 @@ export class Node {
         LabelDeclutter.track(scene, this.context, this);
         // Its animation starts on the next frame the layout is at rest, or when it settles.
         oweLabelAnimations(scene);
-        return new RichTextLabel(scene, labelOptions);
+        const label = new RichTextLabel(scene, labelOptions);
+        // The plane is pickable either way (Babylon's default), so unset it takes a click and
+        // answers no node; `pickable` makes `pickNodeId` read this node's id off it.
+        if (styleConfig.label?.pickable === true && label.labelMesh) {
+            label.labelMesh.metadata = { nodeId: this.id };
+        }
+
+        return label;
     }
 
     private extractLabelText(labelConfig?: Record<string, unknown>): string {

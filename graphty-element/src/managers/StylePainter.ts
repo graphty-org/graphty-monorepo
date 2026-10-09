@@ -162,6 +162,7 @@ const RICH_TEXT_KEYS = {
     depthFadeNear: "depthFadeNear",
     depthFadeFar: "depthFadeFar",
     onTop: "onTop",
+    pickable: "pickable",
     badge: "badge",
     icon: "icon",
     iconPosition: "iconPosition",

@@ -30,7 +30,7 @@ describe("topDegreeLabelLayer", () => {
     it("switches labels on and leaves the words and their look to the element", () => {
         const layer = topDegreeLabelLayer({ degreeRunId: RUN, labelCount: 5 });
 
-        expect(layer.set).toEqual({ "node.labelStyle": { enabled: true } });
+        expect(layer.set).toEqual({ "node.labelStyle": { enabled: true, pickable: true } });
         expect(layer.encode).toBeUndefined();
     });
 });

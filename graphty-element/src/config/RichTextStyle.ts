@@ -102,6 +102,14 @@ export const RichTextStyle = z.strictObject({
      * edge's band stays whole.
      */
     onTop: z.boolean().optional(),
+    /**
+     * Let a click on a node's label count as a click on that node. Off (unset) by default: the
+     * label plane takes the pick and answers no node, so a click on a name selects nothing and a
+     * label drawn over its sphere hides that part of it from the pointer. On, every pointer
+     * handler and `elementAt` resolve the label to the node it labels. No effect on an edge's
+     * label.
+     */
+    pickable: z.boolean().optional(),
 
     // Text effects
     textOutline: z.boolean().default(false).optional(),

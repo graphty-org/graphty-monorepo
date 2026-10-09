@@ -19,6 +19,7 @@ import { page, userEvent as realInput } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
+import { addLabelRow } from "../../style/row";
 import { Workspace } from "../../Workspace";
 
 /** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
@@ -130,6 +131,54 @@ describe("the Graph place on the real element", () => {
                 assert.isTrue(session.selection.has(7));
             });
             assert.isNull(store.get().inspected, "the inspector shows what is selected");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "a click on a drawn name selects that node and opens it in the inspector",
+        async () => {
+            const { session } = await openGraph();
+            const element = document.querySelector("graphty-element");
+            assert.isNotNull(element);
+            if (element === null) {
+                return;
+            }
+            // Names on, as the Style tab's Label line or a column's Add label line draws them.
+            await addLabelRow(session, { kind: "node", name: "name" });
+            await element.waitForStableFrame();
+            // A point on Officer's name: above the sphere's drawn disc, where the name sits, the
+            // first one that answers Officer. Off the disc, only the name can.
+            const nameAt = (): { x: number; y: number } | undefined => {
+                const at = element.nodeScreenPosition(2);
+                if (at?.visible !== true) {
+                    return undefined;
+                }
+                for (let up = Math.ceil(at.radius) + 2; up < at.radius + 120; up++) {
+                    const point = { x: at.x, y: at.y - up };
+                    if (element.elementAt(point)?.id === 2) {
+                        return point;
+                    }
+                }
+                return undefined;
+            };
+            let point: { x: number; y: number } | undefined;
+            await waitFor(
+                () => {
+                    point = nameAt();
+                    assert.isDefined(point, "a point above Officer's sphere answers Officer");
+                },
+                { timeout: TIMEOUT_MS },
+            );
+
+            await realInput.click(element, { position: point });
+            await waitFor(() => {
+                assert.deepEqual([...session.selection.nodes], [2]);
+            });
+            const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+            const values = await inspector.findByRole("tab", { name: "Values" });
+            assert.equal(values.getAttribute("aria-selected"), "true");
         },
         TIMEOUT_MS * 2,
     );

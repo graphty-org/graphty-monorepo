@@ -301,12 +301,9 @@ export function spyExecutor(body?: (context: RunExecutionContext) => Promise<voi
 }
 
 /**
- * Wait for the microtask and timer queues to turn over, or, given a delay, stand in for work that
- * takes that long: run.test.ts and operation-queue.test.ts call it with one inside the run bodies
- * they hand the code under test, to simulate slow work and to let a time box expire.
- * @param ms - How long the simulated work takes; 0 only yields to the event loop.
+ * Wait for the microtask and timer queues to turn over: one zero-delay macrotask. A run body that
+ * loops on it until its signal or time box aborts lets the queue's own timers fire between turns.
  */
-export async function settle(ms = 0): Promise<void> {
-    // eslint-disable-next-line local/no-test-timing -- simulated slow work for run bodies handed to the code under test (exempt inside a callback, but this is a shared helper); with no delay it is a zero-delay yield; tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, ms));
+export async function settle(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 0));
 }

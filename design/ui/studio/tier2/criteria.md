@@ -1,5 +1,5 @@
-The study runs on build d5a3bee20b61 served from `/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tmp/study-builds/tier2-r2d2-d5a3bee20/`
-(graphty@0.8.61, commit d5a3bee20), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build eaea2a75d95b served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d2-eaea2a75d/`
+(graphty@0.8.61, commit eaea2a75d), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -598,3 +598,11 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   node at any reach, and the study tool drawing scrollbars and recording whole rules and the runs'
   screen names. Every task half was piloted on it, T21B included (`dry-run-r2-3.md`). No bar,
   floor, step limit or prompt changed.
+
+- **2026-10-09, before round 2: the round 2 study build.** The study build moved from
+  d5a3bee20b61 (`design/ui/studio/tmp/study-builds/tier2-r2d2-d5a3bee20/` in the studio worktree)
+  to eaea2a75d95b (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d2-eaea2a75d/`, write-protected), a fresh build of graphty-element, compact-mantine and the
+  graphty app with the Sentry variables unset. The app and element source is the same as
+  d5a3bee20b61; only design documents changed between the two commits, so the dry run on
+  d5a3bee20b61 (`dry-run-r2-3.md`) holds for this build. No bar, floor, step limit or prompt
+  changed.

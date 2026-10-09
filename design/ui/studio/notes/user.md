@@ -12,45 +12,35 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- 2026-10-08 -- Tier 2 starts: returning users (6 tier 1 graduates, 3 weekly analysts), 54 sessions
-  on build e2ccec0e9. My criteria review asked for 8 changes; the biggest: the expert walkthrough
-  and screenshot audit feed NO bar today, and the rounds cap (3) and stall rule contradict the
-  owner's "as many rounds as it takes; stop and tell me if a round makes no progress".
-- 2026-10-08 -- Returning users are measured only on first use of tier 2 features. Repeat cost
-  (doing the same thing a second time) and broken tier 1 habits are the returning-user signals;
-  I asked for both to be measured.
-- 2026-10-07 -- Round 2 closed: 52 of 54 tier 1 sessions passed, first-time personas 34 of 34, no
-  false "done" in 56. A pass is weak (one model plays everyone); a failure, a script repro or a
-  cause in the code is strong. No confirmed severity 4 remains; the worst is severity 3.
-- 2026-10-07 -- Re-pilot on the fixed build: every tier 1 task reaches its end state with no
-  blocker. Landed and walked: "Show all labels" (T10 in 5 steps), group layouts offering
-  "Communities" after a run (T11), runs named "PageRank" on key, list and node. Round 3 must
-  confirm these with participants, not the pilot.
-- 2026-10-07 -- New top risk: a picture that looks right and answers wrong. In 3D perspective the
-  #2 PageRank dot (Ava) draws bigger than #1 (Farah), and Farah sits behind Chloe. "Biggest dot
-  matters most" gives the wrong name. Push for the sized drawing to read true (element encoding
-  or 2D for sized views) before polish.
-- 2026-10-07 -- Layouts still help little: Spectral knots, Circle is a sphere in 3D, Rings by group
-  nests groups. Only Columns by group separates clusters. Force re-applied as a still cloud is
-  untraced; I want the trace done before round 3, as decided.
-- 2026-10-07 -- Watch in round 3, first: the menu-to-dialog focus fix (the only session-ending
-  defect), r2-s07 re-run first; Size "+" opening its picker (18 of 18 guessed the Size chain);
-  whether "Show all labels" is found without the task echoing it.
-- 2026-10-07 -- Words still leak developer and element strings: "from the file: directed 0",
-  'layout "bipartite" ... "results.louvain.group" names 6', "G is not planar". The element must
-  return codes for refusals; the app words them. Count them in the words-at-rest baseline.
-- 2026-10-07 -- Everything's Style tab shows base "Size 1" and blue after sizing by PageRank. A
-  newcomer going there to add names may think the sizing was lost. Watch, do not fix blind.
-- 2026-10-07 -- friends.csv (the user's own file) draws 20 anonymous dots. Names are 3 steps away.
-  Still the likeliest "not useful" verdict for Elena; whether a file opens with names is open.
-- 2026-10-07 -- A fixed layout seed makes an overlap 100% exposure per dataset (Farah behind
-  Chloe; Pazzi and Blacheville under the key). Count once, weight fully; fix placement, not seed.
-- 2026-10-07 -- Hold, do not change: icon-only toolbar, no names by default (pending friends.csv
-  evidence), hover tooltips off, raw scores on the key, the Analyze list, Export by menu or
-  Control+E, the Degree row as the neighbor route. None caused a failure.
-- 2026-10-07 -- Baselines before fixes: axe-core and the words-at-rest count on the round 2 build,
-  or they are lost again. The study tool must hear the highlighted option before screen-reader
-  findings count.
+- 2026-10-09 -- Tier 2 round 1 (55 valid sessions, build 946256efb876): 52 succeeded, 0 false
+  "done", 0 weights read backwards, every session log empty. A dry run DID happen (four builds
+  plus the frozen build) and no participant met a broken control on the routes it walked. Off
+  those routes: one confirmed build defect (Edges color written to Everything, severity 2) and
+  more study-tool faults than build faults.
+- 2026-10-09 -- New rule I hold the studio to: a dry run walks each task's commonest detours (the
+  last round's wrong turns), not only the answer key's route. Round 1's open faults all sat on
+  detours no walk took.
+- 2026-10-09 -- Round 2 fixes, in order: find box "No match" points to the rule form and the
+  column offers "Select where"; Replace visible at rest; the weight's meaning settable on the
+  column people go to next, and "Back to start" undoable; stale run marked on the key; long-name
+  truncation; filter Enter commits and focus after Add/Delete step; Load announcement.
+- 2026-10-09 -- Do NOT change in round 2: Filters' home under Data (7 of 8 at success-path cost),
+  the right-click menu (add a visible route, keep it), the T18 path route, Hops, the selection
+  tint priority, edge width units (script first). Tom's scripted two-attempt exits decided 2 of 3
+  non-successes; label scripted exits so they are not read as the screen's doing.
+- 2026-10-09 -- Weak evidence warning: simulated returning users go first where their histories
+  point, so "first move matched the history" says nothing; failures and script repros are strong.
+- 2026-10-08 -- Returning users are judged by repeat cost and kept habits. Round 1's T18 repeat
+  took about one step over target, from a mechanical cause (From fills from the selection).
+- 2026-10-08 -- The expert walkthrough and screenshot audit now feed bar 10; round 1 fails it on
+  three severity-3 findings (long names cut, drawn names overlapping, stale run).
+- 2026-10-07 -- Top risk still: a picture that looks right and answers wrong (3D perspective
+  inverts size order; overlapping names; a stale key at full contrast).
+- 2026-10-07 -- Words still leak developer and element strings ("Untitled" in the Load
+  announcement while the header names the project; backticks in rules). The element returns
+  codes; the app words them.
+- 2026-10-07 -- Hold, do not change: icon-only toolbar, no names by default, hover tooltips off,
+  raw scores on the key, the Analyze list, the Degree row as the neighbor route.
 - 2026-10-06 -- Grade from what ended on screen, never from self-ratings. Task wording never
   reuses screen words at the target; every wording fix tested on two domains (owner, 2026-09-29).
 
@@ -111,6 +101,25 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- 2026-10-09 (me, tier 2 round 1 critique) -- Round 2 changes, smallest first on the returning
+  user's path: (1) find box: "No match for ..." adds one line naming the rule form (start with
+  "="), and a column's menu offers "Select where..." that opens the find box prefilled with the
+  rule (`graph-place/FindBox.tsx:355`, the Data place column menu); 4 of 4 typed a condition in
+  find, the column was the second place 4 of 4 looked. Bare numbers in rules (no backticks) is an
+  element query-language change: owner list, not blocking. (2) "Replace with file..." on the
+  source's inspector, the place a left click opens (`data-place/DataPlace.tsx`); 8 of 8 hunted.
+  (3) The edge column's menu sets what a higher value means (the load-time weight fact), and
+  "Back to start" is undoable; the path's Weight list starts on the loaded weight. 7 of 7 opened
+  with plain Open; 6 of 7 went to the column next. (4) Stale run marked on the canvas key (bar 5
+  fails as written; two experts). (5) Long names: find list ellipsis, count outside the truncated
+  name, edge names cut per end; frame-to-fit counts label extents (element). (6) Filter step
+  Enter commits; focus to the new step after Add, to the next row after Delete. (7) Load
+  announcement names the project and the left-out row. Reason: each is a reproduced problem on a
+  route participants actually took; none adds a novice-only aid or moves a home that worked.
+- 2026-10-09 (me) -- A dry run must walk the commonest detours, not only the answer key. Reason:
+  round 1's dry run cleared every walked route (0 broken controls met there), and every build
+  fault participants did meet was on a detour (styling Edges while a run layer was open, the
+  selection tint over a new fill).
 - 2026-10-08 (me, tier 2 criteria review) -- Asked for, most important first: (1) a bar 10 for
   the per-round expert walkthrough and screenshot audit: 0 open confirmed severity 3+ visual or
   pattern findings (truncation, text or key over a node, wrong component, one kind of control
@@ -142,33 +151,13 @@ something, or change my mind. Summarize when it passes about 25 KB.
   novice-only. T10 kept its prompt -- I had asked to reword it; the studio's reason (a real goal
   that now measures a real fix) is better, and I accept it.
 
-- 2026-10-07 (me, round 2 critique) -- Round 3 changes, in order, with the reason each is the
-  smallest fix on the first-time path: menu-to-dialog focus (app `workspace/frame/menus.tsx` or
-  compact-mantine Menu; only reproduced session-ending defect, and it also fails a sighted
-  keyboard user, so it is not only a screen-reader-tool artifact); Force re-apply and 2D Fit
-  (graphty-element / layout; both leave a picture that answers nothing); groupings as an element
-  fact (app `layout/methods.ts:83` decides graph logic itself -- architecture defect); key omits a
-  layer every node of which is painted over (element legend); Size "+" opens its picker (app; same
-  rule as the label "+" from 2026-10-02); chevron inside the row button (app
-  `inspector/NodeValues.tsx:144`); load/run finished live-region words (app, from element events).
-  Not changed: toolbar, default names, hover, key wording, Analyze list, "show all names".
-  Challenged: the "stale key" is not stale -- the Connections row is still in the layer list
-  (r2-s56 07.png) but painted over; the fix is a visibility fact, not a refresh. Overlay
-  frequency under a fixed seed is 100% per dataset, not "one event".
-
-- 2026-10-06 (me, round 1 critique) -- Round 2 changes, in order: (1) the Neighborhood command
-  opens the named neighbor list when one node is selected (app, `workspace/toolbar/commands.ts`;
-  evidence: 0 of 4 clicked Degree, all used Neighborhood, `NodeValues.tsx` `openNeighborhood`
-  sets the inspected view and the command does not); (2) make the detours work, not disappear
-  (Selection row, Data > Sources tables, empty Size list); (3) wheel zoom in graphty-element's
-  orbit controller; (4) "No crossings" refusal as an element fact plus app words; (5) the legend
-  must not cover a node; (6) keyboard focus return and visible rings. Not changed: result names,
-  toolbar words, default labels, the Style-tab signpost, the Size chain beyond the empty list.
-  Reason: smallest changes on the chain that was proved broken; everything else cost steps only.
-- 2026-10-06 (me) -- I disagree with treating the neighbor problem as "Degree looks like plain
-  text". Marking Degree is a discoverability patch on the wrong route; the route people take must
-  arrive. Severity label (3 vs 4) matters less than its rank: it is round 2's first fix.
-
+- 2026-10-07 (me, tier 1 round 2 critique; summarized 2026-10-09) -- Order: menu-to-dialog
+  focus, Force re-apply and 2D Fit, groupings as an element fact, key omits a fully covered
+  layer, Size "+" opens its picker, chevron inside the row, finished announcements. Reason:
+  smallest reproduced fixes on the first-time path. The "stale key" was a visibility fact.
+- 2026-10-06 (me, tier 1 round 1 critique; summarized 2026-10-09) -- First fix: the route people
+  take must arrive (the Neighborhood command opens the named list), not a patch on the route they
+  skip; then make detours work, wheel zoom, refusals as element facts, key never over a node.
 - 2026-10-06 (me, tier 1 criteria critique; summarized 2026-10-08) -- Asked: a scripted build
   defect is confirmed at one participant; size/color steps pass only if the participant reads the
   legend's meaning; one T15 run on friends.csv; bar 6 counts only commits that should change the
@@ -223,6 +212,13 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Tried: worked / did not work
 
+- 2026-10-09 -- TIER 2 ROUND 1. WORKED: the dry run on the walked routes (empty session logs, no
+  grade decided by a build defect); T17 follow-ups at the key's 4 steps; T23 and T12R at or under
+  path; the path run, the Replace page and "Higher means" read right every time once found; 0
+  false "done". DID NOT: find box as a condition entry (T22 3 of 4, 25 steps vs 3); Replace only
+  on right-click; plain Open skipping the weight question; "Back to start" dropping the graph;
+  stale run quiet; long names cut; the study tool (over 4 browsers, wrong-row matches, synthetic
+  file drop, missing preflight scripts).
 - 2026-10-07 -- RE-PILOT after round 2 fixes (T6, T7, T9-T13, T15, T16, both datasets). WORKED:
   every end state, no console errors; Show all labels (77 labels, 7 hidden -> 77 labels); group
   layouts enabled with "Group by: Communities" preselected; Columns by group separates clusters;
@@ -293,6 +289,8 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Sources
 
+- `design/ui/studio/tier2/rounds/round-1/insights.md`, `scores.md`, `expert/*.md`;
+  screenshots `sessions/r1-s46/12.png`, `r1-s29/08.png`, `r1-s28/07.png` (2026-10-09).
 - `design/ui/studio/digests/decisions.md`, `framework.md`, `owner-voice.md`, `study-rounds.md`,
   `tier1.md` (this worktree, 2026-10-06).
 - `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/decision-log.md`, "Round 8"

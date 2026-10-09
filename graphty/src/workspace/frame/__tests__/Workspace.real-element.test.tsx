@@ -179,6 +179,6 @@ describe("the workspace frame on the real element", () => {
 
         await realInput.keyboard("?");
 
-        await screen.findByRole("region", { name: "Keyboard shortcuts" });
+        await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
     });
 });

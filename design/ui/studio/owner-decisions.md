@@ -1192,3 +1192,19 @@ values (the reader could see which row, not just how many, but it grows the save
 the graph does not hold; can be added later as a separate field). Always present with zeros
 (every saved source would carry a field that is almost always empty). Name it `unmatched` like
 the report (it would then suggest rows that were added, which this does not count).
+
+## 2026-10-09 -- For the owner: what an edge's line width measures
+
+**What.** Not done; a question. A solid edge's `line.width` of W, drawn d units from the camera,
+is 10 x W / d pixels thick, at every width and distance (measured by
+`graphty-element/test/browser/edge-width-units.test.ts`). The line tapers with distance like the
+nodes do, and the width is pixels only at distance 10. On a graph framed from 50 units away the
+default width of 8 draws under 2 pixels, and three tier 2 participants read "8" as broken. Two
+ways to make the number readable, both breaking: draw the width in screen pixels whatever the
+distance (every line on every graph changes thickness, and lines stop tapering), or keep the
+taper and change the default and the documented unit. Either changes what an existing setting
+does, so neither goes in before the owner decides; the study app does not shrink or scale widths
+to hide it.
+
+**Why.** Code comments in `EdgeMesh.ts` and `CustomLineRenderer.ts` call the width pixels, which
+it is not, and the app's Width control shows the bare number with no unit.

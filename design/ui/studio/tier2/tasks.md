@@ -285,3 +285,26 @@ beside it.
 - **Start:** setup `lesmis-ranked.txt` (A), `florentine-ranked.txt` (B). **Files:** none to open.
 - **Words:** tier 1's prompt with its first sentence changed to the returning form and the sample
   described as open; no new word.
+
+## Detours the dry run walks (facilitator side, never shown to a participant)
+
+Before a round starts, the dry run walks each task's success path and the wrong turns the last
+round's participants took most often, once by pointer and once by keyboard, pressing Enter, Tab
+and Escape in every field it opens. `pilot/detours.sh` runs the same walks on a build
+(`REAL_DIST=<build> pilot/detours.sh all`) and checks the screen each should reach; a walk that
+ends `FAIL` names a fault a participant could meet on that task. The latest report:
+`dry-run-r2-1.md`.
+
+| Task        | Walks (P pointer, K keyboard) | Wrong turns walked, from round 1                                                                                                                                                         |
+| ----------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T3 (tier 1) | T3-P                          | Own file opened from the start screen; the rows count read under Data                                                                                                                    |
+| T4          | T4-P, T4-K, T4-D1             | Each table through "Open project or file..." (Control+O), the second as an addition; Escape on the import page                                                                           |
+| T17         | T17-P, T17-K, T17-D1, T17-D2  | The toolbar and the Analyze list searched for a filter, then the list closed by Escape and by a click on the drawing; the Filters "+" door with Enter, Tab and Escape in the step editor |
+| T18         | T18-P, T18-K, T18-D1, T18-D2  | Recoloring a selected node; selecting a node on the path from its list                                                                                                                   |
+| T19         | T19-P, T19-K                  | A note half written, Tab to its buttons, Escape, "Add note" again, Control+Enter from a button, then save and reopen                                                                     |
+| T20         | T20-P, T20-K, T20-D1, T20-D2  | The file opened with "Open project or file..." from the start screen, and from inside a project; the path's Weight list opened                                                           |
+| T21         | T21-P, T21-D1                 | A left click on the source row; the main menu                                                                                                                                            |
+| T22         | T22-P, T22-K, T22-D1, T22-D2  | A condition typed with no "="; edge color added from a run's Style tab                                                                                                                   |
+| T23         | T23-P, T23-K                  | The Degree row's route to the neighbor list                                                                                                                                              |
+| T24         | T24-P, T24-K                  | The two ends recolored while selected; the tie found by typing its name                                                                                                                  |
+| T12R        | T12R-P, T12R-K                | none in round 1 (every session on the success path)                                                                                                                                      |

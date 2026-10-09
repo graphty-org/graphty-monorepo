@@ -11,6 +11,17 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **The dry run now walks the detours, as a script: `tier2/pilot/detours.sh all`.**
+  30 walks: each task's success path, a keyboard walk in `--sr` mode (pointer steps refused), and
+  round 1's commonest wrong turns, each checking its screens with `--expect`. Report
+  `tier2/dry-run-r2-1.md`. Fixed: the element canceled pointerdown, so the page never got
+  mousedown and Mantine popovers stayed open over the drawing (2a236410c); a short Select list on
+  a field at the window's bottom was cut to a strip (compact-mantine, ca3f10515); Add note with a
+  draft open left focus on the button (55e71f98e); Control+Enter saved a note only from its text
+  box (0e9e329c6). Edge width measured: 10 x W / depth px, consistent, not pixels; dropped as a
+  defect, the unit is on the owner list. Walks T22-D1, T20-D1 and T22-D2 encode changes 4, 6 + 13
+  and 11 and fail until those are in the build. This answers round 1's critique (detours never
+  walked), whose bullet it replaces.
 - (2026-10-09) **The path's Weight list already starts on the loaded weight; the round's "starts on
   None" came from sessions that never loaded one.** The four sessions opened the file with "Open
   project or file...", so no weight was loaded and None is right by the item's own rule. Fresh
@@ -66,58 +77,25 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `--prove` passed 5 runs in a row on 1fc173a12 (59 checks each, `REAL_PROVE_DIR` private;
   first-save history under "Tried"). Evidence `tmp/t2r1-2/` (bars-final2/, final-prove-*.log).
 
-- (2026-10-09) **The study tool reached participants more than the build; fixed in the tool.**
-  (1) Round 1's overrun: `with-browser.sh` kept its own 4-slot pool in `/tmp` while pre-push gates
-  took theirs from the main checkout's `tmp/browser-slots`, so studio sessions (never more than 4:
-  only 4 studio lock files ever existed; a session's Chromium dies with its session process, tested
-  by SIGKILL) ran beside ~6 more test browsers, load ~158, clicks missed the 3 s limit. The gate now
-  takes the machine pool and refuses `BROWSER_SLOTS` > 4; real.mjs --step/--end/--brief pass straight
-  through it (r1-s04 waited for a second slot). (2) A shared name is refused with `"<name>#n"`
-  candidates (r1-s44's "Enjolras" row). (3) `--drop` uses CDP `Input.dispatchDragEvent` with real
-  files; it says "the page took it" or "the drop was not delivered" (no drop event = nothing took
-  it); a start-screen drop opens the file. (4) `--brief <dir>` writes briefing.md (persona minus
-  team-only sections, history, prompt, start command, tool sections) from the round's plan.md row;
-  `--start` refuses a folder holding facilitator files. (5) T17/T18: the first `--end` returns exit
-  3 with the follow-up word for word, the second ends. The checked-in runner copy
-  (`tier2/rounds/workflow-tier2.js`) now briefs participants; a run started from the older copy
-  still sends them to tasks.md. Evidence `tmp/t2r1-1/` (prove.log, six.log, x1/03.png).
+- (2026-10-09, summarized) **Round 1's tool faults, fixed in the tool:** one machine-wide 4-browser
+  pool (the studio's own `/tmp` pool never saw pre-push gates; load ~158 broke click timing); a
+  shared name is refused with `"<name>#n"` candidates; `--drop` delivers real files over CDP; a
+  `--brief` folder holds only participant files; T17/T18 `--end` gives the follow-up first (exit 3).
+  Evidence `tmp/t2r1-1/`.
 
-- (2026-10-09) **A live region must be in the page, visible, before its words arrive; and it
-  holds words only.** The app status line sat in the toolbar under `<main hidden>` while the Data
-  page showed, so after Load it reappeared already filled (not spoken), and the canvas wrote it at
-  the element's load-end event, before the page renamed the project ("Untitled: ..."). Now the
-  region lives in `Frame.tsx` outside every hidden surface; the canvas skips a load while
-  `page === "data-page"`, and `DataPage.load()` writes `loadedWords(header name, size, leftOut of
-the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nodes, 22 edges, 1
-  row left out" once. Same rule for the run state bar (status on its words, buttons outside, kept
-  mounted empty) and the find box refusal (a persistent `VisuallyHidden role="status"` that keeps
-  its words across keystrokes; no `role="alert"`). Add page summary: "friends: 20 nodes, 41
-  edges; friends-v2 adds 0 nodes, 41 edges" (`addWords`, counts = report total minus the graph at
-  page open). Evidence `tmp/t2r1-8/sr-t4/14.png`, `tmp/t2r1-8/s29-add/03.png`.
+- (2026-10-09, summarized) **A live region is in the page, visible, before its words arrive, and
+  holds words only.** The status line lives in `Frame.tsx` outside hidden surfaces; `DataPage.load()`
+  writes `loadedWords(...)` after the rename ("people and messages: 12 nodes, 22 edges, 1 row left
+  out", heard once); run state bar and find refusal follow the same rule. Evidence `tmp/t2r1-8/`.
 
-- (2026-10-09) **A list that scrolls only up and down says so: `scrollbars="y"`, and
-  compact-mantine makes such content as wide as the area.** Mantine's ScrollArea.Autosize sizes
-  its content to `min-content` (the widest row), so a long find result widened the list and it
-  scrolled sideways with no "..." (`.cm-result-name` already ellipsized; it was never narrower
-  than its text). Fix: `.cm-scroll-viewport[data-scrollbars="y"] > div { min-width: 0 }` in
-  compact-mantine `overlays.css.ts`, `scrollbars="y"` on the find list, and `ResultRow` now draws
-  its name through `EllipsizedName` (themed tooltip only while cut, carrying the path line too)
-  instead of a native `title`. Tests: compact-mantine `Tree.browser.test.tsx` "ends a long name
-  in ..." (fails without the CSS: content 383 px in a 200 px area) and graphty
-  `GraphPlace.test.tsx` "never scrolls the list sideways" (fails without `scrollbars="y"`:
-  3957 px in 414). Real app, long-names.csv: `design/ui/studio/tmp/t2r1-9/s1/04-06.png`. Any
-  other vertical list over long text should pass `scrollbars="y"` too.
+- (2026-10-09, summarized) **A list that scrolls only up and down passes `scrollbars="y"`;**
+  compact-mantine then makes its content as wide as the area (Mantine's Autosize used
+  `min-content`), and `ResultRow` ellipsizes through `EllipsizedName`. Do the same for any other
+  vertical list over long text. Evidence `tmp/t2r1-9/s1/`.
 - (2026-10-09) **The selection halo draws only its back faces, so a selected node keeps its own
   color** (`createOverlaySource` in `Node.ts`; test
   `graphty-element/test/browser/selection-halo-rings-without-tinting.test.ts`). Selection story
   baselines change and go to visual review.
-- (2026-10-09, summarized) **Round 1 critique: the dry runs walked only success paths, so build
-  defects reached participants on detours** (styling and selection detours no walk covered; e.g. a
-  run row's Edges side wrote "Edge color" to Everything via `writeLine`'s default, `r1-s46/05.png`).
-  Next dry run must walk each task's commonest detours. Done since: the legend's out-of-date mark,
-  the run row's Edges side.
-  Still open: find-box "=" hint, "Replace with file..." button in the source inspector. Do not fix
-  edge width until a script measures the element's units; do not move Filters.
 - (2026-10-09) **Tier 2 screenshot audit (round 1): the app breaks on long names and narrow
   windows, not at the study's size** (`tier2/rounds/round-1/expert/engineer.md`, 24 findings:
   canvas labels cut at the edge, "Back to ..." clipped, popovers over the left panel at 900 wide).
@@ -129,6 +107,15 @@ the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nod
 
 ## Decisions and reasons
 
+- (2026-10-09) **The element no longer cancels pointerdown on its canvas.** A canceled pointerdown
+  suppresses the page's mousedown, which Mantine's click-outside listens for. Fixed in the element
+  so every consumer gets it; a compact-mantine `clickOutsideEvents` default would have hidden the
+  element defect. `user-select: none` on the canvas keeps drags from selecting page text.
+  Interactions project: 239 pass.
+- (2026-10-09) **A Select list that fits the window opens whole** (shift moves it); only a list
+  taller than the window keeps the macOS cut with the chosen row on the field. ponytail: a long
+  list near the edge can still be cut to a few rows. Escape in a written note keeps it open; saving
+  a project with a note still open is left as a design question (0 of 4 in round 1).
 - (2026-10-09) No code change for "the path's Weight list starts on the loaded weight": the
   behavior exists (`WeightField` in `options/OptionsForm.tsx` shows LOADED when the element's plan
   reads it, None when the meaning is unset because the plan skips it). Reason: showing an unread
@@ -236,6 +223,12 @@ the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nod
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Worked: `--sr` sessions as keyboard walks; their focus lines give the Tab order to
+  script. Did not work: `--expect-not "Filter analyses"` (a placeholder is not on-screen text; it
+  passed on the broken build). Prove every check on the broken build first. A miss ("nothing on
+  screen is called") exits 0, so only `--expect` fails a walk. A build from the shared tree carries
+  other agents' unfinished edits (change 11's style files were in 5ac7ca8f7058): never call it
+  frozen. `montage <dir>/*.png -tile 5x -geometry 576x360` gives one sheet per walk to look at.
 - (2026-10-09) Worked: reading the graders' state lines before coding. Each "starts on None"
   session says "no Loaded weight row exists", which turned an implementation task into a
   verification. Did not work: the PathForm suite had one test failing on master of the branch
@@ -281,7 +274,7 @@ the last source)` after the rename: `--sr` T4 hears "people and messages: 12 nod
   matched). Always read into a variable, then open for writing.
 - (2026-10-09, condensed) Worked: polling `/proc/*/fd` for slot-file holders (`tmp/t2r1-1/holders.sh`;
   `fuser` prints nothing useful); staging only my hunks of shared files (`git update-index
-  --cacheinfo`), since real.mjs edits reach every agent's next session; `real.mjs --sr` with Tab and
+--cacheinfo`), since real.mjs edits reach every agent's next session; `real.mjs --sr` with Tab and
   Enter to check a live line prints once (pick the visible line by `role !== "status"`); finding a
   layout cause in Mantine's CSS first; reading `scores.md` beside `insights.md`; `long-names.csv`
   for truncation audits, with PIL 4x crops for small text. `--click Graph` takes the rail button.

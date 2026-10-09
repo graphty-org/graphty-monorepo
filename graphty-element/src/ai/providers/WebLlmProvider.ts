@@ -6,6 +6,7 @@
 
 import { asSchema } from "ai";
 
+import { aiProviderDescriptor } from "../../catalog/ai";
 import type {
     LlmProvider,
     LlmResponse,
@@ -39,75 +40,42 @@ export interface WebLlmModelInfo {
     downloadMB?: number;
 }
 
+const WEBLLM = aiProviderDescriptor("webllm");
+
 /** The model the provider loads when none is configured. */
-const DEFAULT_MODEL_ID = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
+const DEFAULT_MODEL_ID = WEBLLM.defaultModel;
+
+/** The description `getAvailableModels()` gives each model, by id. */
+const MODEL_DESCRIPTIONS: Readonly<Record<string, string>> = {
+    "Llama-3.2-1B-Instruct-q4f32_1-MLC": "Fast, lightweight model suitable for quick responses",
+    "Llama-3.2-3B-Instruct-q4f32_1-MLC": "Better quality responses with reasonable performance",
+    "Phi-3.5-mini-instruct-q4f16_1-MLC": "Good balance of quality and performance",
+    "Qwen2.5-1.5B-Instruct-q4f16_1-MLC": "Efficient model with good multilingual support",
+    "SmolLM2-360M-Instruct-q4f16_1-MLC": "Very small and fast, basic capabilities",
+    "Hermes-3-Llama-3.1-8B-q4f16_1-MLC": "Can call the assistant's tools; large download",
+    "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC": "Can call the assistant's tools; large download",
+};
 
 /**
- * Available models with their metadata.
+ * Available models with their metadata: the WebLLM models of the AI catalogue
+ * (`AI_PROVIDER_DESCRIPTORS` in `./catalog`).
  *
  * `supportsTools` mirrors WebLLM's exported `functionCallingModelIds`, which cannot be read
  * here without loading the whole optional package; test/ai/providers/WebLlmProvider.test.ts
  * checks every entry against that export, and once the package is loaded the provider reads
  * the export itself (see `modelSupportsTools`).
  */
-const AVAILABLE_MODELS: WebLlmModelInfo[] = [
-    {
-        id: DEFAULT_MODEL_ID,
-        name: "Llama 3.2 1B",
-        size: "~500MB",
-        description: "Fast, lightweight model suitable for quick responses",
-        supportsTools: false,
-        downloadMB: 500,
-    },
-    {
-        id: "Llama-3.2-3B-Instruct-q4f32_1-MLC",
-        name: "Llama 3.2 3B",
-        size: "~1.5GB",
-        description: "Better quality responses with reasonable performance",
-        supportsTools: false,
-        downloadMB: 1500,
-    },
-    {
-        id: "Phi-3.5-mini-instruct-q4f16_1-MLC",
-        name: "Phi 3.5 Mini",
-        size: "~2GB",
-        description: "Good balance of quality and performance",
-        supportsTools: false,
-        downloadMB: 2000,
-    },
-    {
-        id: "Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
-        name: "Qwen 2.5 1.5B",
-        size: "~800MB",
-        description: "Efficient model with good multilingual support",
-        supportsTools: false,
-        downloadMB: 800,
-    },
-    {
-        id: "SmolLM2-360M-Instruct-q4f16_1-MLC",
-        name: "SmolLM2 360M",
-        size: "~200MB",
-        description: "Very small and fast, basic capabilities",
-        supportsTools: false,
-        downloadMB: 200,
-    },
-    {
-        id: "Hermes-3-Llama-3.1-8B-q4f16_1-MLC",
-        name: "Hermes 3 Llama 3.1 8B",
-        size: "~4.5GB",
-        description: "Can call the assistant's tools; large download",
-        supportsTools: true,
-        downloadMB: 4500,
-    },
-    {
-        id: "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC",
-        name: "Hermes 2 Pro Mistral 7B",
-        size: "~4GB",
-        description: "Can call the assistant's tools; large download",
-        supportsTools: true,
-        downloadMB: 4000,
-    },
-];
+const AVAILABLE_MODELS: WebLlmModelInfo[] = WEBLLM.models.map((model) => {
+    const downloadMB = model.downloadMB ?? 0;
+    return {
+        id: model.id,
+        name: model.plainName,
+        size: downloadMB >= 1000 ? `~${downloadMB / 1000}GB` : `~${downloadMB}MB`,
+        description: MODEL_DESCRIPTIONS[model.id],
+        supportsTools: model.supportsTools,
+        downloadMB,
+    };
+});
 
 // OpenAI API key names (snake_case required by API)
 interface OpenAiRequestOptions {

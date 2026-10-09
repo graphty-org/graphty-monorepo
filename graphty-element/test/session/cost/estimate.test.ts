@@ -460,6 +460,23 @@ describe("estimateCost: whether it can run on this graph at all", () => {
         assert.isFalse(estimate.available);
         assert.include(estimate.reason ?? "", "undirected");
         assert.include(estimate.basis, estimate.reason ?? "");
+        assert.deepStrictEqual(estimate.refusal, {
+            code: "algorithm.needs-undirected",
+            params: { algorithm: "kruskal" },
+        });
+    });
+
+    it("refuses a directed algorithm on an undirected graph, as a code", () => {
+        const estimate = estimateCost({
+            algorithm: "acme:test",
+            descriptor: descriptor({ requires: { directed: true } }),
+            statistics: statistics({ directedness: "undirected" }),
+        });
+
+        assert.deepStrictEqual(estimate.refusal, {
+            code: "algorithm.needs-directed",
+            params: { algorithm: "acme:test" },
+        });
     });
 
     it("offers the same algorithm on an undirected graph", () => {
@@ -492,6 +509,10 @@ describe("estimateCost: whether it can run on this graph at all", () => {
 
         assert.isFalse(estimate.available);
         assert.include(estimate.reason ?? "", "weights");
+        assert.deepStrictEqual(estimate.refusal, {
+            code: "algorithm.needs-weighted",
+            params: { algorithm: "acme:test" },
+        });
     });
 
     it("refuses an algorithm that needs one piece on a graph in several, and counts them", () => {
@@ -512,6 +533,10 @@ describe("estimateCost: whether it can run on this graph at all", () => {
 
         assert.isFalse(estimate.available);
         assert.include(estimate.reason ?? "", "4,000 pieces");
+        assert.deepStrictEqual(estimate.refusal, {
+            code: "algorithm.needs-connected",
+            params: { algorithm: "acme:test", pieces: 4000 },
+        });
     });
 
     it("refuses an accelerator-only algorithm until one is attached", () => {
@@ -526,6 +551,11 @@ describe("estimateCost: whether it can run on this graph at all", () => {
 
         assert.isFalse(without.available);
         assert.include(without.reason ?? "", "accelerator");
+        assert.deepStrictEqual(without.refusal, {
+            code: "algorithm.needs-accelerator",
+            params: { algorithm: "acme:test" },
+        });
+        assert.isUndefined(withGpu.refusal);
         assert.isTrue(withGpu.available);
     });
 });

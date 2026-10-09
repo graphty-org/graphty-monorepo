@@ -9,15 +9,18 @@ import { UsageDataText } from "./UsageDataText";
  * The usage data card at the foot of the start screen (tier1-design.md section 2.11): shown on
  * every launch until it is answered, never blocking; a sample can be opened first. After an
  * answer, one line says what was chosen and where to change it.
+ * @param props - Component props
+ * @param props.onAnswered - Called after an answer, as the card (and the button holding focus) goes
  * @returns The card, the answer line, or nothing once answered on an earlier launch
  */
-export function UsageDataCard(): React.JSX.Element | null {
+export function UsageDataCard({ onAnswered }: Readonly<{ onAnswered?: () => void }>): React.JSX.Element | null {
     const { run } = useWorkspace();
     const answer = useUsageAnswer();
     const [answeredNow, setAnsweredNow] = useState(false);
     const choose = (next: UsageAnswer): void => {
         setAnsweredNow(true);
         answerUsageData(next);
+        onAnswered?.();
     };
 
     if (answer !== null) {

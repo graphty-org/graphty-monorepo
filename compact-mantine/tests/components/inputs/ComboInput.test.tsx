@@ -113,4 +113,14 @@ describe("ComboInput", () => {
         expect(screen.getByRole("combobox")).toBeDisabled();
         expect(screen.getByRole("button", { name: "Open list", hidden: true })).toBeDisabled();
     });
+
+    it("draws no list button when it has no choices, and nothing opens a list", async () => {
+        renderCombo(<ComboInput label="Size" numeric defaultValue={4} options={[]} />);
+        expect(screen.queryByRole("button", { name: "Open list", hidden: true })).toBeNull();
+        const box = screen.getByRole("combobox", { name: "Size" });
+        expect(box).not.toHaveAttribute("aria-haspopup");
+        await userEvent.click(box);
+        await userEvent.keyboard("{Control>}{ArrowDown}{/Control}");
+        expect(box).toHaveAttribute("aria-expanded", "false");
+    });
 });

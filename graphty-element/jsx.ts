@@ -146,6 +146,10 @@ export interface GraphtyElementJSXProps {
      */
     autoFrame?: Graphty["autoFrame"];
     /**
+     * Sets the view insets.
+     */
+    viewInsets?: Graphty["viewInsets"];
+    /**
      * Sets whether to run algorithms when a style template loads. Updates graph configuration.
      */
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
@@ -191,6 +195,7 @@ export interface GraphtyElementJSXProps {
      * this from `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
+    "aria-label"?: string;
     /**
      * Replaces the graph's nodes with these, as one undoable step: a node the array names again
      * keeps its row, its position and its edges and takes its new record, and one it no longer

@@ -10,12 +10,18 @@ Layout algorithms determine how nodes are positioned in the visualization. Choos
 
 `setLayout` takes either an engine name from the table below or a layout id from
 `catalog.layouts()`. An id runs that layout's default engine, so `setLayout("force")` runs
-`ngraph`, `"force-2d"` runs `arf`, `"hierarchical"` runs `bfs` and `"layers"` runs `multipartite`.
+`ngraph`, `"hierarchical"` runs `bfs` and `"layers"` runs `multipartite`.
+
+`"force-2d"` is deprecated and is removed at the next major release. It still works, as the
+`force` layout drawn by its flat `arf` engine: `setLayout("force-2d")` is
+`element.session.layout.set("force", { engine: "arf" })`. For a flat force layout use
+`{ dim: 2 }` instead, or the 2D view.
 
 | Layout              | Type           | Best For                                  | Dimensions |
 | ------------------- | -------------- | ----------------------------------------- | ---------- |
 | `ngraph`            | Force-directed | General graphs                            | 2D/3D      |
-| `d3-force`          | Force-directed | Web-standard                              | 2D         |
+| `d3`                | Force-directed | Web-standard                              | 2D/3D      |
+| `arf`               | Force-directed | Even spread over a flat disc              | 2D         |
 | `circular`          | Geometric      | Cycles, small graphs                      | 2D/3D      |
 | `grid`              | Geometric      | Regular structures                        | 2D         |
 | `radial`            | Geometric      | Distance from one node                    | 2D         |
@@ -66,7 +72,7 @@ graph.setLayout("ngraph", {
     springLength: 100,
     springCoefficient: 0.0008,
     gravity: -1.2,
-    dimensions: 3,
+    dim: 3,
 });
 ```
 
@@ -87,7 +93,7 @@ graph.setLayout("ngraph", {
     springLength: 100, // Ideal edge length
     springCoefficient: 0.0008, // Spring stiffness
     gravity: -1.2, // Global attraction/repulsion
-    dimensions: 3, // 2 or 3
+    dim: 3, // 2 or 3
     dragCoefficient: 0.02, // Damping
     theta: 0.8, // Barnes-Hut approximation
     seed: 7, // Starting positions; unset, they differ on every load
@@ -113,15 +119,15 @@ element.edgeData = edges;
 await element.setLayout("force", { seed: 7 });
 ```
 
-### d3-force (Force-Directed)
+### d3 (Force-Directed)
 
-D3's force simulation. Industry-standard for web visualizations:
+D3's force simulation (d3-force-3d). Industry-standard for web visualizations:
 
 ```typescript
-graph.setLayout("d3-force", {
-    strength: -30, // Node repulsion
-    distance: 50, // Link distance
-    iterations: 300, // Simulation steps
+graph.setLayout("d3", {
+    dim: 3, // 2 or 3
+    alphaDecay: 0.0228, // How quickly the simulation cools
+    velocityDecay: 0.4, // Damping
 });
 ```
 
@@ -187,7 +193,7 @@ Random positions. Useful for:
 ```typescript
 graph.setLayout("random", {
     seed: 42, // For reproducible layouts
-    dimensions: 3,
+    dim: 3,
 });
 ```
 
@@ -303,21 +309,26 @@ graph.on("graph-settled", () => {
 
 ## 2D vs 3D
 
-Most layouts support both dimensions:
+Switching the view between 2D and 3D runs the layout again for that view. In the 2D view every
+layout is drawn flat, whatever `dim` it was given. In the 3D view a layout with a `dim` option can
+still be drawn flat:
 
 ```typescript
-// 3D layout (default)
-graph.setLayout("ngraph", { dimensions: 3 });
+// 3D (the default in the 3D view)
+graph.setLayout("ngraph", { dim: 3 });
 
-// 2D layout
-graph.setLayout("ngraph", { dimensions: 2 });
+// Flat, in the 3D view
+graph.setLayout("ngraph", { dim: 2 });
 ```
-
-For 2D layouts, also set the view mode:
 
 ```html
-<graphty-element layout="d3-force" view-mode="2d"></graphty-element>
+<graphty-element layout="d3" view-mode="2d"></graphty-element>
 ```
+
+`element.session.layout.arrangedDimension` says how many dimensions the current layout places
+nodes in -- `"2d"` or `"3d"` -- which `session.layout.dimension`, the view's dimension, cannot.
+
+An option name the layout does not declare is reported with a console warning.
 
 ## Edge weights
 

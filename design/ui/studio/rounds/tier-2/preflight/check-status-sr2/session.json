@@ -1,0 +1,13 @@
+{
+    "commit": "0f63c8106296b009c789e98e6edcac6323a55da0",
+    "uncommittedChanges": true,
+    "buildStamp": "ca8b3b916c22 graphty@0.8.55",
+    "url": "/?next",
+    "screenReaderMode": true,
+    "viewport": {
+        "width": 1440,
+        "height": 900
+    },
+    "started": "2026-10-07T23:45:56.373Z",
+    "setup": ["--click No thanks", "--click Open project or file...", "--upload friends.csv"]
+}

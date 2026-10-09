@@ -103,7 +103,8 @@ describe("Overlay Component Extensions", () => {
             }
             expect(overlayComponentExtensions.Modal?.defaultProps).toMatchObject({
                 centered: true,
-                withOverlay: false,
+                withOverlay: true,
+                overlayProps: { backgroundOpacity: 0 },
             });
             expect(overlayComponentExtensions.ScrollArea?.defaultProps).toMatchObject({
                 type: "hover",

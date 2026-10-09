@@ -7,7 +7,7 @@
 import type { GraphSession, Layer, LegendBlock } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { findRow, paintRows } from "../rows";
+import { findRow, isMovable, layerAbove, paintRows } from "../rows";
 
 /** A run as `runs.list()` hands it, with only the fields the rows read. */
 interface RunStub {
@@ -16,6 +16,7 @@ interface RunStub {
     status: string;
     shape: string;
     partial?: boolean;
+    stale?: { reason: "data-changed" | "scope-changed" } | null;
     error?: { message: string };
     record: { summary?: { measured?: number; groups?: { group: string | number; size: number; rank?: number }[] } };
     result?: { graph: Record<string, unknown> };
@@ -54,6 +55,7 @@ function sessionOf(parts: {
         runs: {
             list: () =>
                 parts.runs.map((run) => ({
+                    stale: null,
                     ...run,
                     algorithm: run.label,
                     params: {},
@@ -82,6 +84,22 @@ describe("paintRows", () => {
             ],
         );
         assert.isUndefined(rows[0].count, "an empty selection shows no count");
+    });
+
+    it("folds the reader's Everything layer into the Everything row, not a second row of that name", () => {
+        const mine = {
+            ...layer("everything-mine", { by: "user" }),
+            name: "Everything",
+            userData: { graphtyEverything: true },
+        };
+        const rows = paintRows(sessionOf({ layers: [...BASE, mine], runs: [] }));
+        assert.deepEqual(
+            rows.map((r) => [r.kind, r.name]),
+            [
+                ["selection-row", "Selection"],
+                ["everything-row", "Everything"],
+            ],
+        );
     });
 
     it("orders rows top first in paint order, with a run that has no layer yet on top", () => {
@@ -193,6 +211,42 @@ describe("paintRows", () => {
         );
     });
 
+    it("gives a group row an eye on its run's color binding, read from the stack while the legend lags", () => {
+        const color = {
+            ...layer("lv-color", runSource("louvain")),
+            target: "node",
+            encode: { "node.color": { by: "results.louvain.group", scale: "ordinal", hidden: [1] } },
+        } as unknown as Layer;
+        const session = sessionOf({
+            layers: [...BASE, color],
+            // No legend block: the element has not prepared the repainted binding yet.
+            runs: [
+                {
+                    id: "louvain",
+                    label: "Louvain",
+                    status: "succeeded",
+                    shape: "community",
+                    record: {
+                        summary: {
+                            groups: [
+                                { group: 0, size: 4 },
+                                { group: "1", size: 3 },
+                            ],
+                        },
+                    },
+                },
+            ],
+        });
+        const groups = findRow(paintRows(session), "louvain")?.children ?? [];
+        assert.deepEqual(
+            groups.map((g) => [g.value, g.hidden]),
+            [
+                [{ layerId: "lv-color", channel: "node.color", value: 0 }, false],
+                [{ layerId: "lv-color", channel: "node.color", value: "1" }, true],
+            ],
+        );
+    });
+
     it("marks a failed run with the element's message and a partial one as partial", () => {
         const rows = paintRows(
             sessionOf({
@@ -215,5 +269,65 @@ describe("paintRows", () => {
         assert.equal(findRow(rows, "a")?.problem, "No edges");
         assert.equal(findRow(rows, "b")?.state, "partial");
         assert.equal(findRow(rows, "c")?.state, "canceled");
+    });
+
+    it("marks a finished run the element calls out of date, with its reason", () => {
+        const stale = { reason: "data-changed" as const };
+        const rows = paintRows(
+            sessionOf({
+                layers: BASE,
+                runs: [
+                    { id: "a", label: "A", status: "succeeded", shape: "node-metric", stale, record: {} },
+                    { id: "b", label: "B", status: "succeeded", shape: "node-metric", record: {} },
+                ],
+            }),
+        );
+        assert.equal(findRow(rows, "a")?.state, "stale");
+        assert.equal(findRow(rows, "a")?.stale?.reason, "data-changed");
+        assert.equal(findRow(rows, "b")?.state, "ready");
+    });
+});
+
+describe("moving a row", () => {
+    // Selection, Louvain (running, no layer), Degree (two layers), mine, PageRank, Everything.
+    const rows = paintRows(
+        sessionOf({
+            layers: [
+                ...BASE,
+                layer("pr-color", runSource("pagerank")),
+                layer("mine", { by: "user" }),
+                layer("deg-size", runSource("degree")),
+                layer("deg-color", runSource("degree")),
+            ],
+            runs: [
+                { id: "pagerank", label: "PageRank", status: "succeeded", shape: "node-metric", record: {} },
+                { id: "degree", label: "Degree", status: "succeeded", shape: "node-metric", record: {} },
+                { id: "louvain", label: "Louvain", status: "running", shape: "community", record: {} },
+            ],
+        }),
+    );
+
+    it("moves only rows that paint, never Selection, Everything or a run with no layer", () => {
+        assert.deepEqual(
+            rows.filter(isMovable).map((r) => r.name),
+            ["Degree", "mine", "PageRank"],
+        );
+    });
+
+    it("puts a row below the bottom layer of the nearest painting row above the drop", () => {
+        // PageRank dropped between Selection and Louvain: nothing above paints, so the top.
+        assert.isNull(layerAbove(rows, "pagerank", null, 1));
+        // Between Louvain and Degree: still nothing above paints.
+        assert.isNull(layerAbove(rows, "pagerank", null, 2));
+        // Between Degree and mine: below Degree's bottom layer.
+        assert.equal(layerAbove(rows, "pagerank", null, 3), "deg-size");
+        // Degree dropped between PageRank and Everything: below PageRank.
+        assert.equal(layerAbove(rows, "degree", null, 4), "pr-color");
+    });
+
+    it("refuses a drop above Selection, below Everything or inside a row", () => {
+        assert.isUndefined(layerAbove(rows, "pagerank", null, 0));
+        assert.isUndefined(layerAbove(rows, "pagerank", null, 5));
+        assert.isUndefined(layerAbove(rows, "pagerank", "degree", 0));
     });
 });

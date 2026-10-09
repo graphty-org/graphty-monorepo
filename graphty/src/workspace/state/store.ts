@@ -7,13 +7,14 @@
  * tests each get their own.
  */
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { ViewInsets } from "@graphty/graphty-element";
+import type { GraphSession, NoteTargetInput } from "@graphty/graphty-element/session";
 import { useSyncExternalStore } from "react";
 
 import type { InspectedKind } from "../commands/registry";
 
 /** A left-panel place on the rail (tier1-design.md section 2.2). */
-type Place = "graph" | "data";
+type Place = "graph" | "data" | "notes";
 
 /** What takes the area right of the rail: the panels, or the Data page (section 2.10). */
 type Page = "panels" | "data-page";
@@ -21,6 +22,8 @@ type Page = "panels" | "data-page";
 /** One notice (section 2.4): one message and at most one action. */
 export interface Notice {
     readonly message: string;
+    /** A failure: it stays until the reader dismisses it, rather than going after 6 s. */
+    readonly error?: boolean;
     readonly action?: { readonly label: string; readonly run: () => void };
 }
 
@@ -46,6 +49,8 @@ export interface WorkspaceState {
     readonly dialog: string | null;
     /** Whether the project name is being renamed in place. */
     readonly renaming: boolean;
+    /** The paint-tree row whose name is being edited in place, or null. */
+    readonly renamingRow: string | null;
     readonly inspected: Inspected | null;
     /** The tab last chosen per inspected kind. */
     readonly tabs: Readonly<Record<string, "style" | "values">>;
@@ -53,8 +58,28 @@ export interface WorkspaceState {
     readonly rightWidth: number;
     readonly dockHeight: number;
     readonly dockOpen: boolean;
+    /**
+     * The table dock's tab: "nodes", "edges" or a group run's "g:<run id>". Kept while the dock
+     * is closed, and set by whatever opens the dock on a table (the Data place's source rows).
+     */
+    readonly dockTab: string;
+    /**
+     * A table column to bring into view once the dock shows it (`a:<attribute>`), set by Show in
+     * table and cleared by the dock; null when none is asked for.
+     */
+    readonly dockColumn: string | null;
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
+    /**
+     * Show all labels (section 2.7): off, a label that would overlap another is hidden. The
+     * reader's preference, not the project's; the element's tag carries it.
+     */
+    readonly allLabelsShown: boolean;
+    /**
+     * The canvas margins the legend card covers, reported by the card and handed to the element
+     * so a fit never puts a node under it. Empty while no card is drawn.
+     */
+    readonly viewInsets: ViewInsets;
     /**
      * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
      * edges table. The table dock's Export... sets the table that is showing.
@@ -63,6 +88,16 @@ export interface WorkspaceState {
     /** Single-key shortcuts on (WCAG 2.1.4); Settings > Accessibility writes it. */
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
+    /**
+     * The note being written in the Notes place: what it is about, fixed when its door opened
+     * it, and the text so far, kept until it is saved or cleared. Null when no editor is open.
+     */
+    readonly noteDraft: { readonly targets: readonly NoteTargetInput[]; readonly text: string } | null;
+    /**
+     * The one polite status line for the core path: a load finished with its size, a run
+     * started, a run finished. Each replaces the last.
+     */
+    readonly announcement: string;
     /**
      * What to load once the element of a project that was just opened has come up (a sample or
      * a file from the start screen), with the name it is known by; run once, then cleared.
@@ -82,16 +117,23 @@ const INITIAL: WorkspaceState = {
     place: "graph",
     dialog: null,
     renaming: false,
+    renamingRow: null,
     inspected: null,
     tabs: {},
     leftWidth: PANEL_MIN,
     rightWidth: PANEL_MIN,
     dockHeight: 240,
     dockOpen: false,
+    dockTab: "nodes",
+    dockColumn: null,
     legendShown: true,
+    allLabelsShown: false,
+    viewInsets: {},
     exportOn: "image",
     singleKeyShortcuts: true,
     notice: null,
+    noteDraft: null,
+    announcement: "",
     opening: null,
 };
 

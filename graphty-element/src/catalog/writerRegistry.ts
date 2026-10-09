@@ -41,7 +41,7 @@ export interface FormatWriterRegistration {
 /**
  * The options every writer takes, whatever the format: graph-io's `sanitizeIds` and
  * `onMixedDirection`, and the element's own `notes`, which the element reads and never hands to
- * the exporter.
+ * the exporter. All `advanced`: a picker can leave them folded away.
  */
 export const COMMON_WRITER_OPTIONS: readonly OptionDescriptor[] = [
     {
@@ -53,6 +53,7 @@ export const COMMON_WRITER_OPTIONS: readonly OptionDescriptor[] = [
             { value: "error", label: "Refuse the export" },
             { value: "mangle", label: "Rewrite them, keeping the original" },
         ],
+        advanced: true,
         description:
             "What to do with a node id the format cannot hold, such as a text id in GML or GraphML. " +
             "Left unset, the export is refused with E_UNSUPPORTED.",
@@ -67,6 +68,7 @@ export const COMMON_WRITER_OPTIONS: readonly OptionDescriptor[] = [
             { value: "directed", label: "Write every edge as directed" },
             { value: "undirected", label: "Write every edge as undirected" },
         ],
+        advanced: true,
         description: "What to do with a graph of directed and undirected edges in a format that holds one kind.",
     },
     {
@@ -75,6 +77,7 @@ export const COMMON_WRITER_OPTIONS: readonly OptionDescriptor[] = [
         technicalName: "notes",
         type: "boolean",
         default: false,
+        advanced: true,
         description:
             "Write the graphty.notes.count and graphty.notes.text columns on the nodes and edges notes " +
             "name. Off by default, so notes are never shared by accident; every export of a session " +

@@ -31,8 +31,14 @@ const css = `
     outline: none;
     cursor: default;
     user-select: none;
+    -webkit-user-select: none;
+    /* No iOS callout or magnifier while a row is held; a vertical swipe still scrolls the list. */
+    -webkit-touch-callout: none;
+    touch-action: pan-y;
 }
 .cm-tree-row[data-strong] { font-weight: 600; }
+/* The row being dragged. */
+.cm-tree-row[data-dragging] { opacity: 0.5; }
 .cm-tree-row::before,
 .cm-tree-row::after {
     content: "";
@@ -62,9 +68,12 @@ const css = `
 .cm-tree-row[data-tint="first"]::after { height: 28px; border-radius: 5px 5px 0 0; }
 .cm-tree-row[data-tint="middle"]::after { top: 0; height: 32px; border-radius: 0; }
 .cm-tree-row[data-tint="last"]::after { top: 0; height: 28px; border-radius: 0 0 5px 5px; }
-.cm-tree-row[data-tint="parent"]::after {
+.cm-tree-row[data-tint="parent"][aria-selected="true"]::after {
     box-sizing: content-box;
     height: 24px;
+    /* A selected parent is told apart from the band its children wear: the stronger selected
+       tint, where bg-selected sits within 1.2:1 of the band in dark (#394360 on #32394d). */
+    background: var(--cm-bg-selected-hover);
     border-bottom: 4px solid var(--cm-bg-selected-secondary);
     border-radius: 5px 5px 0 0;
 }
@@ -72,7 +81,7 @@ const css = `
 .cm-tree-row[data-tint="child-last"]::before { display: block; }
 .cm-tree-row[data-tint="child-last"]::before { bottom: 4px; border-radius: 0 0 5px 5px; }
 .cm-tree-row[data-tint^="child"]:hover::after,
-.cm-tree-row[data-tint^="child"][data-state="hover"]::after { background: var(--cm-bg-selected-hover); }
+.cm-tree-row[data-tint^="child"][data-state="hover"]::after { background: var(--cm-bg-selected); }
 
 /* Keyboard focus (ours; Figma rows take no focus): a 1px ring on the 24 pill area. */
 .cm-tree-ring {
@@ -130,6 +139,28 @@ const css = `
 .cm-tree-row[data-dimmed] .cm-tree-name,
 .cm-tree-row[data-dimmed] .cm-tree-icon { color: var(--cm-text-tertiary); }
 .cm-tree-row .cm-rename { flex: none; width: 176px; }
+/* A row that shows its description: the name, then the description on a second 16px line in the
+   secondary ink; the row grows to 44 and its pill and ring to 36. */
+.cm-tree-row[data-two-line] { height: 44px; }
+.cm-tree-row[data-two-line]::after { height: 36px; }
+.cm-tree-row[data-two-line] .cm-tree-ring { height: 36px; }
+.cm-tree-lines {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    margin-inline-start: 8px;
+    line-height: 16px;
+}
+.cm-tree-lines .cm-tree-name { flex: none; margin-inline-start: 0; }
+.cm-tree-description {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--cm-text-secondary);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+}
 
 /* The swatch between the glyph and the name, and the always-visible count before the toggles. */
 .cm-tree-swatch {
@@ -138,8 +169,17 @@ const css = `
     align-items: center;
     margin-inline-start: 8px;
 }
+/* The count (a row's quiet text) yields to the name: when both do not fit, the count shortens
+   first, down to a stub that still shows its ellipsis, and only then is the name cut. The name
+   says which row this is ("friends-v2.csv"); the count only describes it. Its weight against the
+   name's shrink of 1 makes it take the whole cut first; the name's tooltip carries both whole. */
 .cm-tree-count {
-    flex: none;
+    flex: 0 1000 auto;
+    min-width: 2.5em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: end;
     margin-inline: 4px;
     color: var(--cm-text-secondary);
     font-weight: 450;
@@ -181,7 +221,21 @@ const css = `
     height: 24px;
     margin-inline-end: 8px;
 }
+/* A slot holding a pinned text (a row's quiet counts) gives way before the name does (four times as
+   fast), so the text never squeezes the name to nothing, and the text ellipsizes. A slot of controls
+   only (buttons, a checkbox) keeps its size: shrunk, it would cut the control off the row. (:has()
+   does not nest, so a slot mixing text and a control keeps its size too.) */
+.cm-tree-actions:has(> [data-pinned]):not(:has(button, input)) {
+    flex: 0 4 auto;
+    min-width: 0;
+}
 .cm-tree-actions > * + * { margin-inline-start: -4px; }
+.cm-tree-actions > [data-pinned]:not(button, :has(button, input)) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 /* The buttons overlap by 4px (24 targets on a 20 pitch), so the shared button ring (1px outside the
    24 box) would run into the neighbor's glyph. A focused row action rings its 20 pitch instead. */
 .cm-tree-actions :is(.cm-action-icon, .cm-button):is(:focus-visible, [data-state="focus"]) { outline-offset: -2px; }
@@ -197,6 +251,10 @@ const css = `
 .cm-tree-actions > [aria-checked="true"],
 .cm-tree-actions > [data-pinned],
 .cm-tree-actions > :has([aria-pressed="true"], [aria-checked="true"], :checked) { opacity: 1; }
+/* A touch screen has no hover to reveal them, so the toggles stay visible (as ActionRow's do). */
+@media (hover: none) {
+    .cm-tree-actions > * { opacity: 1; }
+}
 
 /* Sticky expanded top-level rows (stickyRoots). */
 .cm-tree[data-sticky-roots] .cm-tree-block > .cm-tree-row[aria-level="1"][aria-expanded="true"] {
@@ -295,11 +353,10 @@ const css = `
     line-height: 16px;
 }
 .cm-page-line { display: flex; align-items: center; min-width: 0; }
+/* The second line wraps rather than cut: a time or a status sentence is read whole. */
 .cm-page-description {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     color: var(--cm-text-secondary);
     font-weight: 400;
     letter-spacing: normal;
@@ -372,6 +429,8 @@ const css = `
 .cm-result-name,
 .cm-result-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-result-match { font-weight: 600; }
+/* A result reads as the text typed to find it: "->" stays two characters, not Inter's arrow. */
+.cm-result-name { font-feature-settings: "calt" 0; }
 .cm-result-path { font-size: 10px; line-height: 16px; color: var(--cm-text-secondary); }
 .cm-result-row[data-tone="component"],
 .cm-result-row[data-tone="component"] .cm-result-icon,
@@ -400,9 +459,9 @@ const css = `
     content: "";
     position: absolute;
     top: 4px;
+    bottom: 4px;
     inset-inline-start: 12px;
     inset-inline-end: 8px;
-    height: 24px;
     border-radius: 5px;
     pointer-events: none;
 }
@@ -415,10 +474,16 @@ const css = `
 .cm-data-row[data-selected]:hover::after { background: var(--cm-bg-selected); }
 .cm-data-row:has(.cm-data-row-body:focus-visible)::before,
 .cm-data-row[data-state="focus"]::before { outline-color: var(--cm-border-selected); }
+/* A grid rather than a flex row: when the name and the value do not both fit, the grid hands
+   them the width in equal halves, and a half one of them does not need goes to the other. So a
+   short name stays whole beside a long value, a short value stays whole beside a long name, and
+   only two long ones are each cut, at half the row. The name's track takes what is left over,
+   which keeps the value at the trailing edge. */
 .cm-data-row-body {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, auto) minmax(0, max-content);
     align-items: center;
-    gap: 8px;
+    column-gap: 8px;
     flex: 1 1 auto;
     min-width: 0;
     height: 100%;
@@ -432,8 +497,10 @@ const css = `
     outline: none;
     cursor: default;
 }
+.cm-data-row-body:has(> .cm-data-row-icon) { grid-template-columns: 16px minmax(0, auto) minmax(0, max-content); }
+.cm-data-row-body:not(:has(> .cm-data-row-value)) { grid-template-columns: minmax(0, 1fr); }
+.cm-data-row-body:has(> .cm-data-row-icon):not(:has(> .cm-data-row-value)) { grid-template-columns: 16px minmax(0, 1fr); }
 .cm-data-row-icon {
-    flex: none;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -442,17 +509,34 @@ const css = `
     color: var(--cm-icon-secondary);
 }
 .cm-data-row-name {
-    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.cm-data-row-value { flex: none; color: var(--cm-text-secondary); }
+.cm-data-row-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--cm-text-secondary);
+}
 .cm-data-row:not([data-trailing]) .cm-data-row-value { padding-inline-end: 8px; }
 /* A stat row (VOCAB.md): the name is the label, the value the reading the reader came for. */
 .cm-data-row[data-stat] .cm-data-row-name { color: var(--cm-text-secondary); font-weight: 400; }
 .cm-data-row[data-stat] .cm-data-row-value { color: var(--cm-text); font-weight: 500; }
+/* A stat's reading is never cut: one that does not fit beside its name wraps onto more 16px lines
+   in its own track, and the row grows. The name keeps the first line (start-aligned in a 32px
+   line, level with the reading's first 16px line under its 8px padding). */
+.cm-data-row[data-stat] { height: auto; min-height: 32px; }
+.cm-data-row[data-stat] .cm-data-row-body { align-items: start; }
+.cm-data-row[data-stat] .cm-data-row-value {
+    padding-block: 8px;
+    line-height: 16px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: end;
+}
 
 .cm-data-row-header {
     box-sizing: border-box;
@@ -613,6 +697,10 @@ const css = `
 .cm-dt .cm-dt-header:hover .cm-dt-header-menu,
 .cm-dt .cm-dt-header:focus-within .cm-dt-header-menu,
 .cm-dt .cm-dt-header-menu[aria-expanded="true"] { opacity: 1; }
+/* A touch screen has no hover to reveal the column menu, so its caret stays visible. */
+@media (hover: none) {
+    .cm-dt .cm-dt-header-menu { opacity: 1; }
+}
 .cm-dt .cm-dt-sort-priority { flex: none; color: var(--cm-text-secondary); ${cmFont("caption")} }
 .cm-dt .cm-dt-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-dt-empty {

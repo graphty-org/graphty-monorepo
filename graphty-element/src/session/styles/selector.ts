@@ -106,12 +106,17 @@ const RESULT_PATH_PREFIX = "results.";
 
 /**
  * The refusal a selector whose shape is wrong gets.
+ *
+ * `reason` is a stable code, so a consumer writes its own words without parsing the message:
+ * `bare-string`, `not-a-selector`, `where-missing`, `has-path-missing`, `ids-not-a-list`,
+ * `not-an-id`, `top-path-not-a-result`, `top-n-not-whole`, `bad-member-scope`, `unknown-kind`.
+ * @param reason - Which mistake it is, as a stable code.
  * @param message - What is wrong, in a sentence.
  * @param details - The offending values, for an editor that points at them.
  * @returns The error to throw.
  */
-function badShape(message: string, details: Readonly<Record<string, unknown>>): GraphtyError {
-    return new GraphtyError({ code: "E_BAD_SELECTOR", message, source: "style", details });
+function badShape(reason: string, message: string, details: Readonly<Record<string, unknown>>): GraphtyError {
+    return new GraphtyError({ code: "E_BAD_SELECTOR", message, source: "style", details: { ...details, reason } });
 }
 
 /**
@@ -148,12 +153,12 @@ function assertIdList(ids: unknown, field: string): void {
     }
 
     if (!Array.isArray(ids)) {
-        throw badShape(`An "ids" selector's ${field} is a list of ids.`, { field, [field]: ids });
+        throw badShape("ids-not-a-list", `An "ids" selector's ${field} is a list of ids.`, { field, [field]: ids });
     }
 
     const wrong = ids.findIndex((id) => typeof id !== "string" && typeof id !== "number");
     if (wrong !== -1) {
-        throw badShape(`An "ids" selector's ${field} holds ids, and entry ${String(wrong)} is not one.`, {
+        throw badShape("not-an-id", `An "ids" selector's ${field} holds ids, and entry ${String(wrong)} is not one.`, {
             field,
             at: wrong,
             value: ids[wrong],
@@ -182,13 +187,16 @@ function assertSelector(selector: Selector): void {
                 : `Write { match: "expression", where: ${JSON.stringify(given)} }.`;
 
         throw badShape(
+            "bare-string",
             `A selector is an object naming one of ${SELECTOR_KINDS.join(", ")}, not a bare string. ${advice}`,
             { selector: given },
         );
     }
 
     if (typeof given !== "object" || given === null || !("match" in given)) {
-        throw badShape(`A selector is an object with a "match" of ${SELECTOR_KINDS.join(", ")}.`, { selector: given });
+        throw badShape("not-a-selector", `A selector is an object with a "match" of ${SELECTOR_KINDS.join(", ")}.`, {
+            selector: given,
+        });
     }
 
     // Kept as a plain string beside the switch so the refusal below can name a kind the union
@@ -200,7 +208,7 @@ function assertSelector(selector: Selector): void {
             return;
         case "expression":
             if (typeof selector.where !== "string") {
-                throw badShape('An "expression" selector needs a where.', { where: selector.where });
+                throw badShape("where-missing", 'An "expression" selector needs a where.', { where: selector.where });
             }
 
             if (selector.where.trim() === "") {
@@ -210,7 +218,7 @@ function assertSelector(selector: Selector): void {
             return;
         case "has":
             if (typeof selector.path !== "string") {
-                throw badShape('A "has" selector needs a path, such as "results.louvain.group".', {
+                throw badShape("has-path-missing", 'A "has" selector needs a path, such as "results.louvain.group".', {
                     path: selector.path,
                 });
             }
@@ -228,13 +236,16 @@ function assertSelector(selector: Selector): void {
         case "top":
             if (typeof selector.path !== "string" || !selector.path.startsWith(RESULT_PATH_PREFIX)) {
                 throw badShape(
+                    "top-path-not-a-result",
                     'A "top" selector ranks a run\'s field, so its path is "results.<run>.<field>", such as "results.degree.value".',
                     { path: selector.path },
                 );
             }
 
             if (!Number.isInteger(selector.n) || selector.n < 0) {
-                throw badShape('A "top" selector\'s n is a whole number of elements.', { n: selector.n });
+                throw badShape("top-n-not-whole", 'A "top" selector\'s n is a whole number of elements.', {
+                    n: selector.n,
+                });
             }
 
             return;
@@ -246,15 +257,18 @@ function assertSelector(selector: Selector): void {
                     throw error;
                 }
 
-                throw badShape(`A "member" selector names a scope: ${error.message}`, {
+                throw badShape("bad-member-scope", `A "member" selector names a scope: ${error.message}`, {
                     of: selector.of,
-                    reason: error.details,
+                    scope: error.details,
                 });
             }
 
             return;
         default:
-            throw badShape(`"${String(kind)}" is not a selector kind.`, { match: kind, kinds: SELECTOR_KINDS });
+            throw badShape("unknown-kind", `"${String(kind)}" is not a selector kind.`, {
+                match: kind,
+                kinds: SELECTOR_KINDS,
+            });
     }
 }
 

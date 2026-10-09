@@ -1,3 +1,4 @@
+import { ModalFooter } from "@graphty/compact-mantine";
 import {
     detectFormat,
     FORMAT_DESCRIPTORS,
@@ -20,8 +21,6 @@ import {
 } from "@mantine/core";
 import { AlertCircle, Clipboard, FileText, Link, Upload } from "lucide-react";
 import { useCallback, useState } from "react";
-
-import { standardModalStyles } from "../utils/modal-styles";
 
 /** Which of the dialog's three inputs is showing: a file, a URL or pasted text. */
 export type InputMethod = "file" | "url" | "paste";
@@ -423,7 +422,7 @@ export function LoadDataModal({
     };
 
     return (
-        <Modal opened={opened} onClose={handleClose} title="Load Data" size="lg" centered styles={standardModalStyles}>
+        <Modal opened={opened} onClose={handleClose} title="Load Data" size="lg" centered>
             <Stack gap="lg">
                 {/* Input Method Tabs */}
                 <SegmentedControl
@@ -628,7 +627,7 @@ export function LoadDataModal({
                 )}
 
                 {/* Action Buttons */}
-                <Group justify="flex-end" mt="md">
+                <ModalFooter>
                     <Button variant="subtle" color="gray" onClick={handleClose}>
                         Cancel
                     </Button>
@@ -646,7 +645,7 @@ export function LoadDataModal({
                     >
                         Load {getFormatDisplay() !== "Auto-detect" ? getFormatDisplay() : "Data"}
                     </Button>
-                </Group>
+                </ModalFooter>
             </Stack>
         </Modal>
     );

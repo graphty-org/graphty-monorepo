@@ -19,6 +19,7 @@ import { commands, page, userEvent } from "vitest/browser";
 import { InfoCircle } from "../../src/components/InfoCircle";
 import { ContextMenu } from "../../src/components/overlays/ContextMenu";
 import { MenuCheckItem } from "../../src/components/overlays/MenuCheckItem";
+import { MenuItemDescription } from "../../src/components/overlays/MenuItemDescription";
 import { ModalFooter } from "../../src/components/overlays/ModalFooter";
 import { installOverlayBehavior } from "../../src/components/overlays/overlayBehavior";
 import { Toast } from "../../src/components/overlays/Toast";
@@ -419,6 +420,32 @@ describe("8.1 dark menu keyboard and scroll", () => {
         await userEvent.keyboard("{Escape}");
     });
 
+    it("a row with a second line is a 44px touch target and neither line is cut off", async () => {
+        await renderFigma(
+            <Menu opened trapFocus={false} closeOnClickOutside={false}>
+                <Menu.Target>
+                    <Button>View</Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                    <Menu.Item>Fit</Menu.Item>
+                    <MenuCheckItem radio checked={false} aria-disabled data-disabled>
+                        VR / AR
+                        <MenuItemDescription>This browser has no VR or AR</MenuItemDescription>
+                    </MenuCheckItem>
+                </Menu.Dropdown>
+            </Menu>,
+        );
+        const two = await waitFor(() =>
+            document.querySelector<HTMLElement>(".cm-menu-item:has(.cm-menu-item-description)"),
+        );
+        expect(box(two).height).toBeGreaterThanOrEqual(44);
+        const line = part(two, ".cm-menu-item-description");
+        expect(line.scrollHeight).toBeLessThanOrEqual(line.clientHeight);
+        expect(box(line).bottom).toBeLessThanOrEqual(box(two).bottom);
+        // A one-line row keeps Figma's 24.
+        expect(box(row(document, "Fit")).height).toBe(24);
+    });
+
     it("a clamped menu shows 24px chevron rows at the ends it can scroll to; hovering one scrolls", async () => {
         await renderFigma(
             <Menu opened trapFocus={false} closeOnClickOutside={false}>
@@ -472,16 +499,22 @@ describe.skipIf(!available)("8.2 context menu", () => {
         );
     }
 
-    it("opens at the pointer, 3px right and 5px up, first enabled row highlighted", async () => {
+    it("opens at the pointer, 3px right and 5px up, with no row highlighted until ArrowDown", async () => {
         const { getByTestId } = await renderFigma(<Ctx />);
         const area = getByTestId("area");
         const r = box(area);
         await userEvent.click(area, { button: "right", position: { x: 50, y: 60 } });
         const dropdown = await waitFor(() => document.querySelector<HTMLElement>(".mantine-Menu-dropdown"));
+        await waitFor(() => document.activeElement === dropdown);
         const copy = row(document, "Copy");
-        await waitFor(() => document.activeElement === copy);
         expect(box(dropdown).left).toBeCloseTo(r.left + 50 + 3, 0);
         expect(box(dropdown).top).toBeCloseTo(r.top + 60 - 5, 0);
+        // The pointer has no keyboard position yet: no row wears the highlight.
+        for (const item of document.querySelectorAll("[data-menu-item]")) {
+            expect(computed(item as HTMLElement, "::before").backgroundColor).toBe("rgba(0, 0, 0, 0)");
+        }
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => document.activeElement === copy);
         expectMeasured(copy, { backgroundColor: "#0c8ce9" }, { pseudo: "::before" });
         await userEvent.keyboard("{Enter}");
         await waitFor(() => !document.querySelector(".mantine-Menu-dropdown"));
@@ -672,6 +705,40 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         expect(visibleTip()).toBeNull();
     });
 
+    /** A toggle whose tooltip says what it does now, as a filter's on and off states do. */
+    function Toggle(): React.JSX.Element {
+        const [on, setOn] = useState(false);
+        return (
+            <div style={{ padding: 40 }}>
+                <Tooltip label={on ? "Showing only these" : "Show only these"}>
+                    <button type="button" aria-pressed={on} onClick={() => setOn(!on)}>
+                        Filter
+                    </button>
+                </Tooltip>
+            </div>
+        );
+    }
+
+    it("a click keeps the trigger's tooltip closed until the pointer leaves, even one that mounts later", async () => {
+        const { getByRole } = await renderFigma(<Toggle />);
+        const filter = getByRole("button", { name: "Filter" });
+        // Clicked before the open delay ran out: the tooltip mounts afterwards, under the resting
+        // pointer, already showing the new label.
+        const mounted = tooltipMount("Showing only these");
+        await userEvent.click(filter);
+        const tip = await mounted;
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+        await new Promise((r) => setTimeout(r, 300));
+        expect(isVisible(tip)).toBe(false);
+        // Left and hovered again, it opens as usual.
+        await commands.mouseAway();
+        await waitFor(() => (tip.isConnected ? null : true));
+        const again = tooltipMount("Showing only these");
+        await userEvent.hover(filter);
+        const next = await again;
+        await waitFor(() => isVisible(next));
+    });
+
     it("hides at once on a key press but not on a modifier", async () => {
         const { getByRole } = await renderFigma(<Tips />);
         await userEvent.hover(getByRole("button", { name: "1" }));
@@ -793,6 +860,54 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         expect(one.hasAttribute("data-cm-dismissed")).toBe(true);
         expect(document.activeElement?.textContent).toBe("2");
         expect(two.hasAttribute("data-cm-held")).toBe(true);
+    });
+
+    /** A Load button that, clicked, is replaced by a button with a tooltip at the same place. */
+    function Swap(): React.JSX.Element {
+        const [loaded, setLoaded] = useState(false);
+        const size = { width: 120, height: 40 };
+        return (
+            <div style={{ padding: 40 }}>
+                {loaded ? (
+                    <Tooltip label="Reset" openDelay={0}>
+                        <button type="button" style={size}>
+                            R
+                        </button>
+                    </Tooltip>
+                ) : (
+                    <button type="button" style={size} onClick={() => setLoaded(true)}>
+                        Load
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    it("a trigger that comes under a resting pointer shows no tooltip until the pointer moves", async () => {
+        const { getByRole } = await renderFigma(<Swap />);
+        const mounted = tooltipMount("Reset");
+        await userEvent.click(getByRole("button", { name: "Load" }));
+        // Chromium's hover update after the layout change opens the tooltip with the pointer still.
+        const tip = await mounted;
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+        await new Promise((r) => setTimeout(r, 300));
+        expect(tip.hasAttribute("data-cm-still")).toBe(true);
+        expect(isVisible(tip)).toBe(false);
+        // The reader moves the pointer on the button: it shows after the usual delay.
+        await userEvent.hover(getByRole("button", { name: "R" }), { position: { x: 10, y: 10 } });
+        expect(isVisible(tip)).toBe(false);
+        await waitFor(() => isVisible(tip));
+    });
+
+    it("keyboard focus still shows the tooltip of a trigger under a resting pointer", async () => {
+        const { getByRole } = await renderFigma(<Swap />);
+        const mounted = tooltipMount("Reset");
+        await userEvent.click(getByRole("button", { name: "Load" }));
+        const tip = await mounted;
+        expect(isVisible(tip)).toBe(false);
+        await userEvent.keyboard("{Tab}");
+        expect(document.activeElement?.textContent).toBe("R");
+        await waitFor(() => isVisible(tip));
     });
 });
 
@@ -957,7 +1072,7 @@ describe.skipIf(!available)("8.4 light popover", () => {
             const bubble = await waitFor(() => document.querySelector<HTMLElement>('[role="dialog"]'));
             expectMeasured(bubble, { width: 240, borderRadius: "13px", borderTopWidth: "0px" });
             expectMeasured(part(bubble, ".cm-info-bubble"), {
-                color: scheme === "light" ? "#00000080" : "#ffffffb2",
+                color: scheme === "light" ? "#0000008c" : "#ffffffb2",
                 fontSize: "11px",
                 lineHeight: "16px",
                 fontWeight: "450",
@@ -1052,21 +1167,22 @@ describe.skipIf(!available)("8.5 modal", () => {
             expect(box(field).top - box(bar).bottom).toBeCloseTo(8, 0);
             const bottom = part(content, ".cm-modal-footer");
             expect(box(bottom).top - box(field).bottom).toBeCloseTo(8, 0);
+            // The footer departs from Figma's 40px / 8px desktop footer for touch (figma-spec.md 8.5):
+            // 48 tall with 16px on both sides. The divider still matches.
             expectMeasured(bottom, {
-                ...figmaSpec(footer, [
-                    "height",
-                    "paddingLeft",
-                    "paddingRight",
-                    ...(scheme === "light" ? ["boxShadow"] : []),
-                ]),
+                ...figmaSpec(footer, ["paddingLeft", ...(scheme === "light" ? ["boxShadow"] : [])]),
+                height: 48,
+                paddingRight: "16px",
                 width: frame.box[2],
             });
             expect(box(content).bottom - box(bottom).bottom).toBeCloseTo(0, 0);
             const buttons = bottom.querySelectorAll("button");
             expect(box(buttons[1]).left - box(buttons[0]).right).toBeCloseTo(8, 0);
-            expect(box(bottom).right - box(buttons[1]).right).toBeCloseTo(8, 0);
-            // centered, no backdrop by default, focus in the first field
-            expect(document.querySelector(".mantine-Modal-overlay")).toBeNull();
+            expect(box(bottom).right - box(buttons[1]).right).toBeCloseTo(16, 0);
+            // centered, a transparent overlay that blocks the page by default, focus in the first field
+            const overlay = document.querySelector(".mantine-Modal-overlay");
+            expect(overlay).not.toBeNull();
+            expect(getComputedStyle(overlay as Element).backgroundColor).toBe("rgba(0, 0, 0, 0)");
             await waitFor(() => (document.activeElement?.getAttribute("aria-label") === "Title" ? true : null));
         });
     }

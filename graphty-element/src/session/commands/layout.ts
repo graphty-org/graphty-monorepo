@@ -21,7 +21,7 @@
  * coordinates back. See design sections 3.2, 4.7, 6.4 and 11.4.
  */
 
-import { layoutDescriptor, layoutIdForEngine } from "../../catalog/layouts";
+import { layoutAlias, layoutDescriptor, layoutIdForEngine } from "../../catalog/layouts";
 import type { LayoutId, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { ExemptDefinition, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
@@ -122,6 +122,15 @@ export const DEFAULT_LAYOUT: LayoutChoice = Object.freeze({
  * @returns The new choice, frozen.
  */
 function choiceOf(command: LayoutSetCommand, current: LayoutChoice | null): LayoutChoice {
+    // A deprecated name is the layout and engine it stands for: "force-2d" is force drawn by arf.
+    // An engine the caller named stays, unless it is the deprecated name itself (`setLayout`
+    // passes the name as both).
+    const alias = layoutAlias(command.id);
+    if (alias !== undefined) {
+        const named = command.engine === undefined || command.engine === command.id ? {} : { engine: command.engine };
+        return choiceOf({ ...command, id: alias.id, engine: alias.engine, ...named }, current);
+    }
+
     // 1.x callers name an engine where an id belongs: "ngraph" is the engine behind "force".
     const known = layoutDescriptor(command.id);
     const id = known === undefined ? (layoutIdForEngine(command.id) ?? command.id) : command.id;

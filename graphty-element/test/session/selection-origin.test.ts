@@ -80,3 +80,26 @@ describe("session.selection.origin", () => {
         session.dispose();
     });
 });
+
+describe("session.selection.originPaths", () => {
+    it("names the columns a rule tested, while the selection is still that rule", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "Station" }, { id: "Stadium" }, { id: "Park" }]);
+        await session.data.addEdges([
+            { source: "Station", target: "Stadium", minutes: 7 },
+            { source: "Stadium", target: "Park", minutes: 3 },
+        ]);
+        assert.deepStrictEqual([...session.selection.originPaths], []);
+
+        await session.selection.apply({ text: "=minutes > `5`" });
+        assert.strictEqual(session.selection.edges.length, 1);
+        assert.deepStrictEqual([...session.selection.originPaths], ["data.minutes"]);
+
+        await session.selection.apply({ where: "minutes < `5`" });
+        assert.deepStrictEqual([...session.selection.originPaths], ["data.minutes"]);
+
+        await session.selection.apply({ nodes: ["Park"] });
+        assert.deepStrictEqual([...session.selection.originPaths], [], "not a rule");
+        session.dispose();
+    });
+});

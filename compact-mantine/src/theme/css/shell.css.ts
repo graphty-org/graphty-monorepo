@@ -513,7 +513,8 @@ const css = `
     display: flex;
     flex: 1;
     min-height: 0;
-    justify-content: center;
+    /* safe: a tab wider than the body starts at its left edge, so all of it can be scrolled to */
+    justify-content: safe center;
     padding: 8px 0 0;
     overflow: auto;
 }

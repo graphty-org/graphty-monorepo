@@ -46,7 +46,7 @@ export type NodeRenderState = "visible" | "hidden" | "context";
 const logger = GraphtyLogger.getLogger(["graphty", "node"]);
 
 /** The cached source mesh every selection halo is an instance of. */
-const SELECTION_HALO_MESH = "graphty-selection-halo";
+export const SELECTION_HALO_MESH = "graphty-selection-halo";
 
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";
@@ -230,6 +230,9 @@ export class Node {
     /** The last measured radius, or null for a node that is not round. */
     private roundRadiusValue: number | null = null;
 
+    /** The mesh scale {@link Node.roundRadius} was last measured at. */
+    private roundRadiusScale = 1;
+
     /**
      * What the visibility mask says about this node, as the renderer is currently drawing it.
      *
@@ -382,11 +385,14 @@ export class Node {
      * @returns The radius in world units, or null when this node is not round.
      */
     get roundRadius(): number | null {
-        if (this.roundRadiusMesh === this.mesh) {
+        // The scale too: `layoutBehavior.node.depthIndependentSize` rescales a node mesh as the
+        // camera turns, and its edges must stop at the surface it is drawn with.
+        if (this.roundRadiusMesh === this.mesh && this.roundRadiusScale === this.mesh.scaling.x) {
             return this.roundRadiusValue;
         }
 
         this.roundRadiusMesh = this.mesh;
+        this.roundRadiusScale = this.mesh.scaling.x;
         this.roundRadiusValue = this.measureRoundRadius();
 
         return this.roundRadiusValue;
@@ -1153,8 +1159,20 @@ export class Node {
         material.diffuseColor = Color3.Black();
         material.specularColor = Color3.Black();
         material.alpha = alpha;
-        // Both faces, so a halo drawn around a node is still a ring when the camera is inside it.
-        material.backFaceCulling = false;
+        if (name === SELECTION_HALO_MESH) {
+            // BACK FACES ONLY. The halo's front hemisphere lies between the camera and the node it
+            // rings, so drawing it laid a 40% veil of the selection colour over the node: a black
+            // node read olive and an orange one mustard. The back hemisphere lies behind the node,
+            // so the depth test hides it there and it shows only past the node's edge -- a ring.
+            // From INSIDE the sphere every face the camera sees is a back face, so the halo still
+            // draws when the camera is inside it.
+            material.backFaceCulling = true;
+            material.cullBackFaces = false;
+        } else {
+            // Both faces: a context point stands in for a hidden node, with nothing inside it to
+            // keep clear.
+            material.backFaceCulling = false;
+        }
         source.material = material;
 
         return source;

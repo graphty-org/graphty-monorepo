@@ -47,7 +47,7 @@ import { SpringLayout } from "../layout/SpringLayoutEngine";
 import type { CodedFact } from "../session/shared";
 import { registeredLayoutById } from "./layoutRegistry";
 import { optionsFromZod } from "./optionsFromZod";
-import type { KNOWN_LAYOUT_IDS, LayoutDescriptor, LayoutId, OptionDescriptor } from "./types";
+import type { DEPRECATED_LAYOUT_IDS, KNOWN_LAYOUT_IDS, LayoutDescriptor, LayoutId, OptionDescriptor } from "./types";
 
 // ---------------------------------------------------------------------------------------------
 // The shapes this module adds on top of LayoutDescriptor
@@ -176,6 +176,11 @@ export interface UnservedLayout {
  */
 const SEED_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
     seed: { type: "seed" },
+};
+
+/** A layout's `groupBy` names a node attribute or a run's field whose values partition the nodes. */
+const GROUP_BY_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
+    groupBy: { type: "partition", on: "node" },
 };
 
 /**
@@ -325,7 +330,10 @@ const arf: LayoutImplementationSpec = {
     maxDimensions: 2,
     reason:
         "The only registered force engine that is two-dimensional by nature, so a flat result " +
-        "is what it computes rather than what it is flattened into afterwards.",
+        "is what it computes rather than what it is flattened into afterwards. Every pair of " +
+        "nodes is pulled together and pushed apart, and an edge pulls only slightly harder, so " +
+        "it spreads nodes evenly over a disc and groups show faintly if at all. The deprecated " +
+        "layout name `force-2d` is this engine.",
     code: "implementation.two-dimensional",
     options: engineOptions(ArfLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: ArfLayout.honoursWeights,
@@ -353,7 +361,7 @@ const shell: LayoutImplementationSpec = {
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(ShellLayout.zodOptionsSchema),
+    options: engineOptions(ShellLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
     honoursWeights: ShellLayout.honoursWeights,
     scoped: ShellLayout.scoped,
 };
@@ -446,7 +454,7 @@ const bipartite: LayoutImplementationSpec = {
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(BipartiteLayout.zodOptionsSchema),
+    options: engineOptions(BipartiteLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
     honoursWeights: BipartiteLayout.honoursWeights,
     scoped: BipartiteLayout.scoped,
 };
@@ -459,7 +467,7 @@ const multipartite: LayoutImplementationSpec = {
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
     code: "implementation.only",
-    options: engineOptions(MultipartiteLayout.zodOptionsSchema),
+    options: engineOptions(MultipartiteLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
     honoursWeights: MultipartiteLayout.honoursWeights,
     scoped: MultipartiteLayout.scoped,
 };
@@ -503,7 +511,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             technicalName: "Force-directed layout",
             description:
                 "Pulls connected nodes together and pushes unconnected ones apart until the " +
-                "shape stops moving, in three dimensions.",
+                "shape stops moving, in three dimensions or, with `dim: 2`, flat.",
             family: "force",
             kind: "live",
             maxDimensions: 3,
@@ -511,21 +519,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             structuralInputs: [],
         },
         ngraph,
-        [d3, forceAtlas2, spring, kamadaKawai, springElectrical],
-    ),
-    entry(
-        {
-            id: "force-2d",
-            plainName: "Spread Out, Flat",
-            technicalName: "Force-directed layout, two-dimensional",
-            description: "The same pull and push as Spread Out, worked out on a single plane.",
-            family: "force",
-            kind: "batch",
-            maxDimensions: 2,
-            sizeRating: 2000,
-            structuralInputs: [],
-        },
-        arf,
+        [d3, forceAtlas2, spring, kamadaKawai, springElectrical, arf],
     ),
     entry(
         {
@@ -715,9 +709,57 @@ export const LAYOUT_DESCRIPTORS: readonly LayoutDescriptor[] = LAYOUT_CATALOG.ma
  */
 export const UNSERVED_LAYOUT_IDS: readonly UnservedLayout[] = [];
 
+/**
+ * What each deprecated layout name now asks for: a layout id and the engine that draws it. See
+ * `DEPRECATED_LAYOUT_IDS`; removed with it at the next major release.
+ */
+const LAYOUT_ALIASES: Readonly<Record<(typeof DEPRECATED_LAYOUT_IDS)[number], { id: LayoutId; engine: string }>> = {
+    "force-2d": { id: "force", engine: "arf" },
+};
+
 // ---------------------------------------------------------------------------------------------
 // Lookups
 // ---------------------------------------------------------------------------------------------
+
+/**
+ * What a deprecated layout name now asks for.
+ * @param id - A layout name.
+ * @returns The layout id and engine it stands for, or undefined when it is not a deprecated name.
+ */
+export function layoutAlias(id: string): { id: LayoutId; engine: string } | undefined {
+    return Object.hasOwn(LAYOUT_ALIASES, id) ? LAYOUT_ALIASES[id as keyof typeof LAYOUT_ALIASES] : undefined;
+}
+
+/**
+ * How many dimensions a layout choice actually places nodes in, which is not the view's
+ * dimension: a 2D view draws every layout flat, a 2D-only engine is flat in a 3D view, and so is
+ * an engine with a `dim` option set to 2.
+ * @param choice - The engine, its options and the view's dimension.
+ * @param choice.engine - The registered engine name.
+ * @param choice.options - The options it was chosen with.
+ * @param choice.dimension - The view's dimension.
+ * @returns "2d" or "3d".
+ */
+export function arrangedDimension(choice: {
+    readonly engine: string;
+    readonly options: Readonly<Record<string, unknown>>;
+    readonly dimension: "2d" | "3d";
+}): "2d" | "3d" {
+    if (choice.dimension === "2d") {
+        return "2d";
+    }
+
+    const implementation = LAYOUT_CATALOG.flatMap((e) => e.implementations).find((i) => i.engine === choice.engine);
+    const maxDimensions =
+        implementation?.maxDimensions ?? registeredLayoutById(choice.engine)?.descriptor.maxDimensions;
+    if (maxDimensions === 2) {
+        return "2d";
+    }
+
+    // An engine with a `dim` option defaults it to the view's dimension, which here is 3.
+    const hasDim = implementation?.options.some((option) => option.name === "dim") === true;
+    return hasDim && Number(choice.options.dim) === 2 ? "2d" : "3d";
+}
 
 /**
  * Find one layout's descriptor by its public name.

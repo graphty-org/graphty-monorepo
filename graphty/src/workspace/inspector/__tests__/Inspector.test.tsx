@@ -82,6 +82,39 @@ describe("the inspector", () => {
         assert.include(screen.getByRole("group", { name: "Components" }).textContent, "1");
     });
 
+    it("leads the Overview with the element's visible counts while a filter step is on", async () => {
+        const { session: on } = await renderInspector();
+        // No step: no showing rows, no whole-graph note.
+        assert.isNull(screen.queryByRole("group", { name: "Nodes showing" }));
+        assert.isNull(screen.queryByText(/whole graph/));
+
+        await act(async () => {
+            await on.visibility.setSteps([
+                { id: "s1", on: true, rule: { kind: "range", attribute: "data.shared", min: 5, nodes: "ends" } },
+            ]);
+        });
+        const { visibleNodes, visibleEdges } = on.status.counts;
+        assert.isBelow(visibleNodes, 12);
+        const nodes = await screen.findByRole("group", { name: "Nodes showing" });
+        assert.include(nodes.textContent, `${String(visibleNodes)} of 12`);
+        assert.include(
+            screen.getByRole("group", { name: "Edges showing" }).textContent,
+            `${String(visibleEdges)} of 13`,
+        );
+        assert.isNotNull(screen.getByText("The counts below are for the whole graph."));
+        assert.include(screen.getByRole("group", { name: "Nodes" }).textContent, "12");
+
+        // Off again: back to the plain Overview.
+        await act(async () => {
+            await on.visibility.setSteps([]);
+        });
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("group", { name: "Nodes showing" }));
+        });
+        assert.isNull(screen.queryByRole("group", { name: "Edges showing" }));
+        assert.isNull(screen.queryByText(/whole graph/));
+    });
+
     it("keeps the graph's tab, and always opens a single node on Values", async () => {
         const { session: on } = await renderInspector();
 
@@ -122,14 +155,17 @@ describe("the inspector", () => {
         assert.include(degree.textContent, "3");
         await userEvent.click(degree);
 
-        const list = await screen.findByRole("region", { name: "n0's 3 connections" });
+        const list = await screen.findByRole("region", { name: "n0 and 3 connections" });
         const names = within(list)
             .getAllByRole("button")
-            .map((row) => row.textContent);
+            .map((row) => row.textContent)
+            .filter((name) => name !== "Filter to neighbors" && name !== "Back to n0");
         // A session with no view holds no records, so no labels and no edge weights: each
         // neighbor is named by its id, in name order, with no tie value.
         assert.deepEqual(names, ["n1", "n5", "n6"]);
-        assert.equal(document.activeElement, list);
+        // Focus lands on the checked Hops choice: a control, never a neighbor row (that would read
+        // as a pick nobody made) and never the whole list.
+        assert.equal(document.activeElement, within(list).getByRole("radio", { name: "1" }));
         assert.equal(on.selection.nodes.length, 4);
 
         await userEvent.keyboard("{Escape}");
@@ -142,13 +178,106 @@ describe("the inspector", () => {
         });
     });
 
+    it("heads the neighborhood with the node's own header: the same glyph and swatch", async () => {
+        const { session: on } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n0"] });
+        });
+        // The header line's marks: the glyph and the color swatch before the name.
+        const marks = (): string => {
+            const line = screen.getByRole("heading", { level: 2 }).parentElement;
+            return [...(line?.children ?? [])]
+                .filter((child) => child.getAttribute("role") !== "heading")
+                .map((child) => child.outerHTML)
+                .join("");
+        };
+        await screen.findByRole("button", { name: /Degree/ });
+        const node = marks();
+        await userEvent.click(screen.getByRole("button", { name: /Degree/ }));
+        await screen.findByRole("region", { name: "n0 and 3 connections" });
+        assert.equal(marks(), node);
+    });
+
+    it("heads the neighbor list as a section, one form at every reach, with a way back to the node", async () => {
+        const { session: on } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n0"] });
+        });
+        await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
+        const list = await screen.findByRole("region", { name: "n0 and 3 connections" });
+        // The heading is the section title, as the node's Summary is.
+        assert.isNotNull(within(list).getByRole("group", { name: "n0 and 3 connections" }));
+
+        await userEvent.click(within(list).getByRole("radio", { name: "2" }));
+        // Past one hop the heading says how far: only the one-hop count is direct ties.
+        const wider = await screen.findByRole("region", { name: "n0 and 7 connections within 2 hops" });
+        // Two hops list the same way one hop does: by name.
+        const names = within(wider)
+            .getAllByRole("button")
+            .map((row) => row.textContent ?? "")
+            .filter((name) => name !== "Filter to neighbors" && name !== "Back to n0");
+        assert.deepEqual(names, ["n1", "n2", "n4", "n5", "n6", "n7", "n11"]);
+
+        await userEvent.click(within(wider).getByRole("button", { name: "Back to n0" }));
+        await waitFor(() => {
+            assert.deepEqual([...on.selection.nodes], ["n0"]);
+        });
+        // Focus returns to the Degree row that opened the neighbors, as Esc's does.
+        await waitFor(() => {
+            assert.equal(document.activeElement, screen.getByRole("button", { name: /Degree/ }));
+        });
+    });
+
+    it("draws Filter to neighbors as a button that says what it does, and how to undo it when on", async () => {
+        const { session: on } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n0"] });
+        });
+        await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
+        const toggle = await screen.findByRole("button", { name: "Filter to neighbors" });
+        assert.equal(toggle.getAttribute("data-variant"), "default");
+        assert.equal(toggle.getAttribute("aria-pressed"), "false");
+        await userEvent.hover(toggle);
+        const tip = await screen.findByText("Hide every node outside this neighborhood");
+        // Beside the button (right, or left where the window ends), never below it over the first
+        // neighbor's name.
+        await waitFor(() => {
+            assert.isBelow(tip.getBoundingClientRect().top, toggle.getBoundingClientRect().bottom);
+        });
+
+        await userEvent.click(toggle);
+        await waitFor(() => {
+            assert.equal(toggle.getAttribute("aria-pressed"), "true");
+        });
+        assert.equal(toggle.getAttribute("data-variant"), "filled");
+        await userEvent.unhover(toggle);
+        await userEvent.hover(toggle);
+        assert.isNotNull(await screen.findByText(/Press again to show every node/));
+    });
+
+    it("draws an attribute's kind and origin as rows, the kind's meaning in a tooltip", async () => {
+        const { store } = await renderInspector();
+        act(() => {
+            store.set({ inspected: { kind: "attribute", id: "data.shared" } });
+        });
+        const origin = await screen.findByRole("group", { name: "Origin" });
+        assert.include(origin.textContent, "From the file");
+        const kind = screen.getByRole("group", { name: "Kind" });
+        const word = within(kind).getByText("Amount");
+        await userEvent.hover(word);
+        // By its text, then its tooltip: in a full run the role query alone missed a tooltip that
+        // was already in the page with this text (testing-library judged it inaccessible).
+        const tip = await screen.findByText(/quantity/);
+        assert.isNotNull(tip.closest('[role="tooltip"]'));
+    });
+
     it("closes the neighbor list when the selection changes again", async () => {
         const { session: on, store } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
         await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
-        await screen.findByRole("region", { name: "n0's 3 connections" });
+        await screen.findByRole("region", { name: "n0 and 3 connections" });
 
         await act(async () => {
             await on.selection.apply({ nodes: [...on.selection.nodes, "n3"] });
@@ -157,6 +286,47 @@ describe("the inspector", () => {
             assert.isNull(store.get().inspected);
         });
         assert.isNull(screen.queryByRole("region"));
+    });
+
+    it("leaves out a Summary row that says nothing: no selected edges, a value only one node holds", async () => {
+        const { session: on } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n0", "n1", "n2"] });
+        });
+
+        const among = await screen.findByRole("group", { name: "Edges joining these nodes" });
+        assert.include(among.textContent, "2");
+        assert.isNull(screen.queryByRole("group", { name: "Edges" }));
+        assert.isNull(screen.queryByText(/\(1\)/));
+    });
+
+    it("shows no joining-edges row for an edge-only selection, and says what is selected in the header", async () => {
+        const { session: on } = await renderInspector();
+        const edges = on.data
+            .edges()
+            .slice(0, 3)
+            .map((edge) => edge.id);
+        await act(async () => {
+            await on.selection.apply({ edges });
+        });
+
+        assert.include((await screen.findByRole("group", { name: "Edges" })).textContent, "3");
+        assert.isNotNull(screen.getByText("3 edges selected"));
+        assert.isNull(screen.queryByRole("group", { name: /^Edges (among|joining)/ }));
+        assert.isNull(screen.queryByRole("group", { name: "Nodes" }));
+    });
+
+    it("words two joined nodes' summary so it does not contradict the header's edge count", async () => {
+        const { session: on } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n0", "n6"] });
+        });
+
+        const joining = await screen.findByRole("group", { name: "Edges joining these nodes" });
+        assert.include(joining.textContent, "1");
+        assert.isNotNull(screen.getByText("2 nodes selected"));
+        assert.isNull(screen.queryByText(/0 edges/));
+        assert.isNull(screen.queryByRole("group", { name: "Edges" }));
     });
 
     it("shows isolated nodes, self-loops and repeated edges from the element's statistics", async () => {
@@ -203,7 +373,9 @@ describe("the inspector", () => {
         await waitFor(() => {
             assert.include(screen.getByRole("status").textContent, "Running");
         });
-        await userEvent.click(within(screen.getByRole("status")).getByRole("button", { name: "Cancel" }));
+        // The live region holds the words alone: "Running", not "RunningCancel".
+        assert.equal(screen.getByRole("status").textContent, "Running");
+        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
         await waitFor(() => {
             assert.equal(on.runs.get(first.id)?.status, "canceled");
         });
@@ -223,6 +395,87 @@ describe("the inspector", () => {
         const bar = await screen.findByRole("status");
         assert.equal(bar.textContent, "The run failed: it did not settle on an answer");
         assert.notInclude(bar.textContent, "E_");
+    });
+
+    it("names the Everything row once in its header, not again as its kind", async () => {
+        const { store } = await renderInspector();
+        act(() => {
+            store.set({ inspected: { kind: "everything-row" } });
+        });
+        await waitFor(() => {
+            assert.lengthOf(screen.getAllByText("Everything"), 1);
+        });
+    });
+
+    it("shows the selection's Summary on the Selection row's Values tab", async () => {
+        const { session: on, store } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n0", "n1", "n2"] });
+        });
+        act(() => {
+            store.set({ inspected: { kind: "selection-row" } });
+        });
+
+        // The row opens on Style (the highlight); Values holds the Summary.
+        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
+        const nodes = await screen.findByRole("group", { name: "Nodes" });
+        assert.include(nodes.textContent, "3");
+        assert.isNotNull(screen.getByRole("group", { name: "Edges joining these nodes" }));
+    });
+
+    it("names a selected edge by its ends, and Select endpoints selects those two nodes", async () => {
+        const { session: on } = await renderInspector();
+        const bridge = on.data.edges().find((edge) => edge.source === "n0" && edge.target === "n6");
+        assert.isDefined(bridge);
+        await act(async () => {
+            await on.config.set({ data: { directed: false } });
+            await on.selection.apply({ edges: [bridge?.id ?? ""] });
+        });
+        assert.isNotNull(await screen.findByText("n0 -- n6"));
+
+        // The three-dot button names itself on hover, as every icon button does.
+        await userEvent.hover(screen.getByRole("button", { name: "Edge actions" }));
+        // The tooltip mounts after the theme's 1000 ms open delay: wait longer than that, not the
+        // default 1000 ms, which races the delay.
+        const tip = await screen.findByText("Edge actions", {}, { timeout: 3000 });
+        assert.isNotNull(tip.closest('[role="tooltip"]'));
+        await userEvent.click(screen.getByRole("button", { name: "Edge actions" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /Select endpoints/ }));
+        await waitFor(() => {
+            assert.sameMembers([...on.selection.nodes], ["n0", "n6"]);
+        });
+        assert.lengthOf(on.selection.edges, 0);
+
+        // On a directed graph the name points from source to target.
+        await act(async () => {
+            await on.config.set({ data: { directed: true } });
+            await on.selection.apply({ edges: [bridge?.id ?? ""] });
+        });
+        assert.isNotNull(await screen.findByText("n0 -> n6"));
+    });
+
+    it("lists an edge's end columns once, as From and To, whatever the file named them", async () => {
+        const made = createGraphSession();
+        session = made;
+        // As the app opens a file: prepared, then loaded as it reads.
+        const file = new File(["from,to,minutes\nStation,Stadium,4\nDepot,Station,15\n"], "bus-stops.csv");
+        const draft = await made.data.prepare({ config: { file } });
+        await draft.load();
+        const store = createWorkspaceStore({ project: { name: "Bus", id: 1 } });
+        render(
+            <WorkspaceContext.Provider value={makeWorkspaceValue(store, createRegistry(REGISTRATIONS), made, null)}>
+                <Inspector />
+            </WorkspaceContext.Provider>,
+        );
+        const edge = made.data.edges().find((each) => each.source === "Station");
+        await act(async () => {
+            await made.selection.apply({ edges: [edge?.id ?? ""] });
+        });
+        await screen.findByRole("group", { name: "minutes" });
+        assert.include(screen.getByRole("button", { name: /^From/ }).textContent, "Station");
+        assert.include(screen.getByRole("button", { name: /^To/ }).textContent, "Stadium");
+        assert.isNull(screen.queryByRole("group", { name: "from" }));
+        assert.isNull(screen.queryByRole("group", { name: "to" }));
     });
 
     it("gives no two reachable controls the same accessible name", async () => {

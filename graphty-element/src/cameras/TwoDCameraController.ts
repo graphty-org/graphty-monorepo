@@ -1,5 +1,8 @@
 import { Camera, Engine, FreeCamera, Scene, TransformNode, Vector3, WebGPUEngine } from "@babylonjs/core";
 
+import { freeArea } from "../camera/insets";
+import type { ViewInsets } from "../camera/types";
+
 // === Configuration Object ===
 export interface TwoDCameraControlsConfigType {
     panAcceleration: number;
@@ -31,6 +34,8 @@ export class TwoDCameraController {
     public camera: FreeCamera;
     public parent: TransformNode;
     public velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
+    /** Margins of the canvas something else covers, in CSS pixels; every fit keeps the graph out of them. */
+    public viewInsets: ViewInsets = {};
 
     /**
      * Creates a new TwoDCameraController instance.
@@ -157,21 +162,15 @@ export class TwoDCameraController {
         const sizeX = max.x - min.x;
         const sizeY = max.y - min.y;
 
-        // Calculate aspect ratios
+        // The half-width that fits the box into the part of the canvas the view insets leave
+        // free (`free.width` and `free.height` are its shares of the canvas), whichever side binds.
         const viewportAspect = this.engine.getRenderHeight() / this.engine.getRenderWidth();
-        const contentAspect = sizeY / sizeX;
+        const free = freeArea(this.viewInsets, this.canvas.clientWidth, this.canvas.clientHeight);
+        const orthoSize = Math.max(sizeX / (2 * free.width), sizeY / (2 * viewportAspect * free.height)) * 1.1; // Small padding for visual comfort
 
-        let orthoSize;
-        if (contentAspect > viewportAspect) {
-            // Content is taller relative to viewport - constrain by height
-            orthoSize = sizeY / (2 * viewportAspect);
-        } else {
-            // Content is wider relative to viewport - constrain by width
-            orthoSize = sizeX / 2;
-        }
-
-        this.camera.position.x = centerX;
-        this.camera.position.y = centerY;
+        // Center the box on the free area rather than on the canvas.
+        this.camera.position.x = centerX - free.x * orthoSize;
+        this.camera.position.y = centerY - free.y * orthoSize * viewportAspect;
 
         // Put the camera behind the box and let the far plane reach past it. Babylon's
         // default 10000 clips a layout that settles tens of thousands of units deep.
@@ -179,6 +178,6 @@ export class TwoDCameraController {
         this.camera.position.z = min.z - Math.max(10, depth);
         this.camera.maxZ = Math.max(10000, depth + Math.abs(this.camera.position.z) * 2);
 
-        this.updateOrtho(orthoSize * 1.1); // Small padding for visual comfort
+        this.updateOrtho(orthoSize);
     }
 }

@@ -2,7 +2,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { makeLayer } from "../../../../test/layerFixture";
-import { fireEvent, render, screen, within } from "../../../../test/test-utils";
+import { fireEvent, mouseDrag, render, screen, within } from "../../../../test/test-utils";
 import { readLayerRowFacts } from "../layerRowFacts";
 import { BASE_LAYER_DELETE_REASON, BASE_LAYER_HIDE_REASON, type LayerItem, StyleLayerList } from "../StyleLayerList";
 
@@ -23,19 +23,14 @@ const row = (name: string): HTMLElement => screen.getByRole("treeitem", { name }
 const names = (layers: LayerItem[]): string[] => layers.map((layer) => layer.name);
 
 /**
- * Drag one row onto the top or bottom quarter of another with the HTML5 drag events the
- * Tree listens for.
+ * Drag one row with the mouse onto the top or bottom tenth of another.
  * @param from - the name of the row to drag.
  * @param to - the name of the row to drop on.
  * @param edge - drop above or below the target row's middle.
  */
 function drag(from: string, to: string, edge: "above" | "below"): void {
-    const dataTransfer = new DataTransfer();
     const box = row(to).getBoundingClientRect();
-    const clientY = box.top + box.height * (edge === "above" ? 0.1 : 0.9);
-    fireEvent.dragStart(row(from), { dataTransfer });
-    fireEvent.dragOver(row(to), { dataTransfer, clientY });
-    fireEvent.drop(row(to), { dataTransfer, clientY });
+    mouseDrag(row(from), box.left + box.width / 2, box.top + box.height * (edge === "above" ? 0.1 : 0.9));
 }
 
 describe("StyleLayerList", () => {

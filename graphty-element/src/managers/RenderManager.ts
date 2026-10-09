@@ -14,6 +14,7 @@ import {
     WebGPUEngine,
 } from "@babylonjs/core";
 
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE } from "../camera/builtins";
 import { CameraManager } from "../cameras/CameraManager";
 import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import { OrbitInputController } from "../cameras/OrbitInputController";
@@ -258,11 +259,12 @@ export class RenderManager implements Manager {
     /**
      * Stands in for Babylon's own pointer handling, which calls preventDefault and then
      * `canvas.focus()` on every pointer down and up. That focus call scrolls the host page to the
-     * canvas. This one does the same thing without scrolling.
-     * @param evt - The pointer down or up event on the canvas
+     * canvas; this one focuses without scrolling. It does not cancel the event: a canceled
+     * pointerdown suppresses the browser's mousedown and mouseup, so a host page's popover or menu
+     * that closes on a mouse press outside it never saw a press on the drawing. The canvas's
+     * `user-select: none` keeps a drag from selecting page text instead.
      */
-    private focusOnPointer = (evt: PointerEvent): void => {
-        evt.preventDefault();
+    private focusOnPointer = (): void => {
         this.canvas.focus({ preventScroll: true });
     };
 
@@ -320,6 +322,11 @@ export class RenderManager implements Manager {
         // Setup lighting with ground color for fill from below
         const light = new HemisphericLight("light", new Vector3(1, 1, 0), this.scene);
         light.groundColor = new Color3(0.35, 0.35, 0.35);
+        // Matte: no specular anywhere, and the full-facing diffuse (0.8) plus the node material's
+        // 0.2 emissive floor tops out at exactly the style color, so a pale color never clamps to
+        // white and a lit face always reads as the color it was styled.
+        light.specular = Color3.Black();
+        light.intensity = 0.8;
 
         // Set background color
         const backgroundColor = this.config.backgroundColor ?? DEFAULT_BACKGROUND_COLOR;
@@ -612,7 +619,7 @@ export class RenderManager implements Manager {
             touchPanScale: 1,
             touchPinchMin: 0.1,
             touchPinchMax: 100,
-            initialOrthoSize: 5,
+            initialOrthoSize: FLAT_HALF_WIDTH_AT_ZOOM_ONE,
             rotationEnabled: true,
             inertiaEnabled: true,
         });
@@ -632,7 +639,7 @@ export class RenderManager implements Manager {
             touchPanScale: 1,
             touchPinchMin: 0.1,
             touchPinchMax: 100,
-            initialOrthoSize: 5,
+            initialOrthoSize: FLAT_HALF_WIDTH_AT_ZOOM_ONE,
             rotationEnabled: true,
             inertiaEnabled: true,
         });

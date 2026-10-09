@@ -111,6 +111,10 @@ export const States: Story = {
                 ],
                 ["panel, text", <SegmentedControl data={["Basic", "Dynamic", "Brush"]} />],
                 [
+                    "panel, text, unequal",
+                    <SegmentedControl size="xs" data={["Add", "Leave out"]} defaultValue="Leave out" />,
+                ],
+                [
                     "panel, focus",
                     <div data-story-focus>
                         <SegmentedControl w={88} data={ALIGN} defaultValue="center" />

@@ -71,6 +71,24 @@ async function renderTree(
 
 const row = (name: string): HTMLElement => screen.getByRole("treeitem", { name });
 
+/**
+ * Press a row with the mouse and move it (past the 4px start) to a point, without releasing.
+ * @param source - the row pressed
+ * @param x - client x to move to
+ * @param y - client y to move to
+ */
+function pressAndMove(source: HTMLElement, x: number, y: number): void {
+    const start = source.getBoundingClientRect();
+    const send = (type: string, px: number, py: number): void => {
+        source.dispatchEvent(
+            new PointerEvent(type, { bubbles: true, clientX: px, clientY: py, pointerId: 3, pointerType: "mouse" }),
+        );
+    };
+    send("pointerdown", start.left + 50, start.top + 16);
+    send("pointermove", start.left + 50, start.top + 24);
+    send("pointermove", x, y);
+}
+
 describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
     it("top-level row: 32 x 240, glyph at x 16, name at x 40, 11/32 600, primary glyph", async () => {
         await renderTree({});
@@ -192,8 +210,11 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         );
     });
 
-    it("selected parent: pill with a 4px #f2f9ff band below; its descendants banded; hover on a child #bde3ff", async () => {
-        // ii/layer-row-parent-selected.pseudo.json and cr/light-layer-row-parent-selected.pseudo.json
+    it("selected parent: pill with a 4px #f2f9ff band below; its descendants banded; hover on a child #e5f4ff", async () => {
+        // ii/layer-row-parent-selected.pseudo.json and cr/light-layer-row-parent-selected.pseudo.json.
+        // Departs from Figma on purpose: Figma fills the selected parent #e5f4ff, within 1.05:1 of
+        // its children's band, so the selected row could not be told from them. The parent takes
+        // the stronger #bde3ff and a hovered child the plain selected #e5f4ff.
         await renderTree({ defaultSelected: ["frame"] });
         const parent = row("cross-area-index");
         expectMeasured(
@@ -201,7 +222,7 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
             {
                 top: 4,
                 blockSize: "24px",
-                backgroundColor: "#e5f4ff",
+                backgroundColor: "#bde3ff",
                 borderBottomWidth: "4px",
                 borderBottomColor: "#f2f9ff",
                 borderRadius: "5px 5px 0px 0px",
@@ -221,7 +242,7 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
             { pseudo: "::before" },
         );
         await drive(middle, "hover");
-        expectMeasured(middle, { top: 4, blockSize: "24px", backgroundColor: "#bde3ff" }, { pseudo: "::after" });
+        expectMeasured(middle, { top: 4, blockSize: "24px", backgroundColor: "#e5f4ff" }, { pseudo: "::after" });
     });
 
     it("a run of selected rows is one block: first 4/28, middle 0/32, last 0/28", async () => {
@@ -287,7 +308,11 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         const lock = screen.getByRole("button", { name: "Lock" });
         const hide = screen.getByRole("button", { name: "Hide" });
         expectMeasured(lock, { x: figLock.box[0] - 57, y: 4, width: 24, height: 24, opacity: "1" }, { origin: a });
-        expectMeasured(hide, { x: figLock.box[0] - 57 + 20, opacity: "0" }, { origin: a });
+        // Hidden until hover on a pointer that hovers. Once any test in the run has sent a touch,
+        // Chromium answers `(hover: none)` for the rest of it, and the toggles stay visible, as on
+        // a touch screen (vitest.config.ts, touchDrag).
+        const hovers = !matchMedia("(hover: none)").matches;
+        expectMeasured(hide, { x: figLock.box[0] - 57 + 20, opacity: hovers ? "0" : "1" }, { origin: a });
         await drive(a, "hover");
         // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 150));
@@ -299,18 +324,8 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         const tree = await renderTree({ onMove: () => undefined, defaultExpanded: [] });
         const source = row("other");
         const target = row("cross-area-index");
-        const data = new DataTransfer();
-        source.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: data }));
         const box = target.getBoundingClientRect();
-        target.dispatchEvent(
-            new DragEvent("dragover", {
-                bubbles: true,
-                cancelable: true,
-                dataTransfer: data,
-                clientY: box.top + 16,
-                clientX: box.left + 50,
-            }),
-        );
+        pressAndMove(source, box.left + 50, box.top + 16);
         const drop = await within(tree).findByTestId("tree-drop-box");
         expectMeasured(drop, {
             ...figmaSpec(figBox, ["height", "borderTopWidth", "borderTopColor", "borderStyle", "borderRadius"]),
@@ -323,18 +338,8 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         const tree = await renderTree({ onMove: () => undefined });
         const source = row("other");
         const target = row("ci-inner-frame");
-        const data = new DataTransfer();
-        source.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: data }));
         const box = target.getBoundingClientRect();
-        target.dispatchEvent(
-            new DragEvent("dragover", {
-                bubbles: true,
-                cancelable: true,
-                dataTransfer: data,
-                clientY: box.top + 2,
-                clientX: box.left + 50,
-            }),
-        );
+        pressAndMove(source, box.left + 50, box.top + 2);
         const line = await within(tree).findByTestId("tree-drop-line");
         expectMeasured(
             line,
@@ -347,8 +352,9 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         );
     });
 
-    it("dark: #2c2c2c panel text white, nested glyph #ffffff66, selected #394360, band #32394d, child hover #4a5878", async () => {
-        // cr/dark-layer-row-parent-selected.pseudo.json and cr/dark-layer-row-child-of-selected-hover.pseudo.json
+    it("dark: #2c2c2c panel text white, nested glyph #ffffff66, selected parent #4a5878, band #32394d, child hover #394360", async () => {
+        // cr/dark-layer-row-parent-selected.pseudo.json and cr/dark-layer-row-child-of-selected-hover.pseudo.json.
+        // Departs from Figma on purpose: its selected parent #394360 sits within 1.2:1 of the band.
         await renderTree({ defaultSelected: ["inner"] }, "dark");
         const fig = "cr/dark-layer-row-parent-selected";
         const inner = row("ci-inner-frame");
@@ -360,11 +366,11 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
             part(row("ci-rect"), ".cm-tree-icon"),
             figmaSpec(await figmaElement(fig, { index: 93 }), ["color"]),
         );
-        expectMeasured(inner, { backgroundColor: "#394360", borderBottomColor: "#32394d" }, { pseudo: "::after" });
+        expectMeasured(inner, { backgroundColor: "#4a5878", borderBottomColor: "#32394d" }, { pseudo: "::after" });
         const text = row("ci-text");
         expectMeasured(text, { backgroundColor: "#32394d", blockSize: "28px" }, { pseudo: "::before" });
         await drive(text, "hover");
-        expectMeasured(text, { backgroundColor: "#4a5878" }, { pseudo: "::after" });
+        expectMeasured(text, { backgroundColor: "#394360" }, { pseudo: "::after" });
     });
 });
 
@@ -613,7 +619,7 @@ describe.skipIf(!(await figmaAvailable()))("DataRow, DataRowHeader and RankChip"
             { x: 16, fontSize: "11px", lineHeight: "32px", fontWeight: "450", color: "#000000e5" },
             { origin: rows[0] },
         );
-        expectMeasured(part(rows[0], ".cm-data-row-value"), { color: "#00000080" });
+        expectMeasured(part(rows[0], ".cm-data-row-value"), { color: "#0000008c" });
     });
 
     it("pill: rest none, hover #f5f5f5, selected #e5f4ff, inset 4 8 4 12, radius 5", async () => {
@@ -659,7 +665,7 @@ describe.skipIf(!(await figmaAvailable()))("DataRow, DataRowHeader and RankChip"
             fontSize: "11px",
             lineHeight: "16px",
             fontWeight: "550",
-            color: "#00000080",
+            color: "#0000008c",
         });
         expectMeasured(screen.getByTestId("data-row-header-label"), { color: "#000000e5" });
         const caret = part(screen.getByTestId("data-row-header-sort-glyph"), "svg path").getBoundingClientRect();

@@ -1,10 +1,10 @@
 import { DataRow, RampRow } from "@graphty/compact-mantine";
 import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session";
 import { ColorSwatch, Paper, Stack, Text } from "@mantine/core";
-import React from "react";
+import React, { useLayoutEffect, useRef } from "react";
 
-import { runName } from "../runWords";
-import { isSizeBlock, overflowLine, paintWords, sectionTitle, swatchName, swatchText } from "./legendWords";
+import { useWorkspace } from "../state/WorkspaceContext";
+import { isSizeBlock, keyNames, keySections, overflowLine, paintWords, swatchName, swatchText } from "./legendWords";
 
 /** Props for LegendCard. */
 interface LegendCardProps {
@@ -12,17 +12,6 @@ interface LegendCardProps {
     blocks: readonly LegendBlock[];
     /** The session, to name the row behind each block. */
     session: GraphSession;
-}
-
-/**
- * The name of the row that paints a block: its run's name, else its layer's.
- * @param session - the session.
- * @param block - the block.
- * @returns the name.
- */
-function rowName(session: GraphSession, block: LegendBlock): string {
-    const run = block.runId === undefined ? undefined : session.runs.get(block.runId);
-    return run === undefined ? (session.styles.get(block.layerId)?.name ?? block.layerId) : runName(session, run);
 }
 
 /**
@@ -58,16 +47,16 @@ function Ramp({ block, title }: Readonly<{ block: LegendBlock; title: string }>)
  * it, when the element can say.
  * @param props - Component props
  * @param props.block - the block
- * @param props.layerName - the name of the layer behind the block, for a fixed-value row
+ * @param props.entry - the entry of a fixed-value row ("On the path")
  * @returns the rows
  */
-function List({ block, layerName }: Readonly<{ block: LegendBlock; layerName?: string }>): React.JSX.Element {
+function List({ block, entry }: Readonly<{ block: LegendBlock; entry: string }>): React.JSX.Element {
     return (
         <>
             {block.swatches.map((swatch, index) => (
                 <DataRow
-                    key={`${String(index)}-${swatchText(block, swatch, layerName)}`}
-                    name={swatchName(block, swatch, layerName)}
+                    key={`${String(index)}-${swatchText(block, swatch, entry)}`}
+                    name={swatchName(block, swatch, entry)}
                     value={paintWords(swatch) ?? swatch.count}
                     icon={swatch.color === undefined ? undefined : <ColorSwatch color={swatch.color} size={12} />}
                 />
@@ -81,9 +70,76 @@ function List({ block, layerName }: Readonly<{ block: LegendBlock; layerName?: s
     );
 }
 
+/** Room left between the card and the nearest node, in CSS pixels. */
+const CARD_GAP = 12;
+
+/**
+ * Reports the card's box to the element as a view inset, on mount, on every resize of the card
+ * or the canvas, and clears it when the card goes: on the left of a tall card, above a wide one,
+ * whichever costs the canvas the smaller share. Above, the toolbar's height is kept at the bottom.
+ * A new inset moves nothing drawn; only when the card now hides a node is the graph framed again.
+ * @returns The ref to put on the card.
+ */
+function useReservedMargin(): React.RefObject<HTMLElement | null> {
+    const { store, element } = useWorkspace();
+    const ref = useRef<HTMLElement>(null);
+    useLayoutEffect(() => {
+        const card = ref.current;
+        const canvas = card?.parentElement;
+        if (!card || !canvas) {
+            return undefined;
+        }
+        const report = (): void => {
+            const left = card.offsetLeft + card.offsetWidth + CARD_GAP;
+            const top = card.offsetTop + card.offsetHeight + CARD_GAP;
+            const byLeft = left / Math.max(1, canvas.clientWidth) <= top / Math.max(1, canvas.clientHeight);
+            // Pushed down, the graph would run under the toolbar at the bottom: keep it clear too.
+            const dock = canvas.querySelector<HTMLElement>(".ws-toolbar-dock");
+            const bottom = byLeft || !dock ? undefined : canvas.clientHeight - dock.offsetTop + CARD_GAP;
+            const next = byLeft ? { left } : { top, bottom };
+            const now = store.get().viewInsets;
+            if (now.left !== next.left || now.top !== next.top || now.bottom !== next.bottom) {
+                store.set({ viewInsets: next });
+                // The drawing stays put unless the card now hides a node; then it is framed clear of
+                // the card. The fit lands on the next frame, after the new insets reach the element.
+                const box = {
+                    x: card.offsetLeft,
+                    y: card.offsetTop,
+                    width: card.offsetWidth,
+                    height: card.offsetHeight,
+                };
+                if (element?.autoFrame === true && element.nodesInRect(box).length > 0) {
+                    element.zoomToFit();
+                }
+            }
+        };
+        // A card that comes up with the graph (a project opening) waits for the element's own
+        // framing of it to land first, as a card made later does: an inset set before that framing
+        // shrinks it, so the reopened project would be framed smaller than it was saved.
+        const reportWhenFramed = (): void => {
+            if (element !== null && !element.isFrameStable) {
+                element.addEventListener("graph-frame-stable", report, { once: true });
+                return;
+            }
+            report();
+        };
+        const observer = new ResizeObserver(reportWhenFramed);
+        observer.observe(card);
+        observer.observe(canvas);
+        reportWhenFramed();
+        return () => {
+            element?.removeEventListener("graph-frame-stable", report);
+            observer.disconnect();
+            store.set({ viewInsets: {} });
+        };
+    }, [store, element]);
+    return ref;
+}
+
 /**
  * The legend card (tier1-design.md section 2.4): read-only, one section per channel a row paints
- * from the data, the row that wins on top. Each section is titled "<Property>: <row>".
+ * from the data, the row that wins on top. Each section is titled "<Property>: <row>"; a run's
+ * node and edge highlight in one color share one section titled by the run.
  *
  * Not drawn yet: the sentence saying what a higher value means and the bound size range, which
  * the element does not publish (#912); and the element's departures (`block.facts`).
@@ -93,13 +149,21 @@ function List({ block, layerName }: Readonly<{ block: LegendBlock; layerName?: s
  * @returns the card
  */
 export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): React.JSX.Element {
+    const ref = useReservedMargin();
     // The element lists the stack bottom first; the card reads top first, the winner first.
-    const ordered = [...blocks].reverse();
+    const sections = keySections(blocks, keyNames(session));
     return (
-        <Paper component="section" aria-label="Legend" className="ws-legend-card" withBorder shadow="xs" p="xs">
+        <Paper
+            ref={ref}
+            component="section"
+            aria-label="Legend"
+            className="ws-legend-card"
+            withBorder
+            shadow="xs"
+            p="xs"
+        >
             <Stack gap="xs">
-                {ordered.map((block) => {
-                    const title = sectionTitle(block, rowName(session, block));
+                {sections.map(({ title, block, entry }) => {
                     const continuous = block.kind === "sequential" || block.kind === "diverging";
                     return (
                         <fieldset
@@ -110,11 +174,7 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
                             <Text size="xs" fw={500}>
                                 {title}
                             </Text>
-                            {continuous ? (
-                                <Ramp block={block} title={title} />
-                            ) : (
-                                <List block={block} layerName={session.styles.get(block.layerId)?.name} />
-                            )}
+                            {continuous ? <Ramp block={block} title={title} /> : <List block={block} entry={entry} />}
                         </fieldset>
                     );
                 })}

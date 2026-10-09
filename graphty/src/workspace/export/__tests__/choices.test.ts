@@ -25,6 +25,7 @@ describe("the Export dialog's choices", () => {
             format: "png",
             multiplier: 2,
             transparentBackground: false,
+            showSelection: false,
             destination: { download: true },
             downloadFilename: "a_b.png",
         });
@@ -37,6 +38,10 @@ describe("the Export dialog's choices", () => {
         assert.equal(thumbnail.quality, 0.85);
         assert.isUndefined(thumbnail.multiplier);
         assert.deepEqual(thumbnail.camera, { preset: "topView" });
+        assert.deepEqual(screenshotOptions({ ...DEFAULT_IMAGE, view: "fitToGraph" }, { blob: true }).camera, {
+            preset: "fitToGraph",
+            params: { keepAngle: true },
+        });
         assert.isTrue(screenshotOptions({ ...DEFAULT_IMAGE, size: "4x" }, { blob: true }).enhanceQuality);
     });
 

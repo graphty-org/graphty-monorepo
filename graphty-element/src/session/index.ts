@@ -10,6 +10,8 @@
  * enforces it.
  */
 
+export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
+export { browserProjects } from "./browserProjects";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./layout";
@@ -33,6 +35,7 @@ export type {
     DraftRowFilter,
     DraftRowOptions,
     DraftTable,
+    EdgeEnd,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
@@ -53,8 +56,11 @@ export type {
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    LeftOutEdge,
     LoadChoices,
     LoadDraft,
+    LoadedSource,
+    LoadedWeight,
     LoadMapping,
     LoadMappingRead,
     Neighbor,

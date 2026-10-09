@@ -1,6 +1,7 @@
 import React, { forwardRef } from "react";
 
 import { useCompactStyles } from "../../theme/useCompactStyles";
+import { EllipsizedName } from "../rows/EllipsizedName";
 
 /**
  * Props for the ResultRow component.
@@ -43,7 +44,8 @@ function highlight(name: string, match: string | undefined): React.ReactNode {
 /**
  * A find result (design/figma-spec.md 10.4): 240 x 52 with a path line, 34 without, padding
  * 8 8 8 16, a 16px glyph, the name at 11/16 with the match at 600 and the path at 10/16 in the
- * secondary color. The current result is blue; hover is gray.
+ * secondary color. The current result is blue; hover is gray. A long name or path ends in "..."
+ * and shows whole in a tooltip on hover.
  *
  * It is an `option`: put the rows in an element with `role="listbox"` and drive them from the
  * search field with `aria-activedescendant` (give each row an `id`), so focus stays in the
@@ -76,10 +78,13 @@ export const ResultRow = forwardRef<HTMLDivElement, ResultRowProps>(function Res
                 {icon}
             </span>
             <span className="cm-result-text">
-                <span className="cm-result-name" title={name}>
-                    {highlight(name, match)}
-                </span>
-                {path !== undefined && path !== null && <span className="cm-result-path">{path}</span>}
+                {/* A name or path cut short ends in "..."; resting on the row shows both whole. */}
+                <EllipsizedName name={highlight(name, match)} className="cm-result-name" detail={path} />
+                {path !== undefined && path !== null && (
+                    <span className="cm-result-path" data-row-detail="">
+                        {path}
+                    </span>
+                )}
             </span>
         </div>
     );

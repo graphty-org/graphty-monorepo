@@ -263,7 +263,7 @@ describe("ControlSubGroup", () => {
     });
 
     describe("accessibility", () => {
-        it("follows the accordion pattern: an expanded button pointing at a named region", () => {
+        it("follows the accordion pattern: an expanded button pointing at its content, the only thing of that name", () => {
             renderSubGroup(
                 <ControlSubGroup label="Text effects" defaultOpened>
                     <div>Outline</div>
@@ -275,8 +275,10 @@ describe("ControlSubGroup", () => {
 
             expect(control).toHaveAttribute("aria-expanded", "true");
             expect(control).toHaveAttribute("aria-controls", panel.id);
-            expect(panel).toHaveAttribute("role", "region");
-            expect(panel).toHaveAttribute("aria-labelledby", control.id);
+            // The content takes no name of its own, so "Text effects" finds one control.
+            expect(panel).not.toHaveAttribute("role");
+            expect(panel).not.toHaveAttribute("aria-labelledby");
+            expect(screen.queryAllByLabelText(/Text effects/)).toHaveLength(1);
         });
 
         it("names the header with the verb in front of the sub-group's own name", () => {

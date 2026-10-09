@@ -13,7 +13,15 @@
  * Nothing here reaches Babylon.js, Lit or the DOM: the session entry point reaches it.
  */
 
-import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId, SetDefinitionInput } from "../catalog/types";
+import {
+    type EdgeId,
+    type FieldDescriptor,
+    type NodeId,
+    PROJECT_FILE,
+    type ResultShape,
+    type RunId,
+    type SetDefinitionInput,
+} from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
@@ -24,6 +32,7 @@ import type {
     DataSourceInput,
     GraphSession,
     LoadDraft,
+    LoadedSource,
     ProjectConfigPatch,
     ProjectSlice,
     TransactionScope,
@@ -183,7 +192,10 @@ export interface ProjectApi {
     readonly name: string | null;
     /**
      * Whether anything the file saves has changed since the last save or open. Undoing back to
-     * that point makes it false again. The selection and the extensions never set it.
+     * that point makes it false again. The selection and the extensions never set it. The first
+     * `data.import` into a new session -- one with no history that was never saved or opened --
+     * is the starting point, so a graph read from a file or a sample is not an unsaved change;
+     * undoing that import sets it. Any later import sets it, like any other change.
      */
     readonly dirty: boolean;
     /**
@@ -492,6 +504,7 @@ function write(
     const { layout, visibility, selection } = session;
     // Where the graph was loaded from, and what the reader named it: not the rows, which are above.
     const source = session.data.source();
+    const sources = session.data.sources();
     const leaveOut = new Set<string>(options.leaveOut ?? []);
     const members: Record<string, unknown>[] = [
         {
@@ -509,13 +522,20 @@ function write(
                 links: edges.map(({ id: _id, ...edge }) => edge),
             },
             ...(source === null ? {} : { source }),
+            ...(sources.length === 0 ? {} : { sources }),
         },
         {
             kind: "graphty-session",
             version: VERSION,
             config: configOf(session),
             layout: { id: layout.id, engine: layout.engine, options: layout.options, dimension: layout.dimension },
-            visibility: { filter: visibility.filter, window: visibility.window, showContext: visibility.showContext },
+            visibility: {
+                filter: visibility.filter,
+                window: visibility.window,
+                showContext: visibility.showContext,
+                // Written only when there are steps, so a project without them saves as before.
+                ...(visibility.steps.length === 0 ? {} : { steps: visibility.steps }),
+            },
             sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
             views: [...session.views].map(([name, camera]) => ({ name, camera })),
         },
@@ -861,6 +881,10 @@ async function clearInto(tx: TransactionScope): Promise<void> {
         await tx.visibility.setWindow(null);
     }
 
+    if (tx.visibility.steps.length > 0) {
+        await tx.visibility.setSteps([]);
+    }
+
     await tx.data.clear();
 }
 
@@ -869,9 +893,15 @@ async function clearInto(tx: TransactionScope): Promise<void> {
  * @param tx - The transaction.
  * @param graph - The graph.
  * @param source - The member's `source`: where the graph was loaded from, when the file says.
+ * @param sources - The member's `sources`: every load the graph held, when the file says.
  * @returns The edge ids this session gave the file's edges, by position.
  */
-async function importInto(tx: TransactionScope, graph: NodeLink, source: unknown): Promise<(EdgeId | undefined)[]> {
+async function importInto(
+    tx: TransactionScope,
+    graph: NodeLink,
+    source: unknown,
+    sources: unknown,
+): Promise<(EdgeId | undefined)[]> {
     const before = tx.data.edges().length;
     await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: graph.nodes, idPath: "id" } });
     await tx.execute({
@@ -885,13 +915,53 @@ async function importInto(tx: TransactionScope, graph: NodeLink, source: unknown
         },
     });
     if (isObject(source)) {
-        await tx.execute({ op: "data.setSource", source });
+        // A list with an entry not shaped like a load is left out whole, as an older file has none.
+        const loads = Array.isArray(sources) && sources.every(isLoadedSource) ? sources : undefined;
+        await tx.execute({ op: "data.setSource", source, ...(loads === undefined ? {} : { sources: loads }) });
     }
 
     return tx.data
         .edges()
         .slice(before)
         .map((edge) => edge.id);
+}
+
+/**
+ * Whether a saved value is shaped like one entry of `data.sources()`.
+ * @param value - The saved value.
+ * @returns True when it is.
+ */
+function isLoadedSource(value: unknown): value is LoadedSource {
+    if (!isObject(value) || !Array.isArray(value.tables) || !isObject(value.added)) {
+        return false;
+    }
+
+    const { leftOut, tableRows } = value;
+    return (
+        (tableRows === undefined ||
+            (Array.isArray(tableRows) && tableRows.every((rows) => rows === "nodes" || rows === "edges"))) &&
+        typeof value.added.nodes === "number" &&
+        typeof value.added.edges === "number" &&
+        (leftOut === undefined ||
+            (isObject(leftOut) &&
+                typeof leftOut.rows === "number" &&
+                typeof leftOut.values === "number" &&
+                (leftOut.endColumns === undefined ||
+                    (isObject(leftOut.endColumns) &&
+                        typeof leftOut.endColumns.source === "string" &&
+                        typeof leftOut.endColumns.target === "string")) &&
+                (leftOut.edges === undefined ||
+                    (Array.isArray(leftOut.edges) &&
+                        leftOut.edges.every(
+                            (edge) =>
+                                isObject(edge) &&
+                                isObject(edge.values) &&
+                                (edge.line === undefined || typeof edge.line === "number") &&
+                                (edge.missingEnds === undefined ||
+                                    (Array.isArray(edge.missingEnds) &&
+                                        edge.missingEnds.every((end) => end === "source" || end === "target"))),
+                        )))))
+    );
 }
 
 /** What one open is doing. */
@@ -978,14 +1048,14 @@ async function readProject(
     name: string | null,
     canned: CannedOutcomes,
 ): Promise<void> {
-    const source = doc.members.get("graphty-data")?.[0]?.source;
+    const { source, sources } = doc.members.get("graphty-data")?.[0] ?? {};
     const { tx, problems } = opening;
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
 
     await clearInto(tx);
     await attempt(opening, "config", () => tx.config.set({ ...(isObject(state.config) ? state.config : {}), name }));
-    const edgeIds = await importInto(tx, graph, source);
+    const edgeIds = await importInto(tx, graph, source, sources);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
 
@@ -1067,31 +1137,27 @@ async function readProject(
 
                 // A file written before caveats carried facts has none to read back.
                 const caveats: Caveats = { facts: [], ...run.caveats };
-
-                canned.set(run.id, {
-                    result: createRunResult({
-                        runId: run.id,
-                        shape: run.shape,
-                        fields: run.fields,
-                        measured: run.measured,
-                        graph: run.graph,
-                        nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) =>
-                            nodeIds.has(node) ? node : undefined,
-                        ),
-                        // Edges are keyed by position in the data; data that differs leaves them out.
-                        edges: sameData
-                            ? rowsOf(
-                                  edgeIds.map((_, at) => at),
-                                  run.edges.columns,
-                                  (at) => edgeIds[at],
-                              )
-                            : [],
-                        caveats,
-                        durationMs: run.durationMs,
-                    }),
-                    caveats,
+                const result = createRunResult({
+                    runId: run.id,
+                    shape: run.shape,
                     fields: run.fields,
+                    measured: run.measured,
+                    graph: run.graph,
+                    nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
+                    // Edges are keyed by position in the data; data that differs leaves them out.
+                    edges: sameData
+                        ? rowsOf(
+                              edgeIds.map((_, at) => at),
+                              run.edges.columns,
+                              (at) => edgeIds[at],
+                          )
+                        : [],
+                    caveats,
+                    durationMs: run.durationMs,
                 });
+                // The summary too, as a fresh execution hands it over: the run's record (its count,
+                // its groups) is read from it.
+                canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
                 const { algorithm, params, scope, seed, sample, exact } = remap(run);
                 try {
                     await tx.runs.start(algorithm, params, {
@@ -1131,6 +1197,15 @@ async function readProject(
 
             if (visibility.window !== null && visibility.window !== undefined) {
                 await tx.visibility.setWindow(visibility.window as never);
+            }
+
+            if (Array.isArray(visibility.steps) && visibility.steps.length > 0) {
+                await tx.visibility.setSteps(
+                    // A malformed step is passed on as it is, for setSteps to refuse with its reason.
+                    (visibility.steps as ({ rule?: unknown } | null)[]).map((step) =>
+                        typeof step === "object" && step !== null ? { ...step, rule: remap(step.rule) } : step,
+                    ) as never,
+                );
             }
 
             tx.visibility.showContext = visibility.showContext === true;
@@ -1196,23 +1271,7 @@ function rowsOf<Key, Id extends NodeId>(
     return out;
 }
 
-/**
- * How a project file is named and typed: what `element.downloadProject()` gives the file, and
- * what to hand a save picker (`showSaveFilePicker`'s `suggestedName` and `accept`) or a server.
- * @example
- * ```typescript
- * const handle = await showSaveFilePicker({
- *     suggestedName: projectFileName(session.project.name),
- *     types: [{ accept: { [PROJECT_FILE.mediaType]: [PROJECT_FILE.extension] } }],
- * });
- * ```
- */
-export const PROJECT_FILE = Object.freeze({
-    /** The file name's ending, with its leading dot. */
-    extension: ".graphty.json",
-    /** The file's media type. */
-    mediaType: "application/vnd.graphty+json",
-} as const);
+export { PROJECT_FILE };
 
 /**
  * The file name the element gives a project: `<name>.graphty.json`, or `project.graphty.json`
@@ -1289,7 +1348,40 @@ export function projectOf(
         tell();
     };
 
+    // Until the project is saved, opened or changed, the step holding its first `data.import`
+    // (alone, or in a transaction with what the load sets up) is its baseline: a graph read from a
+    // sample or a file is not an unsaved change. Undoing past it is.
+    let fresh = true;
+    const isFirstImport = (): boolean => {
+        const { steps, position } = session.history;
+        return (
+            fresh &&
+            steps.length === 1 &&
+            position === 1 &&
+            steps[0].ops.includes("data.import") &&
+            (point.step === null || point.step === steps[0].id) &&
+            !point.lost &&
+            waiting.size === 0
+        );
+    };
+
     session.on("history:changed", ({ reason }) => {
+        if (reason === "pending" && fresh) {
+            // Still loading: the step it records decides.
+            return;
+        }
+
+        if ((reason === "record" || reason === "merge") && isFirstImport()) {
+            point = pointNow();
+            top = topNow();
+            tell();
+            return;
+        }
+
+        if (reason !== "size") {
+            fresh = false;
+        }
+
         for (const each of [point, ...waiting.values()]) {
             if (reason === "merge" && topNow() === each.step) {
                 each.lost = true;
@@ -1326,6 +1418,7 @@ export function projectOf(
                     leftOut,
                 }),
             });
+            fresh = false;
             if (options.markSaved === false) {
                 const waited = pointNow();
                 waiting.add(waited);
@@ -1394,16 +1487,18 @@ export function projectOf(
                 );
                 // A project opens with a fresh history: its opened state is the baseline.
                 session.history.clear();
+                fresh = false;
                 adopt(pointNow());
             } else {
                 const data = doc.members.get("graphty-data")?.[0];
                 const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
+                fresh = false;
                 await session.transaction(
                     "Open document",
                     async (tx) => {
                         const opening = { tx, problems, restored };
                         if (graph !== undefined) {
-                            await importInto(tx, graph, data?.source);
+                            await importInto(tx, graph, data?.source, data?.sources);
                             restored.add("graph");
                         }
 

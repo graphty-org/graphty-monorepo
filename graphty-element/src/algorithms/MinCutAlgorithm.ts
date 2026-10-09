@@ -95,6 +95,8 @@ interface MinCutOptions extends Record<string, unknown> {
 export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
     static namespace = "graphty";
     static type = "min-cut";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "strength" as const;
     /** Cuts the run's scope: the node and edge lists and the graph all come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 
@@ -269,7 +271,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
             caveats: declaredCaveats({
                 method,
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "strength" },
+                ...this.weightCaveats(),
                 precision,
                 exact: method !== "karger",
                 iterations: method === "karger" ? kargerIterations : undefined,

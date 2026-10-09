@@ -2,7 +2,7 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import { Workspace } from "../Workspace";
 
@@ -109,7 +109,7 @@ export const AnalyzeFiltered: Story = {
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
         await press(canvasElement, "Analyze");
-        await userEvent.type(await body().findByRole("searchbox", { name: "Filter analyses" }), "brokers");
+        await userEvent.type(await body().findByRole("combobox", { name: "Filter analyses" }), "brokers");
     },
 };
 
@@ -119,7 +119,7 @@ export const AnalyzeEssentials: Story = {
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
         await press(canvasElement, "Analyze");
-        await userEvent.click(await body().findByRole("button", { name: /^PageRank/ }));
+        await userEvent.click(await body().findByRole("option", { name: /^PageRank/ }));
     },
 };
 
@@ -131,8 +131,8 @@ export const AnalyzeRevise: Story = {
         await element.session.runs.start("pagerank");
         await element.waitForStableFrame();
         await press(canvasElement, "Analyze");
-        const recent = await body().findByRole("region", { name: "Recent" });
-        await userEvent.click(within(recent).getByRole("button", { name: /^PageRank/ }));
+        const recent = await body().findByRole("group", { name: "Recent" });
+        await userEvent.click(within(recent).getByRole("option", { name: /^PageRank/ }));
     },
 };
 
@@ -142,7 +142,7 @@ export const AfterLouvain: Story = {
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await press(canvasElement, "Analyze");
-        await userEvent.click(await body().findByRole("button", { name: /^Louvain/ }));
+        await userEvent.click(await body().findByRole("option", { name: /^Louvain/ }));
         await userEvent.click(await body().findByRole("button", { name: "Run" }));
         await Promise.all(element.session.runs.list());
         await element.waitForStableFrame();
@@ -191,12 +191,13 @@ export const QuickActions: Story = {
     },
 };
 
-/** One node selected: the selection bar with Neighborhood above the toolbar (`#/selection-bar/one-node`). */
-export const SelectionBar: Story = {
+/** One node selected: the toolbar is unchanged and nothing sits above it (`#/selection-bar/one-node`). */
+export const OneNodeSelected: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await element.session.selection.apply({ nodes: ["n0"] });
         await element.waitForStableFrame();
+        await expect(within(canvasElement).queryByRole("toolbar", { name: "Selection" })).toBeNull();
     },
 };

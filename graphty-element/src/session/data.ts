@@ -42,6 +42,7 @@ import {
     declarationKey,
     type ImportSource,
     SOURCE_VALUE,
+    SOURCES_VALUE,
 } from "./commands/data";
 import { Draft, readSource } from "./draft";
 import type { Dispatcher } from "./project/Dispatcher";
@@ -79,6 +80,8 @@ import type {
     FindResult,
     GraphStatistics,
     LoadChoices,
+    LoadedSource,
+    LoadedWeight,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -114,7 +117,7 @@ interface DataWrites {
     /** Dispatch `data.declare`. */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<unknown>;
     /** Dispatch `data.setSource`. */
-    setSource(source: DataSourceDescriptor): Promise<unknown>;
+    setSource(source: DataSourceDescriptor, sources?: readonly LoadedSource[]): Promise<unknown>;
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
     declarations(): ReadonlyMap<string, MeasurementDeclaration>;
     /** Publish a progress change as the session's `progress:changed`. */
@@ -505,6 +508,8 @@ export class SessionData implements SessionDataApi {
 
     /**
      * Load a file, a URL or inline text through a registered data source, as one undoable step.
+     * The first import into a new session (no history, never saved or opened) leaves
+     * `project.dirty` false: it is where the project starts. Every other import sets it.
      * @param source - The data source's name and its options.
      * @param options - Whether to replace the graph (the default) or add to it.
      * @returns Settles once the last chunk is in the graph; rejects, recording nothing, when the
@@ -541,7 +546,21 @@ export class SessionData implements SessionDataApi {
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
         const resolved = resolveImportSource(source);
-        await send(command(resolved instanceof Promise ? await resolved : resolved));
+        const step = command(resolved instanceof Promise ? await resolved : resolved);
+        // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
+        // ponytail: only this door and the draft reset it; another replace route keeps the old one.
+        const resets = step.mode !== "merge" && this.readConfig().knownFields.edgeWeightMeaning !== null;
+        await send(
+            resets
+                ? {
+                      op: "batch",
+                      steps: [
+                          { op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } },
+                          step,
+                      ],
+                  }
+                : step,
+        );
     }
 
     /**
@@ -995,7 +1014,13 @@ export class SessionData implements SessionDataApi {
 
         const scope = options.scope === undefined ? null : this.pages.resolve(options.scope);
         const revision = this.pages.revision();
-        const found = this.pages.search(text, { offset, limit, kinds: new Set(kinds), scope });
+        const found = this.pages.search(text, {
+            offset,
+            limit,
+            kinds: new Set(kinds),
+            scope,
+            edgeNameJoiner: options.edgeNameJoiner,
+        });
         return { ...found, offset, revision: String(revision) };
     }
 
@@ -1206,6 +1231,16 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Every load still in the graph, oldest first, as the `graph` slice keeps them.
+     * @returns the loads, or an empty list when no import loaded the graph
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    sources(): readonly LoadedSource[] {
+        this.requireLive("sources");
+        return (this.writes.slice().values.get(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [];
+    }
+
+    /**
      * Give the loaded source a new name, as one undoable step.
      * @param name - the new name
      * @returns settles once the step is recorded
@@ -1232,7 +1267,12 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        await this.writes.setSource({ ...current, name });
+        // The last load is the one `source()` describes, so it takes the new name too.
+        const sources = this.sources();
+        await this.writes.setSource(
+            { ...current, name },
+            sources.length === 0 ? undefined : [...sources.slice(0, -1), { ...sources[sources.length - 1], name }],
+        );
     }
 
     /**
@@ -1244,6 +1284,18 @@ export class SessionData implements SessionDataApi {
         this.requireLive("lastImport");
         const recorded = this.writes.slice().values.get("importReport") as LoadReport | undefined;
         return recorded ?? this.graphStore.lastImport ?? null;
+    }
+
+    /**
+     * The weight the graph was loaded with, and the meaning chosen for it at load.
+     * @returns the weight, or null when the last load read none
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    loadedWeight(): LoadedWeight | null {
+        const attribute = this.lastImport()?.weights.attribute ?? null;
+        return attribute === null
+            ? null
+            : Object.freeze({ attribute, meaning: this.readConfig().knownFields.edgeWeightMeaning });
     }
 
     /**

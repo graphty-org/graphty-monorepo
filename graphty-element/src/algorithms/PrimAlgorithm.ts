@@ -58,6 +58,8 @@ interface PrimOptions extends Record<string, unknown> {
 export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
     static namespace = "graphty";
     static type = "prim";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "distance" as const;
     /** Spans the run's scope: the edge list and the graph both come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 
@@ -140,7 +142,7 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
             caveats: declaredCaveats({
                 method: "prim",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "distance" },
+                ...this.weightCaveats(),
                 precision,
                 facts: [caveat("tree.edge-count", { edges: tree.edges.length })],
             }),

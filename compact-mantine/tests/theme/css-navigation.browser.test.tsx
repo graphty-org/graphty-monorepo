@@ -5,7 +5,7 @@
  * After the refactor, all components default to compact styling via defaultProps.
  * Covers: Anchor, Burger, NavLink, Pagination, Stepper, Tabs
  */
-import { Anchor, Burger, MantineProvider, NavLink, Pagination, Stepper, Tabs } from "@mantine/core";
+import { Anchor, Burger, MantineProvider, NavLink, Pagination, Stepper, Tabs, Text } from "@mantine/core";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -41,6 +41,23 @@ describe("Anchor - All CSS Values (Browser)", () => {
                 expect(style?.fontSize).toBe("11px");
             });
         });
+    });
+
+    it("an xs link is the size of the xs caption around it, with the caption's weight", () => {
+        const { container } = renderWithTheme(
+            <Text size="xs">
+                1 unmatched row{" "}
+                <Anchor component="button" size="xs">
+                    Show all rows
+                </Anchor>
+            </Text>,
+        );
+        const caption = getComputedStyle(container.querySelector(".mantine-Text-root:not(.mantine-Anchor-root)")!);
+        const link = getComputedStyle(container.querySelector(".mantine-Anchor-root")!);
+        expect(link.fontSize).toBe("9px");
+        expect(link.fontSize).toBe(caption.fontSize);
+        expect(link.lineHeight).toBe(caption.lineHeight);
+        expect(link.fontWeight).toBe(caption.fontWeight);
     });
 });
 

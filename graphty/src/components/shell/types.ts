@@ -399,11 +399,16 @@ export interface CanvasRegionProps {
 /* Region props: canvas toolbar (build spec 01 sections 3, 4, 6)               */
 /* -------------------------------------------------------------------------- */
 
+/** The canvas's dimension, the half of the 2D / 3D segmented control a reader can pick. */
+export type CanvasDimension = "2d" | "3d";
+
 /**
- * The canvas's view mode. The 2D / 3D segmented control is always visible on the
- * toolbar, which is why there is no 3D chip in the status bar (spec 02 section 4.2).
+ * The canvas's view mode as the segmented control draws it: a dimension, or the immersive
+ * session the element is presenting, which the 3D half names while it lasts. The control is
+ * always visible on the toolbar, which is why there is no 3D chip in the status bar (spec 02
+ * section 4.2).
  */
-export type CanvasViewMode = "2d" | "3d";
+export type CanvasViewMode = CanvasDimension | "vr" | "ar";
 
 /**
  * Props of the bottom-centre canvas toolbar. Nothing in the bar appears or disappears
@@ -414,7 +419,7 @@ export interface CanvasToolbarProps {
     /** The current view mode, drawn on the segmented control. */
     readonly viewMode: CanvasViewMode;
     /** Segmented control change. */
-    readonly onViewModeChange: (mode: CanvasViewMode) => void;
+    readonly onViewModeChange: (mode: CanvasDimension) => void;
     /**
      * Whether Zoom to selection is enabled. The item is permanently drawn and merely
      * disables, with the title "Zoom to selection (F). Select something first".

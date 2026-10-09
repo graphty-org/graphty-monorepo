@@ -82,6 +82,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "algo.run": "run",
     "algo.legacy": "run",
     "algo.remove": "run",
+    "algo.move": "run",
     // Never journaled itself: each member of a batch writes its own entry.
     batch: "data",
     "config.set": "config",
@@ -115,6 +116,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "view.save": "view",
     "visibility.context": "filter",
     "visibility.set": "filter",
+    "visibility.steps": "filter",
     "visibility.window": "window",
 };
 

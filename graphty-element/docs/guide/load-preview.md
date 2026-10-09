@@ -224,8 +224,8 @@ after the load, so the numbers before and after cannot disagree. Beside the impo
   edges to nodes the file never declared, and the nodes they would have created. Call `report()`
   again with them; if nothing fits, `dispose()` the draft.
 - `errors`: every problem the load met, as `{ code, params, line?, field? }` entries with no
-  words in them -- a GraphML or GEXF file that breaks off (`"parse-error"`, with the `line`), a
-  row the format's reader could not use, and each rejected row (`"refused-row"`). Empty for a
+  words in them -- a row the format's reader could not use (with its `line`), and each rejected
+  row (`"refused-row"`). A file that breaks off is refused with `E_PARSE_FAILED` instead. Empty for a
   clean file. See [Reading the errors of a load](./data-sources#reading-the-errors-of-a-load).
 
 `draft.rows(id, { offset, limit, only, choices })` pages through a table as

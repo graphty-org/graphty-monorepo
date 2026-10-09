@@ -1556,6 +1556,62 @@ export const DepthFade: Story = {
     },
 };
 
+/**
+ * Two large spheres, each in front of a small node whose label hangs behind it. The default
+ * (left) sorts the label by depth, so the nearer sphere hides it; `onTop` (right) draws it over
+ * the whole graph, so it stays whole.
+ */
+const BEHIND_SPHERES = [
+    { id: "front left", position: { x: -6, y: 0, z: -8 } },
+    { id: "behind left", position: { x: -6, y: -1, z: 4 } },
+    { id: "front right", position: { x: 6, y: 0, z: -8 } },
+    { id: "behind right", position: { x: 6, y: -1, z: 4 } },
+];
+
+export const OnTop: Story = {
+    args: {
+        dataSource: "",
+        nodeData: BEHIND_SPHERES,
+        edgeData: [],
+        layout: "fixed",
+        layoutConfig: { dim: 3 },
+        setup: storySetup({
+            layers: [
+                {
+                    name: "big front spheres",
+                    selector: { match: "ids", nodes: ["front left", "front right"] },
+                    set: { "node.size": 4 },
+                },
+                {
+                    name: "depth sorted label",
+                    selector: { match: "ids", nodes: ["behind left"] },
+                    set: { "node.label": "Hidden", "node.labelStyle": { sizePx: 64 } },
+                },
+                {
+                    name: "label on top",
+                    selector: { match: "ids", nodes: ["behind right"] },
+                    set: { "node.label": "On top", "node.labelStyle": { sizePx: 64, onTop: true } },
+                },
+            ],
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await loaded(canvasElement, "OnTop", { nodes: BEHIND_SPHERES.length, edges: 0 });
+        const groupOf = (id: string): number | undefined => scene.graph.getNode(id)?.label?.labelMesh?.renderingGroupId;
+
+        await holds(
+            groupOf("behind left") === 0,
+            `Styles/Label OnTop: the default label should sort by depth (group 0), got ${String(groupOf("behind left"))}`,
+        );
+        await holds(
+            groupOf("behind right") === 1,
+            `Styles/Label OnTop: the onTop label should draw over the graph (group 1), got ${String(groupOf("behind right"))}`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};
+
 export const EmojiLabels: Story = {
     args: {
         ...CAT_NETWORK,

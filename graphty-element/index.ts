@@ -318,12 +318,14 @@ export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants
 // =============================================================================
 // Screenshot exports
 // =============================================================================
+export type { ViewInsets } from "./src/camera/types";
 export { ScreenshotError, ScreenshotErrorCode } from "./src/screenshot/ScreenshotError";
 export type {
     CameraAnimationOptions,
     CameraState,
     ClipboardStatus,
     QualityEnhancementOptions,
+    ScreenshotLegendSection,
     ScreenshotOptions,
     ScreenshotResult,
 } from "./src/screenshot/types";
@@ -395,6 +397,7 @@ export type {
     Limits,
     WorkerCapability,
     XrCapability,
+    XrUnavailableReason,
 } from "./src/acceleration";
 export {
     ACCELERATION_MIN_NODES_DEFAULT,

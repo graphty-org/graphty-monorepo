@@ -211,6 +211,17 @@ export interface SelectionApi {
      */
     readonly origin: SelectionTarget | null;
     /**
+     * The paths the rule the selection was made from tests, while the selection is still exactly
+     * that rule: `["data.minutes"]` after `apply({ text: "=minutes > \`5\`" })` or
+     * `apply({ where: "minutes > \`5\`" })`, so a panel can show each selected element's value
+     * for what was tested. Empty when {@link SelectionApi.origin} is null or is not a rule.
+     *
+     * ```ts
+     * const [tested] = session.selection.originPaths; // "data.minutes"
+     * ```
+     */
+    readonly originPaths: readonly Path[];
+    /**
      * Whether one element is selected.
      *
      * One array read, and no allocation at all, so a render loop can ask once per element per
@@ -349,6 +360,12 @@ export interface SelectionSources {
      * @returns The elements found.
      */
     readonly find?: (text: string, mode: SelectionTextMode) => Iterable<SelectionSearchHit>;
+    /**
+     * The paths a predicate reads. Absent leaves `originPaths` empty.
+     * @param where - The predicate.
+     * @returns The paths.
+     */
+    readonly pathsOf?: (where: Query) => readonly Path[];
     /** What a note's targets select. Absent refuses a `note` target. */
     readonly note?: TargetContext["note"];
     /** Where the attribute bags are read. Absent leaves the attribute statistics empty. */
@@ -594,6 +611,25 @@ class Selection implements SelectionOwner {
         this.#sync();
 
         return this.#origin;
+    }
+
+    /**
+     * The paths the rule the selection was made from tests.
+     * @returns The paths, or none when the origin is not a rule.
+     */
+    get originPaths(): readonly Path[] {
+        const { origin } = this;
+        const { pathsOf } = this.#sources;
+        if (origin === null || pathsOf === undefined) {
+            return EMPTY_PATHS;
+        }
+        if ("where" in origin) {
+            return pathsOf(origin.where);
+        }
+
+        return "text" in origin && origin.mode === undefined && origin.text.startsWith("=")
+            ? pathsOf(origin.text.slice(1))
+            : EMPTY_PATHS;
     }
 
     /**

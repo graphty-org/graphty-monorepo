@@ -46,14 +46,6 @@ const pageRankOptionsSchema = defineOptions({
             advanced: true,
         },
     },
-    weight: {
-        schema: z.string().nullable().default(null),
-        meta: {
-            label: "Weight Attribute",
-            description: "Edge attribute name for weighted PageRank (empty = unweighted)",
-            advanced: true,
-        },
-    },
     useDelta: {
         schema: z.boolean().default(true),
         meta: {
@@ -117,6 +109,8 @@ function perNode(snapshot: GraphSnapshot, values: ReadonlyMap<AlgorithmNodeId, n
 export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
     static namespace = "graphty";
     static type = "pagerank";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "strength" as const;
     /** Ranks over the run's scope: the node list and the graph both come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 
@@ -159,13 +153,6 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             description: "Convergence threshold for early stopping",
             min: 1e-10,
             max: 0.1,
-            advanced: true,
-        },
-        weight: {
-            type: "string",
-            default: null,
-            label: "Weight Attribute",
-            description: "Edge attribute name for weighted PageRank (empty = unweighted)",
             advanced: true,
         },
         useDelta: {
@@ -223,7 +210,8 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         // Get options from NEW Zod-based schema (validated at construction)
-        const { dampingFactor, maxIterations, tolerance, weight } = this.zodOptions;
+        const { dampingFactor, maxIterations, tolerance } = this.zodOptions;
+        const { weight } = this.weightReading();
         // Map types are programmatic-only (not in schema) - kept from the constructor's arguments
         const initialRanks = this.programmaticOptions.initialRanks ?? undefined;
         const personalization = this.programmaticOptions.personalization ?? undefined;
@@ -254,8 +242,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
                 dampingFactor,
                 maxIterations,
                 tolerance,
-                // ONE weight column, so naming an attribute is the same request as asking for a
-                // weighted run: the snapshot carries the weight the element resolved.
+                // The snapshot carries the weight the run reads (see `weightReading`).
                 weighted: weight !== null,
                 ...(plain ? {} : { convergenceNorm: "max" as const }),
                 ...(initialRanks === undefined ? {} : { initialRanks: perNode(s, initialRanks, 1 / s.nodeCount) }),
@@ -309,7 +296,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             caveats: {
                 exact: true,
                 direction: snapshot.directed ? "directed" : "undirected",
-                weight: weight === null ? null : { attribute: weight, meaning: "strength" },
+                ...this.weightCaveats(),
                 precision,
                 method: "power-iteration",
                 converged: value.converged,

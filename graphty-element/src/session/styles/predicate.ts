@@ -341,6 +341,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *
  * Every one of these names the construct and the offset, because the person who reads it typed
  * the expression into a field and has to be told which character to change.
+ * The `reason` is a stable code a consumer branches on to write its own words, so nobody has to
+ * parse the English message.
+ * @param reason - Which mistake it is, as a stable code.
  * @param message - What is wrong, in a sentence.
  * @param where - The whole expression, so the message can be shown beside it.
  * @param position - The character offset the problem starts at.
@@ -348,6 +351,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * @returns The error to throw.
  */
 function badSelector(
+    reason: ExpressionRefusalReason,
     message: string,
     where: Query,
     position: number,
@@ -357,9 +361,50 @@ function badSelector(
         code: "E_BAD_SELECTOR",
         message: `${message} (at character ${String(position)} of ${JSON.stringify(where)})`,
         source: "style",
-        details: { ...details, position, where },
+        details: { ...details, reason, position, where },
     });
 }
+
+/**
+ * Why an expression selector was refused: the `details.reason` of its `E_BAD_SELECTOR`.
+ *
+ * - `unclosed-quote`: a backtick, a single quote or a double quote is never closed (`details.delimiter`).
+ * - `bare-word-needs-quotes`: a backtick literal is not JSON, usually a word without its quotes.
+ * - `bad-quoted-name`: a double-quoted attribute name is not a valid JSON string.
+ * - `unsupported-syntax`: a JMESPath construct the subset does not read (`details.construct`).
+ * - `pipe-not-supported`: a single `|`.
+ * - `expression-reference-not-supported`: a single `&`.
+ * - `number-needs-backticks`: a bare number, such as `weight > 3`, where `` `3` `` is meant
+ *   (`details.suggestion`: the expression with every bare number put between backticks).
+ * - `bad-character`: a character no selector can contain (`details.character`).
+ * - `dot-needs-name`: a `.` with no attribute name after it.
+ * - `name-contains-dot`: a quoted attribute name holding a `.` (`details.segment`).
+ * - `function-not-supported`: a function call (`details.function`).
+ * - `unclosed-parenthesis`: a `(` with no `)`.
+ * - `missing-operand`: an attribute name, a literal or a `(` is missing, such as after `==`.
+ * - `not-needs-parentheses`: `!` before a dotted path, which must be written `!(a.b)` (`details.path`).
+ * - `trailing-input`: something is left over after a complete expression.
+ * - `quoted-whole-expression`: the whole expression is a quoted string, which is always true.
+ * - `reads-no-attribute`: the expression reads no attribute, so it answers the same for every element.
+ */
+type ExpressionRefusalReason =
+    | "bad-character"
+    | "bad-quoted-name"
+    | "bare-word-needs-quotes"
+    | "dot-needs-name"
+    | "expression-reference-not-supported"
+    | "function-not-supported"
+    | "missing-operand"
+    | "name-contains-dot"
+    | "not-needs-parentheses"
+    | "number-needs-backticks"
+    | "pipe-not-supported"
+    | "quoted-whole-expression"
+    | "reads-no-attribute"
+    | "trailing-input"
+    | "unclosed-parenthesis"
+    | "unclosed-quote"
+    | "unsupported-syntax";
 
 /**
  * The JMESPath constructs this subset does not implement, keyed by the character that opens one.
@@ -439,7 +484,43 @@ function findClose(where: Query, from: number, delimiter: string): number {
         }
     }
 
-    throw badSelector(`A ${delimiter} is opened and never closed`, where, from, { delimiter });
+    throw badSelector("unclosed-quote", `A ${delimiter} is opened and never closed`, where, from, { delimiter });
+}
+
+/**
+ * The expression with every bare number put between backticks, the rewrite a
+ * `number-needs-backticks` refusal suggests. Quoted text and names such as `col2` are left as
+ * they are; an unclosed quote leaves the rest as it is.
+ * @param where - The expression being lexed.
+ * @returns The rewritten expression.
+ */
+function backtickNumbers(where: Query): string {
+    let out = "";
+    let at = 0;
+    while (at < where.length) {
+        const character = where.charAt(at);
+        let end = at + 1;
+        if (character === "`" || character === "'" || character === '"') {
+            while (end < where.length && where.charAt(end) !== character) {
+                end += where.charAt(end) === "\\" ? 2 : 1;
+            }
+            end = Math.min(end + 1, where.length);
+        } else if (startsIdentifier(character)) {
+            while (end < where.length && continuesIdentifier(where.charAt(end))) {
+                end++;
+            }
+        } else {
+            const number = /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(where.slice(at))?.[0];
+            if (number !== undefined) {
+                out += `\`${number}\``;
+                at += number.length;
+                continue;
+            }
+        }
+        out += where.slice(at, end);
+        at = end;
+    }
+    return out;
 }
 
 /**
@@ -478,6 +559,7 @@ function decodeJsonLiteral(where: Query, at: number, body: string): unknown {
         return JSON.parse(json) as unknown;
     } catch {
         throw badSelector(
+            "bare-word-needs-quotes",
             `A literal between backticks must be JSON, so a bare word needs quotes: write \`"${json}"\` ` +
                 `rather than \`${json}\``,
             where,
@@ -506,9 +588,15 @@ function decodeQuotedName(where: Query, at: number, quoted: string): string {
         // Falls through to the one refusal below, so both failures read the same way.
     }
 
-    throw badSelector(`A quoted attribute name follows JSON's rules for a string, and ${quoted} does not`, where, at, {
-        name: quoted,
-    });
+    throw badSelector(
+        "bad-quoted-name",
+        `A quoted attribute name follows JSON's rules for a string, and ${quoted} does not`,
+        where,
+        at,
+        {
+            name: quoted,
+        },
+    );
 }
 
 /**
@@ -531,19 +619,27 @@ function tokenize(where: Query): readonly Token[] {
 
         const unsupported = UNSUPPORTED_BY_CHARACTER[character];
         if (unsupported !== undefined) {
-            throw badSelector(`A selector does not support ${unsupported}`, where, at, { construct: unsupported });
+            throw badSelector("unsupported-syntax", `A selector does not support ${unsupported}`, where, at, {
+                construct: unsupported,
+            });
         }
 
         if (character === "|" && where.charAt(at + 1) !== "|") {
-            throw badSelector("A selector does not support pipe expressions", where, at, {
+            throw badSelector("pipe-not-supported", "A selector does not support pipe expressions", where, at, {
                 construct: "pipe expressions",
             });
         }
 
         if (character === "&" && where.charAt(at + 1) !== "&") {
-            throw badSelector("A selector does not support expression references", where, at, {
-                construct: "expression references",
-            });
+            throw badSelector(
+                "expression-reference-not-supported",
+                "A selector does not support expression references",
+                where,
+                at,
+                {
+                    construct: "expression references",
+                },
+            );
         }
 
         const operator = OPERATORS.find((candidate) => where.startsWith(candidate, at));
@@ -591,14 +687,27 @@ function tokenize(where: Query): readonly Token[] {
         }
 
         if (/[0-9-]/.test(character)) {
-            throw badSelector("A number in a selector goes between backticks, so write `5` rather than 5", where, at, {
-                character,
-            });
+            throw badSelector(
+                "number-needs-backticks",
+                "A number in a selector goes between backticks, so write `5` rather than 5",
+                where,
+                at,
+                {
+                    character,
+                    suggestion: backtickNumbers(where),
+                },
+            );
         }
 
-        throw badSelector(`${JSON.stringify(character)} is not something a selector can contain`, where, at, {
-            character,
-        });
+        throw badSelector(
+            "bad-character",
+            `${JSON.stringify(character)} is not something a selector can contain`,
+            where,
+            at,
+            {
+                character,
+            },
+        );
     }
 
     tokens.push({ kind: "end", text: "", at: where.length });
@@ -705,11 +814,12 @@ function parsePath(state: ParseState): ExpressionNode {
         const token = peek(state);
 
         if (token.kind !== "identifier") {
-            throw badSelector("A `.` must be followed by an attribute name", state.where, token.at);
+            throw badSelector("dot-needs-name", "A `.` must be followed by an attribute name", state.where, token.at);
         }
 
         if (token.text.includes(".")) {
             throw badSelector(
+                "name-contains-dot",
                 `A quoted attribute name may not contain a dot: ${JSON.stringify(token.text)} would be ` +
                     "indistinguishable from two names",
                 state.where,
@@ -722,6 +832,7 @@ function parsePath(state: ParseState): ExpressionNode {
 
         if (atOperator(state, "(")) {
             throw badSelector(
+                "function-not-supported",
                 `A selector does not support functions, so ${token.text}(...) cannot be called here`,
                 state.where,
                 token.at,
@@ -763,7 +874,7 @@ function parseOperand(state: ParseState): ExpressionNode {
         const inner = parseOr(state);
 
         if (!atOperator(state, ")")) {
-            throw badSelector("A `(` is opened and never closed", state.where, token.at);
+            throw badSelector("unclosed-parenthesis", "A `(` is opened and never closed", state.where, token.at);
         }
 
         state.index++;
@@ -772,6 +883,7 @@ function parseOperand(state: ParseState): ExpressionNode {
     }
 
     throw badSelector(
+        "missing-operand",
         token.kind === "end"
             ? "The selector ends where an attribute name, a literal or a `(` should be"
             : `${JSON.stringify(token.text)} is where an attribute name, a literal or a \`(\` should be`,
@@ -802,6 +914,7 @@ function parseUnary(state: ParseState): ExpressionNode {
 
     if (operand.kind === "path" && operand.path.includes(".")) {
         throw badSelector(
+            "not-needs-parentheses",
             `In JMESPath \`!\` binds tighter than \`.\`, so !${operand.path} means (!${operand.path.split(".")[0]})` +
                 `${operand.path.slice(operand.path.indexOf("."))} rather than the opposite of ${operand.path}. ` +
                 `Write !(${operand.path}) for that`,
@@ -878,6 +991,7 @@ function parseExpression(where: Query): ExpressionNode {
 
     if (trailing.kind !== "end") {
         throw badSelector(
+            "trailing-input",
             `${JSON.stringify(trailing.text)} is left over at the end of the selector`,
             where,
             trailing.at,
@@ -1281,6 +1395,7 @@ export function compileExpressionPredicate(
 
         const quoted = root.kind === "literal" && typeof root.value === "string";
         throw badSelector(
+            quoted ? "quoted-whole-expression" : "reads-no-attribute",
             quoted
                 ? "The selector is a quoted string literal, which is always true, so it would match every element. " +
                       "Remove the outer quotes so it is read as an expression"

@@ -154,6 +154,8 @@ export class D3GraphEngine extends LayoutEngine {
     d3AlphaTarget: number;
     d3AlphaDecay: number;
     d3VelocityDecay: number;
+    /** 2 or 3: how many dimensions the simulation moves nodes in. A 2D one keeps every z at 0. */
+    readonly dim: 2 | 3;
     nodeMapping = new Map<Node, D3Node>();
     edgeMapping = new Map<Edge, D3Edge>();
     newNodeMap = new Map<Node, D3InputNode>();
@@ -161,8 +163,6 @@ export class D3GraphEngine extends LayoutEngine {
     /** Each node id's edges, so removing a node visits only its own edges (issue #1425). */
     private readonly edgesByNode = new Map<Edge["srcId"], Set<Edge>>();
     reheat = false;
-    /** 2 or 3: in 2D d3 moves nodes in X and Y only, and every node stays at Z = 0. */
-    private readonly dim: number;
 
     /**
      * Check if there are pending nodes or edges to be processed
@@ -184,7 +184,7 @@ export class D3GraphEngine extends LayoutEngine {
         this.d3AlphaTarget = opts.alphaTarget;
         this.d3AlphaDecay = opts.alphaDecay;
         this.d3VelocityDecay = opts.velocityDecay;
-        this.dim = opts.dim;
+        this.dim = opts.dim === 2 ? 2 : 3;
 
         // https://github.com/vasturiano/d3-force-3d?tab=readme-ov-file#links
         const fl = forceLink();
@@ -314,7 +314,7 @@ export class D3GraphEngine extends LayoutEngine {
      * @param n - The node to add
      */
     addNode(n: Node): void {
-        // d3 gives a node no Z in 2D, so it starts on the plane.
+        // A 2D simulation never initialises or moves z, so it starts, and stays, at 0.
         this.newNodeMap.set(n, this.dim === 2 ? { id: n.id, z: 0, vz: 0 } : { id: n.id });
     }
 
@@ -384,7 +384,7 @@ export class D3GraphEngine extends LayoutEngine {
         const d3node = this._getMappedNode(n);
         d3node.x = newPos.x;
         d3node.y = newPos.y;
-        d3node.z = newPos.z ?? 0;
+        d3node.z = this.dim === 2 ? 0 : (newPos.z ?? 0);
         // A drag is a placement like any other, so it lands in the shared array immediately rather
         // than waiting for a tick that a settled simulation may never run. It is a PLACEMENT and
         // not a layout step, so it writes even onto a pinned row: a reader must be able to move a

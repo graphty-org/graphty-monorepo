@@ -14,11 +14,14 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { registration } from "../commands";
 import { EVERYTHING_KEY } from "../row";
+
+/** A pause in a slow drag: longer than any debounce, so each move could be its own write. */
+const PAUSE_MS = 300;
 
 /** A hang guard for the element coming up and painting, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
@@ -100,6 +103,49 @@ function readerLayers(session: GraphSession): ReturnType<GraphSession["styles"][
     return session.styles.list().filter((l) => l.source.by !== "element");
 }
 
+/**
+ * What a Color line's paint field shows: its hex and its opacity.
+ * @param container - where the line is.
+ * @returns the hex and the opacity text, as "#6366F1 100%".
+ */
+function paintShown(container: HTMLElement): string {
+    const field = within(container).getByRole("group", { name: "Color" });
+    const hex = within(field).getByRole<HTMLInputElement>("textbox", { name: "Color hex value" });
+    const opacity = within(field).getByRole<HTMLInputElement>("textbox", { name: "Opacity" });
+    return `#${hex.value} ${opacity.value}%`;
+}
+
+/**
+ * A layer's edge color as `#RRGGBB`, its opacity dropped.
+ * @param value - what the layer sets for `edge.color`.
+ * @returns the hex, or null when it is not a written hex.
+ */
+function edgeHex(value: unknown): string | null {
+    return typeof value === "string" ? value.toUpperCase().slice(0, 7) : null;
+}
+
+/**
+ * Sets the Edges side's Color line to a hex, adding the line first when the row has none.
+ * @param hex - the color, six hex digits.
+ */
+async function setEdgeColor(hex: string): Promise<void> {
+    const line = await within(styleTab()).findByRole("group", { name: "Line" }, { timeout: TIMEOUT_MS });
+    if (within(line).queryByRole("group", { name: "Color" }) === null) {
+        const one = within(line).queryByRole("button", { name: "Add Color" });
+        if (one === null) {
+            await userEvent.click(within(line).getByRole("button", { name: "Add to Line" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+        } else {
+            await userEvent.click(one);
+        }
+    }
+    const field = await within(
+        await within(styleTab()).findByRole("group", { name: "Color" }, { timeout: TIMEOUT_MS }),
+    ).findByRole("textbox", { name: "Color hex value" });
+    await userEvent.clear(field);
+    await userEvent.type(field, `${hex}{Enter}`);
+}
+
 describe("the Style tab on the real element", () => {
     // The design's frame. At the runner's default width the inspector has no room.
     beforeAll(async () => {
@@ -113,7 +159,8 @@ describe("the Style tab on the real element", () => {
             await openWithGraph();
             const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
             const fill = within(tab).getByRole("group", { name: "Fill" });
-            assert.isNotNull(within(fill).getByRole("button", { name: /^Color #6366F1 100%$/ }));
+            // Figma's paint field, whole: the hex and the opacity, nothing cut off.
+            assert.equal(paintShown(fill), "#6366F1 100%");
             // The app's own words: the shape line is Shape.
             assert.isNotNull(
                 within(within(tab).getByRole("group", { name: "Shape" })).getByRole("button", { name: /^Shape / }),
@@ -225,16 +272,18 @@ describe("the Style tab on the real element", () => {
                 await waitFor(
                     () => {
                         assert.isNotNull(within(styleTab()).getByRole("button", { name: /Detach Color/ }));
-                        assert.isNotNull(within(styleTab()).getByRole("radio", { name: "Nodes, set" }));
                     },
                     { timeout: TIMEOUT_MS },
                 );
+                // The line's chip is the ramp the run paints, as the element's legend reports it.
+                const chip = styleTab().querySelector<HTMLElement>(".cm-var-chit");
+                assert.include(chip?.style.background ?? "", "linear-gradient", "the chip shows the ramp, not gray");
             }
 
             store.set({ inspected: { kind: "everything-row", id: "everything" } });
             await waitFor(() => {
                 assert.isNull(within(styleTab()).queryByRole("button", { name: /Detach Color/ }));
-                assert.isNotNull(within(styleTab()).getByRole("button", { name: /^Color #6366F1 100%$/ }));
+                assert.equal(paintShown(styleTab()), "#6366F1 100%");
             });
         },
         TIMEOUT_MS * 2,
@@ -244,18 +293,19 @@ describe("the Style tab on the real element", () => {
     it(
         "T9: sizes a measure row by its result, storing the chosen scale and the range",
         async () => {
-            const { session, store } = await openWithGraph();
+            const { session, store, element } = await openWithGraph();
             const { runId } = await session.runs.start("pagerank");
             await session.styles.settled();
-            const runLabel = session.runs.get(runId)?.label ?? "";
+            const runLabel = "PageRank";
             const measure = readerLayers(session).find((l) => l.source.by === "run");
             if (measure === undefined) {
                 throw new Error("PageRank painted nothing");
             }
+            assert.isNotTrue(element.layoutBehavior?.node?.depthIndependentSize);
             store.set({ inspected: { kind: "measure-row", id: runId } });
             await pickStyleTab();
 
-            // Shape "+" > Size adds a Size line.
+            // Shape "+" > Size adds a Size line and opens its From data list at once.
             // The tab remounts for the new row: read it afresh.
             await waitFor(
                 () => {
@@ -265,7 +315,6 @@ describe("the Style tab on the real element", () => {
             );
             await userEvent.click(within(styleTab()).getByRole("button", { name: "Add to Shape" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: /^Size/ }));
-            await userEvent.click(await within(styleTab()).findByRole("button", { name: "Size by attribute" }));
             const list = await screen.findByRole("dialog", { name: "From data" });
             await userEvent.click(
                 within(within(list).getByRole("group", { name: runLabel })).getByRole("option", { name: runLabel }),
@@ -276,6 +325,11 @@ describe("the Style tab on the real element", () => {
             });
             // The bind edited the PageRank row; no new row.
             assert.lengthOf(readerLayers(session), 1);
+            // A size bound to a result is drawn depth-independent, so 3D perspective cannot invert
+            // two values; before the bind, sizes follow the perspective.
+            await waitFor(() => {
+                assert.isTrue(element.layoutBehavior?.node?.depthIndependentSize);
+            });
 
             const sizeOf = (): unknown => {
                 const size = session.styles.get(measure.id)?.encode?.["node.size"];
@@ -309,6 +363,46 @@ describe("the Style tab on the real element", () => {
         TIMEOUT_MS * 2,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "T9: a new Size line's list offers Fixed size first, one Enter away; the bind icon stays",
+        async () => {
+            const { session, store } = await openWithGraph();
+            const { runId } = await session.runs.start("pagerank");
+            await session.styles.settled();
+            store.set({ inspected: { kind: "measure-row", id: runId } });
+            await pickStyleTab();
+            await waitFor(
+                () => {
+                    assert.isNotNull(within(styleTab()).getByRole("button", { name: "Add to Shape" }));
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            await userEvent.click(within(styleTab()).getByRole("button", { name: "Add to Shape" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: /^Size/ }));
+            const list = await screen.findByRole("dialog", { name: "From data" });
+            const [first] = within(list).getAllByRole("option");
+            assert.equal(first.textContent, "Fixed size");
+            assert.equal(first.getAttribute("aria-selected"), "true", "Fixed size is highlighted");
+            await waitFor(() => {
+                assert.isNotNull(document.activeElement?.closest('[role="dialog"]'), "focus is in the list");
+            });
+
+            await userEvent.keyboard("{Enter}");
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog", { name: "From data" }));
+            });
+            const measure = readerLayers(session).find((l) => l.source.by === "run");
+            assert.equal(measure?.set?.["node.size"], 1, "the line keeps its fixed size");
+            await waitFor(() => {
+                assert.isNotNull(document.activeElement?.closest('[data-line="node.size"]'), "focus is on the line");
+            });
+            // The chain-link is still the way back to the list.
+            assert.isNotNull(within(styleTab()).getByRole("button", { name: "Size by attribute" }));
+        },
+        TIMEOUT_MS * 2,
+    );
+
     // Plan T9: sizing by a result stores the element's size range, 1 to 3, as sizing by a column
     // does (#915).
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
@@ -335,15 +429,112 @@ describe("the Style tab on the real element", () => {
                 within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name: "dept" }),
             );
             const remove = await within(styleTab()).findByRole("button", { name: "Remove Color" });
-            await userEvent.click(remove);
+            const section = remove.closest("[data-section]")?.getAttribute("data-section");
+            assert.isString(section);
+            remove.focus();
+            await userEvent.keyboard("{Enter}");
             await waitFor(() => {
                 assert.lengthOf(readerLayers(session), 0, "the emptied Everything layer is gone");
                 assert.equal(store.get().notice?.message, "Removed Color");
+            });
+            // The Remove button went with its line; focus goes to the section, not the page.
+            await waitFor(() => {
+                assert.isNotNull(
+                    document.activeElement?.closest(`[data-section="${section ?? ""}"]`),
+                    "focus is not in the line's section",
+                );
             });
             store.get().notice?.action?.run();
             await waitFor(() => {
                 assert.isDefined(readerLayers(session)[0]?.encode?.["node.color"]);
             });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "Glow is one line: added as its strength alone, edited in a titled popover, removed in one undo step",
+        async () => {
+            const { session } = await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+            const effects = within(tab).getByRole("group", { name: "Effects" });
+            await userEvent.click(within(effects).getByRole("button", { name: "Add to Effects" }));
+            const items = (await screen.findAllByRole("menuitem")).map((i) => i.textContent);
+            assert.include(items, "Glow");
+            assert.notInclude(items, "Glow strength");
+            await userEvent.click(screen.getByRole("menuitem", { name: "Glow" }));
+            await waitFor(() => {
+                const set = readerLayers(session)[0]?.set;
+                assert.equal(set?.["node.glowStrength"], 1);
+                assert.isUndefined(set?.["node.glow"], "the element draws its own glow color");
+            });
+
+            await userEvent.click(within(styleTab()).getByRole("button", { name: /^Glow: / }));
+            const popover = await screen.findByRole("dialog", { name: "Glow" });
+            assert.isNotNull(within(popover).getByRole("group", { name: "Color" }));
+            // Unset, the color shows what the element draws, not an invented black.
+            const glowColor = String(channelsFor("node").find((d) => d.channel === "node.glow")?.default);
+            assert.include(
+                [...popover.querySelectorAll("input")].map((i) => `#${i.value}`.toUpperCase()),
+                glowColor.toUpperCase(),
+            );
+            assert.isNotNull(within(popover).getByRole("combobox", { name: "Glow strength" }));
+            await userEvent.click(within(popover).getByRole("button", { name: /close/i }));
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog", { name: "Glow" }));
+            });
+
+            await session.styles.update(readerLayers(session)[0].id, {
+                set: { ...readerLayers(session)[0].set, "node.glow": "#FF0000" },
+            });
+            const steps = session.history.steps.length;
+            await userEvent.click(await within(styleTab()).findByRole("button", { name: "Remove Glow" }));
+            await waitFor(() => {
+                assert.lengthOf(readerLayers(session), 0, "both parts went, and the emptied layer with them");
+            });
+            assert.equal(session.history.steps.length, steps + 1, "one step for both parts");
+            await session.undo();
+            await waitFor(() => {
+                const set = readerLayers(session)[0]?.set;
+                assert.equal(set?.["node.glow"], "#FF0000");
+                assert.equal(set?.["node.glowStrength"], 1);
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "lists an edge's arrows as Head arrow and Tail arrow, and Pattern's count and animation in its popover",
+        async () => {
+            await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+            await userEvent.click(within(tab).getByRole("radio", { name: "Edges" }));
+            const arrows = within(styleTab()).getByRole("group", { name: "Arrows" });
+            const plus = within(arrows).queryByRole("button", { name: "Add to Arrows" });
+            if (plus === null) {
+                // A directed graph's base layer already draws the head: Tail arrow is the one left.
+                assert.isNotNull(within(arrows).getByRole("button", { name: "Add Tail arrow" }));
+            } else {
+                await userEvent.click(plus);
+                const items = (await screen.findAllByRole("menuitem")).map((i) => i.textContent);
+                assert.deepEqual(items, ["Head arrow", "Tail arrow"]);
+                await userEvent.keyboard("{Escape}");
+            }
+
+            // The element's base layer draws the pattern, so Pattern is a line already.
+            const line = within(styleTab()).getByRole("group", { name: "Line" });
+            await userEvent.click(within(line).getByRole("button", { name: /^Pattern: / }));
+            const popover = await screen.findByRole("dialog", { name: "Pattern" });
+            const caveat = channelsFor("edge").find((d) => d.channel === "edge.patternCount")?.caveat ?? "";
+            assert.isNotEmpty(caveat);
+            assert.isNotNull(within(popover).getByText(caveat));
+            assert.isNotNull(within(popover).getByRole("combobox", { name: "Pattern count" }));
+            // Animation moves only a straight solid line: a setting of Pattern, not a line of its own.
+            assert.isNotNull(within(popover).getByRole("combobox", { name: /animation/i }));
+            assert.isNull(within(line).queryByRole("button", { name: /^Animation/ }));
+            assert.isNull(within(line).queryByText(/^Animation/));
         },
         TIMEOUT_MS * 2,
     );
@@ -379,10 +570,32 @@ describe("labels from an attribute (task T10) on the real element", () => {
                     assert.equal(labeled, NODES.length);
                     assert.isAbove(hiddenByOverlap, 0, "stacked labels overlap");
                     assert.isNotNull(
-                        within(styleTab()).getByText(
-                            `${String(labeled)} labels, ${String(hiddenByOverlap)} hidden to avoid overlap`,
-                        ),
+                        within(styleTab()).getByText(`${String(labeled)} labels, ${String(hiddenByOverlap)} hidden`),
                     );
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            // Show all labels turns the overlap rule off on the element: every label is drawn.
+            const showAll = within(styleTab()).getByRole("checkbox", { name: "Show all labels" });
+            assert.isFalse((showAll as HTMLInputElement).checked);
+            await userEvent.click(showAll);
+            await waitFor(
+                () => {
+                    assert.isFalse(element.layoutBehavior?.labels?.declutter);
+                    assert.equal(element.nodeLabelCounts.hiddenByOverlap, 0);
+                    for (const node of NODES) {
+                        assert.isTrue(element.labelOf(node.id)?.drawn, node.name);
+                    }
+                    assert.isNotNull(within(styleTab()).getByText(`${String(NODES.length)} labels`));
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            // And back: the rule hides the stacked labels again.
+            await userEvent.click(within(styleTab()).getByRole("checkbox", { name: "Show all labels" }));
+            await waitFor(
+                () => {
+                    assert.isTrue(element.layoutBehavior?.labels?.declutter);
+                    assert.isAbove(element.nodeLabelCounts.hiddenByOverlap, 0);
                 },
                 { timeout: TIMEOUT_MS },
             );
@@ -444,6 +657,80 @@ describe("labels from an attribute (task T10) on the real element", () => {
     );
 });
 
+// A pick that adds or binds a line closes the menu it came from and can remove that menu's own
+// trigger; focus must land on the new line, never fall to the page body (WCAG 2.4.3).
+describe("focus after a pick on the real element", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    /**
+     * Waits until keyboard focus is on a control of the line for a channel.
+     * @param channel - the line's channel.
+     */
+    async function focusIsOnLine(channel: string): Promise<void> {
+        await waitFor(() => {
+            const active = document.activeElement;
+            assert.notEqual(
+                active,
+                document.body,
+                `focus fell to the page body, not the ${channel} line; line drawn: ${String(document.querySelector(`[data-line="${channel}"]`) !== null)}`,
+            );
+            assert.isNotNull(active?.closest(`[data-line="${channel}"]`), `focus is on the ${channel} line`);
+        });
+    }
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "a + pick, a single +, a Size by attribute pick and a label pick each focus the line they made",
+        async () => {
+            const { session } = await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+
+            // A single "+": the button goes away with the one property it added.
+            await userEvent.click(within(tab).getByRole("button", { name: "Add Tooltip" }));
+            await focusIsOnLine("node.tooltip");
+            assert.isNull(within(styleTab()).queryByRole("button", { name: "Add Tooltip" }));
+
+            // A "+" menu pick.
+            await userEvent.click(within(styleTab()).getByRole("button", { name: "Add to Effects" }));
+            const [item] = (await screen.findAllByRole("menuitem")).filter(
+                (el) => el.getAttribute("data-disabled") === null,
+            );
+            const effect = item.textContent ?? "";
+            await userEvent.click(item);
+            await waitFor(() => {
+                const active = document.activeElement;
+                const line = active?.closest("[data-line]");
+                assert.isNotNull(line, `focus is on the new ${effect} line, not ${String(active?.tagName)}`);
+                assert.isNotNull(line?.closest('[data-section="effects"]'));
+            });
+
+            // The base Size line, sized by an attribute.
+            // Size by attribute: the bind icon is gone once the line is bound; focus is on its pill.
+            await userEvent.click(within(styleTab()).getByRole("button", { name: "Size by attribute" }));
+            const list = await screen.findByRole("dialog", { name: "From data" });
+            await userEvent.click(within(list).getByRole("option", { name: "code" }));
+            await waitFor(() => {
+                const size = readerLayers(session)[0]?.encode?.["node.size"];
+                assert.isDefined(size);
+            });
+            await focusIsOnLine("node.size");
+            assert.isNull(within(styleTab()).queryByRole("button", { name: "Size by attribute" }));
+
+            // The label's attribute pick.
+            await userEvent.click(within(styleTab()).getByRole("button", { name: "Add label line" }));
+            const names = await screen.findByRole("dialog", { name: "From data" });
+            await userEvent.click(within(names).getByRole("option", { name: "name" }));
+            await waitFor(() => {
+                assert.isDefined(readerLayers(session)[0]?.encode?.["node.label"]);
+            });
+            await focusIsOnLine("node.label");
+        },
+        TIMEOUT_MS * 2,
+    );
+});
+
 describe("editing lines on the real element", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
@@ -481,7 +768,11 @@ describe("editing lines on the real element", () => {
         async () => {
             const { session } = await openWithGraph();
             const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-            await userEvent.click(within(tab).getByRole("button", { name: /^Color #/ }));
+            await userEvent.click(
+                within(within(tab).getByRole("group", { name: "Color" })).getByRole("button", {
+                    name: "Color swatch",
+                }),
+            );
             const hex = await screen.findByTestId("color-picker-value");
             await userEvent.clear(hex);
             await userEvent.type(hex, "FF0000{Enter}");
@@ -499,6 +790,89 @@ describe("editing lines on the real element", () => {
                 assert.isString(mine(session, "node.shape"));
             });
             assert.isNotNull(within(styleTab()).getByRole("button", { name: `Shape ${shape}` }));
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "the bind icon, the bound value, the Shape value and the label line open titled pop-outs their X closes",
+        async () => {
+            await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+            /**
+             * Opens a pop-out from a trigger, then closes it with its own X.
+             * @param trigger - what opens it.
+             * @param title - the pop-out's title.
+             */
+            async function openAndClose(trigger: HTMLElement, title: string): Promise<void> {
+                await userEvent.click(trigger);
+                const panel = await screen.findByRole("dialog", { name: title });
+                await userEvent.click(within(panel).getByTestId("popout-header-close"));
+                await waitFor(() => {
+                    assert.isNull(screen.queryByRole("dialog", { name: title }));
+                });
+            }
+
+            await openAndClose(within(tab).getByRole("button", { name: "Color by attribute" }), "Color by attribute");
+            const shape = within(within(styleTab()).getByRole("group", { name: "Shape" })).getByRole("button", {
+                name: /^Shape /,
+            });
+            await openAndClose(shape, "Shape");
+
+            // The bound value: bind Color, then open and close its Binding pop-out.
+            await userEvent.click(within(styleTab()).getByRole("button", { name: "Color by attribute" }));
+            await userEvent.click(
+                within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name: "dept" }),
+            );
+            await openAndClose(await within(styleTab()).findByRole("button", { name: /^dept,/ }), "Color from data");
+
+            // The label line: its attribute list, then its position.
+            await userEvent.click(within(styleTab()).getByRole("button", { name: "Add label line" }));
+            const list = await screen.findByRole("dialog", { name: "Label" });
+            await userEvent.click(within(list).getByTestId("popout-header-close"));
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog", { name: "Label" }));
+            });
+            await openAndClose(within(styleTab()).getByRole("button", { name: "Label position" }), "Label position");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "a drag across the Color picker is one undo step",
+        async () => {
+            const { session } = await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+            await userEvent.click(
+                within(within(tab).getByRole("group", { name: "Color" })).getByRole("button", {
+                    name: "Color swatch",
+                }),
+            );
+            const field = await screen.findByTestId("color-picker-saturation");
+            const before = session.history.steps.length;
+            const box = field.getBoundingClientRect();
+            const at = (fx: number, fy: number): MouseEventInit => ({
+                bubbles: true,
+                clientX: box.left + box.width * fx,
+                clientY: box.top + box.height * fy,
+            });
+            field.dispatchEvent(new MouseEvent("mousedown", at(0.2, 0.2)));
+            // A slow drag: the reader pauses between moves, as a finger does.
+            for (const f of [0.3, 0.5, 0.7, 0.9]) {
+                document.dispatchEvent(new MouseEvent("mousemove", at(f, f)));
+                // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+                await new Promise((done) => setTimeout(done, PAUSE_MS));
+            }
+            document.dispatchEvent(new MouseEvent("mouseup", at(0.9, 0.9)));
+            await waitFor(() => {
+                const written = mine(session, "node.color");
+                assert.isString(written);
+                assert.notMatch(String(written), /^#6366F1/i);
+            });
+            await session.styles.settled();
+            assert.equal(session.history.steps.length, before + 1, "the drag wrote once, on release");
         },
         TIMEOUT_MS * 2,
     );
@@ -531,6 +905,62 @@ describe("editing lines on the real element", () => {
             const start = channelsFor("node").find((d) => d.channel === "node.color")?.default;
             await waitFor(() => {
                 assert.equal(mine(session, "node.color"), start, "a literal again: the element's own default");
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "a PageRank run paints only nodes, so its Style tab offers no Edges side",
+        async () => {
+            const { session, store } = await openWithGraph();
+            const { runId } = await session.runs.start("pagerank");
+            await session.styles.settled();
+            assert.isNotEmpty(session.runs.bindings(runId), "PageRank painted");
+            store.set({ inspected: { kind: "run-row", id: runId } });
+            await pickStyleTab();
+            await waitFor(
+                () => {
+                    assert.isNotNull(within(styleTab()).getByRole("button", { name: /Detach Color/ }));
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            // No Nodes | Edges switch at all: an edge line would have had no layer of the run's to go to.
+            assert.isNull(within(styleTab()).queryByRole("radio", { name: /^Edges/ }));
+            assert.isNull(within(styleTab()).queryByRole("group", { name: "Arrows" }));
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "Everything's edge Color goes to the Everything layer, and an edge's to its own row",
+        async () => {
+            const { session } = await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+            await userEvent.click(within(tab).getByRole("radio", { name: /^Edges/ }));
+            await setEdgeColor("FF0000");
+            await waitFor(() => {
+                const everything = readerLayers(session).filter((l) => l.userData?.[EVERYTHING_KEY] === true);
+                assert.deepEqual(
+                    everything.map((l) => [l.target, edgeHex(l.set?.["edge.color"])]),
+                    [["edge", "#FF0000"]],
+                );
+            });
+
+            const [edge] = session.data.edges();
+            await act(async () => {
+                await session.selection.apply({ edges: [edge.id] });
+            });
+            await pickStyleTab();
+            await setEdgeColor("00FF00");
+            await waitFor(() => {
+                const own = readerLayers(session).filter((l) => l.selector.match === "ids");
+                assert.deepEqual(
+                    own.map((l) => [l.target, edgeHex(l.set?.["edge.color"])]),
+                    [["edge", "#00FF00"]],
+                );
             });
         },
         TIMEOUT_MS * 2,
@@ -660,6 +1090,161 @@ describe("editing lines on the real element", () => {
             store.set({ inspected: { kind: "run", id: runId } });
             await waitFor(() => {
                 assert.isNull(screen.queryByTestId("style-tab"));
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
+});
+
+describe("the selection's own row on the real element", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    /**
+     * The reader's layers that name ids: the selections' own rows.
+     * @param session - the element's session.
+     * @returns the layers, bottom first.
+     */
+    function idLayers(session: GraphSession): ReturnType<GraphSession["styles"]["list"]> {
+        return readerLayers(session).filter((l) => l.selector.match === "ids");
+    }
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "a node's first edit adds its row and selects it; selecting it again edits that row",
+        async () => {
+            const { session, store } = await openWithGraph();
+            await session.selection.apply({ nodes: ["1"] });
+            await pickStyleTab();
+            await userEvent.click(await within(styleTab()).findByRole("button", { name: "Add Tooltip" }));
+            await waitFor(() => {
+                assert.equal(idLayers(session).length, 1);
+            });
+            const [row] = idLayers(session);
+            assert.equal(row.name, "1");
+            assert.deepEqual(row.selector, { match: "ids", nodes: ["1"], edges: [] });
+            await waitFor(() => {
+                assert.deepEqual(store.get().inspected, { kind: "layer-row", id: row.id });
+            });
+
+            session.selection.clear();
+            await session.selection.apply({ nodes: ["1"] });
+            await pickStyleTab();
+            const field = await within(styleTab()).findByRole("textbox", { name: "Tooltip" });
+            await userEvent.type(field, "hello{Enter}");
+            await waitFor(() => {
+                assert.equal(session.styles.get(row.id)?.set?.["node.tooltip"], "hello");
+            });
+            assert.equal(idLayers(session).length, 1, "the same ids reuse their row");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "several selected share one row, named by their count, and Undo takes it away",
+        async () => {
+            const { session } = await openWithGraph();
+            await session.selection.apply({ nodes: ["2", "3", "4"] });
+            await pickStyleTab();
+            await userEvent.click(await within(styleTab()).findByRole("button", { name: "Add Tooltip" }));
+            await waitFor(() => {
+                assert.deepEqual(
+                    idLayers(session).map((l) => l.name),
+                    ["3 nodes"],
+                );
+            });
+            await session.undo();
+            await waitFor(() => {
+                assert.equal(idLayers(session).length, 0);
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
+});
+
+describe("one look for names and headings on the real element", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    /**
+     * How a piece of text is drawn: its size, weight, ink and left edge.
+     * @param element - the text.
+     * @returns the four, as one string to compare.
+     */
+    function drawn(element: HTMLElement): string {
+        const style = getComputedStyle(element);
+        return `${style.fontSize} ${style.fontWeight} ${style.color} ${String(Math.round(element.getBoundingClientRect().left))}`;
+    }
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "a Color line's name is drawn as the Size and Shape lines' names, and the Label heading as Fill's",
+        async () => {
+            await openWithGraph();
+            await pickStyleTab();
+            const line = (channel: string): HTMLElement => {
+                const found = styleTab().querySelector<HTMLElement>(`[data-line="${channel}"]`);
+                if (found === null) {
+                    throw new Error(`no ${channel} line`);
+                }
+                return found;
+            };
+            await waitFor(() => {
+                line("node.color");
+            });
+            const color = within(line("node.color")).getByText("Color", { exact: true });
+            const size = within(line("node.size")).getByText("Size", { exact: true });
+            const shape = within(line("node.shape")).getByText("Shape", { exact: true });
+            assert.equal(drawn(color), drawn(size));
+            assert.equal(drawn(shape), drawn(size));
+
+            const heading = (section: string, word: string): HTMLElement =>
+                within(within(styleTab()).getByRole("group", { name: section })).getByText(word, { exact: true });
+            assert.equal(drawn(heading("Label", "Label")), drawn(heading("Fill", "Fill")));
+        },
+        TIMEOUT_MS * 2,
+    );
+});
+
+describe("the Selection row's highlight on the real element", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "shows the edge band beside the node halo, and writes the band's color and size back to the element",
+        async () => {
+            const { session, store } = await openWithGraph();
+            act(() => {
+                store.set({ inspected: { kind: "selection-row", id: "selection" } });
+            });
+            const highlight = await screen.findByRole("group", { name: "Highlight" }, { timeout: TIMEOUT_MS });
+            const part = (name: string): HTMLElement => within(highlight).getByRole("group", { name });
+            const hexOf = (name: string): HTMLInputElement =>
+                within(part(name)).getByRole<HTMLInputElement>("textbox", { name: "Color hex value" });
+            assert.equal(hexOf("Nodes").value, "FFD700");
+            assert.equal(hexOf("Edges").value, "0077BB", "the band the element draws selected edges with");
+
+            await userEvent.clear(hexOf("Edges"));
+            await userEvent.type(hexOf("Edges"), "FF0000{Enter}");
+            await waitFor(() => {
+                assert.equal(session.config.selectionStyle.edgeColor.toUpperCase(), "#FF0000");
+            });
+            assert.equal(session.config.selectionStyle.color.toUpperCase(), "#FFD700", "the halo is left alone");
+
+            const size = within(part("Edges")).getByRole("combobox", { name: "Size" });
+            await userEvent.clear(size);
+            await userEvent.type(size, "4{Enter}");
+            await waitFor(() => {
+                assert.equal(session.config.selectionStyle.edgeScale, 4);
+            });
+            assert.equal(session.config.selectionStyle.scale, 1.45, "the halo's size is left alone");
+            await waitFor(() => {
+                assert.equal(hexOf("Edges").value, "FF0000");
             });
         },
         TIMEOUT_MS * 2,

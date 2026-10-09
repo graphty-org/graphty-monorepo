@@ -127,6 +127,8 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
     const inputRef = useRef<HTMLInputElement>(null);
     const mergedRef = useMergedRef(ref, inputRef);
     const listId = useId();
+    // With no choices there is no list: no chevron, and nothing opens it.
+    const hasList = options.some((item) => !isSeparator(item));
 
     const combobox = useCombobox({
         onDropdownOpen: () => {
@@ -184,7 +186,7 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
     const listKeys = (event: React.KeyboardEvent<HTMLInputElement>): boolean => {
         const open = combobox.dropdownOpened;
         if (!open) {
-            if (event.key === "ArrowDown" && (event.ctrlKey || event.altKey)) {
+            if (hasList && event.key === "ArrowDown" && (event.ctrlKey || event.altKey)) {
                 event.preventDefault();
                 combobox.openDropdown("keyboard");
                 return true;
@@ -273,27 +275,36 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
         },
     };
 
-    const chevronWidth = divided ? PANEL_GRID.GLYPH_SLOT + 1 : PANEL_GRID.GLYPH_SLOT;
+    let chevronWidth = 0;
+    if (hasList) {
+        chevronWidth = divided ? PANEL_GRID.GLYPH_SLOT + 1 : PANEL_GRID.GLYPH_SLOT;
+    }
+    const rightSectionWidth =
+        suffix === undefined
+            ? chevronWidth || undefined
+            : `calc(${String(suffix.length)}ch + ${String(chevronWidth + 4)}px)`;
     const rightSection = (
         <>
             {suffix !== undefined && <span className="cm-combo-suffix">{suffix}</span>}
-            <button
-                type="button"
-                tabIndex={-1}
-                className="cm-combo-chevron"
-                aria-label={openLabel}
-                disabled={disabled}
-                onMouseDown={(event) => {
-                    // Keep focus in the field: the list is the field's.
-                    event.preventDefault();
-                }}
-                onClick={() => {
-                    inputRef.current?.focus();
-                    combobox.toggleDropdown();
-                }}
-            >
-                <FieldCaret />
-            </button>
+            {hasList && (
+                <button
+                    type="button"
+                    tabIndex={-1}
+                    className="cm-combo-chevron"
+                    aria-label={openLabel}
+                    disabled={disabled}
+                    onMouseDown={(event) => {
+                        // Keep focus in the field: the list is the field's.
+                        event.preventDefault();
+                    }}
+                    onClick={() => {
+                        inputRef.current?.focus();
+                        combobox.toggleDropdown();
+                    }}
+                >
+                    <FieldCaret />
+                </button>
+            )}
         </>
     );
 
@@ -313,7 +324,7 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                     {...(numeric ? numericProps : textProps)}
                     role="combobox"
                     aria-label={label}
-                    aria-haspopup="listbox"
+                    aria-haspopup={hasList ? "listbox" : undefined}
                     aria-expanded={combobox.dropdownOpened}
                     aria-controls={combobox.dropdownOpened ? listId : undefined}
                     aria-activedescendant={combobox.dropdownOpened ? activeId : undefined}
@@ -333,12 +344,8 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                         )
                     }
                     leftSectionPointerEvents={scrub ? "all" : "none"}
-                    rightSection={rightSection}
-                    rightSectionWidth={
-                        suffix === undefined
-                            ? chevronWidth
-                            : `calc(${String(suffix.length)}ch + ${String(chevronWidth + 4)}px)`
-                    }
+                    rightSection={hasList || suffix !== undefined ? rightSection : undefined}
+                    rightSectionWidth={rightSectionWidth}
                     rightSectionPointerEvents="all"
                 />
             </Combobox.Target>

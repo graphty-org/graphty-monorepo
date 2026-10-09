@@ -62,7 +62,9 @@ export const CM_COLORS = {
     "bg-mode-switcher-hover": t("#e6e6e6", "#383838", "--color-bgtoolbarmodeswitcher-hover"),
     "bg-info": t("#e5f4ff", "#394360", "--color-bg-info"),
     text: t("#000000e5", "#ffffff", "--color-text"),
-    "text-secondary": t("#00000080", "#ffffffb2", "--color-text-secondary"),
+    // Not Figma's: --color-text-secondary is #00000080 in light, 4.0:1 on white; 55% black reads
+    // at 4.5:1 there (WCAG 1.4.3)
+    "text-secondary": t("#0000008c", "#ffffffb2"),
     "text-tertiary": t("#0000004d", "#ffffff66", "--color-text-tertiary"),
     "text-disabled": t("#0000004d", "#ffffff66", "--color-text-disabled"),
     "text-brand": t("#007be5", "#7cc4f8", "--color-text-brand"),
@@ -103,7 +105,10 @@ export const CM_COLORS = {
     "field-edge": t("transparent", "transparent"),
     /** the field edge under the pointer: Figma's hover outline (= border) */
     "field-edge-hover": t("#e6e6e6", "#444444"),
-    /** the selected segment's inset edge (= border) */
+    /**
+     * the selected segment's inset edge (= border); the panel track now fills its chosen option
+     * and draws no edge, but the variable stays for consumers that read it
+     */
     "segment-edge": t("#e6e6e6", "#444444"),
 } as const satisfies Record<string, CmColorToken>;
 

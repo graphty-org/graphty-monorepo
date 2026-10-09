@@ -162,10 +162,10 @@ describe("DataTableDrawer", () => {
             const handle = screen.getByRole("separator", { name: "Resize the data table" });
 
             fireEvent.keyDown(handle, { key: "ArrowUp" });
-            expect(onHeightChange).toHaveBeenLastCalledWith(DATA_DRAWER_DEFAULT_HEIGHT + 32);
+            expect(onHeightChange).toHaveBeenLastCalledWith(DATA_DRAWER_DEFAULT_HEIGHT + 1);
 
             fireEvent.keyDown(handle, { key: "ArrowDown" });
-            expect(onHeightChange).toHaveBeenLastCalledWith(DATA_DRAWER_DEFAULT_HEIGHT - 32);
+            expect(onHeightChange).toHaveBeenLastCalledWith(DATA_DRAWER_DEFAULT_HEIGHT - 1);
         });
 
         it("is not drawn while the drawer is maximised", () => {

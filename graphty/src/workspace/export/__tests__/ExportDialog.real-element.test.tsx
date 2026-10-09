@@ -98,6 +98,13 @@ describe("Export: save a picture and the numbers (task T13)", () => {
             await userEvent.keyboard("{Control>}e{/Control}");
             const again = await screen.findByRole("dialog", { name: "Export" });
             await userEvent.click(within(again).getByText("Data"));
+            // Data opens on the project file; the node table is the CSV row.
+            const format = within(again).getByLabelText("Format");
+            assert.equal((format as HTMLInputElement).value, "Graphty JSON");
+            await userEvent.click(format);
+            await userEvent.click(await screen.findByRole("option", { name: "CSV" }));
+            await userEvent.click(within(again).getByLabelText("Table", { selector: "input" }));
+            await userEvent.click(await screen.findByRole("option", { name: "Nodes" }));
             assert.isNotNull(within(again).getByText(/^One row per node, with every computed value/));
             const header = session.results.path(root.runId, "value");
             await waitFor(() => {

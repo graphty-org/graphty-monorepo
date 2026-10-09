@@ -1,6 +1,8 @@
 import { defineRegistration } from "../commands/registry";
+import { selectionClearedWords } from "../inspector/words";
 import { unlessUnsaved } from "../project/actions";
 import { newProjectId } from "../state/store";
+import { historyTip, undoOrRedo } from "./historyWords";
 
 /** Where Help > Documentation goes. */
 const DOCUMENTATION_URL = "https://graphty.app/docs/";
@@ -44,8 +46,13 @@ export const registration = defineRegistration({
             group: "Project",
             keys: ["Mod+Z"],
             disabled: ({ session }) => (session?.canUndo === true ? null : "Nothing to undo"),
-            run: async ({ session }) => {
-                await session?.undo();
+            tooltip: ({ session }) => historyTip(session, true),
+            run: async ({ session, workspace }) => {
+                // Undo names the step it took back (tier2-design.md section 1).
+                const message = session === null ? null : await undoOrRedo(session, true);
+                if (message !== null) {
+                    workspace.set({ notice: { message } });
+                }
             },
         },
         {
@@ -54,8 +61,12 @@ export const registration = defineRegistration({
             group: "Project",
             keys: ["Shift+Mod+Z", "Mod+Y"],
             disabled: ({ session }) => (session?.canRedo === true ? null : "Nothing to redo"),
-            run: async ({ session }) => {
-                await session?.redo();
+            tooltip: ({ session }) => historyTip(session, false),
+            run: async ({ session, workspace }) => {
+                const message = session === null ? null : await undoOrRedo(session, false);
+                if (message !== null) {
+                    workspace.set({ notice: { message } });
+                }
             },
         },
         {
@@ -82,8 +93,15 @@ export const registration = defineRegistration({
             group: "Selection",
             keys: ["Escape"],
             disabled: ({ session }) => (session === null ? "Nothing is drawn" : null),
-            run: ({ session }) => {
-                session?.selection.clear();
+            run: ({ session, workspace }) => {
+                if (session === null || session.selection.size === 0) {
+                    return;
+                }
+                // Says what went, so an Escape pressed for something else is not silent; a rule in
+                // the find box stays there, so Enter brings the selection back.
+                const message = selectionClearedWords(session.selection.nodes.length, session.selection.edges.length);
+                session.selection.clear();
+                workspace.set({ notice: { message } });
             },
         },
         {

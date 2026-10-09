@@ -264,6 +264,11 @@ const css = `
 }
 .cm-sc-indicator { display: none; }
 .cm-sc-control { flex: 1 1 0; min-width: 0; }
+/* A track that is not fullWidth starts each option at its content: sized by its content, the
+   track fits every label with its padding (with a 0 basis each option got the average width, so
+   "Leave out" beside "Add" lost its padding and its end); given a width, options with equal
+   content still share it equally. A full-width track keeps the equal 0 basis. */
+.cm-sc:not([data-full-width]) .cm-sc-control { flex-basis: auto; }
 .cm-sc[data-content-width] .cm-sc-control { flex: 1 1 auto; min-width: 24px; }
 .cm-sc[data-content-width] .cm-sc-label { padding-inline: 0; }
 .cm-sc .cm-sc-label {
@@ -276,7 +281,11 @@ const css = `
     border-radius: 5px;
     ${cmFont("body")}
     font-size: var(--sc-font-size);
-    color: var(--cm-text-secondary);
+    /* An unchosen option is a choice the reader can make, so its label is drawn in the body
+       color: the secondary gray at 10-11px read as a disabled option beside the raised chosen
+       one ("Add" of Add / Leave out). The chosen one is marked by its fill and the strong weight
+       of its label, so which side is chosen reads without zooming. */
+    color: var(--cm-text);
     background-color: transparent;
     outline: 1px solid transparent;
     outline-offset: 1px;
@@ -284,9 +293,15 @@ const css = `
     cursor: default;
 }
 .cm-sc .cm-sc-label[data-active] {
-    color: var(--cm-text);
-    background-color: var(--cm-bg);
-    box-shadow: inset 0 0 0 1px var(--cm-segment-edge);
+    /* The chosen option is filled in the inverse color (dark in light, light in dark), 3:1 or
+       more against the track in both schemes (WCAG 1.4.11). Figma's white face with a 1px edge
+       was too faint: readers could not tell which of "Add" and "Leave out" was chosen without
+       hovering. (Mantine marks no option active in a disabled control.) */
+    color: var(--cm-text-oninverse);
+    /* 600, not the strong role's 550: at 11px 550 beside 450 did not read. */
+    font-weight: 600;
+    background-color: var(--cm-bg-inverse);
+    box-shadow: none;
 }
 .cm-sc .cm-sc-label[data-active]::before { display: none; }
 .cm-sc .cm-sc-label[data-disabled],
@@ -441,6 +456,10 @@ const css = `
     position: relative;
     isolation: isolate;
     ${cmFont("body")}
+    /* The size prop's type, so a link in an xs caption is the caption's size (sm, the default, is
+       the body role). The caption's weight and tracking come from the Text rule in shell.css. */
+    font-size: var(--text-fz, var(--mantine-font-size-sm));
+    line-height: var(--text-lh, var(--mantine-line-height-sm));
     color: var(--cm-text-brand);
     text-decoration: none;
     border-radius: 2px;

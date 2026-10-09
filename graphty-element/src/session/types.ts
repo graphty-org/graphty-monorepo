@@ -20,6 +20,7 @@ import type {
     AccelerationCapabilities,
     AccelerationPolicy,
     AccelerationStatus,
+    Capabilities,
     GraphAccelerator,
 } from "../acceleration";
 // EdgeId comes from the ELEMENT's catalogue rather than from graph-format, which is the one line
@@ -267,6 +268,13 @@ export interface FindOptions {
      * listed, and carries `excludedBy`.
      */
     readonly scope?: ScopeInput;
+    /**
+     * Also find an edge by its name: its source's name, this text, then its target's name, such
+     * as `" -> "` for "Station -> Stadium". The name ranks with node names, so typing either end's
+     * name, or the whole name, lists the edge; the hit's `match.path` is then `"ends"`. Absent
+     * (the default), an edge is found by its own attribute values only.
+     */
+    readonly edgeNameJoiner?: string;
 }
 
 /** One end of an edge hit. */
@@ -314,7 +322,10 @@ export type FindHit =
           readonly name: string;
       })
     | (FindHitBase & {
-          /** An edge, found by its own attribute values only, never by its id or its ends. */
+          /**
+           * An edge, found by its own attribute values, and by its name when
+           * `FindOptions.edgeNameJoiner` is set; never by its id.
+           */
           readonly kind: "edge";
           /** Its element-assigned id. */
           readonly id: EdgeId;
@@ -344,6 +355,8 @@ export interface FindResult {
     readonly offset: number;
     /** How many hits there are in all. */
     readonly total: number;
+    /** How many of those hits are nodes and how many are edges; they add up to `total`. */
+    readonly totals: { readonly node: number; readonly edge: number };
     /** The input revision the answer was read at; a different one means it is stale. */
     readonly revision: string;
     /** At most three matched attribute values, commonest first. */
@@ -421,6 +434,14 @@ export interface Neighbor {
      * part of the one visibility filter. Open: more kinds may be added.
      */
     readonly excludedBy?: { readonly kind: "filter" };
+}
+
+/** The weight a graph was loaded with: `session.data.loadedWeight()`. */
+export interface LoadedWeight {
+    /** The edge attribute the weights were read from. */
+    readonly attribute: string;
+    /** What the weight means, or null when the load did not say. */
+    readonly meaning: WeightMeaning["meaning"] | null;
 }
 
 /** A {@link RecordPage} of neighbors, plus what the numbers measured. */
@@ -835,12 +856,31 @@ export interface SessionDataApi {
      */
     lastImport(): LoadReport | null;
     /**
+     * The weight the graph was loaded with: the edge column the last load read weights from and
+     * the meaning chosen for it at load (`TableMapping.weightMeaning`), null when none was chosen.
+     * @returns the weight, or null when the last load read no weight
+     */
+    loadedWeight(): LoadedWeight | null;
+    /**
      * Where the graph was loaded from: the format, the name the reader knows the data by, the
      * URL, and the file's size. It follows undo and redo like the graph does, so a top bar that
      * names the dataset reads it again after either.
      * @returns the source, or null when the graph was not loaded by an import, or was cleared
      */
     source(): DataSourceDescriptor | null;
+    /**
+     * Every load still in the graph, oldest first: a replacing load starts the list again with
+     * itself, a merging load adds itself to the end. Saved with the project and moved by undo
+     * like the graph. The last entry is what {@link source} describes.
+     *
+     * ```ts
+     * await session.data.import({ type: "csv", config: { data: friends }, name: "friends.csv" });
+     * await session.data.import({ type: "csv", config: { data: messages }, name: "messages.csv" }, { mode: "merge" });
+     * session.data.sources().map((each) => [each.name, each.added.edges]); // [["friends.csv", 41], ["messages.csv", 23]]
+     * ```
+     * @returns the loads, or an empty list when no import loaded the graph
+     */
+    sources(): readonly LoadedSource[];
     /**
      * Give the source the graph was loaded from a new name, as one undoable step: what
      * {@link source} reports as `name` from then on. The name is saved with the project, and undo
@@ -1094,7 +1134,15 @@ export interface DraftRow {
     readonly line: number;
     /** The row's values by column name. */
     readonly values: Readonly<Record<string, unknown>>;
+    /**
+     * Which ends of an edge row name a node no node row (nor, for a merge, the graph) holds.
+     * Present only on the rows `only: "unmatched"` reads.
+     */
+    readonly missingEnds?: readonly EdgeEnd[];
 }
+
+/** One end of an edge: the node it leaves, or the node it enters. */
+export type EdgeEnd = "source" | "target";
 
 /** Which rows `LoadDraft.rows` reads. */
 export interface DraftRowOptions {
@@ -1142,6 +1190,12 @@ export interface TableMapping {
     readonly target?: string | Endpoint;
     /** The edge weight column; null weighs every edge 1, and the legacy `value` column is not read. */
     readonly weight?: string | null;
+    /**
+     * What the weight means. Written to `data.knownFields.edgeWeightMeaning`, so it is saved with
+     * the project and moved by undo; null (and absent, when the table names a weight) says the
+     * reader did not choose. `session.data.loadedWeight()` reads it back.
+     */
+    readonly weightMeaning?: WeightMeaning["meaning"] | null;
     /** The column holding a time. Written to `data.knownFields.nodeTimePath` or `edgeTimePath`. */
     readonly time?: string | null;
     /** The column holding an edge's own id. Written to `data.knownFields.edgeIdPath`. */
@@ -1223,6 +1277,62 @@ export interface DataSourceDescriptor {
     readonly size?: number;
     /** The source's options, without `data` and `file`: the `url`, and what the source reads besides. */
     readonly config?: Readonly<Record<string, unknown>>;
+}
+
+/** One edge row a load left out because an end names a node no node row held. */
+export interface LeftOutEdge {
+    /** The source end, as the load read it. */
+    readonly source: NodeId;
+    /** The target end, as the load read it. */
+    readonly target: NodeId;
+    /**
+     * Where the row was, numbered as `DraftRow.line` numbers it: for a CSV file the line it starts
+     * on, the header being line 1; for any other format the record's position in its table, from 1.
+     * Present for a load from a draft.
+     */
+    readonly line?: number;
+    /** The row's other values, by column. */
+    readonly values: Readonly<Record<string, unknown>>;
+    /**
+     * Which ends name a node no node row held: one end or both. Absent in a project saved before
+     * it was kept.
+     */
+    readonly missingEnds?: readonly EdgeEnd[];
+}
+
+/** One load still in the graph: where it came from, and what it added. */
+export interface LoadedSource extends DataSourceDescriptor {
+    /** The names of the tables the load read, as the draft named them; empty when it read none by name. */
+    readonly tables: readonly string[];
+    /**
+     * What each of `tables` held, in the same order: rows of nodes or rows of edges, as the load
+     * read them. Absent when the load read a graph file (its one entry holds both) or no table by
+     * name, and in a project saved before it was kept.
+     */
+    readonly tableRows?: readonly ("nodes" | "edges")[];
+    /** How many nodes and edges the load added to the graph. */
+    readonly added: { readonly nodes: number; readonly edges: number };
+    /**
+     * Edge rows the load left out because they named a node no node row held (`unmatched:
+     * "leave-out"`), and how many distinct such names, as `LoadReport.unmatched` counts them.
+     * Present only when the load left at least one row out.
+     */
+    readonly leftOut?: {
+        readonly rows: number;
+        readonly values: number;
+        /**
+         * The names of the columns the load read each row's two ends from. Absent when an end was
+         * read by an expression that is not a plain column name, or in a project saved before it
+         * was kept.
+         */
+        readonly endColumns?: { readonly source: string; readonly target: string };
+        /**
+         * The left-out rows themselves (the first 100), so they can be shown after the load and
+         * after a project is saved and reopened: each row's two ends as the load read them, and
+         * its other values. Absent in a project saved before they were kept.
+         */
+        readonly edges?: readonly LeftOutEdge[];
+    };
 }
 
 /** How an import treats the graph already there. */
@@ -1399,8 +1509,12 @@ export interface SessionEventMap {
      * looking at an old picture that reads as an answer.
      */
     "style:problem": StyleProblem;
-    /** Every acceleration transition; the document is the one `capabilities` returns. */
-    "capabilities:changed": { readonly capabilities: AccelerationCapabilities };
+    /**
+     * Every acceleration transition, and every change to what VR and AR can do: the probe
+     * settling, a WebXR device change, entering or leaving a session (including the headset
+     * ending it), an XR configuration change. The document is the one `capabilities` returns.
+     */
+    "capabilities:changed": { readonly capabilities: Pick<Capabilities, "acceleration" | "xr"> };
     /**
      * The history changed: a step was recorded, merged, undone, redone, restored, evicted or
      * cleared, or the pending work (and so what the next undo will do) changed. Fires
@@ -1480,7 +1594,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | Code | Params |
  * | --- | --- |
  * | `algo.run`, `algo.legacy` | `algorithm`: the algorithm's key |
- * | `algo.remove` | `run`: the run's id; `algorithm`: its algorithm, or null when unknown |
+ * | `algo.remove`, `algo.move` | `run`: the run's id; `algorithm`: its algorithm, or null when unknown |
  * | `algo.batch` | `label`: the name `runs.batch` was given, or null; `count`: how many runs |
  * | `algo.template` | none: the runs a style template asks for |
  * | `batch` | `label`: the batch's own `label`, or null; `steps`: how many commands |
@@ -1491,7 +1605,8 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.expand` | `node`: the id expanded |
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
- * | `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
+ * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
+ * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
  * | `style.remove-layers` | `count` |
  * | `style.highlight` | `run`: the run highlighted |
  * | `style.fix-channel` | `channel`; `layer`: its name, or its id |
@@ -1501,6 +1616,8 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
  * | `visibility.show-context`, `visibility.hide-context` | none |
+ * | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id`: the filter step's id |
+ * | `visibility.steps` | none: several steps changed at once, or a reorder |
  * | `set.create` | `name`: the set's name, or null |
  * | `set.rename` | `set`: its name before, or its id; `name`: the new name |
  * | `set.redefine`, `set.members`, `set.remove`, `set.restore` | `set`: its name, or its id |
@@ -1525,6 +1642,7 @@ export type HistoryCode =
     | "algo.run"
     | "algo.legacy"
     | "algo.remove"
+    | "algo.move"
     | "algo.batch"
     | "algo.template"
     | "batch"
@@ -1557,6 +1675,12 @@ export type HistoryCode =
     | "visibility.clear-window"
     | "visibility.show-context"
     | "visibility.hide-context"
+    | "visibility.step-add"
+    | "visibility.step-edit"
+    | "visibility.step-on"
+    | "visibility.step-off"
+    | "visibility.step-remove"
+    | "visibility.steps"
     | "set.create"
     | "set.rename"
     | "set.redefine"
@@ -1717,6 +1841,8 @@ export interface CommandOutcomeMap {
     "algo.legacy": Promise<void>;
     /** What went with the run, once the removal is recorded. */
     "algo.remove": Promise<RunRemoval>;
+    /** Settles once the run's layers have moved, as one step. */
+    "algo.move": Promise<void>;
     /** Settles once every member is recorded as one step and the pass that draws it has run. */
     batch: Promise<void>;
     /** Settles once the change is recorded and the pass that draws it has run. */
@@ -1741,6 +1867,8 @@ export interface CommandOutcomeMap {
     "visibility.window": Promise<void>;
     /** Settles once the flag is recorded and the pass that follows it has run. */
     "visibility.context": Promise<void>;
+    /** Settles once the steps are recorded and the pass that evaluates the masks has run. */
+    "visibility.steps": Promise<void>;
     /** The new set's id, once it is recorded. */
     "set.create": Promise<SetId>;
     /** Settles once the rename is recorded. */
@@ -1891,8 +2019,15 @@ export interface SessionLayout {
     readonly engine: string;
     /** The options it was chosen with. */
     readonly options: Readonly<Record<string, unknown>>;
-    /** Whether the graph is drawn in two dimensions or three. */
+    /** Whether the graph is drawn in two dimensions or three: the view's dimension. */
     readonly dimension: "2d" | "3d";
+    /**
+     * How many dimensions the current layout actually places nodes in. Always `"2d"` in the 2D
+     * view; in the 3D view `"2d"` for an engine that only draws flat (such as `arf`) or one chosen
+     * with `dim: 2`, and `"3d"` otherwise. Read it, not `options.dim`, to tell a flat layout in the
+     * 3D view: options hold only what was asked for, not the defaults the element fills in.
+     */
+    readonly arrangedDimension: "2d" | "3d";
     /**
      * Choose the layout. One step.
      * @param id - The catalogue id; a registered engine name is read as the id it serves.
@@ -2061,8 +2196,12 @@ export interface GraphSession {
     readonly catalog: SessionCatalogApi;
     /** The settings as they are now, and `set` to change the project ones. */
     readonly config: SessionConfig;
-    /** What this machine can do, measured rather than guessed at by the consumer. */
-    readonly capabilities: AccelerationCapabilities;
+    /**
+     * What this machine can do, measured rather than guessed at by the consumer: acceleration,
+     * and which immersive modes can be entered (with the reason when one cannot) and which one
+     * is presenting. A session that draws nothing reports VR and AR as `"unsupported"`.
+     */
+    readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
     /**
      * What the consumer asks of the hardware: use an accelerator when there is one, never look,
      * or refuse to run without one.
@@ -2103,7 +2242,7 @@ export interface GraphSession {
      * are not run while typing; they set `notSearchable` and list nothing.
      *
      * A node is found by its id, its name and its attribute values; an edge by its own attribute
-     * values only. A number or boolean value matches only whole. Ranking promises only this: an
+     * values, and by its two ends' names when `edgeNameJoiner` is set. A number or boolean value matches only whole. Ranking promises only this: an
      * exact name or id first, name and id matches before attribute values, ties in graph order.
      *
      * Synchronous: the first call after a change builds an index in one walk of the graph, and

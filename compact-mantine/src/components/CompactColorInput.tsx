@@ -1,4 +1,4 @@
-import { ActionIcon, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, Tooltip, VisuallyHidden } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import React, { useEffect, useId, useState } from "react";
 
@@ -117,6 +117,25 @@ export interface CompactColorInputProps {
      */
     onChange?: (color: string | undefined, opacity: number | undefined, event?: React.SyntheticEvent) => void;
     /**
+     * Called once when a gesture settles, with both halves of the color, as
+     * `onChange` passes them.
+     *
+     * A drag in the picker calls `onChange` on every move and this once, on
+     * release; a typed hex, an opacity commit, a swatch pick and the reset
+     * each call both once. Write to an undo history or a slow store here, so
+     * a drag is one step.
+     *
+     * Called whichever of `onChange` or `onColorChange` / `onOpacityChange`
+     * you use.
+     */
+    onChangeEnd?: (color: string | undefined, opacity: number | undefined, event?: React.SyntheticEvent) => void;
+    /**
+     * The swatch set the picker offers under its divider, as hex or hexa
+     * strings -- the colors already used in the document, for instance.
+     * @default SWATCH_COLORS_HEXA
+     */
+    swatches?: readonly string[];
+    /**
      * The field's name, drawn above the control and used to name the group the
      * three controls sit in.
      *
@@ -197,6 +216,8 @@ export interface CompactColorInputProps {
  * @param props.onColorChange - Called with the new color, or with `undefined` when the control is reset
  * @param props.onOpacityChange - Called with the new opacity, or with `undefined` when the control is reset
  * @param props.onChange - Called once per gesture with both halves of the color, whichever of them moved
+ * @param props.onChangeEnd - Called once when a gesture settles, with both halves of the color
+ * @param props.swatches - The swatch set the picker offers
  * @param props.label - The field's name, drawn above the control and used to name the group
  * @param props.showOpacity - Whether to offer the opacity box
  * @param props.disabled - Whether the control cannot be used at all
@@ -223,6 +244,8 @@ export function CompactColorInput({
     onColorChange,
     onOpacityChange,
     onChange,
+    onChangeEnd,
+    swatches = SWATCH_COLORS_HEXA,
     label,
     showOpacity = true,
     disabled = false,
@@ -278,24 +301,39 @@ export function CompactColorInput({
     }, [displayColor]);
 
     /**
+     * Split a picker color into the field's two halves.
+     * @param picked - `#RRGGBBAA`, or `#RRGGBB` when the picker carries no alpha
+     * @returns the color, the opacity it implies, and whether the picker moved the opacity
+     */
+    const splitPicked = (
+        picked: string,
+    ): { nextColor: string; nextOpacity: number | undefined; movesOpacity: boolean } => {
+        const movesOpacity = picked.length === HEXA_LENGTH && showOpacity;
+        return {
+            nextColor: picked.slice(0, HEXA_ALPHA_START).toUpperCase(),
+            nextOpacity: movesOpacity ? parseAlphaFromHexa(picked.slice(HEXA_ALPHA_START, HEXA_LENGTH)) : chosenOpacity,
+            movesOpacity,
+        };
+    };
+
+    /**
      * Take a color from the picker, splitting off its alpha channel. One onChange for the whole
      * gesture, after both halves are settled: two separate callbacks inside one React batch
      * would each rebuild a controlled consumer's state from the same stale snapshot.
      * @param picked - `#RRGGBBAA`, or `#RRGGBB` when the picker carries no alpha
      */
     const handlePickerChange = (picked: string): void => {
-        const carriesAlpha = picked.length === HEXA_LENGTH;
-        const nextColor = picked.slice(0, HEXA_ALPHA_START).toUpperCase();
-        const movesOpacity = carriesAlpha && showOpacity;
-        const nextOpacity = movesOpacity
-            ? parseAlphaFromHexa(picked.slice(HEXA_ALPHA_START, HEXA_LENGTH))
-            : chosenOpacity;
-
+        const { nextColor, nextOpacity, movesOpacity } = splitPicked(picked);
         setChosenColor(nextColor);
         if (movesOpacity) {
             setChosenOpacity(nextOpacity);
         }
         onChange?.(nextColor, nextOpacity);
+    };
+
+    const handlePickerChangeEnd = (picked: string): void => {
+        const { nextColor, nextOpacity } = splitPicked(picked);
+        onChangeEnd?.(nextColor, nextOpacity);
     };
 
     /**
@@ -310,6 +348,7 @@ export function CompactColorInput({
         if (candidate !== undefined && candidate !== displayColor.toUpperCase()) {
             setChosenColor(candidate, event);
             onChange?.(candidate, chosenOpacity, event);
+            onChangeEnd?.(candidate, chosenOpacity, event);
         } else {
             setHexDraft(hexText(displayColor));
         }
@@ -318,6 +357,7 @@ export function CompactColorInput({
     const commitOpacity = (next: number, event?: React.SyntheticEvent): void => {
         setChosenOpacity(next, event);
         onChange?.(chosenColor, next, event);
+        onChangeEnd?.(chosenColor, next, event);
     };
 
     /**
@@ -331,6 +371,7 @@ export function CompactColorInput({
             setChosenOpacity(undefined, event);
         }
         onChange?.(undefined, showOpacity ? undefined : chosenOpacity, event);
+        onChangeEnd?.(undefined, showOpacity ? undefined : chosenOpacity, event);
     };
 
     const hexaValue = `${displayColor}${opacityToAlphaHex(displayOpacity)}`.toUpperCase();
@@ -369,8 +410,9 @@ export function CompactColorInput({
                         <ColorPickerPanel
                             value={hexaValue}
                             onChange={handlePickerChange}
+                            onChangeEnd={handlePickerChangeEnd}
                             withAlpha={showOpacity}
-                            swatches={SWATCH_COLORS_HEXA}
+                            swatches={swatches}
                         />
                     </Popout.Panel>
                 </Popout>
@@ -427,17 +469,20 @@ export function CompactColorInput({
 
             {/* Drawn only once there is something to undo; a 24px target (WCAG 2.2, 2.5.8). */}
             {showReset && !isDefault && (
-                <ActionIcon
-                    variant="subtle"
-                    size={PANEL_GRID.TRAIL}
-                    c={PANEL_INK.CHROME}
-                    data-testid="compact-color-input-reset"
-                    disabled={disabled}
-                    aria-label={labels.resetToDefault(label ?? labels.colorGenericName)}
-                    onClick={handleReset}
-                >
-                    <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
-                </ActionIcon>
+                // An icon-only button says what it does on hover, not only to a screen reader.
+                <Tooltip label={labels.resetToDefault(label ?? labels.colorGenericName)}>
+                    <ActionIcon
+                        variant="subtle"
+                        size={PANEL_GRID.TRAIL}
+                        c={PANEL_INK.CHROME}
+                        data-testid="compact-color-input-reset"
+                        disabled={disabled}
+                        aria-label={labels.resetToDefault(label ?? labels.colorGenericName)}
+                        onClick={handleReset}
+                    >
+                        <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
+                    </ActionIcon>
+                </Tooltip>
             )}
 
             {annotation.description !== undefined && (

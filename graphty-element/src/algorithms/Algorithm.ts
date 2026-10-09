@@ -11,6 +11,7 @@ import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
 import type { RunResult } from "../session/results";
+import type { Caveats } from "../session/runs/types";
 import { type InputColumns, sessionColumns } from "./input/columns";
 import type { InputOrientation, SimplifyPolicy } from "./input/derivedInputs";
 import {
@@ -22,6 +23,7 @@ import {
     type ScopedInputOptions,
     type ScopeInputDeclaration,
 } from "./input/ScopedInput";
+import { type LoadedWeightFact, resolveRunWeight, type WeightReading, type WeightReads } from "./input/weight";
 import type { RunControls } from "./results/types";
 import { type OptionsFromSchema, type OptionsSchema, resolveOptions } from "./types/OptionSchema";
 import { type Graph as LegacyGraph, legacyGraphOf } from "./utils/legacyGraph";
@@ -328,7 +330,23 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      */
     static parallelEdges?: SimplifyPolicy;
 
+    /**
+     * The meaning of edge weight this algorithm reads -- `"strength"`, `"distance"` or
+     * `"capacity"` -- or null (the default) when it has no weighted form. A class that declares one
+     * takes the uniform `weight` run option, reads the weight the graph was loaded with when the
+     * option is absent, and states what it read with {@link Algorithm.weightCaveats}. The catalogue
+     * publishes it as `descriptor.weightMeaning`.
+     * @internal
+     */
+    static weightMeaning: WeightReads | null = null;
+
     protected graph: Graph;
+
+    /** The `weight` option as passed, before any schema dropped it. */
+    readonly #weightAsked: unknown;
+
+    /** Which weight this run reads, settled on first use. */
+    #weightReading?: WeightReading;
 
     /**
      * Resolved options for this algorithm instance
@@ -363,6 +381,33 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
     constructor(g: Graph, options?: Partial<TOptions>) {
         this.graph = g;
         this._schemaOptions = this.resolveOptions(options);
+        this.#weightAsked = (options as Record<string, unknown> | undefined)?.weight;
+    }
+
+    /**
+     * Which weight this run reads: the `weight` option, else the weight the graph was loaded
+     * with, checked against {@link Algorithm.weightMeaning}. Settled once per run.
+     * @returns What the run reads, and what its input is built with.
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a malformed `weight` option.
+     * @internal
+     */
+    protected weightReading(): WeightReading {
+        this.#weightReading ??= resolveRunWeight(
+            (this.constructor as typeof Algorithm).weightMeaning,
+            this.#weightAsked,
+            loadedWeightOf(this.graph),
+        );
+        return this.#weightReading;
+    }
+
+    /**
+     * The caveats that state the weight this run read, and the one it left unread.
+     * @returns `weight`, and `weightSkipped` when a weight was left unread.
+     * @internal
+     */
+    protected weightCaveats(): Pick<Caveats, "weight" | "weightSkipped"> {
+        const { weight, skipped } = this.weightReading();
+        return skipped === undefined ? { weight } : { weight, weightSkipped: skipped };
     }
 
     /**
@@ -391,7 +436,13 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      */
     protected input(orientation: InputOrientation, options?: ScopedInputOptions): ElementScopedInput {
         const simplify = options?.simplify ?? (this.constructor as typeof Algorithm).parallelEdges;
-        const merged = simplify === undefined ? options : { ...options, simplify };
+        // The weight this run reads, unless the caller asked its input for one itself.
+        const weight = options?.weight === undefined ? this.weightReading().input : options.weight;
+        const merged = {
+            ...options,
+            ...(simplify === undefined ? {} : { simplify }),
+            ...(weight === undefined ? {} : { weight }),
+        };
 
         return createScopedInput(this.graph.getDataManager(), orientation, merged, runInputOf(this), this.columns());
     }
@@ -789,4 +840,17 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
     static getRegisteredTypes(): string[] {
         return this.getRegisteredAlgorithms();
     }
+}
+
+/**
+ * The weight a graph was loaded with: the column the last load read weights from, and the meaning
+ * chosen for it at load. A graph with no load report (a bare test graph) has none.
+ * @param graph - The graph.
+ * @returns The weight, or null.
+ */
+function loadedWeightOf(graph: Graph): LoadedWeightFact | null {
+    const attribute = graph.getDataManager().lastImport?.weights.attribute ?? null;
+    return attribute === null
+        ? null
+        : { attribute, meaning: graph.styles?.config.data.knownFields.edgeWeightMeaning ?? null };
 }

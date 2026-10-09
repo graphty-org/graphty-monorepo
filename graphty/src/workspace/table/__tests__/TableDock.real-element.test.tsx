@@ -1,7 +1,7 @@
 /**
  * The table dock on the REAL graphty-element: Shift+T opens it on Nodes; a run's result is a
  * column the element sorts and fills; the Columns chooser hides a column; a group run gets an item
- * tab whose "Show members in table" narrows Nodes; a row click selects a node or an edge through
+ * tab whose "Show members in table" narrows Nodes; a column moves from its header menu; a row click selects a node or an edge through
  * the element; Export... opens the one Export dialog on the table that is showing; closing and
  * reopening the dock keeps the reader's arrangement. Every assertion reads what the element
  * reports or what the table draws from it, never pixels.
@@ -13,6 +13,7 @@ import "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, describe, it } from "vitest";
+import { page } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
@@ -79,15 +80,25 @@ describe("the table dock", () => {
             await userEvent.keyboard("{Shift>}T{/Shift}");
             const dock = await screen.findByRole("region", { name: "Table" });
             await within(dock).findByText("12 nodes");
+
+            // In a narrow dock (a tablet held upright) the tabs keep one row; the count and the
+            // Columns label give way first, and only then do the tabs scroll sideways.
+            const { innerWidth, innerHeight } = window;
+            await page.viewport(820, 1180);
+            const [nodesTab, edgesTab] = within(dock).getAllByRole("tab");
+            const nodesBox = nodesTab?.getBoundingClientRect();
+            const edgesBox = edgesTab?.getBoundingClientRect();
+            assert.strictEqual(edgesBox?.top, nodesBox?.top, "the tabs share one row");
+            await page.viewport(innerWidth, innerHeight);
             assert.equal(within(dock).getByRole("tab", { name: "Nodes" }).getAttribute("aria-selected"), "true");
 
             // A run's result is a column, headed by the run's name; the element sorts it.
             const pagerank = live.runs.start("pagerank");
             await pagerank;
             await live.runs.start("louvain");
-            const header = await within(dock).findByRole("button", { name: new RegExp(`^${pagerank.label}`) });
+            const header = await within(dock).findByRole("button", { name: /^PageRank/ });
             await userEvent.click(header);
-            await within(dock).findByText(`Sorted by ${pagerank.label}, highest first`);
+            await within(dock).findByText("Sorted by PageRank, highest first");
             const expected = live.data
                 .nodePage({ columns: [pagerank.id], sort: { run: pagerank.id, descending: true }, limit: 3 })
                 .records.map((record) => String(record.id));
@@ -111,11 +122,27 @@ describe("the table dock", () => {
             assert.equal(shown, all);
             assert.isNotNull(within(dock).getByRole("button", { name: /^team/ }));
             await userEvent.click(columns);
-            assert.isNotNull(await screen.findByRole("menuitemcheckbox", { name: pagerank.label }));
+            assert.isNotNull(await screen.findByRole("menuitemcheckbox", { name: "PageRank" }));
             await userEvent.click(await screen.findByRole("menuitemcheckbox", { name: "team" }));
             await within(dock).findByRole("button", { name: `Columns: ${String(Number(all) - 1)} of ${all}` });
             assert.isNull(within(dock).queryByRole("button", { name: /^team/ }));
             await userEvent.keyboard("{Escape}");
+
+            // A column moves from its header menu (a finger reaches it too); the key stays first.
+            const grid = screen.getByRole("grid", { name: "Nodes" });
+            const headers = (): string[] =>
+                within(grid)
+                    .getAllByRole("columnheader")
+                    .map((cell) => cell.textContent ?? "");
+            const before = headers();
+            assert.isAtLeast(before.length, 3);
+            await userEvent.click(within(grid).getAllByTestId("data-table-header-menu")[0]);
+            const left = await screen.findByRole("menuitem", { name: "Move left" });
+            assert.isTrue(left.hasAttribute("disabled") || left.getAttribute("data-disabled") === "true");
+            await userEvent.click(screen.getByRole("menuitem", { name: "Move right" }));
+            await waitFor(() => {
+                assert.deepEqual(headers(), [before[0], before[2], before[1], ...before.slice(3)]);
+            });
 
             // A row click selects that node through the element.
             await userEvent.click(within(dock).getAllByRole("gridcell", { name: expected[0] })[0]);
@@ -129,17 +156,18 @@ describe("the table dock", () => {
                 .find((run) => run.algorithm === "louvain")
                 ?.result?.summary().groups;
             assert.isDefined(groups);
-            const louvain = live.runs.list().find((run) => run.algorithm === "louvain");
-            await userEvent.click(within(dock).getByRole("tab", { name: louvain?.label }));
+            await userEvent.click(within(dock).getByRole("tab", { name: "Louvain" }));
             await within(dock).findByText(`${String(groups?.length)} groups`);
             const [first] = groups ?? [];
             const name = first.name ?? String(first.group);
             await userEvent.click(within(dock).getByRole("button", { name: `${name} options` }));
             await userEvent.click(await screen.findByRole("menuitem", { name: "Show members in table" }));
             await within(dock).findByText(`${String(first.size)} nodes`);
-            assert.isNotNull(within(dock).getByText(`${louvain?.label ?? ""}: ${name}`));
+            assert.isNotNull(within(dock).getByText(`Louvain: ${name}`));
             await userEvent.click(within(dock).getByRole("button", { name: `Show every node, not only ${name}` }));
             await within(dock).findByText("12 nodes");
+            // The chip and its x went; focus goes to the tab it narrowed.
+            assert.strictEqual(document.activeElement, within(dock).getByRole("tab", { name: "Nodes" }));
 
             // An Edges row click selects that edge through the element.
             await userEvent.click(within(dock).getByRole("tab", { name: "Edges" }));

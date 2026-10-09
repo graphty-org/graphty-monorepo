@@ -94,6 +94,17 @@ function withStore(initial: Partial<WorkspaceState> = OPEN): {
 const inspector = (canvasElement: HTMLElement): ReturnType<typeof within> =>
     within(within(canvasElement).getByRole("complementary", { name: "Inspector" }));
 
+/**
+ * Open the inspector's Values tab, where a row's readings are; a run's row opens on Style.
+ * @param canvasElement - the story's root.
+ */
+async function openValues(canvasElement: HTMLElement): Promise<void> {
+    const tab = await inspector(canvasElement).findByRole("tab", { name: "Values" });
+    if (tab.getAttribute("aria-selected") !== "true") {
+        await userEvent.click(tab);
+    }
+}
+
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Inspector",
     component: Workspace,
@@ -146,14 +157,14 @@ export const NodeWhyThisLook: Story = {
     },
 };
 
-/** Degree picked: the node's connections by name, strongest first (`#/inspector-several-elements/neighborhood`). */
+/** Degree picked: the node's connections, in name order (`#/inspector-several-elements/neighborhood`). */
 export const SeveralElementsNeighborhood: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await element.session.selection.apply({ nodes: ["n0"] });
         await userEvent.click(await inspector(canvasElement).findByRole("button", { name: /Degree/ }));
-        await inspector(canvasElement).findByRole("region", { name: "n0's 3 connections" });
+        await inspector(canvasElement).findByRole("region", { name: "Node 0 and 3 connections" });
         await element.waitForStableFrame();
     },
 };
@@ -164,7 +175,7 @@ export const SeveralElementsSummary: Story = {
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await element.session.selection.apply({ nodes: ["n1", "n4", "n9"] });
-        await inspector(canvasElement).findByRole("group", { name: "Edges among them" });
+        await inspector(canvasElement).findByRole("group", { name: "Edges joining these nodes" });
         await element.waitForStableFrame();
     },
 };
@@ -177,6 +188,7 @@ export const MeasureRowData: Story = {
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "pagerank");
         measure.store.set({ inspected: { kind: "measure-row", id } });
+        await openValues(canvasElement);
         await inspector(canvasElement).findByRole("group", { name: "Top 10" });
     },
 };
@@ -189,6 +201,7 @@ export const RunRowData: Story = {
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "louvain");
         groups.store.set({ inspected: { kind: "run-row", id } });
+        await openValues(canvasElement);
         await inspector(canvasElement).findByRole("group", { name: "Sizes" });
     },
 };
@@ -201,7 +214,8 @@ export const RunRowSettingsChanged: Story = {
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "pagerank");
         retuned.store.set({ inspected: { kind: "measure-row", id } });
-        const field = await inspector(canvasElement).findByRole("spinbutton", { name: "Damping Factor" });
+        await openValues(canvasElement);
+        const field = await inspector(canvasElement).findByRole("spinbutton", { name: "Damping factor" });
         await userEvent.clear(field);
         await userEvent.type(field, "0.5{Enter}");
         await inspector(canvasElement).findByRole("status");
@@ -219,6 +233,7 @@ export const GroupSetPathRowCommunity: Story = {
         if (first !== undefined) {
             community.store.set({ inspected: { kind: "group-row", id: groupKey(id, first.group) } });
         }
+        await openValues(canvasElement);
         await inspector(canvasElement).findByRole("group", { name: "Members" });
     },
 };
@@ -233,7 +248,7 @@ export const SelectionAndEverythingEverything: Story = {
 
 /** An attribute from Data > Attributes: its table, roles and completeness (`#/inspector-attribute-and-filter-step/lesmis-field`). */
 export const AttributeAndFilterStepField: Story = {
-    args: { initialState: { ...OPEN, inspected: { kind: "attribute", id: "data.team" } } },
+    args: { initialState: { ...OPEN, place: "data", inspected: { kind: "attribute", id: "data.team" } } },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
         await inspector(canvasElement).findByRole("group", { name: "Table" });

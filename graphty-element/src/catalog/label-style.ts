@@ -161,6 +161,14 @@ export interface LabelStyle {
     depthFadeNear?: number;
     /** How far away the camera has to be for the label to have faded out entirely. */
     depthFadeFar?: number;
+    /**
+     * Whether the label is drawn over the whole graph rather than sorted by depth with it.
+     *
+     * Off by default: a node or an edge nearer the camera passes in front of the label, as it
+     * passes in front of any other node. On, nothing in the graph covers the label -- a name
+     * behind a nearer sphere, or under a selected edge's band, stays whole.
+     */
+    onTop?: boolean;
 
     /** A badge drawn in place of, or beside, the words. */
     badge?: LabelBadge;
@@ -234,6 +242,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     depthFade: 0,
     depthFadeNear: 0,
     depthFadeFar: 0,
+    onTop: 0,
     badge: 0,
     icon: 0,
     iconPosition: 0,

@@ -868,6 +868,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             return Promise.resolve(layers[at === -1 ? layers.length - 1 : at]);
         },
         resolveToStatic: (id: string): Promise<Layer | undefined> => Promise.resolve(styles.get(id)),
+        /* A view setting: the stand-in paints no highlights, so it only accepts the call. */
+        setHighlightColor: (): void => undefined,
         /* A layer's own legend: its fixed colour as one swatch, while it is shown. */
         legendOf: (id: string): readonly LegendBlock[] => {
             const layer = layers[indexOf(id)];
@@ -972,7 +974,10 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         styles,
         /* What a host reads before the element has spoken; a board that wants another state
            dispatches the event. */
-        capabilities: { acceleration: { state: "probing" } },
+        capabilities: {
+            acceleration: { state: "probing" },
+            xr: { vr: false, ar: false, reasons: { vr: "no-webxr", ar: "no-webxr" }, active: null },
+        },
         /* A load and a clear are one step each, as the element's are; this stand-in holds no
            records of its own, so what they change is what the board's own importer does. */
         data: {
@@ -1054,6 +1059,9 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             },
             get dimension() {
                 return layout.dimension;
+            },
+            get arrangedDimension(): "2d" | "3d" {
+                return layout.dimension === "2d" || layout.options.dim === 2 ? "2d" : "3d";
             },
             /* An engine name is read as the layout it draws, as the element reads one. */
             set: (id: string, choice?: { readonly options?: Readonly<Record<string, unknown>> }): Promise<void> => {

@@ -188,9 +188,9 @@ export function detectFormats(input: DetectionInput): readonly FormatId[] {
     const extension = input.filename === undefined ? null : extensionOf(input.filename);
     if (extension !== null) {
         const claimants: FormatId[] = [
-            ...FORMAT_DESCRIPTORS.filter((descriptor) => descriptor.extensions.includes(extension)).map(
-                (descriptor) => descriptor.id,
-            ),
+            ...FORMAT_DESCRIPTORS.filter(
+                (descriptor) => descriptor.canImport && descriptor.extensions.includes(extension),
+            ).map((descriptor) => descriptor.id),
             ...registered
                 .filter((entry) => entry.descriptor.extensions.includes(extension))
                 .map((entry) => entry.descriptor.id),
@@ -252,7 +252,7 @@ export function detectFormat(input: DetectionInput): FormatId | null {
  */
 function knownFormatIds(): readonly FormatId[] {
     return [
-        ...FORMAT_DESCRIPTORS.map((descriptor) => descriptor.id),
+        ...FORMAT_DESCRIPTORS.filter((descriptor) => descriptor.canImport).map((descriptor) => descriptor.id),
         ...registeredFormats().map((entry) => entry.descriptor.id),
     ];
 }
@@ -272,10 +272,13 @@ export function unknownFormat(name: string): GraphtyError {
     // A deprecated built-in name is still offered by `FormatId`, so it is not unknown: say why it
     // cannot be read instead.
     const unserved = UNSERVED_FORMAT_IDS.find((entry) => entry.id === name);
-    const refusal =
-        unserved === undefined
-            ? `no format is named "${name}".`
-            : `the format "${name}" cannot be read: ${unserved.reason}`;
+    const writeOnly = FORMAT_DESCRIPTORS.find((descriptor) => descriptor.id === name && !descriptor.canImport);
+    let refusal = `no format is named "${name}".`;
+    if (unserved !== undefined) {
+        refusal = `the format "${name}" cannot be read: ${unserved.reason}`;
+    } else if (writeOnly !== undefined) {
+        refusal = `the format "${name}" is written, not imported. ${writeOnly.description ?? ""}`.trimEnd();
+    }
 
     return new GraphtyError({
         code: "E_UNKNOWN_FORMAT",

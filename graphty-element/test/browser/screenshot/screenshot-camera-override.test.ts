@@ -111,3 +111,37 @@ test("camera override is restored even if capture throws error", async () => {
     );
     assert.deepEqual(restoredState.target, originalState.target, "Camera target should be restored even after error");
 });
+
+test("a named view's options reach the view: fitToGraph keepAngle captures from the angle on screen", async () => {
+    graph = await createTestGraphWithData();
+    await graph.setCameraState({ position: { x: 40, y: -10, z: 5 }, target: { x: 0, y: 0, z: 0 } });
+    const onScreen = graph.getCameraState();
+
+    const placed: { position?: { x: number; y: number; z: number }; target?: { x: number; y: number; z: number } }[] =
+        [];
+    const listenerId = graph.eventManager.addListener("camera-state-changed", (event) => {
+        placed.push((event as unknown as { state: (typeof placed)[number] }).state);
+    });
+    await graph.captureScreenshot({
+        camera: { preset: "fitToGraph", params: { keepAngle: true } },
+        timing: { waitForSettle: false, waitForOperations: false },
+    });
+    graph.eventManager.removeListener(listenerId);
+
+    const direction = (state: (typeof placed)[number]): number[] => {
+        assert.exists(state.position);
+        assert.exists(state.target);
+        const d = [
+            state.position.x - state.target.x,
+            state.position.y - state.target.y,
+            state.position.z - state.target.z,
+        ];
+        const length = Math.hypot(...d);
+        return d.map((value) => value / length);
+    };
+    const expected = direction(onScreen);
+    const captured = direction(placed[0]);
+    for (let axis = 0; axis < 3; axis++) {
+        assert.closeTo(captured[axis], expected[axis], 1e-6, "the capture looks from the same direction");
+    }
+});

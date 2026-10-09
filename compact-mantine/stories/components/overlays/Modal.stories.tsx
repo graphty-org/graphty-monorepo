@@ -39,7 +39,9 @@ const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
  * ```
  *
  * Put `ModalFooter` last inside the Modal, with the secondary action (Cancel) first and the
- * primary or danger action last. The theme draws no backdrop unless you pass `withOverlay`.
+ * primary or danger action last. The page behind is blocked while the Modal is open (a click on it
+ * closes the Modal), behind a transparent overlay; pass `overlayProps={{ backgroundOpacity: 0.5 }}`
+ * to dim it.
  *
  * ## Keyboard and accessibility
  *
@@ -132,7 +134,7 @@ export const States: Story = {
                     <Button disabled>Save</Button>
                 </ModalFooter>
             </ContainedModal>
-            <ContainedModal title="Delete comment" size="sm" withOverlay height={200}>
+            <ContainedModal title="Delete comment" size="sm" overlayProps={{ backgroundOpacity: 0.5 }} height={200}>
                 <Text size="sm">Delete this comment thread? This cannot be undone.</Text>
                 <ModalFooter>
                     <Button variant="default">Cancel</Button>

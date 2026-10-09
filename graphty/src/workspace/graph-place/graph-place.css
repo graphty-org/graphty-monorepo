@@ -18,6 +18,10 @@
     font-size: 11px;
 }
 
+.ws-graph-title:hover {
+    background: var(--cm-bg-hover);
+}
+
 .ws-graph-title-prefix {
     color: var(--cm-text-secondary);
     font-size: inherit;
@@ -40,8 +44,17 @@
 .ws-find-list {
     max-height: 320px;
     margin: 4px -8px 0;
-    overflow-y: auto;
     border-bottom: 1px solid var(--cm-border);
+}
+
+/* Scrolling stops only where an option row's bottom meets the list's edge, so the edge never
+   cuts a row or leaves a heading alone under it. */
+.ws-find-viewport {
+    scroll-snap-type: y mandatory;
+}
+
+.ws-find-viewport [role="option"] {
+    scroll-snap-align: end;
 }
 
 .ws-find-heading {
@@ -51,11 +64,34 @@
     font-weight: 550;
 }
 
+.ws-find-heading-count {
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+}
+
 .ws-find-empty {
     padding: 6px 8px 0;
 }
 
-.ws-paint-tree {
+.ws-find-refusal {
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+}
+
+.ws-find-example {
+    display: block;
+    overflow-wrap: anywhere;
+}
+
+.ws-nowrap {
+    white-space: nowrap;
+}
+
+.ws-mono {
+    font-family: var(--mantine-font-family-monospace);
+}
+
+.ws-graph-place > .cm-tree {
     flex: 1 1 auto;
     min-height: 0;
 }
@@ -64,16 +100,8 @@
     display: inline-block;
     width: 24px;
     height: 8px;
-    margin-inline-end: 6px;
     border-radius: 2px;
     vertical-align: middle;
-}
-
-.ws-paint-count {
-    margin-inline-end: 4px;
-    color: var(--cm-text-secondary);
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
 }
 
 .ws-graph-footer {
@@ -82,4 +110,8 @@
     border-top: 1px solid var(--cm-border);
     color: var(--cm-text-secondary);
     font-size: 11px;
+}
+
+.ws-graph-footer-glyph {
+    vertical-align: -2px;
 }

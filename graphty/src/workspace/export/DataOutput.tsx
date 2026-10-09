@@ -1,14 +1,21 @@
-import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type { ExportResult } from "@graphty/graphty-element";
-import { Alert, Button, Input, Select, Text } from "@mantine/core";
+import { ModalFooter } from "@graphty/compact-mantine";
+import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
+import { projectFileName } from "@graphty/graphty-element/session";
+import { Alert, Button, Select, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { type DataChoices, fileName, SAVED_LOCALLY } from "./choices";
-import { lossWords } from "./lossWords";
-
-/** How many lines of the file the preview shows. */
-const PREVIEW_LINES = 6;
+import {
+    type DataChoices,
+    failureWords,
+    fileName,
+    formatRows,
+    previewOf,
+    SAVED_LOCALLY,
+    writerOptions,
+} from "./choices";
+import { columnWords, type LossFacts, lossLines } from "./lossWords";
 
 /** Props for DataOutput. */
 interface DataOutputProps {
@@ -19,45 +26,36 @@ interface DataOutputProps {
     onDone: (message: string) => void;
 }
 
+/** What a table row of a CSV holds. */
+const SUMMARIES: Readonly<Record<string, string>> = {
+    nodes: "One row per node, with every computed value",
+    edges: "One row per edge, with every edge attribute and computed value",
+    adjacency: "One row per node, listing its neighbors",
+};
+
 /**
- * The first lines of an export, read from its first chunks only.
- * @param result - the export.
- * @returns up to PREVIEW_LINES lines.
+ * A writer option's words: the element's plain name and its choices' labels.
+ * @param option - the option.
+ * @returns the label and the choice words.
  */
-async function firstLines(result: ExportResult): Promise<string> {
-    const decoder = new TextDecoder();
-    let text = "";
-    for await (const chunk of result.bytes) {
-        text += decoder.decode(chunk, { stream: true });
-        if (text.split("\n").length > PREVIEW_LINES) {
-            break;
-        }
-    }
-    return text.split("\n").slice(0, PREVIEW_LINES).join("\n");
+function optionWords(option: OptionDescriptor): { label: string; choice: (value: string) => string } {
+    return {
+        label: option.plainName,
+        choice: (value) => option.values?.find((entry) => entry.value === value)?.label ?? value,
+    };
+}
+
+/** A failure and the step it stopped. */
+interface Failure {
+    readonly title: string;
+    readonly words: string;
 }
 
 /**
- * Hands the reader a file.
- * @param text - the file's text.
- * @param name - its name.
- * @param type - its media type.
- */
-function download(text: string, name: string, type: string): void {
-    // graphty-element's exportGraph returns text only; it has no download destination as
-    // captureScreenshot does (gap recorded with the Export dialog package).
-    const url = URL.createObjectURL(new Blob([text], { type }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = name;
-    anchor.click();
-    URL.revokeObjectURL(url);
-}
-
-/**
- * The Data output: the format from graphty-element's catalog (CSV first), the table a CSV file
- * holds, what the format cannot hold (the export's losses, worded here), and a preview of the file's first
- * lines. Every run's results are columns headed by their result path, so a readable run id
- * reads as a readable header.
+ * The Data output: one Format row per file type graphty-element writes (Graphty JSON first), the
+ * row's key options (a CSV's table) and the rest behind an Advanced fold, what the format cannot
+ * hold (the export's loss notes), and a preview of the file's first lines. Every run's results
+ * are columns headed by their result path, so a readable run id reads as a readable header.
  * @param props - Component props
  * @param props.choices - The data choices
  * @param props.onChange - Called with new choices
@@ -68,18 +66,23 @@ function download(text: string, name: string, type: string): void {
 export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<DataOutputProps>): React.JSX.Element {
     const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
-    const [preview, setPreview] = useState<{ lines: string; notes: readonly string[] } | null>(null);
-    const [failure, setFailure] = useState<string | null>(null);
+    const [preview, setPreview] = useState<{ lines: string; losses: readonly LossFacts[] } | null>(null);
+    const [failure, setFailure] = useState<Failure | null>(null);
     const [busy, setBusy] = useState(false);
 
-    const formats = (session?.catalog.formats() ?? [])
-        .filter((format) => format.canExport)
-        .sort((a, b) => Number(b.id === "csv") - Number(a.id === "csv"));
-    const format = formats.find((entry) => entry.id === choices.format);
-    const csv = choices.format === "csv";
-    const options = csv ? { table: choices.table } : {};
-    const extension = format?.extensions[0]?.replace(/^\./, "") ?? choices.format;
-    const name = fileName(project, csv ? choices.table : "graph", extension);
+    const rows = formatRows(session?.catalog.formats() ?? []);
+    const rowId = choices.variant === undefined ? choices.format : `${choices.format}/${choices.variant}`;
+    const row = rows.find((entry) => entry.id === rowId);
+    const options = row === undefined ? {} : writerOptions(row, choices.values);
+    const optionsKey = JSON.stringify(options);
+    // Before the catalog is in, the choices' own table names the summary.
+    const shown = row === undefined ? choices.values : options;
+    const table = typeof shown.table === "string" ? shown.table : undefined;
+    const extension = row?.extensions[0]?.replace(/^\./, "") ?? choices.format;
+    const name =
+        choices.format === "graphty"
+            ? projectFileName(project)
+            : fileName(project, table ?? (typeof options.part === "string" ? options.part : "graph"), extension);
 
     useEffect(() => {
         if (element === null) {
@@ -87,24 +90,34 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         }
         let live = true;
         setPreview(null);
+        setFailure(null);
         element
-            .exportGraph(choices.format, csv ? { table: choices.table } : {})
+            .exportGraph(choices.format, JSON.parse(optionsKey) as Record<string, unknown>)
             .then(async (result) => {
-                const lines = await firstLines(result);
+                const lines = await previewOf(result);
                 if (live) {
-                    setPreview({ lines, notes: [...new Set(result.losses.map(lossWords))] });
-                    setFailure(null);
+                    // Only the coded facts, one per column they name: the element writes no words.
+                    setPreview({
+                        lines,
+                        losses: result.losses.flatMap(({ code, params }): LossFacts[] => {
+                            const count = typeof params.count === "number" ? params.count : null;
+                            const columns = Array.isArray(params.columns) ? params.columns.map(String) : [];
+                            return columns.length === 0
+                                ? [{ code, column: null, count }]
+                                : columns.map((column) => ({ code, column, count }));
+                        }),
+                    });
                 }
             })
             .catch((error: unknown) => {
                 if (live) {
-                    setFailure(error instanceof Error ? error.message : String(error));
+                    setFailure({ title: "The preview could not be made", words: failureWords(error) });
                 }
             });
         return () => {
             live = false;
         };
-    }, [element, choices.format, choices.table, csv]);
+    }, [element, choices.format, optionsKey]);
 
     const save = async (): Promise<void> => {
         if (element === null) {
@@ -112,72 +125,76 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         }
         setBusy(true);
         try {
-            const result = await element.exportGraph(choices.format, options);
-            download(await result.text(), name, format?.mimeTypes[0] ?? "text/plain");
+            await element.downloadGraph(choices.format, { ...options, fileName: name });
             onDone(`Exported ${name}`);
         } catch (error) {
-            setFailure(error instanceof Error ? error.message : String(error));
+            setFailure({ title: "The file was not written", words: failureWords(error) });
         } finally {
             setBusy(false);
         }
     };
 
-    const SUMMARIES = {
-        nodes: "One row per node, with every computed value",
-        edges: "One row per edge, with every edge attribute and computed value",
-    };
-    const summary = csv ? SUMMARIES[choices.table] : "Every node and edge, with every attribute and computed value";
+    const notes =
+        preview === null
+            ? []
+            : lossLines(preview.losses, (column) => (session === null ? null : columnWords(session, column)));
+
+    const summary =
+        choices.format === "graphty"
+            ? "The whole project: graph, styles, results and layout"
+            : (SUMMARIES[table ?? ""] ?? "Every node and edge, with every attribute and computed value");
 
     return (
         <>
-            <div className="ws-export-main">
+            <section className="ws-export-main" aria-label="Data">
                 <div>
                     <Text fw={550} size="md" role="heading" aria-level={3}>
                         Data
                     </Text>
                     <Text size="sm" c="dimmed">
-                        {summary} - {format?.plainName ?? choices.format}
+                        {summary} - {row?.plainName ?? choices.format}
                     </Text>
                 </div>
                 <div className="ws-export-fields">
                     <Select
                         label="Format"
-                        data={formats.map((entry) => ({ value: entry.id, label: entry.plainName }))}
-                        value={choices.format}
+                        data={rows.map((entry) => ({ value: entry.id, label: entry.plainName }))}
+                        value={rowId}
                         allowDeselect={false}
                         onChange={(id) => {
-                            onChange({ ...choices, format: id ?? "csv" });
+                            const picked = rows.find((entry) => entry.id === id);
+                            if (picked !== undefined) {
+                                onChange({ ...choices, format: picked.format, variant: picked.variant });
+                            }
                         }}
                     />
-                    {csv ? (
-                        <Input.Wrapper size="xs" label="Table">
-                            <SegmentedControl
-                                fullWidth
-                                value={choices.table}
-                                data={[
-                                    { value: "nodes", label: "Nodes" },
-                                    { value: "edges", label: "Edges" },
-                                ]}
-                                onChange={(table) => {
-                                    onChange({ ...choices, table: table === "edges" ? "edges" : "nodes" });
-                                }}
-                            />
-                        </Input.Wrapper>
-                    ) : null}
+                    {row === undefined || session === null ? null : (
+                        <OptionsForm
+                            // A new row starts with its Advanced fold closed.
+                            key={row.id}
+                            session={session}
+                            options={row.options}
+                            values={options}
+                            words={optionWords}
+                            onChange={(option, value) => {
+                                onChange({ ...choices, values: { ...choices.values, [option]: value } });
+                            }}
+                        />
+                    )}
                 </div>
-                {failure !== null ? (
-                    <Alert color="red" title="The file was not written" role="alert">
-                        {failure}
+                {failure === null ? null : (
+                    <Alert color="red" title={failure.title} role="alert">
+                        {failure.words}
                     </Alert>
-                ) : null}
-                {failure === null && preview !== null && preview.notes.length > 0 ? (
+                )}
+                {failure === null && notes.length > 0 ? (
                     <Alert
                         color="yellow"
                         role="note"
-                        title={`${format?.plainName ?? choices.format} cannot hold everything`}
+                        title={`${row?.plainName ?? choices.format} cannot hold everything`}
                     >
                         <ul className="ws-export-notes">
-                            {preview.notes.map((note) => (
+                            {notes.map((note) => (
                                 <li key={note}>{note}</li>
                             ))}
                         </ul>
@@ -190,7 +207,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                 >
                     {preview?.lines ?? "Writing the preview..."}
                 </pre>
-            </div>
+            </section>
             <ModalFooter className="ws-export-footer">
                 <Text size="sm" c="dimmed" className="ws-export-note">
                     {SAVED_LOCALLY}

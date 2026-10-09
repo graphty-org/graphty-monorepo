@@ -2367,6 +2367,28 @@ export class Dispatcher {
     }
 
     /**
+     * Whether a command that writes the graph is dispatched and has not started: a write still to
+     * come after whatever is running now. A command that is running is not counted, so the pass
+     * deriving a write (an import's included, which runs until its rows are placed) can tell
+     * "another write follows" from "this is the write".
+     * @returns True while one is.
+     */
+    get graphWritesQueued(): boolean {
+        for (const group of this.open) {
+            for (const job of group.jobs) {
+                if (
+                    (job.status === "new" || job.status === "queued" || job.status === "waiting") &&
+                    job.keys.some((key) => sliceOf(key) === "graph")
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Cancel groups, newest first.
      * @param groups - The groups, in dispatch order.
      * @param reason - Why.

@@ -1,7 +1,7 @@
 /**
  * The tier 1 tasks this package delivers, each walked from the empty app on the REAL
  * graphty-element: T7 (rank nodes), T8 (find groups) and T11 (a readable layout), plus the View
- * flyout and the selection bar. Every assertion reads what the element reports, never pixels.
+ * flyout and a node's neighborhood. Every assertion reads what the element reports, never pixels.
  *
  * Opening the sample goes through the element's own import by URL, as the Start screen package
  * will; until that package lands its sample cards are not drawn, so the walk calls the same door.
@@ -64,9 +64,9 @@ function analyzeTool(): HTMLElement {
  */
 async function analyze(filter: string, entry: string): Promise<void> {
     await userEvent.click(analyzeTool());
-    const box = await screen.findByRole("searchbox", { name: "Filter analyses" });
+    const box = await screen.findByRole("combobox", { name: "Filter analyses" });
     await userEvent.type(box, filter);
-    await userEvent.click(await screen.findByRole("button", { name: new RegExp(`^${entry}`) }));
+    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${entry}`) }));
     await userEvent.click(await screen.findByRole("button", { name: "Run" }));
 }
 
@@ -104,19 +104,23 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         "T7: Analyze > PageRank runs, lands painted, and Analyze then offers to update its row",
         async () => {
             const session = await openKarate();
+            // The finished load is announced with its size, read from the element.
+            await screen.findByText("Untitled: 34 nodes, 78 edges");
 
             await analyze("PageRank", "PageRank");
-            // Running closes the popover; a screen reader hears the run start.
+            // Running closes the popover; a screen reader hears the run start, then, on the same
+            // line, that it finished (on Karate it may already have).
             await waitFor(() => {
-                assert.isNull(screen.queryByRole("searchbox", { name: "Filter analyses" }));
+                assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }));
             });
-            assert.isNotNull(screen.getByText("PageRank added, running"));
+            assert.isNotNull(screen.getByText(/^PageRank (added, running|finished)$/));
             // Focus goes back to Analyze, not to the page.
             await waitFor(() => {
                 assert.equal(document.activeElement, analyzeTool());
             });
 
             const runId = await finished(session, "pagerank");
+            await screen.findByText("PageRank finished");
             // The run's suggested style landed as a layer bound to the run: it paints.
             await waitFor(() => {
                 assert.isAbove(session.runs.bindings(runId).length, 0);
@@ -124,15 +128,45 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
             // Picking it again revises the same row, so the button says so.
             await userEvent.click(analyzeTool());
-            const recent = await screen.findByRole("region", { name: "Recent" });
-            await userEvent.click(within(recent).getByRole("button", { name: /^PageRank/ }));
+            const recent = await screen.findByRole("group", { name: "Recent" });
+            await userEvent.click(within(recent).getByRole("option", { name: /^PageRank/ }));
             assert.isNotNull(await screen.findByRole("button", { name: "Update PageRank row" }));
             await userEvent.keyboard("{Escape}");
-            assert.isNotNull(await screen.findByRole("searchbox", { name: "Filter analyses" }));
+            assert.isNotNull(await screen.findByRole("combobox", { name: "Filter analyses" }));
             await userEvent.keyboard("{Escape}");
             await waitFor(() => {
-                assert.isNull(screen.queryByRole("searchbox", { name: "Filter analyses" }));
+                assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }));
             });
+        },
+        TIMEOUT_MS,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "Analyze picks and runs from the keyboard alone: a single match on Enter, Arrow keys otherwise",
+        async () => {
+            const session = await openKarate();
+
+            // A single match: typing then Enter opens it, and Enter again runs it.
+            await userEvent.click(analyzeTool());
+            await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "brokers{Enter}");
+            assert.isNotNull(await screen.findByRole("form", { name: /^Betweenness/ }));
+            await userEvent.keyboard("{Enter}");
+            await finished(session, "betweenness");
+
+            // No filter: ArrowDown moves the active entry, ArrowUp moves it back, Enter opens it.
+            await userEvent.click(analyzeTool());
+            const box = await screen.findByRole("combobox", { name: "Filter analyses" });
+            assert.isNull(box.getAttribute("aria-activedescendant"));
+            await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowUp}");
+            const options = screen.getAllByRole("option");
+            const activeId = box.getAttribute("aria-activedescendant");
+            assert.equal(activeId, options[1].id);
+            assert.equal(options[1].getAttribute("aria-selected"), "true");
+            assert.equal(document.activeElement, box);
+            const name = within(options[1]).getAllByText(/./)[0].textContent ?? "";
+            await userEvent.keyboard("{Enter}");
+            assert.isNotNull(await screen.findByRole("form", { name }));
         },
         TIMEOUT_MS,
     );
@@ -165,12 +199,14 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             await userEvent.click(screen.getByRole("button", { name: "Layout" }));
             // The graph's inspector shows the same group; this one is the popover's.
             const popover = await screen.findByRole("dialog", { name: "Layout" });
-            const method = within(popover).getByRole("combobox", { name: "Method" });
-            // The sample opened on the layout the element recommends, and the group says so.
-            assert.match((method as HTMLInputElement).value, / - Recommended$/);
+            // The sample opened on the layout the element recommends: checked, and the list says so.
+            const current = within(popover)
+                .getAllByRole("option")
+                .find((row) => row.getAttribute("aria-selected") === "true");
+            assert.include(current?.textContent, "Recommended");
 
-            await userEvent.click(method);
-            await userEvent.click(await within(popover).findByRole("option", { name: /^Circle/ }));
+            await userEvent.click(within(popover).getByRole("option", { name: /^Circle/ }));
+            await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
             await waitFor(() => {
                 assert.equal(session.layout.id, "circular");
             });
@@ -195,7 +231,111 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "switches to 2D with 5, and selects a node's neighbors from the selection bar",
+        "names the view mode on the View tool and offers 2D, 3D and VR or AR from its menu",
+        async () => {
+            const session = await openKarate();
+            const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+            const view = within(toolbar).getByRole("button", { name: "View" });
+            assert.equal(view.textContent, "3D");
+            // No XR buttons on the canvas: the menu is the one way in.
+            assert.isNull(document.querySelector("graphty-element .xr-button-container, .xr-button-container"));
+
+            await userEvent.click(view);
+            const menu = await screen.findByRole("menu", { name: "View" });
+            const twoD = within(menu).getByRole("menuitemradio", { name: /^2D/ });
+            const threeD = within(menu).getByRole("menuitemradio", { name: /^3D/ });
+            assert.equal(threeD.getAttribute("aria-checked"), "true");
+            // Key 5 is shown on the row it switches to, not on the current one.
+            assert.include(twoD.textContent, "5");
+            assert.notInclude(threeD.textContent, "5");
+            // Without a headset (the test browser), VR and AR are drawn, disabled, with a reason.
+            await waitFor(() => {
+                const xr = within(menu)
+                    .getAllByRole("menuitemradio")
+                    .filter((row) => /^(VR|AR)/.test(row.textContent));
+                assert.isAbove(xr.length, 0);
+                for (const row of xr) {
+                    assert.equal(row.getAttribute("aria-disabled"), "true");
+                    assert.notInclude(row.textContent, "Checking");
+                }
+            });
+            assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Front/ }));
+
+            await userEvent.click(twoD);
+            await waitFor(() => {
+                assert.equal(session.layout.dimension, "2d");
+                assert.equal(view.textContent, "2D");
+            });
+            await userEvent.click(view);
+            const flat = await screen.findByRole("menu", { name: "View" });
+            // One row says why the camera views are gone, instead of four disabled ones.
+            assert.isNull(within(flat).queryByRole("menuitem", { name: /^Front/ }));
+            assert.include(within(flat).getByRole("menuitem", { name: /^Camera views/ }).textContent, "Only in 3D");
+            assert.include(within(flat).getByRole("menuitemradio", { name: /^3D/ }).textContent, "5");
+        },
+        TIMEOUT_MS,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "frames a selected edge's two ends with Frame selection, and disables it with nothing selected",
+        async () => {
+            const session = await openKarate();
+            const element = document.querySelector("graphty-element");
+            assert.isNotNull(element);
+            if (element === null) {
+                return;
+            }
+            // Frame selection frames the ends where they are when it is pressed, and the layout is
+            // still moving them after the queue empties: wait for the drawing to stop.
+            await element.waitForStableFrame();
+            const view = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
+                name: "View",
+            });
+            const frameRow = async (): Promise<HTMLElement> => {
+                await userEvent.click(view);
+                const menu = await screen.findByRole("menu", { name: "View" });
+                return within(menu).getByRole("menuitem", { name: /^Frame selection/ });
+            };
+
+            assert.equal((await frameRow()).getAttribute("aria-disabled"), "true", "nothing selected");
+            await userEvent.keyboard("{Escape}");
+
+            const edge = session.data.edges()[0];
+            await session.selection.apply({ edges: [edge.id] });
+            assert.lengthOf(session.selection.nodes, 0, "only the edge is selected");
+            const ends = { nodes: [edge.source, edge.target] };
+            assert.notDeepEqual(
+                element.resolveCameraPreset("fitToGraph", ends),
+                element.resolveCameraPreset("fitToGraph"),
+                "the ends frame differently",
+            );
+
+            const row = await frameRow();
+            assert.notEqual(row.getAttribute("aria-disabled"), "true", "an edge is selected");
+            await userEvent.click(row);
+            await waitFor(
+                () => {
+                    // Measured when compared, so a canvas resized by the inspector opening counts.
+                    const expected = element.resolveCameraPreset("fitToGraph", ends);
+                    const now = element.getCameraState();
+                    for (const key of ["position", "target"] as const) {
+                        const [a, b] = [now[key], expected[key]];
+                        assert.isDefined(b, key);
+                        for (const axis of ["x", "y", "z"] as const) {
+                            assert.closeTo(a?.[axis] ?? Number.NaN, b?.[axis] ?? 0, 1e-3, `${key}.${axis}`);
+                        }
+                    }
+                },
+                { timeout: 10_000 },
+            );
+        },
+        TIMEOUT_MS,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "switches to 2D with 5, and opens a node's neighborhood from its Degree row, reaches two hops and filters to it",
         async () => {
             const session = await openKarate();
 
@@ -208,10 +348,62 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
             const node = session.data.nodes()[0].id;
             await session.selection.apply({ nodes: [node] });
-            const bar = await screen.findByRole("toolbar", { name: "Selection" });
-            await userEvent.click(within(bar).getByRole("button", { name: "Neighborhood" }));
+            // A selection changes nothing about the toolbar: no bar appears above it.
+            const values = await screen.findByRole("group", { name: "Summary values" });
+            assert.isNull(screen.queryByRole("toolbar", { name: "Selection" }));
+
+            await userEvent.click(within(values).getByRole("button", { name: /Degree/ }));
+            let neighborhood = 0;
             await waitFor(() => {
-                assert.isAbove(session.selection.nodes.length, 1);
+                neighborhood = session.selection.nodes.length;
+                assert.isAbove(neighborhood, 1);
+                // The inspector shows the node's neighborhood, not a plain selection.
+                assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
+            });
+
+            // Hops 2 in the list's header reselects two hops out and relists; the list, the
+            // selection and the status line agree on the count.
+            const hops = await screen.findByRole("radiogroup", { name: "Hops" });
+            await userEvent.click(within(hops).getByRole("radio", { name: "2" }));
+            await waitFor(() => {
+                assert.isAbove(session.selection.nodes.length, neighborhood);
+                assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
+            });
+            const grown = session.selection.nodes.length - 1;
+            const words = `${session.data.name(node) ?? String(node)} and ${String(grown)} connections within 2 hops`;
+            await screen.findByRole("region", { name: words });
+            await waitFor(() => {
+                assert.include(
+                    screen.getAllByRole("status").map((status) => status.textContent),
+                    words,
+                );
+            });
+            // Karate is undirected, so there is no way to choose to follow.
+            assert.isNull(screen.queryByRole("radiogroup", { name: "Follow" }));
+            // The neighborhood has one home: no Grow by one hop in its "...".
+            await userEvent.click(screen.getByRole("button", { name: "Neighborhood actions" }));
+            await screen.findByRole("menuitem", { name: /Frame selection/ });
+            assert.isNull(screen.queryByRole("menuitem", { name: /Grow by one hop/ }));
+            await userEvent.keyboard("{Escape}");
+
+            // Filter to neighbors adds one step keeping the same two hops.
+            await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
+            await waitFor(() => {
+                assert.deepEqual(
+                    session.visibility.steps.map((step) => step.rule),
+                    [{ kind: "neighborhood", seeds: [node], depth: 2 }],
+                );
+                assert.equal(session.visibility.summary.visibleNodes, grown + 1);
+            });
+            // It shows that it is on, and pressed again it takes its step away.
+            const toggle = screen.getByRole("button", { name: "Filter to neighbors" });
+            await waitFor(() => {
+                assert.equal(toggle.getAttribute("aria-pressed"), "true");
+            });
+            await userEvent.click(toggle);
+            await waitFor(() => {
+                assert.lengthOf(session.visibility.steps, 0);
+                assert.equal(toggle.getAttribute("aria-pressed"), "false");
             });
         },
         TIMEOUT_MS,

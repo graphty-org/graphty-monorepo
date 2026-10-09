@@ -100,6 +100,21 @@ const css = `
     text-overflow: ellipsis;
 }
 
+/* A row with a second line (MenuItemDescription): it grows to a 44px touch target (WCAG 2.5.5)
+   and both lines stay whole; the leading and trailing slots stay centered on it. */
+.cm-menu-item:has(.cm-menu-item-description) {
+    height: auto;
+    min-height: 44px;
+    padding-block: 4px;
+}
+.cm-menu-item-description {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--cm-text-menu-secondary);
+    ${cmFont("caption")}
+}
+
 /* Leading slot: a 24 x 24 icon starts 12px from the menu edge with a 4px gap to the label; the
    16 x 16 check column starts at 16 with no gap (labels 32 from the edge). */
 .cm-menu-item-section {
@@ -126,21 +141,22 @@ const css = `
 
 /* Highlight: pointer (:hover, from the foundation), keyboard (:focus: Mantine moves focus
    through the rows) and an open submenu's parent row. Only one row is ever filled: a row under
-   the pointer takes the highlight from a keyboard-focused one. */
-.cm-menu-item:focus::before,
+   the pointer takes the highlight from a keyboard-focused one. A disabled row never takes it,
+   focused (it stays focusable to show its reason) or hovered. */
+.cm-menu-item:not([data-disabled], :disabled):focus::before,
 .cm-menu-item[aria-expanded="true"]::before {
     background: var(--cm-bg-brand);
 }
 .cm-menu:has(> .cm-menu-item:hover) > .cm-menu-item:focus:not(:hover, [aria-expanded="true"])::before {
     background: transparent;
 }
-.cm-menu-item:is(:hover, :focus, [data-hovered], [aria-expanded="true"]) .cm-menu-item-section[data-position="right"] {
+.cm-menu-item:not([data-disabled], :disabled):is(:hover, :focus, [data-hovered], [aria-expanded="true"]) .cm-menu-item-section[data-position="right"] {
     color: var(--cm-text-onbrand-secondary);
 }
 .cm-menu:has(> .cm-menu-item:hover) > .cm-menu-item:focus:not(:hover, [aria-expanded="true"]) .cm-menu-item-section[data-position="right"] {
     color: var(--cm-text-menu-secondary);
 }
-.cm-menu-item:where([data-disabled], :disabled)::before { background: transparent; }
+.cm-menu-item:is([data-disabled], :disabled)::before { background: transparent; }
 .cm-menu-item:where([data-disabled], :disabled) .cm-menu-item-section { color: var(--cm-text-menu-disabled); }
 .cm-menu-item:focus { outline: none; }
 
@@ -148,8 +164,8 @@ const css = `
    the danger slots replace the menu's. ponytail: keyed on the inline style Mantine writes for
    color="red"; any other color keeps the menu's white. */
 .cm-menu-item[style*="--mantine-color-red"] { color: var(--cm-text-danger); }
-.cm-menu-item[style*="--mantine-color-red"]:is(:hover, :focus, [data-hovered])::before { background: var(--cm-bg-danger); }
-.cm-menu-item[style*="--mantine-color-red"]:is(:hover, :focus, [data-hovered]) { color: var(--cm-text-onbrand); }
+.cm-menu-item[style*="--mantine-color-red"]:not([data-disabled], :disabled):is(:hover, :focus, [data-hovered])::before { background: var(--cm-bg-danger); }
+.cm-menu-item[style*="--mantine-color-red"]:not([data-disabled], :disabled):is(:hover, :focus, [data-hovered]) { color: var(--cm-text-onbrand); }
 
 /* Menu.Label: a group heading in a row of its own, secondary text. */
 .cm-menu-label {
@@ -190,8 +206,9 @@ const css = `
 }
 .cm-tooltip-arrow { border: 0; }
 /* Hidden by overlayBehavior.ts: dismissed (pointer-down, key, wheel, pointer left the window)
-   for the rest of this tooltip's life, or held for the cold delay after a keyboard focus. */
-.cm-tooltip:is([data-cm-dismissed], [data-cm-held]) { visibility: hidden; }
+   for the rest of this tooltip's life, held for the cold delay after a keyboard focus, or still:
+   its trigger came under a resting pointer and nobody has pointed at it yet. */
+.cm-tooltip:is([data-cm-dismissed], [data-cm-held], [data-cm-still]) { visibility: hidden; }
 
 /* TooltipShortcut: the label, then the shortcut 12px after it in the secondary text color. */
 .cm-tooltip-shortcut-row { display: flex; align-items: center; white-space: nowrap; }
@@ -265,7 +282,6 @@ const css = `
     --modal-size-md: 480px;
     --modal-size-lg: 760px;
 }
-.cm-modal-overlay { background: var(--cm-modal-backdrop); }
 .cm-modal-content {
     background-color: var(--cm-bg);
     color: var(--cm-text);
@@ -295,19 +311,21 @@ const css = `
     padding: 8px 16px;
     ${cmFont("body")}
 }
-/* ModalFooter: 40 tall across the modal's full width (it cancels the body's 8px 16px padding,
-   leaving Figma's 8px between the last field and the footer),
-   a 1px top divider, buttons end-aligned 8px apart. */
+/* ModalFooter: 48 tall across the modal's full width (it cancels the body's 8px 16px padding,
+   leaving Figma's 8px between the last field and the footer), a 1px top divider, buttons
+   end-aligned 8px apart, 16px in from both sides and 12px above and below 24px buttons.
+   A deliberate departure from Figma's 40px footer with an 8px end inset (design/figma-spec.md
+   8.5): that put the last button 8px from the edge inside a 13px corner, too tight for touch. */
 .cm-modal-footer {
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 8px;
     box-sizing: border-box;
-    height: 40px;
+    height: 48px;
     margin: 8px -16px -8px;
     padding-block: 0;
-    padding-inline: 16px 8px;
+    padding-inline: 16px;
     box-shadow: inset 0 1px 0 var(--cm-border);
 }
 
@@ -403,6 +421,11 @@ const css = `
 .cm-toast-layer > * { pointer-events: auto; }
 
 /* ---------------------------------------------------------------- 8.7 overlay scrollbar */
+
+/* A ScrollArea that scrolls only up and down (scrollbars="y") is never wider than itself: its
+   content takes the area's width, so a long row ellipsizes instead of widening the content past
+   an edge it cannot scroll to. Mantine sizes that content to its widest row (min-content). */
+.cm-scroll-viewport[data-scrollbars="y"] > div { min-width: 0; }
 
 /* Track 10 wide, padding 2, transparent; shown only while the pointer is over the container.
    Mantine's hover rule is :where(scheme) .m_x:hover (0,2,0) and its thumb rule under it (0,3,0),

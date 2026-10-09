@@ -1,0 +1,25 @@
+== T21B start setup:/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/tier-2/setups/team-pagerank.txt
+commit 1202de900c16d4a8e475179740e8fc884f547723, build e2ccec0e9304 graphty@0.8.56
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/B/01.png
+exit 0
+== T21B step: --click "PageRank" --click "Values"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/B/02.png
+exit 0
+== T21B step: --click "Data"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/B/03.png
+exit 0
+== T21B step: --rclick "team.csv"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/B/04.png
+exit 0
+== T21B step: --click "Replace with file..." --upload team-v2.csv
+a file chooser is open (answer it with --upload <file>)
+chose the file team-v2.csv
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/B/05.png
+exit 0
+== T21B step: --click "Load"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/B/06.png
+exit 0
+== T21B step: --click "Rerun"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/B/07.png
+exit 0
+session ended: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T21-final/B

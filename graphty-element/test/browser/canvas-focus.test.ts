@@ -1,11 +1,12 @@
 import { afterEach, assert, describe, test } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import type { Graph } from "../../src/Graph";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 /**
  * The graph canvas must not take keyboard focus from the host page on its own, and focusing it on a
- * click must not scroll the page. Issue #78.
+ * click must not scroll the page. Issue #78. A press on it must still reach the host page.
  */
 describe("canvas focus", () => {
     let graph: Graph | undefined;
@@ -38,6 +39,29 @@ describe("canvas focus", () => {
         await graph.setViewMode("2d");
         await graph.setViewMode("3d");
         assert.strictEqual(document.activeElement, input, "switching back to 3d took focus from the host input");
+    });
+
+    test("a press on the canvas reaches the host page as a mouse press", async () => {
+        // A host page's popover or menu closes on a mousedown outside it (Mantine's default). A
+        // canceled pointerdown suppresses the browser's compatibility mouse events, so a press on
+        // the drawing never reached such a page and its popover stayed open.
+        graph = await createTestGraph();
+        await graph.setViewMode("3d");
+        const seen: string[] = [];
+        const record = (event: Event): void => {
+            seen.push(event.type);
+        };
+        document.addEventListener("mousedown", record);
+        document.addEventListener("mouseup", record);
+        try {
+            await userEvent.click(graph.canvas, { position: { x: 5, y: 5 } });
+        } finally {
+            document.removeEventListener("mousedown", record);
+            document.removeEventListener("mouseup", record);
+        }
+
+        assert.deepEqual(seen, ["mousedown", "mouseup"]);
+        assert.strictEqual(document.activeElement, graph.canvas, "the press still focuses the canvas");
     });
 
     test("clicking the canvas focuses it without scrolling the page", async () => {

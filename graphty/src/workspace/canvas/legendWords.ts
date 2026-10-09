@@ -10,8 +10,19 @@
  * out from the swatches.
  */
 
+import type { ScreenshotLegendSection } from "@graphty/graphty-element";
 import type { Channel } from "@graphty/graphty-element/catalog";
-import type { LegendBlock, LegendFact, LegendFactCode, LegendSwatch } from "@graphty/graphty-element/session";
+import type {
+    GraphSession,
+    LegendBlock,
+    LegendFact,
+    LegendFactCode,
+    LegendSwatch,
+} from "@graphty/graphty-element/session";
+
+import { highlightEntry } from "../analyze/words";
+import { count } from "../inspector/words";
+import { runName } from "../runWords";
 
 /** The property word each channel a legend shows goes by ("Color: PageRank"). */
 const PROPERTY_WORDS: Partial<Record<Channel, string>> = {
@@ -30,6 +41,37 @@ const PROPERTY_WORDS: Partial<Record<Channel, string>> = {
 
 /** The channels whose swatches carry a size. */
 const SIZE_CHANNELS: ReadonlySet<Channel> = new Set<Channel>(["node.size", "edge.width"]);
+
+/**
+ * The channels that write text onto the drawing, and the look of that text: the text is its own
+ * key, so they get no section.
+ */
+const TEXT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
+    "node.label",
+    "node.labelStyle",
+    "edge.labelStyle",
+    "node.tooltip",
+    "edge.label",
+    "edge.arrowHeadText",
+    "edge.arrowTailText",
+]);
+
+/**
+ * The blocks the legend shows: not a label's (it would list every name beside the name already
+ * drawn), not a size that does not vary (a key for one size reads as "sizes done" while every
+ * dot is the same, and a highlight's one width, "24", reads as a count), and not one a layer above paints over on every element (a key for paint no
+ * reader can see is a false claim).
+ * @param blocks - the blocks `styles.legend()` returned.
+ * @returns the blocks worth a key, in the same order.
+ */
+export function keyBlocks(blocks: readonly LegendBlock[]): LegendBlock[] {
+    return blocks.filter(
+        (block) =>
+            !TEXT_CHANNELS.has(block.channel) &&
+            !(isSizeBlock(block) && (block.kind === "literal" || block.kind === "highlight")) &&
+            !block.facts.some((fact) => fact.code === "legend.painted-over"),
+    );
+}
 
 /**
  * Whether a block describes a size, so its swatches carry `size` rather than `color`.
@@ -71,14 +113,14 @@ function legendNumber(value: number): string {
 
 /**
  * The text of one legend row, worded from the row's facts: "Group 3" for a run's group, "0 - 25"
- * for a stepped range, "0.3" for a ramp stop, the category itself, the layer's name for a fixed
+ * for a stepped range, "0.3" for a ramp stop, the category itself, the entry for a fixed
  * value, and "other: 4 groups" for the folded bucket.
  * @param block - the block the row belongs to.
  * @param swatch - the row.
- * @param layerName - the name of the layer behind the block, for a fixed-value row.
+ * @param entry - the entry of a fixed-value row (`KeyNames.entry`).
  * @returns the text.
  */
-export function swatchText(block: LegendBlock, swatch: LegendSwatch, layerName?: string): string {
+export function swatchText(block: LegendBlock, swatch: LegendSwatch, entry?: string): string {
     const { value } = swatch;
     if (swatch.role === "other") {
         const groups = Array.isArray(value) ? value.length : 0;
@@ -92,7 +134,7 @@ export function swatchText(block: LegendBlock, swatch: LegendSwatch, layerName?:
         return min === max ? legendNumber(min) : `${legendNumber(min)} - ${legendNumber(max)}`;
     }
     if (block.kind === "literal" || block.kind === "highlight") {
-        return layerName ?? String(value);
+        return entry ?? String(value);
     }
     if (block.kind !== "categorical" && typeof value === "number") {
         return legendNumber(value);
@@ -105,11 +147,11 @@ export function swatchText(block: LegendBlock, swatch: LegendSwatch, layerName?:
  * groups into, is "Other".
  * @param block - the block the row belongs to.
  * @param swatch - the row.
- * @param layerName - the name of the layer behind the block, for a fixed-value row.
+ * @param entry - the entry of a fixed-value row (`KeyNames.entry`).
  * @returns its name.
  */
-export function swatchName(block: LegendBlock, swatch: LegendSwatch, layerName?: string): string {
-    return swatch.role === "other" ? "Other" : swatchText(block, swatch, layerName);
+export function swatchName(block: LegendBlock, swatch: LegendSwatch, entry?: string): string {
+    return swatch.role === "other" ? "Other" : swatchText(block, swatch, entry);
 }
 
 /** The sentence each legend fact is printed as. */
@@ -159,4 +201,142 @@ export function paintWords(swatch: LegendSwatch): string | null {
  */
 export function overflowLine(hidden: number): string {
     return `${String(hidden)} more`;
+}
+
+/** How the key names the row behind a block, and the entry of a fixed-value row. */
+interface KeyNames {
+    /** The name of the row that paints the block: its run's, else its layer's. */
+    readonly row: (block: LegendBlock) => string;
+    /** The entry of a fixed-value row: a highlight's words ("On the path"), else the layer's name. */
+    readonly entry: (block: LegendBlock) => string;
+}
+
+/** One section of the key: its title, the block it draws, and a fixed-value row's entry. */
+interface KeySection {
+    readonly title: string;
+    readonly block: LegendBlock;
+    readonly entry: string;
+}
+
+/**
+ * The color of a one-swatch color highlight, the only kind two blocks of one run merge by.
+ * @param block - the block.
+ * @returns its color, or undefined for any other block.
+ */
+function highlightColor(block: LegendBlock): string | undefined {
+    const colorChannel = block.channel === "node.color" || block.channel === "edge.color";
+    return block.kind === "highlight" && colorChannel && block.swatches.length === 1
+        ? block.swatches[0].color
+        : undefined;
+}
+
+/**
+ * The key's sections, top first. A run's node and edge highlights in one color are one section,
+ * titled by the run alone ("Shortest path") with one entry ("On the path"): two sections with the
+ * same chip told a reader nothing the one does not.
+ * @param blocks - the blocks worth a key (`keyBlocks`), bottom layer first.
+ * @param names - how to name a block's row and its entry.
+ * @returns the sections.
+ */
+export function keySections(blocks: readonly LegendBlock[], names: KeyNames): KeySection[] {
+    const top = [...blocks].reverse();
+    const merged = new Set<LegendBlock>();
+    const sections: KeySection[] = [];
+    for (const block of top) {
+        if (merged.has(block)) {
+            continue;
+        }
+        const color = highlightColor(block);
+        const twins = top.filter(
+            (other) =>
+                other !== block &&
+                color !== undefined &&
+                other.runId === block.runId &&
+                other.channel !== block.channel &&
+                highlightColor(other) === color,
+        );
+        twins.forEach((twin) => merged.add(twin));
+        const row = names.row(block);
+        sections.push({ title: twins.length > 0 ? row : sectionTitle(block, row), block, entry: names.entry(block) });
+    }
+    return sections;
+}
+
+/**
+ * The legend card as the key an exported image carries: the same sections, top first, in the same
+ * words -- a ramp for a sequential or diverging block (a size wedge for a size), a row per value
+ * otherwise, with its count or what it paints, and the overflow line.
+ * @param blocks - the blocks `styles.legend()` returned, bottom layer first.
+ * @param names - how to name a block's row and its entry.
+ * @returns the sections, for `captureScreenshot({ legend })`.
+ */
+export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): ScreenshotLegendSection[] {
+    return keySections(keyBlocks(blocks), names).map(({ title, block, entry }) => {
+        if (block.kind === "sequential" || block.kind === "diverging") {
+            const colors = block.swatches.flatMap((swatch) => (swatch.color === undefined ? [] : [swatch.color]));
+            const first = block.swatches.at(0);
+            const last = block.swatches.at(-1);
+            const ramp = {
+                min: first === undefined ? "" : swatchText(block, first),
+                max: last === undefined ? "" : swatchText(block, last),
+            };
+            return { title, ramp: isSizeBlock(block) ? ramp : { ...ramp, colors } };
+        }
+        const rows = block.swatches.map((swatch) => {
+            const value = paintWords(swatch) ?? swatch.count?.toLocaleString();
+            return {
+                label: swatchName(block, swatch, entry),
+                ...(swatch.color === undefined ? {} : { color: swatch.color }),
+                ...(value === undefined ? {} : { value }),
+            };
+        });
+        return {
+            title,
+            rows,
+            ...(block.overflow === undefined ? {} : { note: overflowLine(block.overflow.hidden) }),
+        };
+    });
+}
+
+/**
+ * The name of the row that paints a block: its run's name, else its layer's. A run whose data
+ * changed since it ran is named as the run list names it, "PageRank, out of date", so the key never
+ * passes off a stale result as current. A run that only no longer matches what is shown (a filter
+ * step since) is still right about the nodes it ran on, so the key names them instead: "PageRank on
+ * 20 nodes".
+ * @param session - the session.
+ * @param block - the block.
+ * @returns the name.
+ */
+function rowName(session: GraphSession, block: LegendBlock): string {
+    const run = block.runId === undefined ? undefined : session.runs.get(block.runId);
+    if (run === undefined) {
+        return session.styles.get(block.layerId)?.name ?? block.layerId;
+    }
+    const name = runName(session, run);
+    if (run.status !== "succeeded" || run.stale === null) {
+        return name;
+    }
+    return run.stale.reason === "data-changed"
+        ? `${name}, out of date`
+        : `${name} on ${count(run.stale.ranOn, "node")}`;
+}
+
+/**
+ * The key's names for a block, from the session: the row's run or layer name, and a highlight's
+ * entry in the app's words for what the run marks, never the element's layer name.
+ * @param session - the session.
+ * @returns the names.
+ */
+export function keyNames(session: GraphSession): KeyNames {
+    return {
+        row: (block) => rowName(session, block),
+        entry: (block) => {
+            const run = block.runId === undefined ? undefined : session.runs.get(block.runId);
+            if (block.kind === "highlight" && run !== undefined) {
+                return highlightEntry(run.shape);
+            }
+            return session.styles.get(block.layerId)?.name ?? rowName(session, block);
+        },
+    };
 }

@@ -1259,7 +1259,7 @@ describe("a third party's layout engine", () => {
             // string. The element's own nineteen engines sit behind fourteen arrangement names, which
             // is why this question exists at all.
             assert.strictEqual(layoutIdForEngine("test-ring"), "test-ring");
-            assert.strictEqual(layoutIdForEngine("arf"), "force-2d", "the element's own answer is unchanged");
+            assert.strictEqual(layoutIdForEngine("arf"), "force", "the element's own answer is unchanged");
             assert.isUndefined(layoutIdForEngine("no-such-engine"));
         });
 
@@ -1271,7 +1271,7 @@ describe("a third party's layout engine", () => {
             assert.isFalse(offeredLayout("test-ring").honoursWeights);
             assert.isFalse(offeredLayout("test-grid").honoursWeights);
             assert.strictEqual(
-                layoutDescriptor("force-2d")?.honoursWeights,
+                layoutDescriptor("circular")?.honoursWeights,
                 false,
                 "the element's own arrangements answer the same question the same way",
             );

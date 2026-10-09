@@ -1,21 +1,23 @@
 /**
  * The Data place's words and arrangement (tier1-design.md section 2.6): what each Sources row and
  * each Attributes row says, in which order. Every fact comes from graphty-element
- * (`data.source()`, `data.lastImport()`, `data.attributes()`); this file only words and orders it.
+ * (`data.sources()`, `data.lastImport()`, `data.attributes()`); this file only words and orders it.
  */
 
 import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
-import type { CodedFact, ColumnRef, DataSourceDescriptor, ImportReport } from "@graphty/graphty-element/session";
+import type { CodedFact, ColumnRef, ImportReport, LeftOutEdge, LoadedSource } from "@graphty/graphty-element/session";
 
-/** What a Sources row's glyph shows: a graph file holding both tables, or one table. */
-export type SourceKind = "file" | "nodes" | "edges";
+import { valueText } from "../inspector/words";
+
+/** What a Sources row's glyph shows: a graph file holding both tables, one table, or the rows a load left out. */
+export type SourceKind = "file" | "nodes" | "edges" | "left-out";
 
 /** One Sources row. */
 export interface SourceRow {
     readonly id: string;
     readonly kind: SourceKind;
     readonly name: string;
-    /** The quiet line: "34 nodes, 78 edges"; "254 rows, 254 edges"; "77 nodes". */
+    /** The quiet line: "34 nodes, 78 edges"; "30 nodes, 254 edges"; "77 nodes"; a table's "254 rows, 254 edges". */
     readonly quiet: string;
     readonly children?: readonly SourceRow[];
 }
@@ -54,27 +56,199 @@ export function count(n: number, noun: string): string {
 }
 
 /**
- * The Sources rows for what the element says was loaded. A graph file that brought both node and
- * edge records is one row that expands to its node table and edge table; a source that brought
- * one kind of record is that one table.
- * @param source - `data.source()`.
+ * What a load added, as its row's quiet line. A kind it added none of is left out, so a narrow
+ * row keeps room for its name.
+ * @param added - `LoadedSource.added`.
+ * @returns such as "20 nodes, 41 edges", "17 edges", or "0 nodes, 0 edges" for a load that added nothing.
+ */
+function addedWords(added: LoadedSource["added"]): string {
+    const parts = [
+        ...(added.nodes > 0 ? [count(added.nodes, "node")] : []),
+        ...(added.edges > 0 ? [count(added.edges, "edge")] : []),
+    ];
+    return parts.length === 0 ? "0 nodes, 0 edges" : parts.join(", ");
+}
+
+/**
+ * The row under a load that says how many edge rows it left out, so the count shows however
+ * narrow the panel is.
+ * @param load - the load, an entry of `data.sources()`.
+ * @param id - the load's row id.
+ * @returns the rows: one "1 row left out" row, or none when the load left nothing out.
+ */
+function leftOutRows(load: LoadedSource, id: string): SourceRow[] {
+    return load.leftOut === undefined
+        ? []
+        : [{ id: `${id}:left-out`, kind: "left-out", name: `${count(load.leftOut.rows, "row")} left out`, quiet: "" }];
+}
+
+/**
+ * The nodes an edge row names that are in no node row: "a node", or "2 nodes".
+ * @param values - how many distinct such names.
+ * @returns the words.
+ */
+export function missingNodes(values: number): string {
+    return `${values === 1 ? "a node" : count(values, "node")} missing from the node rows`;
+}
+
+/**
+ * The sentence that says why a load left rows out, for the inspector.
+ * @param leftOut - `LoadedSource.leftOut`.
+ * @returns such as "1 edge row was left out: it names a node missing from the node rows."
+ */
+export function leftOutSentence(leftOut: NonNullable<LoadedSource["leftOut"]>): string {
+    const one = leftOut.rows === 1;
+    return `${count(leftOut.rows, "edge row")} ${one ? "was" : "were"} left out: ${one ? "it names" : "they name"} ${missingNodes(leftOut.values)}.`;
+}
+
+/** The words after an unmatched row's end that names no node, in the import grid. */
+export const NO_NODE_ROW = "(no node row)";
+
+/**
+ * Says which names have no node row: an unmatched row on the import page, a left-out row in the inspector.
+ * @param names - the missing names, in row order, repeats allowed.
+ * @returns such as "s11 has no node row" or "s11, p13 and 2 more have no node rows".
+ */
+export function noNodeRow(names: readonly string[]): string {
+    const unique = [...new Set(names)];
+    const shown = unique.length > 3 ? [...unique.slice(0, 2), `${String(unique.length - 2)} more`] : unique;
+    const list = shown.length === 1 ? shown[0] : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+    return unique.length === 1 ? `${list} has no node row` : `${list} have no node rows`;
+}
+
+/**
+ * One left-out row as a line: where it was in the file, which of its values has no node row (first,
+ * so a narrow inspector still shows it), then its two ends under their column names and its other
+ * values under theirs.
+ * @param edge - the row, as its load kept it.
+ * @param ends - the columns the ends were read from, `LoadedSource.leftOut.endColumns`.
+ * @returns such as "Line 24: p13 has no node row; from p11, to p13, emails 6".
+ */
+export function leftOutRow(edge: LeftOutEdge, ends?: NonNullable<LoadedSource["leftOut"]>["endColumns"]): string {
+    const text = (value: unknown): string => (value === null || value === undefined ? "" : valueText(value));
+    const named = (name: string | undefined, value: unknown): string =>
+        name === undefined ? text(value) : `${name} ${text(value)}`;
+    const values = [
+        named(ends?.source, edge.source),
+        named(ends?.target, edge.target),
+        ...Object.entries(edge.values).map(([name, value]) => named(name, value)),
+    ].join(", ");
+    const missing = (edge.missingEnds ?? []).map((end) => text(edge[end]));
+    const line = missing.length === 0 ? values : `${noNodeRow(missing)}; ${values}`;
+    return edge.line === undefined ? line : `Line ${String(edge.line)}: ${line}`;
+}
+
+/**
+ * The index into `data.sources()` that a Sources row id names.
+ * @param id - `source:<load>` or `source:<load>:<table>`.
+ * @returns the index, or undefined for an id that is not a source row's.
+ */
+export function loadIndexOf(id: string): number | undefined {
+    const [head, index] = id.split(":");
+    const at = Number(index);
+    return head === "source" && Number.isInteger(at) && at >= 0 ? at : undefined;
+}
+
+/**
+ * The glyph of a load that read one table: a graph file when it brought both nodes and edges.
+ * @param added - `LoadedSource.added`.
+ * @returns the kind.
+ */
+function kindOf(added: LoadedSource["added"]): SourceKind {
+    if (added.nodes > 0 && added.edges > 0) {
+        return "file";
+    }
+    return added.edges > 0 ? "edges" : "nodes";
+}
+
+/**
+ * The Sources rows for what the element says was loaded: one row per load, oldest first
+ * (`data.sources()`). A load that read several tables expands to them. A graph that came from one
+ * load of one table keeps the tier 1 rows: a graph file expands to its node table and edge table
+ * (counted from `data.lastImport()`), and a source that brought one kind of record is that table.
+ * @param sources - `data.sources()`.
  * @param report - `data.lastImport()`.
  * @returns the rows, empty when nothing was imported.
  */
-export function sourceRows(source: DataSourceDescriptor | null, report: ImportReport | null): SourceRow[] {
-    if (source === null || report === null) {
-        return [];
+export function sourceRows(sources: readonly LoadedSource[], report: ImportReport | null): SourceRow[] {
+    const [only] = sources;
+    if (sources.length === 1 && only.tables.length <= 1 && report !== null) {
+        return oneTableRows(only.name ?? "Untitled data", report).map((row) => {
+            const leftOut = leftOutRows(only, row.id);
+            return leftOut.length === 0 ? row : { ...row, children: [...(row.children ?? []), ...leftOut] };
+        });
     }
-    const name = source.name ?? "Untitled data";
+    return sources.map((load, index) => {
+        const id = `source:${String(index)}`;
+        const name = loadName(load);
+        if (load.tables.length > 1) {
+            const children = load.tables.map((table, at): SourceRow => ({
+                id: `${id}:${String(at)}`,
+                kind: load.tableRows?.[at] ?? "file",
+                name: table,
+                quiet: "",
+            }));
+            return {
+                id,
+                kind: "file",
+                name,
+                quiet: addedWords(load.added),
+                children: [...children, ...leftOutRows(load, id)],
+            };
+        }
+        const leftOut = leftOutRows(load, id);
+        return {
+            id,
+            kind: kindOf(load.added),
+            name,
+            quiet: addedWords(load.added),
+            ...(leftOut.length === 0 ? {} : { children: leftOut }),
+        };
+    });
+}
+
+/**
+ * One Sources row by its id, a load's or a child's.
+ * @param sources - `data.sources()`.
+ * @param report - `data.lastImport()`.
+ * @param id - the row's id.
+ * @returns the row, or undefined when it is gone.
+ */
+export function sourceRowOf(
+    sources: readonly LoadedSource[],
+    report: ImportReport | null,
+    id: string,
+): SourceRow | undefined {
+    return sourceRows(sources, report)
+        .flatMap((row) => [row, ...(row.children ?? [])])
+        .find((row) => row.id === id);
+}
+
+/**
+ * A load's name: the one it was given, else its tables'.
+ * @param load - an entry of `data.sources()`.
+ * @returns such as "people.csv and passes.csv".
+ */
+export function loadName(load: LoadedSource): string {
+    return load.name ?? (load.tables.join(" and ") || "Untitled data");
+}
+
+/**
+ * The rows for a graph that came from one load of one table.
+ * @param name - the load's name.
+ * @param report - `data.lastImport()`.
+ * @returns the rows.
+ */
+function oneTableRows(name: string, report: ImportReport): SourceRow[] {
     const { nodes, edges, nodeRecords, edgeRecords } = report.counts;
     const nodeTable: SourceRow = {
-        id: "source:nodes",
+        id: "source:0:nodes",
         kind: "nodes",
         name: "Node table",
         quiet: `${count(nodeRecords, "row")}, ${count(nodes, "node")}`,
     };
     const edgeTable: SourceRow = {
-        id: "source:edges",
+        id: "source:0:edges",
         kind: "edges",
         name: "Edge table",
         quiet: `${count(edgeRecords, "row")}, ${count(edges, "edge")}`,
@@ -82,7 +256,7 @@ export function sourceRows(source: DataSourceDescriptor | null, report: ImportRe
     if (nodeRecords > 0 && edgeRecords > 0) {
         return [
             {
-                id: "source",
+                id: "source:0",
                 kind: "file",
                 name,
                 quiet: `${count(nodes, "node")}, ${count(edges, "edge")}`,
@@ -90,9 +264,29 @@ export function sourceRows(source: DataSourceDescriptor | null, report: ImportRe
             },
         ];
     }
-    // A lone node table reads "77 nodes"; only an edge table counts its rows (section 2.6).
-    const only = edgeRecords > 0 ? edgeTable : { ...nodeTable, quiet: count(nodes, "node") };
-    return [{ ...only, id: "source", name }];
+    // A lone table reads what it made: "77 nodes", or "14 nodes, 16 edges" for an edge list.
+    const table =
+        edgeRecords > 0
+            ? { ...edgeTable, quiet: `${count(nodes, "node")}, ${count(edges, "edge")}` }
+            : { ...nodeTable, quiet: count(nodes, "node") };
+    return [{ ...table, id: "source:0", name }];
+}
+
+/**
+ * The graph header's provenance line: the one file the graph came from, or how many.
+ * @param sources - `data.sources()`.
+ * @returns such as "From friends.csv" or "From 3 files"; undefined when nothing was loaded.
+ */
+export function sourcesWords(sources: readonly LoadedSource[]): string | undefined {
+    const files = sources.flatMap((load) =>
+        load.tables.length > 1 ? load.tables : [load.name ?? load.tables[0] ?? "Untitled data"],
+    );
+    if (files.length <= 1) {
+        return files.length === 0 ? undefined : `From ${files[0]}`;
+    }
+    // A URL is not a file.
+    const noun = sources.some((load) => load.config?.url !== undefined) ? "sources" : "files";
+    return `From ${String(files.length)} ${noun}`;
 }
 
 /**

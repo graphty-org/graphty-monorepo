@@ -5,12 +5,16 @@ import random from "ngraph.random";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { getDefaults } from "../config/OptionsSchema";
 import type { Edge } from "../Edge";
 import type { Node } from "../Node";
 import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 
 /**
- * Zod-based options schema for NGraph Force Layout
+ * Zod-based options schema for NGraph Force Layout. The defaults are ngraph.forcelayout's own,
+ * the values the simulation runs with when an option is not passed. They once said 30, 0.0008,
+ * -1.2, 0.02 and 20 while ngraph ran 10, 0.8, -12, 0.9 and 0.5, so a reader who saw "30" and asked
+ * for 80 got eight times the spring length and a drawing that never formed groups.
  */
 const ngraphLayoutOptionsSchema = defineOptions({
     dim: {
@@ -21,27 +25,27 @@ const ngraphLayoutOptionsSchema = defineOptions({
         },
     },
     springLength: {
-        schema: z.number().positive().default(30),
+        schema: z.number().positive().default(10),
         meta: {
             label: "Spring Length",
             description: "Ideal spring length between connected nodes",
         },
     },
     springCoefficient: {
-        schema: z.number().positive().default(0.0008),
+        schema: z.number().positive().default(0.8),
         meta: {
             label: "Spring Coefficient",
             description: "Spring stiffness coefficient",
-            step: 0.0001,
+            step: 0.1,
             advanced: true,
         },
     },
     gravity: {
-        schema: z.number().default(-1.2),
+        schema: z.number().default(-12),
         meta: {
             label: "Gravity",
             description: "Gravity strength (negative for repulsion)",
-            step: 0.1,
+            step: 1,
         },
     },
     theta: {
@@ -54,19 +58,20 @@ const ngraphLayoutOptionsSchema = defineOptions({
         },
     },
     dragCoefficient: {
-        schema: z.number().positive().default(0.02),
+        schema: z.number().positive().default(0.9),
         meta: {
             label: "Drag Coefficient",
             description: "Velocity damping coefficient",
-            step: 0.01,
+            step: 0.05,
             advanced: true,
         },
     },
     timeStep: {
-        schema: z.number().positive().default(20),
+        schema: z.number().positive().default(0.5),
         meta: {
             label: "Time Step",
             description: "Simulation time step size",
+            step: 0.1,
             advanced: true,
         },
     },
@@ -120,8 +125,13 @@ export class NGraphEngine extends LayoutEngine {
         // position was then undefined and redrawing it threw.
         this.ngraph = createGraph({ multigraph: true });
 
-        // Cast config to a more specific type for property access
-        const typedConfig = config as Record<string, unknown>;
+        // The declared defaults first, so what the catalog publishes is what the simulation runs.
+        const typedConfig: Record<string, unknown> = getDefaults(ngraphLayoutOptionsSchema);
+        for (const [key, value] of Object.entries(config)) {
+            if (value !== undefined) {
+                typedConfig[key] = value;
+            }
+        }
 
         // Build ngraph configuration from provided config
         const ngraphConfig: Record<string, unknown> = {

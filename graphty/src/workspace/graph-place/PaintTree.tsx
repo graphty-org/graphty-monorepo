@@ -1,41 +1,46 @@
 import { ToggleIconButton, Tree, type TreeNodeData } from "@graphty/compact-mantine";
 import { Loader, Tooltip } from "@mantine/core";
-import {
-    ChartColumn,
-    Circle,
-    CircleAlert,
-    CircleSlash,
-    Eye,
-    EyeOff,
-    Layers,
-    Paintbrush,
-    SquareDashed,
-    SquareStack,
-    TriangleAlert,
-} from "lucide-react";
 import React, { useState } from "react";
 
+import { CommandMenuItem } from "../frame/menus";
+import { GLYPHS, KIND_GLYPHS } from "../glyphs";
+import { staleWords } from "../inspector/words";
+import { matchesKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { deleteRow, setRowHidden } from "./actions";
-import { findRow, type PaintRow, type RowKind } from "./rows";
+import { moveRow, setRowHidden } from "./actions";
+import { ROW_COMMANDS } from "./commands";
+import { findRow, hasEye, isInspectedRow, isMovable, layerAbove, type PaintRow } from "./rows";
 
 /** A group run with more groups than this opens collapsed (tier1-design.md section 2.5). */
 const OPEN_UP_TO = 12;
 
-/** The kind slot's icon for each row kind. */
-const KIND_ICONS: Record<RowKind, React.ReactNode> = {
-    "selection-row": <SquareDashed size={14} />,
-    "measure-row": <ChartColumn size={14} />,
-    "run-row": <Layers size={14} />,
-    "group-row": <Circle size={14} />,
-    "layer-row": <Paintbrush size={14} />,
-    "everything-row": <SquareStack size={14} />,
-};
+/** A run row's state in words: its kind slot's tooltip and the row's description. */
+const STATE_WORDS = {
+    running: "Running",
+    partial: "Stopped early: the values are partial",
+    stale: "Out of date",
+    failed: "Failed",
+    canceled: "Canceled",
+} as const;
 
 /**
- * The kind slot: the kind's icon, or the run's state with its sentence in a tooltip. The
- * sentence reaches only pointer users: compact-mantine's Tree names a row by its name alone and
- * has no slot for a description (#908).
+ * The words for a row's state, or undefined for a row that is ready.
+ * @param row - the row.
+ * @returns the words.
+ */
+function stateWords(row: PaintRow): string | undefined {
+    if (row.state === "ready") {
+        return undefined;
+    }
+    if (row.state === "stale" && row.stale !== undefined) {
+        return staleWords(row.stale);
+    }
+    return row.state === "failed" ? (row.problem ?? STATE_WORDS.failed) : STATE_WORDS[row.state];
+}
+
+/**
+ * The kind slot: the kind's icon, or the run's state with its words in a tooltip (the row's
+ * description says them to a screen reader).
  * @param row - the row.
  * @returns the icon.
  */
@@ -43,33 +48,41 @@ function kindSlot(row: PaintRow): React.ReactNode {
     switch (row.state) {
         case "running":
             return (
-                <Tooltip label="Running">
+                <Tooltip label={STATE_WORDS.running}>
                     <Loader size={12} />
                 </Tooltip>
             );
         case "partial":
             return (
-                <Tooltip label="Stopped early: the values are partial">
-                    <TriangleAlert size={14} />
+                <Tooltip label={STATE_WORDS.partial}>
+                    <GLYPHS.warning size={14} />
+                </Tooltip>
+            );
+        case "stale":
+            return (
+                <Tooltip label={stateWords(row)}>
+                    <GLYPHS.outOfDate size={14} />
                 </Tooltip>
             );
         case "failed":
             return (
-                <Tooltip label={row.problem ?? "Failed"}>
-                    <CircleAlert size={14} color="var(--cm-text-danger)" />
+                <Tooltip label={stateWords(row)}>
+                    <GLYPHS.failed size={14} color="var(--cm-text-danger)" />
                 </Tooltip>
             );
         case "canceled":
             return (
-                <Tooltip label="Canceled">
-                    <CircleSlash size={14} />
+                <Tooltip label={STATE_WORDS.canceled}>
+                    <GLYPHS.canceled size={14} />
                 </Tooltip>
             );
-        default:
+        default: {
             if (row.kind === "group-row" && row.swatch !== undefined && "color" in row.swatch) {
-                return <Circle size={14} fill={row.swatch.color} color={row.swatch.color} />;
+                return <GLYPHS.group size={14} fill={row.swatch.color} color={row.swatch.color} />;
             }
-            return KIND_ICONS[row.kind];
+            const KindIcon = KIND_GLYPHS[row.kind];
+            return <KindIcon size={14} />;
+        }
     }
 }
 
@@ -85,8 +98,6 @@ function swatchOf(row: PaintRow): React.ReactNode {
     return (
         <span
             className="ws-paint-swatch"
-            data-pinned=""
-            aria-hidden="true"
             style={{
                 background:
                     row.swatch.ramp.length === 1
@@ -106,54 +117,52 @@ interface PaintTreeProps {
 /**
  * The paint tree (tier1-design.md section 2.5): every row can paint the graph and a higher row
  * wins. Selection is pinned at the top and Everything at the bottom. A row reads, left to right:
- * disclosure, kind slot, name, then its swatch, its count where graphty-element publishes one,
- * and its eye. Clicking a row shows it in the inspector; Space toggles its eye; Delete deletes it
- * with an Undo notice.
+ * disclosure, kind slot, swatch, name, then its count where graphty-element publishes one, and
+ * its eye. Clicking a row shows it in the inspector; Space toggles its eye. Its commands
+ * (ROW_COMMANDS: Rename, Move up, Move down, Delete) open from its context menu -- right-click,
+ * Shift+F10, a touch held still -- and run from their keys on the focused row. A run, measure or
+ * layer row drags to another place between Selection and Everything; nothing drops inside a row.
  * @param props - Component props
  * @param props.rows - The rows
  * @returns The tree
  */
 export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
-    const { session, store } = useWorkspace();
+    const workspace = useWorkspace();
+    const { session, store } = workspace;
     const inspected = useWorkspaceState((state) => state.inspected);
+    const renamingRow = useWorkspaceState((state) => state.renamingRow);
     // The reader's own opening and closing of a group run, over the default (open when few).
     const [opened, setOpened] = useState<ReadonlyMap<string, boolean>>(new Map());
 
     const toItem = (row: PaintRow): TreeNodeData => {
         const eye =
-            row.layerIds.length > 0 && session !== null ? (
+            hasEye(row) && session !== null ? (
                 <ToggleIconButton
                     key="eye"
                     variant="swap"
                     label={`Hide ${row.name}`}
                     checked={row.hidden}
-                    icon={<Eye size={14} />}
-                    checkedIcon={<EyeOff size={14} />}
+                    icon={<GLYPHS.show size={14} />}
+                    checkedIcon={<GLYPHS.hide size={14} />}
                     onChange={(hide) => {
                         void setRowHidden(session, row, hide);
                     }}
                 />
             ) : null;
-        const count =
-            row.count === undefined ? null : (
-                <span key="count" className="ws-paint-count" data-pinned="">
-                    {row.count.toLocaleString()}
-                </span>
-            );
         return {
             id: row.id,
             name: row.name,
+            // The mark is a glyph; its words go in the accessible name (tier2-design.md section 7).
+            ...(row.state === "stale" ? { label: `${row.name}, out of date` } : {}),
             icon: kindSlot(row),
             dimmed: row.hidden,
             strong: row.kind === "selection-row" || row.kind === "everything-row" ? false : undefined,
+            swatch: swatchOf(row),
+            count: typeof row.count === "number" ? row.count.toLocaleString() : row.count,
+            description: stateWords(row),
             children: row.children?.map(toItem),
-            actions: (
-                <>
-                    {swatchOf(row)}
-                    {count}
-                    {eye}
-                </>
-            ),
+            actions: eye,
+            movable: isMovable(row),
         };
     };
 
@@ -162,50 +171,87 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
         .filter((row) => opened.get(row.id) ?? (row.children?.length ?? 0) <= OPEN_UP_TO)
         .map((row) => row.id);
     const shown = inspected?.id === undefined ? undefined : findRow(rows, inspected.id);
-    const selected = shown !== undefined && shown.kind === inspected?.kind ? [shown.id] : [];
+    const selected = shown !== undefined && isInspectedRow(shown, inspected) ? [shown.id] : [];
 
-    const onKeyDownCapture = (event: React.KeyboardEvent): void => {
-        // Only on a focused row: Space on the eye inside it presses the eye itself. Caught here
-        // because Tree has no per-row key hook and reads Space as select (#908).
-        const item = event.target as HTMLElement;
-        const id = item.getAttribute("role") === "treeitem" ? item.dataset.id : undefined;
-        const row = id === undefined ? undefined : findRow(rows, id);
+    const rowMenu = (node: TreeNodeData): React.ReactNode => {
+        const row = findRow(rows, node.id);
+        const commands = row === undefined ? [] : ROW_COMMANDS.filter((command) => command.applies(row));
+        if (row === undefined || commands.length === 0) {
+            return null;
+        }
+        return commands.map((command) => (
+            <CommandMenuItem
+                key={command.id}
+                label={command.label}
+                shortcut={command.rowKeys[0]}
+                reason={command.disabled(row, rows)}
+                onRun={() => {
+                    void command.run(workspace, row);
+                }}
+            />
+        ));
+    };
+
+    const onRowKeyDown = (id: string, event: React.KeyboardEvent): void => {
+        const row = findRow(rows, id);
         if (row === undefined || session === null) {
             return;
         }
-        if (event.key === " " && row.layerIds.length > 0) {
+        if (event.key === " " && hasEye(row)) {
             event.preventDefault();
-            event.stopPropagation();
             void setRowHidden(session, row, !row.hidden);
-        } else if (event.key === "Delete") {
+            return;
+        }
+        const command = ROW_COMMANDS.find(
+            (candidate) => candidate.applies(row) && candidate.rowKeys.some((key) => matchesKey(event, key)),
+        );
+        if (command !== undefined) {
             event.preventDefault();
-            void deleteRow(session, store, row);
+            if (command.disabled(row, rows) === null) {
+                void command.run(workspace, row);
+            }
         }
     };
 
     return (
-        // Space and Delete act on the focused row before the tree reads Space as select.
-        <div className="ws-paint-tree" onKeyDownCapture={onKeyDownCapture}>
-            <Tree
-                label="Paint tree"
-                items={rows.map(toItem)}
-                multiselect={false}
-                height="100%"
-                selected={selected}
-                onSelect={(ids) => {
-                    const last = ids.at(-1);
-                    const row = last === undefined ? undefined : findRow(rows, last);
-                    store.set({
-                        inspected: row === undefined ? null : { kind: row.kind, id: row.id },
-                    });
-                }}
-                expanded={expanded}
-                onExpandedChange={(ids) => {
-                    setOpened(
-                        new Map(rows.filter((r) => r.children !== undefined).map((r) => [r.id, ids.includes(r.id)])),
-                    );
-                }}
-            />
-        </div>
+        <Tree
+            label="Paint tree"
+            items={rows.map(toItem)}
+            multiselect={false}
+            childBand={false}
+            height="100%"
+            selected={selected}
+            onSelect={(ids) => {
+                const last = ids.at(-1);
+                const row = last === undefined ? undefined : findRow(rows, last);
+                store.set({
+                    inspected: row === undefined ? null : { kind: row.kind, id: row.id },
+                });
+            }}
+            expanded={expanded}
+            onExpandedChange={(ids) => {
+                setOpened(new Map(rows.filter((r) => r.children !== undefined).map((r) => [r.id, ids.includes(r.id)])));
+            }}
+            canDrop={(move) => layerAbove(rows, move.id, move.parentId, move.index) !== undefined}
+            onMove={(move) => {
+                const row = findRow(rows, move.id);
+                const before = layerAbove(rows, move.id, move.parentId, move.index);
+                if (session !== null && row !== undefined && before !== undefined) {
+                    void moveRow(session, store, row, before);
+                }
+            }}
+            rowMenu={rowMenu}
+            onRowKeyDown={onRowKeyDown}
+            renaming={renamingRow}
+            onRenamingChange={(id) => {
+                // Only the reader's own layers have a name to change.
+                if (id === null || findRow(rows, id)?.kind === "layer-row") {
+                    store.set({ renamingRow: id });
+                }
+            }}
+            onRename={(id, name) => {
+                void session?.styles.update(id, { name });
+            }}
+        />
     );
 }

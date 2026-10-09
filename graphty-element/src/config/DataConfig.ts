@@ -72,6 +72,9 @@ const GraphKnownFields = z.strictObject({
     // Without that fallback every weighted dataset here would silently read as unweighted, so the
     // fallback goes away only once nothing ships a "value" key.
     edgeWeightPath: z.string().or(z.null()).default("weight"),
+    // What the loaded weight means, chosen at load (`TableMapping.weightMeaning`); null when the
+    // reader did not say. Kept here so the project file saves it and undo moves it.
+    edgeWeightMeaning: z.enum(["distance", "strength", "capacity"]).or(z.null()).default(null),
     edgeTimePath: z.string().or(z.null()).default(null),
     // graph-format design 14.4's addNodes row: a record's data.position is written into the
     // importer-seed column SCALED to scene units by this factor. It must be > 0. Zero collapses

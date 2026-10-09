@@ -29,25 +29,51 @@ describe("the canvas toolbar", () => {
         await page.viewport(1366, 768);
     });
 
-    it("draws Analyze, Layout, View, Legend and Quick actions in order", () => {
+    it("draws Analyze, Layout, View and Quick actions in order", () => {
         render(<Workspace initialState={OPEN} />);
 
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
         const names = within(toolbar)
             .getAllByRole("button")
             .map((button) => button.getAttribute("aria-label"));
-        assert.deepEqual(names, ["Analyze", "Layout", "View", "Legend", "Quick actions"]);
+        assert.deepEqual(names, ["Analyze", "Layout", "View", "Quick actions"]);
+    });
+
+    it("draws Layout as a network chart and Quick actions as a search", () => {
+        render(<Workspace initialState={OPEN} />);
+
+        const icon = (name: string): string | undefined =>
+            [...(screen.getByRole("button", { name }).querySelector("svg")?.classList ?? [])].find(
+                (c) => c.startsWith("lucide-") && c !== "lucide-icon",
+            );
+        assert.equal(icon("Layout"), "lucide-chart-network");
+        assert.equal(icon("Quick actions"), "lucide-search");
     });
 
     it("disables everything but Quick actions with nothing drawn, saying why", () => {
         render(<Workspace initialState={OPEN} />);
 
-        for (const name of ["Analyze", "Layout", "View", "Legend"]) {
+        for (const name of ["Analyze", "Layout", "View"]) {
             const button = screen.getByRole("button", { name });
             assert.equal(button.getAttribute("aria-disabled"), "true", name);
             assert.equal(button.getAttribute("aria-description"), "Nothing is drawn", name);
         }
         assert.isFalse(screen.getByRole("button", { name: "Quick actions" }).hasAttribute("aria-disabled"));
+    });
+
+    it("lists Legend and Table under the View menu's Show section, each a check row", async () => {
+        const store = createWorkspaceStore({ ...OPEN, dialog: "view" });
+        render(<Workspace store={store} />);
+
+        const menu = await screen.findByRole("menu", { name: "View" });
+        assert.include(menu.textContent, "Show");
+        // No element comes up in this file, so each row says why it cannot switch yet.
+        const legend = within(menu).getByRole("menuitemcheckbox", { name: /^Legend/ });
+        assert.equal(legend.getAttribute("aria-checked"), "true");
+        assert.include(legend.textContent, "Nothing is drawn");
+        const table = within(menu).getByRole("menuitemcheckbox", { name: /^Table/ });
+        assert.equal(table.getAttribute("aria-checked"), "false");
+        assert.include(table.textContent, "The graph is still loading");
     });
 
     it("opens Quick actions with Ctrl+K, listing built commands by their homes", async () => {
@@ -66,7 +92,7 @@ describe("the canvas toolbar", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "Quick actions" }));
         await userEvent.click(await screen.findByRole("option", { name: /Keyboard shortcuts/ }));
-        assert.isNotNull(await screen.findByRole("region", { name: "Keyboard shortcuts" }));
+        assert.isNotNull(await screen.findByRole("dialog", { name: "Keyboard shortcuts" }));
         assert.isNull(screen.queryByRole("listbox"));
     });
 

@@ -1,4 +1,4 @@
-import { ActionIcon, Group, TextInput } from "@mantine/core";
+import { ActionIcon, Group, TextInput, Tooltip } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import React, { useMemo } from "react";
 
@@ -63,6 +63,13 @@ export interface StyleNumberInputProps {
     value?: number | undefined;
     /** What is shown while the reader has entered nothing of their own. */
     defaultValue: number;
+    /**
+     * Words shown in place of `defaultValue` while the reader has entered
+     * nothing, for a setting whose default is no number at all -- "Every node"
+     * for a sample size left empty. The box is then empty, with these words as
+     * its placeholder, so a reader never sees a number nothing will use.
+     */
+    emptyText?: string;
     /**
      * Called when the reader commits a number, and with `undefined` when they
      * reset the control to its default.
@@ -154,6 +161,7 @@ export interface StyleNumberInputProps {
  * @param props.label - The control's name, drawn above it
  * @param props.value - The number, when you drive the control from your own state
  * @param props.defaultValue - What is shown while the reader has entered nothing of their own
+ * @param props.emptyText - Words shown in an empty box while nothing is entered, for a default that is no number
  * @param props.onChange - Called with the committed number, or with `undefined` when the control is reset
  * @param props.min - The smallest number accepted
  * @param props.max - The largest number accepted
@@ -180,21 +188,23 @@ export interface StyleNumberInputProps {
  * />
  * ```
  */
-export function StyleNumberInput({
-    label,
-    value,
-    defaultValue,
-    onChange,
-    min,
-    max,
-    step,
-    decimalScale,
-    suffix,
-    disabled = false,
-    disabledReason,
-    onFocus,
-    onBlur,
-}: StyleNumberInputProps): React.JSX.Element {
+export function StyleNumberInput(props: StyleNumberInputProps): React.JSX.Element {
+    const {
+        label,
+        value,
+        defaultValue,
+        emptyText,
+        onChange,
+        min,
+        max,
+        step,
+        decimalScale,
+        suffix,
+        disabled = false,
+        disabledReason,
+        onFocus,
+        onBlur,
+    } = props;
     const labels = useLabels();
 
     // The reason reaches a pointer user as a tooltip and a screen reader as the
@@ -210,19 +220,25 @@ export function StyleNumberInput({
     // Controlled and uncontrolled, the way every state-holding component in
     // this package works. The uncontrolled state starts at undefined, which is
     // this component's word for "the reader has entered nothing".
-    const [committed, setCommitted] = useUncontrolled<number | undefined>({
+    const [own, setCommitted] = useUncontrolled<number | undefined>({
         value,
         defaultValue: undefined,
         finalValue: undefined,
         onChange,
     });
+    // A caller that passes `value` drives the control even while it passes undefined (its
+    // default): Mantine's hook would read that undefined as "uncontrolled" and show a number
+    // typed earlier, with a reset that resets nothing.
+    const committed = "value" in props ? value : own;
 
     const isDefault = committed === undefined;
+    // With emptyText, nothing entered is an empty box: no number, its words as the placeholder.
+    const empty = isDefault && emptyText !== undefined;
     const displayValue = committed ?? defaultValue;
 
     const field = useNumberField({
-        value: displayValue,
-        display: writeNumber(displayValue) + (suffix ?? ""),
+        value: empty ? null : displayValue,
+        display: empty ? "" : writeNumber(displayValue) + (suffix ?? ""),
         onCommit: (next, event) => {
             setCommitted(next, event);
         },
@@ -259,6 +275,7 @@ export function StyleNumberInput({
                 label={label}
                 description={annotation.description}
                 {...field.inputProps}
+                placeholder={empty ? emptyText : undefined}
                 disabled={disabled}
                 data-is-default={isDefault ? "true" : "false"}
                 styles={{
@@ -275,17 +292,20 @@ export function StyleNumberInput({
                 WCAG 2.2 (2.5.8) target-size minimum, and the same height as
                 the field, so bottom alignment puts the two level. */}
             {!isDefault && (
-                <ActionIcon
-                    variant="subtle"
-                    size={PANEL_GRID.TRAIL}
-                    c={PANEL_INK.CHROME}
-                    data-testid="style-number-input-reset"
-                    disabled={disabled}
-                    aria-label={labels.resetToDefault(label)}
-                    onClick={handleReset}
-                >
-                    <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
-                </ActionIcon>
+                // An icon-only button says what it does on hover, not only to a screen reader.
+                <Tooltip label={labels.resetToDefault(label)}>
+                    <ActionIcon
+                        variant="subtle"
+                        size={PANEL_GRID.TRAIL}
+                        c={PANEL_INK.CHROME}
+                        data-testid="style-number-input-reset"
+                        disabled={disabled}
+                        aria-label={labels.resetToDefault(label)}
+                        onClick={handleReset}
+                    >
+                        <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
+                    </ActionIcon>
+                </Tooltip>
             )}
         </Group>
     );

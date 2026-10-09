@@ -28,6 +28,8 @@ import {
 export class KruskalAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
     static type = "kruskal";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "distance" as const;
     /** Spans the run's scope: the edge list and the graph both come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 
@@ -74,7 +76,7 @@ export class KruskalAlgorithm extends DeclaredAlgorithm {
             caveats: declaredCaveats({
                 method: "kruskal",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "distance" },
+                ...this.weightCaveats(),
                 precision,
                 facts: [caveat("tree.edge-count", { edges: value.edges.length })],
             }),

@@ -1,7 +1,15 @@
 import "./data-page.css";
 
-import { DataTable, type DataTableColumn, SegmentedControl, StyleSelect } from "@graphty/compact-mantine";
-import type { DraftRow, DraftTable, LoadDraft, LoadReport } from "@graphty/graphty-element/session";
+import {
+    DataTable,
+    type DataTableColumn,
+    PANEL_GRID,
+    Popout,
+    PopoutManager,
+    SegmentedControl,
+    StyleSelect,
+} from "@graphty/compact-mantine";
+import type { DraftRow, DraftTable, LoadDraft, LoadReport, TableMapping } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Alert,
@@ -13,7 +21,6 @@ import {
     Menu,
     NavLink,
     NumberInput,
-    Popover,
     Select,
     Stack,
     Text,
@@ -22,35 +29,54 @@ import {
     Title,
     Tooltip,
 } from "@mantine/core";
-import { CircleCheck, CircleDashed, Plus } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { meaningGloss, weightName } from "../analyze/words";
+import { missingNodes, NO_NODE_ROW, noNodeRow } from "../data-place/words";
+import { focusIsLost } from "../frame/focus";
+import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     elementRole,
     kindChanged,
+    loadChoices,
     type PageChoices,
     type PageRole,
-    roleOf,
     ROLES_BY_KIND,
     rowsAreOf,
     setRole,
     setRowsAre,
+    setWeightMeaning,
+    weightHolder,
 } from "./choices";
-import { takeDataPageRequest } from "./request";
+import { rememberLoad, takeDataPageRequest, whileDataPageOpen } from "./request";
 import { type LoadDraftState, type PageSource, type RowFilter, sourceName, useLoadDraft } from "./useLoadDraft";
 import {
+    addWords,
     baseName,
     count,
     formatName,
+    graphName,
+    leftOutWords,
+    loadedWords,
+    modelWords,
     plural,
     READABLE_FORMATS,
     type Refusal,
     refusalFor,
+    replacedWords,
+    replaceWords,
     roleWords,
     SEPARATORS,
     tooLargeRefusal,
+    UNMATCHED_HINTS,
 } from "./words";
+
+/** The URL / Paste entry pop-out's width. */
+const ENTRY_WIDTH = 280;
+
+/** The File settings pop-out's width. */
+const SETTINGS_WIDTH = 240;
 
 /** An open menu, list or popover keeps its own Esc. */
 const OPEN_OVERLAY = '[role="menu"], [role="dialog"], [role="listbox"]';
@@ -63,6 +89,17 @@ const OPEN_OVERLAY = '[role="menu"], [role="dialog"], [role="listbox"]';
 function overlayOpen(): boolean {
     return [...document.querySelectorAll(OPEN_OVERLAY)].some((overlay) => overlay.checkVisibility());
 }
+
+/**
+ * The Higher means choices, and the element's meaning each writes (tier2-design.md section 5).
+ * "Not set" is the state the weight starts in, drawn as a choice so a reader sees one is made.
+ */
+const HIGHER_MEANS = [
+    { value: "", label: "Not set" },
+    { value: "strength", label: "Closer" },
+    { value: "distance", label: "Farther" },
+    { value: "capacity", label: "Capacity" },
+] as const;
 
 /** The Direction menu's values and what each writes to `LoadChoices.directed`. */
 const DIRECTIONS = { auto: "auto", directed: true, undirected: false } as const;
@@ -89,32 +126,76 @@ export function DataPage(): React.JSX.Element {
     const { store, session } = workspace;
     const [request] = useState(() => takeDataPageRequest(store));
     const projectName = useWorkspaceState((state) => state.project?.name ?? "Untitled");
-    const initial: PageSource | null =
-        request.files !== undefined && request.files.length > 0 ? { kind: "files", files: request.files } : null;
-    const page = useLoadDraft(session, request.intent === "add" ? "merge" : "replace", initial);
+    const [initial] = useState<PageSource | null>(() =>
+        request.files !== undefined && request.files.length > 0 ? { kind: "files", files: request.files } : null,
+    );
+    const page = useLoadDraft(session, request.intent === "add" ? "merge" : "replace", initial, request.choices);
     const fileInput = useRef<HTMLInputElement>(null);
+    // The door that opened the page (New from data... on the start screen) goes with the start
+    // screen; focus goes to the page's first ask, "choose a file...", or its first control.
+    const pageRef = useRef<HTMLElement>(null);
+    useEffect(() => {
+        if (focusIsLost()) {
+            const ask = pageRef.current?.querySelector<HTMLElement>(".dp-main button");
+            (ask ?? pageRef.current?.querySelector<HTMLElement>("button"))?.focus();
+        }
+    }, []);
 
-    const title = request.intent === "add" ? `Add to ${projectName}` : "Open as a new graph";
+    const replacing = request.intent === "replace";
+    // What the graph held before a replacing load, for its before-and-after line and status line.
+    const [was] = useState(() => {
+        if (session === null || !replacing) {
+            return null;
+        }
+        const { nodeCount, edgeCount } = session.data.statistics();
+        return {
+            nodes: nodeCount,
+            edges: edgeCount,
+            name: session.data.sources()[0]?.name ?? "The data",
+            meaning: session.data.loadedWeight()?.meaning ?? null,
+        };
+    });
+    useCarriedMeaning(page, was?.meaning ?? null);
+    // The graph an addition joins, so the summary gives it and the file each their own counts.
+    const [joins] = useState(() => {
+        if (session === null || request.intent !== "add") {
+            return null;
+        }
+        const { nodeCount, edgeCount } = session.data.statistics();
+        return { name: projectName, nodes: nodeCount, edges: edgeCount };
+    });
+
+    const titles = {
+        new: "Open as a new graph",
+        add: `Add to ${projectName}`,
+        replace: `Replace: ${page.source === null ? (was?.name ?? "") : sourceName(page.source)}`,
+    };
+    const title = titles[request.intent];
 
     const cancel = useCallback((): void => {
-        store.set(request.intent === "add" ? { page: "panels" } : { project: null, page: "panels" });
+        store.set(request.intent === "new" ? { project: null, page: "panels" } : { page: "panels" });
     }, [store, request]);
 
     // Esc returns to where the reader came from, wherever focus is on the page, unless a menu,
-    // list or popover is open (it takes its own Esc first). It listens in the capture phase, so it
-    // runs before the workspace's key map and the map's Esc (Clear selection) does not.
+    // list or popover is open (it takes its own Esc first), and only while the page holds nothing
+    // the reader chose: once a file is chosen, one stray Esc would throw it and its roles away, so
+    // Cancel is the way out. It listens in the capture phase, so it runs before the workspace's
+    // key map and the map's Esc (Clear selection) does not.
+    const chosen = page.source !== null;
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent): void => {
             if (event.key === "Escape" && !event.defaultPrevented && !overlayOpen()) {
                 event.preventDefault();
-                cancel();
+                if (!chosen) {
+                    cancel();
+                }
             }
         };
         globalThis.addEventListener("keydown", onKeyDown, true);
         return () => {
             globalThis.removeEventListener("keydown", onKeyDown, true);
         };
-    }, [cancel]);
+    }, [cancel, chosen]);
 
     const load = async (): Promise<void> => {
         const { source } = page;
@@ -122,19 +203,51 @@ export function DataPage(): React.JSX.Element {
         if (!(await page.load())) {
             return;
         }
-        // A loaded new graph is named after its file; inside a project nothing is renamed.
+        if (session !== null && source?.kind === "files") {
+            rememberLoad(session, { files: source.files, choices: page.choices });
+        }
+        // A loaded new graph is named after every file it read; inside a project nothing is renamed.
+        const named = session === null ? undefined : graphName(session.data.sources());
         store.set((state) => ({
             page: "panels",
             place: "graph",
             project:
                 request.intent === "new" && state.project !== null && source?.kind === "files"
-                    ? { ...state.project, name: baseName(source.files[0].name) }
+                    ? { ...state.project, name: named ?? baseName(source.files[0].name) }
                     : state.project,
+        }));
+        if (session === null) {
+            return;
+        }
+        // The status line, written once the place is showing and the header has its name: the
+        // graph as the header names it, its size and the rows the load left out. Nothing reruns
+        // by itself after a replace, so that line says how many runs now need it.
+        const { nodeCount, edgeCount } = session.data.statistics();
+        const now = { nodes: nodeCount, edges: edgeCount };
+        const outOfDate = session.runs.list().filter((run) => run.status === "succeeded" && run.stale !== null);
+        const leftOut = session.data.sources().at(-1)?.leftOut?.rows ?? 0;
+        store.set((state) => ({
+            announcement:
+                was === null
+                    ? loadedWords(state.project?.name ?? "Untitled", now, leftOut)
+                    : replacedWords(was.name, now, outOfDate.length),
         }));
     };
 
     /** Whether the next chosen files join the table on the page (Tables "+") or replace the source. */
     const joining = useRef(false);
+
+    // A table the reader just added is the one the preview shows once the files are read again,
+    // not the first table: the view follows the reader's own action.
+    const added = useRef<string | null>(null);
+    const { draft, setTableId } = page;
+    useEffect(() => {
+        const table = draft?.tables.find((each) => each.name === added.current);
+        if (table !== undefined) {
+            added.current = null;
+            setTableId(table.id);
+        }
+    }, [draft, setTableId]);
 
     const chooseFiles = (join: boolean): void => {
         joining.current = join;
@@ -166,64 +279,112 @@ export function DataPage(): React.JSX.Element {
             });
             return;
         }
+        added.current = held.length > 0 ? (files[0]?.name ?? null) : null;
         page.setSource({ kind: "files", files: next });
     };
 
+    // A file opened while the page is open (Open project or file..., Control+O) lands as a drop.
+    const addFilesRef = useRef(addFiles);
+    useEffect(() => {
+        addFilesRef.current = addFiles;
+    });
+    useEffect(
+        () =>
+            whileDataPageOpen(store, (next) => {
+                addFilesRef.current(next.files ?? [], true);
+            }),
+        [store],
+    );
+
     return (
-        <section
-            className="dp"
-            aria-label="Data page"
-            onDragOver={(event) => {
-                event.preventDefault();
-            }}
-            onDrop={(event) => {
-                event.preventDefault();
-                addFiles([...event.dataTransfer.files], true);
-            }}
-        >
-            <input
-                ref={fileInput}
-                type="file"
-                multiple
-                hidden
-                data-testid="data-page-file-input"
-                onChange={(event) => {
-                    addFiles([...(event.currentTarget.files ?? [])], joining.current);
-                    event.currentTarget.value = "";
+        <PopoutManager>
+            <section
+                ref={pageRef}
+                className="dp-page"
+                aria-label="Data page"
+                onDragOver={(event) => {
+                    event.preventDefault();
                 }}
-            />
-            <header className="dp-header">
-                <Title order={1} size="h4">
-                    {title}
-                </Title>
-            </header>
-            <div className="dp-body">
-                <TablesList
-                    page={page}
-                    onChooseFiles={() => {
-                        chooseFiles(true);
+                onDrop={(event) => {
+                    event.preventDefault();
+                    addFiles([...event.dataTransfer.files], true);
+                }}
+            >
+                <input
+                    ref={fileInput}
+                    type="file"
+                    multiple
+                    hidden
+                    data-testid="data-page-file-input"
+                    onChange={(event) => {
+                        addFiles([...(event.currentTarget.files ?? [])], joining.current);
+                        event.currentTarget.value = "";
                     }}
                 />
-                <section className="dp-main" aria-label="Table">
-                    <MainView
+                <header className="dp-header">
+                    <Title order={1} size="h4">
+                        {title}
+                    </Title>
+                    {was === null || page.report === null ? null : (
+                        <Text size="sm" data-testid="replace-report">
+                            {replaceWords(was, page.report.counts)}
+                        </Text>
+                    )}
+                </header>
+                <div className="dp-body">
+                    <TablesList
                         page={page}
                         onChooseFiles={() => {
-                            chooseFiles(false);
+                            chooseFiles(true);
                         }}
                     />
-                </section>
-            </div>
-            <MatchReport page={page} />
-            <Footer
-                page={page}
-                onCancel={cancel}
-                onLoad={() => {
-                    void load();
-                }}
-            />
-        </section>
+                    <section className="dp-main" aria-label="Table">
+                        <MainView
+                            page={page}
+                            joins={joins}
+                            onChooseFiles={() => {
+                                chooseFiles(false);
+                            }}
+                        />
+                    </section>
+                </div>
+                <MatchReport page={page} />
+                <Footer
+                    page={page}
+                    action={request.intent === "replace" ? "Replace" : "Load"}
+                    onCancel={cancel}
+                    onLoad={() => {
+                        void load();
+                    }}
+                />
+            </section>
+        </PopoutManager>
     );
 }
+
+/**
+ * Carries the replaced load's weight meaning onto the new file's weight column, once per draft,
+ * when the reader's carried choices do not already say it (tier2-design.md section 7).
+ * @param page - the page state.
+ * @param meaning - what the graph's weight meant before the replace, or null.
+ */
+function useCarriedMeaning(page: LoadDraftState, meaning: LoadedMeaning): void {
+    const done = useRef<LoadDraft | null>(null);
+    const { draft, choices, setChoices } = page;
+    useEffect(() => {
+        if (meaning === null || draft === null || done.current === draft) {
+            return;
+        }
+        done.current = draft;
+        const table = draft.tables.find((each) => weightHolder(draft, each, choices) !== undefined);
+        if (table !== undefined && choices.tables[table.id]?.weightMeaning === undefined) {
+            setChoices(setWeightMeaning(table, meaning, choices));
+        }
+    }, [meaning, draft, choices, setChoices]);
+}
+
+/** A loaded weight's meaning, or null. */
+type LoadedMeaning = NonNullable<TableMapping["weightMeaning"]> | null;
 
 /** Props shared by the page's parts. */
 interface PartProps {
@@ -239,6 +400,7 @@ interface PartProps {
  */
 function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => void }): React.JSX.Element {
     const [entry, setEntry] = useState<"url" | "paste" | null>(null);
+    const addButton = useRef<HTMLButtonElement>(null);
     const { draft } = page;
     return (
         <section className="dp-tables" aria-label="Tables">
@@ -246,57 +408,61 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                 <Text size="xs" fw={600}>
                     Tables
                 </Text>
-                <Popover
+                <Menu position="bottom-start">
+                    <Menu.Target>
+                        <Tooltip label="Add a table">
+                            <ActionIcon ref={addButton} variant="subtle" size="sm" aria-label="Add a table">
+                                <GLYPHS.add size={14} aria-hidden />
+                            </ActionIcon>
+                        </Tooltip>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                        <Menu.Item onClick={onChooseFiles}>File...</Menu.Item>
+                        <Menu.Item
+                            onClick={() => {
+                                setEntry("url");
+                            }}
+                        >
+                            From a URL...
+                        </Menu.Item>
+                        <Menu.Item
+                            onClick={() => {
+                                setEntry("paste");
+                            }}
+                        >
+                            Paste...
+                        </Menu.Item>
+                    </Menu.Dropdown>
+                </Menu>
+                {/* Opened from the menu, so there is no Popout.Trigger: the panel docks to "+". */}
+                <Popout
                     opened={entry !== null}
-                    onChange={(open) => {
+                    onOpenChange={(open) => {
                         if (!open) {
                             setEntry(null);
                         }
                     }}
-                    position="right-start"
                 >
-                    <Popover.Target>
-                        <span>
-                            <Menu position="bottom-start">
-                                <Menu.Target>
-                                    <Tooltip label="Add a table">
-                                        <ActionIcon variant="subtle" size="sm" aria-label="Add a table">
-                                            <Plus size={14} aria-hidden />
-                                        </ActionIcon>
-                                    </Tooltip>
-                                </Menu.Target>
-                                <Menu.Dropdown>
-                                    <Menu.Item onClick={onChooseFiles}>File...</Menu.Item>
-                                    <Menu.Item
-                                        onClick={() => {
-                                            setEntry("url");
-                                        }}
-                                    >
-                                        From a URL...
-                                    </Menu.Item>
-                                    <Menu.Item
-                                        onClick={() => {
-                                            setEntry("paste");
-                                        }}
-                                    >
-                                        Paste...
-                                    </Menu.Item>
-                                </Menu.Dropdown>
-                            </Menu>
-                        </span>
-                    </Popover.Target>
-                    <Popover.Dropdown>
-                        {entry === null ? null : (
-                            <EntryForm
-                                kind={entry}
-                                onDone={(source) => {
-                                    setEntry(null);
-                                    page.setSource(source);
-                                }}
-                            />
-                        )}
-                    </Popover.Dropdown>
-                </Popover>
+                    <Popout.Panel
+                        width={ENTRY_WIDTH}
+                        header={{ variant: "title", title: entry === "paste" ? "Paste" : "From a URL" }}
+                        anchorX={addButton}
+                        anchorY={addButton}
+                        placement="right"
+                    >
+                        <Popout.Content>
+                            {entry === null ? null : (
+                                <EntryForm
+                                    kind={entry}
+                                    onDone={(source) => {
+                                        setEntry(null);
+                                        page.setSource(source);
+                                    }}
+                                />
+                            )}
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
             </Group>
             {draft === null || page.source === null ? null : <TableRows page={page} draft={draft} />}
         </section>
@@ -320,7 +486,7 @@ function TableRows({ page, draft }: PartProps & { draft: LoadDraft }): React.JSX
         <NavLink
             label={sourceName(page.source)}
             description={formatName(draft.type)}
-            rightSection={<ReadyMark ready={tablesReady(page)} />}
+            rightSection={<ReadyMark ready={tablesReady(page)} leftOut={leftOutRows(page)} />}
             defaultOpened
         >
             {rows}
@@ -340,17 +506,31 @@ function tablesReady(page: LoadDraftState): boolean {
 }
 
 /**
- * A table's check: green when ready, a gray dashed circle when not.
+ * How many edge rows the load would leave out: the report's unmatched rows while Leave out is
+ * chosen, else 0.
+ * @param page - The page state
+ * @returns The count
+ */
+function leftOutRows(page: LoadDraftState): number {
+    return page.choices.unmatched === "leave-out" ? (page.report?.unmatched.rows ?? 0) : 0;
+}
+
+/**
+ * A table's check: green when ready, a gray dashed circle when not, and a warning with the count
+ * when the load would leave some of its rows out.
  * @param props - Component props
  * @param props.ready - Whether it is ready
+ * @param props.leftOut - How many of its rows the load would leave out
  * @returns The mark
  */
-function ReadyMark({ ready }: { ready: boolean }): React.JSX.Element {
-    return ready ? (
-        <CircleCheck size={14} color="var(--mantine-color-green-6)" role="img" aria-label="Ready" />
-    ) : (
-        <CircleDashed size={14} role="img" aria-label="Not ready" />
-    );
+function ReadyMark({ ready, leftOut = 0 }: { ready: boolean; leftOut?: number }): React.JSX.Element {
+    if (!ready) {
+        return <GLYPHS.empty size={14} role="img" aria-label="Not ready" />;
+    }
+    if (leftOut > 0) {
+        return <GLYPHS.warning size={14} color="var(--cm-text-danger)" role="img" aria-label={leftOutWords(leftOut)} />;
+    }
+    return <GLYPHS.ready size={14} color="var(--mantine-color-green-6)" role="img" aria-label="Ready" />;
 }
 
 /**
@@ -363,14 +543,19 @@ function ReadyMark({ ready }: { ready: boolean }): React.JSX.Element {
  */
 function TableRow({ page, draft, table }: PartProps & { draft: LoadDraft; table: DraftTable }): React.JSX.Element {
     const kind = rowsAreOf(draft, table, page.choices) === "nodes" ? "Nodes" : "Edges";
+    const leftOut = kind === "Edges" ? leftOutRows(page) : 0;
     return (
         <NavLink
             component="button"
             label={table.fixed ? kind : `${kind}: ${table.name}`}
-            description={plural(table.rowCount, "row")}
+            description={
+                leftOut > 0
+                    ? `${plural(table.rowCount, "row")}, ${count(leftOut)} left out`
+                    : plural(table.rowCount, "row")
+            }
             active={page.tableId === table.id}
             aria-current={page.tableId === table.id ? "true" : undefined}
-            rightSection={<ReadyMark ready={tablesReady(page)} />}
+            rightSection={<ReadyMark ready={tablesReady(page)} leftOut={leftOut} />}
             onClick={() => {
                 page.setTableId(table.id);
                 page.setFilter("all");
@@ -403,11 +588,11 @@ function EntryForm({
                 }
             }}
         >
-            <Stack gap="xs" w={280}>
+            <Stack gap="xs">
                 {kind === "url" ? (
                     <TextInput
                         label="Address"
-                        size="xs"
+                        size="sm"
                         data-autofocus
                         value={value}
                         onChange={(event) => {
@@ -417,7 +602,7 @@ function EntryForm({
                 ) : (
                     <Textarea
                         label="Data"
-                        size="xs"
+                        size="sm"
                         autosize
                         minRows={4}
                         data-autofocus
@@ -428,7 +613,7 @@ function EntryForm({
                     />
                 )}
                 <Group justify="flex-end">
-                    <Button type="submit" size="xs">
+                    <Button type="submit" size="sm">
                         Read
                     </Button>
                 </Group>
@@ -451,9 +636,9 @@ function ProblemBlock({
     return (
         <Alert color="red" variant="light" title={refusal.what} role="alert">
             <Stack gap="xs" align="flex-start">
-                <Text size="xs">{refusal.todo}</Text>
+                <Text size="sm">{refusal.todo}</Text>
                 {refusal.fixable ? null : (
-                    <Button size="xs" onClick={onChooseFiles}>
+                    <Button size="sm" onClick={onChooseFiles}>
                         Choose another file...
                     </Button>
                 )}
@@ -462,15 +647,23 @@ function ProblemBlock({
     );
 }
 
+/** The graph an addition joins, its name and size; null when the load makes a new graph. */
+type Joins = { readonly name: string; readonly nodes: number; readonly edges: number } | null;
+
 /**
  * The selected table: model strip, header strip, roles and the sample grid; or the empty, reading
  * and refused states.
  * @param props - Component props
  * @param props.page - The page state
+ * @param props.joins - The graph an addition joins, or null
  * @param props.onChooseFiles - Opens the file picker
  * @returns The view
  */
-function MainView({ page, onChooseFiles }: PartProps & { onChooseFiles: () => void }): React.JSX.Element {
+function MainView({
+    page,
+    joins,
+    onChooseFiles,
+}: PartProps & { joins: Joins; onChooseFiles: () => void }): React.JSX.Element {
     const { draft, source } = page;
     if (source === null) {
         return (
@@ -487,7 +680,7 @@ function MainView({ page, onChooseFiles }: PartProps & { onChooseFiles: () => vo
             <Group gap="xs" p="md" role="status">
                 <Loader size="xs" />
                 {/* No running row count until prepare() reports progress (#910). */}
-                <Text size="xs">Reading {sourceName(source)}</Text>
+                <Text size="sm">Reading {sourceName(source)}</Text>
             </Group>
         );
     }
@@ -509,7 +702,11 @@ function MainView({ page, onChooseFiles }: PartProps & { onChooseFiles: () => vo
     }
     return (
         <Stack p="md" gap="sm">
-            <ModelStrip page={page} draft={draft} />
+            {/* The file's format sits beside the file's heading, apart from the table's "Each row is". */}
+            <Group justify="space-between" align="center" wrap="nowrap">
+                <ModelStrip page={page} draft={draft} joins={joins} />
+                <FileSettings page={page} />
+            </Group>
             {problem === null ? null : <ProblemBlock refusal={problem} onChooseFiles={onChooseFiles} />}
             {table === undefined ? null : <TableView page={page} draft={draft} table={table} />}
         </Stack>
@@ -517,28 +714,40 @@ function MainView({ page, onChooseFiles }: PartProps & { onChooseFiles: () => vo
 }
 
 /**
- * The model strip (section 2.10, item 2), read-only, from the report's counts.
+ * The model strip (section 2.10, item 2), read-only, from the report's counts. An addition gives
+ * the graph it joins and the new file each their own counts, never the total under the file's name.
  * @param props - Component props
  * @param props.page - The page state
  * @param props.draft - The draft
+ * @param props.joins - The graph an addition joins, or null
  * @returns The line
  */
-function ModelStrip({ page, draft }: PartProps & { draft: LoadDraft }): React.JSX.Element | null {
+function ModelStrip({ page, draft, joins }: PartProps & { draft: LoadDraft; joins: Joins }): React.JSX.Element | null {
     const { report, source } = page;
     if (report === null || source === null) {
         return null;
     }
-    let text: string;
-    if (draft.tables.every((table) => table.fixed)) {
-        const name = source.kind === "files" ? baseName(source.files[0].name) : sourceName(source);
-        text = `${name}: ${plural(report.counts.nodes, "node")}, ${plural(report.counts.edges, "edge")}`;
-    } else {
-        const edgeTable = draft.tables.find((table) => rowsAreOf(draft, table, page.choices) === "edges");
-        text =
-            edgeTable === undefined
-                ? `node (${count(report.counts.nodes)})`
-                : `node (${count(report.counts.nodes)}) --${baseName(edgeTable.name)} (${count(report.counts.edges)})--> node`;
+    const fixed = draft.tables.every((table) => table.fixed);
+    let names = draft.tables.map((table) => baseName(table.name));
+    if (fixed) {
+        names = [source.kind === "files" ? baseName(source.files[0].name) : sourceName(source)];
     }
+    const edges =
+        fixed || draft.tables.some((table) => rowsAreOf(draft, table, page.choices) === "edges")
+            ? report.counts.edges
+            : null;
+    const { nodes } = report.counts;
+    const text =
+        joins === null
+            ? modelWords(names, nodes, edges, page.choices.directed)
+            : addWords(
+                  joins.name,
+                  joins,
+                  names,
+                  { nodes: nodes - joins.nodes, edges: report.counts.edges - joins.edges },
+                  edges !== null,
+                  page.choices.directed,
+              );
     return (
         <Text size="sm" fw={600} data-testid="model-strip">
             {text}
@@ -561,25 +770,23 @@ function TableView({ page, draft, table }: PartProps & { draft: LoadDraft; table
     };
     return (
         <Stack gap="sm">
-            <Group gap="md" align="flex-end" wrap="wrap">
-                <Input.Wrapper label="Each row is" description={table.fixed ? "Set by the file" : undefined} size="xs">
-                    <SegmentedControl
-                        size="xs"
-                        disabled={table.fixed}
-                        value={kind}
-                        data={[
-                            { value: "nodes", label: "a node" },
-                            { value: "edges", label: "an edge" },
-                        ]}
-                        onChange={(value) => {
-                            change(setRowsAre(draft, table, value === "edges" ? "edges" : "nodes", page.choices));
-                        }}
-                    />
-                </Input.Wrapper>
-                <FileSettings page={page} />
-            </Group>
-            {kind === "edges" && !table.fixed ? <WeightLine page={page} draft={draft} table={table} /> : null}
+            <Input.Wrapper label="Each row is" description={table.fixed ? "Set by the file" : undefined} size="sm">
+                <SegmentedControl
+                    size="sm"
+                    disabled={table.fixed}
+                    value={kind}
+                    data={[
+                        { value: "nodes", label: "a node" },
+                        { value: "edges", label: "an edge" },
+                    ]}
+                    onChange={(value) => {
+                        change(setRowsAre(draft, table, value === "edges" ? "edges" : "nodes", page.choices));
+                    }}
+                />
+            </Input.Wrapper>
             <RoleList page={page} draft={draft} table={table} />
+            {/* Below the roles, so choosing Weight for a column moves nothing above the pointer. */}
+            {kind === "edges" && !table.fixed ? <WeightLine page={page} draft={draft} table={table} /> : null}
             {table.rowCount === 0 ? null : <SampleGrid page={page} table={table} />}
         </Stack>
     );
@@ -594,19 +801,42 @@ function TableView({ page, draft, table }: PartProps & { draft: LoadDraft; table
  * @returns The line
  */
 function WeightLine({ page, draft, table }: PartProps & { draft: LoadDraft; table: DraftTable }): React.JSX.Element {
-    const weight = table.columns.find((column) => roleOf(draft, table, column.name, page.choices) === "weight");
-    if (weight !== undefined) {
-        const auto = page.choices.tables[table.id]?.roles[weight.name] === undefined;
-        return (
-            <Text size="xs">
-                Weight: {weight.name}
+    const weight = weightHolder(draft, table, page.choices);
+    if (weight === undefined) {
+        // The design offers one number column as the weight ("value is a number: use it as the
+        // weight?"). Which column is a judgment the element makes, and it names none yet (#926).
+        return <Text size="sm">Weight: none (each edge counts 1)</Text>;
+    }
+    const auto = page.choices.tables[table.id]?.roles[weight] === undefined;
+    const meaning = page.choices.tables[table.id]?.weightMeaning ?? null;
+    return (
+        <Stack gap={2}>
+            <Text size="sm">
+                Weight: {weightName(weight, meaning)}
                 {auto ? <span className="dp-auto">auto</span> : null}
             </Text>
-        );
-    }
-    // The design offers one number column as the weight ("value is a number: use it as the
-    // weight?"). Which column is a judgment the element makes, and it names none yet (#926).
-    return <Text size="xs">Every edge counts 1. To weigh edges, give a number column the Weight role.</Text>;
+            <Input.Wrapper
+                label="Higher means"
+                description={meaningGloss(meaning)}
+                inputWrapperOrder={["label", "input", "description"]}
+                size="sm"
+            >
+                <SegmentedControl
+                    size="sm"
+                    value={meaning ?? ""}
+                    data={[...HIGHER_MEANS]}
+                    onChange={(value) => {
+                        const picked = HIGHER_MEANS.find((each) => each.value === value);
+                        if (picked !== undefined) {
+                            page.setChoices(
+                                setWeightMeaning(table, picked.value === "" ? undefined : picked.value, page.choices),
+                            );
+                        }
+                    }}
+                />
+            </Input.Wrapper>
+        </Stack>
+    );
 }
 
 /**
@@ -624,61 +854,76 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
     const named = type === "csv" && separator !== undefined ? `, ${separator.toLowerCase()}` : "";
     const line = type === undefined ? "File settings" : formatName(type) + named;
     return (
-        <Popover position="bottom-start" withinPortal>
-            <Popover.Target>
-                <Button variant="default" size="xs" aria-label={`File settings: ${line}`}>
-                    {line}
-                    {settings.type === undefined && draft !== null ? <span className="dp-auto">auto</span> : null}
-                </Button>
-            </Popover.Target>
-            <Popover.Dropdown>
-                <Stack gap="xs" w={220}>
-                    <Select
-                        label="Format"
-                        // Its list opens inside the popover, so a pick is not a click outside it.
-                        comboboxProps={{ withinPortal: false }}
-                        size="xs"
-                        data={[{ value: "", label: "Auto" }, ...READABLE_FORMATS]}
-                        value={settings.type ?? ""}
-                        allowDeselect={false}
-                        onChange={(value) => {
-                            page.setSettings({ ...settings, type: value === null || value === "" ? undefined : value });
-                        }}
-                    />
-                    {type === "csv" ? (
-                        <Select
-                            label="Separator"
-                            comboboxProps={{ withinPortal: false }}
-                            size="xs"
-                            data={SEPARATORS.map(({ value, label }) => ({ value, label }))}
-                            value={settings.delimiter ?? ""}
-                            allowDeselect={false}
-                            onChange={(value) => {
-                                page.setSettings({
-                                    ...settings,
-                                    delimiter: value === null || value === "" ? undefined : value,
-                                });
-                            }}
-                        />
-                    ) : null}
-                    <NumberInput
-                        label="Error limit"
-                        description="Bad rows read past before the file is refused"
-                        size="xs"
-                        min={0}
-                        allowDecimal={false}
-                        placeholder="100"
-                        value={settings.errorLimit ?? ""}
-                        onChange={(value) => {
-                            page.setSettings({
-                                ...settings,
-                                errorLimit: typeof value === "number" ? value : undefined,
-                            });
-                        }}
-                    />
-                </Stack>
-            </Popover.Dropdown>
-        </Popover>
+        <Group gap="xs" wrap="nowrap">
+            {/* Its own visible label, the words the problem block's "Pick its format in File settings" names. */}
+            <Text size="xs" fw={600} aria-hidden className="dp-nowrap">
+                File settings
+            </Text>
+            <Popout>
+                <Popout.Trigger>
+                    <Button variant="default" size="sm" aria-label={`File settings: ${line}`}>
+                        {line}
+                        {settings.type === undefined && draft !== null ? <span className="dp-auto">auto</span> : null}
+                    </Button>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={SETTINGS_WIDTH}
+                    header={{ variant: "title", title: "File settings" }}
+                    placement="bottom"
+                >
+                    <Popout.Content>
+                        <Stack gap="xs">
+                            <Select
+                                label="Format"
+                                // Its list opens inside the popover, so a pick is not a click outside it.
+                                comboboxProps={{ withinPortal: false }}
+                                size="sm"
+                                data={[{ value: "", label: "Auto" }, ...READABLE_FORMATS]}
+                                value={settings.type ?? ""}
+                                allowDeselect={false}
+                                onChange={(value) => {
+                                    page.setSettings({
+                                        ...settings,
+                                        type: value === null || value === "" ? undefined : value,
+                                    });
+                                }}
+                            />
+                            {type === "csv" ? (
+                                <Select
+                                    label="Separator"
+                                    comboboxProps={{ withinPortal: false }}
+                                    size="sm"
+                                    data={SEPARATORS.map(({ value, label }) => ({ value, label }))}
+                                    value={settings.delimiter ?? ""}
+                                    allowDeselect={false}
+                                    onChange={(value) => {
+                                        page.setSettings({
+                                            ...settings,
+                                            delimiter: value === null || value === "" ? undefined : value,
+                                        });
+                                    }}
+                                />
+                            ) : null}
+                            <NumberInput
+                                label="Error limit"
+                                description="Bad rows read past before the file is refused"
+                                size="sm"
+                                min={0}
+                                allowDecimal={false}
+                                placeholder="100"
+                                value={settings.errorLimit ?? ""}
+                                onChange={(value) => {
+                                    page.setSettings({
+                                        ...settings,
+                                        errorLimit: typeof value === "number" ? value : undefined,
+                                    });
+                                }}
+                            />
+                        </Stack>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        </Group>
     );
 }
 
@@ -709,6 +954,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                     <div key={column.name} className="dp-role">
                         <StyleSelect
                             label={column.name}
+                            aria-label={`Role of ${column.name}`}
                             value={chosen}
                             defaultValue={own ?? "auto"}
                             options={options}
@@ -729,6 +975,43 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
     );
 }
 
+/** The grid's cell text: compact-mantine's body type (11px, weight 450, 0.055px tracking); headers at 600. */
+const CELL_FONT = "11px";
+const CELL_TRACKING = "0.055px";
+
+/** A cell's padding (12 + 8) and a header's (16 + 32 for its menu), from the DataTable's styles. */
+const CELL_PAD = 20;
+const HEADER_PAD = 48;
+
+/** The narrowest and widest a column is drawn; a longer value is cut and its tooltip has it whole. */
+const COLUMN_MIN = 64;
+const COLUMN_MAX = 320;
+
+let measurer: CanvasRenderingContext2D | null = null;
+
+/**
+ * How wide a column must be to show its header and every value given, whole.
+ * @param header - the column's name.
+ * @param values - its shown values.
+ * @returns the width in pixels.
+ */
+function fitWidth(header: string, values: readonly string[]): number {
+    measurer ??= document.createElement("canvas").getContext("2d");
+    if (measurer === null) {
+        return COLUMN_MIN;
+    }
+    const family = getComputedStyle(document.body).fontFamily;
+    measurer.letterSpacing = CELL_TRACKING;
+    measurer.font = `600 ${CELL_FONT} ${family}`;
+    let widest = measurer.measureText(header).width + HEADER_PAD;
+    measurer.font = `450 ${CELL_FONT} ${family}`;
+    for (const value of values) {
+        widest = Math.max(widest, measurer.measureText(value).width + CELL_PAD);
+    }
+    // One pixel more: the cell lays text out on subpixels and rounds its own box down.
+    return Math.min(COLUMN_MAX, Math.max(COLUMN_MIN, Math.ceil(widest) + 1));
+}
+
 /**
  * The sample grid: the table's first rows, or every unmatched or rejected row.
  * @param props - Component props
@@ -737,38 +1020,87 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
  * @returns The grid
  */
 function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.JSX.Element {
-    const columns = useMemo<DataTableColumn<DraftRow>[]>(
-        () => [
-            { id: "#line", header: "Line", value: (row) => row.line, align: "end", width: 64 },
-            ...table.columns.map((column) => ({
-                id: column.name,
-                header: column.name,
-                value: (row: DraftRow) => {
-                    const value = row.values[column.name];
-                    return value === null || value === undefined || typeof value === "object"
-                        ? null
-                        : (value as string);
-                },
-            })),
-        ],
-        [table],
+    const rows = useMemo(() => page.rows?.records ?? [], [page.rows]);
+    // The columns an unmatched row's ends were read from, so the end that names no node is marked.
+    const { draft, choices } = page;
+    const endColumns = useMemo(() => {
+        if (draft === null || !rows.some((row) => row.missingEnds !== undefined)) {
+            return null;
+        }
+        return draft.resolve(loadChoices(draft, choices, "replace")).tables[table.id] ?? null;
+    }, [draft, choices, rows, table]);
+    const missingIn = useCallback(
+        (row: DraftRow, name: string): boolean =>
+            row.missingEnds?.some((end) => endColumns?.[end]?.column === name) === true,
+        [endColumns],
     );
-    const rows = page.rows?.records ?? [];
+    const columns = useMemo<DataTableColumn<DraftRow>[]>(() => {
+        const cell = (row: DraftRow, name: string): string | null => {
+            const value = row.values[name];
+            return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+                ? String(value)
+                : null;
+        };
+        return [
+            { id: "#line", header: "Line", value: (row) => row.line, align: "end", width: 64 },
+            ...table.columns.map((column) => {
+                const marks = rows.some((row) => missingIn(row, column.name));
+                return {
+                    id: column.name,
+                    header: column.name,
+                    value: (row: DraftRow) => cell(row, column.name),
+                    ...(marks
+                        ? {
+                              cell: (row: DraftRow) => {
+                                  const value = cell(row, column.name);
+                                  return missingIn(row, column.name) ? (
+                                      <span className="dp-missing-end">
+                                          <GLYPHS.warning size={12} aria-hidden />
+                                          {value} <span className="dp-missing-words">{NO_NODE_ROW}</span>
+                                      </span>
+                                  ) : (
+                                      value
+                                  );
+                              },
+                          }
+                        : {}),
+                    // Wide enough for its longest shown value, so "Dmitri Volkov" is not cut while
+                    // the table has room to spare.
+                    width: fitWidth(
+                        column.name,
+                        rows.map((row) =>
+                            missingIn(row, column.name)
+                                ? `MM${cell(row, column.name) ?? ""} ${NO_NODE_ROW}`
+                                : (cell(row, column.name) ?? ""),
+                        ),
+                    ),
+                };
+            }),
+        ];
+    }, [table, rows, missingIn]);
     const what = page.filter === "unmatched" ? "unmatched row" : "row that could not be read";
+    const missingNames = rows.flatMap((row) =>
+        (row.missingEnds ?? []).flatMap((end) => {
+            const column = endColumns?.[end]?.column;
+            const value = column === undefined ? undefined : row.values[column];
+            return typeof value === "string" || typeof value === "number" ? [String(value)] : [];
+        }),
+    );
     const caption =
         page.filter === "all"
             ? `The first ${plural(rows.length, "row")} of ${count(table.rowCount)}`
-            : plural(page.rows?.total ?? 0, what);
+            : `${plural(page.rows?.total ?? 0, what)}${missingNames.length === 0 ? "" : `: ${noNodeRow(missingNames)}`}`;
     return (
         <Stack gap={4}>
             <Group gap="xs">
-                <Text size="xs" c="dimmed">
+                {/* "The first 17 rows" is a caption; "1 unmatched row: z has no node row" is a sentence. */}
+                <Text size={page.filter === "all" ? "xs" : "sm"} c="dimmed">
                     {caption}
                 </Text>
                 {page.filter === "all" ? null : (
                     <Anchor
                         component="button"
-                        size="xs"
+                        size="sm"
                         onClick={() => {
                             page.setFilter("all");
                         }}
@@ -777,7 +1109,16 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
                     </Anchor>
                 )}
             </Group>
-            <DataTable label={`Rows of ${table.name}`} columns={columns} data={rows} height={240} />
+            {/* As tall as its rows, so every row the caption counts is on screen; the pane
+                scrolls when they do not fit, never a box inside it. */}
+            <DataTable
+                label={`Rows of ${table.name}`}
+                columns={columns}
+                data={rows}
+                // Each row and the header is one pitch plus the table's 1px grid line, plus the
+                // table's 1px padding.
+                height={(PANEL_GRID.ROW_PITCH + 1) * (Math.max(rows.length, 1) + 1) + 1}
+            />
         </Stack>
     );
 }
@@ -815,7 +1156,7 @@ function MatchReport({ page }: PartProps): React.JSX.Element | null {
         ) : (
             <Anchor
                 component="button"
-                size="xs"
+                size="sm"
                 onClick={() => {
                     show(kind, "all");
                 }}
@@ -826,10 +1167,16 @@ function MatchReport({ page }: PartProps): React.JSX.Element | null {
     return (
         <section className="dp-report" aria-label="Match report">
             {/* The nodes and edges made are plain text: the element cannot list them yet (#927). */}
-            <Text size="xs">
-                {rowsLink("nodes", plural(report.counts.nodeRecords, "node row"))} and{" "}
-                {rowsLink("edges", plural(report.counts.edgeRecords, "edge row"))} read; the load makes{" "}
-                {plural(report.counts.nodes, "node")} and {plural(report.counts.edges, "edge")}.
+            <Text size="sm">
+                {/* A kind the load read none of is left out: "41 edge rows read", not "0 node rows and 41". */}
+                {report.counts.nodeRecords > 0 || report.counts.edgeRecords === 0
+                    ? rowsLink("nodes", plural(report.counts.nodeRecords, "node row"))
+                    : null}
+                {report.counts.nodeRecords > 0 && report.counts.edgeRecords > 0 ? " and " : null}
+                {report.counts.edgeRecords > 0
+                    ? rowsLink("edges", plural(report.counts.edgeRecords, "edge row"))
+                    : null}
+                {` read; the load makes ${plural(report.counts.nodes, "node")} and ${plural(report.counts.edges, "edge")}.`}
             </Text>
             <UnmatchedLine
                 page={page}
@@ -839,11 +1186,11 @@ function MatchReport({ page }: PartProps): React.JSX.Element | null {
                 }}
             />
             {report.counts.rejected > 0 ? (
-                <Text size="xs">
+                <Text size="sm">
                     {plural(report.counts.rejected, "row")} could not be read as an edge.{" "}
                     <Anchor
                         component="button"
-                        size="xs"
+                        size="sm"
                         onClick={() => {
                             show("edges", "rejected");
                         }}
@@ -874,20 +1221,40 @@ function UnmatchedLine({
     }
     return (
         <Group gap="xs">
-            <Text size="xs">
-                {plural(report.unmatched.rows, "edge row")} name {plural(report.unmatched.values, "node")} no node row
-                holds.{" "}
-                <Anchor component="button" size="xs" onClick={onShow}>
-                    Show the {plural(report.unmatched.rows, "unmatched row")}
-                </Anchor>
+            <Text size="sm">
+                {plural(report.unmatched.rows, "edge row")} {report.unmatched.rows === 1 ? "names" : "name"}{" "}
+                {missingNodes(report.unmatched.values)}.
+                {/* While the unmatched rows show, only the way back ("Show all rows") is offered. */}
+                {page.filter === "unmatched" ? null : (
+                    <>
+                        {" "}
+                        <Anchor component="button" size="sm" onClick={onShow}>
+                            Show the {plural(report.unmatched.rows, "unmatched row")}
+                        </Anchor>
+                    </>
+                )}
             </Text>
             <SegmentedControl
-                size="xs"
+                size="sm"
                 aria-label="Unmatched ends"
                 value={page.choices.unmatched}
                 data={[
-                    { value: "add", label: "Add" },
-                    { value: "leave-out", label: "Leave out" },
+                    {
+                        value: "add",
+                        label: (
+                            <Tooltip label={UNMATCHED_HINTS.add}>
+                                <span>Add</span>
+                            </Tooltip>
+                        ),
+                    },
+                    {
+                        value: "leave-out",
+                        label: (
+                            <Tooltip label={UNMATCHED_HINTS["leave-out"]}>
+                                <span>Leave out</span>
+                            </Tooltip>
+                        ),
+                    },
                 ]}
                 onChange={(value) => {
                     page.setChoices({ ...page.choices, unmatched: value === "add" ? "add" : "leave-out" });
@@ -931,15 +1298,17 @@ function loadBlocked(page: LoadDraftState): string | null {
  * The footer (section 2.10, item 6): Direction, Cancel and Load.
  * @param props - Component props
  * @param props.page - The page state
+ * @param props.action - The load button's word: "Replace" on a replace, matching the title
  * @param props.onCancel - Returns to where the reader came from
  * @param props.onLoad - Loads
  * @returns The footer
  */
 function Footer({
     page,
+    action,
     onCancel,
     onLoad,
-}: PartProps & { onCancel: () => void; onLoad: () => void }): React.JSX.Element {
+}: PartProps & { action: "Load" | "Replace"; onCancel: () => void; onLoad: () => void }): React.JSX.Element {
     const blocked = loadBlocked(page);
     const loadButton = useRef<HTMLButtonElement>(null);
     // A clean file opens with every check green and focus on Load, so a clean drop is one Enter.
@@ -966,7 +1335,7 @@ function Footer({
         <footer className="dp-footer">
             <Select
                 label="Direction"
-                size="xs"
+                size="sm"
                 w={180}
                 data={[
                     { value: "auto", label: "As the file says" },
@@ -988,12 +1357,12 @@ function Footer({
                         {blocked}
                     </Text>
                 )}
-                <Button variant="default" size="xs" onClick={onCancel}>
+                <Button variant="default" size="sm" onClick={onCancel}>
                     Cancel
                 </Button>
                 <Button
                     ref={loadButton}
-                    size="xs"
+                    size="sm"
                     data-disabled={blocked === null ? undefined : true}
                     aria-disabled={blocked === null ? undefined : true}
                     aria-describedby={blocked === null ? undefined : "dp-load-reason"}
@@ -1005,7 +1374,7 @@ function Footer({
                         onLoad();
                     }}
                 >
-                    Load
+                    {action}
                 </Button>
             </Group>
         </footer>

@@ -842,14 +842,41 @@ function countDistinct(column: NumericColumnSource, limit: number): Map<number, 
 }
 
 /**
+ * Whether a column that fits one bar per value should be drawn that way.
+ *
+ * A count, a whole-number field, a single value, or values that repeat (each one carried by two
+ * or more elements on average) read as values. A continuous measure on a small graph -- PageRank
+ * over 12 nodes -- has as many values as elements, and one bar of height 1 per value shows no
+ * shape at all, so it is banded instead.
+ * @param distinct - The counts by value.
+ * @param integerValued - Whether the field counts things.
+ * @returns True to draw one bar per value.
+ */
+function readsAsValues(distinct: Map<number, number>, integerValued: boolean): boolean {
+    if (integerValued || distinct.size === 1) {
+        return true;
+    }
+
+    let measured = 0;
+    let whole = true;
+    for (const [value, count] of distinct) {
+        measured += count;
+        whole &&= Number.isInteger(value);
+    }
+
+    return whole || distinct.size * 2 <= measured;
+}
+
+/**
  * Cut a column into bins.
  *
  * Three layouts, chosen in this order:
  *
  * 1. **Nothing measured** produces no bins at all. A chart with no data must not claim a range.
- * 2. **Few enough distinct values** produces one bin per value, ascending, with `from` equal to
- *    `to`. That is the readable shape for a count metric and it is exact -- no banding runs, so
- *    the bins are on no scale but their own.
+ * 2. **Few enough distinct values that read as values** (a count, whole numbers, or values that
+ *    repeat) produces one bin per value, ascending, with `from` equal to `to`. That is the
+ *    readable shape for a count metric and it is exact -- no banding runs, so the bins are on no
+ *    scale but their own. A continuous measure with one element per value is banded instead.
  * 3. **Otherwise, bands**, linear or logarithmic as `scale` says.
  *
  * What the two edges mean: `from` is the lowest value the bin holds and is always inclusive. `to`
@@ -882,7 +909,9 @@ export function buildHistogram(column: NumericColumnSource, options?: HistogramR
                 binning: "empty",
             });
         }
+    }
 
+    if (distinct !== null && readsAsValues(distinct, integerValued)) {
         const bins = [...distinct.entries()]
             .sort((left, right) => left[0] - right[0])
             .map(([value, count]) => Object.freeze({ from: value, to: value, count }));

@@ -1,14 +1,20 @@
 // CameraManager.ts
 import { Camera, Scene, Vector3 } from "@babylonjs/core";
 
+import type { ViewInsets } from "../camera/types";
+
 export interface CameraController {
     camera: Camera;
     zoomToBoundingBox(min: Vector3, max: Vector3): void;
+    /** Margins of the canvas something else covers, in CSS pixels, that every fit keeps clear. */
+    viewInsets?: ViewInsets;
     /**
      * Called when the canvas resizes. Allows camera controllers to update
      * their projection to match the new aspect ratio.
      */
     onResize?(): void;
+    /** Take new insets without moving what is drawn; absent, the insets are assigned. */
+    setViewInsets?(insets: ViewInsets): void;
 }
 
 interface InputHandler {
@@ -98,6 +104,21 @@ export class CameraManager {
     public zoomToBoundingBox(min: Vector3, max: Vector3): void {
         if (this.activeCameraController) {
             this.activeCameraController.zoomToBoundingBox(min, max);
+        }
+    }
+
+    /**
+     * Give every camera the margins of the canvas something else covers. Each fit from now on
+     * keeps the graph out of them; nothing drawn moves until then.
+     * @param insets - CSS pixels per side.
+     */
+    public setViewInsets(insets: ViewInsets): void {
+        for (const controller of this.controllers.values()) {
+            if (controller.setViewInsets) {
+                controller.setViewInsets(insets);
+            } else {
+                controller.viewInsets = insets;
+            }
         }
     }
 

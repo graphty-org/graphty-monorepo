@@ -11,7 +11,12 @@ import {
     type ChangeHandler,
     getActivationMeta,
 } from "../../types/events";
+import { EllipsizedName } from "./EllipsizedName";
 import { holdsSomething, TrailingSlot } from "./TrailingSlot";
+
+/** What counts as a trailing control of its own, which keeps its clicks out of the row's. */
+const TRAILING_CONTROL =
+    "button, a[href], input, select, textarea, label, [role]:not([role='presentation']), [tabindex]";
 
 /**
  * Props for the DataRow component.
@@ -36,6 +41,8 @@ export interface DataRowProps {
      * in the primary color at weight 500, because the reading is the half the
      * reader came for. The pair is exposed as one `role="group"` named by the
      * name, so a screen reader reads "Nodes, 1,000,000" as one unit (WCAG 1.3.1).
+     * A reading too long for the row beside its name wraps onto more lines and
+     * the row grows, so a stat is never cut short.
      *
      * Leave it off for a list of the reader's own strings -- datasets, files,
      * nodes -- where the name is the thing being read.
@@ -153,6 +160,7 @@ export function DataRow({
     // ARIA Authoring Practices, Button pattern: name from content, Enter and
     // Space activate it, and the current row of a set is marked aria-current.
     const ariaCurrent = selected ? true : undefined;
+    const button = useRef<HTMLButtonElement>(null);
 
     /**
      * Reports an activation to the consumer, with the source stated separately.
@@ -160,6 +168,23 @@ export function DataRow({
      */
     const handleClick = (event: React.MouseEvent<HTMLButtonElement>): void => {
         onClick?.(event, getActivationMeta(event));
+    };
+
+    /**
+     * A clickable row's trailing glyph is part of the row: a click there that
+     * no control of its own takes (a chevron, not a reset button) activates the
+     * row, as a click on its name would. The keyboard needs nothing, because the
+     * row's button is already the one stop.
+     * @param event - A click anywhere in the trailing slot
+     */
+    const handleTrailingClick = (event: React.MouseEvent<HTMLElement>): void => {
+        // closest() also climbs above the slot, past the row's own group; only a control inside the slot counts.
+        const control = (event.target as Element).closest(TRAILING_CONTROL);
+        if (!interactive || (control !== null && event.currentTarget.contains(control))) {
+            return;
+        }
+        button.current?.focus();
+        onClick(event, getActivationMeta(event));
     };
 
     const body = (
@@ -171,19 +196,22 @@ export function DataRow({
             )}
 
             {/* The reader's own string. It ellipsizes when the row is too
-                narrow, so it carries the whole string as a title for a pointer.
+                narrow, and then a pointer gets the whole string as a tooltip.
                 Ellipsizing is a drawing rather than a truncation: the full
                 string is still the element's text, so it is still the whole
                 accessible name of the row. */}
-            <span className="cm-data-row-name" data-testid="data-row-name" id={stat ? nameId : undefined} title={name}>
-                {name}
-            </span>
+            <EllipsizedName
+                className="cm-data-row-name"
+                testId="data-row-name"
+                id={stat ? nameId : undefined}
+                name={name}
+            />
 
-            {hasValue && (
-                <span className="cm-data-row-value" data-testid="data-row-value">
-                    {reading}
-                </span>
-            )}
+            {/* A reading the row cannot fit beside its name (a phrase, not a number) gets at
+                least half the row's width. A stat's reading then wraps onto more lines, so it is
+                never cut; any other row's is cut and carries its whole text as its own tooltip.
+                Either way the whole text is in the accessible name. */}
+            {hasValue && <EllipsizedName self className="cm-data-row-value" testId="data-row-value" name={reading} />}
         </>
     );
 
@@ -210,6 +238,7 @@ export function DataRow({
                     type="button"
                     className="cm-data-row-body"
                     data-testid="data-row-button"
+                    ref={button}
                     aria-current={ariaCurrent}
                     onClick={handleClick}
                     onFocus={onFocus}
@@ -231,7 +260,12 @@ export function DataRow({
 
             {/* Drawn only when it holds something. The slot ends at x 232, the
                 end of the row's pill and the grid's trailing column. */}
-            {hasTrailing && <TrailingSlot>{trailing}</TrailingSlot>}
+            {hasTrailing && (
+                // Presentational: the pointer's extra target. The keyboard's stop is the row's button.
+                <div role="presentation" style={{ display: "contents" }} onClick={handleTrailingClick}>
+                    <TrailingSlot>{trailing}</TrailingSlot>
+                </div>
+            )}
         </div>
     );
 }

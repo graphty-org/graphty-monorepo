@@ -11,7 +11,6 @@ import {
     type CommonImportOptions,
     formatF32,
     type GraphImporter,
-    headBytes,
     ImportError,
     type ImportInput,
     type ImportReport,
@@ -124,16 +123,13 @@ export interface ImportedGraph {
  * no attribute columns, so a data source reads the file here and rebuilds its records from the
  * columns afterwards (see {@link toRecords}).
  *
- * A document that is recognisably this format but breaks off (a tag left open, a stray end tag)
- * keeps what was read before the break: the importer's fatal error becomes one more error in the
- * report rather than a thrown one. A document the importer does not recognise at all, or one whose
- * report holds one of the `fatal` codes, still throws -- with `fatal` "any", every failure does: a
- * `GraphtyError` with `E_PARSE_FAILED` naming the format and the line, whose `cause` is the
- * importer's `ImportError`.
+ * A document the importer gave up on -- a tag left open, a file cut short, a stray end tag --
+ * is refused whole: a `GraphtyError` with `E_PARSE_FAILED` naming the format and the line, whose
+ * `cause` is the importer's `ImportError`. Nothing read before the break is kept, because a graph
+ * built from part of a file looks like a whole one and a reader cannot tell it is wrong.
  * @param importer - the graph-io importer for the format
  * @param text - the whole document: text, or bytes the importer decodes
  * @param options - importer options; `ids` defaults to "string", so ids stay the text the file wrote
- * @param fatal - issue codes that make even a recognisable document unreadable, or "any"
  * @param policy - how the scratch builder treats what the importer pushes
  * @returns the snapshot, the report and the declared node ids
  */
@@ -141,7 +137,6 @@ export async function importDocument<Opts>(
     importer: GraphImporter<Opts>,
     text: string | Uint8Array,
     options: Opts & CommonImportOptions,
-    fatal: readonly string[] | "any" = [],
     policy: ScratchPolicy = {},
 ): Promise<ImportedGraph> {
     const builder = new DeclaringBuilder(policy);
@@ -149,16 +144,7 @@ export async function importDocument<Opts>(
     try {
         report = await importer.import(text, builder, { ids: "string", ...options });
     } catch (error) {
-        if (!(error instanceof ImportError)) {
-            throw error;
-        }
-
-        const recognised = importer.sniff?.(headBytes(text)) ?? 0;
-        if (fatal === "any" || recognised === 0 || error.report.issues.some((issue) => fatal.includes(issue.code))) {
-            throw parseFailed(importer, error);
-        }
-
-        ({ report } = error);
+        throw error instanceof ImportError ? parseFailed(importer, error) : error;
     }
 
     return { snapshot: builder.freeze(), report, declared: builder.declared };
@@ -231,7 +217,7 @@ export async function importWhole<Opts>(
 ): Promise<ImportedGraph> {
     let imported: ImportedGraph;
     try {
-        imported = await importDocument(importer, text, options, "any", policy);
+        imported = await importDocument(importer, text, options, policy);
     } catch (error) {
         if (error instanceof GraphtyError && error.cause instanceof ImportError) {
             aggregateErrors(error.cause.report, errors);

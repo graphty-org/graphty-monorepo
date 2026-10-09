@@ -7,10 +7,19 @@
  *   the pointer leaves the window. The open tooltip element is marked `data-cm-dismissed` (CSS
  *   hides it); the mark lives exactly as long as that tooltip does, so it stays hidden while the
  *   pointer rests on its trigger and the next tooltip shows normally.
+ * - A pointer-down on a trigger also keeps every tooltip that mounts for it later dismissed until
+ *   the pointer leaves it: a click before the open delay ran out, or a toggle whose label changes,
+ *   mounts a new tooltip under the resting pointer, which must not open over what the click just
+ *   showed. A fresh hover after leaving opens it normally.
  * - A tooltip opened by keyboard focus waits the same 1000 ms as a hovered one (Mantine's focus
  *   handling has no delay): it is marked `data-cm-held` for that long. While tooltips are warm
  *   (one is visible, or was within the 300 ms hide window) it shows at once, as a hovered one
  *   does: Tabbing from a visible tooltip's trigger hands off immediately.
+ * - A tooltip opens on hover only when the pointer moved onto its trigger. Chromium updates hover
+ *   after a layout change with a move that does not move, so a trigger that slides under a resting
+ *   pointer (a page switch, a panel opening) would open its tooltip unasked. Such a tooltip is
+ *   marked `data-cm-still` (CSS hides it) until the pointer moves over the trigger or it is
+ *   focused, and then shows after the usual delay. Keyboard focus is unaffected.
  * - Menus get type-ahead: a printable key moves focus to the next enabled row whose label starts
  *   with it ("v" -> View).
  * - A menu clamped to the viewport shows Figma's 24px chevron rows at the ends it can still
@@ -43,6 +52,14 @@ let warmUntil = 0;
  * and the mount must not turn a warm hand-off cold.
  */
 let focusedAt = 0;
+/** Where the pointer last was (client px). */
+let pointerAt: { x: number; y: number } | null = null;
+/** What the pointer was over when it last actually moved. */
+let movedOver: EventTarget | null = null;
+/** The control the last pointer-down landed on, until the pointer leaves it: its tooltips stay closed. */
+let pressed: Element | null = null;
+/** The keyboard opened the menu that is opening (the last key came after the last pointer-down). */
+let keyLast = false;
 
 /**
  * Whether a tooltip other than `except` is showing (not held, not dismissed).
@@ -55,6 +72,7 @@ function anotherTooltipVisible(except?: Element): boolean {
             tooltip !== except &&
             tooltip.dataset.cmSeen !== undefined &&
             tooltip.dataset.cmHeld === undefined &&
+            tooltip.dataset.cmStill === undefined &&
             tooltip.dataset.cmDismissed === undefined,
     );
 }
@@ -78,7 +96,9 @@ function dismissTooltips(): void {
     if (anotherTooltipVisible()) {
         warmUntil = performance.now() + TOOLTIP_CLOSE_DELAY;
     }
-    for (const tooltip of document.querySelectorAll(".cm-tooltip")) {
+    // A still tooltip was never shown, so there is nothing to dismiss: the Tab that focuses its
+    // trigger must still show it.
+    for (const tooltip of document.querySelectorAll(".cm-tooltip:not([data-cm-still])")) {
         const trigger = triggerOf(tooltip);
         if (trigger && (trigger.matches(":hover") || trigger === document.activeElement)) {
             tooltip.setAttribute("data-cm-dismissed", "");
@@ -103,16 +123,80 @@ function mustHold(tooltip: HTMLElement): boolean {
 }
 
 /**
+ * Hold a tooltip for the open delay, then let it show.
+ * @param tooltip - the tooltip element
+ */
+function hold(tooltip: HTMLElement): void {
+    tooltip.dataset.cmHeld = "";
+    globalThis.setTimeout(() => {
+        delete tooltip.dataset.cmHeld;
+    }, TOOLTIP_OPEN_DELAY);
+}
+
+/**
+ * Whether a tooltip that just mounted opened on hover with no pointer movement onto its trigger:
+ * the trigger came to lie under a resting pointer.
+ * ponytail: a tooltip held open through its `opened` prop whose trigger sits under a resting
+ * pointer is hidden too, until the pointer moves over it; none does today.
+ * @param tooltip - the tooltip element that just mounted
+ * @returns true when nobody pointed at the trigger
+ */
+function openedUnasked(tooltip: HTMLElement): boolean {
+    const trigger = triggerOf(tooltip);
+    return (
+        !!trigger &&
+        trigger !== document.activeElement &&
+        trigger.matches(":hover") &&
+        !(movedOver instanceof Node && trigger.contains(movedOver))
+    );
+}
+
+/**
+ * Show, after the open delay, a still tooltip whose trigger the pointer moved onto or focus
+ * reached.
+ * @param target - what the pointer moved over, or what took focus
+ */
+function wakeStillTooltips(target: EventTarget | null): void {
+    if (!(target instanceof Node)) {
+        return;
+    }
+    for (const tooltip of document.querySelectorAll<HTMLElement>(".cm-tooltip[data-cm-still]")) {
+        if (triggerOf(tooltip)?.contains(target)) {
+            delete tooltip.dataset.cmStill;
+            hold(tooltip);
+        }
+    }
+}
+
+/**
+ * Record a pointer move that moved. A move at the same place is Chromium's hover update after a
+ * layout change, not the reader pointing; a script-dispatched move always counts.
+ * @param event - a pointermove anywhere in the document
+ */
+function trackPointer(event: PointerEvent): void {
+    if (event.isTrusted && pointerAt?.x === event.clientX && pointerAt.y === event.clientY) {
+        return;
+    }
+    pointerAt = { x: event.clientX, y: event.clientY };
+    movedOver = event.target;
+    if (pressed && !(event.target instanceof Node && pressed.contains(event.target))) {
+        pressed = null;
+    }
+    wakeStillTooltips(event.target);
+}
+
+/**
  * Hold a tooltip that opened on keyboard focus for the cold delay, then mark it seen. The CSS
  * hides a tooltip until it is seen, so it never shows before this decision.
  * @param tooltip - the tooltip element that just mounted
  */
 function holdIfFocusOpened(tooltip: HTMLElement): void {
-    if (mustHold(tooltip)) {
-        tooltip.dataset.cmHeld = "";
-        globalThis.setTimeout(() => {
-            delete tooltip.dataset.cmHeld;
-        }, TOOLTIP_OPEN_DELAY);
+    if (pressed && triggerOf(tooltip)?.contains(pressed)) {
+        tooltip.dataset.cmDismissed = "";
+    } else if (openedUnasked(tooltip)) {
+        tooltip.dataset.cmStill = "";
+    } else if (mustHold(tooltip)) {
+        hold(tooltip);
     }
     tooltip.dataset.cmSeen = "";
 }
@@ -153,6 +237,47 @@ function typeAhead(event: KeyboardEvent): void {
             return;
         }
     }
+}
+
+/**
+ * The Escape that closes a themed menu is used up there (`preventDefault`), so a page shortcut on
+ * the same key -- "Escape clears the selection" -- skips it, as it skips any key something already
+ * handled. Mantine closes the menu but lets the key go on unmarked, and by the time it reaches the
+ * window the menu is gone, so the page could not tell. Marked in the document's capture phase,
+ * before Mantine's close runs. The next Escape, with the menu shut, reaches the page as usual.
+ * @param event - a keydown anywhere in the document
+ */
+function consumeMenuEscape(event: KeyboardEvent): void {
+    if (event.key === "Escape" && event.target instanceof Element && event.target.closest(".cm-menu")) {
+        event.preventDefault();
+    }
+}
+
+/**
+ * A menu's first focus skips a disabled row: Mantine's focus trap focuses the first focusable
+ * row as the menu opens, and a disabled row that stays focusable to show its reason would be the
+ * one highlighted, the row Enter cannot run (its ArrowDown from the dropdown does the same).
+ * Opened by a key, focus moves on to the first enabled row, or the menu itself when none is.
+ * Opened by the pointer, it goes to the menu itself, so no row is highlighted until an arrow key
+ * (ArrowDown then lands here again, from a key, and reaches the first enabled row). Focus coming
+ * from another row (an arrow, a click on the row to read its reason) stays.
+ * @param event - a focusin anywhere in the document
+ */
+function skipDisabledFirstRow(event: FocusEvent): void {
+    const row = event.target instanceof HTMLElement ? event.target : null;
+    const menu = row?.closest<HTMLElement>(".cm-menu");
+    if (!row || !menu || menuRows(menu).includes(row) || !row.matches('[role^="menuitem"]')) {
+        return;
+    }
+    const from = event.relatedTarget;
+    if (from instanceof Node && from !== menu && menu.contains(from)) {
+        return;
+    }
+    const first = keyLast ? menuRows(menu).at(0) : undefined;
+    // Mantine's focus trap places its first focus twice (two timers), the second time from the
+    // row this moved to; marked, both land here.
+    first?.setAttribute("data-autofocus", "");
+    (first ?? menu).focus();
 }
 
 /**
@@ -230,18 +355,30 @@ export function installOverlayBehavior(): void {
     }
     installed = true;
     const capture = { capture: true, passive: true } as const;
-    document.addEventListener("pointerdown", dismissTooltips, capture);
+    document.addEventListener(
+        "pointerdown",
+        (event) => {
+            keyLast = false;
+            const target = event.target instanceof Element ? event.target : null;
+            // The control, not the label span inside it: moving onto its padding is not leaving.
+            pressed = target?.closest("button, a, input, select, textarea, [role], [tabindex]") ?? target;
+            dismissTooltips();
+        },
+        capture,
+    );
     document.addEventListener("wheel", dismissTooltips, capture);
     document.addEventListener(
         "focusin",
-        () => {
+        (event) => {
             focusedAt = performance.now();
+            wakeStillTooltips(event.target);
         },
         capture,
     );
     document.addEventListener(
         "keydown",
         (event) => {
+            keyLast = true;
             if (!MODIFIER_KEYS.has(event.key)) {
                 dismissTooltips();
             }
@@ -250,12 +387,18 @@ export function installOverlayBehavior(): void {
     );
     document.addEventListener("mouseout", (event) => {
         if (!event.relatedTarget) {
+            // Back in at the same pixel is a move: the pointer was elsewhere in between.
+            pointerAt = null;
+            pressed = null;
             dismissTooltips();
             stopAutoScroll();
         }
     });
+    document.addEventListener("keydown", consumeMenuEscape, true);
     document.addEventListener("keydown", typeAhead);
+    document.addEventListener("focusin", skipDisabledFirstRow);
     document.addEventListener("pointermove", trackChevronHover, { passive: true });
+    document.addEventListener("pointermove", trackPointer, capture);
     document.addEventListener(
         "scroll",
         (event) => {
@@ -276,4 +419,52 @@ export function installOverlayBehavior(): void {
             menuResize?.observe(event.target);
         }
     });
+}
+
+/** The element focused when the last themed Menu opened: where focus goes back when it closes. */
+let menuOpener: HTMLElement | null = null;
+
+/**
+ * A themed Menu's default `onOpen`: remember the element focused as it opens (its button, when
+ * opened by a click or a key), as Mantine's own focus return does.
+ */
+export function rememberMenuOpener(): void {
+    menuOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+}
+
+/**
+ * A themed Menu's default `onClose` (Mantine's `returnFocus` is off in the theme): when focus is
+ * still inside the closing menu (a submenu included) or on the page body, hand it back to the
+ * opener now, before the dropdown unmounts. Mantine's own return refocuses the button 10 ms
+ * after the close wherever focus has gone since, so a dialog opened from a row lost the focus it
+ * had just taken to the button behind it. Done now instead, a dialog that opens from the row
+ * takes focus after this, keeps it, and gives it back to the button when it closes. Focus
+ * already elsewhere (a click outside on another control) is left alone.
+ * ponytail: one opener for the whole document, so a Menu opened from inside another Menu's
+ * dropdown (not a Menu.Sub) leaves the outer one nothing to return to; and a caller passing its
+ * own `onOpen` / `onClose` replaces these defaults (each one today returns focus itself).
+ */
+export function returnFocusToMenuOpener(): void {
+    const opener = menuOpener;
+    menuOpener = null;
+    const active = document.activeElement;
+    if (
+        opener?.isConnected &&
+        (active === null || active === document.body || active.closest("[data-menu-dropdown]"))
+    ) {
+        opener.focus({ preventScroll: true });
+    }
+}
+
+/**
+ * The default click handler of a submenu row (Menu.Sub.Item): a tap or a click opens the submenu
+ * and focuses its first row. Mantine opens a submenu only on mouseenter and ArrowRight, so a touch
+ * screen (no hover) could never reach one; this replays the row's own ArrowRight path, which runs
+ * Mantine's open and focus. Enter and Space on a focused row produce a click, so they open it too.
+ * ponytail: a caller passing its own onClick to Menu.Sub.Item replaces this default (none does);
+ * compose the two in the theme if one ever needs to.
+ * @param event - the click on the submenu row
+ */
+export function openSubmenuOnClick(event: Pick<Event, "currentTarget">): void {
+    event.currentTarget?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
 }

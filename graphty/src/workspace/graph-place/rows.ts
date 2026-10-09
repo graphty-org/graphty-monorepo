@@ -4,16 +4,18 @@
  * count is one the element publishes (a run's summary, a group's size, the selection's size).
  */
 
-import type { LayerId, RunId } from "@graphty/graphty-element/catalog";
-import { type GraphSession, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-element/session";
+import type { Channel, LayerId, RunId } from "@graphty/graphty-element/catalog";
+import { type GraphSession, RESULT_SHAPE_CONTRACTS, type Run, type StaleNote } from "@graphty/graphty-element/session";
 
+import { count } from "../inspector/words";
 import { runName } from "../runWords";
+import { colorBlockOf, EVERYTHING_KEY, groupHidden, runColorOf } from "../style/row";
 
 /** The kind of a row, which is also the inspected kind a click on it opens (the inspector's kinds). */
 export type RowKind = "selection-row" | "measure-row" | "run-row" | "group-row" | "layer-row" | "everything-row";
 
 /** What the kind slot shows besides the kind's icon. */
-type RowState = "ready" | "running" | "partial" | "failed" | "canceled";
+type RowState = "ready" | "running" | "partial" | "stale" | "failed" | "canceled";
 
 /** One row of the paint tree. */
 export interface PaintRow {
@@ -25,19 +27,25 @@ export interface PaintRow {
     readonly kind: RowKind;
     readonly name: string;
     readonly state: RowState;
+    /** Why an out-of-date run is out of date: `run.stale`. */
+    readonly stale?: StaleNote;
     /** Why a failed run failed: graphty-element's message. */
     readonly problem?: string;
     /** The swatch: one color, or the stops of a ramp; absent when the row paints nothing yet. */
     readonly swatch?: { readonly color: string } | { readonly ramp: readonly string[] };
-    /** A count the element publishes for this row, or absent. */
-    readonly count?: number;
     /**
-     * The layers the eye shows and hides. Empty when the row has no eye: the fixed rows, whose
-     * layers are the element's own, and a group row, whose paint is one part of its run's layer
-     * (#907 asks the element to hide one group's paint).
+     * A count the element publishes for this row, or absent; for a path, its length in words
+     * ("4 hops"), since the number of elements it measured is not the path.
+     */
+    readonly count?: number | string;
+    /**
+     * The layers the eye shows and hides. Empty for the fixed rows, whose layers are the
+     * element's own, and for a group row, whose eye hides one value of its run's layer instead.
      */
     readonly layerIds: readonly LayerId[];
-    /** Whether every layer the eye covers is switched off. */
+    /** For a group row of a run that paints a color: the value its eye hides (`styles.setValueHidden`). */
+    readonly value?: { readonly layerId: LayerId; readonly channel: Channel; readonly value: string | number };
+    /** Whether every layer the eye covers is switched off, or the group's value is hidden. */
     readonly hidden: boolean;
     /** The run behind the row, when a run made it. */
     readonly runId?: RunId;
@@ -45,24 +53,56 @@ export interface PaintRow {
 }
 
 /**
+ * A run row's kind, the one the tree draws and the inspector's header reads: a grouping, or a run
+ * whose primary field is not one value per element (a path, a set), is a run row; one value per
+ * element is a measure row.
+ * @param run - the run.
+ * @returns the kind.
+ */
+export function runRowKind(run: Run): "measure-row" | "run-row" {
+    if (run.record.summary?.groups !== undefined) {
+        return "run-row";
+    }
+    return RESULT_SHAPE_CONTRACTS[run.shape].primaryField === "value" ? "measure-row" : "run-row";
+}
+
+/**
+ * Whether a row is the one inspected. A run is opened as a measure or a run row depending on the
+ * door (a toolbar run, a note, Why this look), so either kind matches the run's own row.
+ * @param row - the row.
+ * @param inspected - what is inspected.
+ * @returns true when the row is what the inspector shows.
+ */
+export function isInspectedRow(
+    row: PaintRow,
+    inspected: { readonly kind: string; readonly id?: string } | null,
+): boolean {
+    if (inspected === null || row.id !== inspected.id) {
+        return false;
+    }
+    const isRun = (kind: string): boolean => kind === "measure-row" || kind === "run-row";
+    return row.kind === inspected.kind || (isRun(row.kind) && isRun(inspected.kind));
+}
+
+/**
  * The paint tree's rows, top first: Selection; then the runs and the reader's own layers in paint
  * order, the topmost first, with a run that has no layer yet (queued, running, failed, or styled
- * off) above them, newest first; then Everything.
+ * off) above them, newest first; then Everything, whose paint includes the reader's Everything
+ * layer (the layer its Style tab writes), so that layer is not a row of its own.
  * @param session - the element's session.
  * @returns the rows.
  */
 export function paintRows(session: GraphSession): PaintRow[] {
     const layers = session.styles.list();
-    const legend = session.styles.legend();
     const runs = session.runs.list().filter((run) => run.status !== "removed");
     const byId = new Map(runs.map((run) => [run.id, run]));
 
     const rowFor = (run: (typeof runs)[number]): PaintRow => {
         const layerIds = session.runs.bindings(run.id);
         const owned = layers.filter((layer) => layerIds.includes(layer.id));
-        const blocks = legend.filter((block) => block.runId === run.id);
-        // The block that carries a palette is the one that paints a color.
-        const color = blocks.find((block) => block.palette !== undefined);
+        const color = colorBlockOf(session, run.id);
+        // The eye's target is read from the style stack, which the legend lags while it repaints.
+        const bound = runColorOf(session, run.id);
         const { summary } = run.record;
         // The element publishes groups only for a result that partitions.
         const groups = summary?.groups;
@@ -70,7 +110,8 @@ export function paintRows(session: GraphSession): PaintRow[] {
         const base = {
             id: run.id,
             name: runName(session, run),
-            state: stateOf(run.status, run.partial),
+            state: run.status === "succeeded" && run.stale !== null ? "stale" : stateOf(run.status, run.partial),
+            stale: run.stale ?? undefined,
             problem: run.error?.message,
             layerIds: owned.map((layer) => layer.id),
             hidden,
@@ -94,7 +135,11 @@ export function paintRows(session: GraphSession): PaintRow[] {
                         swatch: swatch === undefined ? undefined : { color: swatch },
                         count: group.size,
                         layerIds: [],
-                        hidden,
+                        value:
+                            bound === undefined
+                                ? undefined
+                                : { layerId: bound.layerId, channel: bound.channel, value: group.group },
+                        hidden: hidden || (bound !== undefined && groupHidden(bound, group.group)),
                         runId: run.id,
                     };
                 }),
@@ -103,9 +148,8 @@ export function paintRows(session: GraphSession): PaintRow[] {
         const ramp = color?.swatches.flatMap((s) => (s.color === undefined ? [] : [s.color])) ?? [];
         return {
             ...base,
-            // A run whose primary field is one value per element is a single measure row.
-            kind: RESULT_SHAPE_CONTRACTS[run.shape].primaryField === "value" ? "measure-row" : "run-row",
-            count: summary?.measured,
+            kind: runRowKind(run),
+            count: run.shape === "path" ? pathSize(run) : summary?.measured,
             swatch: ramp.length === 0 ? undefined : { ramp },
         };
     };
@@ -114,7 +158,7 @@ export function paintRows(session: GraphSession): PaintRow[] {
     const placed = new Set<string>();
     for (const layer of [...layers].reverse()) {
         const { source } = layer;
-        if (source.by === "element") {
+        if (source.by === "element" || layer.userData?.[EVERYTHING_KEY] === true) {
             continue;
         }
         if (source.by === "run") {
@@ -189,4 +233,62 @@ export function findRow(rows: readonly PaintRow[], id: string): PaintRow | undef
         }
     }
     return undefined;
+}
+
+/**
+ * Whether a row has an eye: it owns layers, or it is a group whose run paints a color.
+ * @param row - the row.
+ * @returns true when it has one.
+ */
+export function hasEye(row: PaintRow): boolean {
+    return row.layerIds.length > 0 || row.value !== undefined;
+}
+
+/**
+ * Whether a row can be dragged or moved: a run, measure or layer row that paints. Selection,
+ * Everything, a group row and a run with no layer yet never move.
+ * @param row - the row.
+ * @returns true when it moves.
+ */
+export function isMovable(row: PaintRow): boolean {
+    return row.layerIds.length > 0 && row.kind !== "group-row";
+}
+
+/**
+ * Where a row would sit in the style stack if it were the top-level row at `index`, counted
+ * with it taken out (the tree's move): below the bottom layer of the nearest row above it that
+ * paints, or at the top (null) when none does. Undefined for a place it cannot go: inside
+ * another row, above Selection or below Everything.
+ * @param rows - the rows, top first.
+ * @param id - the moving row.
+ * @param parentId - the row it would land in, null for the top level.
+ * @param index - its place among the top-level rows without it.
+ * @returns the layer it would sit below, null for the top, or undefined.
+ */
+export function layerAbove(
+    rows: readonly PaintRow[],
+    id: string,
+    parentId: string | null,
+    index: number,
+): LayerId | null | undefined {
+    const others = rows.filter((row) => row.id !== id);
+    if (parentId !== null || others.length === rows.length || index < 1 || index > others.length - 1) {
+        return undefined;
+    }
+    const above = others
+        .slice(0, index)
+        .reverse()
+        .find((row) => row.layerIds.length > 0);
+    return above?.layerIds[0] ?? null;
+}
+
+/**
+ * A path run's length, as its graph result publishes it: "4 hops", or absent before it has one
+ * (or when no path was found). Short, so the row's name stays whole beside it.
+ * @param run - the path run.
+ * @returns the words, or undefined.
+ */
+function pathSize(run: Run): string | undefined {
+    const { hops } = run.result?.graph ?? {};
+    return typeof hops === "number" ? count(hops, "hop") : undefined;
 }

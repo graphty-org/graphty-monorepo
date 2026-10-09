@@ -2126,6 +2126,15 @@ export class GraphStore {
     }
 
     /**
+     * Whether the graph is directed, read from the builder without settling or freezing it, so
+     * it is cheap enough to ask once per edge drawn.
+     * @returns the builder's direction
+     */
+    get directed(): boolean {
+        return this.current.directed;
+    }
+
+    /**
      * How the direction of this store's graph was settled. Reading it first follows a
      * `data.directed` changed since the graph was last read, as {@link GraphStore.builder} does,
      * so a boolean set a moment ago already reads as `configuration`.

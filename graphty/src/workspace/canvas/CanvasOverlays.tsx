@@ -1,14 +1,22 @@
 import "./canvas.css";
 
-import type { GraphSession, LegendBlock, ProgressChange } from "@graphty/graphty-element/session";
-import { Button, Tooltip } from "@mantine/core";
-import { CircleDashed, LoaderCircle } from "lucide-react";
+import type { GraphSession, LegendBlock, ProgressChange, RunStatus } from "@graphty/graphty-element/session";
+import { Button, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { pathAnnouncement } from "../analyze/words";
+import { SampleItems } from "../frame/menus";
+import { GLYPHS } from "../glyphs";
+import { count } from "../inspector/words";
+import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
+import { keyBlocks } from "./legendWords";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
+
+/** How a run that ended is announced, by its status. */
+const ENDED: Partial<Record<RunStatus, string>> = { succeeded: "finished", failed: "failed", canceled: "stopped" };
 
 /** The element's events after which the legend or the node count may read differently. */
 const REDRAW_EVENTS = ["style:changed", "run:changed", "project:changed"] as const;
@@ -26,7 +34,8 @@ const NOTHING: CanvasReading = { blocks: [], nodeCount: 0, edgeCount: 0, load: n
 
 /**
  * Reads the legend, the node and edge counts and the load in flight from the session, again after every
- * event that can change them; and, when a run finishes, posts the notice its painting calls for.
+ * event that can change them; announces a finished load with its size and a finished run by name;
+ * and, when a run finishes, posts the notice its painting calls for.
  * @param session - the element's session, or null.
  * @returns what the canvas draws from.
  */
@@ -44,20 +53,48 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
         let live = true;
         const read = (): void => {
             const { nodeCount, edgeCount } = session.data.statistics();
-            setReading({ blocks: session.styles.legend(), nodeCount, edgeCount, load });
+            setReading({ blocks: keyBlocks(session.styles.legend()), nodeCount, edgeCount, load });
         };
         read();
         const offs = [
             ...REDRAW_EVENTS.map((event) => session.on(event, read)),
+            session.on("selection:changed", () => {
+                const { nodes, edges } = session.selection;
+                const parts = [
+                    ...(nodes.length > 0 ? [count(nodes.length, "node")] : []),
+                    ...(edges.length > 0 ? [count(edges.length, "edge")] : []),
+                ];
+                if (parts.length > 0) {
+                    store.set({ announcement: `${parts.join(", ")} selected` });
+                }
+            }),
             session.on("progress:changed", (change) => {
                 if (change.task === "load") {
                     load = change.phase === "end" ? null : change;
                     read();
+                    // A load from the Data page is announced by the page, once it has named the
+                    // graph and the place is showing again.
+                    if (change.phase === "end" && store.get().page !== "data-page") {
+                        const { nodeCount, edgeCount } = session.data.statistics();
+                        const name = store.get().project?.name ?? "Graph";
+                        store.set({
+                            announcement: `${name}: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges`,
+                        });
+                    }
                 }
             }),
             session.on("run:changed", (change) => {
                 if (change.phase !== "end" || change.cause !== "command") {
                     return;
+                }
+                const ended = ENDED[change.run.status];
+                if (ended !== undefined) {
+                    const name = runName(session, change.run);
+                    // The event carries the run's record; its result is on the live run.
+                    const run = session.runs.get(change.run.id);
+                    const path =
+                        change.run.status === "succeeded" && run !== undefined ? pathAnnouncement(session, run) : null;
+                    store.set({ announcement: path ?? `${name} ${ended}` });
                 }
                 // The painting is decided once the element has finished painting for the run.
                 void session.styles.settled().then(() => {
@@ -111,7 +148,7 @@ export function LoadingCard({
 }: Readonly<LoadingCardProps>): React.JSX.Element {
     return (
         <StateCard
-            icon={<LoaderCircle size={20} />}
+            icon={<GLYPHS.loading size={20} />}
             title={`Reading ${projectName}`}
             sentence={`${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges...`}
             progress={fraction}
@@ -122,7 +159,7 @@ export function LoadingCard({
 /**
  * What the canvas draws over the element (tier1-design.md section 2.4): the legend card at its
  * top left, and one state card at its center -- loading while the element reports a load, empty
- * while it holds no node. The canvas has no other buttons.
+ * while it holds no node, with Add data... and Open a sample. The canvas has no other buttons.
  *
  * Not drawn yet, because graphty-element cannot report them: the loading card's Cancel (#296);
  * the file name on the loading card and the too-large card (#902: a load event names no source,
@@ -154,21 +191,33 @@ export function CanvasOverlays(): React.JSX.Element | null {
     } else if (nodeCount === 0) {
         card = (
             <StateCard
-                icon={<CircleDashed size={20} />}
+                icon={<GLYPHS.empty size={20} />}
                 title="No nodes to draw"
                 actions={
-                    addData === null ? undefined : (
-                        <Tooltip label={addData.disabledReason} disabled={addData.disabledReason === null}>
-                            <Button
-                                size="xs"
-                                aria-disabled={addData.disabledReason !== null}
-                                data-disabled={addData.disabledReason === null ? undefined : true}
-                                onClick={addData.disabledReason === null ? addData.run : undefined}
-                            >
-                                {addData.command.label}
-                            </Button>
-                        </Tooltip>
-                    )
+                    <>
+                        {addData === null ? null : (
+                            <Tooltip label={addData.disabledReason} disabled={addData.disabledReason === null}>
+                                <Button
+                                    size="xs"
+                                    aria-disabled={addData.disabledReason !== null}
+                                    data-disabled={addData.disabledReason === null ? undefined : true}
+                                    onClick={addData.disabledReason === null ? addData.run : undefined}
+                                >
+                                    {addData.command.label}
+                                </Button>
+                            </Tooltip>
+                        )}
+                        <Menu position="bottom" withinPortal>
+                            <Menu.Target>
+                                <Button size="xs" variant="default">
+                                    Open a sample
+                                </Button>
+                            </Menu.Target>
+                            <Menu.Dropdown>
+                                <SampleItems />
+                            </Menu.Dropdown>
+                        </Menu>
+                    </>
                 }
             />
         );

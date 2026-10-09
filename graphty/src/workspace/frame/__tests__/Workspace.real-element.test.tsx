@@ -12,7 +12,8 @@ import userEvent from "@testing-library/user-event";
 import { assert, describe, it } from "vitest";
 import { page, userEvent as realInput } from "vitest/browser";
 
-import { render, screen, waitFor } from "../../../test/test-utils";
+import { APP_HIGHLIGHT_COLOR } from "../../../constants/highlight";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -88,6 +89,75 @@ describe("the workspace frame on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "gives no two reachable controls one name with a graph and nothing run",
+        async () => {
+            const session = await openWorkspace();
+            await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+            await screen.findByText(/to add results here/, undefined, { timeout: TIMEOUT_MS });
+
+            const names = new Map<string, number>();
+            for (const control of document.querySelectorAll<HTMLElement>(
+                'button, [role="button"], [role="menuitem"], a[href], input, [role="tab"]',
+            )) {
+                if (control.checkVisibility()) {
+                    const name = (control.getAttribute("aria-label") ?? control.textContent ?? "").trim();
+                    names.set(name, (names.get(name) ?? 0) + 1);
+                }
+            }
+            assert.deepEqual(
+                [...names].filter(([name, count]) => name !== "" && count > 1).map(([name]) => name),
+                [],
+            );
+        },
+        TIMEOUT_MS,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "keeps Method inside the inspector's padding on the graph's Style tab",
+        async () => {
+            const session = await openWorkspace();
+            await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+            const inspector = screen.getByRole("complementary", { name: "Inspector" });
+            await userEvent.click(within(inspector).getByRole("tab", { name: "Style" }));
+
+            const method = (await within(inspector).findAllByLabelText("Method")).find((e) => e.tagName === "INPUT");
+            assert.isDefined(method);
+            const panel = within(inspector).getByRole("tabpanel", { name: "Style" });
+            const left = method?.getBoundingClientRect().left ?? 0;
+            // compact-mantine's panel grid: content begins 16px in from the panel's leading edge.
+            assert.closeTo(left - panel.getBoundingClientRect().left, 16, 1, "Method starts at the content band");
+        },
+        TIMEOUT_MS,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "paints a shortest path in the app's own highlight colour, not the element's indigo",
+        async () => {
+            const session = await openWorkspace();
+            await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+            await session.data.addEdges([
+                { source: "a", target: "b" },
+                { source: "b", target: "c" },
+            ]);
+
+            await session.runs.start("shortest-path", { source: "a", target: "c" });
+
+            await waitFor(() => {
+                const route = session.styles.list().filter((layer) => layer.kind === "highlight");
+                assert.lengthOf(route, 2);
+                for (const layer of route) {
+                    assert.equal(layer.set?.[`${layer.target ?? "node"}.color`], APP_HIGHLIGHT_COLOR);
+                }
+            });
+            assert.notEqual(APP_HIGHLIGHT_COLOR.toLowerCase(), "#332288");
+        },
+        TIMEOUT_MS,
+    );
+
     it("opens the shortcuts sheet with ? while a closed Select's list is mounted on the page", async () => {
         // The inspector has room at the design's width, and its Layout group holds a Select.
         await page.viewport(1366, 768);
@@ -109,6 +179,6 @@ describe("the workspace frame on the real element", () => {
 
         await realInput.keyboard("?");
 
-        await screen.findByRole("region", { name: "Keyboard shortcuts" });
+        await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
     });
 });

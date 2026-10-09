@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 
 import type { GestureChangeHandler, GestureEndHandler, GestureStartHandler } from "../../../types/events";
 import type { PopoutPosition } from "../../../types/popout";
+import { shieldDragSelection } from "../../chrome/dragSelectionShield";
 
 // How far the pointer must travel before a press counts as a drag rather than a
 // click, in pixels. Anything smaller is the hand shake that every pointer has
@@ -117,6 +118,8 @@ export function useFloatingPanel(options: UseFloatingPanelOptions): UseFloatingP
                 offsetLeft: dragOffset.left,
                 offsetTop: dragOffset.top,
             };
+
+            shieldDragSelection();
 
             // Tells the panel it was pressed, which is what raises it above the
             // others whether or not the press becomes a drag.

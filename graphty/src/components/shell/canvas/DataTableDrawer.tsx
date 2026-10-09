@@ -48,9 +48,10 @@ import {
     type DataTableSort,
     PANEL_GRID,
     PANEL_INK,
+    ResizeHandle,
     UiGlyph,
 } from "@graphty/compact-mantine";
-import React, { useCallback, useRef } from "react";
+import React from "react";
 
 import { keyChipFor } from "../bindings";
 import { CANVAS_TOOLBAR_Z_INDEX } from "../constants";
@@ -240,47 +241,6 @@ export function DataTableDrawer<TRow extends object>(props: DataTableDrawerProps
         showTotal,
         tab,
     } = props;
-    const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
-
-    const handlePointerDown = useCallback(
-        (event: React.PointerEvent<HTMLDivElement>) => {
-            event.currentTarget.setPointerCapture(event.pointerId);
-            dragRef.current = { startY: event.clientY, startHeight: height };
-        },
-        [height],
-    );
-
-    const handlePointerMove = useCallback(
-        (event: React.PointerEvent<HTMLDivElement>) => {
-            const drag = dragRef.current;
-
-            if (drag === null) {
-                return;
-            }
-
-            onHeightChange(clampDataDrawerHeight(drag.startHeight + (drag.startY - event.clientY), canvasHeight));
-        },
-        [canvasHeight, onHeightChange],
-    );
-
-    const handlePointerUp = useCallback(() => {
-        dragRef.current = null;
-    }, []);
-
-    const handleResizeKey = useCallback(
-        (event: React.KeyboardEvent<HTMLDivElement>) => {
-            if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
-                return;
-            }
-
-            event.preventDefault();
-            const step = event.key === "ArrowUp" ? PANEL_GRID.ROW_PITCH : -PANEL_GRID.ROW_PITCH;
-
-            onHeightChange(clampDataDrawerHeight(height + step, canvasHeight));
-        },
-        [canvasHeight, height, onHeightChange],
-    );
-
     if (!open) {
         return null;
     }
@@ -311,31 +271,21 @@ export function DataTableDrawer<TRow extends object>(props: DataTableDrawerProps
                 background: PANEL_INK.PANEL,
                 borderTop: `${String(CANVAS_SPACE.HAIRLINE)}px solid ${PANEL_INK.BORDER}`,
                 boxSizing: "border-box",
-                overflow: "hidden",
+                // No clip here: a clip would cut the resize handle, which straddles the top
+                // edge, down to its lower half.
                 zIndex: CANVAS_DOCK_Z_INDEX,
             }}
         >
             {maximised ? null : (
-                <div
-                    role="separator"
-                    aria-label={RESIZE_LABEL}
-                    aria-orientation="horizontal"
-                    aria-valuenow={drawnHeight}
-                    aria-valuemin={DATA_DRAWER_MIN_HEIGHT}
-                    aria-valuemax={canvasHeight}
-                    tabIndex={0}
-                    onPointerDown={handlePointerDown}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={handlePointerUp}
-                    onKeyDown={handleResizeKey}
-                    style={{
-                        position: "absolute",
-                        left: 0,
-                        right: 0,
-                        top: 0,
-                        height: CANVAS_METRICS.DRAWER_HANDLE,
-                        cursor: "row-resize",
+                <ResizeHandle
+                    edge="top"
+                    value={drawnHeight}
+                    min={DATA_DRAWER_MIN_HEIGHT}
+                    max={Math.max(DATA_DRAWER_MIN_HEIGHT, canvasHeight)}
+                    onChange={(next) => {
+                        onHeightChange(clampDataDrawerHeight(next, canvasHeight));
                     }}
+                    label={RESIZE_LABEL}
                 />
             )}
 

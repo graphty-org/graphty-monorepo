@@ -18,7 +18,7 @@
  */
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, test, vi } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import {
@@ -182,6 +182,16 @@ async function mount(attributes: Record<string, string> = {}): Promise<Mounted> 
 
     return { element, container, events, bubbled };
 }
+
+// These tests count acceleration transitions. With WebXR present the element's one XR probe
+// also publishes a capabilities event, so the browser's WebXR is hidden here.
+beforeAll(() => {
+    Object.defineProperty(navigator, "xr", { value: undefined, configurable: true });
+});
+
+afterAll(() => {
+    Reflect.deleteProperty(navigator, "xr");
+});
 
 afterEach(async () => {
     while (containers.length > 0) {

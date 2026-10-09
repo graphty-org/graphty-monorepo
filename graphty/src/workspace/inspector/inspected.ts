@@ -7,24 +7,29 @@
  * selection, and a selection change closes any open row (the inspector shows the selected thing).
  */
 
-import type { NodeId, RunId } from "@graphty/graphty-element/session";
+import type { NodeId, RunId, SelectionDirection } from "@graphty/graphty-element/session";
 
 import type { WorkspaceState } from "../state/store";
 
 /**
  * Every kind the inspector draws, with the id each one carries in `inspected.id`.
  *
- * - `graph`: nothing selected; no id.
+ * - `graph`: nothing selected, or the Graph place's title opened it; no id.
  * - `node`: one node selected; no id (read from the selection).
  * - `edge`: one edge selected; no id.
  * - `several`: more than one element selected; no id.
- * - `neighborhood`: a node's neighbors; the id is `nodeKey(center)`.
+ * - `neighborhood`: the nodes within some hops of a center node, following edges one way or
+ *   both; the id is `neighborhoodKey(center, hops, direction)`.
  * - `measure-row` and `run-row`: a run's row; the id is the run id. Either kind opens either
  *   view: the run's result shape decides between the measure and the groups.
  * - `group-row`: one group of a grouping run; the id is `groupKey(runId, group)`.
  * - `everything-row` and `selection-row`: the Graph place's two built-in rows; no id.
  * - `layer-row`: one of the reader's own style layers in the Graph place; the id is the layer id.
  * - `attribute`: an attribute from the Data place; the id is its path, such as `data.age`.
+ * - `filter-step`: the filter step editor; the id is the step's id, `new`, or
+ *   `new:<node|edge>:<path>` for a new step on that attribute.
+ * - `source`: a Sources row in the Data place; the id is the row's id, `source:<load>` or
+ *   `source:<load>:<table>`, where `<load>` indexes `data.sources()`.
  */
 export const INSPECTED_KINDS = [
     "graph",
@@ -39,7 +44,12 @@ export const INSPECTED_KINDS = [
     "selection-row",
     "layer-row",
     "attribute",
+    "filter-step",
+    "source",
 ] as const;
+
+/** The kinds only the Data place shows a row for: leaving that place closes them. */
+export const DATA_PLACE_KINDS: readonly string[] = ["attribute", "filter-step", "source"];
 
 /** One of {@link INSPECTED_KINDS}. */
 export type InspectedKindId = (typeof INSPECTED_KINDS)[number];
@@ -50,12 +60,19 @@ export type Resolved =
     | { readonly kind: "node"; readonly node: NodeId }
     | { readonly kind: "edge"; readonly edge: string }
     | { readonly kind: "several" }
-    | { readonly kind: "neighborhood"; readonly node: NodeId }
+    | {
+          readonly kind: "neighborhood";
+          readonly node: NodeId;
+          readonly hops: number;
+          readonly direction: SelectionDirection;
+      }
     | { readonly kind: "measure-row" | "run-row"; readonly run: RunId }
     | { readonly kind: "group-row"; readonly run: RunId; readonly group: string | number }
     | { readonly kind: "everything-row" | "selection-row" }
     | { readonly kind: "layer-row"; readonly layer: string }
-    | { readonly kind: "attribute"; readonly path: string };
+    | { readonly kind: "attribute"; readonly path: string }
+    | { readonly kind: "filter-step"; readonly step: string }
+    | { readonly kind: "source"; readonly row: string };
 
 /**
  * The id a node carries in `inspected.id`. A node id is a string or a number, and the two must
@@ -65,6 +82,18 @@ export type Resolved =
  */
 export function nodeKey(id: NodeId): string {
     return JSON.stringify(id);
+}
+
+/**
+ * The id a neighborhood carries in `inspected.id`: the center's `nodeKey` for its one-hop
+ * neighbors both ways, else the center, the hop count and the direction followed.
+ * @param center - the node at the center.
+ * @param hops - how many hops out the neighborhood reaches.
+ * @param direction - which way edges are followed.
+ * @returns the key.
+ */
+export function neighborhoodKey(center: NodeId, hops = 1, direction: SelectionDirection = "all"): string {
+    return hops === 1 && direction === "all" ? nodeKey(center) : JSON.stringify([center, hops, direction]);
 }
 
 /**
@@ -115,10 +144,21 @@ interface SelectionView {
  */
 function fromRow(inspected: WorkspaceState["inspected"]): Resolved | undefined {
     switch (inspected?.kind) {
+        case "graph":
+            return { kind: "graph" };
         case "neighborhood": {
-            const node = idOf(parse(inspected.id));
-            if (node !== undefined) {
-                return { kind: "neighborhood", node };
+            const parsed = parse(inspected.id);
+            const node = idOf(Array.isArray(parsed) ? parsed[0] : parsed);
+            const hops: unknown = Array.isArray(parsed) ? parsed[1] : 1;
+            const direction: unknown = Array.isArray(parsed) ? (parsed[2] ?? "all") : "all";
+            if (
+                node !== undefined &&
+                typeof hops === "number" &&
+                Number.isInteger(hops) &&
+                hops >= 1 &&
+                (direction === "all" || direction === "in" || direction === "out")
+            ) {
+                return { kind: "neighborhood", node, hops, direction };
             }
             break;
         }
@@ -148,6 +188,16 @@ function fromRow(inspected: WorkspaceState["inspected"]): Resolved | undefined {
         case "attribute":
             if (inspected.id !== undefined) {
                 return { kind: "attribute", path: inspected.id };
+            }
+            break;
+        case "filter-step":
+            if (inspected.id !== undefined) {
+                return { kind: "filter-step", step: inspected.id };
+            }
+            break;
+        case "source":
+            if (inspected.id !== undefined) {
+                return { kind: "source", row: inspected.id };
             }
             break;
         default:

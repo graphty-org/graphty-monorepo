@@ -33,7 +33,7 @@ import {
     type SuggestedName,
 } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
-import { ALGO_DEFINITIONS, type AlgoRemoveCommand, type RunService } from "../commands/algo";
+import { ALGO_DEFINITIONS, type AlgoMoveCommand, type AlgoRemoveCommand, type RunService } from "../commands/algo";
 import type { AlgorithmRunCommand } from "../planning";
 import {
     cancelReasonOf,
@@ -201,6 +201,11 @@ export interface RunsApiOptions {
      * @returns The facts.
      */
     readonly scopeFacts?: (spec: Scope) => RunScopeFacts;
+    /**
+     * The digest of the graph's data now, compared with the one a run's scope facts recorded.
+     * Absent compares scopes only.
+     */
+    readonly dataDigest?: () => string;
     /**
      * The name of a kept set, for a run label.
      * @param id - The set.
@@ -924,6 +929,21 @@ class Runs implements SessionRunsApi {
     }
 
     /**
+     * Move every layer reading a run, as one block in its own order, to sit immediately below
+     * `before` (`null` = the top), as one step.
+     * @param id - The run id.
+     * @param before - The layer to sit below, or null for the top of the stack.
+     * @param options - How the move is dispatched.
+     * @param options.signal - Withdraws the move.
+     * @returns Settles once the block has moved; rejects with the refusal.
+     */
+    move(id: RunId, before: LayerId | null, options: { readonly signal?: AbortSignal } = {}): Promise<void> {
+        const command: AlgoMoveCommand = { op: "algo.move", runId: id, before };
+
+        return this.dispatcher.dispatch(command, options).then(() => undefined);
+    }
+
+    /**
      * Whether the element minted this run's id rather than the author naming it.
      * @param id - The run id.
      * @returns True when the element derived the id.
@@ -1270,7 +1290,20 @@ class Runs implements SessionRunsApi {
             return true;
         }
 
-        return this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest;
+        return this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest || this.dataMoved(run);
+    }
+
+    /**
+     * Whether the graph's data changed since a run recorded it.
+     * @param run - The run.
+     * @returns False when the run recorded no data digest, or the session gives none.
+     */
+    private dataMoved(run: ManagedRun): boolean {
+        const recorded = run.dataDigest;
+
+        return (
+            recorded !== undefined && this.options.dataDigest !== undefined && this.options.dataDigest() !== recorded
+        );
     }
 
     /**
@@ -1332,6 +1365,9 @@ class Runs implements SessionRunsApi {
         return {
             run: (command, ctx) => this.execute(command, ctx),
             remove: (command, draft) => this.removeInto(command, draft),
+            move: (command, draft) => {
+                this.moveInto(command, draft);
+            },
         };
     }
 
@@ -1584,6 +1620,65 @@ class Runs implements SessionRunsApi {
     }
 
     /**
+     * Carry out one `algo.move`: refuse what `styles.move` would refuse, then move the run's
+     * layers bottom first, each to sit below `before`, so each lands above the one moved before
+     * it and the block keeps its order.
+     * @param command - The move.
+     * @param draft - The command's draft.
+     */
+    private moveInto(command: AlgoMoveCommand, draft: Draft): void {
+        const { runId: id, before } = command;
+        const block = draft.styles
+            .filter((entry) => entry.layer.source.by === "run" && entry.layer.source.runId === id)
+            .map((entry) => entry.layer.id);
+        const target = before === null ? undefined : draft.styles.find((entry) => entry.layer.id === before)?.layer;
+
+        if (this.get(id) === undefined && !this.dispatcher.state.runs.has(id)) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_RUN",
+                message: `This session holds no run "${id}".`,
+                source: "run",
+                details: { runId: id },
+            });
+        }
+
+        if (before !== null && target === undefined) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_LAYER",
+                message: `No layer "${before}" is in the stack.`,
+                source: "style",
+                target: { kind: "layer", id: before },
+                details: { id: before },
+            });
+        }
+
+        if (target?.locked === true) {
+            throw new GraphtyError({
+                code: "E_PROTECTED",
+                message: `"${target.name}" is the element's own layer, and nothing moves beneath it.`,
+                source: "style",
+                target: { kind: "layer", id: target.id },
+                details: { id: target.id },
+            });
+        }
+
+        if (before !== null && block.includes(before)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `Layer "${before}" reads run "${id}", so the run cannot move below it.`,
+                source: "style",
+                details: { runId: id, before },
+            });
+        }
+
+        const { styles } = this.dispatcher.services;
+
+        for (const layer of block) {
+            styles?.execute({ op: "style.patch", action: "move", id: layer, before }, draft);
+        }
+    }
+
+    /**
      * What removing a run takes with it.
      * @param id - The run id.
      * @returns The layers bound to it.
@@ -1642,10 +1737,11 @@ class Runs implements SessionRunsApi {
             return null;
         }
 
+        const dataChanged = this.dataMoved(run);
         let nowVisible: number;
         try {
             const current = this.options.resolveScope(run.scope.spec);
-            if (current.digest === run.scope.digest) {
+            if (!dataChanged && current.digest === run.scope.digest) {
                 return null;
             }
 
@@ -1661,6 +1757,7 @@ class Runs implements SessionRunsApi {
         }
 
         return Object.freeze({
+            reason: dataChanged ? "data-changed" : "scope-changed",
             ranOn: run.scope.nodeCount,
             nowVisible,
             scopeSpec: run.scope.spec,

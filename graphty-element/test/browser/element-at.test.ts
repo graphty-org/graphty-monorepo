@@ -1,7 +1,8 @@
 /**
  * @file `element.elementAt({ x, y })` answers what a click at that point would select. Each test
  * points the real mouse at a grid of points across the element, asks `elementAt`, clicks, and
- * compares the answer with the selection the click made, in 2D and in 3D.
+ * compares the answer with the selection the click made, in 2D and in 3D. Edges are found too:
+ * a click on one selects it, and a selected edge is drawn marked.
  */
 
 import "../../src/graphty-element";
@@ -85,13 +86,67 @@ async function answerAndClick(
     // Copies: the browser driver rescales a `position` in place to the test frame's zoom.
     await userEvent.hover(element, { position: { ...point } });
     const hit = element.elementAt(point);
-    if (hit !== null) {
-        assert.strictEqual(hit.kind, "node", "only nodes are found today");
-    }
 
     // The points differ, so no two clicks in a row make a double-click.
     await userEvent.click(element, { position: { ...point } });
-    return { answered: hit?.id ?? null, selected: element.getSelectedNode()?.id ?? null };
+    const { selection } = element.session;
+    const selected = hit?.kind === "edge" ? (selection.edges[0] ?? null) : (element.getSelectedNode()?.id ?? null);
+    if (hit?.kind === "edge") {
+        assert.strictEqual(selection.nodes.length, 0, "an edge click selects no node");
+    }
+
+    return { answered: hit?.id ?? null, selected };
+}
+
+/**
+ * The id of the edge between two nodes.
+ * @param element - The element.
+ * @param src - One end.
+ * @param dst - The other.
+ * @returns The edge's id.
+ */
+function edgeBetween(element: Graphty, src: string | number, dst: string | number): string {
+    const edge = [...element.graph.getDataManager().edges.values()].find(
+        (candidate) => candidate.srcId === src && candidate.dstId === dst,
+    );
+    assert.isDefined(edge, `an edge ${String(src)} -> ${String(dst)}`);
+    return edge.id;
+}
+
+/**
+ * The midpoint of two nodes' centers on screen.
+ * @param element - The element.
+ * @param src - One node.
+ * @param dst - The other.
+ * @returns The point.
+ */
+function midpointOf(element: Graphty, src: string | number, dst: string | number): { x: number; y: number } {
+    const a = centerOf(element, src);
+    const b = centerOf(element, dst);
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+/**
+ * The pixels drawn in a one-pixel column across a point, top to bottom.
+ * @param element - The element.
+ * @param point - The point, in CSS pixels.
+ * @returns Each pixel's red, green and blue, 0 to 255.
+ */
+async function columnAt(element: Graphty, point: { x: number; y: number }): Promise<number[][]> {
+    const { graph } = element;
+    await element.waitForStableFrame();
+    graph.scene.render();
+    const { engine } = graph;
+    const half = 12;
+    // readPixels counts rows from the bottom.
+    const y = engine.getRenderHeight() - Math.round(point.y) - half;
+    const pixels = (await engine.readPixels(Math.round(point.x), y, 1, half * 2)) as unknown as Uint8Array;
+    const column: number[][] = [];
+    for (let at = pixels.length - 4; at >= 0; at -= 4) {
+        column.push([pixels[at], pixels[at + 1], pixels[at + 2]]);
+    }
+
+    return column;
 }
 
 describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
@@ -115,7 +170,9 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
             }
         }
 
-        let nodes = 0;
+        points.push(midpointOf(element, "a", "b"));
+
+        let found = 0;
         let empty = 0;
         for (const point of points) {
             const { answered, selected } = await answerAndClick(element, point);
@@ -123,11 +180,95 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
             if (answered === null) {
                 empty++;
             } else {
-                nodes++;
+                found++;
             }
         }
 
-        assert.isAtLeast(nodes, NODES.length, "some points landed on nodes");
+        assert.isAtLeast(found, NODES.length + 1, "some points landed on nodes and edges");
         assert.isAtLeast(empty, 1, "some points landed on empty canvas");
+    }, 60_000);
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it("names the edge drawn at an edge's midpoint, and a click there selects it", async () => {
+        const element = await mounted(viewMode);
+        const ab = edgeBetween(element, "a", "b");
+        const b0 = edgeBetween(element, "b", 0);
+
+        const mid = midpointOf(element, "a", "b");
+        assert.deepStrictEqual(element.elementAt(mid), { kind: "edge", id: ab });
+        assert.deepStrictEqual(
+            element.elementAt({ x: mid.x, y: mid.y + 3 }),
+            { kind: "edge", id: ab },
+            "within a few pixels",
+        );
+
+        await userEvent.click(element, { position: { ...mid } });
+        assert.deepStrictEqual(element.session.selection.edges, [ab]);
+
+        // Shift adds the second edge rather than replacing the first.
+        const other = midpointOf(element, "b", 0);
+        await userEvent.keyboard("{Shift>}");
+        await userEvent.click(element, { position: { ...other } });
+        await userEvent.keyboard("{/Shift}");
+        assert.sameMembers([...element.session.selection.edges], [ab, b0]);
+
+        // Empty canvas clears an edge-only selection.
+        await userEvent.click(element, { position: { x: 2, y: 2 } });
+        assert.strictEqual(element.session.selection.edges.length, 0);
+    }, 60_000);
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it("shows the pointer cursor over a node and over a line, and not over empty canvas", async () => {
+        const element = await mounted(viewMode);
+        const canvas = element.graph.scene.getEngine().getInputElement();
+        assert.isNotNull(canvas);
+        const cursorAt = async (point: { x: number; y: number }): Promise<string> => {
+            await userEvent.hover(element, { position: { ...point } });
+            return canvas.style.cursor;
+        };
+
+        const mid = midpointOf(element, "a", "b");
+        assert.strictEqual(await cursorAt({ x: 2, y: 2 }), "", "empty canvas");
+        assert.strictEqual(await cursorAt(centerOf(element, "a")), "pointer", "a node");
+        assert.strictEqual(await cursorAt({ x: mid.x, y: mid.y + 3 }), "pointer", "a few pixels off a line");
+        assert.strictEqual(await cursorAt({ x: 2, y: 2 }), "", "back on empty canvas");
+    }, 60_000);
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it("draws a selected edge with a solid band of the edge selection color behind the line", async () => {
+        const element = await mounted(viewMode);
+        const ab = edgeBetween(element, "a", "b");
+        const mid = midpointOf(element, "a", "b");
+        const { edgeColor, edgeOpacity } = element.session.config.selectionStyle;
+        const band = [1, 3, 5].map((at) => Number.parseInt(edgeColor.slice(at, at + 2), 16));
+
+        const before = await columnAt(element, mid);
+        await element.graph.select({ edges: [ab] });
+        const after = await columnAt(element, mid);
+
+        // Across the line at its midpoint. Where the canvas showed, the band now does, at the edge
+        // opacity (solid by default); where the line showed, the line still does in its own paint,
+        // because the band is drawn behind it as a casing.
+        const canvas = before[0];
+        const want = canvas.map((channel, at) => channel * (1 - edgeOpacity) + band[at] * edgeOpacity);
+        const isCanvas = (row: number): boolean =>
+            before[row].every((channel, at) => Math.abs(channel - canvas[at]) <= 2);
+        const banded = after.filter(
+            (pixel, row) => isCanvas(row) && pixel.every((channel, at) => Math.abs(channel - want[at]) <= 8),
+        );
+        const lineRows = before.map((_, row) => row).filter((row) => !isCanvas(row));
+        assert.isAtLeast(
+            banded.length,
+            4,
+            `a band of ${String(want.map(Math.round))} beside the line; across it: ${JSON.stringify(after)}`,
+        );
+        assert.deepStrictEqual(
+            after[lineRows[Math.floor(lineRows.length / 2)]],
+            before[lineRows[Math.floor(lineRows.length / 2)]],
+            "the line keeps its own paint down the middle",
+        );
+
+        await element.graph.select({ edges: [] });
+        assert.deepStrictEqual(await columnAt(element, mid), before, "deselected, the edge is drawn plain again");
     }, 60_000);
 });

@@ -1142,6 +1142,35 @@ describe("highlight(), which is exclusive", () => {
         assert.deepStrictEqual(nodes?.set, { "node.color": DEFAULT_HIGHLIGHT.color });
     });
 
+    it("keeps Paul Tol's indigo as the element's own highlight colour", () => {
+        assert.strictEqual(DEFAULT_HIGHLIGHT.color, "#332288");
+    });
+
+    it("paints the consumer's highlight colour on both halves, and the element's again once cleared", async () => {
+        const { styles } = makeStyles();
+
+        styles.setHighlightColor("#000000");
+        const layers = await styles.highlight({ run: "route" });
+        const edges = layers.find((layer) => layer.target === "edge");
+
+        assert.strictEqual(layers.find((layer) => layer.target === "node")?.set?.["node.color"], "#000000");
+        assert.strictEqual(edges?.set?.["edge.color"], "#000000");
+        assert.strictEqual(edges?.set?.["edge.width"], DEFAULT_HIGHLIGHT.edgeWidth);
+
+        styles.setHighlightColor(undefined);
+        const [nodes] = await styles.highlight({ run: "influencers" });
+
+        assert.strictEqual(nodes?.set?.["node.color"], DEFAULT_HIGHLIGHT.color);
+    });
+
+    it("refuses a highlight colour a layer would not accept", () => {
+        const { styles } = makeStyles();
+
+        assert.throws(() => {
+            styles.setHighlightColor("not a colour");
+        }, /not a colour a layer accepts/);
+    });
+
     it("draws a highlighted edge wider than a default edge, so a route reads as a route", async () => {
         const { styles } = makeStyles();
 

@@ -581,6 +581,14 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     }
 
     /**
+     * The data digest the run recorded when it resolved its scope, or undefined when none was.
+     * @returns The digest.
+     */
+    get dataDigest(): string | undefined {
+        return (this.heldRecord()?.scope ?? this.scopeFactsValue)?.data;
+    }
+
+    /**
      * What to call this run, computed by the element rather than by the consumer.
      * @returns The label.
      */

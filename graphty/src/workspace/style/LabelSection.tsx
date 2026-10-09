@@ -1,16 +1,17 @@
-import { AlignmentMatrix, FieldRow } from "@graphty/compact-mantine";
+import { AlignmentMatrix, FieldRow, Popout, PopoutButton } from "@graphty/compact-mantine";
 import type { Channel, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Checkbox, Group, Popover, Stack, Text, Tooltip } from "@mantine/core";
-import { Minus, Plus } from "lucide-react";
+import { ActionIcon, Button, Checkbox, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useState } from "react";
 
-import { useWorkspace } from "../state/WorkspaceContext";
+import { GLYPHS } from "../glyphs";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FromDataList } from "./FromDataList";
 import {
     type DataChoice,
     type Line,
     lineOf,
+    type NewLayer,
     propose,
     readsNothing,
     removeLine,
@@ -19,6 +20,7 @@ import {
     type Target,
     writeLine,
 } from "./row";
+import { focusLineNext, focusSectionNext } from "./useFocusLine";
 import { cellOfLocation, labelStatement, locationOfCell, positionWord } from "./words";
 
 /** Props for LabelSection. */
@@ -29,11 +31,16 @@ interface LabelSectionProps {
     row: readonly LayerId[];
     /** The row's layers on this side, bottom first. */
     layers: readonly Layer[];
+    /** The layer the row's first edit adds, when it is not the Everything row. */
+    fresh?: NewLayer;
 }
 
 /** Why the Label "+" adds nothing now, or null when it adds a line. */
 const ONE_LINE = "One label line per row for now";
 const PICK_FIRST = "Pick an attribute for the new label line first";
+
+/** The width of the label line's pop-outs, as wide as the panel's own rows. */
+const POPOUT_WIDTH = 248;
 
 /** The label channel and its style channel, by target. */
 const CHANNELS = {
@@ -80,18 +87,21 @@ function readsOf(session: GraphSession, target: Target, channel: Channel, line: 
  * word both add an empty label line at the next free position (Above) and open its attribute list.
  * The Show checkbox sits on the header, only when a layer beneath this row draws a label. One
  * label line per row until the element has labels keyed by position. The line states its result
- * from the element's `nodeLabelCounts`. An empty line writes nothing and is dropped when the
- * selection changes (the Style tab remounts this section per row).
+ * from the element's `nodeLabelCounts`, beside Show all labels (off by default), which the
+ * element host writes to the element's `layoutBehavior.labels.declutter`. An empty line writes
+ * nothing and is dropped when the selection changes (the Style tab remounts this section per row).
  * @param props - Component props
  * @param props.target - nodes or edges
  * @param props.row - the row's layers
  * @param props.layers - the row's layers on this side
+ * @param props.fresh - the layer the row's first edit adds, when the row adds one
  * @returns The section
  */
-export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps>): React.JSX.Element | null {
+export function LabelSection({ target, row, layers, fresh }: Readonly<LabelSectionProps>): React.JSX.Element | null {
     const { session, element, store } = useWorkspace();
     const [empty, setEmpty] = useState(false);
     const [listOpen, setListOpen] = useState(false);
+    const allLabelsShown = useWorkspaceState((state) => state.allLabelsShown);
     if (session === null) {
         return null;
     }
@@ -103,14 +113,19 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
         store.set({ notice: { message: "The label could not be changed" } });
     };
     const writeStyle = (change: LabelStyle): void => {
-        writeLine(session, row, target, styleChannel, { value: { ...labelStyle, ...change } }).catch(fail);
+        writeLine(session, row, target, styleChannel, { value: { ...labelStyle, ...change } }, fresh).catch(fail);
     };
     const pick = (choice: DataChoice): void => {
         setListOpen(false);
         const proposal = propose(session, choice, channel);
         if (proposal.ok) {
             setEmpty(false);
-            writeLine(session, row, target, channel, { binding: proposal.binding }).catch(fail);
+            // The list closes and the line is redrawn bound; focus goes to the line, not the body.
+            focusLineNext(channel, true);
+            writeLine(session, row, target, channel, { binding: proposal.binding }, fresh).catch(() => {
+                focusLineNext(null);
+                fail();
+            });
         }
     };
     const blocked = blockedReason(line, empty);
@@ -121,21 +136,16 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
         }
     };
     const reads = readsOf(session, target, channel, line);
-    const declutter = element?.layoutBehavior?.labels?.declutter === true;
 
     return (
         <Stack gap={2} role="group" aria-label="Label" data-section="label">
             <Group gap={4} h={24} wrap="nowrap">
-                <Button
-                    size="compact-xs"
-                    variant="subtle"
-                    color="dark"
-                    fw={600}
-                    aria-disabled={blocked !== null}
-                    onClick={add}
-                >
-                    Label
-                </Button>
+                {/* The heading word adds a line too, so it is a button drawn as the other sections' headings. */}
+                <UnstyledButton aria-disabled={blocked !== null} onClick={add}>
+                    <Text size="xs" fw={600} pl={4}>
+                        Label
+                    </Text>
+                </UnstyledButton>
                 {setBeneath(session, row, channel) ? (
                     <Checkbox
                         size="xs"
@@ -156,7 +166,7 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
                         data-disabled={blocked === null ? undefined : true}
                         onClick={add}
                     >
-                        <Plus size={14} aria-hidden />
+                        <GLYPHS.add size={14} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
             </Group>
@@ -181,9 +191,20 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
                 />
             )}
             {line !== undefined && target === "node" && element !== null ? (
-                <Text size="xs" c="dimmed" pl={4} aria-live="polite">
-                    {labelStatement(element.nodeLabelCounts, declutter)}
-                </Text>
+                <Group gap={8} pl={4} wrap="nowrap">
+                    <Text size="xs" c="dimmed" aria-live="polite">
+                        {labelStatement(element.nodeLabelCounts, !allLabelsShown)}
+                    </Text>
+                    <Checkbox
+                        size="xs"
+                        ml="auto"
+                        label="Show all labels"
+                        checked={allLabelsShown}
+                        onChange={(event) => {
+                            store.set({ allLabelsShown: event.currentTarget.checked });
+                        }}
+                    />
+                </Group>
             ) : null}
         </Stack>
     );
@@ -245,63 +266,77 @@ function LabelLine({
 }: Readonly<LabelLineProps>): React.JSX.Element {
     const [positionOpen, setPositionOpen] = useState(false);
     const position = positionWord(location);
-    const remove = (): void => {
+    const remove = (event: React.MouseEvent): void => {
         if (line === undefined) {
+            focusSectionNext(event.currentTarget, channel);
             onDropEmpty();
         } else if (!line.layer.locked) {
-            removeLine(session, line.layer, channel).catch(onFail);
+            focusSectionNext(event.currentTarget, channel);
+            removeLine(session, line.layer, channel).catch(() => {
+                focusLineNext(null);
+                onFail();
+            });
         }
     };
 
     return (
         <FieldRow
             data-line={channel}
+            data-bound={line?.binding === undefined ? undefined : true}
             trailing={
                 <Tooltip label="Remove label line">
                     <ActionIcon variant="subtle" size="sm" aria-label="Remove label line" onClick={remove}>
-                        <Minus size={14} aria-hidden />
+                        <GLYPHS.remove size={14} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
             }
         >
             <Group gap={4} wrap="nowrap">
-                <Popover opened={positionOpen} onChange={setPositionOpen} position="left-start" trapFocus>
-                    <Popover.Target>
+                <Popout opened={positionOpen} onOpenChange={setPositionOpen}>
+                    <Popout.Trigger>
+                        {/* The Tooltip passes the trigger's click and ref to the button, but not
+                            its ARIA, so the button states its own. */}
                         <Tooltip label="Label position">
-                            <ActionIcon
-                                variant="default"
-                                size="sm"
+                            <PopoutButton
+                                icon={
+                                    <Text size="xs" component="span">
+                                        Aa
+                                    </Text>
+                                }
                                 aria-label="Label position"
-                                onClick={() => {
-                                    setPositionOpen(!positionOpen);
-                                }}
-                            >
-                                <Text size="xs" component="span">
-                                    Aa
-                                </Text>
-                            </ActionIcon>
+                                aria-haspopup="dialog"
+                                aria-expanded={positionOpen}
+                            />
                         </Tooltip>
-                    </Popover.Target>
-                    <Popover.Dropdown>
-                        <AlignmentMatrix
-                            label="Label position"
-                            value={cellOfLocation(location)}
-                            onChange={(cell) => {
-                                onLocation(locationOfCell(cell));
-                            }}
-                        />
-                    </Popover.Dropdown>
-                </Popover>
+                    </Popout.Trigger>
+                    <Popout.Panel
+                        width={POPOUT_WIDTH}
+                        placement="left"
+                        alignment="start"
+                        header={{ variant: "title", title: "Label position" }}
+                    >
+                        <Popout.Content>
+                            <AlignmentMatrix
+                                label="Label position"
+                                value={cellOfLocation(location)}
+                                onChange={(cell) => {
+                                    onLocation(locationOfCell(cell));
+                                }}
+                            />
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
                 <Text size="xs" truncate>
                     {position}
                 </Text>
             </Group>
-            <Popover opened={listOpen} onChange={onListOpen} position="left-start" trapFocus>
-                <Popover.Target>
+            <Popout opened={listOpen} onOpenChange={onListOpen}>
+                <Popout.Trigger>
+                    {/* A boxed field, as the other values are. */}
                     <Button
                         size="compact-xs"
-                        variant="subtle"
-                        color={line === undefined ? "gray" : "dark"}
+                        variant="default"
+                        c={line === undefined ? "dimmed" : undefined}
                         fullWidth
                         justify="flex-start"
                         aria-label={
@@ -309,14 +344,16 @@ function LabelLine({
                                 ? `Label, ${position}: no attribute, draws nothing`
                                 : `Label, ${position}: ${reads ?? ""}`
                         }
-                        onClick={() => {
-                            onListOpen(!listOpen);
-                        }}
                     >
                         {line === undefined ? "Pick an attribute" : `Abc ${reads ?? ""}`}
                     </Button>
-                </Popover.Target>
-                <Popover.Dropdown p={0}>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={POPOUT_WIDTH}
+                    placement="left"
+                    alignment="start"
+                    header={{ variant: "title", title: "Label" }}
+                >
                     <FromDataList
                         target={target}
                         channel={channel}
@@ -326,8 +363,8 @@ function LabelLine({
                             onListOpen(false);
                         }}
                     />
-                </Popover.Dropdown>
-            </Popover>
+                </Popout.Panel>
+            </Popout>
         </FieldRow>
     );
 }

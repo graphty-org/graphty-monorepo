@@ -30,10 +30,10 @@ export const xrConfigSchema = z
         ui: z
             .object({
                 /**
-                 * Show VR/AR entry buttons
-                 * @default true
+                 * Draw the element's own VR/AR entry buttons on the canvas
+                 * @default false
                  */
-                enabled: z.boolean().default(true),
+                enabled: z.boolean().default(false),
 
                 /**
                  * Button position on screen

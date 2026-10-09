@@ -76,6 +76,8 @@ interface LouvainOptions extends Record<string, unknown> {
 export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
     static namespace = "graphty";
     static type = "louvain";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 
@@ -173,7 +175,7 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
             caveats: declaredCaveats({
                 method: "louvain",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "strength" },
+                ...this.weightCaveats(),
                 precision,
                 facts: [caveat("community.resolution", { resolution })],
             }),

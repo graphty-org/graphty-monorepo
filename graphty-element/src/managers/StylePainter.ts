@@ -62,6 +62,12 @@ const NODE_BASE: NodeStyleConfig = NodeStyle.parse(defaultNodeStyle);
 /** The edge style every painted edge is filled out from, parsed once. */
 const EDGE_BASE: EdgeStyleConfig = EdgeStyle.parse(defaultEdgeStyle);
 
+/**
+ * The same, with the head a directed graph draws when no layer chose one. NO COLOUR in the head:
+ * unset, a cap follows the line it caps.
+ */
+const EDGE_BASE_DIRECTED: EdgeStyleConfig = EdgeStyle.parse({ ...defaultEdgeStyle, arrowHead: { type: "normal" } });
+
 /** No elements were repainted, which is what an unbound painter drains. */
 const NOTHING: readonly number[] = Object.freeze([]);
 
@@ -155,6 +161,7 @@ const RICH_TEXT_KEYS = {
     depthFade: "depthFadeEnabled",
     depthFadeNear: "depthFadeNear",
     depthFadeFar: "depthFadeFar",
+    onTop: "onTop",
     badge: "badge",
     icon: "icon",
     iconPosition: "iconPosition",
@@ -382,9 +389,15 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
  * @param resolved - Everything the stack painted this edge.
  * @param meshKey - The key the interner gave this edge's geometry.
  * @param plainText - Whether a text channel's words are drawn as plain text.
+ * @param directed - Whether the graph is directed, which is what gives an edge a head no layer chose.
  * @returns The paint.
  */
-function edgePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (channel: Channel) => boolean): EdgePaint {
+function edgePaintOf(
+    resolved: ResolvedStyle,
+    meshKey: number,
+    plainText: (channel: Channel) => boolean,
+    directed: boolean,
+): EdgePaint {
     const bag: Record<string, unknown> = {};
 
     for (const [name, value] of inWriteOrder(resolved)) {
@@ -397,9 +410,13 @@ function edgePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
     // whenever their columns were filled in a different order.
     const color = asColorValue(resolved["edge.color"]);
     const opacity = resolved["edge.opacity"];
-    const identity = `s${String(meshKey)}|${color?.hex ?? ""}|${opacity === undefined ? "" : String(opacity)}`;
+    // A reader's own head type wins in either direction. The default head is in the key, so a
+    // graph whose direction changed rebuilds its caps rather than adopting the old key.
+    const headed = directed && resolved["edge.arrowHead"] === undefined;
+    const identity = `s${String(meshKey)}|${color?.hex ?? ""}|${opacity === undefined ? "" : String(opacity)}${headed ? "|>" : ""}`;
+    const base = headed ? EDGE_BASE_DIRECTED : EDGE_BASE;
 
-    return { meshKey: identity, style: spellEdgeColours(defaultsDeep(bag, cloneDeep(EDGE_BASE)) as EdgeStyleConfig) };
+    return { meshKey: identity, style: spellEdgeColours(defaultsDeep(bag, cloneDeep(base)) as EdgeStyleConfig) };
 }
 
 /** The colour fields of an edge style, each a hex string when set. */
@@ -469,7 +486,7 @@ const BOOTSTRAP_MESH_KEY = "graphty-bootstrap";
 let bootstrapNode: NodePaint | null = null;
 
 /** The one edge paint every unpainted edge is drawn from, built on first use. */
-let bootstrapEdge: EdgePaint | null = null;
+let bootstrapEdge: { readonly directed: EdgePaint; readonly undirected: EdgePaint } | null = null;
 
 /**
  * What a node looks like between its construction and the first repaint.
@@ -501,16 +518,21 @@ export function bootstrapNodePaint(): NodePaint {
  *
  * The colour stays IN the style here, because the edge renderer has no per-instance state to
  * carry one. See {@link EdgePaint}.
+ * @param directed - Whether the graph is directed; the first pass draws a head only then, and the
+ *     placeholder must match it or every edge is rebuilt once.
  * @returns The element's own default edge paint. The same object every call.
  */
-export function bootstrapEdgePaint(): EdgePaint {
+export function bootstrapEdgePaint(directed = true): EdgePaint {
     if (bootstrapEdge === null) {
         // Spelled as a resolved paint is (see spellEdgeColours), so the first pass finds the
         // placeholder deep-equal to what it hands an untouched edge and rebuilds nothing.
-        bootstrapEdge = { meshKey: BOOTSTRAP_MESH_KEY, style: spellEdgeColours(cloneDeep(EDGE_BASE)) };
+        bootstrapEdge = {
+            directed: { meshKey: BOOTSTRAP_MESH_KEY, style: spellEdgeColours(cloneDeep(EDGE_BASE_DIRECTED)) },
+            undirected: { meshKey: BOOTSTRAP_MESH_KEY, style: spellEdgeColours(cloneDeep(EDGE_BASE)) },
+        };
     }
 
-    return bootstrapEdge;
+    return directed ? bootstrapEdge.directed : bootstrapEdge.undirected;
 }
 
 /**
@@ -528,6 +550,13 @@ export function bootstrapEdgePaint(): EdgePaint {
  * rather than rebuilding a graph.
  */
 export class StylePainter {
+    /**
+     * Make a painter.
+     * @param directed - Whether the graph is directed now. Asked once per edge painted, so it
+     *     must be cheap; a painter with no graph behind it draws edges as directed.
+     */
+    constructor(private readonly directed: () => boolean = () => true) {}
+
     /** What the last pass painted, or null while no session is bound. */
     private paint: ElementPaint | null = null;
 
@@ -706,8 +735,11 @@ export class StylePainter {
             return null;
         }
 
-        return edgePaintOf(paint.styleOf("edge", index), paint.meshKeyOf("edge", index), (channel) =>
-            paint.plainText("edge", index, channel),
+        return edgePaintOf(
+            paint.styleOf("edge", index),
+            paint.meshKeyOf("edge", index),
+            (channel) => paint.plainText("edge", index, channel),
+            this.directed(),
         );
     }
 

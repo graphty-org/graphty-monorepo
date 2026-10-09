@@ -3,6 +3,7 @@ import type { Channel, ExplainTarget, LayerSource } from "@graphty/graphty-eleme
 import { Anchor, ColorSwatch, Group, Text } from "@mantine/core";
 import type React from "react";
 
+import { runName } from "../runWords";
 import { useWorkspace } from "../state/WorkspaceContext";
 import type { Resolved } from "./inspected";
 import { hexOf } from "./reads";
@@ -18,19 +19,20 @@ interface WinnerLine {
 }
 
 /**
- * The row a layer belongs to, for the line's link: a run's row, or one of the Graph place's
- * built-in rows. A layer someone wrote by hand has no row in tier 1.
+ * The row a layer belongs to, for the line's link: a run's row, one of the Graph place's
+ * built-in rows, or the reader's own layer row.
  * @param source - the layer's source.
+ * @param layerId - the layer.
  * @returns what the link opens, or null.
  */
-function rowOf(source: LayerSource | undefined): Resolved | null {
+function rowOf(source: LayerSource | undefined, layerId: string): Resolved | null {
     if (source?.by === "run") {
         return { kind: "run-row", run: source.runId };
     }
     if (source?.by === "element") {
         return source.reason === "selection" ? { kind: "selection-row" } : { kind: "everything-row" };
     }
-    return null;
+    return source?.by === "user" ? { kind: "layer-row", layer: layerId } : null;
 }
 
 /**
@@ -63,12 +65,14 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
         .filter((contribution) => won.has(contribution.layerId))
         .map((contribution) => {
             const color = hexOf(contribution.values["node.color"] ?? contribution.values["edge.color"]);
+            const source = session.styles.get(contribution.layerId)?.source;
+            const run = source?.by === "run" ? session.runs.get(source.runId) : undefined;
             return {
                 layerId: contribution.layerId,
-                name: contribution.name,
+                name: run === undefined ? contribution.name : runName(session, run),
                 swatch: color ?? null,
                 tokens: channelTokens(won.get(contribution.layerId) ?? []),
-                opens: rowOf(session.styles.get(contribution.layerId)?.source),
+                opens: rowOf(session.styles.get(contribution.layerId)?.source, contribution.layerId),
             };
         });
 
@@ -91,6 +95,8 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
                                 const { opens } = line;
                                 if (opens !== null && "run" in opens) {
                                     store.set({ inspected: { kind: opens.kind, id: opens.run } });
+                                } else if (opens?.kind === "layer-row") {
+                                    store.set({ inspected: { kind: opens.kind, id: opens.layer } });
                                 } else if (opens !== null) {
                                     store.set({ inspected: { kind: opens.kind } });
                                 }

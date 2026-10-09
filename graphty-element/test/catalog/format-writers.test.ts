@@ -384,3 +384,59 @@ describe("what an export writes", () => {
         harness.session.dispose();
     });
 });
+
+/**
+ * An executor standing in for a community detection whose group ids are arbitrary: group 7 holds
+ * three nodes, group 3 two and group 0 one, so the ids run opposite to the size order.
+ * @param context - The run.
+ * @returns The outcome.
+ */
+function partitionSix(context: RunExecutionContext): Promise<RunOutcome> {
+    const groups: Record<string, number> = { a: 7, b: 7, c: 7, d: 0, e: 3, f: 3 };
+    return Promise.resolve({
+        result: createRunResult({
+            runId: context.runId,
+            shape: "community",
+            fields: [
+                {
+                    name: "group",
+                    plainName: "Group",
+                    technicalName: "community",
+                    kind: "node",
+                    type: "integer",
+                    path: `results.${context.runId}.group`,
+                },
+            ],
+            measured: { nodes: 6, edges: 0 },
+            graph: {},
+            nodes: Object.entries(groups).map(([id, group]) => ({ id, values: { group } })),
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "louvain", facts: [], notes: [] },
+            durationMs: 1,
+        }),
+    });
+}
+
+describe("a partition's groups in an export", () => {
+    it("writes each node's group as the rank the summary and the legend name it by, not the raw id", async () => {
+        const harness = makeSession({ runs: { execute: partitionSix } });
+        harness.add(["a", "b", "c", "d", "e", "f"].map((id) => ({ id })));
+        await harness.session.runs.start("louvain", undefined, { as: "louvain", style: false });
+
+        const summary = harness.session.results.get("louvain")?.graph.sizes as readonly { group: number }[];
+        assert.deepEqual(
+            summary.map((row) => row.group),
+            [7, 3, 0],
+            "the live result keeps the algorithm's ids, largest group first",
+        );
+
+        const text = await exportSession(harness.session, "csv", { table: "nodes" }).text();
+        const [header, ...rows] = text.trim().split(/\r?\n/);
+        const columns = header.split(",").map((name) => name.replaceAll('"', ""));
+        const id = columns.indexOf("id");
+        const group = columns.indexOf(harness.session.results.path("louvain", "group"));
+        assert.isAbove(group, -1, header);
+        const written = Object.fromEntries(rows.map((row) => row.split(",")).map((cells) => [cells[id], cells[group]]));
+        assert.deepEqual(written, { a: "1", b: "1", c: "1", d: "3", e: "2", f: "2" });
+        harness.session.dispose();
+    });
+});

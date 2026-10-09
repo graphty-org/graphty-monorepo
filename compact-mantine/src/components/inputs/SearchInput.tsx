@@ -96,9 +96,22 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(functi
         inputRef.current?.focus();
     };
 
-    const field = (
+    // The trailing control joins the field itself, so a label above it or an error below it
+    // never pulls the control off the field's line.
+    const joined =
+        rightSection === undefined
+            ? undefined
+            : (input: React.ReactNode): React.ReactNode => (
+                  <div className="cm-search-joined">
+                      {input}
+                      <div className="cm-search-joined-end">{rightSection}</div>
+                  </div>
+              );
+
+    return (
         <TextInput
             {...rest}
+            inputContainer={joined}
             ref={setRefs}
             size={size === "lg" ? "md" : "sm"}
             value={text}
@@ -151,15 +164,5 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(functi
                 ) : undefined
             }
         />
-    );
-
-    if (rightSection === undefined) {
-        return field;
-    }
-    return (
-        <div className="cm-search-joined">
-            {field}
-            <div className="cm-search-joined-end">{rightSection}</div>
-        </div>
     );
 });

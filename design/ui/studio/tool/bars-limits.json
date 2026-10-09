@@ -1,0 +1,11 @@
+{
+    "about": "Bar 9 (b): the app's words on tier 2's screens, counted by bars.mjs on round 1's frozen build; a later build's count may not rise above these",
+    "build": "946256efb876 graphty@0.8.56",
+    "measured": "2026-10-09",
+    "words": {
+        "returning rest screen": 53,
+        "a path run's inspector": 66,
+        "the neighbor list with Hops and Follow": 36,
+        "an edge's inspector": 30
+    }
+}

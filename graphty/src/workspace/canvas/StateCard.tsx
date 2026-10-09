@@ -22,8 +22,9 @@ interface StateCardProps {
  * The canvas's one state card pattern (tier1-design.md section 2.4): an icon, a title, one
  * sentence, an optional bar and at most two buttons, centered on the canvas.
  *
- * Only the title is a live region, so a screen reader announces the state once; the sentence and
- * the bar, which change on every chunk of a load, are read when the reader moves to them.
+ * The card is not a live region: it mounts with its text already in it, which many screen readers
+ * do not read, and the empty card flashes past while a sample opens. The toolbar's one status
+ * line announces the finished load instead, so core-path status has one channel.
  * @param props - Component props
  * @param props.icon - The state's icon
  * @param props.title - What the state is
@@ -41,7 +42,7 @@ export function StateCard({ icon, title, sentence, progress, actions }: Readonly
                     <span aria-hidden="true" className="ws-state-card-icon">
                         {icon}
                     </span>
-                    <Text id={titleId} role="status" fw={500}>
+                    <Text id={titleId} fw={500}>
                         {title}
                     </Text>
                 </Group>

@@ -505,6 +505,14 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Whether the graph is directed, which decides whether an edge draws an arrowhead by default.
+     * @returns the store's direction, read without a freeze
+     */
+    get directed(): boolean {
+        return this.store.directed;
+    }
+
+    /**
      * Whether the next {@link getSnapshot} would freeze a new snapshot.
      * @returns True when the store is not settled.
      */
@@ -1455,7 +1463,7 @@ export class DataManager implements Manager {
                 sourceId,
                 targetId,
                 edgeId,
-                bootstrapEdgePaint(),
+                bootstrapEdgePaint(this.store.directed),
                 record as AdHocData,
                 opts,
             );
@@ -1673,7 +1681,7 @@ export class DataManager implements Manager {
             srcNodeId,
             dstNodeId,
             edgeId,
-            bootstrapEdgePaint(),
+            bootstrapEdgePaint(this.store.directed),
             edge as AdHocData,
             opts,
         );

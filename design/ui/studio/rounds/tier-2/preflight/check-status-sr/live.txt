@@ -1,0 +1,15 @@
+What real.mjs printed in screen-reader mode (friends.csv open), 2026-10-07, build ca8b3b916c22:
+
+--key / --type Ava --key Enter
+  focus: combobox "Find" value "Ava" expanded
+  live: status (polite): "1 node selected"
+--key n --type "Status check" --key Control+Enter
+  live: status (polite): "Note added about Ava"
+--key Escape --key Escape --key p --type Chloe --key ArrowDown --key Enter --key Tab --key Tab ...
+  focus: button "Pick From on the canvas" pressed
+  live: status (polite): "Click a node on the canvas"
+
+check-status-sr2 (--key p --type Chloe --key ArrowDown --key Enter, then --type Milo):
+  focus: combobox "From" value "Chloe"
+  focus: combobox "From" value "ChloeMilo" invalid
+  (choosing a name from the From list leaves focus in From; the next name lands in From too)

@@ -1,18 +1,33 @@
 import { CompactColorInput, ControlSection, DataRow } from "@graphty/compact-mantine";
 import type { ScopeInput } from "@graphty/graphty-element/session";
-import { Badge, Group, Stack, Text } from "@mantine/core";
+import { Stack, Text, Tooltip } from "@mantine/core";
 import type React from "react";
 
+import { weightName } from "../analyze/words";
+import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { count, directionWords, formatNumber, measurementWord } from "./words";
+import { count, directionWords, formatNumber, measurementGloss, measurementWord } from "./words";
+
+/**
+ * "19 of 20", exact counts.
+ * @param part - how many are showing.
+ * @param whole - how many the graph holds.
+ * @returns the words.
+ */
+function ofWords(part: number, whole: number): string {
+    return `${part.toLocaleString()} of ${whole.toLocaleString()}`;
+}
 
 /**
  * The graph's Values tab, the Overview (tier1-design.md section 2.7, task T6): every count the
  * element publishes about the graph's shape, each that can be selected a link that selects it.
+ * While a filter step is on, it leads with the element's visible counts and says that the rest
+ * are for the whole graph, so a reader does not take them for what is showing.
  * @returns The Overview
  */
 export function Overview(): React.JSX.Element | null {
     const { session } = useWorkspace();
+    useVisibilityVersion(session);
     if (session === null) {
         return null;
     }
@@ -28,12 +43,27 @@ export function Overview(): React.JSX.Element | null {
         void session.selection.apply({ scope });
     };
     const [low, high] = statistics.degreeRange;
+    const weight = session.data.loadedWeight();
+    const filtered = session.visibility.steps.some((step) => step.on);
+    const showing = session.visibility.summary;
 
     return (
         <ControlSection label="Overview" defaultOpened>
+            {filtered && (
+                <>
+                    <DataRow stat name="Nodes showing" value={ofWords(showing.visibleNodes, showing.totalNodes)} />
+                    <DataRow stat name="Edges showing" value={ofWords(showing.visibleEdges, showing.totalEdges)} />
+                    <Text size="sm" c="dimmed" px="md" py={2}>
+                        The counts below are for the whole graph.
+                    </Text>
+                </>
+            )}
             <DataRow stat name="Nodes" value={statistics.nodeCount} />
             <DataRow stat name="Edges" value={statistics.edgeCount} />
             <DataRow stat name="Direction" value={directionWords(statistics)} />
+            {weight !== null && (
+                <DataRow stat name="Loaded weight" value={weightName(weight.attribute, weight.meaning)} />
+            )}
             <DataRow stat name="Density" value={formatNumber(statistics.density)} />
             <DataRow stat name="Components" value={statistics.components.count} />
             {statistics.components.count > 1 && (
@@ -86,9 +116,10 @@ export function CanvasSection(): React.JSX.Element | null {
                     color={color}
                     defaultColor="#ffffff"
                     showOpacity={false}
-                    onChange={(next) => {
+                    onChangeEnd={(next) => {
                         if (next !== undefined) {
-                            // One step; project:changed re-renders the inspector with the new color.
+                            // Once per gesture, so a drag is one step; project:changed re-renders
+                            // the inspector with the new color.
                             void session.config.set({ background: { backgroundType: "color", color: next } });
                         }
                     }}
@@ -122,7 +153,7 @@ const ORIGIN_WORDS = { imported: "From the file", joined: "Joined", computed: "C
 
 /**
  * An attribute's inspector (tier1-design.md section 2.7, picked in Data > Attributes): Summary
- * (its table, its roles as read-only tags, how complete it is). Its values histogram waits for
+ * (its table, its kind and origin as plain rows, how complete it is). Its values histogram waits for
  * graphty-element to publish a column's distribution (#897).
  * @param props - Component props
  * @param props.path - The attribute's path, such as `data.age`
@@ -138,16 +169,20 @@ export function AttributeValues({ path }: Readonly<{ path: string }>): React.JSX
     return (
         <ControlSection label="Summary" defaultOpened>
             <DataRow stat name="Table" value={column.kind === "node" ? "Nodes" : "Edges"} />
-            <Group gap={4} px="md" py={2}>
-                {measurement !== undefined && (
-                    <Badge size="xs" variant="light">
-                        {measurement}
-                    </Badge>
-                )}
-                <Badge size="xs" variant="light">
-                    {ORIGIN_WORDS[column.origin]}
-                </Badge>
-            </Group>
+            {/* Facts, not controls: plain rows on the rows' own grid. The kind's word is short, so
+                what it means rides in a tooltip on the word, reachable by Tab too. */}
+            {measurement !== undefined && (
+                <DataRow
+                    stat
+                    name="Kind"
+                    value={
+                        <Tooltip label={measurementGloss(column.measurement)} multiline w={220}>
+                            <span tabIndex={0}>{measurement}</span>
+                        </Tooltip>
+                    }
+                />
+            )}
+            <DataRow stat name="Origin" value={ORIGIN_WORDS[column.origin]} />
             <DataRow stat name="Has a value" value={`${formatNumber(column.completeness * 100)}%`} />
             {column.uniqueCount !== undefined && <DataRow stat name="Distinct values" value={column.uniqueCount} />}
             {column.min !== undefined && column.max !== undefined && (

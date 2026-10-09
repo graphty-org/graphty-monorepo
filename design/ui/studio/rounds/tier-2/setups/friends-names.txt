@@ -1,0 +1,12 @@
+# friends.csv open with every name drawn (a label line on Everything bound to id)
+--click No thanks
+--click New from data...
+--click choose a file...
+--upload friends.csv
+--click Load
+--click Everything
+--click role=tab:Style
+--click Add label line
+--click role=option:id
+--click Show all labels
+--key Escape

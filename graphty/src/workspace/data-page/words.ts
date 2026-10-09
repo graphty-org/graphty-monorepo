@@ -4,7 +4,7 @@
  */
 
 import { FORMAT_DESCRIPTORS, formatDescriptor } from "@graphty/graphty-element/catalog";
-import { isGraphtyError, type TooLargeDetails } from "@graphty/graphty-element/session";
+import { isGraphtyError, type LoadedSource, type TooLargeDetails } from "@graphty/graphty-element/session";
 
 import type { PageRole } from "./choices";
 
@@ -12,13 +12,18 @@ import type { PageRole } from "./choices";
 const ROLE_WORDS: Readonly<Record<PageRole, string>> = {
     key: "Key",
     label: "Name",
-    source: "From -> node",
-    target: "To -> node",
+    // Plain words, not "From -> node": the arrow read as code notation (tier 2 dry run).
+    source: "From",
+    target: "To",
     weight: "Weight",
-    time: "Time",
+    // Not "Time": beside Weight, a column of minutes read it as its own role (tier 2 pilot, T20).
+    time: "Date or time",
     edgeId: "Edge id",
     attribute: "Attribute",
 };
+
+/** Joins names: "a and b", "a, b, and c". */
+const AND = new Intl.ListFormat("en-US", { type: "conjunction" });
 
 /**
  * A role's menu words.
@@ -49,12 +54,130 @@ export function plural(value: number, noun: string): string {
 }
 
 /**
+ * How many edge rows a load leaves out, for a table's warning mark.
+ * @param rows - the count.
+ * @returns "1 row left out".
+ */
+export function leftOutWords(rows: number): string {
+    return `${plural(rows, "row")} left out`;
+}
+
+/** A graph's size, as `data.statistics()` or a load report counts it. */
+interface Size {
+    readonly nodes: number;
+    readonly edges: number;
+}
+
+/**
+ * What a replacing load changes (tier2-design.md section 7).
+ * @param was - the graph now.
+ * @param now - what the load would make.
+ * @returns "Was 20 nodes, 60 edges; now 22, 74".
+ */
+export function replaceWords(was: Size, now: Size): string {
+    return `Was ${plural(was.nodes, "node")}, ${plural(was.edges, "edge")}; now ${count(now.nodes)}, ${count(now.edges)}`;
+}
+
+/**
+ * The page's summary line: what the load makes, in words that follow the Direction choice.
+ * @param names - what the tables are called, without extensions.
+ * @param nodes - the nodes the load makes.
+ * @param edges - the edges it makes, or null when no table holds edges.
+ * @param directed - the Direction choice.
+ * @returns "people and messages: 12 nodes, 22 edges; each edge goes one way".
+ */
+export function modelWords(
+    names: readonly string[],
+    nodes: number,
+    edges: number | null,
+    directed: boolean | "auto",
+): string {
+    const made = edges === null ? plural(nodes, "node") : `${plural(nodes, "node")}, ${plural(edges, "edge")}`;
+    return withDirection(`${AND.format(names)}: ${made}`, edges, directed);
+}
+
+/**
+ * The Add page's summary line: the graph as it is and what the file adds, each under its own
+ * name, so the combined total is never read as the new file's.
+ * @param graph - the open project's name.
+ * @param was - the graph now.
+ * @param names - what the new tables are called, without extensions.
+ * @param added - what the load adds.
+ * @param edges - whether the load makes edges.
+ * @param directed - the Direction choice.
+ * @returns "friends: 20 nodes, 41 edges; friends-v2 adds 0 nodes, 41 edges".
+ */
+export function addWords(
+    graph: string,
+    was: Size,
+    names: readonly string[],
+    added: Size,
+    edges: boolean,
+    directed: boolean | "auto",
+): string {
+    const adds = edges ? `${plural(added.nodes, "node")}, ${plural(added.edges, "edge")}` : plural(added.nodes, "node");
+    const text = `${graph}: ${plural(was.nodes, "node")}, ${plural(was.edges, "edge")}; ${AND.format(names)} adds ${adds}`;
+    return withDirection(text, edges ? added.edges : null, directed);
+}
+
+/**
+ * A summary line with the Direction choice after it, when there are edges for it to be about.
+ * @param text - the line.
+ * @param edges - the edges it speaks of, or null for none.
+ * @param directed - the Direction choice.
+ * @returns the line, with "; each edge goes one way" or "both ways" when the choice is made.
+ */
+function withDirection(text: string, edges: number | null, directed: boolean | "auto"): string {
+    if (edges === null || edges === 0 || directed === "auto") {
+        return text;
+    }
+    return `${text}; each edge goes ${directed ? "one way" : "both ways"}`;
+}
+
+/**
+ * The status line after a load: the graph's name as the header shows it, its size, and the
+ * edge rows the load left out.
+ * @param name - the project's name.
+ * @param now - the graph after the load.
+ * @param leftOut - the edge rows the load left out (`LoadedSource.leftOut.rows`), or 0.
+ * @returns "people and messages: 12 nodes, 22 edges, 1 row left out".
+ */
+export function loadedWords(name: string, now: Size, leftOut: number): string {
+    const size = `${name}: ${plural(now.nodes, "node")}, ${plural(now.edges, "edge")}`;
+    return leftOut === 0 ? size : `${size}, ${leftOutWords(leftOut)}`;
+}
+
+/**
+ * The status line after a replacing load.
+ * @param name - the source that was replaced.
+ * @param now - the graph after the load.
+ * @param outOfDate - how many runs went out of date.
+ * @returns "friends.csv replaced: 22 nodes, 74 edges. 3 runs out of date".
+ */
+export function replacedWords(name: string, now: Size, outOfDate: number): string {
+    const size = `${name} replaced: ${plural(now.nodes, "node")}, ${plural(now.edges, "edge")}.`;
+    return outOfDate === 0 ? size : `${size} ${plural(outOfDate, "run")} out of date`;
+}
+
+/**
  * A file's name without its extension: what a new graph is called until the reader renames it.
  * @param name - the file name.
  * @returns "les-miserables" for "les-miserables.gml".
  */
 export function baseName(name: string): string {
     return name.replace(/\.[^.]*$/, "") || name;
+}
+
+/**
+ * What a new graph is called: every file its loads read, without extensions.
+ * @param sources - `data.sources()`.
+ * @returns "players and passes" for a load of players.csv and passes.csv; undefined when no load names a file.
+ */
+export function graphName(sources: readonly LoadedSource[]): string | undefined {
+    const files = sources
+        .flatMap((load): readonly (string | undefined)[] => (load.tables.length > 0 ? load.tables : [load.name]))
+        .filter((file): file is string => file !== undefined);
+    return files.length === 0 ? undefined : AND.format(files.map(baseName));
 }
 
 /** One problem block (section 4, "Problem"): what happened and what to do. */
@@ -205,3 +328,9 @@ export const SEPARATORS = [
     { value: ";", label: "Semicolon" },
     { value: "|", label: "Pipe" },
 ] as const;
+
+/** What each answer to an edge naming no node does, shown as its tooltip. */
+export const UNMATCHED_HINTS = {
+    add: "Make a node for each missing name",
+    "leave-out": "Skip the rows whose end names no node",
+} as const;

@@ -3,21 +3,29 @@ import "./frame.css";
 import { ResizeHandle } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import type React from "react";
+import { VisuallyHidden } from "@mantine/core";
+import React, { useEffect, useRef } from "react";
 
+import { CanvasMenu } from "../canvas/CanvasMenu";
 import { CanvasOverlays } from "../canvas/CanvasOverlays";
 import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
 import { GraphPlace } from "../graph-place/GraphPlace";
+import { DATA_PLACE_KINDS } from "../inspector/inspected";
 import { Inspector } from "../inspector/Inspector";
+import { NotesPlace } from "../notes/NotesPlace";
 import { DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
 import { WorkspaceToolbar } from "../toolbar/WorkspaceToolbar";
 import { ElementHost } from "./ElementHost";
+import { focusCurrentPlace, focusIsLost } from "./focus";
 import { Header } from "./Header";
 import { NoticeSlot } from "./NoticeSlot";
 import { Rail } from "./Rail";
+
+/** What each rail place draws in the left panel. */
+const PLACES = { graph: <GraphPlace />, data: <DataPlace />, notes: <NotesPlace /> } as const;
 
 /** Props for Frame. */
 interface FrameProps {
@@ -35,7 +43,7 @@ interface FrameProps {
  * @returns The frame
  */
 export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Element {
-    const { store } = useWorkspace();
+    const { store, element } = useWorkspace();
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);
     const place = useWorkspaceState((state) => state.place);
@@ -43,7 +51,37 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const rightWidth = useWorkspaceState((state) => state.rightWidth);
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
+    const announcement = useWorkspaceState((state) => state.announcement);
     const panels = page === "panels";
+    // Leaving the Data page (Load, Cancel, Esc) takes away the control that had focus; focus goes
+    // to the rail button of the open place, a control, not the page or the drawing's outline.
+    // Closing the table dock hands it to the drawing the table sat under. Not on the first render.
+    const surfaces = useRef<string | null>(null);
+    useEffect(() => {
+        const now = `${String(panels)}:${String(dockOpen)}`;
+        const was = surfaces.current;
+        surfaces.current = now;
+        if (was === null || was === now || !focusIsLost()) {
+            return;
+        }
+        if (panels && was.startsWith("false")) {
+            focusCurrentPlace();
+        } else {
+            element?.focus();
+        }
+    }, [panels, dockOpen, element]);
+    // A row only the Data place shows (a source, an attribute, a filter step) is not left open in
+    // the inspector once another place is showing: nothing on that page is its row.
+    useEffect(() => {
+        const kind = store.get().inspected?.kind;
+        if (place !== "data" && kind !== undefined && DATA_PLACE_KINDS.includes(kind)) {
+            store.set({ inspected: null });
+        }
+    }, [place, store]);
+    // A note being written is about this project's graph: another project drops it.
+    useEffect(() => {
+        store.set({ noteDraft: null });
+    }, [projectId, store]);
 
     return (
         <div className="ws-app">
@@ -59,7 +97,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             >
                 <Rail />
                 <aside className="ws-left" aria-label="Left panel" hidden={!panels}>
-                    {place === "graph" ? <GraphPlace /> : <DataPlace />}
+                    <div className="ws-panel-body">{PLACES[place]}</div>
                     <ResizeHandle
                         edge="end"
                         label="Resize left panel"
@@ -72,9 +110,11 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         }}
                     />
                 </aside>
-                <main className="ws-main" aria-label="Graph" hidden={!panels}>
+                <main className="ws-main" hidden={!panels}>
                     <div className="ws-canvas">
-                        <ElementHost key={projectId} onReady={onElementReady} />
+                        <CanvasMenu>
+                            <ElementHost key={projectId} onReady={onElementReady} />
+                        </CanvasMenu>
                         <div className="ws-canvas-overlays">
                             <CanvasOverlays />
                             <div className="ws-toolbar-dock">
@@ -101,7 +141,9 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     ) : null}
                 </main>
                 <aside className="ws-right" aria-label="Inspector" hidden={!panels}>
-                    <Inspector />
+                    <div className="ws-panel-body">
+                        <Inspector />
+                    </div>
                     <ResizeHandle
                         edge="start"
                         label="Resize inspector"
@@ -120,6 +162,11 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     </div>
                 )}
             </div>
+            {/* The status line sits outside every surface the Data page hides, so it is in the page
+                before anything is written to it and a change is spoken once, as it happens. */}
+            <VisuallyHidden role="status" aria-live="polite">
+                {announcement}
+            </VisuallyHidden>
         </div>
     );
 }

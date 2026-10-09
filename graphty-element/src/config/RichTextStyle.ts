@@ -95,6 +95,14 @@ export const RichTextStyle = z.strictObject({
     depthFadeNear: z.number().default(10).optional(),
     depthFadeFar: z.number().default(50).optional(),
 
+    /**
+     * Draw the text over the whole graph instead of sorting it by depth with the nodes and
+     * edges. Off (unset) by default: a node or an edge nearer the camera passes in front of the
+     * label. On, the label is never covered, so a name behind a sphere or under a selected
+     * edge's band stays whole.
+     */
+    onTop: z.boolean().optional(),
+
     // Text effects
     textOutline: z.boolean().default(false).optional(),
     textOutlineWidth: z.number().default(2).optional(),

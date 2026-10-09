@@ -51,10 +51,8 @@ export type NodeId = string | number;
 export type EdgeId = string;
 
 /**
- * What `element.elementAt(point)` finds under a point: a node or an edge, by id.
- *
- * Only nodes are found today. The edge case is declared so code that switches on `kind` already
- * handles it, and edges can be returned later without a breaking change.
+ * What `element.elementAt(point)` finds under a point: a node or an edge, by id. A node wins
+ * over an edge drawn beneath it; an edge is found within a few pixels of its line.
  */
 export type ElementAtResult =
     { readonly kind: "node"; readonly id: NodeId } | { readonly kind: "edge"; readonly id: EdgeId };
@@ -189,11 +187,24 @@ export const KNOWN_LAYOUT_IDS = [
 export type LayoutId = (typeof KNOWN_LAYOUT_IDS)[number] | (string & {});
 
 /**
+ * The built-in layout names kept only as aliases, and removed at the next major release.
+ *
+ * `force-2d` is the `force` layout drawn by its two-dimensional `arf` engine: asking for it sets
+ * layout `force` with engine `arf`, which is what `session.layout` then reports. It is no longer
+ * in `catalog.layouts()`. The name stays in {@link KNOWN_LAYOUT_IDS}, so no plugin can claim it and
+ * no code that names it stops compiling.
+ */
+export const DEPRECATED_LAYOUT_IDS = ["force-2d"] as const satisfies readonly (typeof KNOWN_LAYOUT_IDS)[number][];
+
+/**
  * The built-in file formats.
  *
  * "sif" and "cx2" are deprecated: no data source reads them (see `UNSERVED_FORMAT_IDS`, and issues
  * #306 and #307). A load that names either fails with that reason. Both are removed at the next
  * major release unless a reader lands first.
+ *
+ * "graphty" is the project file (Graphty JSON): written by `exportGraph("graphty")` and read by
+ * `session.project.open`, never by `session.data.import`.
  */
 export const KNOWN_FORMAT_IDS = [
     "json",
@@ -209,7 +220,26 @@ export const KNOWN_FORMAT_IDS = [
     "cx",
     "cys",
     "obo",
+    "graphty",
 ] as const;
+
+/**
+ * How a project file is named and typed: what `element.downloadProject()` gives the file, and
+ * what to hand a save picker (`showSaveFilePicker`'s `suggestedName` and `accept`) or a server.
+ * @example
+ * ```typescript
+ * const handle = await showSaveFilePicker({
+ *     suggestedName: projectFileName(session.project.name),
+ *     types: [{ accept: { [PROJECT_FILE.mediaType]: [PROJECT_FILE.extension] } }],
+ * });
+ * ```
+ */
+export const PROJECT_FILE = Object.freeze({
+    /** The file name's ending, with its leading dot. */
+    extension: ".graphty.json",
+    /** The file's media type. */
+    mediaType: "application/vnd.graphty+json",
+} as const);
 
 /**
  * A format id: a built-in name, or a plugin's.
@@ -742,6 +772,17 @@ export interface AlgorithmDescriptor {
      * unknown value as `"none"`.
      */
     scopeInput?: "none" | "subgraph";
+    /**
+     * The meaning of edge weight a run of this algorithm reads: `"strength"` (larger is closer),
+     * `"distance"` (larger is farther) or `"capacity"` (larger carries more), or null when it has
+     * no weighted form. An algorithm that reads one takes the `weight` option: absent, the weight
+     * the graph was loaded with; null, none; a column's name, or `{ attribute, meaning }`, that
+     * column. A weight of another meaning is left unread and the run counts edges, saying so in
+     * `caveats.weightSkipped`; a strength reader also reads a weight whose meaning nobody stated.
+     *
+     * OPEN UNION: meanings may be added in a minor release. Absent on a plugin's descriptor.
+     */
+    weightMeaning?: "strength" | "distance" | "capacity" | null;
 }
 
 /** One layout the element can place a graph with. */
@@ -803,6 +844,31 @@ export interface FormatDescriptor {
      * here is refused with `E_UNKNOWN_OPTION`.
      */
     writerOptions?: readonly OptionDescriptor[];
+    /**
+     * The distinct file types the writer produces, when it produces more than one: JSON's seven
+     * graph shapes, CSV's plain, Gephi and Neo4j tables. A picker can offer one entry per variant
+     * and call `exportGraph(format.id, { ...variant.preset, ...values })`. Absent when the format
+     * writes one kind of file.
+     */
+    exportVariants?: readonly FormatExportVariant[];
+    /** What the format is for, when its name does not say, such as which call reads it. */
+    description?: string;
+}
+
+/** One kind of file a format's writer produces: a format id plus the writer options that fix it. */
+export interface FormatExportVariant {
+    /** Unique within its format. */
+    id: string;
+    plainName: string;
+    extensions: readonly string[];
+    mimeTypes: readonly string[];
+    /** The writer options this variant fixes, passed to `exportGraph` unchanged. */
+    preset: Readonly<Record<string, unknown>>;
+    /**
+     * The writer options that apply to this variant: the format's `writerOptions` without the
+     * preset's keys and without anything that applies only to another variant.
+     */
+    options: readonly OptionDescriptor[];
 }
 
 /** One colour palette. */
@@ -1031,21 +1097,43 @@ export type ScopeInput = Exclude<Scope, { define: unknown }> | { define: SetDefi
 export type SelectionDirection = "in" | "out" | "all";
 
 /**
+ * Which nodes a `range` or `categories` leaf keeps when its attribute lives on edges (such as
+ * `data.weight`). `"all"` (the default): the leaf is silent about nodes, so every node stays and
+ * only the passing edges are kept. `"ends"`: only the nodes at the ends of a passing edge are kept.
+ * When the nodes carry the attribute too, `"ends"` keeps a node only when it passes AND is an end.
+ */
+export type AttributeLeafNodes = "all" | "ends";
+
+/**
  * A rule tree: what the visibility filter keeps, and what a rule set holds.
  *
  * Every leaf speaks about nodes, edges or both, and is SILENT about the rest: `all` and `any` fold
  * the halves that are not silent, and `not` negates only those. `edges`, `self-loop` and
- * `repeated-edge` speak edges; `member` speaks the referenced set's nodes, and its edges only when
- * that set is read `listed` or `clipped` (`"visible"` is); `item` and `threshold` speak the half
- * or halves their field lives on; every other leaf speaks nodes. A group with no members
- * constrains nothing.
+ * `repeated-edge` speak edges; `range` and `categories` speak each half whose elements carry the
+ * attribute (one on `data.weight` speaks edges); `member` speaks the referenced set's nodes, and
+ * its edges only when that set is read `listed` or `clipped` (`"visible"` is); `item` and
+ * `threshold` speak the half or halves their field lives on; every other leaf speaks nodes. A
+ * group with no members constrains nothing.
  *
  * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
  */
 export type RuleTree =
     | { readonly kind: "expression"; readonly where: Query }
-    | { readonly kind: "range"; readonly attribute: Path; readonly min?: number; readonly max?: number }
-    | { readonly kind: "categories"; readonly attribute: Path; readonly values: readonly string[] }
+    | {
+          readonly kind: "range";
+          readonly attribute: Path;
+          readonly min?: number;
+          readonly max?: number;
+          /** Which nodes the leaf keeps when its attribute lives on edges: see {@link AttributeLeafNodes}. */
+          readonly nodes?: AttributeLeafNodes;
+      }
+    | {
+          readonly kind: "categories";
+          readonly attribute: Path;
+          readonly values: readonly string[];
+          /** Which nodes the leaf keeps when its attribute lives on edges: see {@link AttributeLeafNodes}. */
+          readonly nodes?: AttributeLeafNodes;
+      }
     | {
           readonly kind: "degree";
           readonly min?: number;
@@ -1096,6 +1184,20 @@ export type RuleTree =
     | { readonly kind: "all"; readonly of: readonly RuleTree[] }
     | { readonly kind: "any"; readonly of: readonly RuleTree[] }
     | { readonly kind: "not"; readonly of: RuleTree };
+
+/**
+ * One step of a stepped visibility filter: a rule that can be switched off without being lost.
+ * The steps that are on combine with AND, in order, so each one narrows what the step before it
+ * left.
+ */
+export interface FilterStep {
+    /** The step's id, unique among the steps. */
+    readonly id: string;
+    /** Whether the step applies. A step that is off keeps its rule and hides nothing. */
+    readonly on: boolean;
+    /** What the step keeps. */
+    readonly rule: RuleTree;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Sets: what a kept set holds, and how it came to exist
@@ -1334,7 +1436,11 @@ export interface CatalogApi {
      * A bound written as an {@link OptionBound} reference (or as the bare reference string) comes
      * back as the number measured over the scope, and a "node-id" or "node-set" option comes back
      * with `values`: one choice per node in the scope, its value and label the node id as a
-     * string. Every other field is the static descriptor's.
+     * string. A "partition" option on nodes comes back with `values` too: one choice per column
+     * that can group the nodes -- a categorical node attribute (value: its name) or a finished
+     * run's categorical node field (value: its `results.` path, label: the run's label) --
+     * leaving out the key and label columns and any column with a value per node. Every other
+     * field is the static descriptor's.
      * @param key - An algorithm key, looked for first, or a layout id.
      * @param scope - What to measure; the session's default run scope when absent.
      * @returns The options, in declaration order.

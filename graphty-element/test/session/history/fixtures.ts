@@ -257,6 +257,16 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "algo.remove", runId: "deg" },
     },
     {
+        name: "algo.move: a run's layers to the top of the stack",
+        tags: BOTH,
+        before: async (session) => {
+            await session.runs.start("degree", {}, { as: "deg" });
+            await session.styles.add(nodeLayer("Fixture above", "#00ff00"));
+            await session.styles.settled();
+        },
+        command: { op: "algo.move", runId: "deg", before: null },
+    },
+    {
         name: "style.patch add",
         variant: "add",
         tags: BOTH,
@@ -342,6 +352,35 @@ export const FIXTURES: readonly RoundTripFixture[] = [
             await session.styles.add(nodeLayer("Fixture A", "#ff0000"));
         },
         command: { op: "visibility.set", filter: null },
+    },
+    {
+        name: "visibility.steps: add a step",
+        tags: BOTH,
+        command: { op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }] },
+    },
+    {
+        name: "visibility.steps: switch a step off",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.setSteps([{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }]);
+        },
+        command: { op: "visibility.steps", steps: [{ id: "s1", on: false, rule: { kind: "degree", min: 2 } }] },
+    },
+    {
+        name: "visibility.steps: edit a step",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.setSteps([{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }]);
+        },
+        command: { op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }] },
+    },
+    {
+        name: "visibility.steps: remove a step",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.setSteps([{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }]);
+        },
+        command: { op: "visibility.steps", steps: [] },
     },
     {
         name: "visibility.window",

@@ -20,6 +20,7 @@ import { createElement } from "react";
 
 import {
     belowComboboxProps,
+    consumeListEscape,
     ensureFocusModality,
     ensureListboxKeyboard,
     FieldCaret,
@@ -163,6 +164,7 @@ const SINGLE_LIST_DEFAULTS = {
     comboboxProps: overTriggerComboboxProps(),
     withScrollArea: false,
     renderOption: renderListboxOption,
+    onKeyDown: consumeListEscape,
 };
 
 /** A list that opens below its field. */
@@ -170,6 +172,7 @@ const BELOW_LIST_DEFAULTS = {
     comboboxProps: belowComboboxProps(),
     withScrollArea: false,
     renderOption: renderListboxOption,
+    onKeyDown: consumeListEscape,
 };
 
 /**

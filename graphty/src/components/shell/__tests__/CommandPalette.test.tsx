@@ -87,7 +87,14 @@ describe("CommandPalette", () => {
             match: { path: "data.kind", value: "alpha" },
             target: { edges: ["e1"] },
         };
-        const found: FindResult = { records: [edge, node], offset: 0, total: 2, revision: "1", values: [] };
+        const found: FindResult = {
+            records: [edge, node],
+            offset: 0,
+            total: 2,
+            totals: { node: 1, edge: 1 },
+            revision: "1",
+            values: [],
+        };
 
         it("lists the element's hits under Nodes and Edges, capped, and picks one", async () => {
             const find = vi.fn(() => found);

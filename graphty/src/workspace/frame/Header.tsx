@@ -1,12 +1,15 @@
-import { InlineRename } from "@graphty/compact-mantine";
+import { InlineRename, TooltipShortcut } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Redo2, Undo2 } from "lucide-react";
+import { Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useSyncExternalStore } from "react";
 
+import { FilterChip } from "../data-place/Filters";
+import { GLYPHS } from "../glyphs";
+import { formatKey } from "../keys/keys";
 import { PrivacyChip } from "../privacy/PrivacyChip";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { CommandButton } from "./CommandButton";
-import { MainMenu, ProjectMenu } from "./menus";
+import { MainMenu } from "./menus";
 
 /**
  * Re-renders on every change of the element's undo history, so Undo and Redo follow it.
@@ -21,8 +24,9 @@ function useHistoryVersion(session: GraphSession | null): void {
 }
 
 /**
- * The header (tier1-design.md section 2.1): main menu, project name with its menu (double-click
- * or F2 renames), Undo and Redo, and the privacy chip.
+ * The header (tier1-design.md section 2.1): the main menu, the project name (a tap or F2
+ * renames it), Undo and Redo, the filter chip while a filter step is on (tier2-design.md
+ * section 1), and the privacy chip.
  * @returns The header
  */
 export function Header(): React.JSX.Element {
@@ -59,15 +63,21 @@ export function Header(): React.JSX.Element {
                     }}
                 />
             ) : (
-                <ProjectMenu
-                    name={name}
-                    onDoubleClick={() => {
-                        store.set({ renaming: true });
-                    }}
-                />
+                <Tooltip label={<TooltipShortcut label="Rename" shortcut={formatKey("F2")} />}>
+                    <UnstyledButton
+                        className="ws-project-name"
+                        aria-label={`Project: ${name}`}
+                        onClick={() => {
+                            store.set({ renaming: true });
+                        }}
+                    >
+                        <span className="ws-project-text">{name}</span>
+                    </UnstyledButton>
+                </Tooltip>
             )}
-            <CommandButton id="history.undo" icon={<Undo2 size={16} aria-hidden />} />
-            <CommandButton id="history.redo" icon={<Redo2 size={16} aria-hidden />} />
+            <CommandButton id="history.undo" icon={<GLYPHS.undo size={16} aria-hidden />} />
+            <CommandButton id="history.redo" icon={<GLYPHS.redo size={16} aria-hidden />} />
+            <FilterChip />
             <PrivacyChip />
         </header>
     );

@@ -44,11 +44,12 @@ export { SplitButton, ToggleIconButton } from "./components/buttons";
 // Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6).
 export { ComboInput, SearchInput, VariablePill } from "./components/inputs";
 
-// Overlays: the context menu, the checkable menu row, the modal footer, the toast and the
-// tooltip's shortcut label (8.1-8.6).
+// Overlays: the context menu, the checkable menu row and a row's second line, the modal footer,
+// the toast and the tooltip's shortcut label (8.1-8.6).
 export {
     ContextMenu,
     MenuCheckItem,
+    MenuItemDescription,
     ModalFooter,
     Toast,
     ToastProvider,
@@ -99,6 +100,7 @@ export {
     CompoundRow,
     DataRow,
     DataRowHeader,
+    EllipsizedName,
     FieldRow,
     HistogramRow,
     MetricRow,

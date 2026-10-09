@@ -1,7 +1,18 @@
-import type { LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
+import type { GraphSession, LegendBlock, LegendSwatch, Run } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { factSentence, overflowLine, paintWords, sectionTitle, swatchName, swatchText } from "../legendWords";
+import {
+    factSentence,
+    imageLegend,
+    keyBlocks,
+    keyNames,
+    keySections,
+    overflowLine,
+    paintWords,
+    sectionTitle,
+    swatchName,
+    swatchText,
+} from "../legendWords";
 
 /**
  * A legend block with only what these tests read.
@@ -19,6 +30,8 @@ function block(over: Partial<LegendBlock>): LegendBlock {
         ...over,
     };
 }
+
+const byLayer = { row: (b: LegendBlock) => b.layerId, entry: (b: LegendBlock) => b.layerId };
 
 const swatch = (over: Partial<LegendSwatch>): LegendSwatch => ({ label: "x", value: 0, ...over });
 
@@ -71,5 +84,143 @@ describe("the legend card's words", () => {
 
     it("says how many rows did not fit", () => {
         assert.equal(overflowLine(28), "28 more");
+    });
+
+    it("gives the exported image the card's sections, top first, in the card's words", () => {
+        const blocks = [
+            block({
+                layerId: "below",
+                swatches: [swatch({ value: 0.01, color: "#ffffff" }), swatch({ value: 0.09, color: "#000080" })],
+            }),
+            block({
+                layerId: "size",
+                channel: "node.size",
+                swatches: [swatch({ value: 1 }), swatch({ value: 36 })],
+            }),
+            block({
+                layerId: "above",
+                kind: "categorical",
+                swatches: [
+                    swatch({ value: 1, color: "#4e79a7", count: 1200 }),
+                    swatch({ label: "x", role: "other", color: "#cccccc", count: 4 }),
+                ],
+                overflow: { hidden: 28 },
+            }),
+        ];
+        const names: Record<string, string> = { below: "PageRank", size: "Degree", above: "Louvain" };
+        assert.deepEqual(imageLegend(blocks, { row: (b) => names[b.layerId], entry: (b) => names[b.layerId] }), [
+            {
+                title: "Color: Louvain",
+                rows: [
+                    { label: "1", color: "#4e79a7", value: (1200).toLocaleString() },
+                    { label: "Other", color: "#cccccc", value: "4" },
+                ],
+                note: "28 more",
+            },
+            { title: "Size: Degree", ramp: { min: "1", max: "36" } },
+            { title: "Color: PageRank", ramp: { min: "0.01", max: "0.09", colors: ["#ffffff", "#000080"] } },
+        ]);
+    });
+
+    it("keys neither a label, its look, nor a size that does not vary, a highlight's included", () => {
+        const color = block({ layerId: "color" });
+        const bound = block({ layerId: "sized", channel: "node.size" });
+        const blocks = [
+            color,
+            block({ layerId: "names", channel: "node.label", kind: "categorical" }),
+            // A label's look (the app's font on every label line) is not a key either.
+            block({ layerId: "names", channel: "node.labelStyle", kind: "literal" }),
+            block({ layerId: "one-size", channel: "node.size", kind: "literal", swatches: [swatch({ size: 1 })] }),
+            // A path's highlight draws its edges 24 wide: a number a reader takes for the path's.
+            block({ layerId: "on-path", channel: "edge.width", kind: "highlight", swatches: [swatch({ size: 24 })] }),
+            bound,
+        ];
+        assert.deepEqual(keyBlocks(blocks), [color, bound]);
+        assert.deepEqual(
+            imageLegend(blocks, byLayer).map((section) => section.title),
+            ["Size: sized", "Color: color"],
+        );
+    });
+
+    it("keys no block a layer above paints over on every element", () => {
+        const covered = block({
+            layerId: "degree",
+            facts: [{ code: "legend.painted-over", params: { layerId: "louvain", name: "Communities" } }],
+        });
+        const top = block({ layerId: "louvain", kind: "categorical" });
+        assert.deepEqual(keyBlocks([covered, top]), [top]);
+        assert.deepEqual(
+            imageLegend([covered, top], byLayer).map((section) => section.title),
+            ["Color: louvain"],
+        );
+    });
+
+    it("keys a run's node and edge highlight in one color as one section, in the app's words", () => {
+        const black = [swatch({ value: "#000000", color: "#000000" })];
+        const ranked = block({ layerId: "pagerank" });
+        const edges = block({
+            layerId: "route-e",
+            runId: "r2",
+            channel: "edge.color",
+            kind: "highlight",
+            swatches: black,
+        });
+        const nodes = block({
+            layerId: "route-n",
+            runId: "r2",
+            channel: "node.color",
+            kind: "highlight",
+            swatches: black,
+        });
+        const names = {
+            row: (b: LegendBlock) => (b.runId === "r2" ? "Shortest path" : "PageRank"),
+            entry: (b: LegendBlock) => (b.kind === "highlight" ? "On the path" : b.layerId),
+        };
+        const sections = keySections([ranked, edges, nodes], names);
+        assert.deepEqual(
+            sections.map(({ title, entry }) => [title, entry]),
+            [
+                ["Shortest path", "On the path"],
+                ["Color: PageRank", "pagerank"],
+            ],
+        );
+        assert.deepEqual(imageLegend([ranked, edges, nodes], names)[0], {
+            title: "Shortest path",
+            rows: [{ label: "On the path", color: "#000000" }],
+        });
+        // Two colors, or two runs, stay two sections, each with its property.
+        const red = block({ ...edges, swatches: [swatch({ value: "#ff0000", color: "#ff0000" })] });
+        assert.deepEqual(
+            keySections([red, nodes], names).map((section) => section.title),
+            ["Color: Shortest path", "Edge color: Shortest path"],
+        );
+        assert.lengthOf(keySections([{ ...edges, runId: "r3" }, nodes], names), 2);
+    });
+
+    it("marks a section whose run is out of date as the run list does, and only then", () => {
+        const run = {
+            id: "r1",
+            algorithm: "pagerank",
+            params: {},
+            distinguishedBy: null,
+            siblingsDifferBy: null,
+            scope: { spec: "graph" },
+            status: "succeeded",
+            stale: null as Run["stale"],
+        };
+        const session = {
+            runs: { get: () => run },
+            styles: { get: () => undefined },
+            sets: { get: () => undefined },
+            catalog: { algorithms: () => [{ key: "pagerank", plainName: "PageRank" }] },
+        } as unknown as GraphSession;
+        const size = block({ channel: "node.size", runId: "r1" });
+        const title = (): string => keySections([size], keyNames(session))[0].title;
+        assert.equal(title(), "Size: PageRank");
+        run.stale = { reason: "data-changed" } as unknown as Run["stale"];
+        assert.equal(title(), "Size: PageRank, out of date");
+        // A filter step since the run: the values still hold for the nodes it ran on.
+        run.stale = { reason: "scope-changed", ranOn: 20, nowVisible: 15 } as unknown as Run["stale"];
+        assert.equal(title(), "Size: PageRank on 20 nodes");
     });
 });

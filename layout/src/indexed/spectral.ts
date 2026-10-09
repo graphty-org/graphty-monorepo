@@ -5,10 +5,22 @@ import { toLayoutSnapshot } from "../simulation/snapshot.js";
 import { RandomNumberGenerator } from "../utils/random.js";
 import { type CommonLayoutOptions, resolve, result } from "./common.js";
 
+/** Relative residual at which the eigenvector iteration stops; far below what a drawing can show. */
+const TOLERANCE = 1e-6;
+
+/** The iteration cap; each round costs `FILTER_DEGREE` sparse products per block vector. */
+const MAX_ROUNDS = 150;
+
+/** The degree of the Chebyshev filter applied to the block between Rayleigh-Ritz steps. */
+const FILTER_DEGREE = 8;
+
 /**
  * Spectral rows over an undirected snapshot. The Laplacian counts each distinct neighbour once and ignores
- * self-loops; each component is 100 steps of power iteration on it from a seeded random start, kept orthogonal to
- * the constant vector and to the earlier components. The rows are rescaled so the farthest node is `scale` from
+ * self-loops. Component k of a row is the node's entry in the eigenvector of the (k + 2)th smallest eigenvalue: the
+ * constant vector (eigenvalue 0) is skipped, so the first component is the Fiedler vector, as networkx's
+ * `spectral_layout` places it. The eigenvectors come from Chebyshev-filtered subspace iteration with a Rayleigh-Ritz
+ * step (Zhou and Saad, 2007), the filter damping the eigenvalues above the block's largest Ritz value, with the
+ * constant vector projected out every step, from a seeded random start. The rows are rescaled so the farthest node is `scale` from
  * `center`. One node sits on the centre; two sit at the centre minus and plus `scale` in every component.
  * @param g - an undirected snapshot
  * @param dim - components per row, any positive count
@@ -35,72 +47,103 @@ function spectralRows(
         return rows;
     }
     const { rowPtr, colIdx } = g;
+    const distinct = (u: number, a: number): boolean =>
+        colIdx[a] !== u && (a === rowPtr[u] || colIdx[a] !== colIdx[a - 1]);
     const degree = new Float64Array(n);
     for (let u = 0; u < n; u++) {
         for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
-            if (colIdx[a] !== u && (a === rowPtr[u] || colIdx[a] !== colIdx[a - 1])) {
-                degree[u]++;
-            }
+            degree[u] += distinct(u, a) ? 1 : 0;
         }
     }
+    // The largest Laplacian eigenvalue is at most the largest d(u) + d(v) over the edges (Anderson and Morley, 1985).
+    let shift = 1;
+    for (let u = 0; u < n; u++) {
+        for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
+            shift = Math.max(shift, degree[u] + degree[colIdx[a]]);
+        }
+    }
+    // (L - c I) x / e, with its mean removed so the constant vector never re-enters
+    const laplacian = (x: F64, c = 0, e = 1): F64 => {
+        const out = new Float64Array(n);
+        let mean = 0;
+        for (let u = 0; u < n; u++) {
+            let sum = (degree[u] - c) * x[u];
+            for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
+                if (distinct(u, a)) {
+                    sum -= x[colIdx[a]];
+                }
+            }
+            out[u] = sum / e;
+            mean += out[u] / n;
+        }
+        return out.map((v) => v - mean);
+    };
     const rng = new RandomNumberGenerator(seed ?? undefined);
-    const components: F64[] = [];
-    for (let d = 0; d < dim; d++) {
-        let vector = new Float64Array(n);
-        for (let i = 0; i < n; i++) {
-            vector[i] = (rng.rand() as number) - 0.5;
-        }
-        for (const ev of components) {
-            let dot = 0;
-            for (let i = 0; i < n; i++) {
-                dot += vector[i] * ev[i];
+    const random = (): number => (rng.rand() as number) - 0.5;
+    // the space orthogonal to the constant vector has n - 1 dimensions; components past it stay 0
+    const wanted = Math.min(dim, n - 1);
+    const p = Math.min(n - 1, wanted + Math.max(wanted, 8));
+    let block = Array.from({ length: p }, () => Float64Array.from({ length: n }, random));
+    orthonormalise(block, random);
+    let ritz = new Float64Array(p);
+    let q = new Float64Array(p * p);
+    let order: number[] = [];
+    // ponytail: a long path or a large tree has eigenvalues packed near 0 and reaches the cap (about a second at 2000
+    // nodes) with an approximation that still draws its order; a Lanczos solver would converge there.
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+        const image = block.map((x) => laplacian(x));
+        const h = new Float64Array(p * p);
+        for (let i = 0; i < p; i++) {
+            for (let j = i; j < p; j++) {
+                h[i * p + j] = h[j * p + i] = dot(block[i], image[j]);
             }
-            for (let i = 0; i < n; i++) {
-                vector[i] -= dot * ev[i];
-            }
         }
-        normalise(vector);
-        for (let iter = 0; iter < 100; iter++) {
-            // L v in ascending column order, the diagonal term at its own column, rows sorted so the sum's order is fixed
-            const next = new Float64Array(n);
-            for (let u = 0; u < n; u++) {
-                let sum = 0;
-                let diagonalDone = false;
-                for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
-                    const v = colIdx[a];
-                    if (v === u || (a > rowPtr[u] && v === colIdx[a - 1])) {
-                        continue;
-                    }
-                    if (!diagonalDone && v > u) {
-                        sum += degree[u] * vector[u];
-                        diagonalDone = true;
-                    }
-                    sum += -1 * vector[v];
+        ({ values: ritz, vectors: q } = jacobi(h, p));
+        order = Array.from({ length: p }, (_, i) => i).sort((a, b) => ritz[a] - ritz[b]);
+        const converged = order.slice(0, wanted).every((col) => {
+            let residual = 0;
+            for (let r = 0; r < n; r++) {
+                let diff = 0;
+                for (let i = 0; i < p; i++) {
+                    diff += q[i * p + col] * (image[i][r] - ritz[col] * block[i][r]);
                 }
-                if (!diagonalDone) {
-                    sum += degree[u] * vector[u];
-                }
-                next[u] = sum;
+                residual += diff * diff;
             }
-            let mean = 0;
-            for (let i = 0; i < n; i++) {
-                mean += next[i];
-            }
-            mean /= n;
-            for (let i = 0; i < n; i++) {
-                next[i] -= mean;
-            }
-            if (norm(next) < 1e-10) {
-                continue;
-            }
-            normalise(next);
-            vector = next;
+            return Math.sqrt(residual) <= TOLERANCE * shift;
+        });
+        if (converged || round === MAX_ROUNDS - 1) {
+            break;
         }
-        components.push(vector);
+        // T_d((L - c) / e) over [alpha, shift], the part of the spectrum the block is not after, keeps that part
+        // within [-1, 1] and grows everything below alpha, the smallest eigenvalues fastest
+        const alpha = ritz[order[p - 1]];
+        const c = (alpha + shift) / 2;
+        const e = (shift - alpha) / 2;
+        if (e <= 1e-9 * shift) {
+            break; // the block already spans the spectrum's whole top end, so its Ritz pairs are exact
+        }
+        block = block.map((x) => {
+            let previous = x;
+            let current = laplacian(x, c, e);
+            for (let j = 1; j < FILTER_DEGREE; j++) {
+                const next = laplacian(current, c, e);
+                for (let r = 0; r < n; r++) {
+                    next[r] = 2 * next[r] - previous[r];
+                }
+                previous = current;
+                current = next;
+            }
+            return current;
+        });
+        orthonormalise(block, random);
     }
-    for (let i = 0; i < n; i++) {
-        for (let k = 0; k < dim; k++) {
-            rows[dim * i + k] = components[k][i];
+    for (let k = 0; k < wanted; k++) {
+        const col = order[k];
+        for (let i = 0; i < p; i++) {
+            const c = q[i * p + col];
+            for (let r = 0; r < n; r++) {
+                rows[dim * r + k] += c * block[i][r];
+            }
         }
     }
     rescaleInPlace(rows, dim, scale);
@@ -111,32 +154,119 @@ function spectralRows(
 }
 
 /**
- * The Euclidean norm.
- * @param v - the vector
- * @returns its length
+ * The dot product.
+ * @param a - one vector
+ * @param b - another of the same length
+ * @returns their dot product
  */
-function norm(v: F64): number {
+function dot(a: F64, b: F64): number {
     let sum = 0;
-    for (const x of v) {
-        sum += x * x;
+    for (let i = 0; i < a.length; i++) {
+        sum += a[i] * b[i];
     }
-    return Math.sqrt(sum);
+    return sum;
 }
 
 /**
- * Divide by the norm in place.
- * @param v - the vector
+ * Make the block orthonormal and orthogonal to the constant vector, in place (Gram-Schmidt, applied twice). A vector
+ * that collapses is replaced by a fresh random one.
+ * @param block - vectors of one length
+ * @param random - the generator of replacements
  */
-function normalise(v: F64): void {
-    const length = norm(v);
-    for (let i = 0; i < v.length; i++) {
-        v[i] /= length;
+function orthonormalise(block: F64[], random: () => number): void {
+    for (let j = 0; j < block.length; j++) {
+        const v = block[j];
+        for (let attempt = 0; ; attempt++) {
+            for (let pass = 0; pass < 2; pass++) {
+                const mean = v.reduce((sum, x) => sum + x, 0) / v.length;
+                for (let r = 0; r < v.length; r++) {
+                    v[r] -= mean;
+                }
+                for (let i = 0; i < j; i++) {
+                    const d = dot(block[i], v);
+                    for (let r = 0; r < v.length; r++) {
+                        v[r] -= d * block[i][r];
+                    }
+                }
+            }
+            const length = Math.sqrt(dot(v, v));
+            if (length > 1e-10 || attempt === 3) {
+                for (let r = 0; r < v.length; r++) {
+                    v[r] = length > 0 ? v[r] / length : 0;
+                }
+                break;
+            }
+            for (let r = 0; r < v.length; r++) {
+                v[r] = random();
+            }
+        }
     }
 }
 
 /**
- * Nodes placed by the Laplacian's eigenvectors as power iteration finds them (see `spectralRows`), one component per
- * dimension, rescaled so the farthest node is `scale` from the centre.
+ * Eigen-decomposition of a small symmetric matrix by cyclic Jacobi rotations.
+ * @param a - p x p row-major, destroyed
+ * @param p - the order
+ * @returns the eigenvalues, and the eigenvectors as the columns of a p x p row-major matrix
+ */
+function jacobi(a: F64, p: number): { values: F64; vectors: F64 } {
+    const v = new Float64Array(p * p);
+    for (let i = 0; i < p; i++) {
+        v[i * p + i] = 1;
+    }
+    for (let sweep = 0; sweep < 100; sweep++) {
+        let off = 0;
+        for (let i = 0; i < p; i++) {
+            for (let j = i + 1; j < p; j++) {
+                off += a[i * p + j] * a[i * p + j];
+            }
+        }
+        if (off < 1e-30) {
+            break;
+        }
+        for (let i = 0; i < p; i++) {
+            for (let j = i + 1; j < p; j++) {
+                const aij = a[i * p + j];
+                if (aij === 0) {
+                    continue;
+                }
+                const theta = (a[j * p + j] - a[i * p + i]) / (2 * aij);
+                const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+                const c = 1 / Math.sqrt(t * t + 1);
+                const sn = t * c;
+                rotate(a, p, i, j, c, sn, true);
+                rotate(a, p, i, j, c, sn, false);
+                rotate(v, p, i, j, c, sn, true);
+            }
+        }
+    }
+    return { values: Float64Array.from({ length: p }, (_, i) => a[i * p + i]), vectors: v };
+}
+
+/**
+ * One Givens rotation of columns (or rows) i and j of a p x p row-major matrix, in place.
+ * @param m - the matrix
+ * @param p - its order
+ * @param i - the first column or row
+ * @param j - the second
+ * @param c - the cosine
+ * @param sn - the sine
+ * @param columns - true to rotate columns, false rows
+ */
+function rotate(m: F64, p: number, i: number, j: number, c: number, sn: number, columns: boolean): void {
+    for (let r = 0; r < p; r++) {
+        const at = columns ? r * p + i : i * p + r;
+        const bt = columns ? r * p + j : j * p + r;
+        const x = m[at];
+        const y = m[bt];
+        m[at] = c * x - sn * y;
+        m[bt] = sn * x + c * y;
+    }
+}
+
+/**
+ * Nodes placed by the Laplacian's eigenvectors of the smallest non-zero eigenvalues (see `spectralRows`), one
+ * component per dimension, rescaled so the farthest node is `scale` from the centre.
  * @param s - the snapshot; a directed one is read as its undirected derived graph
  * @param options - `seed` fixes the start vectors
  * @returns the layout

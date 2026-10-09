@@ -127,7 +127,7 @@ export const Transfers: Story = pageStory({
 export const RoleMenu: Story = pageStory(
     { intent: "new", files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")] },
     async (canvas) => {
-        await userEvent.click(await canvas.findByRole("combobox", { name: "owner" }));
+        await userEvent.click(await canvas.findByRole("combobox", { name: "Role of owner" }));
         await within(document.body).findByRole("option", { name: "Name" });
     },
 );
@@ -137,7 +137,7 @@ export const UnmatchedRows: Story = pageStory(
     { intent: "new", files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")] },
     async (canvas) => {
         await userEvent.click(await canvas.findByRole("button", { name: "Show the 1 unmatched row" }));
-        await canvas.findByText("1 unmatched row");
+        await canvas.findByText(/^1 unmatched row/);
     },
 );
 

@@ -64,6 +64,8 @@ interface SpectralClusteringOptions extends Record<string, unknown> {
 export class SpectralClusteringAlgorithm extends DeclaredAlgorithm<SpectralClusteringOptions> {
     static readonly namespace = "graphty";
     static readonly type = "spectral-clustering";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
     static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
@@ -139,7 +141,7 @@ export class SpectralClusteringAlgorithm extends DeclaredAlgorithm<SpectralClust
             caveats: declaredCaveats({
                 method: "spectral-clustering",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "strength" },
+                ...this.weightCaveats(),
                 converged: value.converged,
                 seed,
                 facts: [caveat("partition.unscored", { algorithm: "spectral-clustering" })],

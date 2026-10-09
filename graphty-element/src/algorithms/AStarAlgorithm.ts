@@ -89,6 +89,8 @@ function layoutDistance(graph: GraphSnapshot, searched: GraphSnapshot): (node: n
 export class AStarAlgorithm extends DeclaredAlgorithm<AStarOptions> {
     static readonly namespace = "graphty";
     static readonly type = "astar";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "distance" as const;
     /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
     static readonly scopeInput: ScopeInputDeclaration = "subgraph";
     /** A route takes the cheapest of a group of parallel edges, not their sum. */
@@ -182,7 +184,7 @@ export class AStarAlgorithm extends DeclaredAlgorithm<AStarOptions> {
             caveats: declaredCaveats({
                 method: heuristic === "none" ? "astar" : "astar-layout-distance",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "distance" },
+                ...this.weightCaveats(),
                 exact: heuristic === "none",
                 facts: [
                     caveat(found ? "route.found" : "route.none", { source, target }),

@@ -328,7 +328,9 @@ export interface ChannelDescriptor {
      * The value the element draws when no layer sets the channel: the element's own default
      * style where it states one, and otherwise what the renderer draws for an unset value. A
      * colour is `#RRGGBB`. Absent when an unset channel draws nothing at all -- no label, no
-     * outline, no glow -- or when the renderer decides per element, as the pattern count does.
+     * tooltip -- or when the renderer decides per element, as the pattern count does. An effect
+     * that is off until a layer switches it on (the outline, the glow) states what it is drawn
+     * with once on and its own value is unset: the renderer's built-in colour and strength.
      * An arrow cap's colour is the one channel that leans on another: unset, a cap is drawn in its
      * line's colour, so its default is the line's default and a layer that sets `edge.color`
      * moves it too.
@@ -364,6 +366,17 @@ export interface ChannelDescriptor {
  * and text; an edge's in line, arrows and text.
  */
 export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "arrows";
+
+/** The colour an outline is drawn in when a style switches one on without naming a colour. */
+export const DEFAULT_OUTLINE_COLOR = "#FFFF00";
+
+/**
+ * The colour a glow is drawn in when a style switches one on without naming a colour.
+ * Cyan rather than white: the glow is added onto what is behind it, so on the element's light
+ * (#F5F5F5) canvas and over a white node a white glow saturates to white and nothing is seen.
+ * A saturated cyan tints the node and leaves a visible halo on the light background.
+ */
+export const DEFAULT_GLOW_COLOR = "#00B4FF";
 
 /**
  * Why an outline is a colour and nothing else, written once and read in two places.
@@ -458,7 +471,8 @@ type ArrowEndChannel<End extends "Head" | "Tail"> =
 
 /**
  * The six channels of one arrow end, in table order. The head's and the tail's differ only in
- * their names, their style paths and the tail's type default (an edge draws a head and no tail),
+ * their names, their style paths and the tail's type default (an edge of a directed graph draws a
+ * head and no tail),
  * so they are written once here and a change to one end cannot miss the other.
  * @param end - Which end of the edge.
  * @returns The end's channels: type, size, colour, opacity, caption and caption style.
@@ -474,7 +488,9 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             plainName: `Arrow ${end}`,
             shortName: end,
             group: "arrows",
-            ...(end === "Tail" ? { default: "none" } : {}),
+            // The head's default is what a DIRECTED graph draws; an undirected graph draws no
+            // head until a layer sets one (see `EDGE_BASE_DIRECTED` in StylePainter).
+            default: end === "Tail" ? "none" : "normal",
             accepts: "enum",
             values: ARROW_VALUES,
             stylePath: `arrow${end}.type`,
@@ -638,6 +654,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Outline",
         shortName: "Outline",
         group: "effects",
+        // The colour an outline is drawn in when a style switches one on without naming one.
+        default: DEFAULT_OUTLINE_COLOR,
         accepts: "color",
         stylePath: "effect.outline.color",
         renderable: true,
@@ -649,6 +667,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Glow",
         shortName: "Glow",
         group: "effects",
+        // The colour a glow is drawn in when a style switches one on without naming one.
+        default: DEFAULT_GLOW_COLOR,
         accepts: "color",
         stylePath: "effect.glow.color",
         renderable: true,
@@ -659,8 +679,11 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Glow Strength",
         shortName: "Glow strength",
         group: "effects",
+        // What a glow with no strength is drawn at (NodeEffects); the node style requires a
+        // strength above zero, so the smallest one offered is 0.1.
+        default: 1,
         accepts: "number",
-        min: 0,
+        min: 0.1,
         stylePath: "effect.glow.strength",
         renderable: true,
     },

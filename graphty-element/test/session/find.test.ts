@@ -121,6 +121,21 @@ describe("finding without selecting", () => {
         session.dispose();
     });
 
+    it("finds an edge by its name, its ends' names joined by the caller's text, when asked", async () => {
+        const session = await cast();
+        const edges = (text: string): string[] =>
+            session
+                .find(text, { kinds: ["edge"], edgeNameJoiner: " -> " })
+                .records.map((hit) => `${String(hit.match.value)} @ ${hit.match.path}`);
+
+        assert.deepEqual(edges("Valjean -> Javert"), ["Valjean -> Javert @ ends"]);
+        assert.deepEqual(edges("javert"), ["Valjean -> Javert @ ends"], "either end's name lists the edge");
+        assert.deepEqual(edges("cosette"), ["Valjean -> Cosette @ ends"]);
+        assert.deepEqual(edges("enem"), ["enemies @ data.kind"], "its own values still match");
+        assert.deepEqual(edges("kind:valjean"), [], "an attribute prefix reads only that column");
+        session.dispose();
+    });
+
     it("lists at most three value rows, commonest first, each target selecting exactly its count of one kind", async () => {
         const session = await cast();
 
@@ -166,6 +181,22 @@ describe("finding without selecting", () => {
         assert.deepEqual(session.find("valjean", { scope: { nodes: ["n5"] } }).records.map(row), [
             ["node", "n5", "data.name"],
         ]);
+        session.dispose();
+    });
+
+    it("counts the hits of each kind in all, past the window", async () => {
+        const session = await cast();
+
+        const found = session.find("valjean", { limit: 1, edgeNameJoiner: " -- " });
+
+        assert.lengthOf(found.records, 1);
+        assert.deepEqual(found.totals, { node: 2, edge: 2 });
+        assert.strictEqual(found.total, 4);
+        assert.deepEqual(session.find("valjean", { kinds: ["node"], edgeNameJoiner: " -- " }).totals, {
+            node: 2,
+            edge: 0,
+        });
+        assert.deepEqual(session.find("  ").totals, { node: 0, edge: 0 });
         session.dispose();
     });
 

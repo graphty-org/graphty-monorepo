@@ -154,10 +154,41 @@ function patchFact(command: StylePatchCommand, state: ProjectState): CodedFact<H
                 code: "style.fix-channel",
                 params: { channel: command.channel, layer: layerOf(state, command.id) },
             };
+        case "update":
+            return {
+                code: "style.update-layer",
+                params: { layer: layerOf(state, command.id), channels: changedChannels(command, state) },
+            };
         default:
-            // update, remove and move: one layer, named.
+            // remove and move: one layer, named.
             return { code: `style.${command.action}-layer`, params: { layer: layerOf(state, command.id) } };
     }
+}
+
+/**
+ * The channels whose set value or binding an update changes, so an application can say what
+ * changed ("Size") and not only which layer.
+ * @param command - The update.
+ * @param state - The state before it runs.
+ * @returns The channels, in the order the layer and the patch name them; empty when only the
+ * layer's name, selector or other keys change.
+ */
+function changedChannels(command: Extract<StylePatchCommand, { action: "update" }>, state: ProjectState): Channel[] {
+    const layer = state.styles.find((entry) => entry.layer.id === command.id)?.layer;
+    const changed = new Set<Channel>();
+    for (const key of ["set", "encode"] as const) {
+        if (!(key in command.patch)) {
+            continue;
+        }
+        const before: Partial<Record<Channel, unknown>> = layer?.[key] ?? {};
+        const after: Partial<Record<Channel, unknown>> = command.patch[key] ?? {};
+        for (const channel of Object.keys({ ...before, ...after }) as Channel[]) {
+            if (JSON.stringify(before[channel]) !== JSON.stringify(after[channel])) {
+                changed.add(channel);
+            }
+        }
+    }
+    return [...changed];
 }
 
 /**

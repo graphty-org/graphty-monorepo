@@ -46,7 +46,6 @@ import { pajekImporter } from "../../src/formats/pajek/index.js";
 import { type GraphImporter, type ImportInput } from "../../src/types.js";
 
 const BENCH = process.env.IO_BENCH === "1";
-const LONG = 180_000;
 
 const MIB = 1048576;
 const CHUNK = 64 * 1024;
@@ -137,204 +136,159 @@ function expectStreams(label: string, inputBytes: number, p: HeapProfile, highWa
 }
 
 describe.skipIf(!BENCH)("streaming audit: memory (IO_BENCH=1)", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "CSV: 1M edges through a 64 KiB file stream keeps the retained heap flat",
-        async () => {
-            // observed: 958 ms, 9 samples, peak growth 17.9 MiB (86%), retained after GC 5.7 MiB (id map)
-            const path = csvEdgeList(1_000_000, 100_000);
-            const inputBytes = fixtureBytes(path);
-            const sink = builder();
-            const profile = await sampleHeap(() => csvImporter.import(fileStream(path, CHUNK), sink));
-            describeProfile("csv 1M stream", inputBytes, profile);
-            expect(sink.edgeCount).toBe(1_000_000);
-            const { highWater } = await retainedHighWater(csvImporter, path, builder());
-            console.log(`csv 1M retained high-water while streaming: ${mib(highWater)}`);
-            expectStreams("csv 1M", inputBytes, profile, highWater);
-        },
-        LONG,
-    );
+    it("CSV: 1M edges through a 64 KiB file stream keeps the retained heap flat", async () => {
+        // observed: 958 ms, 9 samples, peak growth 17.9 MiB (86%), retained after GC 5.7 MiB (id map)
+        const path = csvEdgeList(1_000_000, 100_000);
+        const inputBytes = fixtureBytes(path);
+        const sink = builder();
+        const profile = await sampleHeap(() => csvImporter.import(fileStream(path, CHUNK), sink));
+        describeProfile("csv 1M stream", inputBytes, profile);
+        expect(sink.edgeCount).toBe(1_000_000);
+        const { highWater } = await retainedHighWater(csvImporter, path, builder());
+        console.log(`csv 1M retained high-water while streaming: ${mib(highWater)}`);
+        expectStreams("csv 1M", inputBytes, profile, highWater);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "Pajek: 1M arcs through a 64 KiB file stream keeps the retained heap flat",
-        async () => {
-            // observed: 1170 ms, 11 samples, peak growth 24.4 MiB (110%), retained 9.0 MiB (labels)
-            const path = pajekNetwork(1_000_000, 100_000);
-            const inputBytes = fixtureBytes(path);
-            const sink = builder();
-            const profile = await sampleHeap(() => pajekImporter.import(fileStream(path, CHUNK), sink));
-            describeProfile("pajek 1M stream", inputBytes, profile);
-            expect(sink.edgeCount).toBe(1_000_000);
-            const { highWater } = await retainedHighWater(pajekImporter, path, builder());
-            console.log(`pajek 1M retained high-water while streaming: ${mib(highWater)}`);
-            expectStreams("pajek 1M", inputBytes, profile, highWater);
-        },
-        LONG,
-    );
+    it("Pajek: 1M arcs through a 64 KiB file stream keeps the retained heap flat", async () => {
+        // observed: 1170 ms, 11 samples, peak growth 24.4 MiB (110%), retained 9.0 MiB (labels)
+        const path = pajekNetwork(1_000_000, 100_000);
+        const inputBytes = fixtureBytes(path);
+        const sink = builder();
+        const profile = await sampleHeap(() => pajekImporter.import(fileStream(path, CHUNK), sink));
+        describeProfile("pajek 1M stream", inputBytes, profile);
+        expect(sink.edgeCount).toBe(1_000_000);
+        const { highWater } = await retainedHighWater(pajekImporter, path, builder());
+        console.log(`pajek 1M retained high-water while streaming: ${mib(highWater)}`);
+        expectStreams("pajek 1M", inputBytes, profile, highWater);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "Neo4j: 100k nodes + 1M relationships through 64 KiB file streams keep the retained heap flat",
-        async () => {
-            // observed: 1645 ms, 16 samples, peak growth 34.5 MiB (121%), retained 21.4 MiB (the id
-            // property column, the name column and the labels list column of 100k nodes)
-            const nodes = neo4jNodes(100_000);
-            const rels = neo4jRelationships(1_000_000, 100_000);
-            const inputBytes = fixtureBytes(nodes) + fixtureBytes(rels);
-            const sink = builder();
-            const profile = await sampleHeap(async () => {
-                await neo4jImporter.import(fileStream(nodes, CHUNK), sink);
-                await neo4jImporter.import(fileStream(rels, CHUNK), sink);
-            });
-            describeProfile("neo4j 100k+1M stream", inputBytes, profile);
-            expect(sink.nodeCount).toBe(100_000);
-            expect(sink.edgeCount).toBe(1_000_000);
-            const second = builder();
-            const nodesRun = await retainedHighWater(neo4jImporter, nodes, second);
-            const relsRun = await retainedHighWater(neo4jImporter, rels, second);
-            const highWater = Math.max(nodesRun.highWater, relsRun.highWater);
-            console.log(`neo4j retained high-water while streaming: ${mib(highWater)}`);
-            expectStreams("neo4j", inputBytes, profile, highWater);
-        },
-        LONG,
-    );
+    it("Neo4j: 100k nodes + 1M relationships through 64 KiB file streams keep the retained heap flat", async () => {
+        // observed: 1645 ms, 16 samples, peak growth 34.5 MiB (121%), retained 21.4 MiB (the id
+        // property column, the name column and the labels list column of 100k nodes)
+        const nodes = neo4jNodes(100_000);
+        const rels = neo4jRelationships(1_000_000, 100_000);
+        const inputBytes = fixtureBytes(nodes) + fixtureBytes(rels);
+        const sink = builder();
+        const profile = await sampleHeap(async () => {
+            await neo4jImporter.import(fileStream(nodes, CHUNK), sink);
+            await neo4jImporter.import(fileStream(rels, CHUNK), sink);
+        });
+        describeProfile("neo4j 100k+1M stream", inputBytes, profile);
+        expect(sink.nodeCount).toBe(100_000);
+        expect(sink.edgeCount).toBe(1_000_000);
+        const second = builder();
+        const nodesRun = await retainedHighWater(neo4jImporter, nodes, second);
+        const relsRun = await retainedHighWater(neo4jImporter, rels, second);
+        const highWater = Math.max(nodesRun.highWater, relsRun.highWater);
+        console.log(`neo4j retained high-water while streaming: ${mib(highWater)}`);
+        expectStreams("neo4j", inputBytes, profile, highWater);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "GraphML: 200k edges through a 64 KiB file stream keeps the retained heap flat",
-        async () => {
-            // observed: 787 ms, 7 samples, peak growth 29 MiB (161%), retained 10 MiB (edge ids)
-            const path = graphmlDocument(200_000, 20_000);
-            const inputBytes = fixtureBytes(path);
-            const sink = builder();
-            const profile = await sampleHeap(() => graphmlImporter.import(fileStream(path, CHUNK), sink));
-            describeProfile("graphml 200k stream", inputBytes, profile);
-            expect(sink.edgeCount).toBe(200_000);
-            const { highWater } = await retainedHighWater(graphmlImporter, path, builder());
-            console.log(`graphml 200k retained high-water while streaming: ${mib(highWater)}`);
-            expectStreams("graphml 200k", inputBytes, profile, highWater);
-        },
-        LONG,
-    );
+    it("GraphML: 200k edges through a 64 KiB file stream keeps the retained heap flat", async () => {
+        // observed: 787 ms, 7 samples, peak growth 29 MiB (161%), retained 10 MiB (edge ids)
+        const path = graphmlDocument(200_000, 20_000);
+        const inputBytes = fixtureBytes(path);
+        const sink = builder();
+        const profile = await sampleHeap(() => graphmlImporter.import(fileStream(path, CHUNK), sink));
+        describeProfile("graphml 200k stream", inputBytes, profile);
+        expect(sink.edgeCount).toBe(200_000);
+        const { highWater } = await retainedHighWater(graphmlImporter, path, builder());
+        console.log(`graphml 200k retained high-water while streaming: ${mib(highWater)}`);
+        expectStreams("graphml 200k", inputBytes, profile, highWater);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "GEXF: 200k edges through a 64 KiB file stream is single-pass and bounded (PINS a defect)",
-        async () => {
-            // FAILS: the GEXF importer reads the whole stream into one string (readText) and hands it
-            // to fast-xml-parser's preserveOrder tree. Observed: 0 timer samples over 981 ms and a
-            // heap growth of 137 MiB for a 14.8 MiB input (9.2x), all of it live until the walk ends.
-            // Design 8.4 says GEXF is single-pass SAX-style; 8.2 allows fast-xml-parser only as the
-            // initial step "replaced by hand-written streaming tokenisers per format".
-            const path = gexfDocument(200_000, 20_000);
-            const inputBytes = fixtureBytes(path);
-            const sink = builder();
-            const profile = await sampleHeap(() => gexfImporter.import(fileStream(path, CHUNK), sink));
-            describeProfile("gexf 200k stream", inputBytes, profile);
-            expect(sink.edgeCount).toBe(200_000);
-            expect(profile.samples, "gexf: timer samples during the import").toBeGreaterThanOrEqual(3);
-            expect(profile.peakHeap - profile.baseHeap, "gexf: heap growth").toBeLessThan(peakBound(inputBytes));
-        },
-        LONG,
-    );
+    it("GEXF: 200k edges through a 64 KiB file stream is single-pass and bounded (PINS a defect)", async () => {
+        // FAILS: the GEXF importer reads the whole stream into one string (readText) and hands it
+        // to fast-xml-parser's preserveOrder tree. Observed: 0 timer samples over 981 ms and a
+        // heap growth of 137 MiB for a 14.8 MiB input (9.2x), all of it live until the walk ends.
+        // Design 8.4 says GEXF is single-pass SAX-style; 8.2 allows fast-xml-parser only as the
+        // initial step "replaced by hand-written streaming tokenisers per format".
+        const path = gexfDocument(200_000, 20_000);
+        const inputBytes = fixtureBytes(path);
+        const sink = builder();
+        const profile = await sampleHeap(() => gexfImporter.import(fileStream(path, CHUNK), sink));
+        describeProfile("gexf 200k stream", inputBytes, profile);
+        expect(sink.edgeCount).toBe(200_000);
+        expect(profile.samples, "gexf: timer samples during the import").toBeGreaterThanOrEqual(3);
+        expect(profile.peakHeap - profile.baseHeap, "gexf: heap growth").toBeLessThan(peakBound(inputBytes));
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "CSV as one string: rows are delivered incrementally, not as one parse result (PINS a defect)",
-        async () => {
-            // FAILS: CsvRecordReader hands papaparse the whole carry in one parse() call, so a string
-            // input (and each 4 MiB decode slice of a Uint8Array) is turned into every row array at
-            // once before the first row reaches the sink. Observed at the first addEdge: 362 MiB of
-            // live heap over the 20.7 MiB string (1M line slices, 1M row arrays, 3M cell slices)
-            // against 1.4 MiB with 64 KiB chunks; `node --max-old-space-size=160` dies with "heap
-            // out of memory" on the string input, needs 256 MiB (GC-thrashing, 3.8 s) to finish, and
-            // finishes the stream input inside 96 MiB. Fix: parse the carry in bounded windows cut at
-            // a line break (256 KiB keeps the live rows in the low thousands), never the whole
-            // in-memory input (or a whole 4 MiB decode slice) in one parse() call.
-            const path = csvEdgeList(1_000_000, 100_000);
-            const text = new TextDecoder().decode(new Uint8Array(readFileSync(path)));
-            const probe = new FirstEdgeProbe();
-            await csvImporter.import(text, probe);
-            const chunked = new FirstEdgeProbe();
-            await csvImporter.import(byteChunks(new Uint8Array(readFileSync(path)), CHUNK), chunked);
-            console.log(
-                `csv 1M live heap at the first addEdge: string ${mib(probe.growthAtFirstEdge)}, 64 KiB chunks ${mib(chunked.growthAtFirstEdge)}`,
-            );
-            expect(probe.edgeCount).toBe(1_000_000);
-            expect(chunked.growthAtFirstEdge).toBeLessThan(0.25 * text.length);
-            expect(probe.growthAtFirstEdge, "live heap at the first addEdge, string input").toBeLessThan(
-                0.25 * text.length,
-            );
-        },
-        LONG,
-    );
+    it("CSV as one string: rows are delivered incrementally, not as one parse result (PINS a defect)", async () => {
+        // FAILS: CsvRecordReader hands papaparse the whole carry in one parse() call, so a string
+        // input (and each 4 MiB decode slice of a Uint8Array) is turned into every row array at
+        // once before the first row reaches the sink. Observed at the first addEdge: 362 MiB of
+        // live heap over the 20.7 MiB string (1M line slices, 1M row arrays, 3M cell slices)
+        // against 1.4 MiB with 64 KiB chunks; `node --max-old-space-size=160` dies with "heap
+        // out of memory" on the string input, needs 256 MiB (GC-thrashing, 3.8 s) to finish, and
+        // finishes the stream input inside 96 MiB. Fix: parse the carry in bounded windows cut at
+        // a line break (256 KiB keeps the live rows in the low thousands), never the whole
+        // in-memory input (or a whole 4 MiB decode slice) in one parse() call.
+        const path = csvEdgeList(1_000_000, 100_000);
+        const text = new TextDecoder().decode(new Uint8Array(readFileSync(path)));
+        const probe = new FirstEdgeProbe();
+        await csvImporter.import(text, probe);
+        const chunked = new FirstEdgeProbe();
+        await csvImporter.import(byteChunks(new Uint8Array(readFileSync(path)), CHUNK), chunked);
+        console.log(
+            `csv 1M live heap at the first addEdge: string ${mib(probe.growthAtFirstEdge)}, 64 KiB chunks ${mib(chunked.growthAtFirstEdge)}`,
+        );
+        expect(probe.edgeCount).toBe(1_000_000);
+        expect(chunked.growthAtFirstEdge).toBeLessThan(0.25 * text.length);
+        expect(probe.growthAtFirstEdge, "live heap at the first addEdge, string input").toBeLessThan(
+            0.25 * text.length,
+        );
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "CSV with 12-character string ids: the id map, not the input, is what survives the import",
-        async () => {
-            // the control for the next test: 12-character ids are below V8's SlicedString minimum
-            // (13), so a cell sliced out of a chunk is a copy. Observed: retained 7.4 MiB whatever the
-            // chunk size (34 MiB input, 100k ids)
-            const path = csvEdgeList(1_000_000, 100_000, "short-string");
-            const inputBytes = fixtureBytes(path);
-            const keep = builder();
-            const { highWater } = await retainedHighWater(csvImporter, path, keep, MIB);
-            console.log(`csv 12-char ids, 1 MiB chunks: retained ${mib(highWater)} of ${mib(inputBytes)} input`);
-            expect(keep.nodeCount).toBe(100_000);
-            expect(highWater).toBeLessThan(0.5 * inputBytes);
-        },
-        LONG,
-    );
+    it("CSV with 12-character string ids: the id map, not the input, is what survives the import", async () => {
+        // the control for the next test: 12-character ids are below V8's SlicedString minimum
+        // (13), so a cell sliced out of a chunk is a copy. Observed: retained 7.4 MiB whatever the
+        // chunk size (34 MiB input, 100k ids)
+        const path = csvEdgeList(1_000_000, 100_000, "short-string");
+        const inputBytes = fixtureBytes(path);
+        const keep = builder();
+        const { highWater } = await retainedHighWater(csvImporter, path, keep, MIB);
+        console.log(`csv 12-char ids, 1 MiB chunks: retained ${mib(highWater)} of ${mib(inputBytes)} input`);
+        expect(keep.nodeCount).toBe(100_000);
+        expect(highWater).toBeLessThan(0.5 * inputBytes);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "CSV with 15-character string ids: the ids pin the decoded input chunks (PINS a defect)",
-        async () => {
-            // FAILS: every retained string of 13+ characters that papaparse / LineReader / the record
-            // readers slice out of a decoded chunk is a V8 SlicedString pointing at that chunk, and the
-            // builder's id map (and any string / dict column) keeps it. With 1 MiB chunks, 4 MiB
-            // Uint8Array decode slices or a string input, the whole decoded text stays resident for
-            // the life of the snapshot. Observed: retained 47 MiB for a 40 MiB input (119%) with 1 MiB
-            // chunks and with a Uint8Array; 25 MiB (62%) with 64 KiB chunks; 7.4 MiB with 12-char ids.
-            // Fix: flatten a text before it is retained (ids in IdCoercer / the builder's addNode on a
-            // Map miss, cell texts in InferredColumn and the declared-column writers), e.g.
-            // `(" " + s).slice(1)` (12 ns) or JSON round trip (100 ns), only for s.length >= 13.
-            const path = csvEdgeList(1_000_000, 100_000, "long-string");
-            const inputBytes = fixtureBytes(path);
-            const keep = builder();
-            const { highWater } = await retainedHighWater(csvImporter, path, keep, MIB);
-            console.log(`csv 15-char ids, 1 MiB chunks: retained ${mib(highWater)} of ${mib(inputBytes)} input`);
-            expect(keep.nodeCount).toBe(100_000);
-            expect(highWater, "retained heap with 1 MiB chunks").toBeLessThan(0.5 * inputBytes);
-        },
-        LONG,
-    );
+    it("CSV with 15-character string ids: the ids pin the decoded input chunks (PINS a defect)", async () => {
+        // FAILS: every retained string of 13+ characters that papaparse / LineReader / the record
+        // readers slice out of a decoded chunk is a V8 SlicedString pointing at that chunk, and the
+        // builder's id map (and any string / dict column) keeps it. With 1 MiB chunks, 4 MiB
+        // Uint8Array decode slices or a string input, the whole decoded text stays resident for
+        // the life of the snapshot. Observed: retained 47 MiB for a 40 MiB input (119%) with 1 MiB
+        // chunks and with a Uint8Array; 25 MiB (62%) with 64 KiB chunks; 7.4 MiB with 12-char ids.
+        // Fix: flatten a text before it is retained (ids in IdCoercer / the builder's addNode on a
+        // Map miss, cell texts in InferredColumn and the declared-column writers), e.g.
+        // `(" " + s).slice(1)` (12 ns) or JSON round trip (100 ns), only for s.length >= 13.
+        const path = csvEdgeList(1_000_000, 100_000, "long-string");
+        const inputBytes = fixtureBytes(path);
+        const keep = builder();
+        const { highWater } = await retainedHighWater(csvImporter, path, keep, MIB);
+        console.log(`csv 15-char ids, 1 MiB chunks: retained ${mib(highWater)} of ${mib(inputBytes)} input`);
+        expect(keep.nodeCount).toBe(100_000);
+        expect(highWater, "retained heap with 1 MiB chunks").toBeLessThan(0.5 * inputBytes);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "CSV with 15-character string ids as a Uint8Array: the snapshot retains the decoded text (PINS the same defect)",
-        async () => {
-            // FAILS: the Uint8Array path decodes 4 MiB slices; every slice holds a first-seen id, so
-            // the whole decoded text (36-40 MiB) is retained through the id map even after
-            // freeze({ release: true }). Observed: 47.9 MiB retained for a 36 MiB input.
-            const path = csvEdgeList(1_000_000, 100_000, "long-string");
-            const bytes = new Uint8Array(readFileSync(path));
-            const input: ImportInput = bytes;
-            fullGc();
-            const base = process.memoryUsage().heapUsed;
-            const keep = builder();
-            await csvImporter.import(input, keep);
-            const snapshot = keep.freeze({ release: true });
-            fullGc();
-            const retained = process.memoryUsage().heapUsed - base;
-            console.log(
-                `csv 15-char ids, Uint8Array: retained ${mib(retained)} after freeze(release) of ${mib(bytes.byteLength)} input`,
-            );
-            expect(snapshot.nodeCount).toBe(100_000);
-            expect(retained, "retained heap after freeze(release)").toBeLessThan(0.5 * bytes.byteLength);
-        },
-        LONG,
-    );
+    it("CSV with 15-character string ids as a Uint8Array: the snapshot retains the decoded text (PINS the same defect)", async () => {
+        // FAILS: the Uint8Array path decodes 4 MiB slices; every slice holds a first-seen id, so
+        // the whole decoded text (36-40 MiB) is retained through the id map even after
+        // freeze({ release: true }). Observed: 47.9 MiB retained for a 36 MiB input.
+        const path = csvEdgeList(1_000_000, 100_000, "long-string");
+        const bytes = new Uint8Array(readFileSync(path));
+        const input: ImportInput = bytes;
+        fullGc();
+        const base = process.memoryUsage().heapUsed;
+        const keep = builder();
+        await csvImporter.import(input, keep);
+        const snapshot = keep.freeze({ release: true });
+        fullGc();
+        const retained = process.memoryUsage().heapUsed - base;
+        console.log(
+            `csv 15-char ids, Uint8Array: retained ${mib(retained)} after freeze(release) of ${mib(bytes.byteLength)} input`,
+        );
+        expect(snapshot.nodeCount).toBe(100_000);
+        expect(retained, "retained heap after freeze(release)").toBeLessThan(0.5 * bytes.byteLength);
+    });
 });

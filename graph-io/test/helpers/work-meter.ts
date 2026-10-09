@@ -276,3 +276,28 @@ export async function arrayReadsOfLength(length: number, body: () => Promise<voi
     }
     return reads;
 }
+
+/**
+ * Run `body` and count its Map lookups (`get`, `has`). A walk that restarts from the start of a
+ * chain for every element looks each link up quadratically often.
+ * @param body - the work to meter
+ * @returns the body's result and the lookups
+ */
+export async function mapLookups<T>(body: () => Promise<T>): Promise<{ result: T; lookups: number }> {
+    let lookups = 0;
+    const saved = (["get", "has"] as const).map((key) => [key, Reflect.get(Map.prototype, key)] as const);
+    for (const [key, original] of saved) {
+        Reflect.set(Map.prototype, key, function (this: Map<unknown, unknown>, k: unknown): unknown {
+            lookups++;
+            return Reflect.apply(original as (k: unknown) => unknown, this, [k]);
+        });
+    }
+    try {
+        const result = await body();
+        return { result, lookups };
+    } finally {
+        for (const [key, original] of saved) {
+            Reflect.set(Map.prototype, key, original);
+        }
+    }
+}

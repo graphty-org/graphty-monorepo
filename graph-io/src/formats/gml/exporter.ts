@@ -189,7 +189,7 @@ const NODE_RESERVED: ReadonlySet<string> = new Set(["id"]);
 const EDGE_RESERVED: ReadonlySet<string> = new Set(["source", "target", "directed"]);
 const GRAPH_RESERVED: ReadonlySet<string> = new Set(["node", "edge", "directed", "multigraph"]);
 const TOP_RESERVED: ReadonlySet<string> = new Set(["graph"]);
-const NUMBER_TEXT = /^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/;
+const NUMBER_TEXT = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
 /** The resolved options of one export. */
 interface GmlExportPlan {

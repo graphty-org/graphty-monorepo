@@ -346,7 +346,8 @@ function undoPassed(model: Model, from: number, to: number): void {
         const step = model.steps[at];
         step.undoneAt = model.tick++;
         if (step.before !== null) {
-            const below = model.steps[at - 1];
+            // Sealed like any capture: into the seal target, never a step that moved nothing.
+            const below = model.steps[sealTarget(model, at - 1)];
             below.arr = new Map(step.before);
             below.late = null;
         }

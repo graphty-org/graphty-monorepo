@@ -346,7 +346,7 @@ void main(void) {
         const colorObj = Color3.FromHexString(options.color);
         material.diffuseColor = colorObj;
         material.emissiveColor = colorObj; // Make dots self-illuminated
-        material.alpha = options.opacity ?? 1.0;
+        material.alpha = options.opacity ?? 1;
         material.backFaceCulling = false;
 
         // Create a disc mesh for each dot position
@@ -617,7 +617,7 @@ void main(void) {
         // Left vertex (side = -1)
         positions.push(actualPosition.x, actualPosition.y, actualPosition.z);
         directions.push(direction.x, direction.y, direction.z);
-        sides.push(-1.0);
+        sides.push(-1);
         distances.push(distance);
         uvs.push(0, 0); // UV.y = 0 for left side
         segmentStarts.push(segmentStart.x, segmentStart.y, segmentStart.z);
@@ -626,7 +626,7 @@ void main(void) {
         // Right vertex (side = +1)
         positions.push(actualPosition.x, actualPosition.y, actualPosition.z);
         directions.push(direction.x, direction.y, direction.z);
-        sides.push(1.0);
+        sides.push(1);
         distances.push(distance);
         uvs.push(0, 1); // UV.y = 1 for right side (changed from 0)
         segmentStarts.push(segmentStart.x, segmentStart.y, segmentStart.z);
@@ -703,7 +703,7 @@ void main(void) {
         shaderMaterial.setFloat("width", options.width);
 
         // Set opacity
-        shaderMaterial.setFloat("opacity", options.opacity ?? 1.0);
+        shaderMaterial.setFloat("opacity", options.opacity ?? 1);
 
         // NOTE: All patterns are handled by PatternedLineMesh
         // CustomLineRenderer only renders solid lines
@@ -818,12 +818,12 @@ void main(void) {
         const colorObj = Color3.FromHexString(options.color);
         shaderMaterial.setVector3("color", new Vector3(colorObj.r, colorObj.g, colorObj.b));
         shaderMaterial.setFloat("width", options.width);
-        shaderMaterial.setFloat("opacity", options.opacity ?? 1.0);
+        shaderMaterial.setFloat("opacity", options.opacity ?? 1);
 
         // Pattern uniforms (arrows are always solid)
         shaderMaterial.setFloat("pattern", 0); // 0 = solid
-        shaderMaterial.setFloat("dashLength", 3.0); // Default (unused for solid)
-        shaderMaterial.setFloat("gapLength", 2.0); // Default (unused for solid)
+        shaderMaterial.setFloat("dashLength", 3); // Default (unused for solid)
+        shaderMaterial.setFloat("gapLength", 2); // Default (unused for solid)
 
         // Register material for its own scene's resolution updates
         this.resolutionTracked.add(shaderMaterial);

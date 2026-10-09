@@ -112,6 +112,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
+import { animatesEveryFrame } from "./managers/everyFrameAnimations";
 import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
@@ -799,6 +800,12 @@ export class Graph implements GraphContext {
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
         this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
         this.layoutManager.graphWritesWaiting = () => dispatcherOf(this.session).graphWritesWaiting;
+
+        // Every change to project state reaches the picture through a pass, so a graph drawn on
+        // demand draws the frame after each one: a style, the data, a setting, an undo.
+        lane.passEnded = () => {
+            this.renderManager.requestFrame();
+        };
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
         // way, and the layout engine can place every drawn edge.
@@ -4563,6 +4570,10 @@ export class Graph implements GraphContext {
             this.eventManager.emit("animation-progress", { progress });
         };
 
+        // A recording takes a frame from the canvas only when one is drawn, so a graph drawn on
+        // demand draws every frame while it records: a still graph would otherwise record nothing.
+        const releaseFrames = animatesEveryFrame(this.scene);
+
         try {
             // Handle animated camera mode
             if (options.cameraMode === "animated") {
@@ -4577,6 +4588,7 @@ export class Graph implements GraphContext {
 
             return result;
         } finally {
+            releaseFrames();
             // Clear reference when done
             this.activeCapture = null;
         }

@@ -283,6 +283,16 @@ export class RenderManager implements Manager {
     private readonly owe = (): void => {
         this.drawOwed = true;
     };
+    /**
+     * Set when the scene gained or lost something it draws with, and cleared by the first frame
+     * drawn with the whole scene ready. A frame skips a mesh whose shader has not compiled yet, so
+     * one frame after such a change can leave the new thing off the canvas.
+     */
+    private sceneChanged = false;
+    private readonly oweForSceneChange = (): void => {
+        this.drawOwed = true;
+        this.sceneChanged = true;
+    };
     private readonly oweForEvent = (event: { readonly type: string }): void => {
         if (!EVENTS_THAT_DRAW_NOTHING.has(event.type)) {
             this.drawOwed = true;
@@ -571,7 +581,7 @@ export class RenderManager implements Manager {
             scene.onActiveCameraChanged,
             scene.onEnvironmentTextureChangedObservable,
         ] as const) {
-            (observable as { add: (callback: () => void) => unknown }).add(this.owe);
+            (observable as { add: (callback: () => void) => unknown }).add(this.oweForSceneChange);
         }
 
         this.engine.onContextRestoredObservable.add(this.owe);
@@ -585,11 +595,12 @@ export class RenderManager implements Manager {
      * costs the page tens of milliseconds of its main thread, and under load hundreds: a reader's
      * click waits behind those frames, and so does every test that clicks. Several elements on
      * one page (the app's real-element tests run their files side by side in one renderer) each
-     * paid it on every frame, for a picture that was not changing (issue #1796).
+     * paid it on every frame, for a picture that was not changing (issue #1824).
      *
      * Only when `pictureIsFinal` says so, and then only while nothing the
      * model does not track can change the next frame: a Babylon animation or a texture still
-     * loading (both advance only inside a frame), an every-frame animation, the reader's input on
+     * loading (both advance only inside a frame), a mesh, material or texture added and not yet
+     * ready to draw, an every-frame animation, the reader's input on
      * the canvas, an event the element announced, a new callback waiting for the next frame, or
      * anything the last two frames drawn did not agree on -- the camera, the canvas size, the
      * background colour. The last is what keeps a camera gliding to rest: inertia moves it only
@@ -606,6 +617,12 @@ export class RenderManager implements Manager {
             this.scene.animatables.length > 0 ||
             this.scene.getWaitingItemsCount() > 0
         ) {
+            return false;
+        }
+
+        // Asked only after a change to what the scene holds: the walk visits every mesh.
+        if (this.sceneChanged) {
+            this.sceneChanged = !this.scene.isReady();
             return false;
         }
 

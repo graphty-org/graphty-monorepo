@@ -15,6 +15,7 @@
 
 import "../../src/graphty-element";
 
+import { MeshBuilder } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -256,6 +257,26 @@ describe("renderOnDemand", () => {
         assert.isAbove(draws.count(), 0, "the new node was drawn");
         assert.isDefined(element.nodeScreenPosition("d"), "the new node is placed");
         await restsOnTheCurrentPicture(element);
+    });
+
+    it("draws a mesh added through graph.scene once its shader is ready", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+        const draws = countDraws(element);
+
+        MeshBuilder.CreateBox("added-from-outside", { size: 2 }, element.graph.scene);
+        await restsOnTheCurrentPicture(element);
+        assert.isAbove(draws.count(), 0, "the added mesh was drawn");
+    });
+
+    it("draws a selection style set while resting", async () => {
+        const element = await mounted(true);
+        await click(element, at(element, "b"));
+        await untilResting(element);
+        const restyled = countDraws(element);
+        element.selectionStyle = { color: "#7CB342", scale: 2 };
+        await restsOnTheCurrentPicture(element);
+        assert.isAbove(restyled.count(), 0, "the new selection style was drawn");
     });
 
     it("switched off, draws every frame again", async () => {

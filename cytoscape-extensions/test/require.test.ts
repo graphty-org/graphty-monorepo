@@ -19,7 +19,6 @@ const pkg = fileURLToPath(new URL("..", import.meta.url));
 const canRequireEsm = (process.features as { require_module?: boolean }).require_module === true;
 
 describe.runIf(canRequireEsm)("require() from CommonJS", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("loads the extension and registers it", () => {
         expect(existsSync(join(pkg, "dist/index.js")), "build the package first (npm run build)").toBe(true);
         const dir = mkdtempSync(join(tmpdir(), "cytoscape-extensions-require-"));
@@ -44,5 +43,5 @@ describe.runIf(canRequireEsm)("require() from CommonJS", () => {
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
-    }, 60_000);
+    });
 });

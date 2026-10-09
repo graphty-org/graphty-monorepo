@@ -192,7 +192,7 @@ describe("schemas: exports against the official XSDs and JSON Schema", () => {
     const hits = (name: string): number =>
         (schemaResult?.invalid ?? []).flatMap((doc) => classifyDocument(doc)).filter((e) => e.cls?.name === name)
             .length;
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- waits on one Python child process that validates about 6,700 exported documents (pure-Python jsonschema is most of it; 14 s idle, 40-50 s beside other test runs), so it outruns the 30 s suite limit; runs only where Python has lxml and jsonschema, never in CI, tracked in #1636
     it.skipIf(python === null)(
         "every error is a documented deviation or a known failure",
         async () => {

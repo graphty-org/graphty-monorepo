@@ -28,7 +28,6 @@ if (process.env.XDG_RUNTIME_DIR === undefined || process.env.XDG_RUNTIME_DIR ===
 const adapter = process.env.GRAPHTY_GPU_ADAPTER;
 let verdict: { ok: boolean; skip: boolean; reason: string | null } = { ok: false, skip: true, reason: "not probed" };
 
-// eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
 beforeAll(async () => {
     cytoscape.use(graphtyCytoscape);
     const probe = await probeNodeWebGpu({ adapter });
@@ -38,7 +37,7 @@ beforeAll(async () => {
     }
     // The policy, not the adapter's software filter, decides which adapters these tests accept
     configureWebGpu({ acceptSoftware: true, adapter });
-}, 60_000);
+});
 
 /**
  * Skips under the unset policy when there is no adapter; fails when the policy demands one.

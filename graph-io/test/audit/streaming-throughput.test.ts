@@ -36,7 +36,6 @@ import { pajekExporter, pajekImporter } from "../../src/formats/pajek/index.js";
 import { type GraphExporter } from "../../src/types.js";
 
 const BENCH = process.env.IO_BENCH === "1";
-const LONG = 300_000;
 const CHUNK = 64 * 1024;
 
 interface Row {
@@ -130,118 +129,83 @@ function expectExportStreams(name: string, run: ExportRun): void {
 }
 
 describe.skipIf(!BENCH)("streaming audit: throughput at 1M edges (IO_BENCH=1)", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "CSV imports 1M edges through a file stream",
-        async () => {
-            // observed: 952 ms (0.95 us/edge, 22 MiB/s); freeze 57 ms; about 37x the STATUS freeze
-            const path = csvEdgeList(1_000_000, 100_000);
-            await measure("csv", 1_000_000, fixtureBytes(path), async (sink) => {
-                await csvImporter.import(fileStream(path, CHUNK), sink);
-            });
-        },
-        LONG,
-    );
+    it("CSV imports 1M edges through a file stream", async () => {
+        // observed: 952 ms (0.95 us/edge, 22 MiB/s); freeze 57 ms; about 37x the STATUS freeze
+        const path = csvEdgeList(1_000_000, 100_000);
+        await measure("csv", 1_000_000, fixtureBytes(path), async (sink) => {
+            await csvImporter.import(fileStream(path, CHUNK), sink);
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "Pajek imports 1M arcs through a file stream",
-        async () => {
-            // observed: 1170-1215 ms (1.2 us/edge, 19 MiB/s); about 45x the STATUS freeze
-            const path = pajekNetwork(1_000_000, 100_000);
-            await measure("pajek", 1_000_000, fixtureBytes(path), async (sink) => {
-                await pajekImporter.import(fileStream(path, CHUNK), sink);
-            });
-        },
-        LONG,
-    );
+    it("Pajek imports 1M arcs through a file stream", async () => {
+        // observed: 1170-1215 ms (1.2 us/edge, 19 MiB/s); about 45x the STATUS freeze
+        const path = pajekNetwork(1_000_000, 100_000);
+        await measure("pajek", 1_000_000, fixtureBytes(path), async (sink) => {
+            await pajekImporter.import(fileStream(path, CHUNK), sink);
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "Neo4j imports 100k nodes and 1M relationships through file streams",
-        async () => {
-            // observed: 1440-1645 ms (1.5 us/edge, 18 MiB/s; the slowest line-oriented importer);
-            // about 60x the STATUS freeze. Profile (self time): the record state machine 18%, the
-            // builder's id lookup 10%, readInput 7.5%, isHeaderRecord + its regexp on every data
-            // row 6%, parseDecimalText 5%, canonicalId 4%, a `${start}->${end}` element string per row
-            const nodes = neo4jNodes(100_000);
-            const rels = neo4jRelationships(1_000_000, 100_000);
-            await measure("neo4j", 1_000_000, fixtureBytes(nodes) + fixtureBytes(rels), async (sink) => {
-                await neo4jImporter.import(fileStream(nodes, CHUNK), sink);
-                await neo4jImporter.import(fileStream(rels, CHUNK), sink);
-            });
-        },
-        LONG,
-    );
+    it("Neo4j imports 100k nodes and 1M relationships through file streams", async () => {
+        // observed: 1440-1645 ms (1.5 us/edge, 18 MiB/s; the slowest line-oriented importer);
+        // about 60x the STATUS freeze. Profile (self time): the record state machine 18%, the
+        // builder's id lookup 10%, readInput 7.5%, isHeaderRecord + its regexp on every data
+        // row 6%, parseDecimalText 5%, canonicalId 4%, a `${start}->${end}` element string per row
+        const nodes = neo4jNodes(100_000);
+        const rels = neo4jRelationships(1_000_000, 100_000);
+        await measure("neo4j", 1_000_000, fixtureBytes(nodes) + fixtureBytes(rels), async (sink) => {
+            await neo4jImporter.import(fileStream(nodes, CHUNK), sink);
+            await neo4jImporter.import(fileStream(rels, CHUNK), sink);
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "GraphML imports 200k edges through a file stream",
-        async () => {
-            // observed: 721-787 ms (3.9 us/edge, 23 MiB/s), so about 4 s and 150x the freeze per 1M
-            // edges. Profile: readName (codePointAt + isNameStart / isNameChar per character) 21%,
-            // the builder's id lookup 11%, finishEdge (a Set of every edge id) 9%, parseStartTag 8.5%
-            const path = graphmlDocument(200_000, 20_000);
-            await measure("graphml", 200_000, fixtureBytes(path), async (sink) => {
-                await graphmlImporter.import(fileStream(path, CHUNK), sink);
-            });
-        },
-        LONG,
-    );
+    it("GraphML imports 200k edges through a file stream", async () => {
+        // observed: 721-787 ms (3.9 us/edge, 23 MiB/s), so about 4 s and 150x the freeze per 1M
+        // edges. Profile: readName (codePointAt + isNameStart / isNameChar per character) 21%,
+        // the builder's id lookup 11%, finishEdge (a Set of every edge id) 9%, parseStartTag 8.5%
+        const path = graphmlDocument(200_000, 20_000);
+        await measure("graphml", 200_000, fixtureBytes(path), async (sink) => {
+            await graphmlImporter.import(fileStream(path, CHUNK), sink);
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "GEXF imports 200k edges through a file stream",
-        async () => {
-            // observed: 891-981 ms (4.9 us/edge, 15 MiB/s), so about 5 s and 190x the freeze per 1M
-            // edges. Profile: fast-xml-parser's tree build (OrderedObjParser, xmlNode, the
-            // path-expression matcher) 52%, garbage collection 10%, the well-formedness pre-scan 4%
-            const path = gexfDocument(200_000, 20_000);
-            await measure("gexf", 200_000, fixtureBytes(path), async (sink) => {
-                await gexfImporter.import(fileStream(path, CHUNK), sink);
-            });
-        },
-        LONG,
-    );
+    it("GEXF imports 200k edges through a file stream", async () => {
+        // observed: 891-981 ms (4.9 us/edge, 15 MiB/s), so about 5 s and 190x the freeze per 1M
+        // edges. Profile: fast-xml-parser's tree build (OrderedObjParser, xmlNode, the
+        // path-expression matcher) 52%, garbage collection 10%, the well-formedness pre-scan 4%
+        const path = gexfDocument(200_000, 20_000);
+        await measure("gexf", 200_000, fixtureBytes(path), async (sink) => {
+            await gexfImporter.import(fileStream(path, CHUNK), sink);
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "CSV, Pajek and GraphML export 1M edges as bounded chunks while the heap stays flat",
-        async () => {
-            // the export side of 8.5: write() is a generator and encodeChunks coalesces its parts into
-            // ~64 KiB chunks, so the document is never one string. Observed (chunks written to
-            // /dev/null so the loop yields): csv 745 ms, 29 MiB in 467 chunks, peak growth 48 MiB;
-            // pajek 490 ms, 22 MiB, peak 21 MiB; graphml 1522 ms, 89 MiB, peak 29 MiB; json, gml,
-            // dot and neo4j behave the same (peak 16-23 MiB)
-            const snapshot = await snapshotOf1M();
-            for (const [name, exporter] of [
-                ["csv", csvExporter],
-                ["pajek", pajekExporter],
-                ["graphml", graphmlExporter],
-            ] as const) {
-                const run = await exportToDevNull(name, exporter, snapshot);
-                expectExportStreams(name, run);
-            }
-        },
-        LONG,
-    );
+    it("CSV, Pajek and GraphML export 1M edges as bounded chunks while the heap stays flat", async () => {
+        // the export side of 8.5: write() is a generator and encodeChunks coalesces its parts into
+        // ~64 KiB chunks, so the document is never one string. Observed (chunks written to
+        // /dev/null so the loop yields): csv 745 ms, 29 MiB in 467 chunks, peak growth 48 MiB;
+        // pajek 490 ms, 22 MiB, peak 21 MiB; graphml 1522 ms, 89 MiB, peak 29 MiB; json, gml,
+        // dot and neo4j behave the same (peak 16-23 MiB)
+        const snapshot = await snapshotOf1M();
+        for (const [name, exporter] of [
+            ["csv", csvExporter],
+            ["pajek", pajekExporter],
+            ["graphml", graphmlExporter],
+        ] as const) {
+            const run = await exportToDevNull(name, exporter, snapshot);
+            expectExportStreams(name, run);
+        }
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "GEXF exports 1M edges as bounded chunks while the heap stays flat (PINS a defect)",
-        async () => {
-            // FAILS: writeGexf (src/formats/gexf/exporter.ts) pushes every <edge> element into a
-            // `parts` array and yields them only after the loop, because <edges count="..."> wants the
-            // number of writable edges up front. Observed: 62 MiB of output, peak heap growth
-            // 379 MiB, 3 timer samples over 1257 ms. Fix: count the writable edges in a cheap first
-            // pass over edgeType() (no strings), then yield each element as it is built; or omit the
-            // optional count attribute.
-            const snapshot = await snapshotOf1M();
-            const run = await exportToDevNull("gexf", gexfExporter, snapshot);
-            expectExportStreams("gexf", run);
-        },
-        LONG,
-    );
+    it("GEXF exports 1M edges as bounded chunks while the heap stays flat (PINS a defect)", async () => {
+        // FAILS: writeGexf (src/formats/gexf/exporter.ts) pushes every <edge> element into a
+        // `parts` array and yields them only after the loop, because <edges count="..."> wants the
+        // number of writable edges up front. Observed: 62 MiB of output, peak heap growth
+        // 379 MiB, 3 timer samples over 1257 ms. Fix: count the writable edges in a cheap first
+        // pass over edgeType() (no strings), then yield each element as it is built; or omit the
+        // optional count attribute.
+        const snapshot = await snapshotOf1M();
+        const run = await exportToDevNull("gexf", gexfExporter, snapshot);
+        expectExportStreams("gexf", run);
+    });
 
     it("prints the summary table", () => {
         expect(rows.length).toBeGreaterThan(0);

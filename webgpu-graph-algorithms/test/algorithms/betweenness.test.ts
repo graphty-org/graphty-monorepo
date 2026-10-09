@@ -512,6 +512,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         await expectRejection(betweennessWithTuning(ctx, s, undefined, { levelsPerSubmit: 0 }), "E_INVALID_ARGUMENT");
     }, 60_000);
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("refuses a weighted snapshot unless weighted: false, since the kernel counts hops; a column of ones is hops already", async (t) => {
         const ctx = await context(t);
         const weighted = snapshotOf(KARATE_EDGES.map(([u, v], e) => [u, v, 1 + (e % 3)] as const));

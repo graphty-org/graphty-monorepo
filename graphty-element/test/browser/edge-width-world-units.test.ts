@@ -28,7 +28,6 @@ const LINE_WIDTH = 8;
 const WINDOW = 120;
 
 const FRAMES = 20;
-const FRAME_MS = 10;
 
 describe("line.width is in world units for every edge renderer", () => {
     let canvas: HTMLCanvasElement;
@@ -89,10 +88,14 @@ describe("line.width is in world units for every edge renderer", () => {
         camera.position.set(0, 0, -distance);
         camera.setTarget(Vector3.Zero());
 
+        // Wait until every material's shader has compiled, then draw a few animation frames.
+        await scene.whenReadyAsync();
         for (let frame = 0; frame < FRAMES; frame++) {
             scene.render();
             await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
+                requestAnimationFrame(() => {
+                    done();
+                });
             });
         }
 

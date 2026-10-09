@@ -337,7 +337,7 @@ describe("the convergence rule holds the error to the tolerance on a large graph
         const r = pageRank(s);
         expect(r.converged).toBe(true);
         expect(relativeError(r.scores, reference.scores)).toBeLessThan(1e-5);
-    }, 30_000);
+    });
 
     // HITS runs on 10,000 nodes. On the 100,000-node graph its 154 reference passes took 5 to 13 s alone with
     // coverage and 22 to 27 s at load average 40 to 89, and timed out at 30 s in a loaded pre-push gate. Here the
@@ -351,7 +351,7 @@ describe("the convergence rule holds the error to the tolerance on a large graph
         expect(r.converged).toBe(true);
         expect(relativeError(r.hubs, reference.hubs)).toBeLessThan(2e-5);
         expect(relativeError(r.authorities, reference.authorities)).toBeLessThan(2e-5);
-    }, 30_000);
+    });
 });
 
 describe("the dispatcher follows the same rules", () => {

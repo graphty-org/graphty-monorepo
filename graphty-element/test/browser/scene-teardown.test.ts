@@ -17,18 +17,12 @@
  */
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, test } from "vitest";
+import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 
-/** How long the element needs to connect and finish its first update. */
-const ELEMENT_READY_MS = 300;
-
-/** How long a data-source assignment needs to reach the data manager. */
-const LOAD_SETTLE_MS = 500;
-
-/** How long a clear needs to reach the scene graph. */
-const CLEAR_SETTLE_MS = 200;
+/** How long a poll below may wait for the element to initialise or to load: the test's own budget. */
+const POLL_BUDGET_MS = 10_000;
 
 /**
  * Six nodes in a star, so several edges converge on one node -- the shape the stray arrowheads
@@ -65,8 +59,12 @@ async function createGraphtyElement(): Promise<Graphty> {
     element.style.display = "block";
     container.appendChild(element);
 
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
+    await vi.waitFor(
+        () => {
+            assert.isTrue(element.graph.initialized, "the element finished initialising");
+        },
+        { timeout: POLL_BUDGET_MS },
+    );
 
     mounted = element;
 
@@ -100,8 +98,13 @@ async function loadInline(element: Graphty, data: string): Promise<void> {
     element.dataSource = "json";
     element.dataSourceConfig = { data };
 
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
+    await vi.waitFor(
+        () => {
+            assert.isAbove(element.graph.getDataManager().nodes.size, 0, "the data source has loaded");
+        },
+        { timeout: POLL_BUDGET_MS },
+    );
+    await element.waitForStableFrame();
 }
 
 afterEach(() => {
@@ -124,8 +127,8 @@ describe("scene teardown on clearData", () => {
             assert.isAbove(scene.meshes.length, baseline, "loading must add meshes, or the test proves nothing");
 
             element.clearData();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, CLEAR_SETTLE_MS));
+            await element.waitForSettled();
+            assert.strictEqual(element.graph.getDataManager().nodes.size, 0, "the clear has run");
 
             assert.strictEqual(
                 scene.meshes.length,

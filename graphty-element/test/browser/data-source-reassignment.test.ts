@@ -146,8 +146,8 @@ describe("the data-source pair", () => {
         element.dataSource = "json";
         element.dataSourceConfig = { data: FIRST_GRAPH };
         await done;
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // A second load, had one been started, would still be on the queue.
+        await element.waitForSettled();
 
         assert.strictEqual(completions, 1);
     });

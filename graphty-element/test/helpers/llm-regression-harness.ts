@@ -268,6 +268,9 @@ export class LlmRegressionTestHarness {
             edgeCount: fixture.edges.length,
             nodeData: (i) => fixture.nodes[i].data,
             edgeData: (i) => fixture.edges[i].data,
+            // The fixture's own ids and endpoints, so a test can name the nodes it expects.
+            nodeId: (i) => fixture.nodes[i].id,
+            edgeEnds: (i) => fixture.edges[i],
         });
     }
 

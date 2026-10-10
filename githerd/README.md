@@ -106,8 +106,8 @@ step of a job from its shell with `githerd next`, `claim`, `status-answer` and `
 the same names, for the session the command runs under); every message githerd sends prints them. It stays in `workers.sessions`. A session has room while it is idle, or while the
 `capacity` it last gave in `githerd_expect` (how many more jobs it can work in parallel) is above
 the jobs it claimed since. No fixed allowance limits a session; the shared resources do: while
-pushes wait in the push queue, the repository's Actions runs wait for a runner, or every test slot
-is taken with runs waiting, githerd invites no session to new work and its status question says to
+more pushes wait in the push queue than it has gate slots, the repository's Actions runs wait for a
+runner, or more test runs wait than there are test slots, githerd invites no session to new work and its status question says to
 take none; the board names the constraint. `workers.maxActive` (working, starting, or waiting on its
 own task; blocked, parked and verifying jobs do not count) is only a runaway guard: a session at it
 is not invited, and `githerd_claim` refuses it another until it finishes or reports one. The number

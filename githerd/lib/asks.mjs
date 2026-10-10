@@ -47,7 +47,7 @@ const DEFAULT_CLI = "githerd";
  * @param {string} cli the githerd command line
  * @returns {string} the words
  */
-export const mineAnswer = (n, cli) =>
+const mineAnswer = (n, cli) =>
     `call the githerd_mine tool with pr ${n}, or without githerd's tools run \`${cli} mine ${n}\` from your shell`;
 
 /**

@@ -1520,8 +1520,9 @@ shows each limit with the measurement that applied at the last start.
   (`state.capacity[session]`), and the session has room while that answer is above the jobs it
   claimed since. A session that never answered is invited only while idle.
 - **Back-pressure, not an allowance, limits new work** (the owner, 2026-10-08; `lib/pressure.mjs`).
-  While pushes wait in the push queue, the repository's Actions runs are queued for a runner, or
-  every test slot is taken with runs waiting, no session is invited to new work and the status
+  While more pushes wait in the push queue than it has gate slots (read from the queue script),
+  the repository's Actions runs are queued for a runner, or more test runs wait than there are test
+  slots, no session is invited to new work and the status
   question tells it to take none, naming the constraint; the board and status name it too. Each is
   read every poll, so invitations resume on the first poll after it clears.
 - **`workers.maxActive` is a runaway guard** (default 3, 1 to 20), never presented to sessions as an allowance. A session

@@ -138,6 +138,21 @@ describe("cxExporter", () => {
         expect(aspect(doc, "cyTableColumn")).toContainEqual({ applies_to: "node_table", n: "never", d: "integer" });
     });
 
+    it("generates edge ids that no node has, for readers with one id space (Cytoscape.js)", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge(0, 1);
+        b.addEdge(1, 2);
+        b.addEdge(2, 3);
+        b.declareEdgeColumn({ name: "id", dtype: "string", role: "id" });
+        ["a", "b", "c"].forEach((id, e) => b.setEdgeValue("id", e, id));
+        const back = (await importGraph(await cxExporter.exportToString(b.freeze()), { format: "cx" })).snapshot;
+        const nodeIds = new Set(Array.from({ length: back.nodeCount }, (_, i) => Number(back.ids.idOf(i))));
+        const edgeIds = Array.from({ length: back.edgeCount }, (_, e) => back.edges.byRole("id")?.value(e));
+        expect([...nodeIds].sort()).toEqual([0, 1, 2, 3]);
+        expect(edgeIds.filter((id) => nodeIds.has(Number(id)))).toEqual([]);
+        expect(new Set(edgeIds).size).toBe(3);
+    });
+
     it("writes the smallest file for one node", async () => {
         const b = new GraphBuilder({ directed: true });
         b.addNode(0);
@@ -204,7 +219,8 @@ describe("cxExporter", () => {
         expect(codes(first)).toEqual([CX_LOSS.EDGE_IDS_GENERATED]);
         const doc = await write(first);
         expect(aspect(doc, "cyGroups")).toEqual([
-            { "@id": 10, nodes: [1, 2], internal_edges: [0], external_edges: [1] },
+            // the second edge is 4: generated edge ids skip the node ids 1, 2 and 3
+            { "@id": 10, nodes: [1, 2], internal_edges: [0], external_edges: [4] },
         ]);
         expectSameSnapshot(first, await read(JSON.stringify(doc)), { ignoreRoles: ["id"] });
 

@@ -186,6 +186,24 @@ describe("graphtyExport and graphtyImport", () => {
         expect(r.report.errorCount).toBeGreaterThan(0);
     });
 
+    it.each(["cx2", "json"] as const)(
+        "reads its own %s back without a warning when the edges have Cytoscape's generated ids",
+        async (format) => {
+            // integer node ids, as in the bundled datasets; edges without an id get a UUID from Cytoscape
+            const cy = core([
+                { data: { id: "0" } },
+                { data: { id: "1" } },
+                { data: { id: "2" } },
+                { data: { source: "0", target: "1" } },
+                { data: { source: "1", target: "2" } },
+            ]);
+            const back = core();
+            const r = await back.graphtyImport(await cy.graphtyExport(format), format);
+            expect(r.report.issues.map((i) => `${i.code}: ${i.message}`)).toEqual([]);
+            expect(back.edges()).toHaveLength(2);
+        },
+    );
+
     it("sniffs the format when none is given", async () => {
         const r = await core().graphtyImport(await core(sample()).graphtyExport("gexf"));
         expect(r.format).toBe("gexf");
@@ -365,6 +383,34 @@ describe("integer ids in the integer-id formats", () => {
             await back.graphtyImport(text, format);
             expect(back.nodes().map((n) => n.id())).toEqual(["0", "1", "2", "3"]);
             expect(back.nodes().every((n) => Object.keys(n.data()).length === 1)).toBe(true);
+        }
+    });
+
+    it("do not tell onLoss about renumbered ids, node order or text storage: the ids and values come back", async () => {
+        const cy = core();
+        await cy.graphtyDataset("karate");
+        for (const format of ["pajek", "csv", "gml", "xgmml"] as const) {
+            const codes: string[] = [];
+            const text = await cy.graphtyExport(format, { onLoss: (notes) => codes.push(...notes.map((n) => n.code)) });
+            expect(codes).not.toContain("W_ID_RENUMBERED");
+            expect(codes).not.toContain("W_CSV_NODE_ORDER");
+            expect(codes).not.toContain("W_STORAGE_CLASS_CHANGED");
+            const back = core();
+            await back.graphtyImport(text, format);
+            expect(
+                back
+                    .nodes()
+                    .map((n) => n.id())
+                    .sort(),
+            ).toEqual(
+                cy
+                    .nodes()
+                    .map((n) => n.id())
+                    .sort(),
+            );
+            if (format !== "csv") {
+                expect(back.$("#0").data("club")).toBe(cy.$("#0").data("club"));
+            }
         }
     });
 

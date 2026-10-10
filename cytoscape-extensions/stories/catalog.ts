@@ -6,7 +6,7 @@
 import { DATASETS } from "@graphty/graph-samples";
 
 import { GENERATOR_OPTION_NAMES } from "../src/algorithm-options.js";
-import type { ExportFormat, GeneratorName, GeneratorOptions } from "../src/index.js";
+import type { ExportFormat, GeneratorName, GeneratorOptions, ImportFormat } from "../src/index.js";
 
 /** The force simulations: the layouts that run on the GPU. */
 export const SIMULATION_LAYOUTS = ["forceatlas2", "fruchterman-reingold", "spring-electrical"] as const;
@@ -263,6 +263,23 @@ export const FORMATS = Object.keys({
     cx2: 0,
 } satisfies Record<ExportFormat, 0>) as ExportFormat[];
 
+/** Every format graphtyImport reads; the record makes a format added to ImportFormat a type error here. */
+const IMPORT_FORMATS = Object.keys({
+    graphml: 0,
+    gexf: 0,
+    gml: 0,
+    dot: 0,
+    pajek: 0,
+    csv: 0,
+    json: 0,
+    neo4j: 0,
+    xgmml: 0,
+    cx2: 0,
+    cx: 0,
+    obo: 0,
+    cys: 0,
+} satisfies Record<Exclude<ImportFormat, "auto">, 0>) as Exclude<ImportFormat, "auto">[];
+
 /** The bundled datasets, smallest first; the hosted ones are downloads and stay out of the snapshots. */
 export const BUNDLED_DATASETS = DATASETS.filter((d) => d.hosting !== "remote")
     .sort((a, b) => a.nodes - b.nodes)
@@ -290,7 +307,8 @@ export const GALLERY_PAGES = {
     ...algorithmPages(),
     Generators: Object.keys(GENERATOR_PRESETS) as GeneratorName[],
     Datasets: BUNDLED_DATASETS,
-    Formats: FORMATS,
+    // a file read in each format, one read with no format named ("auto"), and karate written in every format
+    Formats: [...IMPORT_FORMATS, "auto", "export"],
 } satisfies Record<string, readonly string[]>;
 export type GalleryPage = keyof typeof GALLERY_PAGES;
 

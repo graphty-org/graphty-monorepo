@@ -14,11 +14,11 @@ import { INVALID_INDEX, makeMask } from "@graphty/graph-format";
 
 import type { EdgeMember, NodeId, PathKind, SetDefinition } from "../../catalog/types";
 import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
+import { edgeMemberKey } from "./prepare";
 import {
     addEdgeRow,
     bindEdgeMembers,
     EDGE_AMBIGUOUS,
-    edgeMemberKey,
     type EdgeSeeds,
     type Resolution,
     resolutionOf,

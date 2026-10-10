@@ -309,35 +309,47 @@ describe("the Graph place", () => {
         assert.isNotNull(await screen.findByText('No match for "zzz"'));
     });
 
-    it("answers a condition typed without = with how to write it as a rule, and a name with No match", async () => {
+    it("answers a condition typed without = with the rule as the option Enter picks, and a name with an example", async () => {
         const session = await sessionWithGraph();
         await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
         renderPlace(session);
         const box = screen.getByRole("combobox", { name: "Find" });
 
         await userEvent.type(box, "minutes >= 10");
-        // The reader's own rule, with the element's backticks, on a line of its own.
-        const example = await screen.findByText("=minutes >= `10`");
-        const hint = example.parentElement as HTMLElement;
-        assert.equal(hint.textContent, "Start with = to select by a value: =minutes >= `10`");
-        assert.equal(getComputedStyle(example).display, "block");
+        // The reader's own rule, with the element's backticks, is the option Enter picks.
+        const hint = await screen.findByText("Start with = to select by a value:");
+        const option = await screen.findByRole("option", { name: /^=minutes >= `10`/ });
+        assert.equal(option.getAttribute("aria-selected"), "true");
+        assert.equal(box.getAttribute("aria-activedescendant"), option.id);
         assert.include(box.getAttribute("aria-describedby") ?? "", hint.id);
         assert.notEqual(hint.id, "");
         assert.isNull(screen.queryByText('No match for "minutes >= 10"'));
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.equal(session.selection.size, 1);
+        });
+        assert.equal((box as HTMLInputElement).value, "=minutes >= `10`");
+        assert.isNotNull(await screen.findByText("1 edge selected"));
 
-        const count = vi.spyOn(session.scope, "count");
+        const count = vi.spyOn(session.selection, "count");
         await userEvent.clear(box);
         await userEvent.type(box, "zzz");
         assert.isNotNull(await screen.findByText('No match for "zzz"'));
         // The element reads "zzz" as a column that holds nothing, so once it has answered no hint follows.
         await waitFor(() => {
-            assert.isTrue(count.mock.calls.some(([spec]) => JSON.stringify(spec) === '{"where":"zzz"}'));
+            assert.isTrue(count.mock.calls.some(([spec]) => JSON.stringify(spec) === '{"text":"=zzz"}'));
         });
         await act(async () => {
             await Promise.allSettled(count.mock.results.map((r) => r.value as Promise<unknown>));
         });
-        assert.isNull(screen.queryByText(/to select by a value/));
-        assert.isNotNull(screen.queryByText('No match for "zzz"'));
+        // Text that reads as no rule gets an example of one after No match, and no option.
+        const example = await screen.findByText("=minutes > `12`");
+        assert.equal(
+            example.parentElement?.textContent,
+            'No match for "zzz". To select by a value, type a rule such as =minutes > `12`',
+        );
+        assert.isTrue(example.classList.contains("ws-mono"));
+        assert.isNull(screen.queryByRole("option"));
     });
 
     it("runs a pattern only on Enter", async () => {
@@ -374,10 +386,13 @@ describe("the Graph place", () => {
         assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
 
         await userEvent.type(box, "minutes >= 10");
-        // The reader's own rule, not an example from other numbers, which would get copied.
-        const suggestion = await screen.findByText("minutes >= `10`");
-        assert.equal(suggestion.parentElement?.textContent, "Put numbers in backticks: minutes >= `10`");
-        assert.equal(getComputedStyle(suggestion).fontFamily, ruleFont);
+        // The reader's own rule with its "=", not an example from other numbers, which would get
+        // copied, as the option Enter picks.
+        assert.isNotNull(await screen.findByText("Put numbers in backticks:"));
+        const suggestion = await screen.findByRole("option", { name: /^=minutes >= `10`/ });
+        assert.equal(suggestion.getAttribute("aria-selected"), "true");
+        const suggestionName = suggestion.querySelector(".cm-result-name") as HTMLElement;
+        assert.equal(getComputedStyle(suggestionName).fontFamily, ruleFont);
         assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
         assert.equal(session.selection.size, 0);
 
@@ -421,14 +436,13 @@ describe("the Graph place", () => {
 
         await userEvent.type(box, "=weight > 3{Enter}");
         // The line under the box, not the status region that speaks it.
-        const rule = await screen.findByText("weight > `3`");
-        const line = rule.parentElement as HTMLElement;
-        assert.equal(line.textContent, "Put numbers in backticks: weight > `3`");
+        const line = (await screen.findAllByText("Put numbers in backticks:")).find(
+            (found) => found.getAttribute("role") !== "status",
+        ) as HTMLElement;
         // It starts where the hint does.
         assert.closeTo(textLeft(line), hintLeft, 1);
-        // The rule takes a line of its own, in the monospace face of every rule the box quotes.
-        assert.equal(getComputedStyle(rule).display, "block");
-        assert.isTrue(rule.classList.contains("ws-mono"));
+        // The element's rule, with its "=", is the option under the line.
+        assert.isNotNull(await screen.findByRole("option", { name: /^=weight > `3`/ }));
         assert.equal(box.getAttribute("aria-invalid"), "true");
         assert.notEqual(line.id, "");
         assert.include(box.getAttribute("aria-describedby") ?? "", line.id);
@@ -645,7 +659,7 @@ describe("the Graph place", () => {
         await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
         renderPlace(session);
         const box = screen.getByRole("combobox", { name: "Find" });
-        const words = "Put numbers in backticks:\nminutes >= `10`";
+        const words = "Put numbers in backticks: =minutes >= `10`";
         const spoken = (): string[] => screen.queryAllByRole("status").map((status) => status.textContent ?? "");
 
         await userEvent.type(box, "=minutes >= 10");

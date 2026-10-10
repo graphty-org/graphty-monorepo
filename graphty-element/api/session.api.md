@@ -2941,6 +2941,10 @@ export interface SelectionApi {
     apply(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     readonly cap: number;
     clear(): SelectionDelta;
+    count(target: SelectionTarget): Promise<{
+        readonly nodes: number;
+        readonly edges: number;
+    }>;
     edgeMask(): Uint8Array;
     readonly edges: readonly EdgeId[];
     has(id: NodeId | EdgeId): boolean;

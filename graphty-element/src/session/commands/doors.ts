@@ -485,6 +485,7 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     nodeMask: READ,
     edgeMask: READ,
     apply: SELECTION,
+    count: READ,
     clear: SELECTION,
     // The doors test selects node "d1" before calling it.
     promote: calls(

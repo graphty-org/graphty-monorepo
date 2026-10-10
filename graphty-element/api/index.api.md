@@ -181,7 +181,7 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     // @internal
     protected weightCaveats(): Pick<Caveats, "weight" | "weightSkipped">;
     // @internal
-    static weightMeaning: WeightReads | null;
+    static readonly weightMeaning: WeightReads | null;
     // @internal
     protected weightReading(): WeightReading;
     static zodOptionsSchema?: OptionsSchema;
@@ -2182,7 +2182,7 @@ export class Graphty extends LitElement {
     setRunning(running: boolean): void;
     setViewMode(mode: ViewMode): Promise<void>;
     setXRConfig(config: PartialXRConfig): void;
-    static shadowRootOptions: ShadowRootInit;
+    static readonly shadowRootOptions: ShadowRootInit;
     shutdown(): void;
     get startingCameraDistance(): number | undefined;
     set startingCameraDistance(value: number | undefined);

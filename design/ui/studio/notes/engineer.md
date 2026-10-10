@@ -11,6 +11,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Built: a weighted path's run row and its "Shortest path added" line give its
+  total, "minutes 14", not "3 hops".** One helper, `pathLengthWords(run)` in
+  `graphty/src/workspace/analyze/words.ts`, feeds both the row (`graph-place/rows.ts`) and the
+  announcement; it reads the element's published `cost` and `caveats.weight` (distance only, the
+  same rule as the inspector's "Total minutes"). Walk: `design/ui/studio/tmp/t2r2-12/walk/11.png`.
 - (2026-10-09) **Built: a 24 px target on the extra-small checkbox; find-list arrows scroll the row
   into view.** compact-mantine's xs Checkbox input grows to 24 x 24 (margin -6, paints nothing;
   `::before` draws the 12 px face from the input's state colors): pixel-identical box, axe
@@ -64,6 +69,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-10) **A path's length words come from one function.** The row and the status line both
+  said "N hops" from two copies; a weighted path's answer is its total, so both now call
+  `pathLengthWords`, with the inspector's distance-only rule for "Total <column>". Unweighted (or a
+  non-distance weight) keeps "4 hops". No element change: `cost` and `caveats.weight` were
+  already published.
 - (2026-10-09) **Only participant folders are refused in the studio, not every folder.** Pilots,
   experts, graders' repros and `--prove` start under `design/ui/studio` by design; a literal "refuse
   anything under the studio tree" would break them. A participant folder is recognized by place
@@ -92,25 +102,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   The real-element test caught it (width 8, not 24). Rejected: a scaled width in the app (copies
   an element constant and hides the units question).
 
-- (2026-10-09) **Read the report type before adding a field.** The task asked for a new count; the
-  report already promised it (`repeated.seen`) and the load already counted it, so the defect was
-  the measured merge, not a missing field -- no API change, a fix every consumer gets. Replace
-  from the Add page calls `replaceSource` (what the source menu's Replace with file... runs after
-  its picker), and an open page restarts on a replace request (`DataPage` keys a view by a
-  counter) rather than taking it as a drop. Rejected: running "Replace with file..." itself (a
-  second file picker for a file already chosen); a new `LoadReport` field for repeats of the graph
-  only (in-file repeats also count today; none of the study files have any).
+- (2026-10-09, condensed) **Read the report type before adding a field:** the repeated-ties count
+  already existed (`repeated.seen`); the defect was the measured merge, fixed in the element.
+  Replace from the Add page calls `replaceSource`; an open page restarts on a replace request.
 
-- (2026-10-09) **Round 2 critique: smallest changes, ranked by what a returning user loses.**
-  1 study tool (briefing only), 2 the Add page warns on repeated ties and offers Replace, 3 find's
-  hint for a condition in the reader's words, 4 a new line starts visible, 5 a rule-made layer is
-  named by its rule. Reason: 1 decides whether round 3 measures anything; 2 is the only finding one
-  slip from severity 4; 3 is the one confirmed broken habit; 4 caused twelve of the build faults;
-  5 is one string. Not changed: no new words at rest (bar 9 b already fails), no Filters hint on
-  the Graph place (found in 1 to 2 steps by 8 of 8), the path tool's place (find led all 8 to a
-  right answer), label placement in the app, the element's style defaults (neutral; the starting
-  value is the app's choice), the frozen build mid-round, the three new routes before a clean
-  re-run.
+- (2026-10-09, condensed) **Round 2 critique ranking:** study tool briefing, Add warns on repeats
+  and offers Replace, find's hint for a condition in words, new lines start visible, rule-made
+  layers named by their rule. Not changed: no new words at rest, label placement in the app, the
+  element's style defaults, the frozen build mid-round.
 
 - (2026-10-09, summarized) **Audit and round-2 method:** audits walk screens by script at both
   sizes (`round-2/expert/engineer/audit.sh`, `audit2.sh`) so the next round compares the same
@@ -209,6 +208,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-10) Did not work: a Python `str.replace` to add an assertion after a line two tests
+  shared put it in both (the unweighted test then failed on "minutes 14"); anchor test edits on a
+  line unique to the test. Worked: proving the row test fails without the fix by writing
+  `git show HEAD:<file>` over the source, running, and copying the new file back.
 - (2026-10-09) Worked: finding a workflow agent's log by its opening prompt. Workflow subagent logs
   are `~/.claude/projects/<proj>/<session>/subagents/workflows/wf_*/agent-*.jsonl`; the first user
   lines can be the harness's relayed request, so read every user line before the first assistant
@@ -310,11 +313,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   itself (wait by PID).
 - (2026-10-06 to 10-08, condensed) Shared worktree: stage only my hunks (`git apply --cached`, or a
   private `GIT_INDEX_FILE`), commit from an empty `git diff --cached`; wait for a clean `tsc` before
-  building over others' half-saved files; never commit `api:report` output wholesale. Builds:
+  building over others' half-saved files; grep every route of a value before calling a change done; never commit `api:report` output wholesale. Builds:
   `NODE_OPTIONS=--max-old-space-size=8192`. Element facts: a `Run` is thenable; per-node values via
   `session.data.nodePage({ columns: [runId] })`; `selection.apply` throws synchronously on a bad
   selector (unfiled); `data.name()` returns the id until `knownFields.nodeLabelPath` is set.
-- (2026-10-06 to 10-08) Grep every route of a value before calling a change done.
 
 ## Sources
 

@@ -74,7 +74,7 @@ describe("a path run's Values", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "names the total by the weight column it read, so it carries its unit",
+        "names the total by the weight column it read, in the Values and on the run row",
         async () => {
             const store = createWorkspaceStore({ project: { name: "Trail", id: 1 } });
             const view = render(<Workspace store={store} />);
@@ -90,7 +90,12 @@ describe("a path run's Values", () => {
                 throw new Error("the element never came up");
             }
             await session.data.import(
-                { type: "csv", config: { data: "source,target,minutes\na,b,4\nb,c,6\nc,d,4\na,d,20\n" } },
+                {
+                    type: "csv",
+                    config: {
+                        data: "source,target,minutes\nDepot,Station,4\nStation,Market,6\nMarket,Stadium,4\nDepot,Stadium,20\n",
+                    },
+                },
                 {
                     mapping: {
                         rowsAre: "edges",
@@ -101,7 +106,7 @@ describe("a path run's Values", () => {
                     },
                 },
             );
-            const run = session.runs.start("shortest-path", { source: "a", target: "d" });
+            const run = session.runs.start("shortest-path", { source: "Depot", target: "Stadium" });
             await act(async () => {
                 await run;
                 await session?.styles.settled();
@@ -115,6 +120,13 @@ describe("a path run's Values", () => {
                 assert.isNotNull(inspector.getByText("Total minutes"));
             });
             assert.isNull(inspector.queryByText("Total distance"));
+
+            // The bus-stops row says how long the trip takes, not how many stops it passes.
+            const row = await view.findByRole("treeitem", { name: /^Shortest path/ });
+            await waitFor(() => {
+                assert.include(row.textContent, "minutes 14");
+            });
+            assert.notInclude(row.textContent, "hops");
         },
         TIMEOUT_MS,
     );

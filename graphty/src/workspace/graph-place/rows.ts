@@ -7,7 +7,7 @@
 import type { Channel, LayerId, RunId } from "@graphty/graphty-element/catalog";
 import { type GraphSession, RESULT_SHAPE_CONTRACTS, type Run, type StaleNote } from "@graphty/graphty-element/session";
 
-import { count } from "../inspector/words";
+import { pathLengthWords } from "../analyze/words";
 import { runName } from "../runWords";
 import { colorBlockOf, EVERYTHING_KEY, groupHidden, runColorOf } from "../style/row";
 
@@ -35,7 +35,7 @@ export interface PaintRow {
     readonly swatch?: { readonly color: string } | { readonly ramp: readonly string[] };
     /**
      * A count the element publishes for this row, or absent; for a path, its length in words
-     * ("4 hops"), since the number of elements it measured is not the path.
+     * ("4 hops", or "minutes 14" by a distance weight), since the number of elements it measured is not the path.
      */
     readonly count?: number | string;
     /**
@@ -149,7 +149,7 @@ export function paintRows(session: GraphSession): PaintRow[] {
         return {
             ...base,
             kind: runRowKind(run),
-            count: run.shape === "path" ? pathSize(run) : summary?.measured,
+            count: run.shape === "path" ? pathLengthWords(run) : summary?.measured,
             swatch: ramp.length === 0 ? undefined : { ramp },
         };
     };
@@ -280,15 +280,4 @@ export function layerAbove(
         .reverse()
         .find((row) => row.layerIds.length > 0);
     return above?.layerIds[0] ?? null;
-}
-
-/**
- * A path run's length, as its graph result publishes it: "4 hops", or absent before it has one
- * (or when no path was found). Short, so the row's name stays whole beside it.
- * @param run - the path run.
- * @returns the words, or undefined.
- */
-function pathSize(run: Run): string | undefined {
-    const { hops } = run.result?.graph ?? {};
-    return typeof hops === "number" ? count(hops, "hop") : undefined;
 }

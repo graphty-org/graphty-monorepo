@@ -1,5 +1,5 @@
 import { BUILT_IN_ALGORITHMS, RESULT_SHAPES } from "@graphty/graphty-element/catalog";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import { runName } from "../../runWords";
@@ -12,6 +12,7 @@ import {
     matches,
     meaningGloss,
     optionWords,
+    pathWords,
     ranOptionWords,
     weightName,
     weightRead,
@@ -19,6 +20,27 @@ import {
 } from "../words";
 
 describe("the Analyze popover's words", () => {
+    /**
+     * A finished path run from Depot to Stadium, 4 hops long, 14 by its cost.
+     * @param weight - what the run read as its weight, or null when it read none.
+     * @returns the run.
+     */
+    function pathRun(weight: Run["caveats"]["weight"]): Run {
+        return {
+            shape: "path",
+            params: { source: "Depot", target: "Stadium" },
+            caveats: { weight },
+            result: { graph: { length: 5, hops: 4, cost: 14 } },
+        } as unknown as Run;
+    }
+    const names = { data: { name: (id: string | number) => String(id) } } as unknown as GraphSession;
+
+    it("words a weighted path by its total in the weight column, and an unweighted one by its hops", () => {
+        const weighted = pathRun({ attribute: "minutes", meaning: "distance" });
+        assert.deepEqual(pathWords(names, weighted), { from: "Depot", to: "Stadium", length: "minutes 14" });
+        assert.deepEqual(pathWords(names, pathRun(null)), { from: "Depot", to: "Stadium", length: "4 hops" });
+    });
+
     it("puts every result shape the element declares under exactly one heading", () => {
         for (const shape of RESULT_SHAPES) {
             assert.lengthOf(

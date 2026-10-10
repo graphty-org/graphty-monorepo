@@ -11,6 +11,8 @@
 import type { AlgorithmDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
 import type { Caveats, CostEstimate, GraphSession, Run, WeightMeaning } from "@graphty/graphty-element/session";
 
+import { formatNumber } from "../inspector/words";
+
 /** One heading of the list, and the result shapes it gathers. */
 export interface Heading {
     readonly id: "rank" | "groups" | "paths" | "measure";
@@ -518,30 +520,45 @@ function hopWords(hops: number): string {
 }
 
 /**
- * A path run's ends and its answer, worded: its From and To by name, and the hops, or that no
- * path joins them (the element publishes a path of length 0). Null for any other run, or before
- * its result.
+ * How long a found path is, worded: its total named by the weight column when it read a distance
+ * weight ("minutes 14"), else its hop count ("4 hops"). Undefined before its result.
+ * @param run - the path run.
+ * @returns the words, or undefined.
+ */
+export function pathLengthWords(run: Pick<Run, "result" | "caveats">): string | undefined {
+    const { hops, cost } = run.result?.graph ?? {};
+    const { weight } = run.caveats;
+    if (weight?.meaning === "distance" && typeof cost === "number") {
+        return `${weight.attribute} ${formatNumber(cost)}`;
+    }
+    return typeof hops === "number" ? hopWords(hops) : undefined;
+}
+
+/**
+ * A path run's ends and its answer, worded: its From and To by name, and its length
+ * (`pathLengthWords`), or that no path joins them (the element publishes a path of length 0).
+ * Null for any other run, or before its result.
  * @param session - the element's session.
  * @param run - the run.
  * @returns the words, or null.
  */
-function pathWords(session: GraphSession, run: Run): { from: string; to: string; hops: string | null } | null {
+export function pathWords(session: GraphSession, run: Run): { from: string; to: string; length: string | null } | null {
     const graph = run.result?.graph;
     if (run.shape !== "path" || graph === undefined) {
         return null;
     }
     const name = (id: unknown): string =>
         typeof id === "string" || typeof id === "number" ? (session.data.name(id) ?? String(id)) : "";
-    const hops = typeof graph.hops === "number" ? graph.hops : 0;
     return {
         from: name(run.params.source),
         to: name(run.params.target),
-        hops: graph.length === 0 ? null : hopWords(hops),
+        length: graph.length === 0 ? null : (pathLengthWords(run) ?? hopWords(0)),
     };
 }
 
 /**
- * The status line for a finished path search: "Shortest path added: Ava to Lee, 2 hops", or
+ * The status line for a finished path search: "Shortest path added: Ava to Lee, 2 hops" (or
+ * "..., minutes 14" by a distance weight), or
  * "No path from Ava to Lee.".
  * @param session - the element's session.
  * @param run - the run.
@@ -552,9 +569,9 @@ export function pathAnnouncement(session: GraphSession, run: Run): string | null
     if (words === null) {
         return null;
     }
-    return words.hops === null
+    return words.length === null
         ? `No path from ${words.from} to ${words.to}.`
-        : `Shortest path added: ${words.from} to ${words.to}, ${words.hops}`;
+        : `Shortest path added: ${words.from} to ${words.to}, ${words.length}`;
 }
 
 /**

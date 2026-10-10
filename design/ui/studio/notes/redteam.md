@@ -16,34 +16,36 @@ served at `/?next`.
 
 ## Top of mind
 
-1. (2026-10-09) Dry run answers "will participants meet build faults?" only for the routes it
-   walked. Tier 2 round 1: answer-key routes, pointer only, study tool never dry-run. Round 2
-   launches only after: the tool fixed (4 sessions max, exact matches, real file drop, every
-   follow-up), the scripts for bars 2, 7, 8, 9 built, and a dry run of each task's commonest
-   detours by pointer AND keyboard on the new frozen build, with a written report.
-2. (2026-10-09) The study tool reached participants more than the build did (load ~158, wrong-row
-   matches, a dead synthetic drop, void and unsent sessions, facilitator files read). Attack the
-   tool as hard as the app; a bar with no script "does not hold", never "passes".
-3. (2026-10-09) Round 2 watch: each change adds at most one door and only two things rise at rest
-   (source "..." menu, ", out of date" on the key). Any proposal adding more words at rest is out.
-4. (2026-10-09) T20 root cause: start-screen Open skips the Data page (project/actions.ts). Fix =
-   route through it. Watch round 2: the extra Load step must not break tier 1's open-file bar.
-5. (2026-10-09) T22: hint words gated on the element's own rule check, no `<>=` sniffing in the
-   app. "Select where..." only if the hint fails with 3+ looking in the same place (pre-registered).
-6. (2026-10-09) Edges color to Everything: remove writeLine's EVERYTHING_LAYER default (style/
-   row.ts), the shared cause. Halo tint: element fix (Node.ts createOverlaySource), not the app.
-7. (2026-10-09) Drawn-name overlap is an element issue, deliberately left failing bar 10 in round
-   2 as evidence. Reject any app font-shrink or seeding that hides it.
-8. (2026-10-09) Scripted persona exits (Tom's two-attempt rule) decided 2 of 3 non-successes;
-   graders label them. Do not build fixes on a scripted give-up.
-9. (2026-10-09) Expert findings confirm only by a script or a second specialist on the capture,
-   as the criteria say; "one expert plus a session" was a scorer deviation.
-10. (2026-10-08) Tier 2 setups must carry the history's work (bar 2); push a second, shorter
-    instance of the same job inside core-four sessions.
+1. (2026-10-09) A scripted dry run only proves the routes someone thought of. Rounds 1 and 2 both
+   lost most build faults to the one detour nobody listed (round 2: styling a selection, 12 of
+   ~30 faults). Before round 3: two or three throwaway pilot sessions on the frozen build, then
+   script whatever routes they actually took, plus every control on each task screen by keyboard.
+2. (2026-10-09) The study tool is still the largest fault: 13 of 16 sessions read tasks.md. Round
+   3 does not launch until real.mjs refuses a folder without its own briefing and a planted-leak
+   test proves it. Round 2 passes for new routes are not credited.
+3. (2026-10-09) A preflight that claims a script exists must run it (bar 10's clipped-text and
+   raw-string scripts were claimed and absent). Same rule as round 6: a check that checks nothing
+   fails.
+4. (2026-10-09) "Width 8 draws a hairline" is an element units question first: EdgeMesh says
+   edge.width is screen pixels, yet 8 draws thin. Script it before any app starting-value change;
+   an app that doubles a width to make it visible is a workaround.
+5. (2026-10-09) Find box: one change per round or the result cannot be attributed. Round 3 gets:
+   the "=" bug in the backtick correction, Enter runs the element's own correction, and the
+   existing example line after a miss. Not column rows in plain mode, not "Select where".
+6. (2026-10-09) Bare numbers in rules: refused-to-accepted changes what an existing call does --
+   owner list. Not an opt-in `bareNumbers` flag: a flag for a capability every consumer wants is a
+   choice nobody would set differently.
+7. (2026-10-09) Duplicate-tie Add: element reports the duplicate count (additive); the app shows
+   one line and a Replace door only when the count is above 0. No file-name matching in the app.
+8. Round 2 watch, still held: each change adds at most one door; words at rest only fall.
+9. (2026-10-09) Drawn-name overlap is an element issue left failing on purpose; no app font-shrink
+   or seed.
+10. (2026-10-09) Expert findings confirm only by a script or a second specialist on the capture;
+    a withdrawn finding must be withdrawn everywhere it is cited (scores.md bars 8 and 10).
 11. Rounds are one model playing every participant: a failure is strong, a pass weak, a scripted
     repro or code cause solid. Never blame load: name the mechanism.
 12. (2026-10-06) Fix by removing, not adding. One door per job; reuse the "..." header menu.
-13. (2026-10-06) Overfitting guard: task words never echo a fix's screen words.
+13. (2026-10-06) Overfitting guard: task words never echo a fix's screen words ("stand out").
 14. (2026-10-06) Graph logic and codes in the element, words in the app; check existing API first.
 15. (2026-10-08) Budget words where tier 2 grows: inspector, Data place, neighbor list.
 
@@ -114,34 +116,11 @@ served at `/?next`.
   Size list fixed in compact-mantine ComboInput; focus ring fixed in foundation CSS; inline
   sentence replaces a notice; element English is a neutrality defect to trace.
 
-- 2026-10-07 -- Round 2 critique (my positions): see Top of mind 1-7. Also: do not move the key
-  (Pazzi/Blacheville overlap is one seeded event per dataset), no export selection option (the
-  preview shows what is exported), no label-count rework (the count is true), no "saved in this
-  browser" warning (start screen already says it), no run renames. 4x export: render at the
-  target size in the element; if that cannot land, remove the 4x/"For print" choice rather than
-  ship a false one. Force re-apply: no fix without a traced cause. Announcements (load, run
-  finished) are app words from element events and add no visible text -- allowed, low priority.
-  Evidence read: insights.md, scores.md, repro r2-s07/run-menu/23, r2-s56/run/07, r2-s19/run1/04,
-  r2-s40/run/13, r2-s14/run/06; methods.ts:83; NodeValues.tsx:140-148; frame/menus.tsx MainMenu.
-
-- 2026-10-07 -- Round 3 proposals attack (my positions). Code read: legend.ts:20-40,730-770;
-  LegendCard.tsx:69-76 (#867, #912); Mantine Menu.mjs:129; StyleTab.tsx:355; methods.ts:83;
-  Run.ts:677 fields; catalog/types.ts:403; ElementHost.tsx:11; LabelSection.tsx:137. Changes to my
-  round 2 positions: (a) accept the declutter switch -- my rejection was of a no-effect control,
-  this one has an effect and is pure element config; (b) accept the run rename -- the trace I
-  required is done. Held: Size "+" opens picker; no key move; no seed change; Force/4x trace only.
-  New: the stale-key and group-layout fixes need no new public API; the per-caller
-  returnFocus={false} fix breaks Escape.
-
-- 2026-10-07 -- Round 2 closed. Decided (decisions.md): 12 changes, defect fixes only, each in
-  the owning package -- menu focus in compact-mantine; key omits fully covered block and group
-  layouts read optionsFor "partition" values (element, no new exported name); 2D Fit and canvas
-  name/ring (element); load/run announced (app words); Size "+" opens picker; DataRow chevron;
-  run named by method; "Show all labels" writes declutter; tool hears active option. Not changed:
-  Force re-apply and 4x (trace first, element fix later -- not removing 4x, which hides the
-  defect, reversing my earlier "remove if it cannot land"), key placement and seed (owner),
-  "Javert and his 17", zoom hint. My positions were all adopted except 4x removal. Reason for the
-  reversal: removing an app choice to hide an element defect is the workaround pattern.
+- 2026-10-07 -- Tier 1 rounds 2-3 (summarized 2026-10-09): defect fixes only, each in its
+  owning package (menu focus in compact-mantine; key and 2D Fit in the element; Size "+" opens
+  picker; run named by method; "Show all labels" writes declutter). Not changed: key placement,
+  seed, Force re-apply and 4x (trace first). Reversed my "remove 4x": removing an app choice to
+  hide an element defect is the workaround pattern.
 
 - 2026-10-08 -- Tier 2 criteria review (my positions, returned to the studio): (1) define the
   carry-forward rule for "all bars in one round", T4's 3-per-half floor, and "not scored = not
@@ -182,6 +161,20 @@ served at `/?next`.
   severity 4 and ranked first; drawn-name overlap and compact-mantine Toast/segment defects left
   for later rounds to keep round 2 attributable; nothing new for the owner. Reason: fix the
   measurement first, then reproduced defects, then one door per confirmed problem.
+
+- 2026-10-09 -- Tier 2 round 2 proposals attack (my positions). Code read: style/row.ts
+  startingValue (takes descriptor.default, so a new line equals what is drawn); EdgeMesh.ts
+  560-572 (width documented as screen pixels, drawn /40); FindBox.tsx backtickSuggestion and
+  ruleRefusalWords (suggestion shown as text, Enter does nothing), :415 blur(); StyleTab.tsx
+  selectionName. Adopt: briefing-only tool fix first; widen the dry run with pilot-found detours;
+  "=" in the correction; Enter runs the element's correction; example line after a miss; layer
+  named by its rule; duplicate count from the element with one Replace door; Escape keeps focus;
+  Follow arrow focus; checkbox hit area in compact-mantine; status line re-announce; "PageRank,
+  full graph"; search aliases. Reject: palette color or 2x width as an app starting value before
+  the units script (workaround risk; rewording the "app never invents a value" comment to allow
+  it is the tell); column rows in plain find mode (clutter in the hit list, and stacks three find
+  changes); file-name matching for Replace; opt-in bareNumbers flag; Hops grouping before the
+  element has a depth fact. Reason: one attributable change per problem, element first.
 
 ## Tried: worked / did not work
 
@@ -246,6 +239,12 @@ served at `/?next`.
   the four-build success-path dry run (no broken control on walked routes). Did not work: no
   detour or keyboard walk, no tool dry run. Taught: the dry run must cover the harness too.
 
+- 2026-10-09 -- Round 2 dry run (four runs, 30 detour walks, pointer and keyboard): worked for
+  the walked routes (0 grades decided by a build fault, no session error). Did not work for the
+  unlisted detour (selection styling) or for participant isolation (tasks.md read). The keyboard
+  walk found the Escape fault and handed it on instead of fixing it. Taught: a dry run finds,
+  the freeze must wait for the fix.
+
 ## Thinking
 
 - (2026-10-06) The biggest risk for the next round is not a design flaw but repeating the round 7-8
@@ -284,8 +283,14 @@ served at `/?next`.
 - (2026-10-08) Watch items in a pilot are the polite name for defects nobody is required to fix.
   If the audit has no bar, truncation and wrong words will ride through all three rounds again.
 
+- (2026-10-09) Each round's dry run is built from the previous round's detours, so it always
+  trails by one round. Pilots from fresh participants find the next round's detours cheaply; the
+  scripted list should be their output, not the designers' guess.
+
 ## Sources
 
+- `design/ui/studio/tier2/rounds/round-2/insights.md`, `scores.md`, `preflight.md`, the eight
+  role proposals (2026-10-09)
 - `design/ui/studio/tier2/rounds/round-1/insights.md`, the eight role proposals (2026-10-09)
 
 - `design/ui/studio/digests/decisions.md`, `framework.md`, `owner-voice.md`, `study-rounds.md`,

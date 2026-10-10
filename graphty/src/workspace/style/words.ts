@@ -67,12 +67,19 @@ export function isLineChannel(descriptor: ChannelDescriptor): boolean {
 }
 
 /**
- * Whether a channel's line shows the bind icon at rest (round 7: Color and Size).
+ * Whether a channel's line shows the bind icon at rest (round 7: Color and Size). A tooltip has
+ * it too: one fixed text on every node says nothing about the node pointed at, so the useful
+ * tooltip reads an attribute (the node's id or name).
  * @param descriptor - the channel.
- * @returns true for a node's or an edge's color, and a node's size.
+ * @returns true for a node's or an edge's color, a node's size, an edge's width and a node's tooltip.
  */
 export function bindsAtRest(descriptor: ChannelDescriptor): boolean {
-    return descriptor.accepts === "color" || descriptor.channel === "node.size" || descriptor.channel === "edge.width";
+    return (
+        descriptor.accepts === "color" ||
+        descriptor.channel === "node.size" ||
+        descriptor.channel === "edge.width" ||
+        descriptor.channel === "node.tooltip"
+    );
 }
 
 /**

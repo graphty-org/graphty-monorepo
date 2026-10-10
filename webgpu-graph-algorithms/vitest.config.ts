@@ -62,6 +62,12 @@ const browserGpu: keyof typeof BROWSER_FLAGS =
 const browserName: "chromium" | "webkit" = process.env.GRAPHTY_BROWSER === "webkit" ? "webkit" : "chromium";
 const gpuRequire = process.env.GRAPHTY_GPU_REQUIRE ?? "";
 const noiseFloorWrite = process.env.GRAPHTY_NOISE_FLOOR_WRITE ?? "";
+/**
+ * The per-test budget of the node project. A recording run (GRAPHTY_NOISE_FLOOR_WRITE=1, started by hand to rewrite the
+ * committed noise fixtures) runs the writer cases, which measure the UNSCALED fixtures and take up to tens of minutes
+ * on one adapter; every other run skips them and keeps the 30 s budget.
+ */
+const nodeTestTimeout = noiseFloorWrite === "1" ? 1_800_000 : 30_000;
 
 /**
  * The environment of the Chromium child (spec 12.2 GRAPHTY_EGL_LIB_DIR): on the dev box headless Chromium finds
@@ -107,6 +113,11 @@ function selectedProjects(): string[] {
 const projects = selectedProjects();
 /** Whether this run collects coverage, which roughly doubles a worker's processor and memory cost. */
 const coverageRun = process.argv.includes("--coverage") || process.env.COVERAGE_DIR !== undefined;
+// Handed to the test processes (forks inherit this environment), so a test can shrink a CPU reference that coverage
+// slows several-fold: test/algorithms/all-pairs.test.ts sizes its randomBig fixtures by it.
+if (coverageRun) {
+    process.env.GRAPHTY_COVERAGE_RUN = "1";
+}
 /** A coverage run on a runner, where the report is an upload rather than something a person opens. */
 const coverageOnRunner = coverageRun && process.env.CI === "true";
 const thresholdsActive = projects.length === 1 && projects[0] === "node" && process.env.COVERAGE_DIR === undefined;
@@ -287,7 +298,7 @@ export default defineConfig({
                     globals: true,
                     environment: "node",
                     pool: "forks",
-                    testTimeout: 30_000,
+                    testTimeout: nodeTestTimeout,
                     hookTimeout: 60_000,
                     include: [
                         "test/*.test.ts",

@@ -22,9 +22,6 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 
-/** How long to leave the element to come up before reading what it made of an attribute. */
-const READY_MS = 400;
-
 describe("the background and starting camera distance attributes", () => {
     let container: HTMLDivElement;
 
@@ -52,7 +49,8 @@ describe("the background and starting camera distance attributes", () => {
         }
 
         container.appendChild(element);
-        await new Promise((resolve) => setTimeout(resolve, READY_MS));
+        await element.updateComplete;
+        await element.waitForSettled();
 
         return element;
     }

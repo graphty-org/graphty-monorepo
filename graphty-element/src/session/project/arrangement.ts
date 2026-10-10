@@ -22,7 +22,7 @@
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { NodeId } from "../../catalog/types";
-import { otherIdSpelling } from "../../data/nodeIdSpelling";
+import { otherIdSpelling, rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { type ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "../../data/positions";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { PositionEntry } from "../types";
@@ -379,13 +379,14 @@ export class Arrangement {
         const values: number[] = [];
         const at = { x: 0, y: 0, z: 0 };
         for (const entry of entries) {
-            const row = rowOf(snapshot, entry.id, 0);
+            // An integer id may be written either way; the step records the id the graph holds.
+            const row = rowOfEitherSpelling(snapshot.ids, entry.id);
             if (row === INVALID_INDEX) {
                 throw badPosition(`The graph holds no node ${JSON.stringify(entry.id)} to place.`, entry.id);
             }
 
             lane.read(row, at);
-            ids.push(entry.id);
+            ids.push(snapshot.ids.idOf(row));
             rows.push(row);
             // In 2D the lane holds every node on the Z = 0 plane, so the Z given is ignored and
             // the step records the 0 the lane holds: redone, it lands where it landed.
@@ -402,6 +403,36 @@ export class Arrangement {
         this.written = true;
         // The engine takes the new rows as its own at the next pass.
         this.lane.touch("arrangement", "");
+    }
+
+    /**
+     * The rows of some nodes as the lane holds them now, as a row patch from unplaced: what a step
+     * that created their rows records, so no arrangement taken before it places them.
+     * @param ids - The nodes.
+     * @returns The patch, or null when the graph holds none of them or there is no lane.
+     */
+    rowsNow(ids: readonly NodeId[]): RowPatch | null {
+        const { source } = this;
+        if (source === null) {
+            return null;
+        }
+
+        const snapshot = source.snapshot();
+        const held: NodeId[] = [];
+        const rows: number[] = [];
+        const values: number[] = [];
+        const at = { x: 0, y: 0, z: 0 };
+        for (const id of ids) {
+            const row = rowOf(snapshot, id, 0);
+            if (row !== INVALID_INDEX) {
+                source.positions.read(row, at);
+                held.push(id);
+                rows.push(row);
+                values.push(Number.NaN, Number.NaN, Number.NaN, at.x, at.y, at.z);
+            }
+        }
+
+        return held.length === 0 ? null : rowPatch(held, rows, values);
     }
 
     /**

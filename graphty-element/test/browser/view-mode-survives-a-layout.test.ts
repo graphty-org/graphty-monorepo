@@ -31,10 +31,9 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, test } from "vitest";
+import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { operationQueueOf } from "../../src/Graph";
 
 /** Babylon's `Camera.ORTHOGRAPHIC_CAMERA`, compared as a number so no renderer class is imported. */
 const ORTHOGRAPHIC = 1;
@@ -42,8 +41,8 @@ const ORTHOGRAPHIC = 1;
 /** Babylon's `Camera.PERSPECTIVE_CAMERA`. */
 const PERSPECTIVE = 0;
 
-/** How long the element needs to connect, drain its queue and draw. */
-const SETTLE_MS = 1500;
+/** How long the element may take to connect and finish `Graph.init()`: the test's own budget. */
+const INIT_BUDGET_MS = 10_000;
 
 /** A graph small enough that every layout below finishes instantly. */
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
@@ -79,12 +78,20 @@ function mount(): Graphty {
 }
 
 /**
- * Wait for the element to finish everything it has been asked to do.
+ * Wait for the element to finish everything it has been asked to do and draw the result: the
+ * properties applied, `Graph.init()` finished, the queue drained, the layout and the camera at
+ * rest and a frame drawn.
  * @param element - the mounted element
  */
 async function settle(element: Graphty): Promise<void> {
-    await operationQueueOf(element.graph).waitForCompletion();
-    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+    await element.updateComplete;
+    await vi.waitFor(
+        () => {
+            assert.isTrue(element.graph.initialized, "the element finished initialising");
+        },
+        { timeout: INIT_BUDGET_MS },
+    );
+    await element.waitForStableFrame();
 }
 
 /**

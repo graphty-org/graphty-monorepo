@@ -38,8 +38,8 @@ import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
 import type { VisibilityService } from "../commands/visibility";
 import type { CodedFact, ProgressChange } from "../shared";
-import type { HistoryCode, ProjectConfig } from "../types";
-import { Arrangement, type ArrangementOp } from "./arrangement";
+import type { HistoryCode, HistoryStepId, ProjectConfig } from "../types";
+import { Arrangement, type ArrangementOp, mergeRowPatches } from "./arrangement";
 import { DerivationLane } from "./derive";
 import {
     createProjectStore,
@@ -55,7 +55,7 @@ import {
     touchedBy,
     withoutNoOps,
 } from "./draft";
-import { GraphOps, nodeKey, reshapes, restoresNodes, TouchedIds } from "./graphOps";
+import { createdNodes, GraphOps, nodeKey, reshapes, restoresNodes, TouchedIds } from "./graphOps";
 import { frozenFact, History, type HistoryChangeReason, type OpenArrangement } from "./History";
 import { createProjectState, type ProjectState } from "./state";
 import { checkInlineKey, checkSoleHolder, strictStateEnabled, verifyRetainedArrays } from "./strict";
@@ -278,6 +278,12 @@ export interface TransactionOptions {
      * pointer moves write the lane before anything is dispatched (design section 5.3).
      */
     readonly moves?: boolean;
+    /**
+     * A step this transaction continues: its patch merges into that step while the step is the
+     * newest applied one, and otherwise records as its own step with `provenance.after` set to it,
+     * as a deferred member does.
+     */
+    readonly after?: HistoryStepId;
 }
 
 /** What moved live project state. */
@@ -1014,7 +1020,7 @@ export class Dispatcher {
             { label, fact: options.fact ?? { code: "transaction", params: { label } } },
             null,
             options.provenance ?? {},
-            null,
+            options.after ?? null,
             this.tick++,
             {
                 status: "open",
@@ -1244,6 +1250,24 @@ export class Dispatcher {
             group.arrangement = this.history.open(before);
             group.epoch = this.store.state.graph.epoch;
         }
+    }
+
+    /**
+     * A patch that created rows for nodes an arrangement the history holds places -- other nodes
+     * of the same ids, removed since -- with those rows as the lane has them now. Without it a
+     * restore through that older arrangement would put the earlier nodes' coordinates on the new
+     * ones, and so would the baseline eviction folds it into.
+     * @param patch - The patch.
+     * @returns The patch, with the rows added to its row patch when there are any.
+     */
+    private withRecreatedRows(patch: Patch): Patch {
+        const recreated = this.history.placed(createdNodes(patch.log));
+        const rows = recreated.length === 0 ? null : this.arrangement.rowsNow(recreated);
+        if (rows === null) {
+            return patch;
+        }
+
+        return Object.freeze({ ...patch, rows: patch.rows === null ? rows : mergeRowPatches(rows, patch.rows) });
     }
 
     /**
@@ -2067,7 +2091,7 @@ export class Dispatcher {
         // A group that took a before-arrangement records even when it wrote the value it found: a
         // `layout.set` of the current layout runs it again, and where it lands is the step.
         const sealed = group.draft.seal();
-        const patch = open === null ? withoutNoOps(sealed) : sealed;
+        let patch = open === null ? withoutNoOps(sealed) : sealed;
         this.checkStrict();
         const oplog = [...group.holds.keys()];
         if (open !== null) {
@@ -2078,6 +2102,9 @@ export class Dispatcher {
         // seeded coordinates, so no later restore maps the dataset it replaced onto it.
         const newEpoch =
             open !== null && this.store.state.graph.epoch !== group.epoch ? this.arrangement.settledCapture() : null;
+        if (newEpoch === null) {
+            patch = this.withRecreatedRows(patch);
+        }
         let id: string | null = null;
         const baseline = !isEmptyPatch(patch) && this.intoBaseline(group, slicesOf(patch));
         if (isEmptyPatch(patch) || baseline) {

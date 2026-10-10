@@ -20,11 +20,13 @@ const EDGES = [
 const UNFRAMED_DISTANCE = 10;
 
 /**
- * Wait long enough for a frame to answer a framing request.
- * @returns A promise settling after the wait.
+ * Wait until a frame has answered every framing request: the queue has drained, the layout has
+ * settled, the camera has stopped and a frame of that has been drawn.
+ * @param element - The element.
+ * @returns A promise settling once the picture is final.
  */
-async function frames(): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, 200));
+async function frames(element: Graphty): Promise<void> {
+    await element.waitForStableFrame();
 }
 
 describe("autoFrame", () => {
@@ -55,10 +57,8 @@ describe("autoFrame", () => {
         container.appendChild(element);
         element.nodeData = NODES;
         element.edgeData = EDGES;
-        await frames();
-        await element.graph.waitForSettled();
         // The first settlement's re-frame lands on the frame after it.
-        await frames();
+        await frames(element);
 
         return element;
     }
@@ -84,9 +84,7 @@ describe("autoFrame", () => {
         const before = element.graph.getCameraState().cameraDistance;
 
         element.layout = "circular";
-        await frames();
-        await element.graph.waitForSettled();
-        await frames();
+        await frames(element);
 
         assert.strictEqual(element.graph.getCameraState().cameraDistance, before);
     });
@@ -95,7 +93,7 @@ describe("autoFrame", () => {
         const element = await mount({ "auto-frame": "false" });
 
         element.zoomToFit();
-        await frames();
+        await frames(element);
 
         assert.notStrictEqual(element.graph.getCameraState().cameraDistance, UNFRAMED_DISTANCE);
     });
@@ -107,7 +105,7 @@ describe("autoFrame", () => {
 
         element.zoomToFit();
         element.autoFrame = false;
-        await frames();
+        await frames(element);
 
         assert.notStrictEqual(element.graph.getCameraState().cameraDistance, placed);
     });
@@ -119,9 +117,7 @@ describe("autoFrame", () => {
         await element.updateComplete;
         assert.isTrue(element.autoFrame);
         element.nodeData = [...NODES, { id: "e" }];
-        await frames();
-        await element.graph.waitForSettled();
-        await frames();
+        await frames(element);
 
         assert.notStrictEqual(element.graph.getCameraState().cameraDistance, UNFRAMED_DISTANCE);
     });

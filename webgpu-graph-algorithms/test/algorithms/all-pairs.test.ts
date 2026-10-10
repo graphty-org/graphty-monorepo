@@ -9,7 +9,7 @@
  * `n * n` stays small -- the empty graph, one node, a self-loop, karate, the 30 x 30 grid, the 500-path, the
  * 1000-star, K64, the 101-cycle, seeded G(n, m) with and without self-loops and parallels, directed and undirected,
  * weighted and not, a disconnected graph -- plus the two sizes the blocking alone can get wrong: 33 nodes and
- * `32 x 33 + 1 = 1057` (`randomBig`; 50 on a software adapter), where exactly one tile of each kind is a partial edge tile. Then `weighted: false`, the
+ * `32 x 33 + 1 = 1057` (`randomBig`; 129 under coverage, 50 on a software adapter), where exactly one tile of each kind is a partial edge tile. Then `weighted: false`, the
  * refusals (a negative or non-finite weight, a wrong `dest`, an aborted signal, the node count one above the
  * device's ceiling), the submit split, and the ceiling arithmetic.
  */
@@ -57,11 +57,18 @@ interface Fixture {
 }
 
 /**
- * The largest n of the scaled fixtures on this adapter: 1057 on hardware, 50 on a software adapter at 1 / 50. A
- * function, read inside the test: the setup probes the adapter in a beforeAll, after this module is collected.
+ * The largest n of the scaled fixtures on this adapter: 1057 on hardware, 50 on a software adapter at 1 / 50, and
+ * `32 x 4 + 1 = 129` on hardware under coverage, which slows the O(n^3) CPU references several-fold (1057 nodes cost
+ * randomBig/uniform/directed about 20 s idle there). 129 still reaches every tile case 1057 does: the same one-row
+ * partial last tile in all three phases, five rounds whose middle pivots have blocks on both sides (the strip and
+ * phase-2 index skips both taken and not), and `4 x 4` phase-2 blocks off the pivot (`i != j`). A function, read
+ * inside the test: the setup probes the adapter in a beforeAll, after this module is collected.
  */
 function big(): number {
-    return gpuScale() < 1 ? 50 : 1057;
+    if (gpuScale() < 1) {
+        return 50;
+    }
+    return process.env.GRAPHTY_COVERAGE_RUN === "1" ? 129 : 1057;
 }
 
 const FIXTURES: readonly Fixture[] = [
@@ -121,7 +128,10 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
 
     // The slowest fixture, grid30/integer, takes 6.3-6.9 s alone on lavapipe with coverage (18.6 s before it stopped
     // sweeping a second Floyd-Warshall), nearly all of it the blocked f32 reference; 120 s covers a busy machine.
+    // On the NVIDIA card with coverage it takes 6.2 s idle and 11.7-16.8 s beside 32 busy cores; randomBig/uniform/
+    // directed, at 129 nodes under coverage (see big()), 0.06 s idle and 0.1-0.3 s loaded (19.6 s and 48.3 s at 1057).
     for (const fixture of FIXTURES) {
+        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 97 s on the T4 lane, 31 s on the dev box's RTX 4070 SUPER under load, 21 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
         it(`${fixture.name}: the matrix against the references, the invariants, run twice bitwise, the snapshot unchanged`, async (t: TestContext) => {
             requireGpu(t);
             const s = snapshotOf(typeof fixture.edges === "function" ? fixture.edges(big()) : fixture.edges, {
@@ -329,6 +339,7 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
         });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 32 s on the T4 lane, 15 s on CI's lavapipe, 14 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it("the sabotage report passes on the real kernels (factor 0)", async (t) => {
         requireGpu(t);
         const report = await allPairsReport(ctx);

@@ -484,6 +484,65 @@ One message is one undoable step. A command you register with
 `graph.getAiManager()?.registerCommand(...)` joins that step only through `ctx.tx`; see
 [Undo and History](./undo#commands-you-register-with-the-ai-assistant).
 
+### Building an AI Settings Screen
+
+`@graphty/graphty-element/catalog` describes the providers as plain data, without loading an LLM
+SDK, so a settings screen (or a Node script) can be built from it:
+
+```typescript
+import { AI_PROVIDER_DESCRIPTORS, AI_STAGES, checkApiKeyShape } from "@graphty/graphty-element/catalog";
+
+for (const provider of AI_PROVIDER_DESCRIPTORS) {
+    if (provider.testOnly) continue;
+    // provider.id, provider.plainName, provider.requiresKey, provider.keyShape?.prefix,
+    // provider.defaultModel, provider.models[i].supportsTools
+}
+
+const check = checkApiKeyShape("openai", typedKey);
+if (!check.valid) {
+    // check.code is "E_KEY_EMPTY", "E_KEY_PREFIX" (check.params.prefix) or
+    // "E_KEY_TOO_SHORT" (check.params.minLength); the words are yours.
+}
+```
+
+`AI_STATES`, `AI_STAGES` and `AI_TOOL_CALL_STATUSES` list every value `status.state`,
+`status.stage` and a tool call's `status` can take, for a status display keyed by value. The
+catalogue holds no labels and no order: choose your own.
+
+Every result of `aiCommand()` carries a `code` and its `params`, so you can tell a missing key
+from a cancelled command or a failed tool without reading `result.message`, which is English
+for a log and may change. `AI_RESULT_CODES` lists every code:
+
+```typescript
+import type { AiResultCode } from "@graphty/graphty-element/catalog";
+
+// Your words, keyed by code; AI_RESULT_CODES lists every code to fill in.
+const words: Partial<Record<AiResultCode, string>> = {
+    AI_KEY_MISSING: "Add an API key in Settings first.",
+    AI_CANCELLED: "Stopped.",
+};
+
+const result = await graph.aiCommand(text);
+show(result.success ? (result.llmText ?? "Done.") : (words[result.code] ?? "Something went wrong."));
+```
+
+| Code                        | `success` | `params`              | When                                                     |
+| --------------------------- | --------- | --------------------- | -------------------------------------------------------- |
+| `AI_COMPLETED`              | true      | `toolCalls`           | The model answered, running every tool it called         |
+| `AI_NO_RESPONSE`            | true      |                       | The model wrote nothing and called no tool               |
+| `AI_NOT_ENABLED`            | false     |                       | `enableAiControl()` was not called                       |
+| `AI_DISPOSED`               | false     |                       | The assistant was shut down                              |
+| `AI_KEY_MISSING`            | false     | `provider`            | The provider needs an API key and has none               |
+| `AI_KEY_REJECTED`           | false     | `provider`, `status`  | The provider refused the key (HTTP 401 or 403)           |
+| `AI_PROVIDER_ERROR`         | false     | `provider`, `status`? | The provider or the network failed                       |
+| `AI_CANCELLED`              | false     |                       | `cancelAiCommand()` ended it; its changes are taken back |
+| `AI_UNDONE`                 | false     |                       | It was undone while it ran; its changes are taken back   |
+| `AI_TOOL_UNKNOWN`           | false     | `tool`                | The model called a tool that does not exist              |
+| `AI_TOOL_INVALID_ARGUMENTS` | false     | `tool`                | The model called a tool with arguments it refused        |
+| `AI_TOOL_FAILED`            | false     | `tool`                | A tool ran and reported failure                          |
+| `AI_TOOL_THREW`             | false     | `tool`                | A tool threw; the command's changes are taken back       |
+| `AI_FAILED`                 | false     |                       | Anything else went wrong                                 |
+
 ### Remembering API Keys
 
 `ApiKeyManager` from `@graphty/graphty-element/ai` holds the reader's provider keys. It
@@ -495,7 +554,7 @@ import { ApiKeyManager } from "@graphty/graphty-element/ai";
 
 const keys = new ApiKeyManager(); // restores keys saved by an earlier page
 
-keys.enablePersistence(); // save keys in localStorage, encrypted, from now on
+keys.enablePersistence(); // save keys in localStorage, obscured (see below), from now on
 keys.setKey("anthropic", apiKey);
 keys.setDefaultProvider("anthropic"); // saved with the keys
 
@@ -504,13 +563,79 @@ const provider = keys.getDefaultProvider() ?? keys.getConfiguredProviders()[0];
 keys.disablePersistence(); // forget them on the next load (they stay in memory)
 ```
 
-With no argument, `enablePersistence()` encrypts with a built-in key: the keys are not stored
-in plain text, but anyone who can run script on the page can read them. Pass
-`{ encryptionKey }` (at least 10 characters) to use the reader's own password instead. The
-manager remembers that password in `sessionStorage`, so a reload in the same tab restores the
-keys and closing the tab ends it; after that, call `enablePersistence({ encryptionKey })` again
-to unlock them. `new ApiKeyManager({ storage, prefix })` changes where the keys are kept
-(default `localStorage` and `"@graphty-ai-keys"`).
+With no argument, `enablePersistence()` uses a built-in key, and that key is public in the
+package's source. **Keys saved that way are obscured, not encrypted**: they are not in plain
+text, but anyone with access to the page or the browser profile can decrypt them.
+
+To protect them, ask the reader for a passphrase and turn remembering on with it; the key is
+derived with PBKDF2 in WebCrypto, so you write no crypto yourself:
+
+```typescript
+import { ApiKeyManager } from "@graphty/graphty-element/ai";
+
+const keys = new ApiKeyManager();
+await keys.enablePersistenceWithPassphrase(passphrase, { salt: userId });
+```
+
+The salt is not secret, but one per reader (an account id, or random bytes you keep) means a
+guessed passphrase cannot be tried against every reader at once; it defaults to a fixed salt.
+The same passphrase and salt unlock the same keys on every page, and a wrong passphrase loads
+no keys and leaves the saved ones as they were. The key derived from the passphrase is kept in
+memory only, so nothing restores itself after a reload: ask for the passphrase again and call
+`enablePersistenceWithPassphrase` again.
+
+`enablePersistence({ encryptionKey })` (at least 10 characters) uses a key you supply instead.
+The manager remembers that key in clear text in `sessionStorage`, so a reload in the same tab
+restores the keys and closing the tab ends it; after that, call
+`enablePersistence({ encryptionKey })` again to unlock them. While the tab is open, anyone with
+access to the page can read the key there, which is why a passphrase goes through
+`enablePersistenceWithPassphrase` instead.
+`new ApiKeyManager({ storage, prefix })` changes where the keys are kept (default
+`localStorage` and `"@graphty-ai-keys"`).
+
+### The In-Browser Model (WebLLM)
+
+With the optional `@mlc-ai/web-llm` package installed, the assistant can run a model in the
+reader's browser over WebGPU, with no key. Only some models can call the assistant's tools --
+select nodes, run a layout, zoom -- because WebLLM accepts tools only for its Hermes models.
+Every other model answers in text only: it can describe and explain, but it changes nothing.
+
+```typescript
+import { isGraphtyError } from "@graphty/graphty-element";
+
+try {
+    await graph.enableAiControl({ provider: "webllm", model: "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC" });
+} catch (err) {
+    if (isGraphtyError(err) && err.code === "E_MISSING_PACKAGE") {
+        // err.details.package is the package to install: "@mlc-ai/web-llm"
+    }
+}
+```
+
+The model downloads on the first command. To choose a model from the list, or to show the
+download's progress before the first command, build the provider yourself and pass it in:
+
+```typescript
+import { getWebLlmProviderClass } from "@graphty/graphty-element/ai";
+
+const WebLlmProvider = await getWebLlmProviderClass();
+for (const m of WebLlmProvider.getAvailableModels()) {
+    console.log(m.id, m.supportsTools, m.downloadMB); // capability and approximate download, in MB
+}
+
+const provider = new WebLlmProvider();
+provider.configure({ model: "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC" }); // can call tools
+await provider.initialize(); // downloads the model the first time; onProgress() reports it
+console.log(provider.modelSupportsTools); // true
+
+await graph.enableAiControl({ provider: "webllm", providerInstance: provider });
+```
+
+The trade-off is the download. The default model, Llama 3.2 1B, is about 500 MB and answers in
+text only; the Hermes models that can call tools are about 4 to 4.5 GB and need a GPU with
+roughly 4 to 5 GB of memory. The browser caches a model after its first download.
+`modelSupportsTools` tells you which kind the provider has, so you can say so to the reader;
+the provider never sends tools to a model that would refuse them.
 
 ### Voice Input
 

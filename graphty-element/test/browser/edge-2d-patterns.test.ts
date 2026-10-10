@@ -38,9 +38,7 @@ describe("Edge 2D Patterns Integration", () => {
         await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         // A style pass works out what each element should look like; a FRAME is what applies it.
         // This graph was never `init()`ed, so nothing is driving the render loop and the frame
@@ -95,9 +93,7 @@ describe("Edge 2D Patterns Integration", () => {
         await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         // A style pass works out what each element should look like; a FRAME is what applies it.
         // This graph was never `init()`ed, so nothing is driving the render loop and the frame
@@ -177,9 +173,7 @@ describe("Edge 2D Patterns Integration", () => {
         await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
-        await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-        });
+        await graph.waitForSettled();
 
         // A style pass works out what each element should look like; a FRAME is what applies it.
         // This graph was never `init()`ed, so nothing is driving the render loop and the frame

@@ -348,7 +348,7 @@ describe("notes.add", () => {
     // 10,000 adds in one transaction: 0.8-0.9 s alone. It was 7.5-12 s because each member's
     // checkpoint copied the whole draft, so the n-th add walked n entries (50 million in all);
     // checkpoints are now a position in the draft's journal. The test asserts that work, not
-    // a time: the entries walked per add stay constant. The 30 s limit is vitest's default.
+    // a time: the entries walked per add stay constant.
     it("refuses a note larger than 256 KB saved, and a session past 10,000 notes", async () => {
         const { session } = notesHarness();
         const big = refuses(session, () =>
@@ -367,7 +367,7 @@ describe("notes.add", () => {
         assert.isBelow(visited, 10_000 * PER_ADD, "an add walks entries in proportion to the notes held");
         const full = refuses(session, () => session.notes.add({ text: "one more", targets: [{ graph: true }] }));
         assert.deepEqual([full.code, full.details.reason], ["E_TOO_LARGE", "notes"]);
-    }, 30_000);
+    });
 });
 
 describe("notes.update and notes.remove", () => {

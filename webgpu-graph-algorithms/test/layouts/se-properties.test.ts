@@ -131,6 +131,7 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
         ctx.release(s);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 18 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "fixed nodes never move: a random mask set between steps keeps every pinned row and its velocity bitwise where they were",
         async (t) => {
@@ -198,6 +199,7 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
         });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 18 s on the Windows WARP host lane, 12 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
     it(
         "setPosition is visible in the next readback, never clobbered by an older batch, and does not reset the dragged row's velocity",
         async (t) => {
@@ -252,6 +254,7 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 54 s on the Windows WARP host lane, 25 s on lavapipe on the dev box under load, 14 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "run({ maxIter, batch: 1 }) stops at maxIter exactly with stats.iteration agreeing; the preset has no budget option, so `settled` is the shared rule alone (false with settling disabled)",
         async (t) => {
@@ -280,6 +283,7 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 17 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "reheat on unpin, setPosition and load, not on pin (D8); the velocities are bitwise unchanged across a reheat (onReheat is empty)",
         async (t) => {
@@ -326,155 +330,143 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
         CASE_TIMEOUT,
     );
 
-    it(
-        "pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A is still fixed",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.integer({ min: 1, max: n - 1 }),
-                    fc.integer({ min: 0, max: n - 2 }),
-                    async (a, bRaw) => {
-                        const b = Math.min(bRaw, a - 1);
-                        const keep = Uint32Array.from(Array.from({ length: n }, (_, i) => i).filter((i) => i !== b));
-                        const derived = s.inducedSubgraph(keep);
-                        const next = derived.snapshot;
-                        const remap = derived.nodeRemap;
-                        if (remap === null) {
-                            throw new Error("inducedSubgraph without a node remap");
-                        }
-                        try {
-                            await withSe(ctx, BASE, async (sim) => {
-                                const positions = Float32Array.from(start);
-                                sim.load(s, positions);
-                                sim.setFixed(pinMask(n, a));
-                                await sim.step(2);
-                                const nextPositions = new Float32Array(3 * next.nodeCount);
-                                for (let i = 0; i < n; i++) {
-                                    const j = remap[i];
-                                    if (j === INVALID_INDEX) {
-                                        continue;
-                                    }
-                                    nextPositions[3 * j] = positions[3 * i];
-                                    nextPositions[3 * j + 1] = positions[3 * i + 1];
-                                    nextPositions[3 * j + 2] = positions[3 * i + 2];
-                                }
-                                const aNew = remap[a];
-                                expect(aNew).toBe(a - 1);
-                                sim.load(next, nextPositions);
-                                sim.setFixed(pinMask(next.nodeCount, aNew));
-                                const held = [
-                                    nextPositions[3 * aNew],
-                                    nextPositions[3 * aNew + 1],
-                                    nextPositions[3 * aNew + 2],
-                                ];
-                                await sim.step(3);
-                                expect(nextPositions[3 * aNew]).toBe(held[0]);
-                                expect(nextPositions[3 * aNew + 1]).toBe(held[1]);
-                                expect(nextPositions[3 * aNew + 2]).toBe(held[2]);
-                                if (b !== aNew) {
-                                    const moved = [nextPositions[3 * b], nextPositions[3 * b + 1]];
-                                    expect(
-                                        moved[0] !== positions[3 * (b + 1)] || moved[1] !== positions[3 * (b + 1) + 1],
-                                        "the remapped neighbour moves",
-                                    ).toBe(true);
-                                }
-                            });
-                        } finally {
-                            ctx.release(next);
-                        }
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
-
-    it(
-        "2D writes z === center.z whatever z was uploaded, for random z and random center.z",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.float({ min: -10, max: 10, noNaN: true }).filter((v) => !Object.is(v, -0)),
-                    fc.integer({ min: 0, max: 1000 }),
-                    async (cz, zSeed) => {
-                        const options: SpringElectricalOptions = { ...BASE, center: [0, 0, cz] };
-                        await withSe(ctx, options, async (sim) => {
-                            const positions = seededScenePositions(s, 7, 2, 1, [0, 0, cz]);
-                            for (let i = 0; i < n; i++) {
-                                positions[3 * i + 2] = ((zSeed + 7 * i) % 13) - 6;
-                            }
+    it("pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A is still fixed", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.integer({ min: 1, max: n - 1 }),
+                fc.integer({ min: 0, max: n - 2 }),
+                async (a, bRaw) => {
+                    const b = Math.min(bRaw, a - 1);
+                    const keep = Uint32Array.from(Array.from({ length: n }, (_, i) => i).filter((i) => i !== b));
+                    const derived = s.inducedSubgraph(keep);
+                    const next = derived.snapshot;
+                    const remap = derived.nodeRemap;
+                    if (remap === null) {
+                        throw new Error("inducedSubgraph without a node remap");
+                    }
+                    try {
+                        await withSe(ctx, BASE, async (sim) => {
+                            const positions = Float32Array.from(start);
                             sim.load(s, positions);
+                            sim.setFixed(pinMask(n, a));
                             await sim.step(2);
+                            const nextPositions = new Float32Array(3 * next.nodeCount);
                             for (let i = 0; i < n; i++) {
-                                expect(positions[3 * i + 2]).toBe(Math.fround(cz));
+                                const j = remap[i];
+                                if (j === INVALID_INDEX) {
+                                    continue;
+                                }
+                                nextPositions[3 * j] = positions[3 * i];
+                                nextPositions[3 * j + 1] = positions[3 * i + 1];
+                                nextPositions[3 * j + 2] = positions[3 * i + 2];
+                            }
+                            const aNew = remap[a];
+                            expect(aNew).toBe(a - 1);
+                            sim.load(next, nextPositions);
+                            sim.setFixed(pinMask(next.nodeCount, aNew));
+                            const held = [
+                                nextPositions[3 * aNew],
+                                nextPositions[3 * aNew + 1],
+                                nextPositions[3 * aNew + 2],
+                            ];
+                            await sim.step(3);
+                            expect(nextPositions[3 * aNew]).toBe(held[0]);
+                            expect(nextPositions[3 * aNew + 1]).toBe(held[1]);
+                            expect(nextPositions[3 * aNew + 2]).toBe(held[2]);
+                            if (b !== aNew) {
+                                const moved = [nextPositions[3 * b], nextPositions[3 * b + 1]];
+                                expect(
+                                    moved[0] !== positions[3 * (b + 1)] || moved[1] !== positions[3 * (b + 1) + 1],
+                                    "the remapped neighbour moves",
+                                ).toBe(true);
                             }
                         });
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
+                    } finally {
+                        ctx.release(next);
+                    }
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
 
-    it(
-        "the unit speed clamp: after one iteration every velocity row's |v| <= 1 + 8 x 2^-23 (the 2.5-ULP division, G3-F6), every free row's |dt v| <= timeStep x that x (1 + 4 x 2^-24), and its stored |dp| adds the two f32 position roundings",
-        async (t) => {
-            requireGpu(t);
-            // K5: v = v / sp after the clamp, sp = length(v). WGSL grants a compute shader's f32 division and
-            // inverse square root 2.5 ULP each (Vulkan; measured on the RTX 4070 SUPER, G3 finding G3-F6: lavapipe
-            // divides exactly), so a stored component sits within (2.5 + 2.5) x 2^-23 of the exact unit vector and
-            // |v| within 8 x 2^-23 of 1 -- the stated margin. dp = dt v is one more rounding per component, and the
-            // position store p + dp rounds once more on each side of the difference below, by at most half an ulp
-            // of |p| and of |p + dp| (2^-24 relative each), which at |p| ~ 1 and a small dt exceeds the dt-relative
-            // margin -- so the stored displacement carries that term explicitly and the velocity form does not.
-            const vMargin = 1 + 8 * 2 ** -23;
-            const dpMargin = vMargin * (1 + 4 * 2 ** -24);
-            const storeRounding = 2 ** -24;
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.integer({ min: 1, max: 100_000 }),
-                    fc.double({ min: 0.05, max: 2, noNaN: true }),
-                    async (seed, timeStep) => {
-                        const options: SpringElectricalOptions = { ...BASE, seed, timeStep };
-                        await withSe(ctx, options, async (sim) => {
-                            const run = stageRunner(sim);
-                            const read = inspector(sim);
-                            const positions = seededScenePositions(s, seed, 2, 1, null);
-                            sim.load(s, positions);
-                            await run("K5");
-                            const after = xyzOf(asF32(await read("positions")), n);
-                            const velocity = asF32(await read("velocity"));
-                            const dt = Math.fround(timeStep);
-                            for (let i = 0; i < n; i++) {
-                                const v = Math.hypot(velocity[3 * i], velocity[3 * i + 1], velocity[3 * i + 2]);
-                                expect(v, `|v| of node ${i}`).toBeLessThanOrEqual(vMargin);
-                                const dtv = Math.hypot(
-                                    Math.fround(dt * velocity[3 * i]),
-                                    Math.fround(dt * velocity[3 * i + 1]),
-                                );
-                                expect(dtv, `|dt v| of node ${i}`).toBeLessThanOrEqual(dt * dpMargin);
-                                const before = Math.hypot(positions[3 * i], positions[3 * i + 1]);
-                                const now = Math.hypot(after[3 * i], after[3 * i + 1]);
-                                const dp = Math.hypot(
-                                    after[3 * i] - positions[3 * i],
-                                    after[3 * i + 1] - positions[3 * i + 1],
-                                );
-                                expect(dp, `stored |dp| of node ${i}`).toBeLessThanOrEqual(
-                                    dt * dpMargin + storeRounding * (before + now),
-                                );
-                                expect(velocity[3 * i + 2], "2D never integrates z").toBe(0);
-                                expect(after[3 * i + 2]).toBe(0);
-                            }
-                        });
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
+    it("2D writes z === center.z whatever z was uploaded, for random z and random center.z", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.float({ min: -10, max: 10, noNaN: true }).filter((v) => !Object.is(v, -0)),
+                fc.integer({ min: 0, max: 1000 }),
+                async (cz, zSeed) => {
+                    const options: SpringElectricalOptions = { ...BASE, center: [0, 0, cz] };
+                    await withSe(ctx, options, async (sim) => {
+                        const positions = seededScenePositions(s, 7, 2, 1, [0, 0, cz]);
+                        for (let i = 0; i < n; i++) {
+                            positions[3 * i + 2] = ((zSeed + 7 * i) % 13) - 6;
+                        }
+                        sim.load(s, positions);
+                        await sim.step(2);
+                        for (let i = 0; i < n; i++) {
+                            expect(positions[3 * i + 2]).toBe(Math.fround(cz));
+                        }
+                    });
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
+
+    it("the unit speed clamp: after one iteration every velocity row's |v| <= 1 + 8 x 2^-23 (the 2.5-ULP division, G3-F6), every free row's |dt v| <= timeStep x that x (1 + 4 x 2^-24), and its stored |dp| adds the two f32 position roundings", async (t) => {
+        requireGpu(t);
+        // K5: v = v / sp after the clamp, sp = length(v). WGSL grants a compute shader's f32 division and
+        // inverse square root 2.5 ULP each (Vulkan; measured on the RTX 4070 SUPER, G3 finding G3-F6: lavapipe
+        // divides exactly), so a stored component sits within (2.5 + 2.5) x 2^-23 of the exact unit vector and
+        // |v| within 8 x 2^-23 of 1 -- the stated margin. dp = dt v is one more rounding per component, and the
+        // position store p + dp rounds once more on each side of the difference below, by at most half an ulp
+        // of |p| and of |p + dp| (2^-24 relative each), which at |p| ~ 1 and a small dt exceeds the dt-relative
+        // margin -- so the stored displacement carries that term explicitly and the velocity form does not.
+        const vMargin = 1 + 8 * 2 ** -23;
+        const dpMargin = vMargin * (1 + 4 * 2 ** -24);
+        const storeRounding = 2 ** -24;
+        await fc.assert(
+            fc.asyncProperty(
+                fc.integer({ min: 1, max: 100_000 }),
+                fc.double({ min: 0.05, max: 2, noNaN: true }),
+                async (seed, timeStep) => {
+                    const options: SpringElectricalOptions = { ...BASE, seed, timeStep };
+                    await withSe(ctx, options, async (sim) => {
+                        const run = stageRunner(sim);
+                        const read = inspector(sim);
+                        const positions = seededScenePositions(s, seed, 2, 1, null);
+                        sim.load(s, positions);
+                        await run("K5");
+                        const after = xyzOf(asF32(await read("positions")), n);
+                        const velocity = asF32(await read("velocity"));
+                        const dt = Math.fround(timeStep);
+                        for (let i = 0; i < n; i++) {
+                            const v = Math.hypot(velocity[3 * i], velocity[3 * i + 1], velocity[3 * i + 2]);
+                            expect(v, `|v| of node ${i}`).toBeLessThanOrEqual(vMargin);
+                            const dtv = Math.hypot(
+                                Math.fround(dt * velocity[3 * i]),
+                                Math.fround(dt * velocity[3 * i + 1]),
+                            );
+                            expect(dtv, `|dt v| of node ${i}`).toBeLessThanOrEqual(dt * dpMargin);
+                            const before = Math.hypot(positions[3 * i], positions[3 * i + 1]);
+                            const now = Math.hypot(after[3 * i], after[3 * i + 1]);
+                            const dp = Math.hypot(
+                                after[3 * i] - positions[3 * i],
+                                after[3 * i + 1] - positions[3 * i + 1],
+                            );
+                            expect(dp, `stored |dp| of node ${i}`).toBeLessThanOrEqual(
+                                dt * dpMargin + storeRounding * (before + now),
+                            );
+                            expect(velocity[3 * i + 2], "2D never integrates z").toBe(0);
+                            expect(after[3 * i + 2]).toBe(0);
+                        }
+                    });
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
 });

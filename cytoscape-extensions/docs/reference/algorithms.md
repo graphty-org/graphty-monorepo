@@ -107,10 +107,10 @@ Returns `PredictedLink[]`. Reads no edge weights. Takes no `field`. No Async twi
 
 With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.
 
-| Option            | Type      | Default            | Meaning                                                                                                                                                                                                                                                                                         |
-| ----------------- | --------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                                                                                                               |
-| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order, and `topK` counts rows, not pairs. A directed graph lists each pair once (see above). |
+| Option            | Type      | Default            | Meaning                                                                                                                                                                                                                                                                                           |
+| ----------------- | --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                                                                                                                 |
+| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. Each pair is listed once, so `topK` counts distinct pairs; on an undirected graph `source` is the node that comes first in the collection (see above). |
 
 ### `graphtyAdamicAdarScore`
 
@@ -220,10 +220,10 @@ Returns `PredictedLink[]`. Reads no edge weights. Takes no `field`. No Async twi
 
 With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.
 
-| Option            | Type      | Default            | Meaning                                                                                                                                                                                                                                                                                         |
-| ----------------- | --------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                                                                                                               |
-| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order, and `topK` counts rows, not pairs. A directed graph lists each pair once (see above). |
+| Option            | Type      | Default            | Meaning                                                                                                                                                                                                                                                                                           |
+| ----------------- | --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                                                                                                                 |
+| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. Each pair is listed once, so `topK` counts distinct pairs; on an undirected graph `source` is the node that comes first in the collection (see above). |
 
 ### `graphtyCommonNeighborsScore`
 
@@ -466,9 +466,10 @@ Returns `{ cut(height: number): Partition<object>; readonly merges: number; }`. 
 
 Distances are hop counts: weights are not read, and nodes with no path between them never merge. `cut(height)` returns the clusters of the merge tree whose height is `height` or less, where a node has height 0 and a merge is one more than its taller part. So `cut(0)` gives every node alone, and a large height gives one cluster per connected component. `merges` is the number of merges made.
 
-| Option    | Type                                            | Default    | Meaning                                                                                                                                                                                         |
-| --------- | ----------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `linkage` | `"single" \| "complete" \| "average" \| "ward"` | `"single"` | How the distance between two clusters is read from their members' hop distances: the minimum (`"single"`), the maximum (`"complete"`), the mean (`"average"`) or Ward's scaled mean (`"ward"`). |
+| Option     | Type                                            | Default    | Meaning                                                                                                                                                                                         |
+| ---------- | ----------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `linkage`  | `"single" \| "complete" \| "average" \| "ward"` | `"single"` | How the distance between two clusters is read from their members' hop distances: the minimum (`"single"`), the maximum (`"complete"`), the mean (`"average"`) or Ward's scaled mean (`"ward"`). |
+| `maxNodes` | `number`                                        | no bound   | Refuse a graph of more nodes than this before allocating its n x n matrices (28 n^2 bytes), with a RangeError of code `E_TOO_LARGE` and `params` `{ nodeCount, maxNodes, bytes }`.              |
 
 ### `graphtyHits`
 
@@ -776,16 +777,16 @@ No options of its own.
 
 Returns `Partition<{ loss: number; iterations: number; converged: boolean; }>`. Reads no edge weights. No Async twin: it runs on the CPU only.
 
-On an 80-node graph the defaults (`maxIterations: 100`, `learningRate: 0.01`) end with `converged: false` and mixed clusters. Check `converged`; there, `maxIterations: 2000, learningRate: 0.05` converges in about 750 iterations. `converged: true` does not mean the clusters are right: each isolated node or extra component takes one of the `numClusters` centers, so add 3 isolated nodes to that graph and, with the same settings, it converges with three of the four groups merged. Run it on the component you want to cluster, or raise `numClusters` by the number of extra components.
+Unconnected parts of the graph come apart at convergence, but connected communities blur: run to convergence, the embeddings of nodes joined by edges drift together. On an 80-node graph of 4 communities the defaults converge in about 100 iterations with each community spread over several clusters; `maxIterations: 10` stops before that and finds the 4 communities on most such graphs, with `converged: false`. `converged: true` does not mean the clusters are right: each isolated node or extra component takes one of the `numClusters` centers, so add 3 isolated nodes to that graph and the defaults give two communities the same cluster. Run it on the component you want to cluster, or raise `numClusters` by the number of extra components.
 
-| Option          | Type     | Default  | Meaning                                                          |
-| --------------- | -------- | -------- | ---------------------------------------------------------------- |
-| `numClusters`   | `number` | required | Number of cluster centers: an integer in `[1, nodeCount]`.       |
-| `maxIterations` | `number` | `100`    | Iteration cap.                                                   |
-| `tolerance`     | `number` | `1e-6`   | Stop when the loss changes by less than this between iterations. |
-| `seed`          | `number` | `42`     | Seed of the embedding initialization and the center draws.       |
-| `learningRate`  | `number` | `0.01`   | Gradient step.                                                   |
-| `lambda`        | `number` | `0.1`    | Weight of the neighbor-reconstruction and regularization terms.  |
+| Option          | Type     | Default  | Meaning                                                                                                                                                                                                |
+| --------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `numClusters`   | `number` | required | Number of cluster centers: an integer in `[1, nodeCount]`.                                                                                                                                             |
+| `maxIterations` | `number` | `1000`   | Iteration cap.                                                                                                                                                                                         |
+| `tolerance`     | `number` | `1e-6`   | Stop when the loss changes by less than this between iterations.                                                                                                                                       |
+| `seed`          | `number` | `42`     | Seed of the embedding initialization and the center draws.                                                                                                                                             |
+| `learningRate`  | `number` | `0.5`    | Fraction of the full step each node takes. The full step (1) moves a node to the sum of its out-neighbors' embeddings over (out-degree + 1). Stable up to 1; above 0.5 a bipartite part can oscillate. |
+| `lambda`        | `number` | `0.1`    | Weight of the neighbor and regularization terms in the loss (and its convergence test).                                                                                                                |
 
 ### `graphtyTeraHAC`
 
@@ -795,12 +796,13 @@ Returns `Partition<{ merges: number; }>`. Reads no edge weights. No Async twin: 
 
 With `numClusters`, the clusters returned are not the ones left when merging stopped: the run joins those into one tree and splits it again from the top. So a smaller `numClusters` is not always a coarsening of a larger one, and separate components can share a cluster while connected nodes are split. For clusters that keep separate components apart, use `graphtyHierarchicalClustering` and its `cut(height)`.
 
-| Option              | Type                                            | Default                 | Meaning                                                                                                                                                          |
-| ------------------- | ----------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `linkage`           | `"single" \| "complete" \| "average" \| "ward"` | `"average"`             | How the distance between two clusters is read from their members' pairwise distances: the minimum, the maximum, the mean, or (`"ward"`) the mean of the squares. |
-| `numClusters`       | `number`                                        | merge until one is left | Stop merging at this many clusters; a positive integer.                                                                                                          |
-| `distanceThreshold` | `number`                                        | no threshold            | Stop at the first merge whose linkage distance is above this.                                                                                                    |
-| `useGraphDistance`  | `boolean`                                       |                         | Pairwise distance: hop count along out-arcs (true, the default), or 1 for an arc from the lower to the higher node index and 2 for none (false).                 |
+| Option              | Type                                            | Default                 | Meaning                                                                                                                                                                                  |
+| ------------------- | ----------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `linkage`           | `"single" \| "complete" \| "average" \| "ward"` | `"average"`             | How the distance between two clusters is read from their members' pairwise distances: the minimum, the maximum, the mean, or (`"ward"`) the mean of the squares.                         |
+| `numClusters`       | `number`                                        | merge until one is left | Stop merging at this many clusters; a positive integer.                                                                                                                                  |
+| `distanceThreshold` | `number`                                        | no threshold            | Stop at the first merge whose linkage distance is above this.                                                                                                                            |
+| `useGraphDistance`  | `boolean`                                       |                         | Pairwise distance: hop count along out-arcs (true, the default), or 1 for an arc from the lower to the higher node index and 2 for none (false).                                         |
+| `maxNodes`          | `number`                                        | no bound                | Refuse a graph of more nodes than this before allocating the n x n distance matrix (8 n^2 bytes), with a RangeError of code `E_TOO_LARGE` and `params` `{ nodeCount, maxNodes, bytes }`. |
 
 ### `graphtyTopAdamicAdarCandidatesForNode`
 

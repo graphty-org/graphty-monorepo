@@ -51,6 +51,7 @@
 import { type GraphSnapshot, INVALID_INDEX, makeMask, type U8 } from "@graphty/graph-format";
 
 import type { EdgeId, FieldDescriptor, NodeId, Path, Scope } from "../../catalog/types";
+import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 import { VISIBILITY_DEFINITIONS, type VisibilityCommand } from "../commands/visibility";
 import { Dispatcher } from "../project/Dispatcher";
@@ -199,7 +200,9 @@ export interface VisibilityApi {
      *
      * Identity-stable and genuinely read-only: the same object comes back until the membership
      * changes, so `previous === next` is a valid staleness test. A consumer that only needs
-     * membership should call {@link VisibilityApi.isVisible}, which allocates nothing.
+     * membership should call {@link VisibilityApi.isVisible}, which allocates nothing. It yields each
+     * id as the graph holds it, but `has` takes an integer id written either way: on a graph whose
+     * node `34` is visible, `nodes.has("34")` is true.
      */
     readonly nodes: ReadonlySet<NodeId>;
     /** The visible edge ids, on the same terms as {@link VisibilityApi.nodes}. */
@@ -1070,11 +1073,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 return nodeMaskValue.has(node);
             }
 
-            if (typeof id !== "string") {
-                return false;
-            }
-
-            const edge = edgeMaskValue.indexOf(id);
+            // An edge id is text; the number it spells names the same edge.
+            const edge = edgeMaskValue.indexOf(String(id));
 
             return edge !== INVALID_INDEX && edgeMaskValue.has(edge);
         },
@@ -1085,7 +1085,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             if (cachedNodeSet === null || cachedNodeIds !== ids) {
                 cachedNodeIds = ids;
-                cachedNodeSet = sealedSet(ids, VISIBLE_HINT);
+                cachedNodeSet = sealedSet(ids, VISIBLE_HINT, otherIdSpelling);
             }
 
             return cachedNodeSet;
@@ -1097,7 +1097,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             if (cachedEdgeSet === null || cachedEdgeIds !== ids) {
                 cachedEdgeIds = ids;
-                cachedEdgeSet = sealedSet(ids, VISIBLE_HINT);
+                cachedEdgeSet = sealedSet(ids, VISIBLE_HINT, otherIdSpelling);
             }
 
             return cachedEdgeSet;

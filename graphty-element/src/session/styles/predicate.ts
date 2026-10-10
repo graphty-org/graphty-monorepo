@@ -416,7 +416,7 @@ function startsIdentifier(character: string): boolean {
  * @returns True for a letter, a digit or an underscore.
  */
 function continuesIdentifier(character: string): boolean {
-    return /[A-Za-z0-9_]/.test(character);
+    return /\w/.test(character);
 }
 
 /**

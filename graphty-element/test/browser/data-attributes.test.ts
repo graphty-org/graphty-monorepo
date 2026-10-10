@@ -18,9 +18,6 @@ import { afterEach, assert, describe, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
 
-/** How long the element needs to connect, finish its first update and ingest the attributes. */
-const SETTLE_MS = 600;
-
 let mounted: Graphty | null = null;
 
 /**
@@ -37,7 +34,8 @@ async function mountMarkup(markup: string): Promise<Graphty> {
 
     const element = container.querySelector("graphty-element") as Graphty;
     mounted = element;
-    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+    await element.updateComplete;
+    await element.waitForSettled();
 
     return element;
 }

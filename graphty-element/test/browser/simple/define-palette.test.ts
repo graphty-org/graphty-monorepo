@@ -10,7 +10,7 @@
 
 import "../../../src/graphty-element";
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { useBrandPalettes } from "../../../docs/examples/simple-tier/palette/use-brand-palettes";
 import { definePalette, isGraphtyError } from "../../../extend";
@@ -233,12 +233,14 @@ describe("the brand palettes from the guide's first example", () => {
 
         const run = element.run("degree", {}, { as: "deg" });
         await run;
-        const deadline = Date.now() + 5000;
-        const derived = (): boolean =>
-            element.session.styles.list().some((layer) => layer.source.by === "run" && layer.source.runId === run.id);
-        while (!derived() && Date.now() < deadline) {
-            await new Promise((settle) => setTimeout(settle, 10));
-        }
+        await vi.waitFor(() => {
+            assert.isTrue(
+                element.session.styles
+                    .list()
+                    .some((layer) => layer.source.by === "run" && layer.source.runId === run.id),
+                "the element derived a layer from the run",
+            );
+        });
         await operationQueueOf(element.graph).waitForCompletion();
 
         assert.strictEqual(painted("loner"), RAMP[0], "the lowest degree takes the ramp's first colour");

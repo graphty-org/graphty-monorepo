@@ -19,11 +19,11 @@ import { afterEach, assert, describe, it } from "vitest";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { LabelDeclutter, type NodeLabelCounts } from "../../src/managers/LabelDeclutter";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
+import { nextFrame } from "../helpers/real-input";
 
 const WIDTH = 640;
 const HEIGHT = 480;
 const FRAMES = 8;
-const FRAME_MS = 10;
 
 /** A hub with two leaves: the hub has the most edges, so its label is the one that is kept. */
 const EDGES = [
@@ -91,9 +91,7 @@ describe("node labels do not overlap", () => {
 
         for (let at = 0; at < FRAMES; at++) {
             g.scene.render();
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
+            await nextFrame();
         }
 
         if (view) {
@@ -337,9 +335,7 @@ describe("nodeLabelCounts counts the labels drawn and why the rest are not", () 
     async function frames(g: Graph, count = FRAMES): Promise<void> {
         for (let at = 0; at < count; at++) {
             g.scene.render();
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
+            await nextFrame();
         }
     }
 
@@ -574,10 +570,8 @@ describe("waitForStableFrame waits for the label counts to be announced", () => 
  * @param done - The condition.
  */
 async function waitFor(done: () => boolean): Promise<void> {
-    for (let at = 0; at < 200 && !done(); at++) {
-        await new Promise<void>((resolve) => {
-            setTimeout(resolve, 25);
-        });
+    for (let at = 0; at < 300 && !done(); at++) {
+        await nextFrame();
     }
 
     assert.isTrue(done(), "the condition held within 5 seconds");

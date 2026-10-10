@@ -11,7 +11,7 @@
  * and reads the size the style pass painted on every node.
  */
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 /*
  * A value import: importing the package is what defines the `<graphty-element>` custom element.
@@ -33,7 +33,6 @@ const EDGES = [
 const JSON_DOCUMENT = JSON.stringify({ nodes: NODES, edges: EDGES });
 
 const MOUNT_TIMEOUT_MS = 10000;
-const TEST_TIMEOUT_MS = 30000;
 
 /** When the story's two style requests are issued. */
 const ASKED = ["as the PageRank run ends", "after the runs have settled"] as const;
@@ -65,14 +64,12 @@ async function mount(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    const deadline = Date.now() + MOUNT_TIMEOUT_MS;
-    while (!mounted.graph.initialized) {
-        if (Date.now() > deadline) {
-            throw new Error("the element never finished initialising");
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+    await vi.waitFor(
+        () => {
+            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+        },
+        { timeout: MOUNT_TIMEOUT_MS },
+    );
 
     return mounted;
 }
@@ -103,58 +100,54 @@ describe("Degree colour and PageRank size, asked for without waiting", () => {
 
     for (const asked of ASKED) {
         for (const [resumeName, resume] of Object.entries(RESUME_POINTS)) {
-            it(
-                `sizes every node by PageRank when asked ${asked} and the caller resumes ${resumeName}`,
-                async () => {
-                    const where = `asked ${asked}, resumed ${resumeName}`;
-                    const { graph, session } = element;
+            it(`sizes every node by PageRank when asked ${asked} and the caller resumes ${resumeName}`, async () => {
+                const where = `asked ${asked}, resumed ${resumeName}`;
+                const { graph, session } = element;
 
-                    if (asked === "as the PageRank run ends") {
-                        const off = session.on("run:changed", (change: RunChange) => {
-                            if (change.phase === "end" && change.run.algorithm === "pagerank") {
-                                off();
-                                askForThePicture(change.run.id);
-                            }
-                        });
-                        void element.addDataFromSource("json", { data: JSON_DOCUMENT });
-                    } else {
-                        await element.addDataFromSource("json", { data: JSON_DOCUMENT });
-                        await graph.waitForSettled();
-                        const run = session.runs
-                            .list()
-                            .find((entry) => entry.algorithm === "pagerank" && entry.status === "succeeded");
-                        assert.isDefined(run, `${where}: the PageRank run did not succeed`);
-                        askForThePicture(run.id);
-                    }
-
-                    // "immediately" hands back nothing, so the caller does not yield at all.
-                    const resuming = resume();
-                    if (resuming !== undefined) {
-                        await resuming;
-                    }
-
+                if (asked === "as the PageRank run ends") {
+                    const off = session.on("run:changed", (change: RunChange) => {
+                        if (change.phase === "end" && change.run.algorithm === "pagerank") {
+                            off();
+                            askForThePicture(change.run.id);
+                        }
+                    });
+                    void element.addDataFromSource("json", { data: JSON_DOCUMENT });
+                } else {
+                    await element.addDataFromSource("json", { data: JSON_DOCUMENT });
                     await graph.waitForSettled();
+                    const run = session.runs
+                        .list()
+                        .find((entry) => entry.algorithm === "pagerank" && entry.status === "succeeded");
+                    assert.isDefined(run, `${where}: the PageRank run did not succeed`);
+                    askForThePicture(run.id);
+                }
 
-                    const { nodeCount } = session.data.statistics();
-                    assert.strictEqual(nodeCount, NODES.length, `${where}: the graph was not loaded`);
+                // "immediately" hands back nothing, so the caller does not yield at all.
+                const resuming = resume();
+                if (resuming !== undefined) {
+                    await resuming;
+                }
 
-                    const paint = paintOf(graph);
-                    const sizes: unknown[] = [];
-                    for (let index = 0; index < nodeCount; index++) {
-                        sizes.push(paint.styleOf("node", index)["node.size"]);
-                    }
+                await graph.waitForSettled();
 
-                    for (const size of sizes) {
-                        assert.isTrue(
-                            typeof size === "number" && size >= 1 && size <= 5,
-                            `${where}: a node was not sized by PageRank: sizes [${sizes.join(", ")}]`,
-                        );
-                    }
+                const { nodeCount } = session.data.statistics();
+                assert.strictEqual(nodeCount, NODES.length, `${where}: the graph was not loaded`);
 
-                    assert.isAbove(new Set(sizes).size, 1, `${where}: every node got one size`);
-                },
-                TEST_TIMEOUT_MS,
-            );
+                const paint = paintOf(graph);
+                const sizes: unknown[] = [];
+                for (let index = 0; index < nodeCount; index++) {
+                    sizes.push(paint.styleOf("node", index)["node.size"]);
+                }
+
+                for (const size of sizes) {
+                    assert.isTrue(
+                        typeof size === "number" && size >= 1 && size <= 5,
+                        `${where}: a node was not sized by PageRank: sizes [${sizes.join(", ")}]`,
+                    );
+                }
+
+                assert.isAbove(new Set(sizes).size, 1, `${where}: every node got one size`);
+            });
         }
     }
 });

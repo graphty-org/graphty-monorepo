@@ -40,7 +40,7 @@ describe("Mouse Controls Integration", () => {
             await operationQueueOf(graph).waitForCompletion();
 
             // Wait for rendering to stabilize
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForStableFrame();
         });
 
         afterEach(() => {
@@ -188,7 +188,7 @@ describe("Mouse Controls Integration", () => {
             await operationQueueOf(graph).waitForCompletion();
 
             // Wait for rendering to stabilize
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForStableFrame();
         });
 
         afterEach(() => {
@@ -318,7 +318,7 @@ describe("Mouse Controls Integration", () => {
             await operationQueueOf(graph).waitForCompletion();
 
             // Wait for rendering to stabilize
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForStableFrame();
         });
 
         afterEach(() => {

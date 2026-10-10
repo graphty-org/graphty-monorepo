@@ -95,6 +95,7 @@ describe("the Data place on the real element", () => {
         await page.viewport(1366, 768);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "lists the graph file as one source holding a node table and an edge table, and follows undo",
         async () => {
@@ -124,6 +125,7 @@ describe("the Data place on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "lists every attribute the element describes, with its fill when some elements lack a value",
         async () => {
@@ -158,6 +160,7 @@ describe("the Data place on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "opens an attribute's inspector on a click, and Edit source... opens the Data page",
         async () => {
@@ -189,6 +192,7 @@ describe("the Data place on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Add label line binds a new layer's node label to the attribute and selects it, as one undoable step",
         async () => {
@@ -218,6 +222,7 @@ describe("the Data place on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Show in table on an edge attribute opens the table dock",
         async () => {
@@ -238,6 +243,7 @@ describe("the Data place on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "shows Find past 15 attributes, and Find narrows the list by name",
         async () => {

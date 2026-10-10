@@ -24,7 +24,7 @@
  * between an update pass and the render that follows it.
  */
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 // Imported for its side effect as well as its type: it is what defines <graphty-element>.
@@ -45,14 +45,11 @@ const EDGES = [
 /** How long the layout, the framing and the frame after them are given. */
 const STABLE_TIMEOUT_MS = 15000;
 
-/** How long to keep drawing after the element says the picture is final. */
-const TAIL_MS = 400;
+/** How many frames to keep drawing after the element says the picture is final. */
+const TAIL_FRAMES = 24;
 
-/** Room for the settle, the tail and a cold start. */
-const CASE_TIMEOUT_MS = 30000;
-
-/** How long a shader's source is held back when a test stands in for a slow module server. */
-const SHADER_DELAY_MS = 3000;
+/** How many frames to draw with every shader held back, before letting them arrive. */
+const HELD_FRAMES = 10;
 
 /**
  * How many pixels may change colour bucket before two frames count as different pictures.
@@ -77,6 +74,37 @@ function pixelsMoved(one: Uint32Array, other: Uint32Array): number {
     }
 
     return moved / 2;
+}
+
+/**
+ * Wait until the graph's own render loop has drawn some frames.
+ * @param graph - The graph whose render loop to count.
+ * @param count - How many frames.
+ */
+async function framesDrawn(graph: Graph, count: number): Promise<void> {
+    const scene = graph.getScene();
+
+    await new Promise<void>((resolve) => {
+        let drawn = 0;
+        const observer = scene.onAfterRenderObservable.add(() => {
+            drawn++;
+
+            if (drawn >= count) {
+                scene.onAfterRenderObservable.remove(observer);
+                resolve();
+            }
+        });
+    });
+}
+
+/** Shader sources held back by {@link holdShadersBack}, and the way to let them through. */
+interface HeldShaders {
+    /** How many shader fetches are being held. */
+    readonly held: number;
+    /** Let every held fetch, and every later one, through. */
+    release: () => void;
+    /** Settles once every fetch held so far has finished. */
+    arrived: () => Promise<unknown>;
 }
 
 /** Where the camera is and where every node is, as one comparable value. */
@@ -129,18 +157,24 @@ describe("knowing the picture is final", () => {
     }
 
     /**
-     * Hold back every shader source this graph's engine fetches from now on.
+     * Hold back every shader source this graph's engine fetches from now on, until released.
      *
      * Babylon fetches a shader's source with a dynamic `import()` the first time an effect needs
-     * a variant, through the `extraInitializationsAsync` step of `createEffect`. Delaying that
+     * a variant, through the `extraInitializationsAsync` step of `createEffect`. Holding that
      * step stands in for a slow module server -- the pre-push gate, where the dev server shares a
      * process with thousands of unit tests. Effects already compiled are cached and unaffected.
+     * @returns The held fetches, and the way to release them.
      */
-    function holdShadersBack(): void {
+    function holdShadersBack(): HeldShaders {
         const engine = graph.engine as unknown as {
             createEffect: (base: unknown, options: unknown, ...rest: unknown[]) => unknown;
         };
         const createEffect = engine.createEffect.bind(engine);
+        let release = (): void => undefined;
+        const gate = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        const fetches: Promise<void>[] = [];
 
         engine.createEffect = (base, options, ...rest) => {
             const initialise = (options as { extraInitializationsAsync?: () => Promise<void> } | null)
@@ -154,14 +188,53 @@ describe("knowing the picture is final", () => {
                 base,
                 {
                     ...(options as object),
-                    extraInitializationsAsync: async () => {
-                        await new Promise((resolve) => setTimeout(resolve, SHADER_DELAY_MS));
-                        await initialise();
+                    extraInitializationsAsync: () => {
+                        const fetch = gate.then(initialise);
+                        fetches.push(fetch);
+
+                        return fetch;
                     },
                 },
                 ...rest,
             );
         };
+
+        return {
+            get held() {
+                return fetches.length;
+            },
+            release,
+            arrived: () => Promise.allSettled(fetches),
+        };
+    }
+
+    /**
+     * Draw some frames with the shaders still held, check the element does not call that picture
+     * final, then let the shaders through and wait for the picture the element calls final.
+     * @param shaders - The held shaders.
+     * @param what - What the held shaders draw, for the failure messages.
+     * @returns The final picture, and a later one drawn once every held shader has arrived.
+     */
+    async function finalAndLater(
+        shaders: HeldShaders,
+        what: string,
+    ): Promise<{ final: Uint32Array; later: Uint32Array }> {
+        await framesDrawn(graph, HELD_FRAMES);
+        assert.isAbove(shaders.held, 0, `no shader for ${what} was fetched, so holding them back proves nothing`);
+        assert.isFalse(
+            graph.isFrameStable,
+            `the picture was called final while the shaders for ${what} were held back`,
+        );
+
+        shaders.release();
+        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        const final = await histogram();
+
+        await shaders.arrived();
+        await framesDrawn(graph, TAIL_FRAMES);
+        const later = await histogram();
+
+        return { final, later };
     }
 
     beforeEach(async () => {
@@ -178,218 +251,187 @@ describe("knowing the picture is final", () => {
         container.remove();
     });
 
-    it(
-        "does not call the picture final at the moment the layout settles",
-        async () => {
-            let stableWhenSettled: boolean | undefined;
-            let drawnWhenSettled: number | undefined;
-            let drawn = 0;
+    it("does not call the picture final at the moment the layout settles", async () => {
+        let stableWhenSettled: boolean | undefined;
+        let drawnWhenSettled: number | undefined;
+        let drawn = 0;
 
-            graph.getScene().onAfterRenderObservable.add(() => {
-                drawn++;
-            });
+        graph.getScene().onAfterRenderObservable.add(() => {
+            drawn++;
+        });
 
-            graph.on("graph-settled", () => {
-                stableWhenSettled ??= graph.isFrameStable;
-                drawnWhenSettled ??= drawn;
-            });
+        graph.on("graph-settled", () => {
+            stableWhenSettled ??= graph.isFrameStable;
+            drawnWhenSettled ??= drawn;
+        });
 
-            await graph.addNodes(NODES);
-            await graph.addEdges(EDGES);
-            await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
 
-            const drawnWhenFinal = drawn;
+        const drawnWhenFinal = drawn;
 
-            assert.isFalse(
-                stableWhenSettled,
-                "graph-settled fires a pass before the final framing is even requested, so the picture it announces is not the final one",
-            );
-            assert.isTrue(graph.isFrameStable, "the wait resolved, so the element says the picture is final");
-            assert.isDefined(drawnWhenSettled, "the layout settled");
-            assert.isAbove(
-                drawnWhenFinal,
-                drawnWhenSettled ?? 0,
-                "frames were drawn between the layout settling and the picture being called final -- which is where the camera is framed",
-            );
-            assert.isTrue(
-                graph.getUpdateManager().zoomToFitCompleted,
-                "the camera had been framed by the time the picture was called final",
-            );
-        },
-        CASE_TIMEOUT_MS,
-    );
+        assert.isFalse(
+            stableWhenSettled,
+            "graph-settled fires a pass before the final framing is even requested, so the picture it announces is not the final one",
+        );
+        assert.isTrue(graph.isFrameStable, "the wait resolved, so the element says the picture is final");
+        assert.isDefined(drawnWhenSettled, "the layout settled");
+        assert.isAbove(
+            drawnWhenFinal,
+            drawnWhenSettled ?? 0,
+            "frames were drawn between the layout settling and the picture being called final -- which is where the camera is framed",
+        );
+        assert.isTrue(
+            graph.getUpdateManager().zoomToFitCompleted,
+            "the camera had been framed by the time the picture was called final",
+        );
+    });
 
-    it(
-        "resolves only once nothing moves again",
-        async () => {
-            await graph.addNodes(NODES);
-            await graph.addEdges(EDGES);
-            await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+    it("resolves only once nothing moves again", async () => {
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
 
-            const before = picture();
+        const before = picture();
 
-            await new Promise((resolve) => setTimeout(resolve, TAIL_MS));
+        await framesDrawn(graph, TAIL_FRAMES);
 
-            const after = picture();
+        const after = picture();
 
-            assert.equal(after.camera, before.camera, "the camera moved after the picture was called final");
-            assert.equal(after.nodes, before.nodes, "the nodes moved after the picture was called final");
-        },
-        CASE_TIMEOUT_MS,
-    );
+        assert.equal(after.camera, before.camera, "the camera moved after the picture was called final");
+        assert.equal(after.nodes, before.nodes, "the nodes moved after the picture was called final");
+    });
 
-    it(
-        "announces the final picture once, on an event any consumer can subscribe to",
-        async () => {
-            let announcements = 0;
+    it("announces the final picture once, on an event any consumer can subscribe to", async () => {
+        let announcements = 0;
 
-            graph.on("graph-frame-stable", () => {
-                announcements++;
-            });
+        graph.on("graph-frame-stable", () => {
+            announcements++;
+        });
 
-            await graph.addNodes(NODES);
-            await graph.addEdges(EDGES);
-            await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
 
-            assert.equal(announcements, 1, "one settlement, one announcement");
-            assert.isTrue(
-                graph.getUpdateManager().zoomToFitCompleted,
-                "the camera had been framed before the announcement",
-            );
-        },
-        CASE_TIMEOUT_MS,
-    );
+        assert.equal(announcements, 1, "one settlement, one announcement");
+        assert.isTrue(
+            graph.getUpdateManager().zoomToFitCompleted,
+            "the camera had been framed before the announcement",
+        );
+    });
 
-    it(
-        "does not call the picture final while a style edit is still waiting to be drawn",
-        async () => {
-            await graph.addNodes(NODES);
-            await graph.addEdges(EDGES);
-            await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+    it("does not call the picture final while a style edit is still waiting to be drawn", async () => {
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
 
-            let drawn = 0;
+        let drawn = 0;
 
-            graph.getScene().onAfterRenderObservable.add(() => {
-                drawn++;
-            });
+        graph.getScene().onAfterRenderObservable.add(() => {
+            drawn++;
+        });
 
-            // A style edit resolves once the style pass has run; the meshes catch up on the next
-            // update pass the render loop runs. Between the two, the picture on screen is the old
-            // one, and a consumer photographing it must be told to wait.
-            await graph.getSession().styles.add({
-                name: "recolour",
-                target: "node",
-                selector: { match: "everything" },
-                set: { "node.color": "#ff00ff" },
-            });
+        // A style edit resolves once the style pass has run; the meshes catch up on the next
+        // update pass the render loop runs. Between the two, the picture on screen is the old
+        // one, and a consumer photographing it must be told to wait.
+        await graph.getSession().styles.add({
+            name: "recolour",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff00ff" },
+        });
 
-            const drawnAtEdit = drawn;
+        const drawnAtEdit = drawn;
 
-            if (graph.getStylePainter().hasPending) {
-                assert.isFalse(graph.isFrameStable, "the edit is not on screen yet, so the frame is not final");
-            }
+        if (graph.getStylePainter().hasPending) {
+            assert.isFalse(graph.isFrameStable, "the edit is not on screen yet, so the frame is not final");
+        }
 
-            await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
 
-            assert.isFalse(graph.getStylePainter().hasPending, "the wait resolved with the edit still undrawn");
-            assert.isAbove(drawn, drawnAtEdit, "a frame showing the edit was drawn before the wait resolved");
-        },
-        CASE_TIMEOUT_MS,
-    );
+        assert.isFalse(graph.getStylePainter().hasPending, "the wait resolved with the edit still undrawn");
+        assert.isAbove(drawn, drawnAtEdit, "a frame showing the edit was drawn before the wait resolved");
+    });
 
-    it(
-        "does not call the picture final while a mesh's shader is still arriving",
-        async () => {
-            // THE MECHANISM, NOT A TIMING GUESS. Babylon 8 fetches a StandardMaterial's shader
-            // source with a dynamic `import()` the first time a material needs a new variant, and
-            // a mesh whose shader is not ready is SKIPPED by the frame -- silently, with no error
-            // and nothing in the scene graph to say so. Every node and every label is drawn
-            // through a StandardMaterial. In the pre-push gate the dev server that answers that
-            // import shares a process with thousands of unit tests, so the import took long
-            // enough for the layout, the framing and the style pass to finish first, and the
-            // element called a frame with no nodes and no labels in it final.
-            //
-            // Holding the import back by a fixed delay stands in for that server; the delay is
-            // the size of the window, not the thing under test.
-            holdShadersBack();
+    it("does not call the picture final while a mesh's shader is still arriving", async () => {
+        // THE MECHANISM, NOT A TIMING GUESS. Babylon 8 fetches a StandardMaterial's shader
+        // source with a dynamic `import()` the first time a material needs a new variant, and
+        // a mesh whose shader is not ready is SKIPPED by the frame -- silently, with no error
+        // and nothing in the scene graph to say so. Every node and every label is drawn
+        // through a StandardMaterial. In the pre-push gate the dev server that answers that
+        // import shares a process with thousands of unit tests, so the import took long
+        // enough for the layout, the framing and the style pass to finish first, and the
+        // element called a frame with no nodes and no labels in it final.
+        //
+        // Holding the import back until everything else has finished stands in for that
+        // server: the layout settles and the camera is framed while no node can be drawn.
+        const shaders = holdShadersBack();
 
-            await graph.addNodes(NODES);
-            await graph.addEdges(EDGES);
-            await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        await vi.waitFor(
+            () => {
+                assert.isTrue(graph.getUpdateManager().zoomToFitCompleted, "the camera was framed");
+            },
+            { timeout: STABLE_TIMEOUT_MS },
+        );
 
-            const final = await histogram();
+        const { final, later } = await finalAndLater(shaders, "the nodes");
 
-            await new Promise((resolve) => setTimeout(resolve, SHADER_DELAY_MS + TAIL_MS));
+        assert.isAtMost(
+            pixelsMoved(final, later),
+            PIXEL_CHANGE,
+            "the picture called final was missing meshes whose shaders had not arrived yet",
+        );
+    });
 
-            const later = await histogram();
+    it("does not call the picture final while a glow's shaders are still arriving", async () => {
+        // The same hole one level up. A glow is drawn by an effect LAYER -- a render target,
+        // two blur passes and a merge -- and each of those fetches its shader source the same
+        // way. Until they arrive the layer composes nothing, again silently, so the frame
+        // shows the node without its glow.
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
 
-            assert.isAtMost(
-                pixelsMoved(final, later),
-                PIXEL_CHANGE,
-                "the picture called final was missing meshes whose shaders had not arrived yet",
-            );
-        },
-        CASE_TIMEOUT_MS,
-    );
+        const shaders = holdShadersBack();
 
-    it(
-        "does not call the picture final while a glow's shaders are still arriving",
-        async () => {
-            // The same hole one level up. A glow is drawn by an effect LAYER -- a render target,
-            // two blur passes and a merge -- and each of those fetches its shader source the same
-            // way. Until they arrive the layer composes nothing, again silently, so the frame
-            // shows the node without its glow.
-            await graph.addNodes(NODES);
-            await graph.addEdges(EDGES);
-            await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.getSession().styles.add({
+            name: "glow",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.glow": "#ff00ff" },
+        });
+        await graph.waitForSettled();
 
-            holdShadersBack();
+        const { final, later } = await finalAndLater(shaders, "the glow");
 
-            await graph.getSession().styles.add({
-                name: "glow",
-                target: "node",
-                selector: { match: "everything" },
-                set: { "node.glow": "#ff00ff" },
-            });
-            await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        assert.isAtMost(
+            pixelsMoved(final, later),
+            PIXEL_CHANGE,
+            "the picture called final was missing a glow whose shaders had not arrived yet",
+        );
+    });
 
-            const final = await histogram();
+    it("fails out loud rather than handing back a moving picture", async () => {
+        // Deliberately not awaited: the queue is busy, so a one millisecond wait cannot be
+        // satisfied honestly, and the only two answers are a rejection and a lie.
+        const loading = graph.addNodes(NODES);
+        let message = "";
 
-            await new Promise((resolve) => setTimeout(resolve, SHADER_DELAY_MS + TAIL_MS));
+        try {
+            await graph.waitForStableFrame({ timeoutMs: 1 });
+            assert.fail("the wait resolved on a graph that was still loading");
+        } catch (error) {
+            message = error instanceof Error ? error.message : String(error);
+        }
 
-            const later = await histogram();
+        assert.include(message, "still changing", "the failure says the picture was not final");
+        assert.include(message, "1 ms", "the failure says how long it waited");
 
-            assert.isAtMost(
-                pixelsMoved(final, later),
-                PIXEL_CHANGE,
-                "the picture called final was missing a glow whose shaders had not arrived yet",
-            );
-        },
-        CASE_TIMEOUT_MS,
-    );
-
-    it(
-        "fails out loud rather than handing back a moving picture",
-        async () => {
-            // Deliberately not awaited: the queue is busy, so a one millisecond wait cannot be
-            // satisfied honestly, and the only two answers are a rejection and a lie.
-            const loading = graph.addNodes(NODES);
-            let message = "";
-
-            try {
-                await graph.waitForStableFrame({ timeoutMs: 1 });
-                assert.fail("the wait resolved on a graph that was still loading");
-            } catch (error) {
-                message = error instanceof Error ? error.message : String(error);
-            }
-
-            assert.include(message, "still changing", "the failure says the picture was not final");
-            assert.include(message, "1 ms", "the failure says how long it waited");
-
-            await loading;
-        },
-        CASE_TIMEOUT_MS,
-    );
+        await loading;
+    });
 });
 
 describe("pumping frames by hand", () => {
@@ -449,30 +491,26 @@ describe("the helper every story captures through", () => {
         container.remove();
     });
 
-    it(
-        "does not hand a story back until the element says the picture is final",
-        async () => {
-            const element = document.createElement("graphty-element");
+    it("does not hand a story back until the element says the picture is final", async () => {
+        const element = document.createElement("graphty-element");
 
-            // Reads as a formality and is not one: `Graphty` is the class this file imports, and
-            // naming it in a VALUE position is what keeps the import -- and with it the
-            // `customElements.define` that makes the tag above an element rather than an unknown
-            // one. Imported only for its type, it is erased and the tag stays inert.
-            assert.instanceOf(element, Graphty, "<graphty-element> is defined");
+        // Reads as a formality and is not one: `Graphty` is the class this file imports, and
+        // naming it in a VALUE position is what keeps the import -- and with it the
+        // `customElements.define` that makes the tag above an element rather than an unknown
+        // one. Imported only for its type, it is erased and the tag stays inert.
+        assert.instanceOf(element, Graphty, "<graphty-element> is defined");
 
-            container.appendChild(element);
-            element.nodeData = NODES;
-            element.edgeData = EDGES;
+        container.appendChild(element);
+        element.nodeData = NODES;
+        element.edgeData = EDGES;
 
-            assert.isFalse(element.isFrameStable, "nothing has been drawn yet");
+        assert.isFalse(element.isFrameStable, "nothing has been drawn yet");
 
-            await waitForGraphSettled(container);
+        await waitForGraphSettled(container);
 
-            assert.isTrue(
-                element.isFrameStable,
-                "the helper returned before the picture stopped changing, which is how a story gets photographed mid-flight",
-            );
-        },
-        CASE_TIMEOUT_MS,
-    );
+        assert.isTrue(
+            element.isFrameStable,
+            "the helper returned before the picture stopped changing, which is how a story gets photographed mid-flight",
+        );
+    });
 });

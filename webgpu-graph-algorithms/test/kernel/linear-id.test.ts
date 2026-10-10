@@ -84,7 +84,7 @@ describe("fill mode 1 over LINEAR_ID_ITEMS words: the 2D dispatch and the prelud
         await runKernel(ctx, kernelSpec("fill"), { dst: bindingOf(dst) }, plan, params);
         const again = await readU32(ctx, dst, LINEAR_ID_ITEMS);
         expectBitwiseEqual(words, again, "second run of the 17M-item fill");
-    }, 120_000);
+    });
 
     it("the last word is the only item of the second workgroup row at WG = 256 (the boundary the test exists for)", () => {
         // items 0 .. 65_535 x 256 - 1 are the first row of workgroups; item 65_535 x 256 = LINEAR_ID_ITEMS - 1 is

@@ -7,6 +7,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { nextFrame } from "../helpers/real-input";
 
 describe("2D/3D Mode Switching", () => {
     let graph: Graph;
@@ -33,10 +34,6 @@ describe("2D/3D Mode Switching", () => {
         }
 
         return new Map(graph.getNodes().map((node) => [node.id, node.mesh.position.z]));
-    }
-
-    function delay(ms: number): Promise<void> {
-        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
     beforeEach(async () => {
@@ -89,8 +86,8 @@ describe("2D/3D Mode Switching", () => {
             await graph.setViewMode("3d");
             await operationQueueOf(graph).waitForCompletion();
 
-            // Wait for layout to settle
-            await delay(500);
+            // Wait for the layout to converge
+            await graph.waitForStableFrame();
 
             // Store original 3D Z positions (may be non-zero)
             // The mesh positions are synced from the layout engine on the frame loop, so they
@@ -202,7 +199,7 @@ describe("2D/3D Mode Switching", () => {
             await graph.setLayout("ngraph");
             await graph.setViewMode("3d");
             await operationQueueOf(graph).waitForCompletion();
-            await delay(500); // Let layout settle
+            await graph.waitForStableFrame(); // Let layout settle
             graph.setRunning(false);
 
             const original = zOf();
@@ -223,7 +220,7 @@ describe("2D/3D Mode Switching", () => {
             }
         });
 
-        it("should handle multiple round-trips correctly", { timeout: 45000 }, async () => {
+        it("should handle multiple round-trips correctly", async () => {
             // Setup in 3D mode
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -313,7 +310,7 @@ describe("2D/3D Mode Switching", () => {
     });
 
     describe("Edge Cases", () => {
-        it("should handle rapid consecutive mode switches", { timeout: 30000 }, async () => {
+        it("should handle rapid consecutive mode switches", async () => {
             // Setup
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -334,13 +331,13 @@ describe("2D/3D Mode Switching", () => {
                 originalZPositions.set(node.id, node.mesh.position.z);
             }
 
-            // Rapid switches without waiting
+            // Rapid switches, a frame apart, none awaited
             void graph.setViewMode("2d");
-            await delay(10);
+            await nextFrame();
             void graph.setViewMode("3d");
-            await delay(10);
+            await nextFrame();
             void graph.setViewMode("2d");
-            await delay(10);
+            await nextFrame();
             void graph.setViewMode("3d");
 
             // Wait for all to complete

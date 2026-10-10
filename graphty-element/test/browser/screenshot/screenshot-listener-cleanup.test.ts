@@ -33,7 +33,7 @@ test("screenshot capture completes even when layout is already settled", async (
     graph = await createTestGraphWithData();
 
     // Wait for layout to settle before taking screenshot
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await graph.waitForStableFrame();
 
     const result = await graph.captureScreenshot({
         timing: { waitForSettle: true },

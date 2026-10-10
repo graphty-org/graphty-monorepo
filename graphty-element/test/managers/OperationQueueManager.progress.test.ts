@@ -1,4 +1,4 @@
-import { assert, beforeEach, describe, it } from "vitest";
+import { assert, beforeEach, describe, it, vi } from "vitest";
 
 import { EventManager } from "../../src/managers/EventManager";
 import { type OperationContext, OperationQueueManager } from "../../src/managers/OperationQueueManager";
@@ -121,17 +121,23 @@ describe("Progress Tracking", () => {
         const stats = queueManager.getStats();
         assert.equal(stats.pending, 0);
 
-        queueManager.queueOperation("style-apply", async (context) => {
-            context.progress.setProgress(50);
-            context.progress.setMessage("Applying styles");
-            await new Promise((resolve) => setTimeout(resolve, 10));
-            context.progress.setProgress(100);
-        });
+        // The queue drops an operation's progress on a timer after it completes: fake the clock and
+        // run every timer, then check the progress is gone
+        vi.useFakeTimers();
+        try {
+            const opId1 = queueManager.queueOperation("style-apply", async (context) => {
+                context.progress.setProgress(50);
+                context.progress.setMessage("Applying styles");
+                await new Promise((resolve) => setTimeout(resolve, 10));
+                context.progress.setProgress(100);
+            });
 
-        await queueManager.waitForCompletion();
-
-        // Wait for cleanup timeout (1000ms as per implementation)
-        await new Promise((resolve) => setTimeout(resolve, 1100));
+            await vi.runAllTimersAsync();
+            await queueManager.waitForCompletion();
+            assert.isUndefined(queueManager.getOperationProgress(opId1), "progress is cleaned up");
+        } finally {
+            vi.useRealTimers();
+        }
 
         // Try to emit another progress event - it should not appear in events
         const eventCountBefore = progressEvents.length;

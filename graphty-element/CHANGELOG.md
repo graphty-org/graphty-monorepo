@@ -1,3 +1,65 @@
+## 3.21.0 (2026-10-09)
+
+### 🚀 Features
+
+- **graphty-element:** derive the ai key store's encryption key from a passphrase ([#691](https://github.com/graphty-org/graphty-monorepo/issues/691))
+
+### 🩹 Fixes
+
+- **graphty-element:** never store a passphrase-derived ai key in clear text ([#691](https://github.com/graphty-org/graphty-monorepo/issues/691))
+- **graphty-element:** send tools only to in-browser models that accept them ([#1681](https://github.com/graphty-org/graphty-monorepo/issues/1681))
+- **graphty-element:** answer either id spelling from the visible and scope node sets ([#1594](https://github.com/graphty-org/graphty-monorepo/issues/1594))
+- **graphty-element:** type-check event names where they are emitted and subscribed ([#1592](https://github.com/graphty-org/graphty-monorepo/issues/1592), [#1572](https://github.com/graphty-org/graphty-monorepo/issues/1572))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.42
+- Updated @graphty/remote-logger to 2.0.13
+- Updated graph-samples to 0.1.26
+- Updated graph-format to 1.3.11
+- Updated algorithms to 3.3.13
+- Updated graph-io to 0.3.33
+- Updated layout to 2.2.14
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.20.1 (2026-10-09)
+
+### 🩹 Fixes
+
+- **graphty-element:** code the layout recommendation and implementation reasons ([#1593](https://github.com/graphty-org/graphty-monorepo/issues/1593))
+- **graphty-element:** keep the event fix additive ([#1577](https://github.com/graphty-org/graphty-monorepo/issues/1577), [#1441](https://github.com/graphty-org/graphty-monorepo/issues/1441))
+- **graphty-element:** start the animation of a label built while the layout is at rest ([#1554](https://github.com/graphty-org/graphty-monorepo/issues/1554))
+- **graphty-element:** keep a node removed and brought back unplaced under undo ([#583](https://github.com/graphty-org/graphty-monorepo/issues/583))
+- **graphty-element:** ask the data manager for its rows without freezing a snapshot ([#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+- **graphty-element:** declare the twelve emitted events no type covered ([#1441](https://github.com/graphty-org/graphty-monorepo/issues/1441))
+- **graphty-element:** trim slug separators in linear time ([#1141](https://github.com/graphty-org/graphty-monorepo/issues/1141))
+- **graphty-element:** keep the public lane generation counting every write ([#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+- **graphty-element:** an engine writing back the coordinates a node holds moves nothing ([#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+- **graphty-element:** keep a node an edge left behind in an arrangement capture ([#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+- **graphty-element:** keep every node on the plane in 2D under undo, redo and every engine ([#1341](https://github.com/graphty-org/graphty-monorepo/issues/1341), [#1488](https://github.com/graphty-org/graphty-monorepo/issues/1488))
+
+### 🔥 Performance
+
+- **graphty-element:** find a column's median without sorting it ([#1517](https://github.com/graphty-org/graphty-monorepo/issues/1517))
+- **graphty-element:** paint only the rows an add changes; undo a redone import without a rebuild ([#1253](https://github.com/graphty-org/graphty-monorepo/issues/1253))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.41
+- Updated @graphty/remote-logger to 2.0.12
+- Updated graph-samples to 0.1.25
+- Updated graph-format to 1.3.10
+- Updated algorithms to 3.3.12
+- Updated graph-io to 0.3.32
+- Updated layout to 2.2.13
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.20.0 (2026-10-08)
 
 ### 🚀 Features

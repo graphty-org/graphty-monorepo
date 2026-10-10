@@ -60,7 +60,7 @@ describe("sabotage: bf-relax (spec 11.9 item 1; P8-T10)", () => {
         } finally {
             ctx.dispose();
         }
-    }, 120_000);
+    });
 
     for (const mutation of ROWS) {
         it(`${ID}/${mutation.name}: fails the check by >= ${mutation.minFactor}x`, async (t) => {
@@ -69,7 +69,7 @@ describe("sabotage: bf-relax (spec 11.9 item 1; P8-T10)", () => {
             console.warn(`[sabotage] ${ID}/${mutation.name}: factor ${report.worst} at ${report.worstLabel}`);
             expect(report.worst).toBeGreaterThanOrEqual(mutation.minFactor);
             expect(() => assertCheckPasses(report)).toThrow();
-        }, 120_000);
+        });
     }
 
     it("the normative body is restored after every mutation", () => {

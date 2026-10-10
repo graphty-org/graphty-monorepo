@@ -32,8 +32,8 @@ describe("3D Camera Controls", () => {
         await graph.setViewMode("3d");
         await graph.setLayout("ngraph");
 
-        // Wait for camera to be activated
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Wait for the view change and the layout to finish on the queue
+        await graph.waitForSettled();
 
         // Get the camera controller
         const cameraManager = graph.camera;

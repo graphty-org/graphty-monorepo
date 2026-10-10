@@ -8,16 +8,18 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId } from "../../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
+import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import type { MaskIdSpace } from "./ElementMask";
 
 /**
- * One snapshot's node identity space, for a mask over its nodes.
+ * One snapshot's node identity space, for a mask over its nodes. An integer id is found in either
+ * spelling, `34` or `"34"`.
  * @param snapshot - The snapshot to read.
  * @returns The space, which is the snapshot's own id map.
  */
 export function nodeSpaceOf(snapshot: GraphSnapshot): MaskIdSpace<NodeId> {
     return {
-        indexOf: (id: NodeId): number => snapshot.ids.indexOf(id),
+        indexOf: (id: NodeId): number => rowOfEitherSpelling(snapshot.ids, id),
         idOf: (index: number): NodeId => snapshot.ids.idOf(index),
     };
 }

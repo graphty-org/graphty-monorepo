@@ -12,15 +12,20 @@
  */
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, test } from "vitest";
+import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 
-/** How long the element needs to connect and finish its first update. */
-const ELEMENT_READY_MS = 300;
-
-/** How long a data-source assignment needs to reach the data manager. */
-const LOAD_SETTLE_MS = 400;
+/**
+ * Wait until a just-connected element has initialised its graph.
+ * @param element - The element.
+ */
+async function untilReady(element: Graphty): Promise<void> {
+    await element.updateComplete;
+    await vi.waitFor(() => {
+        assert.isTrue(element.graph.initialized, "the element initialised its graph");
+    });
+}
 
 /** Three nodes and two edges, as an inline JSON data source. */
 const GRAPH = JSON.stringify({
@@ -50,10 +55,10 @@ async function mountWithGraph(): Promise<Graphty> {
     container.appendChild(element);
     mounted = element;
 
-    await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
+    await untilReady(element);
     element.dataSource = "json";
     element.dataSourceConfig = { data: GRAPH };
-    await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
+    await element.waitForSettled();
 
     return element;
 }
@@ -137,7 +142,7 @@ describe("a graph whose ids the file wrote as integers", () => {
         container.appendChild(element);
         mounted = element;
 
-        await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
+        await untilReady(element);
         element.dataSource = "json";
         element.dataSourceConfig = {
             data: JSON.stringify({
@@ -145,7 +150,7 @@ describe("a graph whose ids the file wrote as integers", () => {
                 edges: [{ source: 1, target: 34 }],
             }),
         };
-        await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
+        await element.waitForSettled();
 
         return element;
     }

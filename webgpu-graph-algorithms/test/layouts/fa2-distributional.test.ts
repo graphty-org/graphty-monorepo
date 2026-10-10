@@ -204,6 +204,7 @@ describe("FA2 distributional parity: 100 iterations, metrics within the traced 1
 
     for (const c of CASES) {
         const label = `${c.graph}/${c.tuning.compat ?? "paper"}/${c.dim}d`;
+        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 15 s on the T4 lane, 10 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
         it(
             `${label}: layoutMetrics of the GPU layout vs the f64 oracle's, coordinates never compared, twice bitwise`,
             async (t) => {
@@ -249,45 +250,41 @@ describe("FA2 distributional parity: 100 iterations, metrics within the traced 1
         );
     }
 
-    it(
-        "writes the UNSCALED random1k metrics after 100 iterations and the f64 reference's as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
-                // a writer asserts nothing a recording run does not need, and its unscaled f64 oracle runs are
-                // tens of seconds of synchronous work under coverage (issue #413)
-                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
-            }
-            requireGpu(t);
-            const { s, start, tuning } = noiseInputs();
-            try {
-                const options: ForceAtlas2Options = { ...BASE_OPTIONS, maxIter: ITERATIONS };
-                const gpu = metricsValues(layoutMetrics(s, await runLayout(ctx, s, start, options, tuning), 2));
-                const reference = forceAtlas2Oracle(
-                    s,
-                    Float32Array.from(start),
-                    oracleOptionsFor(s, options, tuning, null, "f64"),
-                    ITERATIONS,
-                ).positions;
-                const oracle = metricsValues(layoutMetrics(s, reference, 2));
-                expect(gpu.keys).toEqual(oracle.keys);
-                writeNoiseFixture(
-                    NOISE_FIXTURES.metrics100.kernel,
-                    NOISE_FIXTURES.metrics100.fixture,
-                    adapterClass(ctx.caps),
-                    gpu.values,
-                    "f32",
-                );
-                writeNoiseFixture(
-                    NOISE_FIXTURES.metrics100.kernel,
-                    NOISE_FIXTURES.metrics100.fixture,
-                    ORACLE_F64_CLASS,
-                    oracle.values,
-                    "f32",
-                );
-            } finally {
-                ctx.release(s);
-            }
-        },
-        CASE_TIMEOUT,
-    );
+    it("writes the UNSCALED random1k metrics after 100 iterations and the f64 reference's as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+            // a writer asserts nothing a recording run does not need, and its unscaled f64 oracle runs are
+            // tens of seconds of synchronous work under coverage (issue #413)
+            t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+        }
+        requireGpu(t);
+        const { s, start, tuning } = noiseInputs();
+        try {
+            const options: ForceAtlas2Options = { ...BASE_OPTIONS, maxIter: ITERATIONS };
+            const gpu = metricsValues(layoutMetrics(s, await runLayout(ctx, s, start, options, tuning), 2));
+            const reference = forceAtlas2Oracle(
+                s,
+                Float32Array.from(start),
+                oracleOptionsFor(s, options, tuning, null, "f64"),
+                ITERATIONS,
+            ).positions;
+            const oracle = metricsValues(layoutMetrics(s, reference, 2));
+            expect(gpu.keys).toEqual(oracle.keys);
+            writeNoiseFixture(
+                NOISE_FIXTURES.metrics100.kernel,
+                NOISE_FIXTURES.metrics100.fixture,
+                adapterClass(ctx.caps),
+                gpu.values,
+                "f32",
+            );
+            writeNoiseFixture(
+                NOISE_FIXTURES.metrics100.kernel,
+                NOISE_FIXTURES.metrics100.fixture,
+                ORACLE_F64_CLASS,
+                oracle.values,
+                "f32",
+            );
+        } finally {
+            ctx.release(s);
+        }
+    });
 });

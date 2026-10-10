@@ -28,7 +28,6 @@ import { assertCheckPasses } from "../helpers/sabotage.js";
 import { testReduceScope } from "../helpers/segmented-reduce.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
 /** Every 65th cell of level 1: the committed fixture of the unscaled random20k downsample (odd, issue #267). */
 const CELL_STRIDE = 65;
 const POISON_F32 = new Float32Array(new Uint32Array([0xdeadbeef]).buffer)[0];
@@ -36,55 +35,51 @@ const POISON_F32 = new Float32Array(new Uint32Array([0xdeadbeef]).buffer)[0];
 describe("gridPyramid (spec 7.7 G4-G5; P4-T9): every level within the analytic bound, twice bitwise", () => {
     for (const name of PYRAMID_FIXTURES) {
         for (const dim of [2, 3] as const) {
-            it(
-                `${name} in ${dim}D: every level equals gridOraclePyramid within the bound; two runs bitwise equal; the hub list and the counters are the oracle's`,
-                async (t) => {
-                    requireGpu(t);
-                    const ctx = await acquire({ label: `pyramid-${name}-${dim}` });
-                    try {
-                        const scene = pyramidScene(name, dim, gpuScale());
-                        const first = await runPyramid(ctx, scene);
-                        const second = await runPyramid(ctx, scene);
-                        expectBitwiseEqual(first.pyramid, second.pyramid, "pyramid twice");
-                        expectBitwiseEqual(first.hubCounters, second.hubCounters, "hubCounters twice");
-                        const want = pyramidOracleOf(scene, ctx.workgroupSize);
-                        const report = pyramidCompare(first, scene, want);
-                        assertCheckPasses(report);
-                        expect(first.hubCounters[0], "hubCount").toBe(want.hubCells.length);
-                        expect(first.hubCounters[1], "maxOccupancy").toBe(want.maxOccupancy);
-                        expect(
-                            Array.from(first.hubList.subarray(0, want.hubCells.length)).sort((a, b) => a - b),
-                        ).toEqual(want.hubCells);
-                        if (name === "onecell1k") {
-                            expect(want.maxOccupancy).toBe(GRID_HUB_CELL);
-                            expect(first.hubCounters[0]).toBe(0);
-                        }
-                        if (name === "onecell1025" || name === "hubcell") {
-                            expect(want.maxOccupancy).toBe(scene.n);
-                            expect(first.hubCounters[0]).toBe(1);
-                            expect(first.hubList[0]).toBe(want.hubCells[0]);
-                        }
-                        if (name === "hubcell-shifted") {
-                            expect(first.hubCounters[0]).toBe(1);
-                            expect(want.maxOccupancy).toBeLessThan(scene.n);
-                            // the hub cell's sorted range starts above 0: the shifted nodes sort before it
-                            expect(want.hubCells[0]).toBeGreaterThan(0);
-                        }
-                        if (name === "hubcell-two") {
-                            // two hub cells: G4b must run a workgroup for each, or the second is never summed
-                            expect(want.hubCells.length).toBe(2);
-                            expect(first.hubCounters[0]).toBe(2);
-                            const level0 = levelOf(first, scene, 0);
-                            for (const cell of want.hubCells) {
-                                expect(level0[4 * cell + 3], `cell ${cell} mass`).toBe(want.levels[0][4 * cell + 3]);
-                            }
-                        }
-                    } finally {
-                        ctx.dispose();
+            it(`${name} in ${dim}D: every level equals gridOraclePyramid within the bound; two runs bitwise equal; the hub list and the counters are the oracle's`, async (t) => {
+                requireGpu(t);
+                const ctx = await acquire({ label: `pyramid-${name}-${dim}` });
+                try {
+                    const scene = pyramidScene(name, dim, gpuScale());
+                    const first = await runPyramid(ctx, scene);
+                    const second = await runPyramid(ctx, scene);
+                    expectBitwiseEqual(first.pyramid, second.pyramid, "pyramid twice");
+                    expectBitwiseEqual(first.hubCounters, second.hubCounters, "hubCounters twice");
+                    const want = pyramidOracleOf(scene, ctx.workgroupSize);
+                    const report = pyramidCompare(first, scene, want);
+                    assertCheckPasses(report);
+                    expect(first.hubCounters[0], "hubCount").toBe(want.hubCells.length);
+                    expect(first.hubCounters[1], "maxOccupancy").toBe(want.maxOccupancy);
+                    expect(Array.from(first.hubList.subarray(0, want.hubCells.length)).sort((a, b) => a - b)).toEqual(
+                        want.hubCells,
+                    );
+                    if (name === "onecell1k") {
+                        expect(want.maxOccupancy).toBe(GRID_HUB_CELL);
+                        expect(first.hubCounters[0]).toBe(0);
                     }
-                },
-                CASE_TIMEOUT,
-            );
+                    if (name === "onecell1025" || name === "hubcell") {
+                        expect(want.maxOccupancy).toBe(scene.n);
+                        expect(first.hubCounters[0]).toBe(1);
+                        expect(first.hubList[0]).toBe(want.hubCells[0]);
+                    }
+                    if (name === "hubcell-shifted") {
+                        expect(first.hubCounters[0]).toBe(1);
+                        expect(want.maxOccupancy).toBeLessThan(scene.n);
+                        // the hub cell's sorted range starts above 0: the shifted nodes sort before it
+                        expect(want.hubCells[0]).toBeGreaterThan(0);
+                    }
+                    if (name === "hubcell-two") {
+                        // two hub cells: G4b must run a workgroup for each, or the second is never summed
+                        expect(want.hubCells.length).toBe(2);
+                        expect(first.hubCounters[0]).toBe(2);
+                        const level0 = levelOf(first, scene, 0);
+                        for (const cell of want.hubCells) {
+                            expect(level0[4 * cell + 3], `cell ${cell} mass`).toBe(want.levels[0][4 * cell + 3]);
+                        }
+                    }
+                } finally {
+                    ctx.dispose();
+                }
+            });
         }
     }
 
@@ -136,42 +131,36 @@ describe("gridPyramid (spec 7.7 G4-G5; P4-T9): every level within the analytic b
         }
     });
 
-    it(
-        "the twins in one process: without subgroups, hubcell's level 0 matches the feature context bitwise outside the hub cell and every level stays within the bound",
-        async (t) => {
-            requireGpu(t);
-            const ctx = await acquire({ label: "pyramid-twin-feature" });
-            const twin = await acquire({ subgroups: false, label: "pyramid-twin" });
-            try {
-                expect(twin.caps.features.has("subgroups")).toBe(false);
-                for (const dim of [2, 3] as const) {
-                    const scene = pyramidScene("hubcell", dim, 1);
-                    const withFeature = await runPyramid(ctx, scene);
-                    const withoutFeature = await runPyramid(twin, scene);
-                    const want = pyramidOracleOf(scene, ctx.workgroupSize);
-                    assertCheckPasses(pyramidCompare(withFeature, scene, want));
-                    assertCheckPasses(
-                        pyramidCompare(withoutFeature, scene, pyramidOracleOf(scene, twin.workgroupSize)),
-                    );
-                    const [hub] = want.hubCells;
-                    const a = levelOf(withFeature, scene, 0);
-                    const b = levelOf(withoutFeature, scene, 0);
-                    const outsideHub = (level: F32): F32 => {
-                        const out = new Float32Array(level.length - 4);
-                        out.set(level.subarray(0, 4 * hub));
-                        out.set(level.subarray(4 * hub + 4), 4 * hub);
-                        return out;
-                    };
-                    expectBitwiseEqual(outsideHub(a), outsideHub(b), `${dim}D: level 0 outside the hub cell`);
-                    expect(withoutFeature.hubCounters).toEqual(withFeature.hubCounters);
-                }
-            } finally {
-                twin.dispose();
-                ctx.dispose();
+    it("the twins in one process: without subgroups, hubcell's level 0 matches the feature context bitwise outside the hub cell and every level stays within the bound", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "pyramid-twin-feature" });
+        const twin = await acquire({ subgroups: false, label: "pyramid-twin" });
+        try {
+            expect(twin.caps.features.has("subgroups")).toBe(false);
+            for (const dim of [2, 3] as const) {
+                const scene = pyramidScene("hubcell", dim, 1);
+                const withFeature = await runPyramid(ctx, scene);
+                const withoutFeature = await runPyramid(twin, scene);
+                const want = pyramidOracleOf(scene, ctx.workgroupSize);
+                assertCheckPasses(pyramidCompare(withFeature, scene, want));
+                assertCheckPasses(pyramidCompare(withoutFeature, scene, pyramidOracleOf(scene, twin.workgroupSize)));
+                const [hub] = want.hubCells;
+                const a = levelOf(withFeature, scene, 0);
+                const b = levelOf(withoutFeature, scene, 0);
+                const outsideHub = (level: F32): F32 => {
+                    const out = new Float32Array(level.length - 4);
+                    out.set(level.subarray(0, 4 * hub));
+                    out.set(level.subarray(4 * hub + 4), 4 * hub);
+                    return out;
+                };
+                expectBitwiseEqual(outsideHub(a), outsideHub(b), `${dim}D: level 0 outside the hub cell`);
+                expect(withoutFeature.hubCounters).toEqual(withFeature.hubCounters);
             }
-        },
-        CASE_TIMEOUT,
-    );
+        } finally {
+            twin.dispose();
+            ctx.dispose();
+        }
+    });
 
     it("lastDispatches is 2 + (levels - 1) for a full record and 2 after upTo: G4, which leaves the coarser levels untouched", async (t) => {
         requireGpu(t);
@@ -235,54 +224,50 @@ describe("gridPyramid (spec 7.7 G4-G5; P4-T9): every level within the analytic b
         }
     });
 
-    it(
-        "records the random20k-L1 downsample and the hubcell-L0 hub-centroid f32 fixtures of this adapter (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            requireGpu(t);
-            const ctx = await acquire({ label: "pyramid-noise" });
-            try {
-                const cls = adapterClass(ctx.caps);
-                const random = pyramidScene("random20k", 2, 1);
-                const randomRun = await runPyramid(ctx, random);
-                const randomWant = pyramidOracleOf(random, ctx.workgroupSize);
-                assertCheckPasses(pyramidCompare(randomRun, random, randomWant));
-                writeNoiseFixture(
-                    "grid-downsample",
-                    "random20k-L1",
-                    cls,
-                    sampleStrided(levelOf(randomRun, random, 1), CELL_STRIDE, 4),
-                    "f32",
-                );
-                writeNoiseFixture(
-                    "grid-downsample",
-                    "random20k-L1",
-                    "oracle-f64",
-                    sampleStrided(randomWant.levels[1], CELL_STRIDE, 4),
-                    "f32",
-                );
-                const hub = pyramidScene("hubcell", 2, 1);
-                const hubRun = await runPyramid(ctx, hub);
-                const hubWant = pyramidOracleOf(hub, ctx.workgroupSize);
-                assertCheckPasses(pyramidCompare(hubRun, hub, hubWant));
-                const [cell] = hubWant.hubCells;
-                writeNoiseFixture(
-                    "grid-centroid-hub",
-                    "hubcell-L0",
-                    cls,
-                    levelOf(hubRun, hub, 0).subarray(4 * cell, 4 * cell + 4),
-                    "f32",
-                );
-                writeNoiseFixture(
-                    "grid-centroid-hub",
-                    "hubcell-L0",
-                    "oracle-f64",
-                    hubWant.levels[0].subarray(4 * cell, 4 * cell + 4),
-                    "f32",
-                );
-            } finally {
-                ctx.dispose();
-            }
-        },
-        CASE_TIMEOUT,
-    );
+    it("records the random20k-L1 downsample and the hubcell-L0 hub-centroid f32 fixtures of this adapter (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "pyramid-noise" });
+        try {
+            const cls = adapterClass(ctx.caps);
+            const random = pyramidScene("random20k", 2, 1);
+            const randomRun = await runPyramid(ctx, random);
+            const randomWant = pyramidOracleOf(random, ctx.workgroupSize);
+            assertCheckPasses(pyramidCompare(randomRun, random, randomWant));
+            writeNoiseFixture(
+                "grid-downsample",
+                "random20k-L1",
+                cls,
+                sampleStrided(levelOf(randomRun, random, 1), CELL_STRIDE, 4),
+                "f32",
+            );
+            writeNoiseFixture(
+                "grid-downsample",
+                "random20k-L1",
+                "oracle-f64",
+                sampleStrided(randomWant.levels[1], CELL_STRIDE, 4),
+                "f32",
+            );
+            const hub = pyramidScene("hubcell", 2, 1);
+            const hubRun = await runPyramid(ctx, hub);
+            const hubWant = pyramidOracleOf(hub, ctx.workgroupSize);
+            assertCheckPasses(pyramidCompare(hubRun, hub, hubWant));
+            const [cell] = hubWant.hubCells;
+            writeNoiseFixture(
+                "grid-centroid-hub",
+                "hubcell-L0",
+                cls,
+                levelOf(hubRun, hub, 0).subarray(4 * cell, 4 * cell + 4),
+                "f32",
+            );
+            writeNoiseFixture(
+                "grid-centroid-hub",
+                "hubcell-L0",
+                "oracle-f64",
+                hubWant.levels[0].subarray(4 * cell, 4 * cell + 4),
+                "f32",
+            );
+        } finally {
+            ctx.dispose();
+        }
+    });
 });

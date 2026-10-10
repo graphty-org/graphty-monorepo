@@ -189,8 +189,9 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
                 }
             }
         }
-    }, 120_000);
+    });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 109 s on the Windows WARP host lane, 42 s on CI's lavapipe, 23 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
     it("path counts past 2^32 (grid(20, 20), grid(40, 40), layered(4, 18)) are rescaled level by level and equal the CPU in both forward forms", async (t) => {
         const ctx = await context(t);
         // grid(40, 40) has C(78, 39), about 2.6e22, corner-to-corner paths: past u32 and far past f32's 2^24 integers
@@ -232,8 +233,9 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         await expect(
             dispatch.betweennessCentrality(snapshotOf(wideAndNarrowEdges(130)), { sources: [0] }),
         ).rejects.toBeInstanceOf(PathCountOverflowError);
-    }, 120_000);
+    });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 13 s on CI's lavapipe, 11 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it("exact betweenness on the fixture list within 1e-4 of the reference, top-10 order kept, bitwise run to run, the snapshot unchanged", async (t) => {
         const ctx = await context(t);
         for (const { name, s } of fixtures()) {
@@ -255,6 +257,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         expect(() => checked.validate({ checksum: true })).not.toThrow();
     }, 300_000);
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 28 s on CI's lavapipe, 22 s on the Windows WARP host lane, 17 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
     it("every simple fixture equals the CPU port's betweennessCentrality and edgeBetweennessCentrality within 1e-4, exact, normalized and on a source list; the dispatcher's k runs the port's draw", async (t) => {
         const ctx = await context(t);
         const sources = [0, 3, 3, 7, 11];
@@ -304,7 +307,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         const norm = await betweennessCentrality(ctx, directed, { normalized: true });
         const want = vertexConvention(directed, brandesOracle(directed).vertex, true);
         expect(scoreError(norm.scores, want)).toBeLessThanOrEqual(TOLERANCE);
-    }, 60_000);
+    });
 
     it("the three forward forms give bitwise identical scores; auto runs edge-parallel on a shallow graph and frontier on a deep one", async (t) => {
         const ctx = await context(t);
@@ -327,7 +330,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
             const exact = vertexConvention(s, brandesOracle(s, { sources }).vertex);
             expect(scoreError(frontier.scores, exact), name).toBeLessThanOrEqual(TOLERANCE);
         }
-    }, 120_000);
+    });
 
     it("a faked maxBufferSize shrinks k and adds batches without changing a single bit of the scores", async (t) => {
         const ctx = await context(t);
@@ -344,8 +347,9 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         expect(shrunk.batches.length).toBe(100);
         expect(shrunk.batches.length).toBeGreaterThan(planned.batches.length);
         expectBitwiseEqual(shrunk.scores, planned.scores);
-    }, 120_000);
+    });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 19 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it("sampling: an explicit list equals the reference on that list, unscaled; k draws the same sources every time; a 256-source sample ranks like the exact scores", async (t) => {
         const ctx = await context(t);
         const s = snapshotOf(randomEdges(1000, 4000, 21));
@@ -417,7 +421,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
                 Float64Array.from(path.scores, (x) => x / factor),
             ),
         ).toBeLessThanOrEqual(1e-7);
-    }, 300_000);
+    });
 
     it("parallel edges are distinct shortest paths, unlike the CPU package, which collapses them to one", async (t) => {
         const ctx = await context(t);
@@ -473,7 +477,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         const controller = new AbortController();
         controller.abort();
         await expectRejection(betweennessCentrality(ctx, s, { signal: controller.signal }), "E_ABORTED");
-    }, 60_000);
+    });
 
     it("refuses endpoints: true, bad sources, a bad k, a k that contradicts sources and a wrong dest, before any device work", async (t) => {
         const ctx = await context(t);
@@ -489,7 +493,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         await expectRejection(betweennessCentrality(ctx, s, { k: 2, sources: [1, 2, 3] }), "E_INVALID_ARGUMENT");
         await expectRejection(betweennessCentrality(ctx, s, { dest: new Float32Array(3) }), "E_INVALID_ARGUMENT");
         await expectRejection(betweennessWithTuning(ctx, s, undefined, { levelsPerSubmit: 0 }), "E_INVALID_ARGUMENT");
-    }, 60_000);
+    });
 
     afterAll(() => {
         shared?.dispose();

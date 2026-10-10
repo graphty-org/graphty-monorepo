@@ -46,9 +46,6 @@ const BOOTSTRAP_EDGE_KEY = bootstrapEdgePaint().meshKey;
 /** How many frames to render before reading the buffer, by default. */
 const DEFAULT_FRAMES = 60;
 
-/** How long to leave between those frames, in milliseconds. */
-const DEFAULT_FRAME_MS = 10;
-
 /**
  * How bright a pixel's strongest channel may be and still count as ink.
  *
@@ -338,18 +335,17 @@ export async function assertRunSettles<T>(run: Run<T>, ms: number, what: string)
  * Babylon compiles a shader asynchronously and the instanced colour buffer is a define on that
  * shader, so the first frames draw in the source material's own colour rather than the instance's.
  * @param graph - The graph to read.
- * @param frames - How many frames to render first.
- * @param frameMs - How long to leave between them.
+ * @param frames - How many frames to render first, each once every shader it drew with has compiled.
  * @returns The frame.
  */
-export async function readFrame(graph: Graph, frames = DEFAULT_FRAMES, frameMs = DEFAULT_FRAME_MS): Promise<Frame> {
+export async function readFrame(graph: Graph, frames = DEFAULT_FRAMES): Promise<Frame> {
     const { engine } = graph;
 
     for (let frame = 0; frame < frames; frame++) {
         graph.scene.render();
-        await new Promise<void>((done) => {
-            setTimeout(done, frameMs);
-        });
+        // A render can ask for a new shader variant (the instance colour define); wait until the
+        // scene reports every one compiled. Immediate when nothing is pending.
+        await graph.scene.whenReadyAsync();
     }
 
     const width = engine.getRenderWidth();

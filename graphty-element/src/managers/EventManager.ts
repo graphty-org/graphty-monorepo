@@ -10,6 +10,7 @@ import type {
     DataLoadingProgressEvent,
     EdgeEvent,
     ElementsRemovedEvent,
+    EmittableEventType,
     EventCallbackType,
     EventType,
     GraphDataAddedEvent,
@@ -281,15 +282,28 @@ export class EventManager implements Manager {
         this.graphObservable.notifyObservers(event);
     }
 
-    // Generic graph event emitter for internal events
     /**
-     * Emits a generic graph event for custom internal events
-     * @param type - Event type identifier
-     * @param data - Event data payload
+     * Emits a graph or AI event on the graph channel, which `addListener` and the element's DOM
+     * forwarder both deliver. The name must be one the `GraphEvent` or `AiEvent` union declares
+     * (or one of the few legacy names in `UndeclaredEventType`), so a new undeclared name fails to
+     * compile here rather than reaching listeners untyped.
+     * @param type - A declared graph or AI event type
+     * @param data - The event's fields besides `type`
      */
-    emitGraphEvent(type: string, data: Record<string, unknown>): void {
+    emit(type: EmittableEventType, data: Record<string, unknown>): void {
         const event = { type, ...data } as GraphGenericEvent;
         this.graphObservable.notifyObservers(event);
+    }
+
+    /**
+     * Emits a graph event under any name.
+     * @param type - Event type identifier
+     * @param data - Event data payload
+     * @deprecated Use {@link EventManager.emit}, which accepts only declared event names. This
+     * method will accept only those names in the next major release.
+     */
+    emitGraphEvent(type: string, data: Record<string, unknown>): void {
+        this.emit(type as EmittableEventType, data);
     }
 
     // Data Loading Events
@@ -495,7 +509,12 @@ export class EventManager implements Manager {
             case "data-added":
             case "data-cleared":
             case "snapshot-replaced":
+            case "snapshot-dropped":
             case "layout-initialized":
+            case "render-initialized":
+            case "manager-initialized":
+            case "lifecycle-initialized":
+            case "lifecycle-disposed":
             case "skybox-loaded":
             case "operation-queue-active":
             case "operation-queue-idle":
@@ -524,6 +543,20 @@ export class EventManager implements Manager {
             case "operation-cancelled":
             case "stats-update":
             case "input-enabled-changed":
+            case "xr-session-started":
+            case "xr-session-ended":
+            case "input:pointer-down":
+            case "input:pointer-move":
+            case "input:pointer-up":
+            case "input:wheel":
+            case "input:touch-start":
+            case "input:touch-move":
+            case "input:touch-end":
+            case "input:key-down":
+            case "input:key-up":
+            case "input:undo":
+            case "input:redo":
+            case "input:select-all":
             case "ai-status-change":
             case "ai-command-start":
             case "ai-command-complete":
@@ -586,8 +619,11 @@ export class EventManager implements Manager {
                 break;
             }
 
-            default:
-                throw new TypeError(`Unknown event type: ${type}`);
+            default: {
+                // A declared event with no case above fails to compile here.
+                const unhandled: never = type;
+                throw new TypeError(`Unknown event type: ${String(unhandled)}`);
+            }
         }
 
         return id;

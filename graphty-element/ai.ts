@@ -75,6 +75,7 @@ export type {
     ToolDefinition,
     VercelProviderType,
     WebLlmModelInfo,
+    WebLlmProviderOptions,
 } from "./src/ai/index";
 export {
     createProvider,
@@ -87,7 +88,7 @@ export {
 } from "./src/ai/index";
 
 // AI Key Management
-export type { ApiKeyManagerOptions, PersistenceConfig } from "./src/ai/index";
+export type { ApiKeyManagerOptions, PassphrasePersistenceConfig, PersistenceConfig } from "./src/ai/index";
 export { ApiKeyManager } from "./src/ai/index";
 
 // AI Prompt Builder

@@ -84,6 +84,7 @@ describe("calibrateLayout (spec 2.2; P4-T14)", () => {
         expect(suggestedExactMaxNodes([1], { 1: 5 }, { 1: 1 })).toBe(1);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 15 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "reports finite positive times for both tiers at both sizes, the rule's answer, a positive firstCallMs; the first call compiles, a second call compiles nothing more and leaks nothing",
         async (t) => {

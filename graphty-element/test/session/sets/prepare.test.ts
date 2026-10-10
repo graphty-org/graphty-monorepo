@@ -275,7 +275,7 @@ describe("member edits", () => {
             refusal(() => small.sets.addMembers(at, { edges: [edge("a", "b", "3")] })).code,
             "E_TOO_LARGE",
         );
-    }, 60_000);
+    });
 });
 
 describe("the revision moves by the delta", () => {

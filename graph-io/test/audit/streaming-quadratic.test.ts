@@ -70,6 +70,7 @@ async function linesWork(input: AsyncIterable<string>): Promise<number> {
 }
 
 describe.skipIf(!BENCH)("streaming audit: linearity and chunk-shape independence (IO_BENCH=1)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "CSV: doubling the edge count doubles the work (250k -> 500k -> 1M, 64 KiB chunks)",
         async () => {
@@ -87,6 +88,7 @@ describe.skipIf(!BENCH)("streaming audit: linearity and chunk-shape independence
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "CSV: a string, a Uint8Array and 64 KiB chunks examine about the same (1M edges)",
         async () => {
@@ -103,6 +105,7 @@ describe.skipIf(!BENCH)("streaming audit: linearity and chunk-shape independence
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "GraphML: doubling the edge count doubles the work (100k -> 200k -> 400k, 64 KiB chunks)",
         async () => {
@@ -120,6 +123,7 @@ describe.skipIf(!BENCH)("streaming audit: linearity and chunk-shape independence
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "GEXF: doubling the edge count doubles the work (100k -> 200k -> 400k, Uint8Array)",
         async () => {
@@ -138,6 +142,7 @@ describe.skipIf(!BENCH)("streaming audit: linearity and chunk-shape independence
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "LineReader: the cost of a chunk is linear in its size for LF-terminated text (PINS a defect)",
         async () => {
@@ -162,6 +167,7 @@ describe.skipIf(!BENCH)("streaming audit: linearity and chunk-shape independence
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "Pajek: a Uint8Array input examines about the same as 64 KiB chunks (PINS the LineReader defect)",
         async () => {
@@ -183,6 +189,7 @@ describe.skipIf(!BENCH)("streaming audit: linearity and chunk-shape independence
         LONG,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "GraphML: a document without line breaks examines as much as one with them (PINS a defect)",
         async () => {

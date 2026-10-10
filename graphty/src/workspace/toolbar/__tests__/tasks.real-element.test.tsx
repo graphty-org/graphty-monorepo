@@ -99,6 +99,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await page.viewport(1366, 768);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T7: Analyze > PageRank runs, lands painted, and Analyze then offers to update its row",
         async () => {
@@ -136,6 +137,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T8: after Betweenness, Analyze > Find groups > Louvain runs and paints",
         async () => {
@@ -153,6 +155,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "T11: the Layout popover shows the recommended layout and choosing another lays out again, one undo step",
         async () => {
@@ -190,6 +193,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "switches to 2D with 5, and selects a node's neighbors from the selection bar",
         async () => {

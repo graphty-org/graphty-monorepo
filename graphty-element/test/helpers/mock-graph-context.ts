@@ -38,6 +38,10 @@ export interface MockGraphContextOptions {
     nodeData?: (index: number) => Record<string, unknown>;
     /** An edge's own fields, in place of the default `weight`. */
     edgeData?: (index: number) => Record<string, unknown>;
+    /** A node's id, in place of the default `node-<index>`. */
+    nodeId?: (index: number) => string;
+    /** An edge's source and target node ids, in place of the default chain node i to node i + 1. */
+    edgeEnds?: (index: number) => { source: string; target: string };
 }
 
 /**
@@ -91,13 +95,22 @@ function rowOf(fields: Record<string, unknown>): Readonly<Record<Path, unknown>>
  * @returns A mock graph context
  */
 export function createMockGraphContext(options: MockGraphContextOptions = {}): Graph {
-    const { nodeCount = 10, edgeCount = 15, layoutType = "ngraph", twoD = false, nodeData, edgeData } = options;
+    const {
+        nodeCount = 10,
+        edgeCount = 15,
+        layoutType = "ngraph",
+        twoD = false,
+        nodeData,
+        edgeData,
+        nodeId = (i: number) => `node-${i}`,
+        edgeEnds,
+    } = options;
 
     // Create mock nodes
     // Data structure uses {data: {type: ...}} format to match JMESPath selectors like "data.type == 'server'"
     const mockNodes = new Map<string, MockNodeData>();
     for (let i = 0; i < nodeCount; i++) {
-        const id = `node-${i}`;
+        const id = nodeId(i);
         mockNodes.set(id, {
             id,
             data: nodeData
@@ -117,13 +130,15 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     const nodeIds = Array.from(mockNodes.keys());
     for (let i = 0; i < edgeCount; i++) {
         const id = `edge-${i}`;
-        // Create edges connecting nodes in a round-robin fashion
-        const srcIdx = i % nodeIds.length;
-        const dstIdx = (i + 1) % nodeIds.length;
+        // Unless given, edges connect nodes in a round-robin fashion
+        const ends = edgeEnds?.(i) ?? {
+            source: nodeIds[i % nodeIds.length],
+            target: nodeIds[(i + 1) % nodeIds.length],
+        };
         mockEdges.set(id, {
             id,
-            srcId: nodeIds[srcIdx],
-            dstId: nodeIds[dstIdx],
+            srcId: ends.source,
+            dstId: ends.target,
             data: edgeData ? { id, ...edgeData(i) } : { id, weight: Math.random() },
         });
     }
@@ -192,7 +207,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         addListener(type: string, listener: (event: { type: string }) => void): void {
             listeners.set(type, [...(listeners.get(type) ?? []), listener]);
         },
-        emitGraphEvent(type: string): void {
+        emit(type: string): void {
             announce(type);
         },
     };
@@ -203,8 +218,8 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     for (let i = 0; i < nodeCount; i++) {
         nodeRows.push(
             nodeData
-                ? rowOf({ id: `node-${i}`, ...nodeData(i) })
-                : { "data.id": `node-${i}`, "data.label": `Node ${i}`, "data.type": getNodeType(i) },
+                ? rowOf({ id: nodeId(i), ...nodeData(i) })
+                : { "data.id": nodeId(i), "data.label": `Node ${i}`, "data.type": getNodeType(i) },
         );
     }
 
@@ -265,6 +280,9 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         },
         transaction: <T>(_label: string, fn: (tx: GraphSession, signal: AbortSignal) => T | Promise<T>) =>
             Promise.resolve().then(() => fn(mockSession, new AbortController().signal)),
+        // A history that records nothing, so an assistant message has no step to continue or undo.
+        history: { steps: [], position: 0, nextUndo: null },
+        on: () => () => undefined,
     } as unknown as GraphSession;
 
     // The renderer's door onto that stack. A test that wants to know what a command actually

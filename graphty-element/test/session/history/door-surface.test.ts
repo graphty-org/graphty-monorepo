@@ -136,6 +136,7 @@ function keyOf(root: DoorRoot): string {
 }
 
 describe("the door list is complete", () => {
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, building the TypeScript program over the element's sources takes about 2.5 s locally and about 14 s on CI, more than a third of the 10 s hook budget; tracked in #1636
     beforeAll(() => {
         const config = ts.getParsedCommandLineOfConfigFile(
             join(PACKAGE_ROOT, "tsconfig.json"),

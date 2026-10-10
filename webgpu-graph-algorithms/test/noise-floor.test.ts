@@ -1754,7 +1754,7 @@ describe("noise floor (benchmarks/results/noise-floor.json)", () => {
     });
 
     // 0.2-0.3 s alone with coverage since readNoiseFixtures parses each fixture file once (4.9 s before, parsing the
-    // whole 13 MB directory once per noise-set member; 38.8 s at load average 150). An explicit 30 s limit.
+    // whole 13 MB directory once per noise-set member; 38.8 s at load average 150).
     it("every tolerance is derived from a recorded basis row: floor <= value <= 10 x floor, factor = value / floor, no seed entry left", () => {
         const doc = readDoc();
         expect(typeof doc.recordedAt).toBe("string");
@@ -1833,5 +1833,5 @@ describe("noise floor (benchmarks/results/noise-floor.json)", () => {
                 `${cls}: listed in adapters[]`,
             ).toBe(true);
         }
-    }, 30_000);
+    });
 });

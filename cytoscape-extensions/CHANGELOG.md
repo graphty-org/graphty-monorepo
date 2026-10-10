@@ -1,3 +1,33 @@
+## 0.0.6 (2026-10-09)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.42
+- Updated graph-samples to 0.1.26
+- Updated graph-format to 1.3.11
+- Updated algorithms to 3.3.13
+- Updated graph-io to 0.3.33
+- Updated layout to 2.2.14
+
+## 0.0.5 (2026-10-09)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** give the TeraHAC demo tile a cluster count ([#1448](https://github.com/graphty-org/graphty-monorepo/issues/1448))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.41
+- Updated graph-samples to 0.1.25
+- Updated graph-format to 1.3.10
+- Updated algorithms to 3.3.12
+- Updated graph-io to 0.3.32
+- Updated layout to 2.2.13
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.4 (2026-10-08)
 
 ### 🩹 Fixes

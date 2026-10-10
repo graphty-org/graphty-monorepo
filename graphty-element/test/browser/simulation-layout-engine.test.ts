@@ -18,7 +18,7 @@
  * graph's own controller and the graph's own error channel.
  */
 import { type F32, maskTest } from "@graphty/graph-format";
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { type GraphtyError, isGraphtyError } from "../../src/errors";
 import type { GraphErrorEvent } from "../../src/events";
@@ -228,16 +228,20 @@ async function drain(fake: FakeAccelerator): Promise<void> {
     await fake.flush().catch(() => undefined);
 }
 
+/** How long {@link until} may wait for the controller: the test's own budget. */
+const POLL_BUDGET_MS = 10_000;
+
 /**
  * Waits for a condition the controller reaches on its own.
  * @param predicate - What has to become true.
  */
 async function until(predicate: () => boolean): Promise<void> {
-    for (let attempt = 0; attempt < 200 && !predicate(); attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-
-    assert.isTrue(predicate(), "the condition never became true");
+    await vi.waitFor(
+        () => {
+            assert.isTrue(predicate(), "the condition never became true");
+        },
+        { timeout: POLL_BUDGET_MS, interval: 5 },
+    );
 }
 
 afterEach(() => {
@@ -432,9 +436,7 @@ describe("the simulation layout bridge", () => {
 
         // A chunk is submitted only once the one before it has landed, so waiting for whatever is
         // in flight right now would return in the middle of the run.
-        for (let attempt = 0; attempt < 200 && fake.calls.resolved < chunks; attempt += 1) {
-            await new Promise((resolve) => setTimeout(resolve, 5));
-        }
+        await until(() => fake.calls.resolved >= chunks);
 
         assert.isAtLeast(
             fake.calls.resolved,
@@ -1187,9 +1189,11 @@ describe("the default force arrangement, which has two drivers", () => {
         const reported = errors.filter((event) => event.context === "layout").length;
 
         // A retry loop is asynchronous, so it needs turns of the event loop to show itself rather
-        // than a condition to wait for: a spin would have filled this with failures.
+        // than a condition to wait for: a spin would have filled this with failures. The render
+        // loop is stopped, so no frame can start one; only queued work and the event loop can.
+        await graph.waitForSettled();
         for (let tick = 0; tick < 40; tick += 1) {
-            await new Promise((resolve) => setTimeout(resolve, 5));
+            await new Promise((resolve) => setTimeout(resolve, 0));
         }
 
         assert.strictEqual(

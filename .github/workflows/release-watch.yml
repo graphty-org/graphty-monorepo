@@ -1,0 +1,57 @@
+# The backstop for the release announcements (tools/release-status.mjs): when a Release run ends badly
+# (failure, cancelled, timed_out, startup_failure, action_required...) and no comment on the "Release status"
+# issue already reports a failure of that run attempt, this comments there, mentioning RELEASE_NOTIFY. It catches
+# the runs that never reached their own announce step: a run that started no job, a job that never got a runner,
+# a whole run cancelled, an announce step that failed, a failure after the "release pull request opened" comment.
+# It runs as its own workflow run, so a broken or cancelled release run still triggers it.
+#
+# Not news, so silent: success, skipped and neutral runs; a pending run the release-train concurrency group
+# replaced with a newer one (cancelled before any job started); a first attempt that only lost its T4 spot
+# runner, which gpu-rerun-on-runner-loss.yml re-runs and whose re-run announces itself.
+name: Release watch
+
+on:
+    workflow_run:
+        workflows: ["Release"]
+        types: [completed]
+
+permissions:
+    actions: read
+    checks: read
+    contents: read
+    issues: write
+
+jobs:
+    announce:
+        name: Announce a release run that ended badly
+        if: ${{ !contains(fromJSON('["success","skipped","neutral"]'), github.event.workflow_run.conclusion) }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: master
+                  sparse-checkout: |
+                      tools/release-status.mjs
+                      tools/gpu-runner-lost.sh
+                  sparse-checkout-cone-mode: false
+
+            - name: Comment on the Release status issue
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GITHUB_TOKEN: ${{ github.token }}
+                  RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  RUN_ID: ${{ github.event.workflow_run.id }}
+                  RUN_URL: ${{ github.event.workflow_run.html_url }}
+                  ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+                  CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+                  HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+                  STARTED: ${{ github.event.workflow_run.run_started_at }}
+              run: |
+                  set -euo pipefail
+                  if [ "$ATTEMPT" = 1 ] && [ "$CONCLUSION" = failure ] && tools/gpu-runner-lost.sh "$RUN_ID" 1; then
+                      echo "run ${RUN_ID} only lost its T4 runner; its re-run announces itself"
+                      exit 0
+                  fi
+                  node tools/release-status.mjs run-ended --run "$RUN_URL" --attempt "$ATTEMPT" \
+                      --what "$CONCLUSION" --sha "$HEAD_SHA" --since "$STARTED"

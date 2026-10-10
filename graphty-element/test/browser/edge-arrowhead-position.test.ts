@@ -71,11 +71,6 @@ async function waitForRender(graph: Graph): Promise<void> {
     for (const edge of testGraph.dataManager.edges.values()) {
         edge.update();
     }
-
-    // Small wait to ensure updates are processed
-    await new Promise((resolve) => {
-        setTimeout(resolve, 50);
-    });
 }
 
 describe("Arrowhead Position Tests - 2D Mode", () => {

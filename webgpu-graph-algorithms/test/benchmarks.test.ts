@@ -212,6 +212,11 @@ describe("benchmarks/harness.ts (contract 6.1)", () => {
         let setups = 0;
         let teardowns = 0;
         let bodies = 0;
+        // The clock the harness reads advances only inside a body, by a set amount per run: the warm-up 9 ms
+        // (discarded), then 3, 1 and 2 ms, so the median, min and max are known exactly.
+        const bodyMs = [9, 3, 1, 2];
+        let clock = 0;
+        const now = vi.spyOn(performance, "now").mockImplementation(() => clock);
         const r = await bench(
             "unit",
             "fake",
@@ -220,9 +225,9 @@ describe("benchmarks/harness.ts (contract 6.1)", () => {
                     setups += 1;
                     return setups;
                 },
-                run: async (input) => {
+                run: (input) => {
+                    clock += bodyMs[bodies] ?? 0;
                     bodies += 1;
-                    await new Promise((resolveSleep) => setTimeout(resolveSleep, 2));
                     return input;
                 },
                 teardown: (input) => {
@@ -231,18 +236,20 @@ describe("benchmarks/harness.ts (contract 6.1)", () => {
                 },
             },
             { device: FAKE_DEVICE, runs: 3, items: 1000, unit: "edges" },
-        );
+        ).finally(() => {
+            now.mockRestore();
+        });
         expect(setups).toBe(4);
         expect(bodies).toBe(4);
         expect(teardowns).toBe(4);
         expect(r.group).toBe("unit");
         expect(r.name).toBe("fake");
         expect(r.runs).toBe(3);
-        expect(r.medianMs).toBeGreaterThanOrEqual(1);
-        expect(r.minMs).toBeLessThanOrEqual(r.medianMs);
-        expect(r.maxMs).toBeGreaterThanOrEqual(r.medianMs);
+        expect(r.medianMs).toBe(2);
+        expect(r.minMs).toBe(1);
+        expect(r.maxMs).toBe(3);
         expect(r.rateUnit).toBe("edges/s");
-        expect(r.rate).toBeCloseTo((1000 / r.medianMs) * 1000, 6);
+        expect(r.rate).toBe(500_000);
         expect(typeof r.memoryDeltaBytes).toBe("number");
     });
 

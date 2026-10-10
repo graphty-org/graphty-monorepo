@@ -235,8 +235,8 @@ describe("Custom Sink", () => {
                 name: "async-flush-sink",
                 write: vi.fn(),
                 flush: async () => {
-                    // Simulate async operation
-                    await new Promise((resolve) => setTimeout(resolve, 10));
+                    // Finish on a later task, so flush() must really await the sink
+                    await new Promise((resolve) => setTimeout(resolve, 0));
                     flushed = true;
                 },
             };
@@ -260,7 +260,7 @@ describe("Custom Sink", () => {
                 name: "flush-sink-1",
                 write: vi.fn(),
                 flush: async () => {
-                    await new Promise((resolve) => setTimeout(resolve, 5));
+                    await new Promise((resolve) => setTimeout(resolve, 0));
                     flushOrder.push("sink1");
                 },
             };

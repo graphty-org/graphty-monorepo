@@ -276,6 +276,18 @@ Three vitest projects in one config (spec 11.1; benchmarks are a tsx harness, no
 | `node-limits`    | same                                                                                    | tests that need limits or time above lavapipe's (`test/limits/**`)                                                                                                                                                                                                          | no           | yes      |
 | `browser`        | `test/setup/browser.ts`                                                                 | `test/browser/**`: the light smoke suite on Playwright Chromium, `browser.fileParallelism: false`, flags by `GRAPHTY_BROWSER_GPU`                                                                                                                                           | SwiftShader  | NVIDIA   |
 
+Compile-matrix coverage (issue #1741): the node project compiles the FULL `OVERRIDE_MATRIX` under Dawn's Tint
+(`test/kernel/wgsl-compile.test.ts`: lavapipe and backend=null, twin cases on both feature settings). The browser
+project compiles only `browserCompileCases(caps)` (`test/helpers/override-matrix.ts`), the cases a browser can
+fail where Dawn-node passes: per kernel and feature setting, one case per distinct composed module text (the
+defaults; segmented-reduce one per VALUE snippet), plus every case whose overrides reach a limit-checked expression
+(`@workgroup_size` or a `var<workgroup>` array size, followed through `const` / `override` declarations). The rule
+holds because override values are pipeline constants: the module text, the uniform layout, the device-derived
+WG / SUBGROUP_MIN / SUBGROUP_MAX and the subgroups feature are the same for every case on one context. The guard in
+`wgsl-compile.test.ts` fails when a module text or a limit-sensitive case would go uncompiled in the browser, and
+pins that no kernel is limit-sensitive today. In SwiftShader each browser compile is a CPU compile in the GPU
+process, which is why the full product does not run there (1017 compiles before, 86 after).
+
 Rules of every test (spec 11.2, 11.9): a wrong result is never a skip; every kernel result is compared to an
 oracle or an invariant; every kernel test runs its kernel twice and asserts bitwise equality first
 (`expectBitwiseEqual`), or says why not in a `run-twice exempt:` header line (`test/run-twice.test.ts`
@@ -288,7 +300,11 @@ every batch awaits -- never on the per-batch path, where an extra await changes 
 batch in flight and so breaks `test/layouts/frame-loop.test.ts`'s coalescing case). On a fresh context that
 first call compiles the two scan pipelines and maps two extra staging buffers: a test that counts pipelines or
 `mapAsync` calls must `await verifyDevice(ctx)` first and count from there (`test/layouts/fa2-options.test.ts`,
-`test/algorithms/pagerank.test.ts` do). The one policy variable (D19), parsed and checked by
+`test/algorithms/pagerank.test.ts` do). Budgets live in `vitest.config.ts`, never on a case (the `local/no-test-timing`
+lint rule): 30 s per case in `node`, 600 s in `node-limits`, and 30 minutes in `node` during a recording run
+(`GRAPHTY_NOISE_FLOOR_WRITE=1`), whose writer cases measure the unscaled fixtures. A case whose GPU work outlasts 30 s
+on some lane keeps its own number behind a disable line that names the lanes and their measured seconds (issue
+#1636). The one policy variable (D19), parsed and checked by
 `scripts/gpu-policy.js` for the Node setup, the browser setup and `scripts/gpu-report.js`:
 
 | `GRAPHTY_GPU_REQUIRE`        | Meaning                                                                                                        |

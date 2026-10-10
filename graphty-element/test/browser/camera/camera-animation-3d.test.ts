@@ -1,8 +1,8 @@
-import { afterEach, assert, test } from "vitest";
+import { afterEach, assert, test, vi } from "vitest";
 
 import type { CameraStateChangedEvent } from "../../../src/events.js";
 import { Graph } from "../../../src/Graph.js";
-import { animationFramesOf } from "../../helpers/animation-clock.js";
+import { ANIMATION_FRAME_MS, animationFramesOf } from "../../helpers/animation-clock.js";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
 
 let graph: Graph;
@@ -10,6 +10,34 @@ let graph: Graph;
 afterEach(() => {
     cleanupTestGraph(graph);
 });
+
+/**
+ * Wait until an animation has started moving the camera away from where it stood.
+ * @param from - The camera position before the animation was asked for.
+ */
+async function cameraLeft(from: { x: number; y: number; z: number } | undefined): Promise<void> {
+    await vi.waitFor(() => {
+        assert.notDeepEqual(graph.getCameraState().position, from, "the animation has moved the camera");
+    });
+}
+
+/**
+ * Wait until the scene has animated `count` more frames.
+ * @param count - The frames to wait.
+ */
+function animationFrames(count: number): Promise<void> {
+    const scene = graph.getScene();
+    return new Promise((resolve) => {
+        let seen = 0;
+        const observer = scene.onAfterAnimationsObservable.add(() => {
+            seen++;
+            if (seen >= count) {
+                scene.onAfterAnimationsObservable.remove(observer);
+                resolve();
+            }
+        });
+    });
+}
 
 test("animates camera position smoothly", async () => {
     graph = await createTestGraph();
@@ -60,6 +88,7 @@ test("applies easing correctly", async () => {
 // Phase 3: Operation Queue Integration - Animation interruption
 test("camera animation can be interrupted", async () => {
     graph = await createTestGraph();
+    const start = graph.getCameraState().position;
 
     // Start first animation (don't await it - we'll interrupt it) - catch cancellation
     void graph
@@ -71,8 +100,8 @@ test("camera animation can be interrupted", async () => {
             /* Expected to be cancelled */
         });
 
-    // Wait a bit longer to ensure first animation actually starts and moves camera
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Interrupt only once the first animation has actually started moving the camera
+    await cameraLeft(start);
 
     // Start second animation (should interrupt first)
     await graph.setCameraState(
@@ -106,23 +135,26 @@ test("camera animation can be interrupted", async () => {
 test("an interrupted animation stops moving the camera", async () => {
     graph = await createTestGraph();
 
-    // Interrupted at 300 ms; its own 1000 ms run would end at (100, 100, 100).
-    void graph
-        .setCameraState(
-            { position: { x: 100, y: 100, z: 100 }, target: { x: 0, y: 0, z: 0 } },
-            { animate: true, duration: 1000 },
-        )
-        .catch(() => {
-            /* Expected to be cancelled */
-        });
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    await graph.setCameraState(
-        { position: { x: 50, y: 50, z: 50 }, target: { x: 0, y: 0, z: 0 } },
-        { animate: true, duration: 200 },
-    );
+    // On the scene's animation clock, so frame counts stand for animation milliseconds.
+    await animationFramesOf(graph, async () => {
+        // Interrupted at 300 ms; its own 1000 ms run would end at (100, 100, 100).
+        void graph
+            .setCameraState(
+                { position: { x: 100, y: 100, z: 100 }, target: { x: 0, y: 0, z: 0 } },
+                { animate: true, duration: 1000 },
+            )
+            .catch(() => {
+                /* Expected to be cancelled */
+            });
+        await animationFrames(Math.ceil(300 / ANIMATION_FRAME_MS));
+        await graph.setCameraState(
+            { position: { x: 50, y: 50, z: 50 }, target: { x: 0, y: 0, z: 0 } },
+            { animate: true, duration: 200 },
+        );
 
-    // Past the end of the cancelled run: nothing it started may still be writing the camera.
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+        // Past the end of the cancelled run: nothing it started may still be writing the camera.
+        await animationFrames(Math.ceil(1000 / ANIMATION_FRAME_MS));
+    });
 
     const { position } = graph.getCameraState();
     assert.ok(position);

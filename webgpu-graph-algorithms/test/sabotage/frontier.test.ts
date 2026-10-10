@@ -68,7 +68,7 @@ describe("sabotage: frontier-finalize (spec 11.9 item 1; P8-T4)", () => {
         } finally {
             ctx.dispose();
         }
-    }, 120_000);
+    });
 
     for (const mutation of MEASURED) {
         it(`${ID}/${mutation.name}: fails the check by >= ${mutation.minFactor}x`, async (t) => {
@@ -77,7 +77,7 @@ describe("sabotage: frontier-finalize (spec 11.9 item 1; P8-T4)", () => {
             console.warn(`[sabotage] ${ID}/${mutation.name}: factor ${report.worst} at ${report.worstLabel}`);
             expect(report.worst).toBeGreaterThanOrEqual(mutation.minFactor);
             expect(() => assertCheckPasses(report)).toThrow();
-        }, 120_000);
+        });
     }
 
     it("the normative body is restored after every mutation", () => {

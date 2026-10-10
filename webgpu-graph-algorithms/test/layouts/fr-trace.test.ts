@@ -174,6 +174,7 @@ function at<T>(map: ReadonlyMap<number, T>, k: number): T {
 }
 
 describe("FR trace: the admission rule (the f64 and f32 oracles alone, no GPU)", () => {
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 35 s on the T4 lane, 24 s on the dev box's RTX 4070 SUPER under load, 18 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "every graph's trajectory sensitivity at 1, 5 and 10 is printed; the admitted horizons are under a third of the cap on both counts; the traj10 graph is admitted at 10",
         async () => {
@@ -221,59 +222,56 @@ describe("FR trace: the temperature schedule, the free-running trajectory and th
     });
 
     for (const batch of BATCH_SIZES) {
-        it(
-            `the temperature trace is exact in batches of ${batch}: f32(0.1 - dt idx) per record, the reheat at ${REHEAT_AFTER} restarts idx at floor(0.7 iterations), stats.temperature is the last record's`,
-            async (t) => {
-                requireGpu(t);
-                const s = paritySnapshot("karate", 1, false);
-                try {
-                    const options: FruchtermanReingoldOptions = { ...FR_BASE_OPTIONS, iterations: TEMPERATURE_BUDGET };
-                    const reheatIndex = Math.floor(FR_REHEAT_FRACTION * TEMPERATURE_BUDGET);
-                    const expected: number[] = [];
-                    for (let i = 0; i < REHEAT_AFTER; i++) {
-                        expected.push(temperatureOf(i, TEMPERATURE_BUDGET));
-                    }
-                    for (let i = 0; i < TEMPERATURE_ITERATIONS - REHEAT_AFTER; i++) {
-                        expected.push(temperatureOf(reheatIndex + i, TEMPERATURE_BUDGET));
-                    }
-                    expect(
-                        expected.every((v) => v > 0),
-                        "every temperature of the case is positive",
-                    ).toBe(true);
-                    const run = (): Promise<number[]> =>
-                        withFrSim(ctx, options, FR_TUNING, async (sim) => {
-                            sim.load(s, startPositions(s, options, false));
-                            const before = await runBatches(sim, REHEAT_AFTER, batch);
-                            expect(sim.iterationsDone).toBe(REHEAT_AFTER);
-                            sim.reheat();
-                            expect(sim.iterationsDone, "reheat restarts the budget (DEP-P5-C)").toBe(0);
-                            const after = await runBatches(sim, TEMPERATURE_ITERATIONS - REHEAT_AFTER, batch);
-                            expect(sim.iterationsDone).toBe(TEMPERATURE_ITERATIONS - REHEAT_AFTER);
-                            const records = [...before, ...after];
-                            expect(sim.stats.temperature, "stats.temperature is the last record's").toBe(
-                                records[records.length - 1].temperature,
-                            );
-                            expect(sim.settled, "never settles under the budget at settleThreshold 0").toBe(false);
-                            return records.map((r) => r.temperature);
-                        });
-                    const a = await run();
-                    const b = await run();
-                    expectBitwiseEqual(Float32Array.from(a), Float32Array.from(b), `batch ${batch}: run 1 vs run 2`);
-                    expect(a).toHaveLength(TEMPERATURE_ITERATIONS);
-                    for (let i = 0; i < TEMPERATURE_ITERATIONS; i++) {
-                        expect(a[i], `record ${i} (batch ${batch})`).toBe(expected[i]);
-                    }
-                } finally {
-                    ctx.release(s);
+        it(`the temperature trace is exact in batches of ${batch}: f32(0.1 - dt idx) per record, the reheat at ${REHEAT_AFTER} restarts idx at floor(0.7 iterations), stats.temperature is the last record's`, async (t) => {
+            requireGpu(t);
+            const s = paritySnapshot("karate", 1, false);
+            try {
+                const options: FruchtermanReingoldOptions = { ...FR_BASE_OPTIONS, iterations: TEMPERATURE_BUDGET };
+                const reheatIndex = Math.floor(FR_REHEAT_FRACTION * TEMPERATURE_BUDGET);
+                const expected: number[] = [];
+                for (let i = 0; i < REHEAT_AFTER; i++) {
+                    expected.push(temperatureOf(i, TEMPERATURE_BUDGET));
                 }
-            },
-            CASE_TIMEOUT,
-        );
+                for (let i = 0; i < TEMPERATURE_ITERATIONS - REHEAT_AFTER; i++) {
+                    expected.push(temperatureOf(reheatIndex + i, TEMPERATURE_BUDGET));
+                }
+                expect(
+                    expected.every((v) => v > 0),
+                    "every temperature of the case is positive",
+                ).toBe(true);
+                const run = (): Promise<number[]> =>
+                    withFrSim(ctx, options, FR_TUNING, async (sim) => {
+                        sim.load(s, startPositions(s, options, false));
+                        const before = await runBatches(sim, REHEAT_AFTER, batch);
+                        expect(sim.iterationsDone).toBe(REHEAT_AFTER);
+                        sim.reheat();
+                        expect(sim.iterationsDone, "reheat restarts the budget (DEP-P5-C)").toBe(0);
+                        const after = await runBatches(sim, TEMPERATURE_ITERATIONS - REHEAT_AFTER, batch);
+                        expect(sim.iterationsDone).toBe(TEMPERATURE_ITERATIONS - REHEAT_AFTER);
+                        const records = [...before, ...after];
+                        expect(sim.stats.temperature, "stats.temperature is the last record's").toBe(
+                            records[records.length - 1].temperature,
+                        );
+                        expect(sim.settled, "never settles under the budget at settleThreshold 0").toBe(false);
+                        return records.map((r) => r.temperature);
+                    });
+                const a = await run();
+                const b = await run();
+                expectBitwiseEqual(Float32Array.from(a), Float32Array.from(b), `batch ${batch}: run 1 vs run 2`);
+                expect(a).toHaveLength(TEMPERATURE_ITERATIONS);
+                for (let i = 0; i < TEMPERATURE_ITERATIONS; i++) {
+                    expect(a[i], `record ${i} (batch ${batch})`).toBe(expected[i]);
+                }
+            } finally {
+                ctx.release(s);
+            }
+        });
     }
 
     for (const graph of GRAPHS) {
         const asserted = ADMITTED[graph];
         const printed = [...HORIZONS.filter((k) => !asserted.includes(k)), PRINTED];
+        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 19 s on the T4 lane, 13 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
         it(
             `${graph}: twice bitwise; positions after ${asserted.join(", ")} iterations within fr-trajectory (${printed.join(", ")} printed); the fold of records through ${Math.max(...asserted)} within it`,
             async (t) => {
@@ -367,34 +365,30 @@ describe("FR trace: the temperature schedule, the free-running trajectory and th
         );
     }
 
-    it(
-        `writes the ${TRAJ10_HORIZON}-iteration positions of the UNSCALED ${TRAJ10_GRAPH} and the f64 reference's as the traj10 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
-        async (t) => {
-            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
-                // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
-                // ones on every run (issue #455)
-                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
-            }
-            requireGpu(t);
-            const s = paritySnapshot(TRAJ10_GRAPH, 1, false);
-            try {
-                const start = startPositions(s, FR_BASE_OPTIONS, false);
-                const gpu = await gpuTrajectory(ctx, s, start, FR_BASE_OPTIONS, [TRAJ10_HORIZON]);
-                const oracle = oracleTrajectory(s, start, FR_BASE_OPTIONS, [TRAJ10_HORIZON]);
-                const { kernel, fixture } = FR_NOISE_FIXTURES.traj10;
-                writeNoiseFixture(kernel, fixture, adapterClass(ctx.caps), at(gpu.positions, TRAJ10_HORIZON), "f32");
-                writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, at(oracle.positions, TRAJ10_HORIZON), "f32");
-                const err = stageError(true, at(gpu.positions, TRAJ10_HORIZON), at(oracle.positions, TRAJ10_HORIZON));
-                console.warn(`[fr-trace] noise/${TRAJ10_GRAPH}/traj10: error ${err.rel.toExponential(3)}`);
-                assertCheckPasses({
-                    worst: ratioOf(err.rel, frTolerance("fr-trajectory").value),
-                    worstLabel: `noise/${TRAJ10_GRAPH}/traj10`,
-                    samples: s.nodeCount,
-                });
-            } finally {
-                ctx.release(s);
-            }
-        },
-        CASE_TIMEOUT,
-    );
+    it(`writes the ${TRAJ10_HORIZON}-iteration positions of the UNSCALED ${TRAJ10_GRAPH} and the f64 reference's as the traj10 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`, async (t) => {
+        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+            // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
+            // ones on every run (issue #455)
+            t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+        }
+        requireGpu(t);
+        const s = paritySnapshot(TRAJ10_GRAPH, 1, false);
+        try {
+            const start = startPositions(s, FR_BASE_OPTIONS, false);
+            const gpu = await gpuTrajectory(ctx, s, start, FR_BASE_OPTIONS, [TRAJ10_HORIZON]);
+            const oracle = oracleTrajectory(s, start, FR_BASE_OPTIONS, [TRAJ10_HORIZON]);
+            const { kernel, fixture } = FR_NOISE_FIXTURES.traj10;
+            writeNoiseFixture(kernel, fixture, adapterClass(ctx.caps), at(gpu.positions, TRAJ10_HORIZON), "f32");
+            writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, at(oracle.positions, TRAJ10_HORIZON), "f32");
+            const err = stageError(true, at(gpu.positions, TRAJ10_HORIZON), at(oracle.positions, TRAJ10_HORIZON));
+            console.warn(`[fr-trace] noise/${TRAJ10_GRAPH}/traj10: error ${err.rel.toExponential(3)}`);
+            assertCheckPasses({
+                worst: ratioOf(err.rel, frTolerance("fr-trajectory").value),
+                worstLabel: `noise/${TRAJ10_GRAPH}/traj10`,
+                samples: s.nodeCount,
+            });
+        } finally {
+            ctx.release(s);
+        }
+    });
 });

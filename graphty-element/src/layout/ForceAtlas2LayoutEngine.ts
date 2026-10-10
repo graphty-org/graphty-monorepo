@@ -33,7 +33,7 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
         },
     },
     jitterTolerance: {
-        schema: z.number().positive().default(1.0),
+        schema: z.number().positive().default(1),
         meta: {
             label: "Jitter Tolerance",
             description: "Tolerance for position jitter",
@@ -42,7 +42,7 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
         },
     },
     scalingRatio: {
-        schema: z.number().positive().default(2.0),
+        schema: z.number().positive().default(2),
         meta: {
             label: "Scaling Ratio",
             description: "Ratio for force scaling",
@@ -53,7 +53,7 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
         // NONNEGATIVE, not positive: zero gravity is a legal ForceAtlas2 setting -- nothing pulls
         // the graph towards the centre and the components drift apart -- and it is what the
         // Storybook slider has always offered as its lowest value.
-        schema: z.number().nonnegative().default(1.0),
+        schema: z.number().nonnegative().default(1),
         meta: {
             label: "Gravity",
             description: "Strength of center gravity",

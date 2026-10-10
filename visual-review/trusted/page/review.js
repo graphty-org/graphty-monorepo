@@ -1032,7 +1032,7 @@ async function followTargets(seq, ask) {
         // first load ends, not up to 700 ms later (#1530).
         let wait = 250;
         if (list.targets) {
-            wait = list.refreshing || list.targets.some((t) => t.downloading) ? 700 : 5000;
+            wait = settled(list) ? 5000 : 700;
         }
         await sleep(wait);
         if (seq !== nav) {
@@ -1060,12 +1060,16 @@ function backgroundLine(list, net) {
     }
 }
 
-// The line above the cards: how old the list is, and Refresh.
+// The list is whole: no refresh running and every capture downloaded.
+const settled = (list) => Boolean(list?.targets) && !list.refreshing && !list.targets.some((t) => t.downloading);
+
+// The line above the cards: how old the list is, and Refresh. `data-settled` once the list shown
+// is whole, so a script (or a test) waits on that rather than on a guess at how long it takes.
 function listLine() {
     const list = state.list;
     return el(
         "p",
-        { class: "listline", id: "listline" },
+        { class: "listline", id: "listline", "data-settled": settled(list) },
         list?.updatedAt ? `Updated ${secondsSince(list.updatedAt, list.now)} s ago` : "",
         el("button", { type: "button", onclick: () => showTargets("", true) }, "Refresh"),
     );
@@ -2929,13 +2933,22 @@ function itemLine(item, d) {
         "div",
         {
             class: "itemline",
-            onclick: (e) => e.currentTarget.classList.toggle("open"),
+            // A click on the name, or one that ends a text selection, is someone copying text:
+            // opening the row would rewrap it and move the buttons under the pointer.
+            onclick: (e) => {
+                if (e.target.closest(".name") || !getSelection().isCollapsed) {
+                    return;
+                }
+                e.currentTarget.classList.toggle("open");
+            },
         },
         el(
             "h2",
             {},
             el("span", { class: "number" }, `#${numberOf(item)}`),
-            ` ${itemName(item)} `,
+            " ",
+            el("span", { class: "name" }, itemName(item)),
+            " ",
             el("span", { class: `badge ${item.status}` }, statusLabel(item.status)),
             item.from ? el("span", { class: "badge moved" }, movedFrom(item)) : null,
             d

@@ -108,10 +108,10 @@ export interface AiManagerConfig {
 }
 
 // @public
-export type AiStage = "processing" | "generating" | "executing";
+export type AiStage = (typeof AI_STAGES)[number];
 
 // @public
-export type AiState = "ready" | "submitted" | "streaming" | "executing" | "error";
+export type AiState = (typeof AI_STATES)[number];
 
 // @public
 export interface AiStatus {
@@ -152,6 +152,7 @@ export class ApiKeyManager {
     clear(): void;
     disablePersistence(clearStorage?: boolean): void;
     enablePersistence(config?: PersistenceConfig): void;
+    enablePersistenceWithPassphrase(passphrase: string, config?: PassphrasePersistenceConfig): Promise<void>;
     getConfiguredProviders(): ProviderType[];
     getDefaultProvider(): ProviderType | null;
     getKey(provider: ProviderType): string | undefined;
@@ -243,7 +244,9 @@ export const describeProperty: GraphCommand;
 
 // @public
 export interface ExecutionResult extends CommandResult {
+    code?: AiResultCode;
     llmText?: string;
+    params?: AiResultParams;
 }
 
 // @public
@@ -373,6 +376,13 @@ export interface NumericStatistics {
 }
 
 // @public
+export interface PassphrasePersistenceConfig {
+    prefix?: string;
+    salt?: string;
+    storage?: StorageType;
+}
+
+// @public
 export interface PersistenceConfig {
     encryptionKey?: string;
     prefix?: string;
@@ -409,7 +419,7 @@ export interface ProviderOptions {
 }
 
 // @public
-export type ProviderType = VercelProviderType | "mock" | "webllm";
+export type ProviderType = AiProviderId;
 
 // @public
 export const queryGraph: GraphCommand;
@@ -526,7 +536,7 @@ export interface ToolCallStatus {
 }
 
 // @public
-export type ToolCallStatusType = "pending" | "executing" | "complete" | "error";
+export type ToolCallStatusType = (typeof AI_TOOL_CALL_STATUSES)[number];
 
 // @public
 export interface ToolDefinition {
@@ -554,7 +564,7 @@ export class VercelAiProvider implements LlmProvider {
 }
 
 // @public
-export type VercelProviderType = "openai" | "anthropic" | "google";
+export type VercelProviderType = Exclude<AiProviderId, "webllm" | "mock">;
 
 // @public
 export class VoiceInputAdapter implements InputAdapter {
@@ -577,9 +587,16 @@ export type VoiceStartCallback = (started: boolean, error?: string) => void;
 // @public
 export interface WebLlmModelInfo {
     description?: string;
+    downloadMB?: number;
     id: string;
     name: string;
     size: string;
+    supportsTools?: boolean;
+}
+
+// @public
+export interface WebLlmProviderOptions {
+    initializeOnFirstUse?: boolean;
 }
 
 // @public

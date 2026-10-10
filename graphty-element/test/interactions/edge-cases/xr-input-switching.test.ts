@@ -9,6 +9,7 @@ import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../../src/Graph";
+import { nextFrame } from "../../helpers/real-input";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [
@@ -33,7 +34,7 @@ describe("XR Input Switching", () => {
         await graph.addNodes(TEST_NODES);
         await graph.addEdges(TEST_EDGES);
         await operationQueueOf(graph).waitForCompletion();
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await graph.waitForStableFrame();
     });
 
     afterEach(() => {
@@ -59,7 +60,9 @@ describe("XR Input Switching", () => {
             const initialPos = node1.mesh.position.clone();
 
             // Verify node position is stable
-            await new Promise((resolve) => setTimeout(resolve, 50));
+            for (let frame = 0; frame < 3; frame++) {
+                await nextFrame();
+            }
 
             const finalPos = node1.mesh.position;
             const positionStable =
@@ -113,7 +116,7 @@ describe("XR Input Switching", () => {
             // Change view mode (should reset any ongoing interactions)
             await graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForSettled();
 
             // Node should still exist and have valid position
             const nodeAfter = graph.getNode("node1");

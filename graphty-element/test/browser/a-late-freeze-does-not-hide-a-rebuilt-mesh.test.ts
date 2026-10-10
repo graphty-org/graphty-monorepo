@@ -57,7 +57,7 @@ describe("a freeze Babylon puts off", () => {
         });
         await operationQueueOf(graph).waitForCompletion();
         await graph.waitForStableFrame();
-    }, 60000);
+    });
 
     afterAll(() => {
         graph.dispose();
@@ -132,9 +132,10 @@ describe("a freeze Babylon puts off", () => {
         });
         pump();
 
-        // The scene becomes ready and Babylon's next poll runs the freeze that was put off.
+        // The scene becomes ready and Babylon's next poll runs the freeze that was put off. A
+        // readiness callback queued now runs right after the freeze's own.
         scene.isReady = isReady;
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await scene.whenReadyAsync();
 
         // Taking the layer away rebuilds the edge's line in a batch that did not exist when the
         // list was taken.

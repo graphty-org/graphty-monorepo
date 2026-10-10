@@ -14,12 +14,17 @@
  * double the graph. `setEdges` is the verb for "this is my edge set", and it is what the
  * `edge-data` property calls. What these tests are about is unchanged: the same operations in any
  * order end with the same graph.
+ *
+ * A host's calls arrive interleaved with the element's own work, across separate turns of its
+ * render loop. The variants model that with `await nextFrame()` between calls: one frame of the
+ * render loop, not a clock, so the interleaving is the same on a fast machine and a slow one.
  */
 
 import { Color3, InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { nextFrame } from "../helpers/real-input";
 import { isDisposed, styleEveryEdge, styleEveryNode, type TestGraph } from "../helpers/testSetup";
 
 // Test data constants (matching the stories)
@@ -62,11 +67,6 @@ const NODE_COLOR = { r: 76, g: 175, b: 80, a: 1 };
 async function applyFinalStyle(graph: Graph): Promise<void> {
     await styleEveryNode(graph, NODE_STYLE, "final nodes");
     await styleEveryEdge(graph, EDGE_STYLE, "final edges");
-}
-
-// Helper to wait for a delay
-function delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 describe("Property Order Independence", () => {
@@ -451,18 +451,18 @@ describe("Property Order Independence", () => {
             await applyFinalStyle(graph);
 
             // Load partial data first
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 3));
 
             // Fix layout
-            await delay(5);
+            await nextFrame();
             await graph.setLayout("circular");
 
             // Load correct complete data
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
 
-            await delay(5);
+            await nextFrame();
             await graph.setEdges(TEST_EDGES);
 
             await operationQueueOf(graph).waitForCompletion();
@@ -487,16 +487,16 @@ describe("Property Order Independence", () => {
             await graph.setLayout("random");
 
             // Fix layout first
-            await delay(5);
+            await nextFrame();
             await graph.setLayout("circular");
 
             // Load data
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
             // Update to correct style last
-            await delay(30);
+            await nextFrame();
             await applyFinalStyle(graph);
 
             await operationQueueOf(graph).waitForCompletion();
@@ -532,23 +532,23 @@ describe("Property Order Independence", () => {
             await graph.addNodes(TEST_NODES.slice(0, 2));
 
             // Fix layout
-            await delay(10);
+            await nextFrame();
             await graph.setLayout("circular");
 
             // Load more partial data
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 4));
 
             // Fix style
-            await delay(5);
+            await nextFrame();
             await applyFinalStyle(graph);
 
             // Load complete node data
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
 
             // Load edges last
-            await delay(5);
+            await nextFrame();
             await graph.setEdges(TEST_EDGES);
 
             await operationQueueOf(graph).waitForCompletion();
@@ -568,16 +568,16 @@ describe("Property Order Independence", () => {
             await graph.setEdges(TEST_EDGES); // Edges first - will be buffered
             await graph.setLayout("random");
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 2));
 
-            await delay(3);
+            await nextFrame();
             await graph.setLayout("d3");
 
-            await delay(2);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 4));
 
-            await delay(5);
+            await nextFrame();
             await styleEveryNode(
                 graph,
                 { "node.color": "#0000FF", "node.shape": "box", "node.size": 10 },
@@ -585,7 +585,7 @@ describe("Property Order Independence", () => {
             );
             await styleEveryEdge(graph, { "edge.color": "#FF0000", "edge.width": 3 }, "wrong edges 1");
 
-            await delay(5);
+            await nextFrame();
             await styleEveryNode(
                 graph,
                 { "node.color": "#FF00FF", "node.shape": "cylinder", "node.size": 10 },
@@ -593,16 +593,16 @@ describe("Property Order Independence", () => {
             );
             await styleEveryEdge(graph, { "edge.color": "#00FF00", "edge.width": 3 }, "wrong edges 2");
 
-            await delay(5);
+            await nextFrame();
             await graph.setLayout("circular");
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
 
-            await delay(5);
+            await nextFrame();
             await graph.setEdges(TEST_EDGES);
 
-            await delay(5);
+            await nextFrame();
             await applyFinalStyle(graph);
 
             await operationQueueOf(graph).waitForCompletion();
@@ -631,21 +631,21 @@ describe("Property Order Independence", () => {
                 "wrong nodes 1",
             );
 
-            await delay(5);
+            await nextFrame();
             await styleEveryNode(
                 graph,
                 { "node.color": "#0000FF", "node.shape": "sphere", "node.size": 10 },
                 "wrong nodes 2",
             );
 
-            await delay(5);
+            await nextFrame();
             await applyFinalStyle(graph);
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
-            await delay(5);
+            await nextFrame();
             await graph.setLayout("circular");
 
             await operationQueueOf(graph).waitForCompletion();
@@ -666,16 +666,16 @@ describe("Property Order Independence", () => {
             await graph.setEdges(TEST_EDGES.slice(0, 1));
 
             // Replace with different partial data
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 4));
             await graph.setEdges(TEST_EDGES.slice(0, 3));
 
             // Load correct complete data
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
-            await delay(5);
+            await nextFrame();
             await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
@@ -695,13 +695,13 @@ describe("Property Order Independence", () => {
             // Set multiple layouts in quick succession - only last should complete
             await graph.setLayout("ngraph");
 
-            await delay(5);
+            await nextFrame();
             await graph.setLayout("d3");
 
-            await delay(5);
+            await nextFrame();
             await graph.setLayout("circular");
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
             await applyFinalStyle(graph);
@@ -732,7 +732,7 @@ describe("Property Order Independence", () => {
             await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
             await graph.runAlgorithm("graphty", "pagerank");
@@ -753,10 +753,10 @@ describe("Property Order Independence", () => {
             // Set layout before any data exists
             await graph.setLayout("circular");
 
-            await delay(5);
+            await nextFrame();
             await applyFinalStyle(graph);
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
@@ -784,32 +784,32 @@ describe("Property Order Independence", () => {
             await graph.setLayout("circular");
 
             // Manually add nodes incrementally
-            await delay(5);
+            await nextFrame();
             await graph.addNodes([TEST_NODES[0]]);
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes([TEST_NODES[0], TEST_NODES[1]]);
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 3));
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 4));
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 5));
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
 
             // Add edges incrementally
-            await delay(5);
+            await nextFrame();
             await graph.setEdges([TEST_EDGES[0]]);
 
-            await delay(5);
+            await nextFrame();
             await graph.setEdges(TEST_EDGES.slice(0, 3));
 
-            await delay(5);
+            await nextFrame();
             await graph.setEdges(TEST_EDGES);
 
             await operationQueueOf(graph).waitForCompletion();
@@ -829,17 +829,17 @@ describe("Property Order Independence", () => {
             await graph.addNodes(TEST_NODES.slice(0, 2));
             await graph.setEdges([TEST_EDGES[0]]);
 
-            await delay(10);
+            await nextFrame();
             // Set configuration in the middle
             await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
-            await delay(10);
+            await nextFrame();
             // Add more nodes
             await graph.addNodes(TEST_NODES.slice(0, 4));
             await graph.setEdges(TEST_EDGES.slice(0, 3));
 
-            await delay(10);
+            await nextFrame();
             // Complete the data
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
@@ -875,7 +875,7 @@ describe("Property Order Independence", () => {
             await graph.setLayout("circular");
 
             // Replace style after everything is loaded
-            await delay(20);
+            await graph.waitForSettled();
             await applyFinalStyle(graph);
 
             await operationQueueOf(graph).waitForCompletion();
@@ -898,7 +898,7 @@ describe("Property Order Independence", () => {
             await graph.setLayout("random");
 
             // Replace layout after everything is loaded
-            await delay(20);
+            await graph.waitForSettled();
             await graph.setLayout("circular");
 
             await operationQueueOf(graph).waitForCompletion();
@@ -926,7 +926,7 @@ describe("Property Order Independence", () => {
             await graph.setLayout("ngraph");
 
             // Replace both after everything is loaded
-            await delay(30);
+            await graph.waitForSettled();
             await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
@@ -952,22 +952,22 @@ describe("Property Order Independence", () => {
             // Interleave nodes and edges in chaotic order
             await graph.addNodes([TEST_NODES[0]]);
 
-            await delay(5);
+            await nextFrame();
             await graph.setEdges([TEST_EDGES[0]]);
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 3));
 
-            await delay(5);
+            await nextFrame();
             await graph.setEdges(TEST_EDGES.slice(0, 3));
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
 
-            await delay(5);
+            await nextFrame();
             await graph.setEdges(TEST_EDGES);
 
-            await delay(5);
+            await nextFrame();
             await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
@@ -992,19 +992,19 @@ describe("Property Order Independence", () => {
             // Rapidly switch layouts
             await graph.setLayout("random");
 
-            await delay(2);
+            await nextFrame();
             await graph.setLayout("ngraph");
 
-            await delay(2);
+            await nextFrame();
             await graph.setLayout("random");
 
-            await delay(2);
+            await nextFrame();
             await graph.setLayout("d3");
 
-            await delay(2);
+            await nextFrame();
             await graph.setLayout("ngraph");
 
-            await delay(2);
+            await nextFrame();
             await graph.setLayout("circular");
 
             await operationQueueOf(graph).waitForCompletion();
@@ -1020,17 +1020,17 @@ describe("Property Order Independence", () => {
         });
 
         it("Variant 19: Empty start with everything delayed", async () => {
-            // Start completely empty, add everything with delays
-            await delay(10);
+            // Start completely empty, add everything a frame apart
+            await nextFrame();
             await graph.setLayout("circular");
 
-            await delay(10);
+            await nextFrame();
             await applyFinalStyle(graph);
 
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
 
-            await delay(10);
+            await nextFrame();
             await graph.setEdges(TEST_EDGES);
 
             await operationQueueOf(graph).waitForCompletion();
@@ -1050,8 +1050,8 @@ describe("Property Order Independence", () => {
             await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
-            // Wait a long time before loading data
-            await delay(50);
+            // Load the data only once the configuration has been fully processed
+            await graph.waitForSettled();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
@@ -1077,21 +1077,21 @@ describe("Property Order Independence", () => {
             await graph.setLayout("circular");
 
             // Load initial data
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 3));
             await graph.setEdges(TEST_EDGES.slice(0, 2));
 
-            await delay(5);
+            await nextFrame();
             await applyFinalStyle(graph);
             await graph.runAlgorithm("graphty", "pagerank");
 
             // Add more data - algorithm should automatically re-run
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 5));
             await graph.setEdges(TEST_EDGES.slice(0, 4));
 
             // Add final data - algorithm should re-run again
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
@@ -1112,17 +1112,17 @@ describe("Property Order Independence", () => {
             await graph.setLayout("circular");
 
             // Load initial data
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 3));
             await graph.setEdges(TEST_EDGES.slice(0, 2));
 
             // Replace with different data
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 4));
             await graph.setEdges(TEST_EDGES.slice(0, 3));
 
             // Replace with final complete data
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
@@ -1143,15 +1143,15 @@ describe("Property Order Independence", () => {
             await graph.setLayout("circular");
 
             // Add data incrementally - algorithms should re-run each time
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 2));
             await graph.setEdges([TEST_EDGES[0]]);
 
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 4));
             await graph.setEdges(TEST_EDGES.slice(0, 3));
 
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
@@ -1179,16 +1179,16 @@ describe("Property Order Independence", () => {
             await applyFinalStyle(graph);
 
             // Load data
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
             // Change layout
-            await delay(10);
+            await nextFrame();
             await graph.setLayout("circular");
 
             // Update style properties (while in 2D mode)
-            await delay(10);
+            await nextFrame();
             await applyFinalStyle(graph);
 
             await operationQueueOf(graph).waitForCompletion();
@@ -1209,14 +1209,14 @@ describe("Property Order Independence", () => {
             await graph.setLayout("circular");
 
             // Set initial 3D style
-            await delay(10);
+            await nextFrame();
             await applyFinalStyle(graph);
 
             // Verify we're in 3D mode initially
             assert.isFalse(graph.getViewMode() === "2d", "Should start in 3D mode");
 
             // Switch to 2D camera
-            await delay(10);
+            await nextFrame();
             await graph.setViewMode("2d");
 
             await operationQueueOf(graph).waitForCompletion();
@@ -1256,7 +1256,7 @@ describe("Property Order Independence", () => {
             }
 
             // Switch to 2D
-            await delay(5);
+            await nextFrame();
             await graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
 
@@ -1264,7 +1264,7 @@ describe("Property Order Independence", () => {
             verify2DModePositions();
 
             // Switch back to 3D
-            await delay(5);
+            await nextFrame();
             await graph.setViewMode("3d");
             await operationQueueOf(graph).waitForCompletion();
 
@@ -1285,7 +1285,7 @@ describe("Property Order Independence", () => {
             }
 
             // Switch to 2D again
-            await delay(5);
+            await nextFrame();
             await graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
 
@@ -1293,7 +1293,7 @@ describe("Property Order Independence", () => {
             verify2DModePositions();
 
             // Final: back to 3D
-            await delay(5);
+            await nextFrame();
             await graph.setViewMode("3d");
             await operationQueueOf(graph).waitForCompletion();
 
@@ -1333,11 +1333,11 @@ describe("Property Order Independence", () => {
             await graph.runAlgorithm("graphty", "pagerank");
 
             // Switch to 2D camera after the algorithm has run
-            await delay(20);
+            await nextFrame();
             await graph.setViewMode("2d");
 
             // Switch back to 3D
-            await delay(10);
+            await nextFrame();
             await graph.setViewMode("3d");
 
             await operationQueueOf(graph).waitForCompletion();
@@ -1355,13 +1355,13 @@ describe("Property Order Independence", () => {
             await graph.setLayout("circular");
 
             // Load data, then run the algorithm over it in 2D mode
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
             await graph.runAlgorithm("graphty", "pagerank");
 
             // Switch to 3D
-            await delay(20);
+            await nextFrame();
             await graph.setViewMode("3d");
 
             await operationQueueOf(graph).waitForCompletion();
@@ -1381,20 +1381,20 @@ describe("Property Order Independence", () => {
             await graph.setLayout("random");
 
             // Wrong camera mode initially (2D)
-            await delay(10);
+            await nextFrame();
             await graph.setViewMode("2d");
 
             // Fix layout
-            await delay(10);
+            await nextFrame();
             await graph.setLayout("circular");
 
             // Add algorithm
-            await delay(10);
+            await nextFrame();
             await applyFinalStyle(graph);
             await graph.runAlgorithm("graphty", "pagerank");
 
             // Fix camera to 3D
-            await delay(10);
+            await nextFrame();
             await graph.setViewMode("3d");
 
             await operationQueueOf(graph).waitForCompletion();
@@ -1422,20 +1422,20 @@ describe("Property Order Independence", () => {
             await graph.setEdges(TEST_EDGES);
 
             // 2. Run algorithm
-            await delay(10);
+            await nextFrame();
             await applyFinalStyle(graph);
             await graph.runAlgorithm("graphty", "pagerank");
 
             // 3. Change layout
-            await delay(10);
+            await nextFrame();
             await graph.setLayout("circular");
 
             // 4. Switch to 2D camera
-            await delay(10);
+            await nextFrame();
             await graph.setViewMode("2d");
 
             // 5. Update style and switch back to 3D
-            await delay(10);
+            await nextFrame();
             await applyFinalStyle(graph);
             await graph.setViewMode("3d");
 
@@ -1458,33 +1458,33 @@ describe("Property Order Independence", () => {
             await graph.setEdges(TEST_EDGES.slice(0, 2));
 
             // 2. Run algorithm on initial data
-            await delay(10);
+            await nextFrame();
             await applyFinalStyle(graph);
             await graph.runAlgorithm("graphty", "pagerank");
 
             // 3. Add more data
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 5));
             await graph.setEdges(TEST_EDGES.slice(0, 4));
 
             // 4. Switch to 2D camera
-            await delay(10);
+            await nextFrame();
             await graph.setViewMode("2d");
 
             // 5. Update style
-            await delay(10);
+            await nextFrame();
             await applyFinalStyle(graph);
 
             // 6. Add final data and set layout
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
-            await delay(10);
+            await nextFrame();
             await graph.setLayout("circular");
 
             // Switch back to 3D
-            await delay(10);
+            await nextFrame();
             await graph.setViewMode("3d");
 
             await operationQueueOf(graph).waitForCompletion();
@@ -1508,26 +1508,26 @@ describe("Property Order Independence", () => {
             await graph.addNodes([TEST_NODES[0]]);
 
             // Style the graph
-            await delay(5);
+            await nextFrame();
             await applyFinalStyle(graph);
 
             // Continue adding nodes manually
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 2));
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 3));
             await graph.setEdges([TEST_EDGES[0]]);
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 4));
             await graph.setEdges(TEST_EDGES.slice(0, 2));
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES.slice(0, 5));
             await graph.setEdges(TEST_EDGES.slice(0, 4));
 
-            await delay(5);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
@@ -1551,17 +1551,17 @@ describe("Property Order Independence", () => {
             await graph.setViewMode("2d");
 
             // Load data, then measure it
-            await delay(10);
+            await nextFrame();
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
             await graph.runAlgorithm("graphty", "pagerank");
 
             // Update styles (still in 2D)
-            await delay(10);
+            await nextFrame();
             await applyFinalStyle(graph);
 
             // Switch to 3D to match final state
-            await delay(10);
+            await nextFrame();
             await graph.setViewMode("3d");
 
             await operationQueueOf(graph).waitForCompletion();
@@ -1582,15 +1582,15 @@ describe("Property Order Independence", () => {
             await graph.runAlgorithm("graphty", "betweenness");
 
             // Switch camera mode
-            await delay(5);
+            await nextFrame();
             await graph.setViewMode("2d");
 
             // Run pagerank beside it
-            await delay(5);
+            await nextFrame();
             await graph.runAlgorithm("graphty", "pagerank");
 
             // Switch back to 3D
-            await delay(10);
+            await nextFrame();
             await graph.setViewMode("3d");
 
             await operationQueueOf(graph).waitForCompletion();

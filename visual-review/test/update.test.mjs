@@ -5,68 +5,32 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { contentHash, gateProblems, reviewGaps, unrecordedChanges } from "../trusted/gate.mjs";
+import { gateProblems, reviewGaps, unrecordedChanges } from "../trusted/gate.mjs";
 import { updateFromMaster } from "../trusted/lib/accept.mjs";
-import { classify, sha256 } from "../trusted/lib/compare.mjs";
-import { CONFIG, FIXTURE, git, isolateGit, makeRepo, pushCommit } from "./helpers.mjs";
+import { classify } from "../trusted/lib/compare.mjs";
+import {
+    CONFIG,
+    CONFLICT_MINE as MINE,
+    CONFLICT_PATH as PATH,
+    CONFLICT_THEIRS as THEIRS,
+    FIXTURE,
+    git,
+    isolateGit,
+    makeRepo,
+    pushCommit,
+} from "./helpers.mjs";
 import { makeKey } from "./passkey-vectors.mjs";
 
 beforeAll(isolateGit);
 
-const PATH = "visual-baselines/compact-mantine/button--primary.dark.png";
 const CLI = new URL("../trusted/cli.mjs", import.meta.url).pathname;
-// The pull request's accepted capture, and the newer baseline another pull request put on master.
-const MINE = join(FIXTURE, "compact-mantine/button--primary.dark.png");
-const THEIRS = join(FIXTURE, "compact-mantine/second/tooltip--hover.png");
-
-function put(path, data) {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, data);
-}
-
-/**
- * The pull request (#123, branch feature) accepted a new image of button--primary.dark with a
- * review record, as Finish commits it; then master accepted a different one for the same story.
- * Merging master into feature conflicts on that baseline only. With `code`, both also wrote
- * src.txt, a conflict outside the baselines.
- * @param {{ code?: boolean }} [options] what else conflicts
- * @returns {object} the repository, and master's and feature's tips
- */
-function conflicted({ code = false } = {}) {
-    const r = makeRepo();
-    const commit = (branch, message, files) => {
-        git(r.repo, "checkout", "-q", branch);
-        for (const [path, data] of Object.entries(files)) {
-            put(join(r.repo, path), data);
-        }
-        git(r.repo, "add", "-A");
-        git(r.repo, "commit", "-q", "-m", message);
-        git(r.repo, "push", "-q", "origin", branch);
-        return git(r.repo, "rev-parse", "HEAD");
-    };
-    const before = contentHash(Buffer.from(git(r.repo, "show", `master:${PATH}`) + "\n"));
-    const record = {
-        version: 1,
-        pr: 123,
-        reviewedAt: "2026-09-27T15:04:05.000Z",
-        items: [{ path: PATH, from: before, to: sha256(readFileSync(MINE)), reason: null }],
-    };
-    const feature = commit("feature", "accept", {
-        [PATH]: readFileSync(MINE),
-        "visual-baselines/reviews/20260927T150405Z-pr123.json": `${JSON.stringify(record, null, 2)}\n`,
-        ...(code && { "src.txt": "feature's line\n" }),
-    });
-    const master = commit("master", "another pull request's accept", {
-        [PATH]: readFileSync(THEIRS),
-        ...(code && { "src.txt": "master's line\n" }),
-    });
-    return { ...r, feature, master };
-}
+// The pull request accepted MINE for PATH, then master accepted THEIRS (helpers.mjs buildConflicted).
+const conflicted = ({ code = false } = {}) => makeRepo(code ? "conflictedCodeRepo" : "conflictedRepo");
 
 const update = (r) => updateFromMaster({ repo: r.repo, pr: 123, branch: "feature", config: CONFIG });
 

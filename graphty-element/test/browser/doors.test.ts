@@ -25,9 +25,6 @@ import { dispatcherOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
 import { callOf, checkDispatches, dispatchesOf } from "../session/history/door-harness";
 
-/** Per-root budget: each builds a real Babylon scene and calls every row once. */
-const ROOT_TIMEOUT_MS = 60_000;
-
 /** A small graph every door can find its way around. */
 const NODES = [{ id: "n1" }, { id: "n2" }, { id: "n3" }];
 const EDGES = [
@@ -141,22 +138,18 @@ describe("the renderer's doors", () => {
             continue;
         }
 
-        it(
-            `${root.name}: every called row dispatches what its row says`,
-            async () => {
-                const reach = RENDERER_ROOTS[root.name] as (() => Promise<Target>) | undefined;
-                assert.isDefined(reach, `the renderer half has no way to reach a ${root.name}`);
-                const target = await reach();
-                const dispatcher = dispatcherOf(target.session);
-                for (const [member, door] of called) {
-                    const call = callOf(door);
-                    assert.isDefined(call);
-                    const seen = await dispatchesOf(dispatcher, target.object, member, call);
-                    checkDispatches(`${root.name}.${member}`, door, seen);
-                }
-            },
-            ROOT_TIMEOUT_MS,
-        );
+        it(`${root.name}: every called row dispatches what its row says`, async () => {
+            const reach = RENDERER_ROOTS[root.name] as (() => Promise<Target>) | undefined;
+            assert.isDefined(reach, `the renderer half has no way to reach a ${root.name}`);
+            const target = await reach();
+            const dispatcher = dispatcherOf(target.session);
+            for (const [member, door] of called) {
+                const call = callOf(door);
+                assert.isDefined(call);
+                const seen = await dispatchesOf(dispatcher, target.object, member, call);
+                checkDispatches(`${root.name}.${member}`, door, seen);
+            }
+        });
     }
 });
 
@@ -168,31 +161,27 @@ describe("the element's properties read back across undo and redo", () => {
             }
 
             const { value } = door.call;
-            it(
-                `${root.name}.${member}`,
-                async () => {
-                    const reach = RENDERER_ROOTS[root.name] as (() => Promise<Target>) | undefined;
-                    assert.isDefined(reach);
-                    const target = await reach();
-                    const object = target.object as Record<string, unknown>;
-                    const before = object[member];
+            it(`${root.name}.${member}`, async () => {
+                const reach = RENDERER_ROOTS[root.name] as (() => Promise<Target>) | undefined;
+                assert.isDefined(reach);
+                const target = await reach();
+                const object = target.object as Record<string, unknown>;
+                const before = object[member];
 
-                    object[member] = value;
-                    // A setter whose command waits its turn on the queue is recorded once it has run.
-                    await vi.waitFor(() => {
-                        assert.lengthOf(target.session.history.pending, 0, "the assignment is recorded");
-                    });
-                    await target.session.history.restoreTo(target.session.history.steps.at(-1)?.id ?? null);
-                    assert.deepEqual(object[member], value, "the getter reads the value set");
+                object[member] = value;
+                // A setter whose command waits its turn on the queue is recorded once it has run.
+                await vi.waitFor(() => {
+                    assert.lengthOf(target.session.history.pending, 0, "the assignment is recorded");
+                });
+                await target.session.history.restoreTo(target.session.history.steps.at(-1)?.id ?? null);
+                assert.deepEqual(object[member], value, "the getter reads the value set");
 
-                    await target.session.undo();
-                    assert.deepEqual(object[member], before, "undo restores what the getter read before");
+                await target.session.undo();
+                assert.deepEqual(object[member], before, "undo restores what the getter read before");
 
-                    await target.session.redo();
-                    assert.deepEqual(object[member], value, "redo restores the value set");
-                },
-                ROOT_TIMEOUT_MS,
-            );
+                await target.session.redo();
+                assert.deepEqual(object[member], value, "redo restores the value set");
+            });
         }
     }
 
@@ -209,29 +198,25 @@ describe("the element's properties read back across undo and redo", () => {
 });
 
 describe("the coordinate lane is read-only everywhere a consumer reaches it", () => {
-    it(
-        "hands out no writer through the data manager or the layout engine",
-        async () => {
-            const graph = await loadedGraph();
-            const engine = graph.getLayoutManager().layoutEngine;
-            assert.isDefined(engine);
-            const views: [string, object][] = [
-                ["DataManager.positions", graph.getDataManager().positions],
-                ["LayoutEngine.nodePositions", engine.nodePositions],
-            ];
-            // The types hand out no writer either, so a write does not compile.
-            expectTypeOf(engine.nodePositions).not.toHaveProperty("write");
-            expectTypeOf(engine.nodePositions).not.toHaveProperty("setPinned");
-            expectTypeOf(graph.getDataManager().positions).not.toHaveProperty("write");
-            expectTypeOf(graph.getDataManager().positions).not.toHaveProperty("setPinned");
-            for (const [name, view] of views) {
-                for (const writer of ["write", "fillUnplaced", "grow", "remap", "setPinned", "pinnedView", "view"]) {
-                    assert.notProperty(view, writer, `${name} has no ${writer}`);
-                }
+    it("hands out no writer through the data manager or the layout engine", async () => {
+        const graph = await loadedGraph();
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.isDefined(engine);
+        const views: [string, object][] = [
+            ["DataManager.positions", graph.getDataManager().positions],
+            ["LayoutEngine.nodePositions", engine.nodePositions],
+        ];
+        // The types hand out no writer either, so a write does not compile.
+        expectTypeOf(engine.nodePositions).not.toHaveProperty("write");
+        expectTypeOf(engine.nodePositions).not.toHaveProperty("setPinned");
+        expectTypeOf(graph.getDataManager().positions).not.toHaveProperty("write");
+        expectTypeOf(graph.getDataManager().positions).not.toHaveProperty("setPinned");
+        for (const [name, view] of views) {
+            for (const writer of ["write", "fillUnplaced", "grow", "remap", "setPinned", "pinnedView", "view"]) {
+                assert.notProperty(view, writer, `${name} has no ${writer}`);
             }
-        },
-        ROOT_TIMEOUT_MS,
-    );
+        }
+    });
 });
 
 describe("an assignment of a setting's default reads back", () => {
@@ -244,22 +229,18 @@ describe("an assignment of a setting's default reads back", () => {
         ["layoutBehavior", { layout: { preSteps: 0, stepMultiplier: 1, minDelta: 0 } }],
     ];
 
-    it(
-        "reads the value assigned, and records no step because nothing changed",
-        async () => {
-            const element = await mountedElement();
-            const object = element as unknown as Record<string, unknown>;
-            const steps = element.session.history.steps.length;
-            for (const [member, value] of DEFAULTS) {
-                object[member] = value;
-                await vi.waitFor(() => {
-                    assert.lengthOf(element.session.history.pending, 0);
-                });
-                assert.deepEqual(object[member], value, `${member} reads back`);
-            }
+    it("reads the value assigned, and records no step because nothing changed", async () => {
+        const element = await mountedElement();
+        const object = element as unknown as Record<string, unknown>;
+        const steps = element.session.history.steps.length;
+        for (const [member, value] of DEFAULTS) {
+            object[member] = value;
+            await vi.waitFor(() => {
+                assert.lengthOf(element.session.history.pending, 0);
+            });
+            assert.deepEqual(object[member], value, `${member} reads back`);
+        }
 
-            assert.lengthOf(element.session.history.steps, steps, "assigning a default records no step");
-        },
-        ROOT_TIMEOUT_MS,
-    );
+        assert.lengthOf(element.session.history.steps, steps, "assigning a default records no step");
+    });
 });

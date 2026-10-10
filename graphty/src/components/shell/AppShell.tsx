@@ -116,6 +116,7 @@ import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../data
 import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
 import type { ChatMessage } from "../ai/AiMessageBubble";
+import { aiResultText } from "../ai/aiResultText";
 import { FeedbackModal } from "../FeedbackModal";
 import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from "../Graphty";
 import type { LoadDataRequest } from "../LoadDataModal";
@@ -3897,9 +3898,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                     {
                                         id: `${id}-reply`,
                                         role: "assistant",
-                                        content: result.success
-                                            ? (result.message ?? result.text ?? result.llmText ?? "Done.")
-                                            : (result.error?.message ?? "The assistant could not answer."),
+                                        content: aiResultText(result),
                                         timestamp: Date.now(),
                                         isError: !result.success,
                                     },

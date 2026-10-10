@@ -365,13 +365,13 @@ describe("the simulation bridge against the Fruchterman-Reingold reference", () 
         const rig = await springOverArrivingData(3);
 
         await compareStepByStep(rig, 3, [1, 5, 10, 20, 50], []);
-    }, 180_000);
+    });
 
     it("runs the admitted horizons in 2D, where the third axis is held at the centre", async () => {
         const rig = await springOverArrivingData(2);
 
         await compareStepByStep(rig, 2, [1, 5], [10]);
-    }, 180_000);
+    });
 
     it("spends the whole pre-step budget on the first frame, and lands where the reference does", async () => {
         // THE PRE-STEP BUDGET IS NOT THE BRIDGE'S. `LayoutManager` owns it, spends it in chunks
@@ -403,5 +403,5 @@ describe("the simulation bridge against the Fruchterman-Reingold reference", () 
             CAP,
             "the arrangement the first frame draws is the reference's after the same budget",
         );
-    }, 180_000);
+    });
 });

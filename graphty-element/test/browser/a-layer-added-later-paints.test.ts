@@ -99,7 +99,7 @@ describe("a layer written to a graph that is already drawn", () => {
             },
         });
         await operationQueueOf(graph).waitForCompletion();
-    }, 60000);
+    });
 
     afterAll(() => {
         graph.dispose();

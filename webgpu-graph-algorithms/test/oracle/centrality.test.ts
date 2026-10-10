@@ -100,5 +100,5 @@ describe("brandesOracle (design 11.3)", () => {
         console.warn(`[noise-floor] brandes f32 vs f64 on randomEdges(2000, 8000, 7): ${spread.toExponential(3)}`);
         expect(spread).toBeGreaterThan(0);
         expect(spread).toBeLessThan(1e-4);
-    }, 60_000);
+    });
 });

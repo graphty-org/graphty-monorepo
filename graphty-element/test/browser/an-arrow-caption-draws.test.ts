@@ -102,7 +102,7 @@ describe("a caption at the end of an arrow", () => {
         // Drawn before the first measurement, so that every "the frame moved" below is a change
         // to a graph that was already on screen rather than to a graph that had never been drawn.
         await frame();
-    }, 60000);
+    });
 
     afterEach(() => {
         graph.dispose();

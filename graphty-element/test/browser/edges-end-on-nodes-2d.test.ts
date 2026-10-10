@@ -57,10 +57,7 @@ async function mount2D(configure: (element: Graphty) => void): Promise<Graphty> 
     configure(element);
     host.append(element);
 
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    await operationQueueOf(element.graph).waitForCompletion();
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForStableFrame();
 
     return element;
 }
@@ -129,8 +126,7 @@ describe("2D edges end on their nodes", () => {
         await element.graph.getSession().positions.set([{ id: "d", x: 1, y: 1, z: 20 }]);
         element.pin("d");
         await element.setViewMode("2d");
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
 
         assertEdgesEndOnNodes(element, "pinned in 3D");
     });
@@ -146,8 +142,7 @@ describe("2D edges end on their nodes", () => {
         const { history } = element.graph.getSession();
         const steps = history.steps.length;
         await element.graph.getSession().positions.set([{ id: "d", x: 1, y: 1, z: 20 }]);
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
 
         assertEdgesEndOnNodes(element, "a Z placed in 2D");
         const d = element.graph.getNode("d");
@@ -161,8 +156,7 @@ describe("2D edges end on their nodes", () => {
         await operationQueueOf(element.graph).waitForCompletion();
         assert.isTrue(session.canRedo, "undoing the placement leaves it to redo");
         await session.redo();
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
         assertEdgesEndOnNodes(element, "redone in 2D");
     });
 

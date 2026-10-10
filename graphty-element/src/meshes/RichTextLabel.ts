@@ -1079,14 +1079,14 @@ export class RichTextLabel {
             // for. Read back in a story: twenty labels, twenty identical alphas.
             const distance = Vector3.Distance(cameraAt, this.mesh.getAbsolutePosition());
 
-            let fadeFactor = 1.0;
+            let fadeFactor: number;
             if (distance < this.options.depthFadeNear) {
-                fadeFactor = 1.0;
+                fadeFactor = 1;
             } else if (distance > this.options.depthFadeFar) {
-                fadeFactor = 0.0;
+                fadeFactor = 0;
             } else {
                 const fadeRange = this.options.depthFadeFar - this.options.depthFadeNear;
-                fadeFactor = 1.0 - (distance - this.options.depthFadeNear) / fadeRange;
+                fadeFactor = 1 - (distance - this.options.depthFadeNear) / fadeRange;
             }
 
             this.material.alpha = fadeFactor;

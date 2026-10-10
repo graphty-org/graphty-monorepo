@@ -24,8 +24,6 @@ import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { componentSeparation, spread } from "../helpers/metrics.js";
 import { acquire, acquireRaw, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
-
 type FrSim = GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>;
 
 /** The options every case starts from: layout units = scene units, seeded, the exact tier. */
@@ -173,83 +171,79 @@ describe("FR behaviour pins (spec 11.4, 7.20; the CPU layout test's pins on the 
         }
     });
 
-    it(
-        "fixed at creation: the pinned row is bitwise where the seed put it after run({ maxIter: 20 }) and the other rows are NOT rescaled (design 13 row P5); a bool column with role fixed pins the same rows; a missing column is E_INVALID_ARGUMENT",
-        async (t) => {
-            requireGpu(t);
-            const s = paritySnapshot("karate", 1, false);
-            const n = s.nodeCount;
-            const pin = pinIndex(n);
-            const mask = pinMask(n, pin);
-            const columned = s.withColumns({ pinned: { data: mask, decl: { dtype: "bool", role: "fixed" } } });
-            try {
-                // scale 3, center [10, 20, 0]: every row is seeded in [0, 1) layout units (the "fr" range), i.e. x in
-                // [10, 13) and y in [20, 23); K5 moves a free row by at most temperature <= 0.1 layout units per
-                // iteration, so after 20 iterations every free row lies in x [4, 19], y [14, 29], z === 0. A rescale
-                // to the [-1, 1] box (what the legacy CPU layout applies and 7.18 forbids) would miss it on every row.
-                const options: FruchtermanReingoldOptions = { ...BASE, scale: 3, center: [10, 20, 0], fixed: mask };
-                const check = (positions: F32, seeded: F32): void => {
-                    for (let i = 0; i < n; i++) {
-                        const x = positions[3 * i];
-                        const y = positions[3 * i + 1];
-                        const z = positions[3 * i + 2];
-                        if (i === pin) {
-                            expect(x, "pinned x").toBe(seeded[3 * i]);
-                            expect(y, "pinned y").toBe(seeded[3 * i + 1]);
-                            expect(z, "pinned z").toBe(seeded[3 * i + 2]);
-                            continue;
+    it("fixed at creation: the pinned row is bitwise where the seed put it after run({ maxIter: 20 }) and the other rows are NOT rescaled (design 13 row P5); a bool column with role fixed pins the same rows; a missing column is E_INVALID_ARGUMENT", async (t) => {
+        requireGpu(t);
+        const s = paritySnapshot("karate", 1, false);
+        const n = s.nodeCount;
+        const pin = pinIndex(n);
+        const mask = pinMask(n, pin);
+        const columned = s.withColumns({ pinned: { data: mask, decl: { dtype: "bool", role: "fixed" } } });
+        try {
+            // scale 3, center [10, 20, 0]: every row is seeded in [0, 1) layout units (the "fr" range), i.e. x in
+            // [10, 13) and y in [20, 23); K5 moves a free row by at most temperature <= 0.1 layout units per
+            // iteration, so after 20 iterations every free row lies in x [4, 19], y [14, 29], z === 0. A rescale
+            // to the [-1, 1] box (what the legacy CPU layout applies and 7.18 forbids) would miss it on every row.
+            const options: FruchtermanReingoldOptions = { ...BASE, scale: 3, center: [10, 20, 0], fixed: mask };
+            const check = (positions: F32, seeded: F32): void => {
+                for (let i = 0; i < n; i++) {
+                    const x = positions[3 * i];
+                    const y = positions[3 * i + 1];
+                    const z = positions[3 * i + 2];
+                    if (i === pin) {
+                        expect(x, "pinned x").toBe(seeded[3 * i]);
+                        expect(y, "pinned y").toBe(seeded[3 * i + 1]);
+                        expect(z, "pinned z").toBe(seeded[3 * i + 2]);
+                        continue;
+                    }
+                    expect(x >= 4 && x <= 19, `row ${i}: x ${x} in [4, 19]`).toBe(true);
+                    expect(y >= 14 && y <= 29, `row ${i}: y ${y} in [14, 29]`).toBe(true);
+                    expect(z, `row ${i}: z`).toBe(0);
+                }
+            };
+            const layoutWith =
+                (snapshot: GraphSnapshot, fixed: FruchtermanReingoldOptions["fixed"]) => async (): Promise<F32> =>
+                    withSim(ctx, { ...options, fixed }, async (sim) => {
+                        const positions = nanPositions(n);
+                        sim.load(snapshot, positions);
+                        const seeded = Float32Array.from(positions);
+                        for (const v of seeded) {
+                            expect(Number.isFinite(v)).toBe(true);
                         }
-                        expect(x >= 4 && x <= 19, `row ${i}: x ${x} in [4, 19]`).toBe(true);
-                        expect(y >= 14 && y <= 29, `row ${i}: y ${y} in [14, 29]`).toBe(true);
-                        expect(z, `row ${i}: z`).toBe(0);
-                    }
-                };
-                const layoutWith =
-                    (snapshot: GraphSnapshot, fixed: FruchtermanReingoldOptions["fixed"]) => async (): Promise<F32> =>
-                        withSim(ctx, { ...options, fixed }, async (sim) => {
-                            const positions = nanPositions(n);
-                            sim.load(snapshot, positions);
-                            const seeded = Float32Array.from(positions);
-                            for (const v of seeded) {
-                                expect(Number.isFinite(v)).toBe(true);
-                            }
-                            expect(seeded[3 * pin] >= 10 && seeded[3 * pin] < 13, "seeded in the fr range").toBe(true);
-                            await sim.run({ maxIter: 20 });
-                            expect(sim.iterationsDone).toBe(20);
-                            check(positions, seeded);
-                            // the free rows moved
-                            expect(
-                                Array.from(positions).some((v, i) => Math.floor(i / 3) !== pin && v !== seeded[i]),
-                            ).toBe(true);
-                            return positions;
-                        });
-                const byMask = await twice(layoutWith(s, mask));
-                const byColumn = await twice(layoutWith(columned, "pinned"));
-                expectBitwiseEqual(byColumn, byMask, 'fixed: "pinned" pins the same rows as the mask');
-                const byRole = await twice(layoutWith(columned, null));
-                expectBitwiseEqual(byRole, byMask, "the role-fixed column is taken when fixed is null");
-                await withSim(ctx, { ...options, fixed: "absent" }, async (sim) => {
-                    let caught: unknown = null;
-                    try {
-                        sim.load(s, nanPositions(n));
-                    } catch (err) {
-                        caught = err;
-                    }
-                    expect(caught).toBeInstanceOf(WebGpuGraphError);
-                    if (caught instanceof WebGpuGraphError) {
-                        expect(caught.code).toBe("E_INVALID_ARGUMENT");
-                        expect(caught.details.argument).toBe("fixed");
-                    }
-                    // the failed load() left the simulation unloaded
-                    await expect(sim.step(1)).rejects.toMatchObject({ code: "E_NOT_LOADED" });
-                });
-            } finally {
-                ctx.release(s);
-                ctx.release(columned);
-            }
-        },
-        CASE_TIMEOUT,
-    );
+                        expect(seeded[3 * pin] >= 10 && seeded[3 * pin] < 13, "seeded in the fr range").toBe(true);
+                        await sim.run({ maxIter: 20 });
+                        expect(sim.iterationsDone).toBe(20);
+                        check(positions, seeded);
+                        // the free rows moved
+                        expect(Array.from(positions).some((v, i) => Math.floor(i / 3) !== pin && v !== seeded[i])).toBe(
+                            true,
+                        );
+                        return positions;
+                    });
+            const byMask = await twice(layoutWith(s, mask));
+            const byColumn = await twice(layoutWith(columned, "pinned"));
+            expectBitwiseEqual(byColumn, byMask, 'fixed: "pinned" pins the same rows as the mask');
+            const byRole = await twice(layoutWith(columned, null));
+            expectBitwiseEqual(byRole, byMask, "the role-fixed column is taken when fixed is null");
+            await withSim(ctx, { ...options, fixed: "absent" }, async (sim) => {
+                let caught: unknown = null;
+                try {
+                    sim.load(s, nanPositions(n));
+                } catch (err) {
+                    caught = err;
+                }
+                expect(caught).toBeInstanceOf(WebGpuGraphError);
+                if (caught instanceof WebGpuGraphError) {
+                    expect(caught.code).toBe("E_INVALID_ARGUMENT");
+                    expect(caught.details.argument).toBe("fixed");
+                }
+                // the failed load() left the simulation unloaded
+                await expect(sim.step(1)).rejects.toMatchObject({ code: "E_NOT_LOADED" });
+            });
+        } finally {
+            ctx.release(s);
+            ctx.release(columned);
+        }
+    });
 
     it("iterations is the budget: run({ batch: 1 }) stops at exactly iterations with settled true; a later step() submits nothing", async (t) => {
         requireGpu(t);
@@ -367,31 +361,27 @@ describe("FR behaviour pins (spec 11.4, 7.20; the CPU layout test's pins on the 
         }
     });
 
-    it(
-        "the same seed gives the same layout bitwise on the same device; a different seed gives a different layout",
-        async (t) => {
-            requireGpu(t);
-            const s = paritySnapshot("karate", 1, false);
-            try {
-                const layoutWith = (seed: number) => (): Promise<F32> =>
-                    withSim(ctx, { ...BASE, seed, iterations: 20 }, async (sim) => {
-                        const positions = nanPositions(s.nodeCount);
-                        sim.load(s, positions);
-                        await sim.run({ batch: 5 });
-                        return positions;
-                    });
-                const a = await twice(layoutWith(42));
-                const c = await layoutWith(43)();
-                expect(
-                    a.some((v, i) => v !== c[i]),
-                    "seed 43 differs",
-                ).toBe(true);
-            } finally {
-                ctx.release(s);
-            }
-        },
-        CASE_TIMEOUT,
-    );
+    it("the same seed gives the same layout bitwise on the same device; a different seed gives a different layout", async (t) => {
+        requireGpu(t);
+        const s = paritySnapshot("karate", 1, false);
+        try {
+            const layoutWith = (seed: number) => (): Promise<F32> =>
+                withSim(ctx, { ...BASE, seed, iterations: 20 }, async (sim) => {
+                    const positions = nanPositions(s.nodeCount);
+                    sim.load(s, positions);
+                    await sim.run({ batch: 5 });
+                    return positions;
+                });
+            const a = await twice(layoutWith(42));
+            const c = await layoutWith(43)();
+            expect(
+                a.some((v, i) => v !== c[i]),
+                "seed 43 differs",
+            ).toBe(true);
+        } finally {
+            ctx.release(s);
+        }
+    });
 
     it("2D writes z === center.z on every readback whatever z was uploaded (spec 7.13); a 3D run moves z", async (t) => {
         requireGpu(t);

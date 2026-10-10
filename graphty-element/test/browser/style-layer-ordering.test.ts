@@ -53,9 +53,6 @@ import type { GraphSession } from "../../src/session";
 /** How long a write verb's run is given to settle before it counts as stranded. */
 const SETTLE_BUDGET_MS = 8000;
 
-/** Per-test budget, generous because each case builds a real Babylon scene. */
-const TEST_TIMEOUT_MS = 30_000;
-
 /**
  * Four nodes in two named halves.
  *
@@ -190,185 +187,141 @@ afterEach(async () => {
 });
 
 describe("a layer issued before the data arrives, and not awaited", () => {
-    it(
-        "is in the stack once the queue has drained",
-        async () => {
-            const run = session.styles.add(halfLayer("left", LEFT_COLOR));
+    it("is in the stack once the queue has drained", async () => {
+        const run = session.styles.add(halfLayer("left", LEFT_COLOR));
 
-            void graph.addNodes(NODES);
-            void graph.addEdges(EDGES);
+        void graph.addNodes(NODES);
+        void graph.addEdges(EDGES);
 
-            await operationQueueOf(graph).waitForCompletion();
-            await outcomeOf(run);
+        await operationQueueOf(graph).waitForCompletion();
+        await outcomeOf(run);
 
-            assert.include(layerNames(), "The left half", "the layer a render function asked for is not in the stack");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.include(layerNames(), "The left half", "the layer a render function asked for is not in the stack");
+    });
 
-    it(
-        "paints the rows that arrived after it",
-        async () => {
-            const run = session.styles.add(halfLayer("left", LEFT_COLOR));
+    it("paints the rows that arrived after it", async () => {
+        const run = session.styles.add(halfLayer("left", LEFT_COLOR));
 
-            void graph.addNodes(NODES);
-            void graph.addEdges(EDGES);
+        void graph.addNodes(NODES);
+        void graph.addEdges(EDGES);
 
-            await operationQueueOf(graph).waitForCompletion();
-            await outcomeOf(run);
-            await session.styles.settled();
+        await operationQueueOf(graph).waitForCompletion();
+        await outcomeOf(run);
+        await session.styles.settled();
 
-            assert.strictEqual(colorOf("a"), LEFT_COLOR, "the left half is not painted what the layer asked for");
-            assert.strictEqual(colorOf("c"), LEFT_COLOR, "the left half is not painted what the layer asked for");
-            assert.notStrictEqual(colorOf("d"), LEFT_COLOR, "the layer reached a node its selector excludes");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.strictEqual(colorOf("a"), LEFT_COLOR, "the left half is not painted what the layer asked for");
+        assert.strictEqual(colorOf("c"), LEFT_COLOR, "the left half is not painted what the layer asked for");
+        assert.notStrictEqual(colorOf("d"), LEFT_COLOR, "the layer reached a node its selector excludes");
+    });
 
-    it(
-        "settles its run, whichever way the queue decides",
-        async () => {
-            const run = session.styles.add(halfLayer("left", LEFT_COLOR));
+    it("settles its run, whichever way the queue decides", async () => {
+        const run = session.styles.add(halfLayer("left", LEFT_COLOR));
 
-            void graph.addNodes(NODES);
-            void graph.addEdges(EDGES);
+        void graph.addNodes(NODES);
+        void graph.addEdges(EDGES);
 
-            const outcome = await outcomeOf(run);
+        const outcome = await outcomeOf(run);
 
-            assert.notStrictEqual(
-                outcome,
-                "neither",
-                `a write verb's run neither resolved nor rejected within ${SETTLE_BUDGET_MS} ms, so a consumer awaiting it waits forever`,
-            );
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.notStrictEqual(
+            outcome,
+            "neither",
+            `a write verb's run neither resolved nor rejected within ${SETTLE_BUDGET_MS} ms, so a consumer awaiting it waits forever`,
+        );
+    });
 
-    it(
-        "keeps both layers of a two-layer stack issued in the same tick",
-        async () => {
-            const left = session.styles.add(halfLayer("left", LEFT_COLOR));
-            const right = session.styles.add(halfLayer("right", RIGHT_COLOR));
+    it("keeps both layers of a two-layer stack issued in the same tick", async () => {
+        const left = session.styles.add(halfLayer("left", LEFT_COLOR));
+        const right = session.styles.add(halfLayer("right", RIGHT_COLOR));
 
-            void graph.addNodes(NODES);
-            void graph.addEdges(EDGES);
+        void graph.addNodes(NODES);
+        void graph.addEdges(EDGES);
 
-            await operationQueueOf(graph).waitForCompletion();
-            await outcomeOf(left);
-            await outcomeOf(right);
-            await session.styles.settled();
+        await operationQueueOf(graph).waitForCompletion();
+        await outcomeOf(left);
+        await outcomeOf(right);
+        await session.styles.settled();
 
-            assert.deepStrictEqual(
-                layerNames().filter((name) => name.endsWith(" half")),
-                ["The left half", "The right half"],
-                "a render function's layers did not both reach the stack, bottom first",
-            );
-            assert.strictEqual(colorOf("a"), LEFT_COLOR, "the lower layer did not paint");
-            assert.strictEqual(colorOf("d"), RIGHT_COLOR, "the upper layer did not paint");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.deepStrictEqual(
+            layerNames().filter((name) => name.endsWith(" half")),
+            ["The left half", "The right half"],
+            "a render function's layers did not both reach the stack, bottom first",
+        );
+        assert.strictEqual(colorOf("a"), LEFT_COLOR, "the lower layer did not paint");
+        assert.strictEqual(colorOf("d"), RIGHT_COLOR, "the upper layer did not paint");
+    });
 });
 
 describe("every write verb, issued in the same tick as the data", () => {
-    it(
-        "settles add",
-        async () => {
-            const run = session.styles.add(halfLayer("left", LEFT_COLOR));
+    it("settles add", async () => {
+        const run = session.styles.add(halfLayer("left", LEFT_COLOR));
 
-            void graph.addNodes(NODES);
+        void graph.addNodes(NODES);
 
-            assert.notStrictEqual(await outcomeOf(run), "neither", "add() never settled");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.notStrictEqual(await outcomeOf(run), "neither", "add() never settled");
+    });
 
-    it(
-        "settles update",
-        async () => {
-            const layer = await session.styles.add(halfLayer("left", LEFT_COLOR));
-            const run = session.styles.update(layer.id, { set: { "node.color": RIGHT_COLOR } });
+    it("settles update", async () => {
+        const layer = await session.styles.add(halfLayer("left", LEFT_COLOR));
+        const run = session.styles.update(layer.id, { set: { "node.color": RIGHT_COLOR } });
 
-            void graph.addNodes(NODES);
+        void graph.addNodes(NODES);
 
-            assert.notStrictEqual(await outcomeOf(run), "neither", "update() never settled");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.notStrictEqual(await outcomeOf(run), "neither", "update() never settled");
+    });
 
-    it(
-        "settles remove",
-        async () => {
-            const layer = await session.styles.add(halfLayer("left", LEFT_COLOR));
-            const run = session.styles.remove(layer.id);
+    it("settles remove", async () => {
+        const layer = await session.styles.add(halfLayer("left", LEFT_COLOR));
+        const run = session.styles.remove(layer.id);
 
-            void graph.addNodes(NODES);
+        void graph.addNodes(NODES);
 
-            assert.notStrictEqual(await outcomeOf(run), "neither", "remove() never settled");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.notStrictEqual(await outcomeOf(run), "neither", "remove() never settled");
+    });
 
-    it(
-        "settles move",
-        async () => {
-            const lower = await session.styles.add(halfLayer("left", LEFT_COLOR));
-            const upper = await session.styles.add(halfLayer("right", RIGHT_COLOR));
-            const run = session.styles.move(upper.id, lower.id);
+    it("settles move", async () => {
+        const lower = await session.styles.add(halfLayer("left", LEFT_COLOR));
+        const upper = await session.styles.add(halfLayer("right", RIGHT_COLOR));
+        const run = session.styles.move(upper.id, lower.id);
 
-            void graph.addNodes(NODES);
+        void graph.addNodes(NODES);
 
-            assert.notStrictEqual(await outcomeOf(run), "neither", "move() never settled");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.notStrictEqual(await outcomeOf(run), "neither", "move() never settled");
+    });
 });
 
 describe("a graph read by a data source", () => {
-    it(
-        "is painted from the style stack even with no layer added at all",
-        async () => {
-            await graph.addDataFromSource("json", { data: NODES_AS_JSON });
-            await operationQueueOf(graph).waitForCompletion();
-            await session.styles.settled();
+    it("is painted from the style stack even with no layer added at all", async () => {
+        await graph.addDataFromSource("json", { data: NODES_AS_JSON });
+        await operationQueueOf(graph).waitForCompletion();
+        await session.styles.settled();
 
-            assert.isNotEmpty(
-                paintersOf("a"),
-                "no layer painted a node the data source loaded, not even the element's own defaults, so the stack never ran over this graph",
-            );
-            assert.isNotNull(colorOf("a"), "the element's own default layer never painted a colour onto a loaded node");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.isNotEmpty(
+            paintersOf("a"),
+            "no layer painted a node the data source loaded, not even the element's own defaults, so the stack never ran over this graph",
+        );
+        assert.isNotNull(colorOf("a"), "the element's own default layer never painted a colour onto a loaded node");
+    });
 
-    it(
-        "paints a layer that was added before the load",
-        async () => {
-            const run = session.styles.add(halfLayer("left", LEFT_COLOR));
+    it("paints a layer that was added before the load", async () => {
+        const run = session.styles.add(halfLayer("left", LEFT_COLOR));
 
-            await graph.addDataFromSource("json", { data: NODES_AS_JSON });
-            await operationQueueOf(graph).waitForCompletion();
-            await outcomeOf(run);
-            await session.styles.settled();
+        await graph.addDataFromSource("json", { data: NODES_AS_JSON });
+        await operationQueueOf(graph).waitForCompletion();
+        await outcomeOf(run);
+        await session.styles.settled();
 
-            assert.include(layerNames(), "The left half", "the layer is not in the stack");
-            assert.strictEqual(colorOf("a"), LEFT_COLOR, "the layer did not paint the rows the load brought in");
-            assert.notStrictEqual(colorOf("d"), LEFT_COLOR, "the layer reached a node its selector excludes");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.include(layerNames(), "The left half", "the layer is not in the stack");
+        assert.strictEqual(colorOf("a"), LEFT_COLOR, "the layer did not paint the rows the load brought in");
+        assert.notStrictEqual(colorOf("d"), LEFT_COLOR, "the layer reached a node its selector excludes");
+    });
 
-    it(
-        "paints every node it loaded, not only the first",
-        async () => {
-            await graph.addDataFromSource("json", { data: NODES_AS_JSON });
-            await operationQueueOf(graph).waitForCompletion();
-            await session.styles.settled();
+    it("paints every node it loaded, not only the first", async () => {
+        await graph.addDataFromSource("json", { data: NODES_AS_JSON });
+        await operationQueueOf(graph).waitForCompletion();
+        await session.styles.settled();
 
-            for (const { id } of NODES) {
-                assert.isNotEmpty(paintersOf(id), `node "${id}" was never painted by the stack`);
-            }
-        },
-        TEST_TIMEOUT_MS,
-    );
+        for (const { id } of NODES) {
+            assert.isNotEmpty(paintersOf(id), `node "${id}" was never painted by the stack`);
+        }
+    });
 });

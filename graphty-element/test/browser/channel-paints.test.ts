@@ -243,7 +243,7 @@ describe("every channel the table says is renderable", () => {
                     },
                 });
                 await operationQueueOf(graph).waitForCompletion();
-            }, 60000);
+            });
 
             afterAll(() => {
                 graph.dispose();

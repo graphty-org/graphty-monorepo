@@ -4,8 +4,10 @@ import { TOOLTIP_OPEN_DELAY } from "../../src/theme/styles/overlays";
 
 /**
  * Waits until a story's floating parts have stopped moving: the page's web fonts have loaded,
- * and the boxes of every element matching `selector` (none is fine) are the same on two
- * animation frames in a row.
+ * no pop-out panel has a reposition queued (`data-cm-repositioning`), and the boxes of every
+ * element matching `selector` (none is fine) are the same on two animation frames in a row.
+ * Two still frames alone are not enough: a panel's observer can queue its move for a frame
+ * whose callbacks run after this helper's, so the old box reads the same twice.
  *
  * Tooltips and pop-overs are placed by measuring their trigger after they mount. The bundled
  * Inter face loads on first use, after that, and the text beside a trigger reflows and moves it;
@@ -24,7 +26,8 @@ export async function waitForSettledLayout(root: HTMLElement, selector: string):
     for (let i = 0; i < 120; i++) {
         await frame();
         const now = boxes();
-        if (i > 0 && now === last) {
+        const pending = doc.querySelector("[data-cm-repositioning]") !== null;
+        if (i > 0 && !pending && now === last) {
             return;
         }
         last = now;

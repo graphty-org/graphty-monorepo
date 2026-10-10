@@ -12,6 +12,7 @@ import { Color3, InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { nextFrame } from "../helpers/real-input";
 import { isDisposed, styleEveryNode, type TestGraph } from "../helpers/testSetup";
 
 // Test data constants (matching the stories)
@@ -31,11 +32,6 @@ const NODE_STYLE = { "node.color": "#4CAF50", "node.shape": "sphere", "node.size
 
 /** That colour as the renderer writes it into a node's own instance. */
 const NODE_COLOR = { r: 76, g: 175, b: 80, a: 1 };
-
-// Helper to wait for a delay
-function delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 describe("Nested Operations", () => {
     let container: HTMLElement;
@@ -148,27 +144,6 @@ describe("Nested Operations", () => {
     }
 
     /**
-     * Wait for the layout engine to settle.
-     * Polls the layout manager's isSettled property until it returns true.
-     */
-    async function waitForLayoutSettle(maxWaitMs = 5000): Promise<void> {
-        const { layoutManager } = graph as unknown as TestGraph;
-        const startTime = Date.now();
-
-        while (Date.now() - startTime < maxWaitMs) {
-            if (layoutManager.isSettled) {
-                // Give one more frame for mesh positions to sync
-                await delay(16);
-                return;
-            }
-
-            await delay(16); // Poll every frame (~60fps)
-        }
-
-        // Timeout is acceptable for force-directed layouts that may never fully settle
-    }
-
-    /**
      * Verify node mesh positions match the layout engine positions.
      * This ensures the rendering pipeline correctly synced positions from layout to meshes.
      */
@@ -180,7 +155,8 @@ describe("Nested Operations", () => {
         assert.isDefined(layoutEngine, "Layout engine should exist");
 
         // Wait for layout to settle before comparing positions
-        await waitForLayoutSettle();
+        // and a frame has been drawn in that state, so the meshes have been synced from it
+        await graph.waitForStableFrame();
 
         // For static layouts (like circular), positions should match exactly
         // For force-directed layouts, we allow more tolerance
@@ -332,7 +308,8 @@ describe("Nested Operations", () => {
             assert.isFalse(graph.getViewMode() === "2d", "Should start in 3D mode");
 
             // Switch to 2D - internally rebuilds the layout for two dimensions
-            await delay(10);
+            // The next call arrives on a later frame of the element's render loop.
+            await nextFrame();
             await graph.setViewMode("2d");
 
             await operationQueueOf(graph).waitForCompletion();
@@ -363,7 +340,8 @@ describe("Nested Operations", () => {
             assert.isFalse(graph.getViewMode() === "2d", "Should start in 3D mode");
 
             // Switch to 2D
-            await delay(10);
+            // The next call arrives on a later frame of the element's render loop.
+            await nextFrame();
             await graph.setViewMode("2d");
 
             await operationQueueOf(graph).waitForCompletion();
@@ -459,14 +437,17 @@ describe("Nested Operations", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            await delay(5);
+            // The next call arrives on a later frame of the element's render loop.
+            await nextFrame();
             await graph.setViewMode("2d");
 
-            await delay(5);
+            // The next call arrives on a later frame of the element's render loop.
+            await nextFrame();
             await graph.setViewMode("3d");
 
             // Final: default (3D)
-            await delay(5);
+            // The next call arrives on a later frame of the element's render loop.
+            await nextFrame();
             await styleEveryNode(graph, NODE_STYLE);
 
             await operationQueueOf(graph).waitForCompletion();

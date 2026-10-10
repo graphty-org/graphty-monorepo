@@ -10,6 +10,7 @@ import "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, describe, it } from "vitest";
+import { page, userEvent as realInput } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
@@ -40,6 +41,7 @@ async function openWorkspace(): Promise<GraphSession> {
 }
 
 describe("the workspace frame on the real element", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "undoes and redoes the element's own steps from the header and the keys",
         async () => {
@@ -71,6 +73,7 @@ describe("the workspace frame on the real element", () => {
         TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "clears the element's selection with Esc",
         async () => {
@@ -84,4 +87,28 @@ describe("the workspace frame on the real element", () => {
         },
         TIMEOUT_MS,
     );
+
+    it("opens the shortcuts sheet with ? while a closed Select's list is mounted on the page", async () => {
+        // The inspector has room at the design's width, and its Layout group holds a Select.
+        await page.viewport(1366, 768);
+        const session = await openWorkspace();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        await session.data.addEdges([{ src: "a", dst: "b" }]);
+        // Mantine keeps a closed Select's options mounted, hidden: the case that once switched
+        // every single-key shortcut off.
+        await waitFor(
+            () => {
+                const lists = [...document.querySelectorAll('[role="listbox"]')];
+                assert.isTrue(
+                    lists.some((list) => !list.checkVisibility()),
+                    "a hidden list is on the page",
+                );
+            },
+            { timeout: TIMEOUT_MS },
+        );
+
+        await realInput.keyboard("?");
+
+        await screen.findByRole("region", { name: "Keyboard shortcuts" });
+    });
 });

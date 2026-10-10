@@ -23,10 +23,9 @@
  * every step.
  */
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { Layer, LayerSpec, Run } from "../../session";
-import { operationQueueOf } from "../../src/Graph";
 /*
  * A value import, not a type import, and that is load-bearing: importing the package is what
  * defines the `<graphty-element>` custom element, and a module whose every binding is type-only is
@@ -75,12 +74,6 @@ const MOUNT_TIMEOUT_MS = 10000;
 /** How long a write verb's run may take to commit or refuse. */
 const RUN_TIMEOUT_MS = 5000;
 
-/** Mounting an element and loading a graph is slower than the five-second default. */
-const TEST_TIMEOUT_MS = 30000;
-
-/** How long to leave for the microtasks a property setter starts before draining the queue. */
-const TICK_MS = 50;
-
 /** The ways a graph can arrive in the element. */
 const LOAD_PATHS = ["the nodeData property", "addNodes and addEdges", "addDataFromSource"] as const;
 
@@ -117,15 +110,12 @@ async function mount(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    const deadline = Date.now() + MOUNT_TIMEOUT_MS;
-
-    while (!mounted.graph.initialized) {
-        if (Date.now() > deadline) {
-            throw new Error("the element never finished initialising");
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+    await vi.waitFor(
+        () => {
+            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+        },
+        { timeout: MOUNT_TIMEOUT_MS },
+    );
 
     return mounted;
 }
@@ -167,10 +157,14 @@ async function load(target: Graphty, path: LoadPath): Promise<void> {
  * @param target - The element to wait on.
  */
 async function settle(target: Graphty): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, TICK_MS));
-    await operationQueueOf(target.graph).waitForCompletion();
-    await target.session.styles.settled();
-    await new Promise((resolve) => setTimeout(resolve, TICK_MS));
+    // A property assignment dispatches its step when the setter runs; `waitForSettled` covers the
+    // queue and the style lane, and the history's pending list says the step itself has landed.
+    await vi.waitFor(async () => {
+        await target.waitForSettled();
+        assert.lengthOf(target.session.history.pending, 0, "no step still in flight");
+    });
+    // A repaint is applied on the render loop's next update; the stable frame is drawn after it.
+    await target.waitForStableFrame();
 }
 
 describe("whatever load path brought a graph in, the style stack has painted it", () => {
@@ -185,48 +179,44 @@ describe("whatever load path brought a graph in, the style stack has painted it"
 
     for (const path of LOAD_PATHS) {
         for (const timing of TIMINGS) {
-            it(
-                `paints a graph loaded through ${path} ${timing}`,
-                async () => {
-                    const where = `${path}, ${timing}`;
-                    const { session } = element;
-                    let run: Run<Layer> | null = null;
+            it(`paints a graph loaded through ${path} ${timing}`, async () => {
+                const where = `${path}, ${timing}`;
+                const { session } = element;
+                let run: Run<Layer> | null = null;
 
-                    if (timing === "with the layer added before the load and awaited") {
-                        run = session.styles.add(LAYER);
+                if (timing === "with the layer added before the load and awaited") {
+                    run = session.styles.add(LAYER);
 
-                        const outcome = await assertRunSettles(run, RUN_TIMEOUT_MS, `${where}: the layer`);
+                    const outcome = await assertRunSettles(run, RUN_TIMEOUT_MS, `${where}: the layer`);
 
-                        assert.strictEqual(outcome, "resolved", `${where}: the element refused a valid layer`);
-                    }
+                    assert.strictEqual(outcome, "resolved", `${where}: the element refused a valid layer`);
+                }
 
-                    if (timing === "with the layer added before the load and not awaited") {
-                        // Fired and forgotten, in the same tick as the load that follows. This is
-                        // the order a render function is forced into, and the one order nothing
-                        // else in the repository exercises.
-                        run = session.styles.add(LAYER);
-                    }
+                if (timing === "with the layer added before the load and not awaited") {
+                    // Fired and forgotten, in the same tick as the load that follows. This is
+                    // the order a render function is forced into, and the one order nothing
+                    // else in the repository exercises.
+                    run = session.styles.add(LAYER);
+                }
 
-                    await load(element, path);
+                await load(element, path);
 
-                    if (timing === "with the layer added after the load") {
-                        run = session.styles.add(LAYER);
-                    }
+                if (timing === "with the layer added after the load") {
+                    run = session.styles.add(LAYER);
+                }
 
-                    await settle(element);
+                await settle(element);
 
-                    if (run !== null) {
-                        const outcome = await assertRunSettles(run, RUN_TIMEOUT_MS, `${where}: the layer`);
+                if (run !== null) {
+                    const outcome = await assertRunSettles(run, RUN_TIMEOUT_MS, `${where}: the layer`);
 
-                        assert.strictEqual(outcome, "resolved", `${where}: the element refused a valid layer`);
-                        assertStackContains(session, [LAYER.name], where);
-                        assertLayerPainted(element.graph, LAYER.name, where);
-                    }
+                    assert.strictEqual(outcome, "resolved", `${where}: the element refused a valid layer`);
+                    assertStackContains(session, [LAYER.name], where);
+                    assertLayerPainted(element.graph, LAYER.name, where);
+                }
 
-                    assertEveryElementPainted(element.graph, where);
-                },
-                TEST_TIMEOUT_MS,
-            );
+                assertEveryElementPainted(element.graph, where);
+            });
         }
     }
 });

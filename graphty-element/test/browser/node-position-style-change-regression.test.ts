@@ -15,6 +15,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph } from "../../src/Graph";
+import { nextFrame } from "../helpers/real-input";
 import type { TestGraph } from "../helpers/testSetup";
 
 // Test data
@@ -28,11 +29,6 @@ const TEST_EDGES = [
     { src: "node1", dst: "node2" },
     { src: "node2", dst: "node3" },
 ];
-
-// Helper to wait for a delay
-function delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 describe("Node position preservation during style changes (regression)", () => {
     let container: HTMLElement;
@@ -53,24 +49,18 @@ describe("Node position preservation during style changes (regression)", () => {
     });
 
     /**
-     * Wait for the layout engine to settle.
-     * Polls the layout manager's isSettled property until it returns true.
+     * Wait for the layout engine to settle and a frame to be drawn with the meshes where it put them.
      */
-    async function waitForLayoutSettle(maxWaitMs = 5000): Promise<void> {
-        const { layoutManager } = graph as unknown as TestGraph;
-        const startTime = Date.now();
+    async function waitForLayoutSettle(): Promise<void> {
+        await graph.waitForStableFrame();
+    }
 
-        while (Date.now() - startTime < maxWaitMs) {
-            if (layoutManager.isSettled) {
-                // Give one more frame for mesh positions to sync
-                await delay(16);
-                return;
-            }
-
-            await delay(16); // Poll every frame (~60fps)
-        }
-
-        // Timeout is acceptable for force-directed layouts that may never fully settle
+    /**
+     * Let the style work land and the render loop draw a frame after it.
+     */
+    async function styled(): Promise<void> {
+        await graph.waitForSettled();
+        await nextFrame();
     }
 
     /**
@@ -148,8 +138,8 @@ describe("Node position preservation during style changes (regression)", () => {
             set: { "node.color": "#FF0000" },
         });
 
-        // Give a frame for any potential updates
-        await delay(16);
+        // Let the style land and a frame be drawn
+        await styled();
 
         // Verify positions are preserved
         const positionsAfter = getNodePositions();
@@ -176,8 +166,8 @@ describe("Node position preservation during style changes (regression)", () => {
             set: { "node.color": "#00FF00" },
         });
 
-        // Wait a frame
-        await delay(16);
+        // Let the style land and a frame be drawn
+        await styled();
 
         // Record positions
         const positionsBefore = getNodePositions();
@@ -185,8 +175,8 @@ describe("Node position preservation during style changes (regression)", () => {
         // Clear styles (which triggers another style pass)
         await graph.getSession().styles.remove(layer.id);
 
-        // Wait a frame
-        await delay(16);
+        // Let the style land and a frame be drawn
+        await styled();
 
         // Verify positions are preserved
         const positionsAfter = getNodePositions();
@@ -221,12 +211,12 @@ describe("Node position preservation during style changes (regression)", () => {
                 set: { "node.color": `#${(i * 50).toString(16).padStart(2, "0")}0000` },
             });
 
-            // Small delay between changes
-            await delay(10);
+            // A frame between changes
+            await nextFrame();
         }
 
         // Wait for all updates to complete
-        await delay(32);
+        await styled();
 
         // Verify positions are still preserved
         const finalPositions = getNodePositions();
@@ -258,7 +248,7 @@ describe("Node position preservation during style changes (regression)", () => {
         });
 
         // Wait for mesh recreation
-        await delay(32);
+        await styled();
 
         // Verify positions are preserved even after mesh recreation
         const positionsAfter = getNodePositions();

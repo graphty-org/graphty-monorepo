@@ -17,6 +17,7 @@ import { type RegisterOptions, SharedImplementationMap } from "../catalog/plugin
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { OptionsSchema } from "../config";
 import { readonlyPositions, writableLane } from "../data/lane";
+import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { ElementPositions, isStorableCoordinate } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
@@ -1404,14 +1405,16 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     /**
      * The row of a node named in an option, in the protected `graph`.
      *
-     * A key of an options record is always a string, so a string that misses is tried again as the
-     * number it spells: `{ 1: [...] }` names the node whose id is the number 1.
+     * An integer id may be written either way, and a key of an options record is always a string,
+     * so `{ 1: [...] }` names the node whose id is the number 1 and `1` names node `"1"`.
      * @param id - the node id, or a record key naming one
      * @returns the row, or `INVALID_INDEX` when the graph has no such node
      */
     protected rowOfId(id: string | number): number {
         const { ids } = this.graph;
-        const row = ids.indexOf(id);
+        const row = rowOfEitherSpelling(ids, id);
+        // ponytail: the Number() retry reads " 1", "1e0" and "0x1" as 1 too, which the either-spelling
+        // rule does not; it shipped that way, so dropping it waits for a major.
         return row === INVALID_INDEX && typeof id === "string" && id.trim() !== "" ? ids.indexOf(Number(id)) : row;
     }
 

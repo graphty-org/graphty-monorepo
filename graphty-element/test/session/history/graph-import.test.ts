@@ -10,7 +10,7 @@
  * The renderer half is `test/browser/history-graph-import.test.ts`.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import type { ImportReport } from "../../../src/data/report";
 import { dispatcherOf } from "../../../src/session/GraphSession";
@@ -235,9 +235,9 @@ describe("data.import", () => {
             layout: "recommended",
         });
         // The choice is made once the rows are in, and joins the import's step.
-        for (let wait = 0; wait < 100 && session.history.pending.length > 0; wait++) {
-            await new Promise((resolve) => setTimeout(resolve, 10));
-        }
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
 
         assert.lengthOf(session.history.pending, 0);
         assert.lengthOf(session.history.steps, steps + 1, "the import and its layout are one step");
@@ -255,9 +255,9 @@ describe("data.import", () => {
         const steps = session.history.steps.length;
 
         await session.data.import({ type: "json", config: { data: DOCUMENT } }, { layout: "recommended" });
-        for (let wait = 0; wait < 100 && session.history.pending.length > 0; wait++) {
-            await new Promise((resolve) => setTimeout(resolve, 10));
-        }
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
 
         assert.lengthOf(session.history.steps, steps + 1, "the import and its layout are one step");
         assert.strictEqual(session.layout.id, "force");
@@ -273,9 +273,9 @@ describe("data.import", () => {
         await session.transaction("Loaded the file", async (tx) => {
             await tx.data.import({ type: "json", config: { data: DOCUMENT } }, { layout: "recommended" });
         });
-        for (let wait = 0; wait < 100 && session.history.pending.length > 0; wait++) {
-            await new Promise((resolve) => setTimeout(resolve, 10));
-        }
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
 
         assert.lengthOf(session.history.steps, steps + 1, "the import and its layout are one step");
         assert.strictEqual(session.layout.id, "force");

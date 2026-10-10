@@ -247,7 +247,7 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
                     await checkRun(ctx, `${fixture.name} ${kind} from ${source}`, s, source);
                 }
                 ctx.release(s);
-            }, 300_000);
+            });
         }
     }
 
@@ -294,8 +294,9 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
         const nan = await expectRejection(sssp(ctx, grid, 0, { cutoff: Number.NaN }), "E_INVALID_ARGUMENT");
         expect(nan.details).toMatchObject({ argument: "cutoff" });
         ctx.release(grid);
-    }, 120_000);
+    });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 43 s on CI's lavapipe, 28 s on lavapipe on the dev box under load, 20 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it("the unit-weight route (PD-22): on an unweighted snapshot sssp(s, source) with no options (the element's call) is the BFS -- dist the depths as f32, predArc a tight arc one depth down, reachedCount the visited count; cutoff Infinity is the same, 2.5 reaches depth <= 2, -1 the source alone, NaN is refused; an all-ones override on a weighted snapshot takes the same route", async (t) => {
         const ctx = await context(t);
         for (const [name, edges, sources] of [
@@ -367,7 +368,7 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
             expect(short.details).toMatchObject({ argument: "weights" });
             ctx.release(s);
         }
-    }, 300_000);
+    });
 
     it("a negative weight (a column or an override) is E_UNSUPPORTED { feature: 'sssp.negativeWeights' } with a bellmanFord hint; a NaN or an infinite override is E_UNSUPPORTED { feature: 'sssp.nonFiniteWeights' }; all before any device work", async (t) => {
         const ctx = await context(t);
@@ -429,7 +430,7 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
         ).toHaveLength(3);
         expect(modes.indexOf(1), "the first far round follows the first bucket's 16 near rounds").toBe(16);
         ctx.release(path);
-    }, 120_000);
+    });
 
     it("the inspect stage comparison (P8-T15 Step 2): on the weighted karate at roundsPerSubmit 1 and delta 1 (several buckets) the block after submit k is round k's (the level word counts rounds, done rises only at the last), the threshold word climbs the f32 delta ladder one step per far round and never otherwise, and the far-round count is the ladder step above the oracle's farthest f32 distance (the near-round count follows the schedule and is only bounded)", async (t) => {
         const ctx = await context(t);
@@ -493,7 +494,7 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
             "near rounds: at least one per reached node beyond the source is the bound",
         ).toBeLessThanOrEqual(want.reachedCount);
         ctx.release(karate);
-    }, 120_000);
+    });
 
     it("the noise-floor fixture (P8-T15 Step 6): dist on the integer 30 x 30 grid from 0, written for this adapter class under GRAPHTY_NOISE_FLOOR_WRITE=1 (test/noise-floor.test.ts holds the classes bitwise)", async (t) => {
         const ctx = await context(t);
@@ -601,5 +602,5 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
         const report = await ssspReport(ctx);
         expect(report.worst).toBe(0);
         assertCheckPasses(report);
-    }, 120_000);
+    });
 });

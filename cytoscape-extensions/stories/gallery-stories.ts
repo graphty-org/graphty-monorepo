@@ -13,8 +13,9 @@
 import type { StoryObj } from "@storybook/html-vite";
 
 import type { ExportFormat, GeneratorName } from "../src/index.js";
-import { ALGORITHM_GROUPS, GALLERY_PAGES, type GalleryPage, type Network } from "./catalog.js";
+import { ALGORITHM_GROUPS, GALLERY_PAGES, type GalleryPage, galleryTitle, type Network } from "./catalog.js";
 import { elementsOf, GENERATE, markDirected, SIZES } from "./demo.js";
+import { EXAMPLES, spread } from "./examples.js";
 import { renderGallery, type Tile } from "./gallery.js";
 import { colorBy, CPU_LAYOUT, placeForAlgorithm, roundTrip, runAlgorithm } from "./run.js";
 import { LAYOUT_SHOWCASE, showDataset, showGenerator, showLayout } from "./showcase.js";
@@ -32,9 +33,12 @@ function networkOf(network: Network): Tile["load"] {
     };
 }
 
-/** A gallery page: the line above its tiles (`every` is true on the Overview), and the tile for each of its names. */
+/**
+ * A gallery page: the line above its tiles (`every` is true on the Overview; `key` names the tile of a one-tile
+ * story), and the tile for each of its names.
+ */
 interface Page {
-    intro(every: boolean): string;
+    intro(every: boolean, key?: string): string;
     tile(key: string): Tile;
 }
 
@@ -67,23 +71,42 @@ const layouts: Page = {
 };
 
 /**
- * The page of one algorithm group on its network, laid out by ForceAtlas2 on the CPU first.
+ * The page of one algorithm group: each algorithm on its example graph (stories/examples.ts) or, without one, on the
+ * group's network laid out by ForceAtlas2 on the CPU.
  * @param group - the group
  * @returns the page
  */
 function algorithms(group: keyof typeof ALGORITHM_GROUPS): Page {
     const g = ALGORITHM_GROUPS[group];
+    const network = `${g.network}, 100 nodes, seed 42${g.directed ? ", directed" : ""}`;
+    // "Flows And Cuts" as a heading reads "Flows and cuts"
+    const words = galleryTitle(group).replace("Gallery/", "");
+    const name = words.charAt(0) + words.slice(1).toLowerCase();
     return {
-        intro: (every) =>
-            `${every ? `${group}: ` : ""}${g.network}, 100 nodes, seed 42${g.directed ? ", directed" : ""}; backend auto.`,
-        tile: (algorithm) => ({
-            title: `graphty${algorithm.charAt(0).toUpperCase()}${algorithm.slice(1)}`,
-            load: networkOf(g.network),
-            run: async (cy) => {
-                await placeForAlgorithm(cy, SEED);
-                return runAlgorithm(cy, algorithm, { gpuMode: "auto", directed: g.directed });
-            },
-        }),
+        intro: (every, key) =>
+            every
+                ? `${name}: each algorithm on a seeded graph that shows what it does; backend auto.`
+                : `${(key === undefined ? undefined : EXAMPLES[key]?.graph) ?? network}; backend auto.`,
+        tile: (algorithm) => {
+            const example = EXAMPLES[algorithm];
+            const directed = example?.directed ?? g.directed;
+            return {
+                title: `graphty${algorithm.charAt(0).toUpperCase()}${algorithm.slice(1)}`,
+                load: example?.load ?? networkOf(g.network),
+                run: async (cy) => {
+                    if (example?.place) {
+                        await example.place(cy);
+                        spread(cy);
+                    } else {
+                        await placeForAlgorithm(cy, SEED);
+                    }
+                    if (example?.run) {
+                        return example.run(cy);
+                    }
+                    return runAlgorithm(cy, algorithm, { gpuMode: "auto", directed });
+                },
+            };
+        },
     };
 }
 
@@ -167,5 +190,5 @@ export function overview(page: GalleryPage): Story {
  */
 export function tile(page: GalleryPage, key: string): Story {
     const p = PAGES[page];
-    return { render: () => renderGallery(p.intro(false), [p.tile(key)], true) };
+    return { render: () => renderGallery(p.intro(false, key), [p.tile(key)], true) };
 }

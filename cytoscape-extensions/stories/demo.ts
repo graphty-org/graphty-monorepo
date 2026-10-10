@@ -18,6 +18,7 @@ import {
 import cytoscape, {
     type Collection,
     type Core,
+    type EdgeSingular,
     type ElementDefinition,
     type NodeSingular,
     type StylesheetJson,
@@ -142,20 +143,54 @@ const nodeSize = (ele: { cy(): Core; data(key: string): unknown }): number => {
     return sized(8, 2)(ele) * (typeof scale === "number" ? scale : 1);
 };
 
-const STYLE = [
+const STYLE: StylesheetJson = [
     {
         selector: "node",
         style: { width: nodeSize, height: nodeSize, "background-color": "#7a8aa6", "border-width": 0 },
     },
     { selector: "node[color]", style: { "background-color": "data(color)" } },
-    { selector: "edge", style: { width: sized(0.5), "line-color": "#b8c0cc", "curve-style": "straight" } },
-    { selector: "edge[color]", style: { "line-color": "data(color)", width: sized(2) } },
+    // a node a run starts from or is about (a root, a source, a seed): larger, with a dark ring
+    {
+        selector: "node[?mark]",
+        style: { width: sized(14, 7), height: sized(14, 7), "border-width": sized(2, 1.5), "border-color": "#1f2937" },
+    },
+    // a node whose size shows a count (a component's members)
+    {
+        selector: "node[size]",
+        style: {
+            width: (n: NodeSingular) => sized(n.data("size") as number, 6)(n),
+            height: (n: NodeSingular) => sized(n.data("size") as number, 6)(n),
+        },
+    },
+    // a short label beside a node: its place in an order, "s" and "t", a component's size
+    {
+        selector: "node[label]",
+        style: {
+            label: "data(label)",
+            "font-size": sized(9, 9),
+            "text-valign": "top",
+            "text-margin-y": sized(-2),
+            color: "#1f2937",
+        },
+    },
+    { selector: "edge", style: { width: sized(0.5, 0.6), "line-color": "#b8c0cc", "curve-style": "straight" } },
     // a directed graph's edges point from source to target (markDirected)
-    // Cytoscape draws an arrow at least 29 units wide whatever the edge width: scaled to about half a node
     {
         selector: "edge.directed",
-        style: { "target-arrow-shape": "triangle", "arrow-scale": 0.15, "target-arrow-color": "#9aa3b0" },
+        style: { "target-arrow-shape": "triangle", "target-arrow-color": "#9aa3b2", "arrow-scale": sized(0.6) },
     },
+    // a result edge: wide enough to see in a small gallery tile
+    { selector: "edge[color]", style: { "line-color": "data(color)", width: sized(2, 2.5), "z-index": 1 } },
+    { selector: "edge.directed[color]", style: { "target-arrow-color": "data(color)" } },
+    // an edge whose width shows a value (a flow)
+    { selector: "edge[thick]", style: { width: (e: EdgeSingular) => sized(e.data("thick") as number, 1)(e) } },
+    // a link the run proposes or tests, not one in the graph
+    {
+        selector: "edge.proposed",
+        style: { "line-style": "dashed", "line-dash-pattern": [6, 3], "line-color": "#aab2bf" },
+    },
+    { selector: "edge.proposed[color]", style: { "line-color": "data(color)" } },
+    { selector: "edge.proposed[label]", style: { label: "data(label)", "font-size": sized(9, 9), color: "#1f2937" } },
 ];
 
 /**
@@ -277,6 +312,10 @@ export function fitToContainer(cy: Core): number {
     const all = cy.zoom();
     if (main.nodes().length * 2 > nodes.length) {
         cy.fit(main, FIT_PADDING);
+        // pieces set close to the main one (no farther than its own size) are part of the picture: keep them in view
+        if (all / cy.zoom() > 0.5) {
+            cy.fit(undefined, FIT_PADDING);
+        }
     }
     const s = SCALE.get(cy) ?? { network: 1, zoom: 1, view: 1 };
     const zoom = all / cy.zoom();

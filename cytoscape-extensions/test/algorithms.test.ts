@@ -525,6 +525,22 @@ describe("communities and clustering", () => {
         expect(two.cluster("#nope")).toBeUndefined();
     });
 
+    it("hierarchicalClustering cuts to a cluster count or a merge distance", () => {
+        // two four-node cliques joined by the edge d-e
+        const clique = (ns: string[]): Edge[] => ns.flatMap((u, i) => ns.slice(i + 1).map((v): Edge => [u, v]));
+        const cy = graph([...clique(["a", "b", "c", "d"]), ...clique(["e", "f", "g", "h"]), ["d", "e"]]);
+        const h = cy.elements().graphtyHierarchicalClustering({ linkage: "average" });
+        expect(sets(h.cutAt({ clusters: 2 }))).toEqual([
+            ["a", "b", "c", "d"],
+            ["e", "f", "g", "h"],
+        ]);
+        const alone = ["a", "b", "c", "d", "e", "f", "g", "h"].map((x) => [x]);
+        expect(sets(h.cutAt({ clusters: 8 }))).toEqual(alone);
+        expect(sets(h.cutAt({ distance: 0 }))).toEqual(alone);
+        expect(sets(h.cutAt({ distance: Infinity })).length).toBe(1);
+        expect(() => h.cutAt({ clusters: 0 })).toThrow(expect.objectContaining({ code: "E_BAD_OPTION" }));
+    });
+
     it("modularity of a partition result, of selections and of a data field", () => {
         const cy = graph(BARBELL);
         const e = cy.elements();

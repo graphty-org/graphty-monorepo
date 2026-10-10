@@ -221,12 +221,16 @@ function RowStyle({
     const scope = useFocusLine<HTMLDivElement>();
     const layers = rowLayers(session, row, side);
     const colors = documentColors(session);
+    // The dot marks a side this row sets something on. It sits clear of the word, and the
+    // side's tooltip says what it means: unexplained, it read as a stray mark.
     const sideLabel = (target: Target, words: string): React.JSX.Element =>
         sets(target) ? (
-            <Indicator size={5} offset={-4} position="middle-end">
-                <span aria-hidden>{words}</span>
-                <VisuallyHidden>{words}, set</VisuallyHidden>
-            </Indicator>
+            <Tooltip label={`This row sets ${target} properties`}>
+                <Indicator size={5} offset={-8} position="middle-end">
+                    <span aria-hidden>{words}</span>
+                    <VisuallyHidden>{words}, set</VisuallyHidden>
+                </Indicator>
+            </Tooltip>
         ) : (
             <span>{words}</span>
         );

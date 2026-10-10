@@ -67,6 +67,8 @@ SCREENSHOTS_STAGED=0
 cleanup() {
     [ -n "$SONAR_PGID" ] && kill -- -"$SONAR_PGID" 2>/dev/null
     if [ -n "$SCREENSHOTS_PGID" ]; then
+        # Its whole session too: the capture's time limits (timeout) put its steps in groups of their own.
+        pkill -s "$SCREENSHOTS_PGID" 2>/dev/null
         kill -- -"$SCREENSHOTS_PGID" 2>/dev/null || kill "$SCREENSHOTS_PGID" 2>/dev/null
         wait "$SCREENSHOTS_PGID" 2>/dev/null
     fi
@@ -229,13 +231,15 @@ fi
 # review page offers for review and Finish before CI's capture exists) only when every check passed,
 # so a refused push never replaces the preview of the head already on GitHub. Changed or new images
 # never block the push (the owner reviews them); a capture that crashes, a story that fails to render,
-# or a capture still running after PREPUSH_SCREENSHOTS_TIMEOUT (default 45m, counted from its start,
-# so the waits for the capture lock and a browser slot count too) does. Its own process group, killed
-# by the EXIT trap like SonarQube's, so a step that stops the gate stops the capture with it.
+# or a capture that works longer than PREPUSH_SCREENSHOTS_TIMEOUT (default 45m) does. The limit counts
+# only work: it starts once the capture holds its lock, and each Storybook's capture starts its share
+# once it holds a browser slot, so a long wait behind the test shards' browsers never fails it (its log
+# says when it waits and when it works). Its own process group, killed by the EXIT trap like
+# SonarQube's, so a step that stops the gate stops the capture with it.
 SCREENSHOTS_LOG="$MAIN_DIR/tmp/visual-preview/prepush-$(basename "$ROOT_DIR").log"
 mkdir -p "$(dirname "$SCREENSHOTS_LOG")"
 echo -e "${YELLOW}> Screenshots, in the background (log: $SCREENSHOTS_LOG)${NC}"
-setsid timeout --kill-after=30s "${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" ./tools/visual-preview.sh --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
+setsid env VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" ./tools/visual-preview.sh --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
 SCREENSHOTS_PGID=$!
 SCREENSHOTS_STAGED=1
 echo ""

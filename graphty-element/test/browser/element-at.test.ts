@@ -1,8 +1,8 @@
 /**
  * @file `element.elementAt({ x, y })` answers what a click at that point would select. Each test
- * points the real mouse at a grid of points across the element, asks `elementAt`, clicks, and
- * compares the answer with the selection the click made, in 2D and in 3D. Edges are found too:
- * a click on one selects it, and a selected edge is drawn marked.
+ * takes a grid of points across the element, asks `elementAt` at each, clicks it with the real
+ * mouse, and compares the answer with the selection the click made, in 2D and in 3D. Edges are
+ * found too: a click on one selects it, and a selected edge is drawn marked.
  */
 
 import "../../src/graphty-element";
@@ -74,7 +74,11 @@ function centerOf(element: Graphty, id: string | number): { x: number; y: number
 }
 
 /**
- * Point the mouse at a point, read `elementAt` there, click, and read what the click selected.
+ * Read `elementAt` at a point, click there, and read what the click selected.
+ *
+ * No hover first: `elementAt` picks from the point it is given, not from where the mouse is, and
+ * the click moves the mouse to the point itself. A hover per point doubled the driver round trips
+ * and made the grid test take over a third of the test budget.
  * @param element - The element.
  * @param point - The point, in CSS pixels from the element's top-left corner.
  * @returns The id `elementAt` gave (or null) and the id the click selected (or null).
@@ -83,11 +87,10 @@ async function answerAndClick(
     element: Graphty,
     point: { x: number; y: number },
 ): Promise<{ answered: string | number | null; selected: string | number | null }> {
-    // Copies: the browser driver rescales a `position` in place to the test frame's zoom.
-    await userEvent.hover(element, { position: { ...point } });
     const hit = element.elementAt(point);
 
-    // The points differ, so no two clicks in a row make a double-click.
+    // The points differ, so no two clicks in a row make a double-click. A copy: the browser driver
+    // rescales a `position` in place to the test frame's zoom.
     await userEvent.click(element, { position: { ...point } });
     const { selection } = element.session;
     const selected = hit?.kind === "edge" ? (selection.edges[0] ?? null) : (element.getSelectedNode()?.id ?? null);
@@ -160,7 +163,6 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
         assert.isNull(element.elementAt({ x: 2, y: 2 }), "the corner is empty canvas");
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("returns the node a click at the same point selects, across the whole element", async () => {
         const element = await mounted(viewMode);
         const points = NODES.map(({ id }) => centerOf(element, id));
@@ -186,9 +188,8 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
 
         assert.isAtLeast(found, NODES.length + 1, "some points landed on nodes and edges");
         assert.isAtLeast(empty, 1, "some points landed on empty canvas");
-    }, 60_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("names the edge drawn at an edge's midpoint, and a click there selects it", async () => {
         const element = await mounted(viewMode);
         const ab = edgeBetween(element, "a", "b");
@@ -215,9 +216,8 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
         // Empty canvas clears an edge-only selection.
         await userEvent.click(element, { position: { x: 2, y: 2 } });
         assert.strictEqual(element.session.selection.edges.length, 0);
-    }, 60_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("shows the pointer cursor over a node and over a line, and not over empty canvas", async () => {
         const element = await mounted(viewMode);
         const canvas = element.graph.scene.getEngine().getInputElement();
@@ -232,9 +232,8 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
         assert.strictEqual(await cursorAt(centerOf(element, "a")), "pointer", "a node");
         assert.strictEqual(await cursorAt({ x: mid.x, y: mid.y + 3 }), "pointer", "a few pixels off a line");
         assert.strictEqual(await cursorAt({ x: 2, y: 2 }), "", "back on empty canvas");
-    }, 60_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("draws a selected edge with a solid band of the edge selection color behind the line", async () => {
         const element = await mounted(viewMode);
         const ab = edgeBetween(element, "a", "b");
@@ -270,5 +269,5 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
 
         await element.graph.select({ edges: [] });
         assert.deepStrictEqual(await columnAt(element, mid), before, "deselected, the edge is drawn plain again");
-    }, 60_000);
+    });
 });

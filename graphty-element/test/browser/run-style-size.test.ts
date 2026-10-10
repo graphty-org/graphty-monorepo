@@ -11,6 +11,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
+import { nextFrame } from "../helpers/real-input";
 
 /** A star with a tail: degrees run 1 (tail) to 4 (hub). */
 const NODES = [{ id: "hub" }, { id: "a" }, { id: "b" }, { id: "c" }, { id: "tail" }];
@@ -51,14 +52,11 @@ describe("sizing nodes by a run with style: { size }", () => {
      * @returns Half the world-space bounding box width of each node's mesh, by id.
      */
     async function drawnRadii(): Promise<Map<string, number>> {
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         for (let frame = 0; frame < 10; frame++) {
             graph.scene.render();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise<void>((done) => {
-                setTimeout(done, 10);
-            });
+            await nextFrame();
         }
 
         return new Map(

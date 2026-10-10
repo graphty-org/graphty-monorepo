@@ -52,7 +52,6 @@ describe("the scene grows with styles and nodes, not with edges", () => {
     /** How many meshes the scene holds before any data is loaded. */
     let empty: number;
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeEach(async () => {
         container = document.createElement("div");
         container.style.width = "640px";
@@ -83,7 +82,7 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         // thousands.
         await graph.setLayout("circular", { scale: 0.05 });
         await operationQueueOf(graph).waitForCompletion();
-    }, 60000);
+    });
 
     afterEach(() => {
         graph.dispose();

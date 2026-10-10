@@ -10,9 +10,6 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 
-/** Per-test budget: each builds a real Babylon scene. */
-const TEST_TIMEOUT_MS = 30_000;
-
 const GRAPH = JSON.stringify({
     nodes: [{ id: "1" }, { id: "2" }, { id: "3" }],
     edges: [
@@ -45,56 +42,46 @@ async function mount(): Promise<Graphty> {
 }
 
 describe("load draft on the element", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "prepares and reports without loading, then loads the held rows",
-        async () => {
-            const element = await mount();
-            const { session } = element;
+    it("prepares and reports without loading, then loads the held rows", async () => {
+        const element = await mount();
+        const { session } = element;
 
-            const draft = await session.data.prepare({ type: "json", config: { data: GRAPH } });
-            const report = await draft.report();
-            assert.strictEqual(report.counts.nodes, 3);
-            assert.strictEqual(report.counts.edges, 2);
-            assert.strictEqual(session.data.statistics().nodeCount, 0);
+        const draft = await session.data.prepare({ type: "json", config: { data: GRAPH } });
+        const report = await draft.report();
+        assert.strictEqual(report.counts.nodes, 3);
+        assert.strictEqual(report.counts.edges, 2);
+        assert.strictEqual(session.data.statistics().nodeCount, 0);
 
-            const ends: string[] = [];
-            session.on("progress:changed", (change) => {
-                if (change.task === "load") {
-                    ends.push(change.phase);
-                }
-            });
-            await draft.load();
+        const ends: string[] = [];
+        session.on("progress:changed", (change) => {
+            if (change.task === "load") {
+                ends.push(change.phase);
+            }
+        });
+        await draft.load();
 
-            assert.strictEqual(ends.at(-1), "end");
-            assert.strictEqual(session.data.statistics().nodeCount, 3);
-            assert.strictEqual(session.data.lastImport()?.counts.edges, 2);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.strictEqual(ends.at(-1), "end");
+        assert.strictEqual(session.data.statistics().nodeCount, 3);
+        assert.strictEqual(session.data.lastImport()?.counts.edges, 2);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "draws the nodes an edge table names when the load has no node rows",
-        async () => {
-            const element = await mount();
-            const { session } = element;
-            const csv = "source,target,weight\nAva,Ben,3\nBen,Chloe,4\nChloe,Ava,1\n";
+    it("draws the nodes an edge table names when the load has no node rows", async () => {
+        const element = await mount();
+        const { session } = element;
+        const csv = "source,target,weight\nAva,Ben,3\nBen,Chloe,4\nChloe,Ava,1\n";
 
-            const draft = await session.data.prepare({ config: { file: new File([csv], "friends.csv") } });
-            await draft.load({ unmatched: "leave-out", directed: "auto" });
+        const draft = await session.data.prepare({ config: { file: new File([csv], "friends.csv") } });
+        await draft.load({ unmatched: "leave-out", directed: "auto" });
 
-            assert.strictEqual(session.data.statistics().nodeCount, 3);
-            assert.strictEqual(session.data.statistics().edgeCount, 3);
-            const drawn = element.graph.getNodes().map((node) => String(node.id));
-            assert.sameMembers(drawn, ["Ava", "Ben", "Chloe"]);
+        assert.strictEqual(session.data.statistics().nodeCount, 3);
+        assert.strictEqual(session.data.statistics().edgeCount, 3);
+        const drawn = element.graph.getNodes().map((node) => String(node.id));
+        assert.sameMembers(drawn, ["Ava", "Ben", "Chloe"]);
 
-            await session.undo();
-            assert.strictEqual(session.data.statistics().nodeCount, 0);
-            assert.lengthOf(element.graph.getNodes(), 0);
-            await session.redo();
-            assert.lengthOf(element.graph.getNodes(), 3);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        await session.undo();
+        assert.strictEqual(session.data.statistics().nodeCount, 0);
+        assert.lengthOf(element.graph.getNodes(), 0);
+        await session.redo();
+        assert.lengthOf(element.graph.getNodes(), 3);
+    });
 });

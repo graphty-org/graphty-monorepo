@@ -125,6 +125,12 @@ export function splitTagValue(line: string): TagValue | null {
     return null;
 }
 
+/** The characters stripComment() acts on. */
+const COMMENT_MARKS = '\\"!';
+
+/** The characters hasStrayBrace() acts on. */
+const BRACE_MARKS = '\\"[]{}';
+
 /**
  * Strip the hidden comment: an unescaped `!` outside quotes that starts the value or follows
  * whitespace begins a comment running to the end of the line. A `!` glued to the text before it
@@ -137,20 +143,45 @@ export function splitTagValue(line: string): TagValue | null {
  */
 export function stripComment(rest: string): string {
     let quoted = false;
-    for (let i = 0; i < rest.length; i++) {
+    const found = [-2, -2, -2];
+    let i = nextOf(rest, 0, COMMENT_MARKS, found);
+    while (i >= 0) {
         const ch = rest.charAt(i);
-        if (ch === "\\") {
-            i++;
-            continue;
-        }
         const atStart = i === 0 || rest.charAt(i - 1) === " " || rest.charAt(i - 1) === "\t";
         if (ch === '"' && (quoted || atStart)) {
             quoted = !quoted;
         } else if (ch === "!" && !quoted && atStart) {
             return rest.slice(0, i).trimEnd();
         }
+        // a backslash escapes the character after it
+        i = nextOf(rest, ch === "\\" ? i + 2 : i + 1, COMMENT_MARKS, found);
     }
     return rest.trimEnd();
+}
+
+/**
+ * The index of the first of `marks` in `text` at or after `from`, or -1. Each mark is found by
+ * indexOf, so the plain text between marks is searched natively rather than one character at a
+ * time; `found` holds where each mark was last found (-2 before the first search, -1 when it does
+ * not occur again) and a mark is searched again only once `from` has passed it, so a whole scan
+ * reads the text once per mark.
+ * @param text - the text
+ * @param from - where to start
+ * @param marks - the characters to find
+ * @param found - per mark, its last index found; start with -2 for each
+ * @returns the index of the nearest mark, or -1
+ */
+function nextOf(text: string, from: number, marks: string, found: number[]): number {
+    let nearest = -1;
+    for (let k = 0; k < marks.length; k++) {
+        if (found[k] !== -1 && found[k] < from) {
+            found[k] = text.indexOf(marks.charAt(k), from);
+        }
+        if (found[k] !== -1 && (nearest === -1 || found[k] < nearest)) {
+            nearest = found[k];
+        }
+    }
+    return nearest;
 }
 
 /**
@@ -541,11 +572,11 @@ export function parseXrefList(inner: string): Xref[] {
 export function hasStrayBrace(value: string): boolean {
     let quoted = false;
     let listed = false;
-    for (let i = 0; i < value.length; i++) {
+    const found = [-2, -2, -2, -2, -2, -2];
+    let i = nextOf(value, 0, BRACE_MARKS, found);
+    while (i >= 0) {
         const ch = value.charAt(i);
-        if (ch === "\\") {
-            i++;
-        } else if (ch === '"') {
+        if (ch === '"') {
             quoted = !quoted;
         } else if (!quoted && (ch === "[" || ch === "]")) {
             // inside an xref list a brace opens that xref's qualifiers (OBO 1.2)
@@ -553,6 +584,8 @@ export function hasStrayBrace(value: string): boolean {
         } else if (!quoted && !listed && (ch === "{" || ch === "}")) {
             return true;
         }
+        // a backslash escapes the character after it
+        i = nextOf(value, ch === "\\" ? i + 2 : i + 1, BRACE_MARKS, found);
     }
     return false;
 }

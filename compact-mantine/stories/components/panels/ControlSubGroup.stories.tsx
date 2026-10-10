@@ -53,7 +53,8 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * - The header is one button (Enter or Space toggles it) carrying
  *   `aria-expanded` and `aria-controls`, named "Expand ..." or "Collapse ..."
  *   followed by the visible label.
- * - The content is a `region` named by that button. Nothing inside a closed
+ * - The content is a `group` named by the label (not a `region` landmark, so
+ *   many open sub-groups do not flood the landmark list). Nothing inside a closed
  *   sub-group can be reached by Tab, and its content stays mounted, so a
  *   half-typed value survives a fold.
  * - The chevron is drawn text inside the button, not a second button, and it

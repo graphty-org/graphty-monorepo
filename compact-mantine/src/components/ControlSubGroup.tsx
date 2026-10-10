@@ -26,7 +26,7 @@ export interface ControlSubGroupProps extends DisclosureProps {
      *
      * One to three words in sentence case. It is also the accessible name of
      * the header button, prefixed with "Expand" or "Collapse", and the name of
-     * the region the header opens.
+     * the group the header opens.
      */
     label: string;
     /** The controls the sub-group holds, stacked in the order you write them. */
@@ -44,7 +44,7 @@ export interface ControlSubGroupProps extends DisclosureProps {
  * in one frame, on the same grid as the rows around it.
  *
  * The header is one button carrying the open state, and the controls it reveals
- * are a labeled region that the button points at. Nothing inside a closed
+ * are a group named by the label, which the button points at. Nothing inside a closed
  * sub-group can be reached by Tab.
  *
  * Drive it from your own state with `opened` and `onOpenChange`, or leave both
@@ -74,6 +74,7 @@ export function ControlSubGroup(props: ControlSubGroupProps): React.JSX.Element 
     const labels = useLabels();
     const direction = useDirection();
     const controlId = useId();
+    const labelId = useId();
     const panelId = useId();
 
     const [isOpen, setOpen] = useUncontrolled<boolean>({
@@ -91,9 +92,17 @@ export function ControlSubGroup(props: ControlSubGroupProps): React.JSX.Element 
     const toggleName = isOpen ? labels.collapseSection(label) : labels.expandSection(label);
 
     // Accessibility: the APG "Accordion" pattern. The header is a real button
-    // carrying aria-expanded and aria-controls, and the content is
-    // role="region" named by that button through aria-labelledby.
+    // carrying aria-expanded and aria-controls, and the content is a group
+    // named by the visible label.
     //   https://www.w3.org/WAI/ARIA/apg/patterns/accordion/
+    // The APG makes the panel's region role optional and warns against it
+    // where many panels can be open at once ("landmark region
+    // proliferation"). A panel holds many sub-groups, often open together and
+    // often with the same name in different sections ("Advanced" under Nodes
+    // and under Edges), and a landmark per sub-group would flood a screen
+    // reader's landmark list with duplicates. A group is not a landmark, so it
+    // is announced with its name on entry, as ControlSection's group is,
+    // without competing with the page's real landmarks.
     return (
         <Box data-testid="control-sub-group">
             <UnstyledButton
@@ -119,6 +128,7 @@ export function ControlSubGroup(props: ControlSubGroupProps): React.JSX.Element 
                     name repeats it, so a screen reader reads all of it. */}
                 <Box
                     component="span"
+                    id={labelId}
                     data-testid="control-sub-group-label"
                     title={label}
                     style={{
@@ -136,8 +146,8 @@ export function ControlSubGroup(props: ControlSubGroupProps): React.JSX.Element 
             {/* Opens in one frame (spec 2.8), on the section's own grid. */}
             <Box
                 id={panelId}
-                role="region"
-                aria-labelledby={controlId}
+                role="group"
+                aria-labelledby={labelId}
                 aria-hidden={isOpen ? undefined : true}
                 hidden={!isOpen}
                 data-testid="control-sub-group-panel"

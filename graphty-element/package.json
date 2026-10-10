@@ -179,7 +179,7 @@
         "@graphty/graph-samples": "workspace:^",
         "@graphty/remote-logger": "workspace:^",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
-        "@playwright/test": "^1.54.1",
+        "@playwright/test": "catalog:",
         "@storybook/addon-console": "^3.0.0",
         "@storybook/addon-docs": "^9.0.11",
         "@storybook/addon-vitest": "^9.0.11",

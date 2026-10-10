@@ -764,13 +764,21 @@ jobs:
                   name: build-packages
                   path: .
 
+            # Keyed by the Playwright version, the one the root installs with and every package's tests
+            # launch (pnpm-workspace.yaml holds the workspace to a single version), so a cache can never
+            # hold another version's browser build.
+            - name: Read the Playwright version
+              if: matrix.needs-browser
+              id: playwright
+              run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
             - name: Cache Playwright browsers
               if: matrix.needs-browser
               uses: actions/cache@v4
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
-                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+                  key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
             - uses: ./.github/actions/drop-microsoft-apt-source
 
@@ -1484,7 +1492,8 @@ jobs:
             - name: Read the Playwright version
               if: steps.skip.outputs.skip != 'true'
               id: playwright
-              run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
+              working-directory: visual-review
+              run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
 
             - name: Cache Playwright browsers
               if: steps.skip.outputs.skip != 'true'

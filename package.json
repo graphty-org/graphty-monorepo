@@ -103,7 +103,7 @@
         "knip": "^5.61.3",
         "lcov-result-merger": "^5.0.1",
         "nx": "22.7.12",
-        "playwright": "^1.54.1",
+        "playwright": "catalog:",
         "pngjs": "^7.0.0",
         "prettier": "^3.4.2",
         "secretlint": "^13.0.6",

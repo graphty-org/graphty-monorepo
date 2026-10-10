@@ -1401,10 +1401,23 @@ describe("Playwright's system packages", () => {
         assert.match(visual, /working-directory: visual-review\n\s+run: pnpm exec playwright install chromium\n/);
     });
 
-    // Runs install.sh against a fake apt: sudo logs its arguments (and really runs rm), pnpm answers
-    // the dry run with PKGS and the install by writing DOWNLOADS into the archive directory, and
-    // dpkg-query reports the packages named in INSTALLED as installed.
-    const run = ({ hit, cached = [], stale = [], downloads = [], aptSays = "", installed = "a b" }) => {
+    // Runs install.sh against a fake apt: sudo logs its arguments (and really runs rm), pnpm answers the
+    // install by writing DOWNLOADS into the archive directory, and hands the dry run to the workspace's
+    // real Playwright CLI, so its real output is what install.sh reads. Playwright simulates the install
+    // with `apt-get install -s`; the fake apt-get reports the first package as missing with `missing`,
+    // and fails as apt does on a package it cannot find with `aptFails`. `dryRunSays` replaces
+    // Playwright's answer with other text.
+    const playwright = new URL("../node_modules/.bin/playwright", import.meta.url).pathname;
+    const run = ({
+        hit,
+        cached = [],
+        stale = [],
+        downloads = [],
+        aptSays = "",
+        missing = false,
+        aptFails = false,
+        dryRunSays,
+    }) => {
         const home = mkdtempSync(join(tmpdir(), "pw-debs-"));
         const bin = join(home, "bin");
         const debs = join(home, "debs");
@@ -1414,16 +1427,22 @@ describe("Playwright's system packages", () => {
         for (const d of stale) writeFileSync(join(archives, d), "");
         const stub = (name, body) => writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
         stub("sudo", `echo "$*" >> "${home}/calls"; case "$1" in rm) exec "$@";; tee) cat >/dev/null;; esac`);
+        const dryRun =
+            dryRunSays === undefined
+                ? `exec "${playwright}" install-deps --dry-run chromium`
+                : `echo ${JSON.stringify(dryRunSays)}; exit 1`;
         stub(
             "pnpm",
             `echo "pnpm $*" >> "${home}/calls"
-if [ "$4" = --dry-run ]; then echo 'sudo -- sh -c "apt-get update&& apt-get install -y --no-install-recommends a b"'; exit; fi
+if [ "$4" = --dry-run ]; then ${dryRun}; fi
 for d in ${downloads.join(" ")}; do touch "${archives}/$d"; done
 echo "${aptSays}"`,
         );
         stub(
-            "dpkg-query",
-            `rc=0; for p in "\${@:3}"; do case " ${installed} " in *" $p "*) echo "ii  $p";; *) echo "dpkg-query: no packages found matching $p" >&2; rc=1;; esac; done; exit $rc`,
+            "apt-get",
+            aptFails
+                ? `echo "E: Unable to locate package $4" >&2; exit 100`
+                : `echo "NOTE: This is only a simulation!"; ${missing ? 'echo "Inst $4 (1.0 Ubuntu:24.04/noble [amd64])"' : "true"}`,
         );
         const r = spawnSync("bash", [script], {
             encoding: "utf8",
@@ -1449,14 +1468,30 @@ echo "${aptSays}"`,
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.match(r.calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n/m);
         assert.doesNotMatch(r.calls, /install-deps chromium/);
-        assert.match(r.stdout, /All 2 packages Chromium needs are installed/);
+        assert.match(r.stdout, /All the system packages Chromium needs are installed/);
     });
 
     it("on a hit fails when the cache left a package Chromium needs uninstalled", () => {
-        const r = run({ hit: "true", cached: ["a.deb"], installed: "a" });
+        const r = run({ hit: "true", cached: ["a.deb"], missing: true });
         assert.equal(r.status, 1);
         assert.match(r.stdout, /::error::Chromium's system packages are not all installed/);
-        assert.match(r.stdout, /no packages found matching b/);
+        assert.match(r.stdout, /Missing system dependencies \(1\):\n {2}\S+/);
+    });
+
+    it("fails, showing apt's error, when apt cannot find a package Chromium needs", () => {
+        const r = run({ hit: "true", aptFails: true });
+        assert.equal(r.status, 1);
+        assert.match(r.stdout, /::error::unrecognized output \(exit 1\) from playwright install-deps --dry-run/);
+        assert.match(r.stdout, /E: Unable to locate package \S+/);
+    });
+
+    it("fails on dry-run output it does not recognize, such as Playwright 1.57's", () => {
+        const r = run({
+            hit: "true",
+            dryRunSays: 'sudo -- sh -c "apt-get update&& apt-get install -y --no-install-recommends a b"',
+        });
+        assert.equal(r.status, 1);
+        assert.match(r.stdout, /::error::unrecognized output \(exit 1\) from playwright install-deps --dry-run/);
     });
 
     it("on a miss clears apt's old downloads, installs with apt and caches only what apt downloaded", () => {
@@ -1483,6 +1518,45 @@ echo "${aptSays}"`,
         const r = run({ hit: "", aptSays: "0 upgraded, 0 newly installed, 0 to remove and 1 not upgraded." });
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.deepEqual(r.cache, []);
+    });
+});
+
+describe("one Playwright", () => {
+    // CI installs browsers once, at the root, and every package's tests launch whatever build their own
+    // Playwright wants. With 1.57 at the root and 1.63 under graphty-element, a cache miss installed
+    // Chromium build 1200 and every graphty-element browser shard failed on a missing build 1243.
+    it("resolves a single version of playwright, playwright-core and @playwright/test", () => {
+        const lock = readFileSync(new URL("../pnpm-lock.yaml", import.meta.url), "utf8");
+        const versions = new Set(
+            [...lock.matchAll(/^ {2}'?(?:@playwright\/test|playwright|playwright-core)@([^':(]+)'?:/gm)].map(
+                (m) => m[1],
+            ),
+        );
+        assert.equal(versions.size, 1, `pnpm-lock.yaml resolves Playwright ${[...versions].join(", ")}`);
+    });
+
+    it("has every package take Playwright from the catalog", () => {
+        const root = new URL("../", import.meta.url);
+        const dirs = [".", ...readdirSync(root).filter((d) => existsSync(new URL(`${d}/package.json`, root)))];
+        let checked = 0;
+        for (const dir of dirs) {
+            const pkg = JSON.parse(readFileSync(new URL(`${dir}/package.json`, root), "utf8"));
+            for (const deps of [pkg.dependencies, pkg.devDependencies]) {
+                for (const name of ["playwright", "playwright-core", "@playwright/test"]) {
+                    if (!deps?.[name]) continue;
+                    assert.equal(deps[name], "catalog:", `${dir}/package.json ${name}`);
+                    checked++;
+                }
+            }
+        }
+        assert.ok(checked >= 5, `found the Playwright dependencies (${checked})`);
+    });
+
+    it("keys the test job's browser cache on the version the root installs with", () => {
+        const test = job(workflow("ci.yml").replace(/^\s*#.*$/gm, ""), "test");
+        assert.match(test, /id: playwright\n\s+run: echo "version=\$\(pnpm exec playwright --version/);
+        assert.match(test, /key: playwright-\$\{\{ runner\.os \}\}-\$\{\{ steps\.playwright\.outputs\.version \}\}\n/);
+        assert.match(test, /cache-hit != 'true'\n\s+run: pnpm exec playwright install chromium\n/);
     });
 });
 

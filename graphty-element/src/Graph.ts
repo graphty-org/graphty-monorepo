@@ -445,15 +445,18 @@ export class Graph implements GraphContext {
     private immersiveSince: string | null = null;
 
     /**
-     * Whether the render loop may skip a frame: drawing on demand is on, the picture the model
-     * describes is on screen and final, and no headset is showing it -- a VR or AR view moves
-     * with the reader's head, which the loop cannot see. See `RenderManager.mayRest`.
+     * Whether drawing on demand is switched on (`layoutBehavior.rendering.onDemand`).
+     * @returns True when the render loop may skip frames.
+     */
+    private readonly drawsOnDemand = (): boolean => this.viewSettings.behavior.rendering?.onDemand === true;
+    /**
+     * Whether the picture the model describes is on screen and final, and no headset is showing
+     * it -- a VR or AR view moves with the reader's head, which the loop cannot see. Asked only
+     * while drawing on demand is on. See `RenderManager.mayRest`.
      * @returns True when a frame that changes nothing may be skipped.
      */
     private readonly pictureIsFinal = (): boolean =>
-        this.viewSettings.behavior.rendering?.onDemand === true &&
-        this.updateManager.frameIsStable &&
-        (this.xrSessionManager?.getActiveMode() ?? null) === null;
+        this.updateManager.frameIsStable && (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
     private selectionManager: SelectionManager;
@@ -538,6 +541,7 @@ export class Graph implements GraphContext {
         // Initialize RenderManager
         this.renderManager = new RenderManager(this.canvas, this.eventManager, {
             pictureIsFinal: this.pictureIsFinal,
+            drawsOnDemand: this.drawsOnDemand,
         });
 
         // Get references from RenderManager for backward compatibility
@@ -1381,6 +1385,7 @@ export class Graph implements GraphContext {
         this.renderManager = new RenderManager(canvas, this.eventManager, {
             engine: opened,
             pictureIsFinal: this.pictureIsFinal,
+            drawsOnDemand: this.drawsOnDemand,
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;

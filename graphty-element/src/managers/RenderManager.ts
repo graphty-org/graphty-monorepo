@@ -42,6 +42,11 @@ interface RenderManagerConfig {
      * out, every tick draws. See `RenderManager.mayRest`.
      */
     pictureIsFinal?: () => boolean;
+    /**
+     * Whether drawing on demand is switched on. While it is not, the loop draws every tick and
+     * does none of the bookkeeping drawing on demand needs. Left out, it is off.
+     */
+    drawsOnDemand?: () => boolean;
 }
 
 /** Which renderer a graph asks for: WebGL, WebGPU, or WebGPU when the browser has it. */
@@ -244,8 +249,22 @@ function releaseWhenIdle(gl: WebGLRenderingContext | WebGL2RenderingContext): vo
 /** Events that say nothing about the picture, so they do not ask a resting loop to draw. */
 const EVENTS_THAT_DRAW_NOTHING: ReadonlySet<string> = new Set(["graph-frame-stable", "stats-update"]);
 
-/** The canvas events a reader makes, each of which may change what the next frame shows. */
-const READER_INPUT_EVENTS = ["pointerdown", "pointermove", "pointerup", "wheel", "keydown", "keyup"] as const;
+/**
+ * The canvas events after which the next frame may differ: what a reader does, and the GL context
+ * coming back, which leaves the canvas empty. The last is a DOM listener, removed on dispose,
+ * rather than an observer on the engine's `onContextRestoredObservable`: Babylon never clears that
+ * observable when the engine is disposed, so the observer kept every disposed graph's scene
+ * alive, and a browser test shard that builds hundreds of graphs slowed until it timed out.
+ */
+const READER_INPUT_EVENTS = [
+    "pointerdown",
+    "pointermove",
+    "pointerup",
+    "wheel",
+    "keydown",
+    "keyup",
+    "webglcontextrestored",
+] as const;
 
 /**
  * Manages Babylon.js scene, engine, and render loop
@@ -266,6 +285,8 @@ export class RenderManager implements Manager {
     private skippedMs = 0;
     /** See `RenderManagerConfig.pictureIsFinal`; null draws every tick. */
     private readonly pictureIsFinal: (() => boolean) | null;
+    /** See `RenderManagerConfig.drawsOnDemand`. */
+    private readonly drawsOnDemand: () => boolean;
     /** Set by anything that may have changed the picture since the last frame drawn. */
     private drawOwed = true;
     /** What the last frame drawn left behind; see {@link RenderManager.sameAsDrawn}. */
@@ -277,6 +298,7 @@ export class RenderManager implements Manager {
         height: -1,
         clear: new Float32Array(4),
         observers: [] as readonly unknown[],
+        contents: [] as unknown[],
     };
     /** Whether the last frame drawn left the camera, size or background other than the one before. */
     private lastFrameMoved = true;
@@ -289,10 +311,8 @@ export class RenderManager implements Manager {
      * one frame after such a change can leave the new thing off the canvas.
      */
     private sceneChanged = false;
-    private readonly oweForSceneChange = (): void => {
-        this.drawOwed = true;
-        this.sceneChanged = true;
-    };
+    /** Scratch for {@link RenderManager.sameContents}. */
+    private readonly contentsNow: unknown[] = [];
     private readonly oweForEvent = (event: { readonly type: string }): void => {
         if (!EVENTS_THAT_DRAW_NOTHING.has(event.type)) {
             this.drawOwed = true;
@@ -327,6 +347,7 @@ export class RenderManager implements Manager {
         // Set Babylon.js log level
         Logger.LogLevels = Logger.ErrorLogLevel;
         this.pictureIsFinal = this.config.pictureIsFinal ?? null;
+        this.drawsOnDemand = this.config.drawsOnDemand ?? ((): boolean => false);
 
         // Create engine
         this.engine =
@@ -345,7 +366,6 @@ export class RenderManager implements Manager {
             this.canvas.addEventListener(type, this.owe, { passive: true });
         }
         this.eventManager.onGraphEvent.add(this.oweForEvent);
-        this.oweOnSceneChanges();
 
         // Create graph-root transform node for XR gestures
         // All graph nodes will be parented to this, allowing gestures to transform the entire graph
@@ -548,43 +568,42 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * Owes a frame whenever the scene gains or loses something it draws with, or the GL context
-     * comes back.
+     * What the scene holds, read cheaply: how many meshes, materials, textures, lights, cameras,
+     * effect layers and post-processes, the newest of each of the first three (an added one is
+     * appended, so a swap that keeps the count still shows), and the environment texture.
      *
-     * The one net under every code path that builds or disposes a mesh, a material, a texture, a
-     * light, a camera or an effect: it does not depend on that path remembering to ask for a
-     * frame, and it also catches such a change made through `graph.scene` from outside. Babylon
-     * has no general "the scene changed" signal -- a changed colour or position marks nothing --
-     * so changes to what already exists are caught by the model's own stability, the element's
-     * events and the reader's input instead; the canvas size and the background colour are
-     * compared frame to frame by {@link RenderManager.sameAsDrawn}. Observers go with the scene.
+     * The net under every code path that builds or disposes something the scene draws with: it
+     * does not depend on that path remembering to ask for a frame, and it also sees such a change
+     * made through `graph.scene` from outside. Babylon has no general "the scene changed" signal
+     * -- a changed color or position marks nothing -- so changes to what already exists are
+     * caught by the model's own stability, the element's events and the reader's input instead.
+     *
+     * Read only while drawing on demand is on, so it costs nothing when it is off; observers on
+     * the scene's lists would run on every mesh built either way.
+     * @param into - Where to write it, in a fixed order.
      */
-    private oweOnSceneChanges(): void {
+    private readSceneContents(into: unknown[]): void {
         const { scene } = this;
-        for (const observable of [
-            scene.onNewMeshAddedObservable,
-            scene.onMeshRemovedObservable,
-            scene.onNewMaterialAddedObservable,
-            scene.onMaterialRemovedObservable,
-            scene.onNewTextureAddedObservable,
-            scene.onTextureRemovedObservable,
-            scene.onNewTransformNodeAddedObservable,
-            scene.onTransformNodeRemovedObservable,
-            scene.onNewLightAddedObservable,
-            scene.onLightRemovedObservable,
-            scene.onNewCameraAddedObservable,
-            scene.onCameraRemovedObservable,
-            scene.onNewEffectLayerAddedObservable,
-            scene.onEffectLayerRemovedObservable,
-            scene.onNewPostProcessAddedObservable,
-            scene.onPostProcessRemovedObservable,
-            scene.onActiveCameraChanged,
-            scene.onEnvironmentTextureChangedObservable,
-        ] as const) {
-            (observable as { add: (callback: () => void) => unknown }).add(this.oweForSceneChange);
-        }
+        into[0] = scene.meshes.length;
+        into[1] = scene.meshes.at(-1);
+        into[2] = scene.materials.length;
+        into[3] = scene.materials.at(-1);
+        into[4] = scene.textures.length;
+        into[5] = scene.textures.at(-1);
+        into[6] = scene.lights.length;
+        into[7] = scene.cameras.length;
+        into[8] = scene.effectLayers.length;
+        into[9] = scene.postProcesses.length;
+        into[10] = scene.environmentTexture;
+    }
 
-        this.engine.onContextRestoredObservable.add(this.owe);
+    /**
+     * Whether the scene holds what it held when the last frame was drawn.
+     * @returns True when nothing was added or removed since.
+     */
+    private sameContents(): boolean {
+        this.readSceneContents(this.contentsNow);
+        return this.contentsNow.every((value, i) => value === this.drawnFrom.contents[i]);
     }
 
     /**
@@ -608,7 +627,13 @@ export class RenderManager implements Manager {
      * @returns True when this tick draws nothing.
      */
     private mayRest(): boolean {
-        if (this.pictureIsFinal === null || this.drawOwed || this.lastFrameMoved || !this.pictureIsFinal()) {
+        if (
+            this.pictureIsFinal === null ||
+            !this.drawsOnDemand() ||
+            this.drawOwed ||
+            this.lastFrameMoved ||
+            !this.pictureIsFinal()
+        ) {
             return false;
         }
 
@@ -618,6 +643,10 @@ export class RenderManager implements Manager {
             this.scene.getWaitingItemsCount() > 0
         ) {
             return false;
+        }
+
+        if (!this.sameContents()) {
+            this.sceneChanged = true;
         }
 
         // Asked only after a change to what the scene holds: the walk visits every mesh.
@@ -675,7 +704,9 @@ export class RenderManager implements Manager {
      * whether it differed from what the frame before left.
      */
     private noteDrawnFrom(): void {
-        if (this.pictureIsFinal === null) {
+        if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
+            // Switched on later, the first frame then is compared with nothing and draws again.
+            this.lastFrameMoved = true;
             return;
         }
 
@@ -696,6 +727,12 @@ export class RenderManager implements Manager {
         from.clear[2] = clearColor.b;
         from.clear[3] = clearColor.a;
         from.observers = this.newestFrameObservers();
+        // Something added while frames were being drawn may not have been ready to draw in them.
+        if (!this.sameContents()) {
+            this.sceneChanged = true;
+        }
+
+        this.readSceneContents(from.contents);
     }
 
     /**

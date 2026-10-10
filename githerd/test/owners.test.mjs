@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -396,5 +396,23 @@ describe("the push log of tools/push-queue.sh", () => {
     it("names no session for a registry entry whose process start differs (a reused pid)", () => {
         const { line } = pushWithEntry("1");
         expect(line).toMatchObject({ branch: "feat/x", exit: 0, sessionId: null, name: null });
+    });
+
+    it("runs the checkout's source checks first, and a failing one stops the push before the queue", () => {
+        const repo = makeRepo();
+        dirs.push(repo.tmp);
+        mkdirSync(join(repo.root, "tools"));
+        writeFileSync(join(repo.root, "tools", "prepush-source-checks.sh"), "echo '[FAIL] Formatting'; exit 1\n");
+        const r = spawnSync("bash", [script, "git", "push", "-q", "origin", "HEAD:feat/x"], {
+            cwd: repo.root,
+            encoding: "utf8",
+            env: { ...process.env, HOME: join(repo.tmp, "home"), PUSH_QUEUE_DIR: join(repo.tmp, "q") },
+        });
+        expect(r.status).toBe(1);
+        expect(r.stdout).toContain("[FAIL] Formatting");
+        expect(git(repo.root, "ls-remote", "origin", "feat/x")).toBe("");
+        const line = JSON.parse(readFileSync(join(repo.tmp, "push-log.jsonl"), "utf8").trim());
+        expect(line).toMatchObject({ branch: "feat/x", exit: 1, gate: ["[FAIL] Formatting"] });
+        expect(line.startedAt).toBe(line.queuedAt);
     });
 });

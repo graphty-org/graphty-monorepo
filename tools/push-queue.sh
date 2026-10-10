@@ -24,8 +24,24 @@ ticket="$dir/$rank-$(date +%s%N)-$$"
 queued_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 echo "$PWD :: $*" > "$ticket"
 trap 'rm -f "$ticket" "$PUSH_QUEUE_COPY"' EXIT
+gate_log="$(dirname "$dir")/push-gate-logs/$(basename "$ticket").log"
+mkdir -p "$(dirname "$gate_log")" 2>/dev/null && find "$(dirname "$gate_log")" -name '*.log' -mtime +14 -delete 2>/dev/null
 
-while :; do
+# The gate's source-only checks (formatting, links, the CI workflow tests, the config and tool checks:
+# tools/prepush-source-checks.sh of the checkout being pushed), run while this push already holds its
+# place in the queue, so a slip fails in about a minute instead of after the wait for a slot. The
+# gate skips them later when the checkout has not changed since they passed. A checkout without the
+# script (a branch from before it existed) goes straight to the queue. Their output goes to the gate
+# log too, so a failure here is logged like a gate failure, and the push itself never runs.
+rc=0
+early="$(git rev-parse --show-toplevel 2>/dev/null)/tools/prepush-source-checks.sh"
+if [ "${1:-}" = git ] && [ -f "$early" ]; then
+    bash "$early" > >(tee -a "$gate_log" 2>/dev/null) 2> >(tee -a "$gate_log" >&2 2>/dev/null)
+    rc=$?
+    wait
+fi
+
+while [ "$rc" = 0 ]; do
     live=()
     # Order by rank (0 critical, 1 normal; a ticket from before ranks existed counts as 1), then by
     # arrival time.
@@ -39,6 +55,7 @@ while :; do
     sleep 10
 done
 started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+[ "$rc" = 0 ] || started_at=$queued_at
 
 # The push log, which githerd reads to learn whose pull request a branch is
 # (githerd/lib/owners.mjs): one JSON line per push, appended when it ends, with the pushed branch
@@ -80,10 +97,10 @@ done
 # and the top-level directories the push changes against its merge base with origin/master
 # (Markdown left out). Recording never fails or slows the push: each part that fails is left out of
 # the line. Logs older than 14 days are removed.
-gate_log="$(dirname "$dir")/push-gate-logs/$(basename "$ticket").log"
-mkdir -p "$(dirname "$gate_log")" 2>/dev/null && find "$(dirname "$gate_log")" -name '*.log' -mtime +14 -delete 2>/dev/null
-"$@" > >(tee -a "$gate_log" 2>/dev/null) 2> >(tee -a "$gate_log" >&2 2>/dev/null)
-rc=$?
+if [ "$rc" = 0 ]; then
+    "$@" > >(tee -a "$gate_log" 2>/dev/null) 2> >(tee -a "$gate_log" >&2 2>/dev/null)
+    rc=$?
+fi
 finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 wait
 gate=$(sed 's/\x1b\[[0-9;]*m//g' "$gate_log" 2>/dev/null | grep -aE '\[FAIL\]|^ *FAIL |All pre-push checks passed|\[(remote )?rejected\]' \

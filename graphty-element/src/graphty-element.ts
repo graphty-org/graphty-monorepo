@@ -4188,7 +4188,7 @@ export class Graphty extends LitElement {
      * Can be changed at any time. An unrecognised value is reported and ignored, for the reason
      * given on `acceleration`.
      * @returns The mode; `"continuous"` unless it was set.
-     * @since 3.22.0
+     * @since 3.23.0
      * @example HTML attribute
      * ```html
      * <graphty-element render-mode="on-demand"></graphty-element>
@@ -4221,7 +4221,7 @@ export class Graphty extends LitElement {
      *
      * Needed only with `render-mode="on-demand"`, after changing the Babylon scene directly; every
      * change made through the element is drawn without it.
-     * @since 3.22.0
+     * @since 3.23.0
      * @example
      * ```typescript
      * element.graph.scene.getMeshByName("my-marker")?.setEnabled(false);

@@ -19,6 +19,9 @@ import { drag, nextFrame } from "../helpers/real-input";
 /** Animation frames with no render that count as the graph being at rest. */
 const IDLE_TICKS = 30;
 
+/** Animation frames after an edit by which everything but an animation has stopped drawing. */
+const SETTLE_TICKS = 120;
+
 /** The most animation frames any wait here lets pass before failing. */
 const MAX_TICKS = 1200;
 
@@ -243,10 +246,49 @@ describe("the render mode", () => {
             set: { "edge.animationSpeed": 1 },
         });
 
-        assert.isAbove(await rendersOver(element, 30), 1, "an animated edge is drawn on frame after frame");
+        // Past the frames any edit draws while it settles, only the animation is left asking.
+        await rendersOver(element, SETTLE_TICKS);
+        assert.isAbove(
+            await rendersOver(element, IDLE_TICKS),
+            IDLE_TICKS / 2,
+            "an animated edge is drawn on frame after frame, long after the edit",
+        );
 
         await element.session.styles.remove(layer.id);
         await untilIdle(element, "the animation was taken off");
+    });
+
+    it("keeps drawing on demand while a label animates, and rests once it stops", async () => {
+        const element = await mount("on-demand");
+        await untilIdle(element, "the load");
+
+        const layer = await element.session.styles.add({
+            name: "pulsing labels",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "LABEL", "node.labelStyle": { animation: "pulse" } },
+        });
+
+        // Past the frames any edit draws while it settles, only the animation is left asking.
+        await rendersOver(element, SETTLE_TICKS);
+        assert.isAbove(
+            await rendersOver(element, IDLE_TICKS),
+            IDLE_TICKS / 2,
+            "an animated label is drawn on frame after frame, long after the edit",
+        );
+
+        await element.session.styles.remove(layer.id);
+        await untilIdle(element, "the label animation was taken off");
+    });
+
+    it("takes a screenshot of a graph at rest on demand, and rests again after it", async () => {
+        const element = await mount("on-demand");
+        await untilIdle(element, "the load");
+
+        const shot = await element.captureScreenshot({ multiplier: 1 });
+
+        assert.isAbove(shot.blob.size, 0, "the screenshot holds an image");
+        await untilIdle(element, "the screenshot");
     });
 
     it("can be switched at any time: back to continuous draws every frame again", async () => {

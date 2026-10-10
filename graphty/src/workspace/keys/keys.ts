@@ -147,5 +147,5 @@ export function isPanelEscape(event: Pick<KeyboardEvent, "key" | "defaultPrevent
         return false;
     }
     // A combobox field marks its open list with data-expanded (Mantine's Select, Autocomplete).
-    return !(event.target instanceof Element && event.target.hasAttribute("data-expanded"));
+    return !(event.target instanceof Element && "expanded" in (event.target as HTMLElement).dataset);
 }

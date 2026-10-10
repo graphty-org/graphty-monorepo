@@ -56,7 +56,7 @@ export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>
     return (
         <ContextMenu
             target={
-                <div
+                <div // NOSONAR(S6848): the canvas area, a context-menu target; Shift+F10 and the menu key open the same menu
                     className="ws-canvas-surface"
                     onKeyDown={(event) => {
                         if ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu") {

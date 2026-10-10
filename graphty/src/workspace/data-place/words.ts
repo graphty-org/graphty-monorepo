@@ -112,7 +112,7 @@ export const NO_NODE_ROW = "(no node row)";
 export function noNodeRow(names: readonly string[]): string {
     const unique = [...new Set(names)];
     const shown = unique.length > 3 ? [...unique.slice(0, 2), `${String(unique.length - 2)} more`] : unique;
-    const list = shown.length === 1 ? shown[0] : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+    const list = shown.length === 1 ? shown[0] : `${shown.slice(0, -1).join(", ")} and ${shown.at(-1) ?? ""}`;
     return unique.length === 1 ? `${list} has no node row` : `${list} have no node rows`;
 }
 

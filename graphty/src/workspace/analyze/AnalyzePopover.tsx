@@ -305,9 +305,18 @@ export function AnalyzePopover({
                 // Back from an entry's short form, focus returns here, so a second Esc closes.
                 autoFocus
             />
-            <div className="ws-analyze-list" id={listId} ref={listRef} role="listbox" aria-label="Analyses">
+            <div // NOSONAR(S6819): the popup of an ARIA combobox on a text box; a native select cannot be one
+                className="ws-analyze-list"
+                id={listId}
+                ref={listRef}
+                role="listbox"
+                aria-label="Analyses"
+            >
                 {recent.length > 0 ? (
-                    <div role="group" aria-label="Recent">
+                    <div // NOSONAR(S6819): an option group inside an ARIA listbox; optgroup needs a native select
+                        role="group"
+                        aria-label="Recent"
+                    >
                         <Text size="xs" fw={600} c="dimmed" className="ws-analyze-heading">
                             Recent
                         </Text>
@@ -315,7 +324,11 @@ export function AnalyzePopover({
                     </div>
                 ) : null}
                 {groups.map(({ heading, entries }) => (
-                    <div role="group" key={heading.id} aria-label={heading.title}>
+                    <div // NOSONAR(S6819): an option group inside an ARIA listbox; optgroup needs a native select
+                        role="group"
+                        key={heading.id}
+                        aria-label={heading.title}
+                    >
                         <Text size="xs" fw={600} c="dimmed" className="ws-analyze-heading">
                             {heading.title}
                         </Text>

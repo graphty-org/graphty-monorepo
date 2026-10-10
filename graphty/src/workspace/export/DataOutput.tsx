@@ -27,6 +27,28 @@ interface DataOutputProps {
 }
 
 /** What a table row of a CSV holds. */
+/**
+ * One loss the export reported, as coded facts: one per column it names, or one with no column.
+ * @param loss - the loss.
+ * @param loss.code - its code.
+ * @param loss.params - its parameters.
+ * @returns the facts.
+ */
+function lossFacts({ code, params }: { code: string; params: Readonly<Record<string, unknown>> }): LossFacts[] {
+    const count = typeof params.count === "number" ? params.count : null;
+    const columns = Array.isArray(params.columns) ? params.columns.map(String) : [];
+    return columns.length === 0 ? [{ code, column: null, count }] : columns.map((column) => ({ code, column, count }));
+}
+
+/**
+ * The part an export writes, for its file name: the part named in its options, or the graph.
+ * @param part - the options' part.
+ * @returns the part's name.
+ */
+function partName(part: unknown): string {
+    return typeof part === "string" ? part : "graph";
+}
+
 const SUMMARIES: Readonly<Record<string, string>> = {
     nodes: "One row per node, with every computed value",
     edges: "One row per edge, with every edge attribute and computed value",
@@ -82,7 +104,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
     const name =
         choices.format === "graphty"
             ? projectFileName(project)
-            : fileName(project, table ?? (typeof options.part === "string" ? options.part : "graph"), extension);
+            : fileName(project, table ?? partName(options.part), extension);
 
     useEffect(() => {
         if (element === null) {
@@ -99,13 +121,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                     // Only the coded facts, one per column they name: the element writes no words.
                     setPreview({
                         lines,
-                        losses: result.losses.flatMap(({ code, params }): LossFacts[] => {
-                            const count = typeof params.count === "number" ? params.count : null;
-                            const columns = Array.isArray(params.columns) ? params.columns.map(String) : [];
-                            return columns.length === 0
-                                ? [{ code, column: null, count }]
-                                : columns.map((column) => ({ code, column, count }));
-                        }),
+                        losses: result.losses.flatMap(lossFacts),
                     });
                 }
             })

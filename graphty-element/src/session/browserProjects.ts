@@ -218,7 +218,8 @@ function factsOf(record: ProjectRecord): StoredProject {
 export const browserProjects: BrowserProjects = Object.freeze({
     async list() {
         const records = await inStore("readonly", (store) => store.getAll() as IDBRequest<ProjectRecord[]>);
-        return records.sort((a, b) => b.savedAt - a.savedAt).map(factsOf);
+        records.sort((a, b) => b.savedAt - a.savedAt);
+        return records.map(factsOf);
     },
     async save(session: GraphSession, options: BrowserProjectSaveOptions = {}) {
         // Opened first, so a host with no IndexedDB is refused before anything is written.

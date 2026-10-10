@@ -337,7 +337,7 @@ function walkHighlight(input: HTMLInputElement, list: HTMLElement, target: HTMLE
  * @param event - the field's keydown
  */
 export function consumeListEscape(event: React.KeyboardEvent<HTMLElement>): void {
-    if (event.key === "Escape" && event.currentTarget.hasAttribute("data-expanded")) {
+    if (event.key === "Escape" && "expanded" in event.currentTarget.dataset) {
         event.preventDefault();
         event.stopPropagation();
     }

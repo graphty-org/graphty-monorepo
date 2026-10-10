@@ -94,6 +94,17 @@ const RICH_PROPERTIES = [
 ] as const;
 
 /**
+ * A file name for an export in a format other than a project file: the project's name, or
+ * "project" when it has none, and the format's extension.
+ * @param name - the project's name.
+ * @param extension - the format's first extension, such as ".graphml".
+ * @returns the file name.
+ */
+function formatFileName(name: string | null | undefined, extension: string | undefined): string {
+    return `${name?.trim() ? name : "project"}${extension ?? ""}`;
+}
+
+/**
  * Graphty creates a graph
  */
 export class Graphty extends LitElement {
@@ -130,7 +141,10 @@ export class Graphty extends LitElement {
      * Focusing the host focuses the canvas inside it, so a page can hand keyboard focus to the
      * drawing with `element.focus()`, and a dialog opened from the drawing returns focus to it.
      */
-    static override shadowRootOptions: ShadowRootInit = { ...LitElement.shadowRootOptions, delegatesFocus: true };
+    static override readonly shadowRootOptions: ShadowRootInit = {
+        ...LitElement.shadowRootOptions,
+        delegatesFocus: true,
+    };
 
     /**
      * The host's standard `aria-label` is also watched, so it names the canvas that takes keyboard
@@ -267,9 +281,7 @@ export class Graphty extends LitElement {
         downloadBlob(
             new Blob(chunks, { type: descriptor?.mimeTypes[0] ?? "application/octet-stream" }),
             fileName ??
-                (format === "graphty"
-                    ? projectFileName(name)
-                    : `${name?.trim() ? name : "project"}${descriptor?.extensions[0] ?? ""}`),
+                (format === "graphty" ? projectFileName(name) : formatFileName(name, descriptor?.extensions[0])),
         );
         return result;
     }

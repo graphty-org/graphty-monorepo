@@ -178,7 +178,7 @@ export function dataDigest(graph: ProjectState["graph"], readSnapshot: () => Gra
     const path = new WeakSet();
     // Edge records by value: the element assigns an edge id per load, so a reload of the same
     // file names the same edges afresh.
-    const edges = [...graph.edges.values()].map((edge) => canonical(edge, path)).sort();
+    const edges = [...graph.edges.values()].map((edge) => canonical(edge, path)).sort(); // NOSONAR(S2871): code-unit order, the same in every locale, so the digest is stable
     const digest = stableDigest(
         `graph=${canonical({ nodes: graph.nodes, edges }, path)}\nrows=${rowsDigest(readSnapshot(), path, NOT_DATA)}`,
     );

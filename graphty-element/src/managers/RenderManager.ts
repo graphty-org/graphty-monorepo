@@ -264,7 +264,7 @@ export class RenderManager implements Manager {
      * that closes on a mouse press outside it never saw a press on the drawing. The canvas's
      * `user-select: none` keeps a drag from selecting page text instead.
      */
-    private focusOnPointer = (): void => {
+    private readonly focusOnPointer = (): void => {
         this.canvas.focus({ preventScroll: true });
     };
 

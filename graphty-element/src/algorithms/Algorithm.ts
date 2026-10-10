@@ -338,7 +338,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * publishes it as `descriptor.weightMeaning`.
      * @internal
      */
-    static weightMeaning: WeightReads | null = null;
+    static readonly weightMeaning: WeightReads | null = null;
 
     protected graph: Graph;
 

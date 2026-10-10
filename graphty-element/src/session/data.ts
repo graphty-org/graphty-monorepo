@@ -586,7 +586,7 @@ export class SessionData implements SessionDataApi {
                     const target = snapshot.ids.idOf(snapshot.edgeTarget(edge));
                     pairs.add(pairKey(source, target));
                     if (!snapshot.directed) {
-                        pairs.add(pairKey(target, source));
+                        pairs.add(pairKey(target, source)); // NOSONAR(S2234): the reverse pair, so an undirected edge matches either way
                     }
                 }
                 return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };
@@ -1281,7 +1281,9 @@ export class SessionData implements SessionDataApi {
         const sources = this.sources();
         await this.writes.setSource(
             { ...current, name },
-            sources.length === 0 ? undefined : [...sources.slice(0, -1), { ...sources[sources.length - 1], name }],
+            sources.length === 0
+                ? undefined
+                : [...sources.slice(0, -1), ...sources.slice(-1).map((last) => ({ ...last, name }))],
         );
     }
 

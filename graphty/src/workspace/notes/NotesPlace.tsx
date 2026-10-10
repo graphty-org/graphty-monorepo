@@ -298,12 +298,12 @@ export function NotesPlace(): React.JSX.Element {
                                 const status = session.notes.status(note.id);
                                 const tabbable = index === current;
                                 return (
-                                    <li
+                                    <li // NOSONAR(S6847): a note in a roving list; arrow keys move between notes, as the ARIA practices describe
                                         key={note.id}
                                         ref={(node) => {
                                             items.current[index] = node;
                                         }}
-                                        tabIndex={tabbable ? 0 : -1}
+                                        tabIndex={tabbable ? 0 : -1} // NOSONAR(S6845): the roving tab stop of the note list
                                         aria-label={note.text}
                                         className="nt-note"
                                         style={{ padding: "6px 16px" }}

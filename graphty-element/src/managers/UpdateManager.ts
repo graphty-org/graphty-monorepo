@@ -1445,6 +1445,7 @@ export class UpdateManager implements Manager {
         this.depthScaled = true;
         const reference = depthOf(pivot.getAbsolutePosition());
         if (!(reference > 0)) {
+            // NOSONAR(S1940): also true for NaN, which <= 0 is not
             return false;
         }
 

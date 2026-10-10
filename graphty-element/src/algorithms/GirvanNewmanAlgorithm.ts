@@ -63,7 +63,7 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
     static namespace = "graphty";
     static type = "girvan-newman";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
-    static weightMeaning = "strength" as const;
+    static readonly weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 

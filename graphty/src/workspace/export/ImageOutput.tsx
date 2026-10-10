@@ -46,14 +46,13 @@ const PREVIEW_WIDTH = 480;
 const SIZE_REFUSED = "this browser cannot make an image this size";
 
 /**
- * The key an image carries: the legend card's sections exactly when the canvas shows the card --
- * one switch, the same words.
+ * The key an image carries when the canvas shows the legend card: the card's sections, in the
+ * same words.
  * @param session - the session, or null.
- * @param legendShown - whether the canvas shows the legend card.
- * @returns the sections; none when the card is hidden.
+ * @returns the sections; none without a session.
  */
-function imageKey(session: GraphSession | null, legendShown: boolean): ScreenshotLegendSection[] {
-    return legendShown && session !== null ? imageLegend(session.styles.legend(), keyNames(session)) : [];
+function imageKey(session: GraphSession | null): ScreenshotLegendSection[] {
+    return session === null ? [] : imageLegend(session.styles.legend(), keyNames(session));
 }
 
 /** Props for ImageOutput. */
@@ -111,7 +110,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
             .captureScreenshot({
                 ...options,
                 width: PREVIEW_WIDTH,
-                legend: imageKey(session, legendShown),
+                legend: legendShown ? imageKey(session) : [],
                 timing: { waitForSettle: false },
             })
             .then((result) => {
@@ -174,7 +173,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
         try {
             const result = await element.captureScreenshot({
                 ...screenshotOptions(choices, { [destination]: true }, name),
-                legend: imageKey(session, legendShown),
+                legend: legendShown ? imageKey(session) : [],
                 timing: { waitForSettle },
             });
             if (destination === "clipboard" && result.clipboardStatus !== "success") {

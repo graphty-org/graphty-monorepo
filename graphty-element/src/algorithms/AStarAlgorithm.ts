@@ -90,7 +90,7 @@ export class AStarAlgorithm extends DeclaredAlgorithm<AStarOptions> {
     static readonly namespace = "graphty";
     static readonly type = "astar";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
-    static weightMeaning = "distance" as const;
+    static readonly weightMeaning = "distance" as const;
     /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
     static readonly scopeInput: ScopeInputDeclaration = "subgraph";
     /** A route takes the cheapest of a group of parallel edges, not their sum. */

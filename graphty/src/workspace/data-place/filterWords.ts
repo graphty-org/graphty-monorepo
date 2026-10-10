@@ -12,15 +12,6 @@ export interface Namer {
 }
 
 /**
- * A number as a step reads it: as written, without trailing zeros.
- * @param value - the number.
- * @returns the words.
- */
-function num(value: number): string {
-    return String(value);
-}
-
-/**
  * A rule as one sentence: "weight is at least 4", "in the largest component", "within 2 hops of Ava".
  * @param rule - the step's rule.
  * @param names - reads attribute and node names.
@@ -31,12 +22,12 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
         case "range": {
             const name = names.attribute(rule.attribute);
             if (rule.min !== undefined && rule.max !== undefined) {
-                return `${name} is between ${num(rule.min)} and ${num(rule.max)}`;
+                return `${name} is between ${String(rule.min)} and ${String(rule.max)}`;
             }
             if (rule.min !== undefined) {
-                return `${name} is at least ${num(rule.min)}`;
+                return `${name} is at least ${String(rule.min)}`;
             }
-            return rule.max === undefined ? `${name} has a value` : `${name} is at most ${num(rule.max)}`;
+            return rule.max === undefined ? `${name} has a value` : `${name} is at most ${String(rule.max)}`;
         }
         case "categories":
             return `${names.attribute(rule.attribute)} is ${rule.values.join(" or ")}`;
@@ -66,7 +57,7 @@ export function outcomeWords(on: boolean, before: number | undefined, after: num
     if (!on) {
         return "off";
     }
-    return before === undefined || after === undefined ? "" : `${num(before)} to ${num(after)} nodes`;
+    return before === undefined || after === undefined ? "" : `${String(before)} to ${String(after)} nodes`;
 }
 
 /**
@@ -130,7 +121,7 @@ interface Showing {
  * @returns the words.
  */
 export function chipWords(showing: Showing): string {
-    return `${num(showing.visibleNodes)} of ${num(showing.totalNodes)} nodes`;
+    return `${String(showing.visibleNodes)} of ${String(showing.totalNodes)} nodes`;
 }
 
 /**
@@ -142,7 +133,7 @@ export function chipWords(showing: Showing): string {
  */
 export function statusWords(steps: readonly FilterStep[], showing: Showing): string {
     return steps.some((step) => step.on)
-        ? `Filter on: ${chipWords(showing)}, ${num(showing.visibleEdges)} edges`
+        ? `Filter on: ${chipWords(showing)}, ${String(showing.visibleEdges)} edges`
         : "Filter off";
 }
 

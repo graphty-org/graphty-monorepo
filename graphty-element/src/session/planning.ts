@@ -746,25 +746,7 @@ function layoutRefusal(
     }
 
     if (engine === "planar") {
-        let notPlanar = cache?.notPlanar;
-        if (notPlanar === undefined) {
-            try {
-                planar(graph);
-                notPlanar = null;
-            } catch (error) {
-                notPlanar = refused(
-                    `the layout "${id}" cannot draw this graph without crossings: ${error instanceof Error ? error.message : String(error)}`,
-                    "layout.not-planar",
-                    { layout: id },
-                );
-            }
-
-            if (cache !== undefined) {
-                cache.notPlanar = notPlanar;
-            }
-        }
-
-        return notPlanar ?? undefined;
+        return planarRefusal(graph, cache, id);
     }
 
     if (engine === "bfs") {
@@ -781,6 +763,60 @@ function layoutRefusal(
         return undefined;
     }
 
+    return groupingRefusal(context, id, engine, raw, options);
+}
+
+/**
+ * Whether the planar layout refuses this graph, kept in the estimates for the tick.
+ * @param graph - The graph.
+ * @param cache - The estimates kept for this tick, if any.
+ * @param id - The layout's id.
+ * @returns The refusal, or undefined when the graph is planar.
+ */
+function planarRefusal(
+    graph: GraphSnapshot,
+    cache: LayoutEstimates | undefined,
+    id: string,
+): EstimateRefusal | undefined {
+    let notPlanar = cache?.notPlanar;
+    if (notPlanar === undefined) {
+        try {
+            planar(graph);
+            notPlanar = null;
+        } catch (error) {
+            const why = error instanceof Error ? error.message : String(error);
+            notPlanar = refused(
+                `the layout "${id}" cannot draw this graph without crossings: ${why}`,
+                "layout.not-planar",
+                { layout: id },
+            );
+        }
+
+        if (cache !== undefined) {
+            cache.notPlanar = notPlanar;
+        }
+    }
+
+    return notPlanar ?? undefined;
+}
+
+/**
+ * Whether a grouping layout refuses its options: no groupBy, an attribute no node carries, or a
+ * bipartite layout without exactly two groups.
+ * @param context - What planning reads.
+ * @param id - The layout's id.
+ * @param engine - Its engine.
+ * @param raw - The engine's own grouping option, read when groupBy is not set.
+ * @param options - The layout's options.
+ * @returns The refusal, or undefined.
+ */
+function groupingRefusal(
+    context: PlanningContext,
+    id: string,
+    engine: string,
+    raw: string,
+    options: Readonly<Record<string, unknown>>,
+): EstimateRefusal | undefined {
     const { groupBy } = options;
     if (typeof groupBy !== "string" || groupBy === "") {
         return options[raw] === undefined || options[raw] === null
@@ -867,10 +903,8 @@ function layoutEstimateNow(
     const known = layoutDescriptor(alias?.id ?? command.id);
     const id = alias?.id ?? (known === undefined ? (layoutIdForEngine(command.id) ?? command.id) : command.id);
     const descriptor = known ?? layoutDescriptor(id);
-    const engine =
-        command.engine !== undefined && command.engine !== command.id
-            ? command.engine
-            : (alias?.engine ?? (known === undefined ? command.id : known.engine));
+    const defaultEngine = alias?.engine ?? known?.engine ?? command.id;
+    const engine = command.engine !== undefined && command.engine !== command.id ? command.engine : defaultEngine;
 
     if (descriptor === undefined) {
         return unavailableLayout(

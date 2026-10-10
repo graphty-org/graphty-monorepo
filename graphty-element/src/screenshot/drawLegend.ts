@@ -120,51 +120,12 @@ export async function drawLegend(
         y += LINE;
         ctx.font = FONT;
         for (const row of section.rows ?? []) {
-            const mid = y + LINE / 2;
-            let x = left;
-            if (row.color !== undefined) {
-                ctx.fillStyle = row.color;
-                ctx.fillRect(x, mid - CHIP / 2, CHIP, CHIP);
-                x += CHIP + GAP;
-            }
-            ctx.fillStyle = "#1a1a1a";
-            ctx.textAlign = "left";
-            ctx.fillText(row.label, x, mid);
-            if (row.value !== undefined) {
-                ctx.fillStyle = "#666666";
-                ctx.textAlign = "right";
-                ctx.fillText(row.value, right, mid);
-            }
+            drawRow(ctx, row, left, right, y + LINE / 2);
             y += LINE;
         }
         if (section.ramp) {
-            const top = y;
-            const colors = section.ramp.colors ?? [];
-            if (colors.length > 0) {
-                const gradient = ctx.createLinearGradient(left, 0, right, 0);
-                colors.forEach((color, index) => {
-                    gradient.addColorStop(colors.length === 1 ? 0 : index / (colors.length - 1), color);
-                });
-                ctx.fillStyle = gradient;
-                ctx.fillRect(left, top, inner, RAMP_HEIGHT);
-            } else {
-                // A size wedge: thin at the low end, full height at the high end.
-                ctx.fillStyle = "#888888";
-                ctx.beginPath();
-                ctx.moveTo(left, top + RAMP_HEIGHT);
-                ctx.lineTo(right, top);
-                ctx.lineTo(right, top + RAMP_HEIGHT);
-                ctx.closePath();
-                ctx.fill();
-            }
-            y += RAMP_HEIGHT + GAP;
-            const mid = y + LINE / 2;
-            ctx.fillStyle = "#1a1a1a";
-            ctx.textAlign = "left";
-            ctx.fillText(section.ramp.min, left, mid);
-            ctx.textAlign = "right";
-            ctx.fillText(section.ramp.max, right, mid);
-            y += LINE;
+            drawRamp(ctx, section.ramp, left, right, y);
+            y += RAMP_HEIGHT + GAP + LINE;
         }
         if (section.note !== undefined) {
             ctx.fillStyle = "#666666";
@@ -190,4 +151,67 @@ export async function drawLegend(
             quality,
         );
     });
+}
+
+type LegendRow = NonNullable<ScreenshotLegendSection["rows"]>[number];
+type LegendRamp = NonNullable<ScreenshotLegendSection["ramp"]>;
+
+/**
+ * Draws one row of a key: its color chip, its label, and its value at the right.
+ * @param ctx - The 2D context.
+ * @param row - The row.
+ * @param left - The card's inner left edge.
+ * @param right - The card's inner right edge.
+ * @param mid - The row's vertical middle.
+ */
+function drawRow(ctx: CanvasRenderingContext2D, row: LegendRow, left: number, right: number, mid: number): void {
+    let x = left;
+    if (row.color !== undefined) {
+        ctx.fillStyle = row.color;
+        ctx.fillRect(x, mid - CHIP / 2, CHIP, CHIP);
+        x += CHIP + GAP;
+    }
+    ctx.fillStyle = "#1a1a1a";
+    ctx.textAlign = "left";
+    ctx.fillText(row.label, x, mid);
+    if (row.value !== undefined) {
+        ctx.fillStyle = "#666666";
+        ctx.textAlign = "right";
+        ctx.fillText(row.value, right, mid);
+    }
+}
+
+/**
+ * Draws a key's ramp, a gradient of its colors or a size wedge, with its ends' labels under it.
+ * @param ctx - The 2D context.
+ * @param ramp - The ramp.
+ * @param left - The card's inner left edge.
+ * @param right - The card's inner right edge.
+ * @param top - The ramp's top.
+ */
+function drawRamp(ctx: CanvasRenderingContext2D, ramp: LegendRamp, left: number, right: number, top: number): void {
+    const colors = ramp.colors ?? [];
+    if (colors.length > 0) {
+        const gradient = ctx.createLinearGradient(left, 0, right, 0);
+        colors.forEach((color, index) => {
+            gradient.addColorStop(colors.length === 1 ? 0 : index / (colors.length - 1), color);
+        });
+        ctx.fillStyle = gradient;
+        ctx.fillRect(left, top, right - left, RAMP_HEIGHT);
+    } else {
+        // A size wedge: thin at the low end, full height at the high end.
+        ctx.fillStyle = "#888888";
+        ctx.beginPath();
+        ctx.moveTo(left, top + RAMP_HEIGHT);
+        ctx.lineTo(right, top);
+        ctx.lineTo(right, top + RAMP_HEIGHT);
+        ctx.closePath();
+        ctx.fill();
+    }
+    const mid = top + RAMP_HEIGHT + GAP + LINE / 2;
+    ctx.fillStyle = "#1a1a1a";
+    ctx.textAlign = "left";
+    ctx.fillText(ramp.min, left, mid);
+    ctx.textAlign = "right";
+    ctx.fillText(ramp.max, right, mid);
 }

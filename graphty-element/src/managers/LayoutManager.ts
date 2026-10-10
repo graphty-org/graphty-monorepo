@@ -332,9 +332,9 @@ function warnUnknownOptions(
     const declared = new Set([...SIMULATION_KNOBS, ...names]);
     const unknown = Object.keys(passed).filter((key) => !declared.has(key));
     if (unknown.length > 0) {
+        const named = unknown.map((key) => JSON.stringify(key)).join(", ");
         console.warn(
-            `[graphty] the layout "${type}" has no option named ${unknown.map((key) => `"${key}"`).join(", ")}; ` +
-                `it declares ${[...declared].join(", ")}`,
+            `[graphty] the layout "${type}" has no option named ${named}; ` + `it declares ${[...declared].join(", ")}`,
         );
     }
 }

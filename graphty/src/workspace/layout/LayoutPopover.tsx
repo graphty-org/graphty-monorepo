@@ -84,9 +84,14 @@ export function LayoutPopover({ session, onClose, initialPick }: Readonly<Layout
 
     return (
         <Stack gap={4} className="ws-analyze" onKeyDown={onKeyDown}>
-            <div className="ws-analyze-list" role="listbox" aria-label="Layouts" ref={listRef}>
+            <div // NOSONAR(S6819): an ARIA listbox of rich options; a native select cannot draw them
+                className="ws-analyze-list"
+                role="listbox"
+                aria-label="Layouts"
+                ref={listRef}
+            >
                 {choices.map((choice) => (
-                    <UnstyledButton
+                    <UnstyledButton // NOSONAR(S6811): aria-description is the ARIA 1.3 attribute that gives an option its one-line gloss
                         component="div"
                         role="option"
                         key={choice.descriptor.id}

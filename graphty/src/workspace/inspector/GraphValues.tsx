@@ -177,7 +177,11 @@ export function AttributeValues({ path }: Readonly<{ path: string }>): React.JSX
                     name="Kind"
                     value={
                         <Tooltip label={measurementGloss(column.measurement)} multiline w={220}>
-                            <span tabIndex={0}>{measurement}</span>
+                            <span
+                                tabIndex={0} // NOSONAR(S6845): focusable so a keyboard reader can open the tooltip that explains the measurement
+                            >
+                                {measurement}
+                            </span>
                         </Tooltip>
                     }
                 />

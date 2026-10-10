@@ -165,6 +165,24 @@ function columnText(path: string): string {
 }
 
 /**
+ * The attribute name at the end of a rule: its trailing run of word characters, from the first
+ * letter or underscore in it. Scanned by hand, since a regular expression anchored at the end
+ * backtracks from every position.
+ * @param rule - the rule typed so far.
+ * @returns the name, or "" when the rule does not end in one.
+ */
+function trailingName(rule: string): string {
+    let start = rule.length;
+    while (start > 0 && /\w/.test(rule.charAt(start - 1))) {
+        start--;
+    }
+    while (start < rule.length && !/[A-Za-z_]/.test(rule.charAt(start))) {
+        start++;
+    }
+    return rule.slice(start);
+}
+
+/**
  * The columns to offer for a typed rule: those whose name holds the word being typed, at a
  * place a column can start, and never inside a quoted value.
  * @param session - the element's session.
@@ -173,7 +191,7 @@ function columnText(path: string): string {
  */
 function columnOptions(session: GraphSession, typed: string): { word: string; columns: ColumnOption[] } {
     const rule = typed.slice(1);
-    const word = /[A-Za-z_]\w*$/.exec(rule)?.[0] ?? "";
+    const word = trailingName(rule);
     const before = rule.slice(0, rule.length - word.length);
     const inQuotes = ["`", "'", '"'].some((q) => before.split(q).length % 2 === 0);
     const startsTerm = word !== "" || /(^|&&|\|\||\(|!)\s*$/.test(before);

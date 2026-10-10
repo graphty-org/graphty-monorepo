@@ -303,16 +303,42 @@ function ruleOf(
     if (attribute === undefined) {
         return null;
     }
-    const ends = attribute.kind === "edge" ? ({ nodes: "ends" } as const) : {};
-    if (!isNumber(attribute)) {
-        const values = fields.text
-            .split(",")
-            .map((v) => v.trim())
-            .filter((v) => v !== "");
-        return values.length === 0 ? null : { kind: "categories", attribute: attribute.path, values, ...ends };
-    }
+    return isNumber(attribute) ? rangeRule(fields, attribute) : categoriesRule(fields, attribute);
+}
+
+/**
+ * The attribute part of a rule on an edge attribute: an edge keeps its ends.
+ * @param attribute - the chosen attribute.
+ * @returns `{ nodes: "ends" }` for an edge attribute, else nothing.
+ */
+function endsOf(attribute: AttributeDescriptor): { nodes?: "ends" } {
+    return attribute.kind === "edge" ? { nodes: "ends" } : {};
+}
+
+/**
+ * The categories rule the text field lists, or null while it lists none.
+ * @param fields - the fields.
+ * @param attribute - the chosen attribute.
+ * @returns the rule.
+ */
+function categoriesRule(fields: Fields, attribute: AttributeDescriptor): RuleTree | null {
+    const values = fields.text
+        .split(",")
+        .map((v) => v.trim())
+        .filter((v) => v !== "");
+    return values.length === 0 ? null : { kind: "categories", attribute: attribute.path, values, ...endsOf(attribute) };
+}
+
+/**
+ * The range rule the comparison and its bounds describe, or null while a bound is missing.
+ * @param fields - the fields.
+ * @param attribute - the chosen attribute.
+ * @returns the rule.
+ */
+function rangeRule(fields: Fields, attribute: AttributeDescriptor): RuleTree | null {
     const low = typeof fields.low === "number" ? fields.low : undefined;
     const high = typeof fields.high === "number" ? fields.high : undefined;
+    const ends = endsOf(attribute);
     switch (fields.compare) {
         case "at-least":
             return low === undefined ? null : { kind: "range", attribute: attribute.path, min: low, ...ends };
@@ -540,7 +566,7 @@ export function FilterChip(): React.JSX.Element | null {
         });
     }, [session, store]);
 
-    if (session === null || !session.visibility.steps.some((step) => step.on)) {
+    if (!session?.visibility.steps.some((step) => step.on)) {
         return null;
     }
     const words = chipWords(session.visibility.summary);

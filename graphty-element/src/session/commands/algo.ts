@@ -37,6 +37,7 @@ import type {
     UndoableDefinition,
 } from "../project/Dispatcher";
 import { deepFreeze, type Draft } from "../project/draft";
+import type { ProjectState } from "../project/state";
 import type { RowUpdate } from "../types";
 
 /** `algo.remove`: take a finished run, and every layer bound to it, out of the project. */
@@ -188,12 +189,21 @@ const algoRemove: UndoableDefinition<AlgoRemoveCommand> = {
     execute: (command, ctx) => required(ctx.services.runs).remove(command, ctx.draft),
 };
 
+/**
+ * A run as a history label names it: its algorithm, or "run <id>" once the run is gone.
+ * @param state - The session state.
+ * @param runId - The run.
+ * @returns The words.
+ */
+function runLabel(state: ProjectState, runId: RunId): string {
+    return state.runs.get(runId)?.command.algorithm ?? `run ${runId}`;
+}
+
 const algoMove: UndoableDefinition<AlgoMoveCommand> = {
     op: "algo.move",
     undo: {
         kind: "undoable",
-        label: (command, state) =>
-            `Moved ${state.runs.get(command.runId)?.command.algorithm ?? `run ${command.runId}`}`,
+        label: (command, state) => `Moved ${runLabel(state, command.runId)}`,
         fact: (command, state) => ({
             code: "algo.move",
             params: { run: command.runId, algorithm: state.runs.get(command.runId)?.command.algorithm ?? null },

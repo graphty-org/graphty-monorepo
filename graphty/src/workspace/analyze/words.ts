@@ -509,6 +509,15 @@ export function weightRead(caveats: Pick<Caveats, "weight" | "weightSkipped">): 
 }
 
 /**
+ * A hop count, worded.
+ * @param hops - the number of hops.
+ * @returns "1 hop", "3 hops".
+ */
+function hopWords(hops: number): string {
+    return `${String(hops)} ${hops === 1 ? "hop" : "hops"}`;
+}
+
+/**
  * A path run's ends and its answer, worded: its From and To by name, and the hops, or that no
  * path joins them (the element publishes a path of length 0). Null for any other run, or before
  * its result.
@@ -527,7 +536,7 @@ function pathWords(session: GraphSession, run: Run): { from: string; to: string;
     return {
         from: name(run.params.source),
         to: name(run.params.target),
-        hops: graph.length === 0 ? null : `${String(hops)} ${hops === 1 ? "hop" : "hops"}`,
+        hops: graph.length === 0 ? null : hopWords(hops),
     };
 }
 

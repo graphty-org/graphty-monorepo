@@ -186,7 +186,7 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
                 shortcut={command.rowKeys[0]}
                 reason={command.disabled(row, rows)}
                 onRun={() => {
-                    void command.run(workspace, row);
+                    void command.run(workspace, row); // NOSONAR(S3735): a deliberately unawaited promise, marked as no-floating-promises asks
                 }}
             />
         ));
@@ -208,7 +208,7 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
         if (command !== undefined) {
             event.preventDefault();
             if (command.disabled(row, rows) === null) {
-                void command.run(workspace, row);
+                void command.run(workspace, row); // NOSONAR(S3735): a deliberately unawaited promise, marked as no-floating-promises asks
             }
         }
     };
@@ -250,7 +250,7 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
                 }
             }}
             onRename={(id, name) => {
-                void session?.styles.update(id, { name });
+                void session?.styles.update(id, { name }); // NOSONAR(S3735): a deliberately unawaited promise, marked as no-floating-promises asks
             }}
         />
     );

@@ -66,14 +66,14 @@ export class OrbitInputController {
     // One mouse wheel notch (deltaY 100) moves the camera by keyboardZoomSpeed / 2 of its distance;
     // a trackpad's many small deltas add up to the same. The clamp keeps a line- or page-mode
     // delta from jumping the camera.
-    private wheelHandler = (evt: WheelEvent): void => {
+    private readonly wheelHandler = (evt: WheelEvent): void => {
         evt.preventDefault();
         const notches = Math.max(-1, Math.min(1, evt.deltaY / 100));
         this.controller.zoom((this.controller.cameraDistance * this.config.keyboardZoomSpeed * notches) / 2);
     };
 
     // The canvas never sees the keyup of a key released after it lost focus
-    private releaseKeys = (): void => {
+    private readonly releaseKeys = (): void => {
         this.keysDown = {};
     };
 

@@ -73,12 +73,12 @@ function ShortcutsDialog(): React.JSX.Element {
                             <Title order={2} size="sm" mb={4}>
                                 {group}
                             </Title>
-                            {rows.map((row, i) => (
-                                <div className="ws-shortcut-row" key={i}>
+                            {rows.map((row) => (
+                                <div className="ws-shortcut-row" key={`${row.label} ${row.keys.join(" ")}`}>
                                     <Text size="sm">{row.label}</Text>
                                     <span>
-                                        {row.keys.map((key, k) => (
-                                            <Kbd key={k}>{key}</Kbd>
+                                        {row.keys.map((key) => (
+                                            <Kbd key={key}>{key}</Kbd>
                                         ))}
                                     </span>
                                 </div>

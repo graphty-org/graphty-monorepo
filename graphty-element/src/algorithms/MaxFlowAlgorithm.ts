@@ -65,7 +65,7 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
     static namespace = "graphty";
     static type = "max-flow";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
-    static weightMeaning = "capacity" as const;
+    static readonly weightMeaning = "capacity" as const;
     /** Flows within the run's scope: the node and edge lists come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 

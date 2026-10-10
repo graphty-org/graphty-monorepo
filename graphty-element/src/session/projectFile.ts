@@ -1271,7 +1271,7 @@ function rowsOf<Key, Id extends NodeId>(
     return out;
 }
 
-export { PROJECT_FILE };
+export { PROJECT_FILE } from "../catalog/types";
 
 /**
  * The file name the element gives a project: `<name>.graphty.json`, or `project.graphty.json`

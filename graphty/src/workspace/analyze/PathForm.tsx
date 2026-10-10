@@ -258,11 +258,11 @@ function useCanvasPick(picking: End | null, onPicked: (end: End, node: NodeId) =
             }
         };
         PICK_EVENTS.forEach((type) => {
-            window.addEventListener(type, swallow, true);
+            globalThis.addEventListener(type, swallow, true);
         });
         return () => {
             PICK_EVENTS.forEach((type) => {
-                window.removeEventListener(type, swallow, true);
+                globalThis.removeEventListener(type, swallow, true);
             });
         };
     }, [picking, element, onPicked]);

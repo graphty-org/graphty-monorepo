@@ -65,7 +65,7 @@ export class SpectralClusteringAlgorithm extends DeclaredAlgorithm<SpectralClust
     static readonly namespace = "graphty";
     static readonly type = "spectral-clustering";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
-    static weightMeaning = "strength" as const;
+    static readonly weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
     static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 

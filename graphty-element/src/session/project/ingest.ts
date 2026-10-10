@@ -88,8 +88,8 @@ function leftOutEdge(
     line: number | undefined,
     missingEnds: readonly EdgeEnd[],
 ): LeftOutEdge {
-    const ends = [columnOf(endpoints.source), columnOf(endpoints.target)];
-    const values = Object.fromEntries(Object.entries(edge).filter(([key]) => !ends.includes(key)));
+    const ends = new Set([columnOf(endpoints.source), columnOf(endpoints.target)]);
+    const values = Object.fromEntries(Object.entries(edge).filter(([key]) => !ends.has(key)));
     return Object.freeze({
         source,
         target,

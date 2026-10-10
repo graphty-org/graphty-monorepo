@@ -570,7 +570,7 @@ function leftOutRows(page: LoadDraftState): number {
  * @param props.leftOut - How many of its rows the load would leave out
  * @returns The mark
  */
-function ReadyMark({ ready, leftOut = 0 }: { ready: boolean; leftOut?: number }): React.JSX.Element {
+function ReadyMark({ ready, leftOut = 0 }: Readonly<{ ready: boolean; leftOut?: number }>): React.JSX.Element {
     if (!ready) {
         return <GLYPHS.empty size={14} role="img" aria-label="Not ready" />;
     }
@@ -1133,10 +1133,11 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
             return typeof value === "string" || typeof value === "number" ? [String(value)] : [];
         }),
     );
+    const missing = missingNames.length === 0 ? "" : `: ${noNodeRow(missingNames)}`;
     const caption =
         page.filter === "all"
             ? previewCaption(rows.length, table.rowCount)
-            : `${plural(page.rows?.total ?? 0, what)}${missingNames.length === 0 ? "" : `: ${noNodeRow(missingNames)}`}`;
+            : plural(page.rows?.total ?? 0, what) + missing;
     return (
         <Stack gap={4}>
             <Group gap="xs">

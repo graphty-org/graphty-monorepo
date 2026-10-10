@@ -187,37 +187,8 @@ function WeightField({
             live = false;
         };
     }, [session, algorithm, loadedAttribute, loadedMeaning]);
-    // A loaded weight the run would leave unread is listed, so the reader sees it is there, but
-    // not offered: choosing it would run exactly as None does.
-    const data: { value: string; label: string; disabled?: boolean }[] =
-        loaded === null
-            ? []
-            : [
-                  {
-                      value: LOADED,
-                      label: weightName(
-                          loaded.attribute,
-                          loaded.meaning,
-                          unread === null ? "loaded" : "loaded, not read",
-                      ),
-                      ...(unread === null ? {} : { disabled: true }),
-                  },
-              ];
-    data.push({ value: "", label: "None" });
-    for (const column of session.data.attributes()) {
-        if (
-            column.kind === "edge" &&
-            (column.type === "number" || column.type === "integer") &&
-            column.name !== loaded?.attribute
-        ) {
-            data.push({ value: column.name, label: weightName(column.plainName, reads) });
-        }
-    }
-    // The box shows what the run will read: the loaded weight when it is read, else None.
-    let shown = typeof value === "string" ? value : "";
-    if (value === undefined || (loaded !== null && value === loaded.attribute)) {
-        shown = loaded === null || unread !== null ? "" : LOADED;
-    }
+    const data = weightChoices(session, loaded, unread, reads);
+    const shown = shownWeight(value, loaded, unread);
     const unreadLoaded = unread !== null && (value === undefined || value === loaded?.attribute);
     return (
         <Select
@@ -242,6 +213,190 @@ function WeightField({
 
 /** A meaning an algorithm reads. */
 type WeightMeaningRead = NonNullable<Meaning>;
+
+/** The weight the graph was loaded with, as the element reports it. */
+type LoadedWeight = ReturnType<GraphSession["data"]["loadedWeight"]>;
+
+/**
+ * The weight box's choices: the loaded weight, None, and every other number edge column. A loaded
+ * weight the run would leave unread is listed, so the reader sees it is there, but not offered:
+ * choosing it would run exactly as None does.
+ * @param session - The element's session
+ * @param loaded - The loaded weight, or null
+ * @param unread - Why the run would leave the loaded weight unread, or null
+ * @param reads - The meaning the algorithm reads
+ * @returns The choices
+ */
+function weightChoices(
+    session: GraphSession,
+    loaded: LoadedWeight,
+    unread: string | null,
+    reads: WeightMeaningRead,
+): { value: string; label: string; disabled?: boolean }[] {
+    const data: { value: string; label: string; disabled?: boolean }[] = [];
+    if (loaded !== null) {
+        const note = unread === null ? "loaded" : "loaded, not read";
+        data.push({
+            value: LOADED,
+            label: weightName(loaded.attribute, loaded.meaning, note),
+            ...(unread === null ? {} : { disabled: true }),
+        });
+    }
+    data.push({ value: "", label: "None" });
+    for (const column of session.data.attributes()) {
+        const isNumber = column.type === "number" || column.type === "integer";
+        if (column.kind === "edge" && isNumber && column.name !== loaded?.attribute) {
+            data.push({ value: column.name, label: weightName(column.plainName, reads) });
+        }
+    }
+    return data;
+}
+
+/**
+ * What the weight box shows: what the run will read, the loaded weight when it is read, else None.
+ * @param value - The value set
+ * @param loaded - The loaded weight, or null
+ * @param unread - Why the run would leave the loaded weight unread, or null
+ * @returns The box's value
+ */
+function shownWeight(value: unknown, loaded: LoadedWeight, unread: string | null): string {
+    if (value === undefined || (loaded !== null && value === loaded.attribute)) {
+        return loaded === null || unread !== null ? "" : LOADED;
+    }
+    return typeof value === "string" ? value : "";
+}
+
+/** Props of one option's control. */
+interface ControlProps {
+    option: OptionDescriptor;
+    value: unknown;
+    label: string;
+    empty: string | undefined;
+    onChange: (v: unknown) => void;
+}
+
+/**
+ * A number or integer option as a number box.
+ * @param props - Component props
+ * @param props.option - The option descriptor
+ * @param props.value - The value set
+ * @param props.label - The app's words for it
+ * @param props.empty - What an empty box means, when the default is no value
+ * @param props.onChange - Called with the new value
+ * @returns The number box
+ */
+function NumberOption({ option, value, label, empty, onChange }: Readonly<ControlProps>): React.JSX.Element {
+    const integer = option.type === "integer";
+    return (
+        <StyleNumberInput
+            label={label}
+            // The default is no change of the reader's: no reset to draw.
+            value={num(value) === num(option.default) ? undefined : num(value)}
+            defaultValue={num(option.default) ?? 0}
+            // A default of no value (a sample size left to every node) is an empty box
+            // that says what empty means, never a 0 the run would not use.
+            emptyText={option.default === null ? (empty ?? "Not set") : undefined}
+            min={num(option.min)}
+            max={num(option.max)}
+            step={option.step ?? (integer ? 1 : undefined)}
+            decimalScale={integer ? 0 : undefined}
+            // A reset sets the default itself, so a run reset to what it used is unchanged.
+            onChange={(v) => {
+                onChange(v === undefined && typeof option.default === "number" ? option.default : v);
+            }}
+        />
+    );
+}
+
+/**
+ * An enum option as a select of its values.
+ * @param props - Component props
+ * @param props.option - The option descriptor
+ * @param props.value - The value set
+ * @param props.label - The app's words for it
+ * @param props.empty - What an empty box means, when the default is no value
+ * @param props.choice - The app's words for a value
+ * @param props.onChange - Called with the new value
+ * @returns The select
+ */
+function EnumOption({
+    option,
+    value,
+    label,
+    empty,
+    choice,
+    onChange,
+}: Readonly<ControlProps & { choice: (value: string) => string }>): React.JSX.Element {
+    const fallback = typeof option.default === "string" ? option.default : null;
+    return (
+        <Select
+            size="xs"
+            label={label}
+            value={typeof value === "string" ? value : fallback}
+            // A default of no value says what empty means, like a number's empty box.
+            placeholder={option.default === null ? (empty ?? "Not set") : undefined}
+            data={(option.values ?? []).map(({ value: v }) => ({ value: v, label: choice(v) }))}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: false }}
+            onChange={onChange}
+        />
+    );
+}
+
+/**
+ * A node option as a label and value row, with "Use selected node" when a different node is selected.
+ * @param props - Component props
+ * @param props.session - The element's session
+ * @param props.label - The app's words for it
+ * @param props.value - The value set
+ * @param props.canUseSelectedNode - Whether to offer the selected node
+ * @param props.onChange - Called with the new value
+ * @returns The row, or nothing when there is no node and none to offer
+ */
+function NodeOption({
+    session,
+    label,
+    value,
+    canUseSelectedNode,
+    onChange,
+}: Readonly<{
+    session: GraphSession;
+    label: string;
+    value: unknown;
+    canUseSelectedNode: boolean;
+    onChange: (v: unknown) => void;
+}>): React.JSX.Element | null {
+    const selected = session.selection.nodes.at(0);
+    const offer = canUseSelectedNode && selected !== undefined && selected !== value;
+    const id = typeof value === "string" || typeof value === "number" ? value : undefined;
+    if (id === undefined && !offer) {
+        return null;
+    }
+    const name = id === undefined ? "None" : (session.data.name(id) ?? String(id));
+    // A node is a fact of the run, drawn as the same label and value row as the others.
+    return (
+        <DataRow
+            stat
+            name={label}
+            value={name}
+            trailing={
+                offer ? (
+                    <Tooltip label="Use selected node">
+                        <ActionIcon
+                            variant="subtle"
+                            aria-label={`Use selected node as ${label}`}
+                            onClick={() => {
+                                onChange(selected);
+                            }}
+                        >
+                            <GLYPHS.pick size={14} />
+                        </ActionIcon>
+                    </Tooltip>
+                ) : undefined
+            }
+        />
+    );
+}
 
 /**
  * One option, drawn from the element's option descriptor.
@@ -272,44 +427,12 @@ function OptionField({
     };
     switch (option.type) {
         case "number":
-        case "integer": {
-            const integer = option.type === "integer";
+        case "integer":
+            return <NumberOption option={option} value={value} label={label} empty={empty} onChange={set} />;
+        case "enum":
             return (
-                <StyleNumberInput
-                    label={label}
-                    // The default is no change of the reader's: no reset to draw.
-                    value={num(value) === num(option.default) ? undefined : num(value)}
-                    defaultValue={num(option.default) ?? 0}
-                    // A default of no value (a sample size left to every node) is an empty box
-                    // that says what empty means, never a 0 the run would not use.
-                    emptyText={option.default === null ? (empty ?? "Not set") : undefined}
-                    min={num(option.min)}
-                    max={num(option.max)}
-                    step={option.step ?? (integer ? 1 : undefined)}
-                    decimalScale={integer ? 0 : undefined}
-                    // A reset sets the default itself, so a run reset to what it used is unchanged.
-                    onChange={(v) => {
-                        set(v === undefined && typeof option.default === "number" ? option.default : v);
-                    }}
-                />
+                <EnumOption option={option} value={value} label={label} empty={empty} choice={choice} onChange={set} />
             );
-        }
-        case "enum": {
-            const fallback = typeof option.default === "string" ? option.default : null;
-            return (
-                <Select
-                    size="xs"
-                    label={label}
-                    value={typeof value === "string" ? value : fallback}
-                    // A default of no value says what empty means, like a number's empty box.
-                    placeholder={option.default === null ? (empty ?? "Not set") : undefined}
-                    data={(option.values ?? []).map(({ value: v }) => ({ value: v, label: choice(v) }))}
-                    allowDeselect={false}
-                    comboboxProps={{ withinPortal: false }}
-                    onChange={set}
-                />
-            );
-        }
         case "boolean":
             return (
                 <Checkbox
@@ -352,38 +475,16 @@ function OptionField({
                 );
             }
             return <AttributeField session={session} option={option} value={value} label={label} onChange={set} />;
-        case "node-id": {
-            const selected = session.selection.nodes.at(0);
-            const offer = canUseSelectedNode && selected !== undefined && selected !== value;
-            const id = typeof value === "string" || typeof value === "number" ? value : undefined;
-            if (id === undefined && !offer) {
-                return null;
-            }
-            const name = id === undefined ? "None" : (session.data.name(id) ?? String(id));
-            // A node is a fact of the run, drawn as the same label and value row as the others.
+        case "node-id":
             return (
-                <DataRow
-                    stat
-                    name={label}
-                    value={name}
-                    trailing={
-                        offer ? (
-                            <Tooltip label="Use selected node">
-                                <ActionIcon
-                                    variant="subtle"
-                                    aria-label={`Use selected node as ${label}`}
-                                    onClick={() => {
-                                        set(selected);
-                                    }}
-                                >
-                                    <GLYPHS.pick size={14} />
-                                </ActionIcon>
-                            </Tooltip>
-                        ) : undefined
-                    }
+                <NodeOption
+                    session={session}
+                    label={label}
+                    value={value}
+                    canUseSelectedNode={canUseSelectedNode}
+                    onChange={set}
                 />
             );
-        }
         default:
             return null;
     }

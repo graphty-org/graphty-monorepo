@@ -40,7 +40,7 @@ export function shieldDragSelection(): () => void {
         active = null;
         document.removeEventListener("selectstart", cancel, true);
         for (const type of END_EVENTS) {
-            window.removeEventListener(type, lift, true);
+            globalThis.removeEventListener(type, lift, true);
         }
         root.userSelect = before.userSelect;
         root.setProperty("-webkit-user-select", before.webkitUserSelect);
@@ -49,10 +49,10 @@ export function shieldDragSelection(): () => void {
     active = lift;
     document.addEventListener("selectstart", cancel, true);
     for (const type of END_EVENTS) {
-        window.addEventListener(type, lift, true);
+        globalThis.addEventListener(type, lift, true);
     }
     root.userSelect = "none";
     root.setProperty("-webkit-user-select", "none");
-    window.getSelection()?.removeAllRanges();
+    globalThis.getSelection()?.removeAllRanges();
     return lift;
 }

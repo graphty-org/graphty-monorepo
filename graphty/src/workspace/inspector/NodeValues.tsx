@@ -155,7 +155,11 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
     return (
         <>
             <ControlSection label="Summary" defaultOpened>
-                <div ref={summary} role="group" aria-label="Summary values">
+                <div // NOSONAR(S6819): an ARIA group naming the rows of label and value; a fieldset is for form controls
+                    ref={summary}
+                    role="group"
+                    aria-label="Summary values"
+                >
                     <AttributeRows rows={fileAttributes(session, "node", session.data.node(id))} />
                     <div ref={degree} style={{ display: "contents" }}>
                         <DataRow

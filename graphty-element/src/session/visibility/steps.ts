@@ -87,51 +87,77 @@ export function combinedRule(filter: RuleTree | null, steps: readonly FilterStep
  * @returns The fact.
  */
 export function stepsFact(before: readonly FilterStep[], after: readonly FilterStep[]): CodedFact<HistoryCode> {
-    const ids = (steps: readonly FilterStep[]): string[] => steps.map((step) => step.id);
-    const same = (a: readonly string[], b: readonly string[]): boolean =>
-        a.length === b.length && a.every((id, index) => id === b[index]);
-
-    if (after.length === before.length + 1) {
-        const added = after.find((step) => !before.some((old) => old.id === step.id));
-        if (
-            added !== undefined &&
-            same(
-                ids(before),
-                ids(after).filter((id) => id !== added.id),
-            )
-        ) {
-            return { code: "visibility.step-add", params: { id: added.id } };
-        }
+    const added = after.length === before.length + 1 ? onlyIn(after, before) : undefined;
+    if (added !== undefined) {
+        return { code: "visibility.step-add", params: { id: added.id } };
     }
-
-    if (after.length === before.length - 1) {
-        const removed = before.find((step) => !after.some((now) => now.id === step.id));
-        if (
-            removed !== undefined &&
-            same(
-                ids(after),
-                ids(before).filter((id) => id !== removed.id),
-            )
-        ) {
-            return { code: "visibility.step-remove", params: { id: removed.id } };
-        }
+    const removed = after.length === before.length - 1 ? onlyIn(before, after) : undefined;
+    if (removed !== undefined) {
+        return { code: "visibility.step-remove", params: { id: removed.id } };
     }
+    return oneStepChanged(before, after) ?? { code: "visibility.steps", params: {} };
+}
 
-    if (same(ids(before), ids(after))) {
-        // By value: the steps are admitted as new objects on every edit.
-        const sameRule = (a: FilterStep, b: FilterStep): boolean =>
-            a.rule === b.rule || JSON.stringify(a.rule) === JSON.stringify(b.rule);
-        const changed = after.filter((step, index) => step.on !== before[index].on || !sameRule(step, before[index]));
-        if (changed.length === 1) {
-            const [step] = changed;
-            const old = before[after.indexOf(step)];
-            if (sameRule(old, step)) {
-                return { code: step.on ? "visibility.step-on" : "visibility.step-off", params: { id: step.id } };
-            }
+/**
+ * Whether two lists of ids are equal, in order.
+ * @param a - One list.
+ * @param b - The other.
+ * @returns true when they are.
+ */
+function sameIds(a: readonly string[], b: readonly string[]): boolean {
+    return a.length === b.length && a.every((id, index) => id === b[index]);
+}
 
-            return { code: "visibility.step-edit", params: { id: step.id } };
-        }
+/**
+ * The one step a longer list has that a shorter one lacks, when the rest are the same steps in
+ * the same order.
+ * @param longer - The list with one more step.
+ * @param shorter - The list with one fewer.
+ * @returns The extra step, or undefined.
+ */
+function onlyIn(longer: readonly FilterStep[], shorter: readonly FilterStep[]): FilterStep | undefined {
+    const extra = longer.find((step) => !shorter.some((other) => other.id === step.id));
+    if (extra === undefined) {
+        return undefined;
     }
+    const rest = longer.filter((step) => step.id !== extra.id).map((step) => step.id);
+    return sameIds(
+        shorter.map((step) => step.id),
+        rest,
+    )
+        ? extra
+        : undefined;
+}
 
-    return { code: "visibility.steps", params: {} };
+/**
+ * The fact for an edit of exactly one step in an unchanged order: switched on or off, or edited.
+ * @param before - The steps before.
+ * @param after - The steps after.
+ * @returns The fact, or undefined for anything else.
+ */
+function oneStepChanged(
+    before: readonly FilterStep[],
+    after: readonly FilterStep[],
+): CodedFact<HistoryCode> | undefined {
+    if (
+        !sameIds(
+            before.map((step) => step.id),
+            after.map((step) => step.id),
+        )
+    ) {
+        return undefined;
+    }
+    // By value: the steps are admitted as new objects on every edit.
+    const sameRule = (a: FilterStep, b: FilterStep): boolean =>
+        a.rule === b.rule || JSON.stringify(a.rule) === JSON.stringify(b.rule);
+    const changed = after.filter((step, index) => step.on !== before[index].on || !sameRule(step, before[index]));
+    if (changed.length !== 1) {
+        return undefined;
+    }
+    const [step] = changed;
+    const old = before[after.indexOf(step)];
+    if (sameRule(old, step)) {
+        return { code: step.on ? "visibility.step-on" : "visibility.step-off", params: { id: step.id } };
+    }
+    return { code: "visibility.step-edit", params: { id: step.id } };
 }

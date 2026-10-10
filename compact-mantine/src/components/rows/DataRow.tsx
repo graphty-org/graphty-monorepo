@@ -262,7 +262,11 @@ export function DataRow({
                 end of the row's pill and the grid's trailing column. */}
             {hasTrailing && (
                 // Presentational: the pointer's extra target. The keyboard's stop is the row's button.
-                <div role="presentation" style={{ display: "contents" }} onClick={handleTrailingClick}>
+                <div // NOSONAR(S6819): no image here; a pointer-only extra target, while the keyboard uses the row's button
+                    role="presentation"
+                    style={{ display: "contents" }}
+                    onClick={handleTrailingClick}
+                >
                     <TrailingSlot>{trailing}</TrailingSlot>
                 </div>
             )}

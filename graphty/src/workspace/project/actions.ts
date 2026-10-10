@@ -397,9 +397,10 @@ async function openInSession(
             });
             return true;
         }
+        const verb = fresh ? "opened" : "added";
         const message =
             isGraphtyError(error) && error.code === "E_PARSE_FAILED"
-                ? notReadSentence(withoutExtension(file.name), error, fresh ? "opened" : "added")
+                ? notReadSentence(withoutExtension(file.name), error, verb)
                 : problemSentence(file.name, error);
         workspace.set({ notice: { message, error: true } });
         return false;

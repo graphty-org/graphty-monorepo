@@ -177,18 +177,8 @@ function orthonormalise(block: F64[], random: () => number): void {
     for (let j = 0; j < block.length; j++) {
         const v = block[j];
         for (let attempt = 0; ; attempt++) {
-            for (let pass = 0; pass < 2; pass++) {
-                const mean = v.reduce((sum, x) => sum + x, 0) / v.length;
-                for (let r = 0; r < v.length; r++) {
-                    v[r] -= mean;
-                }
-                for (let i = 0; i < j; i++) {
-                    const d = dot(block[i], v);
-                    for (let r = 0; r < v.length; r++) {
-                        v[r] -= d * block[i][r];
-                    }
-                }
-            }
+            projectOut(block, j);
+            projectOut(block, j);
             const length = Math.sqrt(dot(v, v));
             if (length > 1e-10 || attempt === 3) {
                 for (let r = 0; r < v.length; r++) {
@@ -204,6 +194,26 @@ function orthonormalise(block: F64[], random: () => number): void {
 }
 
 /**
+ * One Gram-Schmidt pass, in place: remove from vector j its mean (the constant vector) and its
+ * component along each earlier vector of the block.
+ * @param block - vectors of one length, the first j already orthonormal
+ * @param j - the vector to project
+ */
+function projectOut(block: F64[], j: number): void {
+    const v = block[j];
+    const mean = v.reduce((sum, x) => sum + x, 0) / v.length;
+    for (let r = 0; r < v.length; r++) {
+        v[r] -= mean;
+    }
+    for (let i = 0; i < j; i++) {
+        const d = dot(block[i], v);
+        for (let r = 0; r < v.length; r++) {
+            v[r] -= d * block[i][r];
+        }
+    }
+}
+
+/**
  * Eigen-decomposition of a small symmetric matrix by cyclic Jacobi rotations.
  * @param a - p x p row-major, destroyed
  * @param p - the order
@@ -214,33 +224,50 @@ function jacobi(a: F64, p: number): { values: F64; vectors: F64 } {
     for (let i = 0; i < p; i++) {
         v[i * p + i] = 1;
     }
-    for (let sweep = 0; sweep < 100; sweep++) {
-        let off = 0;
-        for (let i = 0; i < p; i++) {
-            for (let j = i + 1; j < p; j++) {
-                off += a[i * p + j] * a[i * p + j];
-            }
-        }
-        if (off < 1e-30) {
-            break;
-        }
-        for (let i = 0; i < p; i++) {
-            for (let j = i + 1; j < p; j++) {
-                const aij = a[i * p + j];
-                if (aij === 0) {
-                    continue;
-                }
-                const theta = (a[j * p + j] - a[i * p + i]) / (2 * aij);
-                const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
-                const c = 1 / Math.sqrt(t * t + 1);
-                const sn = t * c;
-                rotate(a, p, i, j, c, sn, true);
-                rotate(a, p, i, j, c, sn, false);
-                rotate(v, p, i, j, c, sn, true);
-            }
-        }
+    for (let sweep = 0; sweep < 100 && offDiagonal(a, p) >= 1e-30; sweep++) {
+        jacobiSweep(a, v, p);
     }
     return { values: Float64Array.from({ length: p }, (_, i) => a[i * p + i]), vectors: v };
+}
+
+/**
+ * The sum of squares above the diagonal of a p x p row-major matrix.
+ * @param a - the matrix
+ * @param p - its order
+ * @returns the sum
+ */
+function offDiagonal(a: F64, p: number): number {
+    let off = 0;
+    for (let i = 0; i < p; i++) {
+        for (let j = i + 1; j < p; j++) {
+            off += a[i * p + j] * a[i * p + j];
+        }
+    }
+    return off;
+}
+
+/**
+ * One cyclic sweep of Jacobi rotations over every pair above the diagonal, in place.
+ * @param a - the matrix being diagonalised, p x p row-major
+ * @param v - the accumulated eigenvectors, p x p row-major
+ * @param p - the order
+ */
+function jacobiSweep(a: F64, v: F64, p: number): void {
+    for (let i = 0; i < p; i++) {
+        for (let j = i + 1; j < p; j++) {
+            const aij = a[i * p + j];
+            if (aij === 0) {
+                continue;
+            }
+            const theta = (a[j * p + j] - a[i * p + i]) / (2 * aij);
+            const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+            const c = 1 / Math.sqrt(t * t + 1);
+            const sn = t * c;
+            rotate(a, p, i, j, c, sn, true);
+            rotate(a, p, i, j, c, sn, false);
+            rotate(v, p, i, j, c, sn, true);
+        }
+    }
 }
 
 /**

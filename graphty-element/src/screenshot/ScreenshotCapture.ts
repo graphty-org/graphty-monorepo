@@ -190,13 +190,15 @@ export class ScreenshotCapture {
             // Resolve preset or use provided state
             let cameraState;
             try {
-                cameraState =
-                    "preset" in options.camera
-                        ? this.graph.resolveCameraPreset(
-                              options.camera.preset,
-                              options.camera.params === undefined ? undefined : { params: options.camera.params },
-                          )
-                        : options.camera;
+                if ("preset" in options.camera) {
+                    const { params } = options.camera;
+                    cameraState = this.graph.resolveCameraPreset(
+                        options.camera.preset,
+                        params === undefined ? undefined : { params },
+                    );
+                } else {
+                    cameraState = options.camera;
+                }
             } catch (error: unknown) {
                 if (originalInsets) {
                     this.graph.setViewInsets(originalInsets);

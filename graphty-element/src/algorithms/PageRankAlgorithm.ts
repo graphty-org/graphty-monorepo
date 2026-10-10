@@ -110,7 +110,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
     static namespace = "graphty";
     static type = "pagerank";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
-    static weightMeaning = "strength" as const;
+    static readonly weightMeaning = "strength" as const;
     /** Ranks over the run's scope: the node list and the graph both come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 

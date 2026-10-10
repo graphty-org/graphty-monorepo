@@ -77,7 +77,7 @@ export function isInspectedRow(
     row: PaintRow,
     inspected: { readonly kind: string; readonly id?: string } | null,
 ): boolean {
-    if (inspected === null || row.id !== inspected.id) {
+    if (row.id !== inspected?.id) {
         return false;
     }
     const isRun = (kind: string): boolean => kind === "measure-row" || kind === "run-row";

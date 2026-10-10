@@ -17,7 +17,8 @@ let pending: string | null = null;
  * @param bound - wait until the line is bound (its pill drawn, not its old value).
  */
 export function focusLineNext(channel: Channel | null, bound = false): void {
-    pending = channel === null ? null : `[data-line="${channel}"]${bound ? "[data-bound]" : ""}`;
+    const boundOnly = bound ? "[data-bound]" : "";
+    pending = channel === null ? null : `[data-line="${channel}"]${boundOnly}`;
 }
 
 /**
@@ -29,7 +30,7 @@ export function focusLineNext(channel: Channel | null, bound = false): void {
  * @param channel - the removed line's channel.
  */
 export function focusSectionNext(from: Element, channel: Channel): void {
-    const section = from.closest("[data-section]")?.getAttribute("data-section");
+    const section = from.closest<HTMLElement>("[data-section]")?.dataset.section;
     pending =
         section === null || section === undefined
             ? null

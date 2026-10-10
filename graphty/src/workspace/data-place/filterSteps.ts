@@ -23,7 +23,7 @@ function namerOf(session: GraphSession): Namer {
     return {
         attribute: (path) => attributes.find((a) => a.path === path)?.plainName ?? path.replace(/^data\./, ""),
         // A node is named by its id until graphty-element publishes its name (#895).
-        node: (id) => String(id),
+        node: String,
     };
 }
 

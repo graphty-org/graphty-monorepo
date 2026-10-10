@@ -96,7 +96,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
     static namespace = "graphty";
     static type = "min-cut";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
-    static weightMeaning = "strength" as const;
+    static readonly weightMeaning = "strength" as const;
     /** Cuts the run's scope: the node and edge lists and the graph all come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 

@@ -49,7 +49,7 @@ export class InputController {
     };
 
     // The canvas never sees the keyup of a key released after it lost focus
-    private releaseKeys = (): void => {
+    private readonly releaseKeys = (): void => {
         this.keyState = {};
     };
 

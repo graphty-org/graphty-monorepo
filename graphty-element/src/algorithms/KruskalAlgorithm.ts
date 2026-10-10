@@ -29,7 +29,7 @@ export class KruskalAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
     static type = "kruskal";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
-    static weightMeaning = "distance" as const;
+    static readonly weightMeaning = "distance" as const;
     /** Spans the run's scope: the edge list and the graph both come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 

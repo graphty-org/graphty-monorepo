@@ -53,6 +53,8 @@ interface Sample {
     color?(cy: Core): void;
     /** Lays out a file without positions; default ForceAtlas2, seed 42. */
     layout?(cy: Core): Promise<void>;
+    /** The name of `layout`, for the caption. */
+    layoutName?: string;
     /** More style rules, given the factor that turns screen pixels into model units. */
     style?(k: number): StylesheetJson;
 }
@@ -132,6 +134,7 @@ const SAMPLES: Record<Exclude<ImportFormat, "auto">, Sample> = {
         edgeLabel: "label",
         arrows: true,
         // Cytoscape's cose keeps each cluster's members together inside their parent
+        layoutName: "Cytoscape's cose layout",
         layout: async (cy) => {
             await placeForAlgorithm(cy, SEED);
             await layout(cy, { name: "cose", randomize: false, animate: false, padding: 30 });
@@ -194,6 +197,7 @@ const SAMPLES: Record<Exclude<ImportFormat, "auto">, Sample> = {
         text: obo,
         about: "The taxonomic rank ontology (CC0). Each [Term] becomes a node named by its name tag, and each is_a an edge to its parent term, at the center.",
         label: "name",
+        layoutName: "Cytoscape's concentric layout",
         layout: (cy) =>
             layout(cy, {
                 name: "concentric",
@@ -335,7 +339,7 @@ function importTile(format: ImportFormat, s: Sample): Tile {
             const grouped = cy.nodes(":child").length;
             const where = placed
                 ? "positions from the file"
-                : `no positions in the file: laid out by ${s.layout === undefined ? "ForceAtlas2, seed 42" : "a Cytoscape layout"}`;
+                : `no positions in the file: laid out by ${s.layoutName ?? "ForceAtlas2, seed 42"}`;
             const read = `${format === "auto" ? "detected" : "read"} as ${r.format}: ${counts(cy)}${grouped > 0 ? ` (${grouped} inside groups)` : ""}; ${where}`;
             return {
                 ran: "",

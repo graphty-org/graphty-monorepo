@@ -5,7 +5,7 @@
  */
 
 import { DATASETS } from "@graphty/graph-samples";
-import type { Core, NodeSingular } from "cytoscape";
+import type { Core, NodeCollection, NodeSingular } from "cytoscape";
 
 import { GENERATOR_OPTION_NAMES } from "../src/algorithm-options.js";
 import type { GeneratorName } from "../src/index.js";
@@ -32,12 +32,16 @@ function place(cy: Core, layout: string, seed: number, extra: Record<string, unk
  */
 function byDegree(cy: Core, which: "degree" | "indegree" = "degree"): void {
     const degree = (n: NodeSingular): number => (which === "degree" ? n.degree(false) : n.indegree(false));
-    const max = Math.max(1, ...cy.nodes().map(degree));
+    // against the largest degree, and never less than 20: a graph with no hubs (Erdos-Renyi, degrees 1 to 9) stays
+    // small and pale instead of stretching its few degree-9 nodes into dark "hubs"
+    const max = Math.max(20, ...cy.nodes().map(degree));
+    // a layout fits the graph to the viewport, so in a gallery thumbnail the graph is small next to its 8-unit nodes:
+    // the hubs grow less there, or they cover their neighbors
+    const grow = cy.height() < 400 ? 1.2 : 2.4;
     cy.batch(() => {
         cy.nodes().forEach((n) => {
-            // against the largest degree, not the smallest: an even graph stays an even color
             const t = degree(n) / max;
-            n.data("scale", 0.6 + 2.4 * t);
+            n.data("scale", 0.6 + grow * t);
             n.data("color", `hsl(0, ${Math.round(30 + 60 * t)}%, ${Math.round(85 - 50 * t)}%)`);
         });
     });
@@ -607,11 +611,32 @@ export async function showDataset(cy: Core, name: string, seed: number): Promise
             note = `GO terms colored by namespace, linked to their parents; the ${removed.length} terms with no parent or child in the slim are left out.`;
             break;
         }
-        case "stelzl-interactome":
+        case "stelzl-interactome": {
+            const removed = keepLargestComponent(cy);
+            const parts = [...(cy.elements().graphtyLouvain() as unknown as NodeCollection[])].sort(
+                (a, b) => b.length - a.length,
+            );
+            parts.forEach((p, i) => p.data("part", i));
+            // an edge inside a community pulls 10 times harder than one between communities, so each community
+            // gathers in its own place instead of all of them mixing in one hairball
+            cy.edges().forEach((e) => {
+                e.data("pull", e.source().data("part") === e.target().data("part") ? 1 : 0.1);
+            });
+            await placeSettled(cy, seed, { linlog: true, weight: "pull" });
+            const max = Math.max(1, ...cy.nodes().map((n) => n.degree(false)));
+            cy.batch(() => {
+                cy.nodes().forEach((n) => {
+                    n.data("scale", 0.6 + 2.4 * Math.sqrt(n.degree(false) / max));
+                });
+                parts.slice(0, PALETTE.length - 1).forEach((p, i) => p.data("color", PALETTE[i]));
+            });
+            note = `Human proteins and their interactions in the ${PALETTE.length - 1} largest graphtyLouvain communities (colors; the rest gray), drawn with the edges inside a community pulling 10 times harder; size: number of partners. The largest connected piece: ${(all - removed).toLocaleString()} of ${all.toLocaleString()} nodes.`;
+            break;
+        }
         case "political-blogs":
         case "celegans-neural": {
             const removed = name === "celegans-neural" ? 0 : keepLargestComponent(cy);
-            // LinLog mode separates the two camps of political-blogs; on the others it hides the hubs' spokes
+            // LinLog mode separates the two camps of political-blogs; on celegans-neural it hides the hubs' spokes
             await placeSettled(cy, seed, { linlog: name === "political-blogs" });
             if (info?.groundTruth) {
                 colorBy(cy, info.groundTruth);
@@ -619,7 +644,6 @@ export async function showDataset(cy: Core, name: string, seed: number): Promise
                 byDegree(cy);
             }
             const what = {
-                "stelzl-interactome": "Human proteins and their interactions; size: number of partners.",
                 "political-blogs":
                     "US political blogs of 2004 colored by lean; the two camps link mostly among themselves.",
                 "celegans-neural":

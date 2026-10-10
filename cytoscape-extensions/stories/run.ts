@@ -382,6 +382,16 @@ function mark(c: { data(key: string, value: unknown): unknown }, label?: string)
 }
 
 /**
+ * Rings the first node, the root a path or search run starts from (algorithmInputs), and colors it blue.
+ * @param cy - the core
+ */
+function markRoot(cy: Core): void {
+    const root = cy.nodes()[0];
+    mark(root);
+    root.data("color", BLUE);
+}
+
+/**
  * Adds a dashed edge the run proposes or tests, after the run (so it is never part of the run's input).
  * @param cy - the core
  * @param source - one end
@@ -834,8 +844,8 @@ function paintByShape(cy: Core, r: unknown, algorithm = ""): string {
     const o = r as AnyResult;
     const isCollection = typeof (r as { nodes?: unknown }).nodes === "function";
     if (isCollection && typeof o.totalWeight === "number") {
-        red(r as Collection);
-        return `the tree in red, total weight ${o.totalWeight}`;
+        red((r as Collection).edges());
+        return `the tree in red, total weight ${num(o.totalWeight)}`;
     }
     if (isCollection) {
         const order = r as NodeCollection;
@@ -863,22 +873,28 @@ function paintByShape(cy: Core, r: unknown, algorithm = ""): string {
     if (o.distanceTo) {
         const d = o.distanceTo.bind(o);
         colorByValue(cy, (id) => d(cy.getElementById(id)));
-        return `distance from the first node: darker red = farther${o.hasNegativeWeightCycle ? "; a negative cycle" : ""}`;
+        markRoot(cy);
+        return `distance from the blue node: darker red = farther${o.hasNegativeWeightCycle ? "; a negative cycle" : ""}`;
     }
     if (o.depth) {
         const d = o.depth.bind(o);
         colorByValue(cy, (id) => d(cy.getElementById(id)));
-        return "hops from the first node: darker red = deeper";
+        markRoot(cy);
+        return "depth in the search tree from the blue node: darker red = deeper";
     }
     if (o.path && typeof o.distance === "number") {
         red(o.path);
-        return `the path from the first node to the last in red, length ${num(o.distance)}`;
+        const ends = cy.nodes()[0].union(cy.nodes()[cy.nodes().length - 1]);
+        mark(ends);
+        ends.data("color", BLUE);
+        return `the shortest path between the two blue nodes in red, length ${num(o.distance)}`;
     }
     if (typeof o.distance === "function") {
         const first = cy.nodes()[0];
         const dist = o.distance;
         colorByValue(cy, (id) => dist.call(o, first, cy.getElementById(id)));
-        return "all pairs; shown: distance from the first node, darker red = farther";
+        markRoot(cy);
+        return "every pair's distance; shown: the distance from the blue node, darker red = farther";
     }
     if (o.partitionFirst && o.partitionSecond) {
         // the side holding the first node in blue, so two cuts of the same graph color alike

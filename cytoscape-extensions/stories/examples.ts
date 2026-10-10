@@ -7,6 +7,7 @@
 import cytoscape, { type Collection, type Core, type ElementDefinition, type LayoutOptions } from "cytoscape";
 
 import { elementsOf, GENERATE, NO_GPU, type Outcome, SIZES } from "./demo.js";
+import { runAlgorithm } from "./run.js";
 
 const SEED = 42;
 
@@ -292,6 +293,18 @@ export const EXAMPLES: Partial<Record<string, Example>> = {
         },
     },
 
+    // Paths and trees
+    dijkstra: roads("dijkstra"),
+    bellmanFord: roads("bellmanFord"),
+    bidirectionalDijkstra: roads("bidirectionalDijkstra"),
+    aStar: roads("aStar"),
+    allPairsShortestPath: roads("allPairsShortestPath"),
+    breadthFirstSearch: lattice(),
+    directionOptimizedBfs: lattice(),
+    depthFirstSearch: lattice(),
+    kruskalMST: roads("kruskalMST"),
+    primMST: roads("primMST"),
+
     // Communities
     labelPropagation: denser(),
     labelPropagationSynchronous: denser(),
@@ -447,6 +460,55 @@ function denser(): Example {
                 pOut: 0.005,
                 seed: SEED,
             });
+        },
+    };
+}
+
+/**
+ * 80 random points joined when close, each edge weighted by its length, at the points' own positions: a shortest
+ * distance or a spanning tree reads like one on a map. Only the largest connected piece is kept, so every node is
+ * reachable from the first.
+ * @param algorithm - the algorithm, run with weight: "weight"
+ * @returns the example
+ */
+function roads(algorithm: string): Example {
+    return {
+        graph: "random-geometric, 80 points, radius 0.2, seed 42, each edge weighted by its length",
+        directed: false,
+        load: async (cy) => {
+            await cy.graphtyGenerate("random-geometric", {
+                n: 80,
+                radius: 0.2,
+                seed: SEED,
+                weights: { kind: "euclidean" },
+            });
+            const main = cy
+                .elements()
+                .components()
+                .reduce((a, c) => (c.nodes().length > a.nodes().length ? c : a));
+            cy.remove(cy.nodes().difference(main.nodes()));
+        },
+        place: async () => {
+            // the generator's own positions
+        },
+        run: (cy) => runAlgorithm(cy, algorithm, { gpuMode: "auto", directed: false, extra: { weight: "weight" } }),
+    };
+}
+
+/**
+ * An 8 x 8 grid at its own positions, searched from a corner: breadth-first depth grows in diagonal bands, a
+ * depth-first search's in one long winding walk.
+ * @returns the example
+ */
+function lattice(): Example {
+    return {
+        graph: "grid, 8 by 8, searched from a corner",
+        directed: false,
+        load: async (cy) => {
+            await cy.graphtyGenerate("grid", { rows: 8, cols: 8, positions: true });
+        },
+        place: async () => {
+            // the generator's own grid positions
         },
     };
 }

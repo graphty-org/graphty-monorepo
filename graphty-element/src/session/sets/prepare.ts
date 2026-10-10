@@ -29,6 +29,7 @@ import {
 import { loadSetDefinition, parseSetDefinition } from "../../catalog/sets/parse";
 import type { EdgeMember, NodeId, SetCreatedFrom, SetDefinition, SetId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { retainedChanged } from "../project/retained";
 import type { ElementSet } from "./types";
 
 /**
@@ -174,6 +175,8 @@ export function defaultName(records: RecordView): string {
  */
 class Interner {
     readonly values: (string | number)[] = [];
+    /** Whether a kept record's columns read through this table, so a new id changes its size. */
+    held = false;
     private readonly index = new Map<string | number, number>();
 
     /**
@@ -188,6 +191,9 @@ class Interner {
             slot = this.values.length;
             this.values.push(value);
             this.index.set(value, slot);
+            if (this.held) {
+                retainedChanged();
+            }
         }
 
         return slot;
@@ -367,9 +373,12 @@ class EdgeColumns implements EdgeMemberList {
      * @returns The members.
      */
     members(): readonly EdgeMember[] {
-        this.materialised ??= Object.freeze(
-            Array.from({ length: this.length }, (_, row) => Object.freeze(this.member(row))),
-        );
+        if (this.materialised === undefined) {
+            this.materialised = Object.freeze(
+                Array.from({ length: this.length }, (_, row) => Object.freeze(this.member(row))),
+            );
+            retainedChanged();
+        }
 
         return this.materialised;
     }
@@ -613,6 +622,7 @@ function fixedDefinition(
     definition.reading = reading;
     const frozen = Object.freeze(definition) as unknown as SetDefinition;
     columnsOf.set(frozen, columns);
+    columns.interner.held = true;
     opacityOf.set(frozen, null);
     if (summary !== undefined) {
         summariesOf.set(frozen, summary);

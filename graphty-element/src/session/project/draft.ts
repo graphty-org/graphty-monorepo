@@ -27,6 +27,7 @@ import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
 import { mergeRowPatches, type RowPatch, rowPatchBytes } from "./arrangement";
 import type { TouchedIds } from "./graphOps";
+import type { Counted } from "./History";
 import type { LayoutChoice, NoteEntry, ProjectState, RunEntry, VisibilityState } from "./state";
 import { strictStateEnabled, strictViolation } from "./strict";
 
@@ -206,9 +207,11 @@ export function touchedBy(patch: Patch, into: TouchedIds): void {
  * @param patch - The patch.
  * @param token - The resident snapshot's graph token.
  * @param seen - Results and indexes already counted against an older step.
+ * @param tokens - Where to add the graph token of every snapshot id index a result counted here
+ *     reads through: only for those does whether the index costs anything depend on `token`.
  * @returns Bytes.
  */
-export function patchCharge(patch: Patch, token: number, seen: WeakSet<object>): number {
+export function patchCharge(patch: Patch, token: number, seen: Counted, tokens?: Set<number>): number {
     let bytes = 0;
     for (const entry of patch.entries) {
         if (entry.slice === "sets") {
@@ -250,6 +253,10 @@ export function patchCharge(patch: Patch, token: number, seen: WeakSet<object>):
             const retained = retentionOf(result);
             bytes += retained.bytes;
             for (const index of retained.indexes) {
+                if (index.token !== null) {
+                    tokens?.add(index.token);
+                }
+
                 if (index.token !== token && !seen.has(index.index)) {
                     seen.add(index.index);
                     bytes += index.bytes;

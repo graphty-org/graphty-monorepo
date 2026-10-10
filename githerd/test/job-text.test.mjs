@@ -190,6 +190,15 @@ describe("jobText", () => {
         expect(jobText(newJob(JOBS.issue, NOW))).not.toContain("BUNDLE:");
     });
 
+    it("tells a bug job's session to search for siblings and report them, and no other job (#1595)", () => {
+        const bug = newJob({ ...JOBS.issue, facts: { bug: true } }, NOW);
+        expect(jobText(bug)).toContain("SIBLINGS: this is a bug. Before you finish, search the package");
+        expect(jobText(newJob(JOBS["issue-bundle"], NOW))).toContain("SIBLINGS:");
+        for (const name of ["issue", "issue-verify", "pr", "incident-master", "triage"]) {
+            expect(jobText(newJob(JOBS[name], NOW))).not.toContain("SIBLINGS:");
+        }
+    });
+
     it("tells every session to bring master into a branch only for a conflict, a dequeue or a fix a check needs", () => {
         const rule = RULES.find((r) => r.startsWith("Bring master into a pull request's branch only when"));
         expect(rule).toContain(

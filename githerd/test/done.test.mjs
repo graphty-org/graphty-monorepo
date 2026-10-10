@@ -932,6 +932,49 @@ describe("githerdDone", () => {
     });
 });
 
+describe("a bug job's sibling search (#1595)", () => {
+    const SEARCH = { searched: "rg 'removeNode' layout/src", found: [] };
+
+    it("refuses done on a bug job without siblings, without counting it, and accepts it with them", async () => {
+        const s = state();
+        const job = (s.jobs["issue-5"] = working("issue", "5", { bug: true }));
+        const { ctx } = setup(s);
+        const refused = JSON.parse((await githerdDone(ctx, job, report({ pr: 7 }), "w1")).text);
+        expect(refused.verified).toBe(false);
+        expect(refused.missing[0]).toContain("siblings: a bug job reports its sibling search");
+        expect([job.state, job.verifyFailures]).toEqual(["working", 0]);
+        const found = [
+            { where: "layout/src/a.ts:12", action: "fixed" },
+            { where: "layout/src/b.ts:40", action: "filed", issue: 9 },
+        ];
+        const ok = await githerdDone(ctx, job, report({ pr: 7, siblings: { ...SEARCH, found } }), "w1");
+        expect(JSON.parse(ok.text)).toMatchObject({ verified: true });
+        expect(job.state).toBe("done");
+        expect(job.siblings).toEqual({ ...SEARCH, found });
+    });
+
+    it("needs an issue on GitHub for each find left to an issue or filed", async () => {
+        const job = working("issue", "5", { bug: true });
+        const siblings = {
+            ...SEARCH,
+            found: [
+                { where: "a.ts", action: "existing" },
+                { where: "b.ts", action: "filed", issue: 404 },
+            ],
+        };
+        expect(await verifyClaim(job, report({ pr: 7, siblings }), view(state()))).toEqual({
+            missing: ['sibling "a.ts": existing needs its issue number', 'sibling "b.ts": issue #404 does not exist'],
+            fixable: true,
+        });
+    });
+
+    it("asks no sibling search of a job that is not on a bug, or that does not end done", async () => {
+        expect(await verifyClaim(working("issue", "5"), report({ pr: 7 }), view(state()))).toEqual({ holds: true });
+        const bug = working("issue", "5", { bug: true });
+        expect(await verifyClaim(bug, report({ outcome: "failed" }), view(state()))).toEqual({ holds: true });
+    });
+});
+
 describe("an issue fix carried by a pull request the session did not push (#1570 in #739)", () => {
     /** #739, the feature branch the session's fix branch merged into: open, naming no issue. */
     const carrier = pr({ headSha: OTHER, headRef: "feat/githerd", references: [] });

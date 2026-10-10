@@ -136,6 +136,32 @@ async function defectGaps(defects, io) {
 }
 
 /**
+ * What a bug job's sibling search lacks (issue #1595): the report itself, and an issue for each
+ * find left to an existing issue or filed. A find fixed in the pull request names no issue, and
+ * "searched, found none" (`found: []`) is a full answer.
+ * @param {any} siblings the reported search
+ * @param {DoneIo} io the reader
+ * @returns {Promise<string[]>} the gaps
+ */
+async function siblingGaps(siblings, io) {
+    if (!siblings) {
+        return [
+            "siblings: a bug job reports its sibling search: what you searched (the pattern and the paths) and each other " +
+                "place that breaks the same rule, with whether you fixed it in this pull request, left it to an existing " +
+                'issue or filed it (with that issue\'s number). Found none is a full answer: {"searched": "...", "found": []}',
+        ];
+    }
+    const gaps = [];
+    for (const s of siblings.found ?? []) {
+        if (s.action === "fixed") continue;
+        const what = `sibling "${short(s.where)}"`;
+        if (s.issue === undefined) gaps.push(`${what}: ${s.action} needs its issue number`);
+        else if (!(await io.issue(s.issue))) gaps.push(`${what}: issue #${s.issue} does not exist`);
+    }
+    return gaps;
+}
+
+/**
  * Whether a pull request's head on GitHub is the pushed commit, by the ancestor rule.
  * @param {any} rec the polled pull request record
  * @param {string | null} pushed the commit the worker pushed
@@ -631,6 +657,10 @@ export async function verifyClaim(job, report, view) {
         case "issue": {
             const pr = report.pr ?? job.pr;
             if (!pr) return { missing: ["pr: the pull request that fixes the issue"], fixable: true };
+            if (job.facts?.bug) {
+                const siblings = await siblingGaps(report.siblings, view.io);
+                if (siblings.length) return { missing: siblings, fixable: true };
+            }
             if (report.commits?.length) return carriedAnswer(pr, report.commits, view);
             return prAnswer(pr, pushed, view, numberOf(job.target));
         }
@@ -884,7 +914,7 @@ async function settleVerified(ctx, job, report, { holder, answer, error, view })
 
 /**
  * What an accepted `done` report leaves on the job: a triage batch's verdicts, a split's children,
- * the issues a bundle left out, and a carried fix's link.
+ * a bug job's sibling search, the issues a bundle left out, and a carried fix's link.
  * @param {any} job the job, now done
  * @param {any} report the report
  * @param {View} view what the check read
@@ -894,6 +924,7 @@ async function settleVerified(ctx, job, report, { holder, answer, error, view })
 function applyDone(job, report, view, now, answer) {
     if (job.kind === "triage") recordVerdicts(job, report, view, now);
     if (report.children) job.children = report.children;
+    if (report.siblings) job.siblings = report.siblings;
     if (job.kind === "issue" && job.facts?.batch?.length) recordLeftOut(job, report, view.state);
     if (job.kind === "issue" && report.commits?.length) recordCarried(job, report, view.state, now, answer);
     if (job.facts?.scope === "release" && report.pr && report.commits?.length) {

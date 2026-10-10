@@ -2721,28 +2721,7 @@ export async function startDaemon({
         m.lastRelease = rs.lastRelease;
         m.releaseEligibleSince = rs.releaseEligibleSince;
         const lane = m.lanes.release;
-        if (rs.failed) {
-            const red = lane.redRun ?? null;
-            if (red && red.failedJobs === undefined) {
-                // ponytail: one failed read leaves the jobs unnamed until the lane's failed run changes.
-                red.failedJobs = await failingJobs(red.runId).then(
-                    (jobs) => jobs.map((/** @type {any} */ j) => j.name),
-                    () => null,
-                );
-            }
-            const hold = releaseHold(state.issues?.byNumber);
-            const open = Object.values(state.escalations ?? {}).find(
-                (/** @type {any} */ e) => e.kind === "release-failed" && !e.resolvedAt,
-            );
-            const anchor = hold ? "issue-" + hold.number : "since-" + (lane.redSince ?? "unknown");
-            raiseRelease(derived, {
-                key: open?.key ?? `release-failed:${anchor}`,
-                kind: "release-failed",
-                summary: releaseFailedSummary(hold, red),
-                clearWhen: "release-green",
-                runId: red?.runId ?? null,
-            });
-        }
+        if (rs.failed) await releaseFailed(lane, derived);
         if (rs.stalled) {
             raiseRelease(derived, {
                 key: `release-stalled:${rs.lastRelease?.sha ?? "none"}`,
@@ -2752,6 +2731,41 @@ export async function startDaemon({
                 runId: lane?.scheduled?.runId ?? null,
             });
         }
+    }
+
+    /**
+     * Raises the failed release, unless the hold issue it named was closed since and no other is
+     * open: release.yml closes its hold when a train passes, so that is the release recovered
+     * even before githerd sees the passing run.
+     * @param {any} lane the release lane, red
+     * @param {(args: any) => void} derived raises an escalation that clears when it stops holding
+     */
+    async function releaseFailed(lane, derived) {
+        const hold = releaseHold(state.issues?.byNumber);
+        const open = /** @type {any} */ (
+            Object.values(state.escalations ?? {}).find(
+                (/** @type {any} */ e) => e.kind === "release-failed" && !e.resolvedAt,
+            )
+        );
+        if (!hold && open?.holdIssue && state.issues?.byNumber?.[open.holdIssue]?.state === "closed") return;
+        const red = lane.redRun ?? null;
+        if (red && red.failedJobs === undefined) {
+            // ponytail: one failed read leaves the jobs unnamed until the lane's failed run changes.
+            red.failedJobs = await failingJobs(red.runId).then(
+                (jobs) => jobs.map((/** @type {any} */ j) => j.name),
+                () => null,
+            );
+        }
+        const anchor = hold ? "issue-" + hold.number : "since-" + (lane.redSince ?? "unknown");
+        const key = open?.key ?? `release-failed:${anchor}`;
+        raiseRelease(derived, {
+            key,
+            kind: "release-failed",
+            summary: releaseFailedSummary(hold, red),
+            clearWhen: "release-green",
+            runId: red?.runId ?? null,
+        });
+        state.escalations[key].holdIssue = hold?.number ?? open?.holdIssue ?? null;
     }
 
     /**

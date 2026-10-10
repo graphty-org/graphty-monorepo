@@ -7,6 +7,7 @@ import { page } from "vitest/browser";
 import { Popout, PopoutAnchor, PopoutManager } from "../../src/components/popout";
 import { POPOUT_NESTED_GAP } from "../../src/constants/popout";
 import { compactTheme } from "../../src/theme";
+import { waitForSettledLayout } from "../../stories/helpers/settled";
 
 /**
  * Helper to render Popout components with required providers
@@ -497,5 +498,34 @@ describe("Popout focus (browser)", () => {
 
         // The panel should still be open (we didn't trap focus, just tabbed through)
         expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+});
+
+describe("Popout settled layout (browser)", () => {
+    it("is not settled while a reposition is queued: the helper waits for the panel to follow its trigger", async () => {
+        renderPopout(
+            <Popout defaultOpened>
+                <Popout.Trigger>
+                    <button>Open</button>
+                </Popout.Trigger>
+                <Popout.Panel width={240} placement="bottom" anchorX="trigger" manageFocus={false} label="Panel">
+                    <Popout.Content>content</Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+        const trigger = screen.getByRole("button", { name: "Open" });
+        const panel = await screen.findByRole("dialog");
+        await waitForSettledLayout(document.body, "[data-testid='popout-panel']");
+        const gap = panel.getBoundingClientRect().top - trigger.getBoundingClientRect().bottom;
+
+        // Move the trigger in a frame callback queued ahead of the helper's own, as a late font or
+        // a containing-block change does: the panel's observer queues its reposition for the next
+        // frame, and the panel's box stays the same until that runs.
+        requestAnimationFrame(() => {
+            trigger.style.marginTop = "40px";
+        });
+        await waitForSettledLayout(document.body, "[data-testid='popout-panel']");
+
+        expect(panel.getBoundingClientRect().top - trigger.getBoundingClientRect().bottom).toBeCloseTo(gap, 0);
     });
 });

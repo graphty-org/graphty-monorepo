@@ -20,15 +20,15 @@ they met the study tool's own faults more often than the build's (more than four
 once, a click matched to the wrong row, a file drop that did nothing, two follow-ups never sent,
 a participant reading facilitator files). So before this round:
 
-| Walk                                         | Build walked                              | What it covered                                                                                                                         | Report                       |
-| -------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| First (detours)                              | 4e112b8e9df2, f164ebed85a7, 5ac7ca8f7058  | Every task's success path plus round 1's commonest wrong turns, by pointer and by keyboard, Enter, Tab and Escape in every field opened; the two faults only one round 1 session met, each given a script first | `../../dry-run-r2-1.md`      |
-| Second                                       | fabc16247403                              | Every task half piloted from its start                                                                                                  | `../../dry-run-r2-2.md`      |
-| Third                                        | eaea2a75d95b                              | The same                                                                                                                                | `../../dry-run-r2-3.md`      |
-| Fourth                                       | 2dcea6dd5bba                              | The same                                                                                                                                | `../../dry-run-r2-4.md`      |
-| Pilots on the study build                    | 8f0d5a6f7791                              | Every task half from its start, with the T17 and T18 follow-ups; every success path landed first try, no script, console or request errors | `../r2d4/pilot/`, `../../answers.md` |
-| Detours on the study build (this plan)       | 8f0d5a6f7791                              | The first walk's 30 detour walks again, on the build the sessions use                                                                   | below                        |
-| Study tool self-check, 5 in a row (this plan) | 8f0d5a6f7791                              | `real.mjs --prove`: clicks by name, point and drawn label, hover, upload, download, save and reopen, a killed client                     | below                        |
+| Walk                                          | Build walked                             | What it covered                                                                                                                                                                                                 | Report                               |
+| --------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| First (detours)                               | 4e112b8e9df2, f164ebed85a7, 5ac7ca8f7058 | Every task's success path plus round 1's commonest wrong turns, by pointer and by keyboard, Enter, Tab and Escape in every field opened; the two faults only one round 1 session met, each given a script first | `../../dry-run-r2-1.md`              |
+| Second                                        | fabc16247403                             | Every task half piloted from its start                                                                                                                                                                          | `../../dry-run-r2-2.md`              |
+| Third                                         | eaea2a75d95b                             | The same                                                                                                                                                                                                        | `../../dry-run-r2-3.md`              |
+| Fourth                                        | 2dcea6dd5bba                             | The same                                                                                                                                                                                                        | `../../dry-run-r2-4.md`              |
+| Pilots on the study build                     | 8f0d5a6f7791                             | Every task half from its start, with the T17 and T18 follow-ups; every success path landed first try, no script, console or request errors                                                                      | `../r2d4/pilot/`, `../../answers.md` |
+| Detours on the study build (this plan)        | 8f0d5a6f7791                             | The first walk's 30 detour walks again, on the build the sessions use                                                                                                                                           | below                                |
+| Study tool self-check, 5 in a row (this plan) | 8f0d5a6f7791                             | `real.mjs --prove`: clicks by name, point and drawn label, hover, upload, download, save and reopen, a killed client                                                                                            | below                                |
 
 The study tool was fixed before the walks: one machine-wide limit of four browsers, an ambiguous
 click refused with its candidates named, real file drops, the follow-up sent on every T17 and
@@ -126,13 +126,13 @@ by a change since round 1, so that rule would need 60. As in tier 1's rounds 2 a
 holds and the reduced tasks run below 4 where they must; such a task passes bar 1 only if every
 session succeeds.
 
-| Group            | Tasks                                   | Sessions | Why                                                                                                   | Bar 1 needs                |
-| ---------------- | --------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------- | -------------------------- |
-| Core four        | T20, T17, T18, T21 at 4 + 4 each        | 32       | Always at full size; T20 and T18 missed bar 11, T17 and T21 each had a give-up, T20 and T21 have new routes | 7 of 8, 3 of 4 per half    |
-| Below its bar    | T22 at 4 + 4                            | 8        | The only task below bar 1 in round 1 (3 of 4); its route changed (the find hint); raised from 4 to full size | 7 of 8, 3 of 4 per half    |
-| Touched, 4       | T4 at 2 + 2; T24 at 2 + 2               | 8        | T4: the start-screen open now goes through the Data page, and the words after a load changed. T24: the selection ring no longer tints its two ends, and a click on a drawn name now selects | 4 of 4, 2 of 2 per half    |
-| Touched, below 4 | T19 at 1 + 2; T23 at 2 + 1              | 6        | Each touched only off its success path (T19: the note editor's focus and keys; T23: the find list's marked first result and long names) | 3 of 3                     |
-| Returning T12    | T12R at 1 + 1                           | 2        | Its full size; its route changed (Down arrow now opens a tie), graded with tier 1's key (T12)         | 2 of 2                     |
+| Group            | Tasks                            | Sessions | Why                                                                                                                                                                                         | Bar 1 needs             |
+| ---------------- | -------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| Core four        | T20, T17, T18, T21 at 4 + 4 each | 32       | Always at full size; T20 and T18 missed bar 11, T17 and T21 each had a give-up, T20 and T21 have new routes                                                                                 | 7 of 8, 3 of 4 per half |
+| Below its bar    | T22 at 4 + 4                     | 8        | The only task below bar 1 in round 1 (3 of 4); its route changed (the find hint); raised from 4 to full size                                                                                | 7 of 8, 3 of 4 per half |
+| Touched, 4       | T4 at 2 + 2; T24 at 2 + 2        | 8        | T4: the start-screen open now goes through the Data page, and the words after a load changed. T24: the selection ring no longer tints its two ends, and a click on a drawn name now selects | 4 of 4, 2 of 2 per half |
+| Touched, below 4 | T19 at 1 + 2; T23 at 2 + 1       | 6        | Each touched only off its success path (T19: the note editor's focus and keys; T23: the find list's marked first result and long names)                                                     | 3 of 3                  |
+| Returning T12    | T12R at 1 + 1                    | 2        | Its full size; its route changed (Down arrow now opens a tie), graded with tier 1's key (T12)                                                                                               | 2 of 2                  |
 
 Every session is by a returning persona: 37 of 56 (66%) by personas who did tier 1 as first-time
 users (Grace, Ruth, Dev, Elena, Nadia, Tom), 19 by the regular analysts (Alex, Jordan, Dana). Each
@@ -151,18 +151,18 @@ way where they can: Dana, whose exports come as two sheets, keeps T4; Ruth and J
 histories name a person's list of connections as the thing they use most, keep T12R and swap
 halves.
 
-| Task | Half A                         | Half B                           |
-| ---- | ------------------------------ | -------------------------------- |
-| T20  | Grace, Nadia, Tom; Jordan      | Dev, Elena; Alex, Dana           |
-| T22  | Ruth, Elena, Tom; Dana         | Nadia, Grace; Jordan, Alex       |
-| T17  | Grace, Dev, Tom; Alex          | Ruth, Elena, Nadia; Jordan       |
-| T18  | Nadia, Dev, Tom; Alex          | Ruth, Grace, Elena; Dana         |
-| T21  | Dev, Ruth, Nadia; Dana         | Grace, Tom; Alex, Jordan         |
-| T4   | Tom, Dev                       | Elena; Dana                      |
-| T19  | Dev                            | Grace; Jordan                    |
-| T23  | Nadia, Ruth                    | Elena                            |
-| T24  | Alex, Jordan                   | Ruth; Dana                       |
-| T12R | Jordan                         | Ruth                             |
+| Task | Half A                    | Half B                     |
+| ---- | ------------------------- | -------------------------- |
+| T20  | Grace, Nadia, Tom; Jordan | Dev, Elena; Alex, Dana     |
+| T22  | Ruth, Elena, Tom; Dana    | Nadia, Grace; Jordan, Alex |
+| T17  | Grace, Dev, Tom; Alex     | Ruth, Elena, Nadia; Jordan |
+| T18  | Nadia, Dev, Tom; Alex     | Ruth, Grace, Elena; Dana   |
+| T21  | Dev, Ruth, Nadia; Dana    | Grace, Tom; Alex, Jordan   |
+| T4   | Tom, Dev                  | Elena; Dana                |
+| T19  | Dev                       | Grace; Jordan              |
+| T23  | Nadia, Ruth               | Elena                      |
+| T24  | Alex, Jordan              | Ruth; Dana                 |
+| T12R | Jordan                    | Ruth                       |
 
 Tier 1 graduates first in each cell, analysts after the semicolon. `sessions.py` beside this
 plan holds the run order and asserts all of the above (the count, the sizes, each half's
@@ -227,61 +227,61 @@ within a task's first few sessions.
 "(analyst)" marks the three regular analysts; every other persona did tier 1 as a first-time user.
 Persona files: `../round-1/plan.md`, "Persona files".
 
-| Id     | Task | Half and data | Persona | Start |
-| ------ | ---- | ------------- | ------- | ----- |
-| r2-s01 | T20 | A: bus stops, bus-stops.csv | Grace | `empty` |
-| r2-s02 | T20 | B: hiking trails, trails.csv | Dev | `empty` |
-| r2-s03 | T20 | A: bus stops, bus-stops.csv | Jordan (analyst) | `empty` |
-| r2-s04 | T20 | B: hiking trails, trails.csv | Alex (analyst) | `empty` |
-| r2-s05 | T20 | A: bus stops, bus-stops.csv | Nadia | `empty` |
-| r2-s06 | T20 | B: hiking trails, trails.csv | Elena | `empty` |
-| r2-s07 | T20 | A: bus stops, bus-stops.csv | Tom | `empty` |
-| r2-s08 | T20 | B: hiking trails, trails.csv | Dana (analyst) | `empty` |
-| r2-s09 | T22 | A: bus stops, bus-stops.csv | Ruth | `setup:bus-stops-ranked.txt` |
-| r2-s10 | T22 | B: Les Miserables | Nadia | `setup:lesmis-ranked.txt` |
-| r2-s11 | T22 | A: bus stops, bus-stops.csv | Dana (analyst) | `setup:bus-stops-ranked.txt` |
-| r2-s12 | T22 | B: Les Miserables | Jordan (analyst) | `setup:lesmis-ranked.txt` |
-| r2-s13 | T22 | A: bus stops, bus-stops.csv | Elena | `setup:bus-stops-ranked.txt` |
-| r2-s14 | T22 | B: Les Miserables | Grace | `setup:lesmis-ranked.txt` |
-| r2-s15 | T22 | A: bus stops, bus-stops.csv | Tom | `setup:bus-stops-ranked.txt` |
-| r2-s16 | T22 | B: Les Miserables | Alex (analyst) | `setup:lesmis-ranked.txt` |
-| r2-s17 | T17 | A: running club, friends.csv | Grace | `setup:friends-ranked.txt` |
-| r2-s18 | T17 | B: Les Miserables | Ruth | `setup:lesmis-ranked.txt` |
-| r2-s19 | T17 | A: running club, friends.csv | Alex (analyst) | `setup:friends-ranked.txt` |
-| r2-s20 | T17 | B: Les Miserables | Jordan (analyst) | `setup:lesmis-ranked.txt` |
-| r2-s21 | T17 | A: running club, friends.csv | Dev | `setup:friends-ranked.txt` |
-| r2-s22 | T17 | B: Les Miserables | Elena | `setup:lesmis-ranked.txt` |
-| r2-s23 | T17 | A: running club, friends.csv | Tom | `setup:friends-ranked.txt` |
-| r2-s24 | T17 | B: Les Miserables | Nadia | `setup:lesmis-ranked.txt` |
-| r2-s25 | T18 | A: running club, friends.csv | Nadia | `setup:friends-ranked.txt` |
-| r2-s26 | T18 | B: Florentine families | Ruth | `setup:florentine-ranked.txt` |
-| r2-s27 | T18 | A: running club, friends.csv | Alex (analyst) | `setup:friends-ranked.txt` |
-| r2-s28 | T18 | B: Florentine families | Dana (analyst) | `setup:florentine-ranked.txt` |
-| r2-s29 | T18 | A: running club, friends.csv | Dev | `setup:friends-ranked.txt` |
-| r2-s30 | T18 | B: Florentine families | Grace | `setup:florentine-ranked.txt` |
-| r2-s31 | T18 | A: running club, friends.csv | Tom | `setup:friends-ranked.txt` |
-| r2-s32 | T18 | B: Florentine families | Elena | `setup:florentine-ranked.txt` |
-| r2-s33 | T21 | A: running club, friends.csv to friends-v2.csv | Dev | `setup:friends-ranked.txt` |
-| r2-s34 | T21 | B: team, team.csv to team-v2.csv | Grace | `setup:team-ranked.txt` |
-| r2-s35 | T21 | A: running club, friends.csv to friends-v2.csv | Dana (analyst) | `setup:friends-ranked.txt` |
-| r2-s36 | T21 | B: team, team.csv to team-v2.csv | Alex (analyst) | `setup:team-ranked.txt` |
-| r2-s37 | T21 | A: running club, friends.csv to friends-v2.csv | Ruth | `setup:friends-ranked.txt` |
-| r2-s38 | T21 | B: team, team.csv to team-v2.csv | Jordan (analyst) | `setup:team-ranked.txt` |
-| r2-s39 | T21 | A: running club, friends.csv to friends-v2.csv | Nadia | `setup:friends-ranked.txt` |
-| r2-s40 | T21 | B: team, team.csv to team-v2.csv | Tom | `setup:team-ranked.txt` |
-| r2-s41 | T4 | A: office, people.csv + messages.csv | Tom | `empty` |
-| r2-s42 | T4 | B: football, players.csv + passes.csv | Dana (analyst) | `empty` |
-| r2-s43 | T4 | A: office, people.csv + messages.csv | Dev | `empty` |
-| r2-s44 | T4 | B: football, players.csv + passes.csv | Elena | `empty` |
-| r2-s45 | T19 | A: running club, friends.csv | Dev | `setup:friends-ranked.txt` |
-| r2-s46 | T19 | B: Florentine families | Jordan (analyst) | `setup:florentine-ranked.txt` |
-| r2-s47 | T19 | B: Florentine families | Grace | `setup:florentine-ranked.txt` |
-| r2-s48 | T23 | A: running club, friends.csv | Nadia | `setup:friends-ranked.txt` |
-| r2-s49 | T23 | B: Florentine families | Elena | `setup:florentine-ranked.txt` |
-| r2-s50 | T23 | A: running club, friends.csv | Ruth | `setup:friends-ranked.txt` |
-| r2-s51 | T24 | A: running club, friends.csv, names drawn | Alex (analyst) | `setup:friends-ranked-names.txt` |
-| r2-s52 | T24 | B: bus stops, bus-stops.csv, names drawn | Ruth | `setup:bus-stops-ranked-names.txt` |
-| r2-s53 | T24 | A: running club, friends.csv, names drawn | Jordan (analyst) | `setup:friends-ranked-names.txt` |
-| r2-s54 | T24 | B: bus stops, bus-stops.csv, names drawn | Dana (analyst) | `setup:bus-stops-ranked-names.txt` |
-| r2-s55 | T12R | A: Les Miserables | Jordan (analyst) | `setup:lesmis-ranked.txt` |
-| r2-s56 | T12R | B: Florentine families | Ruth | `setup:florentine-ranked.txt` |
+| Id     | Task | Half and data                                  | Persona          | Start                              |
+| ------ | ---- | ---------------------------------------------- | ---------------- | ---------------------------------- |
+| r2-s01 | T20  | A: bus stops, bus-stops.csv                    | Grace            | `empty`                            |
+| r2-s02 | T20  | B: hiking trails, trails.csv                   | Dev              | `empty`                            |
+| r2-s03 | T20  | A: bus stops, bus-stops.csv                    | Jordan (analyst) | `empty`                            |
+| r2-s04 | T20  | B: hiking trails, trails.csv                   | Alex (analyst)   | `empty`                            |
+| r2-s05 | T20  | A: bus stops, bus-stops.csv                    | Nadia            | `empty`                            |
+| r2-s06 | T20  | B: hiking trails, trails.csv                   | Elena            | `empty`                            |
+| r2-s07 | T20  | A: bus stops, bus-stops.csv                    | Tom              | `empty`                            |
+| r2-s08 | T20  | B: hiking trails, trails.csv                   | Dana (analyst)   | `empty`                            |
+| r2-s09 | T22  | A: bus stops, bus-stops.csv                    | Ruth             | `setup:bus-stops-ranked.txt`       |
+| r2-s10 | T22  | B: Les Miserables                              | Nadia            | `setup:lesmis-ranked.txt`          |
+| r2-s11 | T22  | A: bus stops, bus-stops.csv                    | Dana (analyst)   | `setup:bus-stops-ranked.txt`       |
+| r2-s12 | T22  | B: Les Miserables                              | Jordan (analyst) | `setup:lesmis-ranked.txt`          |
+| r2-s13 | T22  | A: bus stops, bus-stops.csv                    | Elena            | `setup:bus-stops-ranked.txt`       |
+| r2-s14 | T22  | B: Les Miserables                              | Grace            | `setup:lesmis-ranked.txt`          |
+| r2-s15 | T22  | A: bus stops, bus-stops.csv                    | Tom              | `setup:bus-stops-ranked.txt`       |
+| r2-s16 | T22  | B: Les Miserables                              | Alex (analyst)   | `setup:lesmis-ranked.txt`          |
+| r2-s17 | T17  | A: running club, friends.csv                   | Grace            | `setup:friends-ranked.txt`         |
+| r2-s18 | T17  | B: Les Miserables                              | Ruth             | `setup:lesmis-ranked.txt`          |
+| r2-s19 | T17  | A: running club, friends.csv                   | Alex (analyst)   | `setup:friends-ranked.txt`         |
+| r2-s20 | T17  | B: Les Miserables                              | Jordan (analyst) | `setup:lesmis-ranked.txt`          |
+| r2-s21 | T17  | A: running club, friends.csv                   | Dev              | `setup:friends-ranked.txt`         |
+| r2-s22 | T17  | B: Les Miserables                              | Elena            | `setup:lesmis-ranked.txt`          |
+| r2-s23 | T17  | A: running club, friends.csv                   | Tom              | `setup:friends-ranked.txt`         |
+| r2-s24 | T17  | B: Les Miserables                              | Nadia            | `setup:lesmis-ranked.txt`          |
+| r2-s25 | T18  | A: running club, friends.csv                   | Nadia            | `setup:friends-ranked.txt`         |
+| r2-s26 | T18  | B: Florentine families                         | Ruth             | `setup:florentine-ranked.txt`      |
+| r2-s27 | T18  | A: running club, friends.csv                   | Alex (analyst)   | `setup:friends-ranked.txt`         |
+| r2-s28 | T18  | B: Florentine families                         | Dana (analyst)   | `setup:florentine-ranked.txt`      |
+| r2-s29 | T18  | A: running club, friends.csv                   | Dev              | `setup:friends-ranked.txt`         |
+| r2-s30 | T18  | B: Florentine families                         | Grace            | `setup:florentine-ranked.txt`      |
+| r2-s31 | T18  | A: running club, friends.csv                   | Tom              | `setup:friends-ranked.txt`         |
+| r2-s32 | T18  | B: Florentine families                         | Elena            | `setup:florentine-ranked.txt`      |
+| r2-s33 | T21  | A: running club, friends.csv to friends-v2.csv | Dev              | `setup:friends-ranked.txt`         |
+| r2-s34 | T21  | B: team, team.csv to team-v2.csv               | Grace            | `setup:team-ranked.txt`            |
+| r2-s35 | T21  | A: running club, friends.csv to friends-v2.csv | Dana (analyst)   | `setup:friends-ranked.txt`         |
+| r2-s36 | T21  | B: team, team.csv to team-v2.csv               | Alex (analyst)   | `setup:team-ranked.txt`            |
+| r2-s37 | T21  | A: running club, friends.csv to friends-v2.csv | Ruth             | `setup:friends-ranked.txt`         |
+| r2-s38 | T21  | B: team, team.csv to team-v2.csv               | Jordan (analyst) | `setup:team-ranked.txt`            |
+| r2-s39 | T21  | A: running club, friends.csv to friends-v2.csv | Nadia            | `setup:friends-ranked.txt`         |
+| r2-s40 | T21  | B: team, team.csv to team-v2.csv               | Tom              | `setup:team-ranked.txt`            |
+| r2-s41 | T4   | A: office, people.csv + messages.csv           | Tom              | `empty`                            |
+| r2-s42 | T4   | B: football, players.csv + passes.csv          | Dana (analyst)   | `empty`                            |
+| r2-s43 | T4   | A: office, people.csv + messages.csv           | Dev              | `empty`                            |
+| r2-s44 | T4   | B: football, players.csv + passes.csv          | Elena            | `empty`                            |
+| r2-s45 | T19  | A: running club, friends.csv                   | Dev              | `setup:friends-ranked.txt`         |
+| r2-s46 | T19  | B: Florentine families                         | Jordan (analyst) | `setup:florentine-ranked.txt`      |
+| r2-s47 | T19  | B: Florentine families                         | Grace            | `setup:florentine-ranked.txt`      |
+| r2-s48 | T23  | A: running club, friends.csv                   | Nadia            | `setup:friends-ranked.txt`         |
+| r2-s49 | T23  | B: Florentine families                         | Elena            | `setup:florentine-ranked.txt`      |
+| r2-s50 | T23  | A: running club, friends.csv                   | Ruth             | `setup:friends-ranked.txt`         |
+| r2-s51 | T24  | A: running club, friends.csv, names drawn      | Alex (analyst)   | `setup:friends-ranked-names.txt`   |
+| r2-s52 | T24  | B: bus stops, bus-stops.csv, names drawn       | Ruth             | `setup:bus-stops-ranked-names.txt` |
+| r2-s53 | T24  | A: running club, friends.csv, names drawn      | Jordan (analyst) | `setup:friends-ranked-names.txt`   |
+| r2-s54 | T24  | B: bus stops, bus-stops.csv, names drawn       | Dana (analyst)   | `setup:bus-stops-ranked-names.txt` |
+| r2-s55 | T12R | A: Les Miserables                              | Jordan (analyst) | `setup:lesmis-ranked.txt`          |
+| r2-s56 | T12R | B: Florentine families                         | Ruth             | `setup:florentine-ranked.txt`      |

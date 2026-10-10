@@ -1,0 +1,226 @@
+name: Restricted CPU stress (weekly)
+
+# Every gating test shard of ci.yml, run with less CPU than CI gives it, to find load-sensitive tests
+# on purpose instead of when they fail someone's push (issue #1603). It never gates anything: it is
+# not a required check, not in .mergify.yml, and nothing in ci.yml, release.yml or master-guard.yml
+# waits on it or reads it. tools/restricted-cpu-stress.test.mjs checks that.
+#
+# Each test that fails or times out gets one issue in the flaky-test tracker's format (title, labels,
+# marker line `githerd-flaky-test: <package>/<file> > <test>`), marked "load-sensitive under restricted
+# CPU", not "proven flaky"; a later failure comments on the same issue. tools/restricted-cpu-stress.mjs
+# reads vitest's junit reports (vitest.ci-junit.mjs) and does the filing. A dispatch on any branch but
+# master, or with dry-run set, prints what it would file and writes nothing.
+
+on:
+    schedule:
+        - cron: "41 3 * * 0" # Sundays 03:41 UTC, when few pull requests are waiting for runners
+    workflow_dispatch:
+        inputs:
+            dry-run:
+                description: Print the issues it would file or update, and write none
+                type: boolean
+                default: false
+
+permissions:
+    contents: read
+
+concurrency:
+    group: restricted-cpu-stress
+    cancel-in-progress: true
+
+env:
+    # The restriction, calibrated once (2026-10-10) and recorded here. A cgroup v2 CPU quota on every
+    # process of the shard: cpu.max "200000 100000" is 200 ms of CPU per 100 ms, two CPUs' worth of
+    # time on the four-vCPU ubuntu-24.04 runner CI's test job uses. A quota, not `taskset`: vitest sizes
+    # its worker pool from the CPUs it may run on, so taskset would shrink the pool and leave each test
+    # about as much CPU as before, while a quota keeps CI's pool and browsers and halves what they get --
+    # the contention of two gates sharing a machine, which is how the flaky tests of 2026-10-06 to 10-08
+    # failed. Half, not less: the dev machine's failures came from two or three gates sharing it, and
+    # every vitest default timeout (5 s per test, 10 s per hook) is many times what a healthy test takes
+    # on a CI runner, so a healthy suite is expected to pass at half speed; a tighter quota would mostly
+    # find the suite's startup limits. If a run finds more than tools/restricted-cpu-stress.mjs's
+    # MAX_FILED failing tests it files none and fails: the quota is too tight, loosen it here.
+    CPU_MAX: "200000 100000"
+    RESTRICTION: "cgroup v2 cpu.max 200000 100000 (two CPUs of time for every process of the shard) on a four-vCPU ubuntu-24.04 GitHub-hosted runner"
+
+jobs:
+    build:
+        name: Build
+        runs-on: ubuntu-24.04
+        outputs:
+            test-matrix: ${{ steps.plan.outputs.test-matrix }}
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # every shard of every package, as a full ci.yml run (a manual dispatch, the release train) plans it
+            - name: Plan the test shards
+              id: plan
+              run: |
+                  all=$(pnpm exec nx show projects --json)
+                  node tools/ci-test-matrix.mjs "$all" "$all" | tee -a "$GITHUB_OUTPUT"
+
+            - name: Build all
+              run: pnpm exec nx run-many -t build --parallel=3
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=8192"
+                  VITE_BASE_PATH: /
+
+            - name: Upload all package builds
+              uses: actions/upload-artifact@v4
+              with:
+                  name: stress-build-packages
+                  path: |
+                      graphty-element/build/
+                      graph-format/dist/
+                      graph-io/dist/
+                      webgpu-graph-algorithms/dist/
+                      graph-samples/dist/
+                      algorithms/dist/
+                      layout/dist/
+                      cytoscape-extensions/dist/
+                      graphty/dist/
+                      graphty-element/dist/
+                      remote-logger/dist/
+                      compact-mantine/dist/
+                  retention-days: 1
+
+    # The steps of ci.yml's test job, with the shard's command run inside the CPU quota.
+    stress:
+        name: Restricted CPU (${{ matrix.shard }})
+        needs: build
+        runs-on: ubuntu-24.04
+        timeout-minutes: 240
+        strategy:
+            fail-fast: false
+            matrix: ${{ fromJSON(needs.build.outputs.test-matrix) }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Download all package builds
+              uses: actions/download-artifact@v4
+              with:
+                  name: stress-build-packages
+                  path: .
+
+            - name: Cache Playwright browsers
+              if: matrix.needs-browser
+              uses: actions/cache@v4
+              id: playwright-cache
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Install Playwright system packages
+              if: matrix.needs-browser
+              uses: ./.github/actions/playwright-system-deps
+
+            - name: Install Playwright browsers
+              if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true'
+              run: pnpm exec playwright install chromium
+
+            - name: Install Mesa lavapipe
+              if: matrix.needs-lavapipe
+              run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
+
+            - name: Locate the lavapipe ICD and export the lane's environment
+              if: matrix.needs-lavapipe
+              run: |
+                  icd=$(find /usr/share/vulkan/icd.d /etc/vulkan/icd.d /usr/lib/x86_64-linux-gnu/vulkan/icd.d -name 'lvp_icd*.json' 2>/dev/null | sort | head -1 || true)
+                  [ -n "$icd" ] || { echo "::error::no lavapipe ICD json after installing mesa-vulkan-drivers"; exit 1; }
+                  {
+                      echo "VK_DRIVER_FILES=$icd"
+                      echo "GRAPHTY_GPU_ADAPTER=llvmpipe"
+                      echo "GRAPHTY_GPU_REQUIRE=any"
+                      echo "XDG_RUNTIME_DIR=/tmp"
+                  } >> "$GITHUB_ENV"
+
+            - name: Write core dumps to a file so the shard's ulimit -c 0 holds
+              if: matrix.needs-lavapipe
+              run: sudo sysctl -w kernel.core_pattern=core
+
+            # The step's shell moves itself into a cgroup with the quota, so the test command and every
+            # process it starts (vitest workers, Chromium, Dawn) share it. A failing shard does not stop
+            # the run: the junit reports below are the result.
+            - name: Run tests under the CPU quota
+              continue-on-error: true
+              run: |
+                  [ "$(stat -fc %T /sys/fs/cgroup)" = cgroup2fs ] || { echo "::error::no cgroup v2 on this runner"; exit 1; }
+                  echo +cpu | sudo tee /sys/fs/cgroup/cgroup.subtree_control > /dev/null
+                  sudo mkdir -p /sys/fs/cgroup/restricted-cpu
+                  echo "$CPU_MAX" | sudo tee /sys/fs/cgroup/restricted-cpu/cpu.max > /dev/null
+                  echo $$ | sudo tee /sys/fs/cgroup/restricted-cpu/cgroup.procs > /dev/null
+                  echo "in cgroup $(cut -d: -f3 /proc/self/cgroup), cpu.max $(cat /sys/fs/cgroup/restricted-cpu/cpu.max), $(nproc) CPUs"
+                  status=0
+                  bash -c "$TEST_COMMAND" || status=$?
+                  echo "throttling:"; cat /sys/fs/cgroup/restricted-cpu/cpu.stat
+                  exit "$status"
+              env:
+                  TEST_COMMAND: ${{ matrix.test-command }}
+
+            - name: Upload the junit reports
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: junit-${{ matrix.shard }}
+                  path: test-results/junit-*.xml
+                  if-no-files-found: warn
+                  retention-days: 14
+
+    report:
+        name: File the load-sensitive tests
+        needs: [build, stress]
+        if: always() && needs.build.result == 'success'
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+            issues: write
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: Download the junit reports
+              uses: actions/download-artifact@v4
+              with:
+                  pattern: junit-*
+                  path: junit
+
+            - name: File or update one issue per failing test
+              run: mkdir -p junit && node tools/restricted-cpu-stress.mjs junit
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  SHA: ${{ github.sha }}
+                  DRY_RUN: ${{ inputs.dry-run || github.ref != 'refs/heads/master' }}

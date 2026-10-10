@@ -17,7 +17,7 @@ function noNodeSelected(session: GraphSession | null): string | null {
 
 /**
  * How far out a node's neighbor list opens: the reach of an on "Filter to neighbors" step on that
- * node, so the list and its pressed button agree; one hop when no such step is on.
+ * node, so the list shows what the drawing keeps; one hop when no such step is on.
  * @param session - the element's session.
  * @param center - the node at the center.
  * @returns the hop count.

@@ -25,10 +25,11 @@ const TIMEOUT_MS = 90_000;
 /**
  * A new, empty project, then Zachary's karate club opened through the element's
  * import, with the layout the element recommends for it.
+ * @param place - the place to open on ("data" shows Filters), or the default one.
  * @returns the session, with the sample loaded.
  */
-async function openKarate(): Promise<GraphSession> {
-    render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
+async function openKarate(place?: "data"): Promise<GraphSession> {
+    render(<Workspace initialState={{ project: { name: "Untitled", id: 1 }, place }} />);
     let session: GraphSession | undefined;
     await waitFor(
         () => {
@@ -395,15 +396,13 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 );
                 assert.equal(session.visibility.summary.visibleNodes, grown + 1);
             });
-            // It shows that it is on, and pressed again it takes its step away.
-            const toggle = screen.getByRole("button", { name: "Filter to neighbors" });
+            // A command, not a toggle: pressed again it leaves the one step, on.
+            await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
             await waitFor(() => {
-                assert.equal(toggle.getAttribute("aria-pressed"), "true");
-            });
-            await userEvent.click(toggle);
-            await waitFor(() => {
-                assert.lengthOf(session.visibility.steps, 0);
-                assert.equal(toggle.getAttribute("aria-pressed"), "false");
+                assert.deepEqual(
+                    session.visibility.steps.map((step) => [step.on, step.rule]),
+                    [[true, { kind: "neighborhood", seeds: [node], depth: 2 }]],
+                );
             });
         },
         TIMEOUT_MS,
@@ -411,9 +410,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "reopens a node's neighbor list at the reach of its 2-hop filter, pressed, and the button toggles that filter",
+        "Filter to neighbors pressed twice keeps one step on; its checkbox in Filters turns it off and keeps it listed",
         async () => {
-            const session = await openKarate();
+            const session = await openKarate("data");
             const node = session.data.nodes()[0].id;
             const name = session.data.name(node) ?? String(node);
             await session.selection.apply({ nodes: [node] });
@@ -422,19 +421,28 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 await userEvent.click(within(values).getByRole("button", { name: /Degree/ }));
             };
 
-            // Open at one hop, reach two, filter to it.
+            // Open at one hop, reach two, filter to it, twice.
             await degree();
             const hops = await screen.findByRole("radiogroup", { name: "Hops" });
             await userEvent.click(within(hops).getByRole("radio", { name: "2" }));
             await screen.findByRole("group", { name: /within 2 hops$/ });
-            await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
+            const command = screen.getByRole("button", { name: "Filter to neighbors" });
+            // A plain command: never drawn as pressed.
+            assert.isNull(command.getAttribute("aria-pressed"));
+            const grown = session.selection.nodes.length - 1;
+            await userEvent.click(command);
+            await waitFor(() => {
+                assert.equal(session.visibility.summary.visibleNodes, grown + 1);
+            });
+            await userEvent.click(command);
             await waitFor(() => {
                 assert.deepEqual(
-                    session.visibility.steps.map((step) => step.rule),
-                    [{ kind: "neighborhood", seeds: [node], depth: 2 }],
+                    session.visibility.steps.map((step) => [step.on, step.rule]),
+                    [[true, { kind: "neighborhood", seeds: [node], depth: 2 }]],
                 );
+                assert.equal(session.visibility.summary.visibleNodes, grown + 1);
             });
-            const grown = session.selection.nodes.length - 1;
+            assert.isNull(command.getAttribute("aria-pressed"));
 
             // Back to the node, then its Degree row again: the list opens at the filter's two hops.
             await userEvent.click(screen.getByRole("button", { name: `Back to ${name}` }));
@@ -444,8 +452,6 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             const reopened = await screen.findByRole("radiogroup", { name: "Hops" });
             assert.isTrue(within(reopened).getByRole<HTMLInputElement>("radio", { name: "2" }).checked);
             assert.equal(session.selection.nodes.length, grown + 1);
-            const toggle = screen.getByRole("button", { name: "Filter to neighbors" });
-            assert.equal(toggle.getAttribute("aria-pressed"), "true");
             // The heading is drawn whole: wrapped, never cut.
             const heading = screen
                 .getByRole("group", { name: words })
@@ -454,19 +460,29 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.equal(heading?.scrollWidth, heading?.clientWidth);
             assert.isAtMost(heading?.scrollHeight ?? 0, heading?.clientHeight ?? 0);
 
-            // Pressed, it takes the filter away; pressed again, it puts it back at two hops.
-            await userEvent.click(toggle);
-            await waitFor(() => {
-                assert.lengthOf(session.visibility.steps, 0);
-                assert.equal(toggle.getAttribute("aria-pressed"), "false");
+            // The step's checkbox in Filters turns it off: every node is drawn again, and the step
+            // stays listed.
+            const filters = within(screen.getByRole("region", { name: "Data place" })).getByRole("tree", {
+                name: "Filters",
             });
-            await userEvent.click(toggle);
+            const stepWords = `within 2 hops of ${name}`;
+            await userEvent.click(within(filters).getByRole("checkbox", { name: `Apply step: ${stepWords}` }));
+            await waitFor(() => {
+                assert.equal(session.visibility.summary.visibleNodes, 34);
+                assert.deepEqual(
+                    session.visibility.steps.map((step) => step.on),
+                    [false],
+                );
+            });
+            assert.isNotNull(within(filters).getByRole("treeitem", { name: stepWords }));
+
+            // Pressed again, the command turns that same step back on.
+            await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
             await waitFor(() => {
                 assert.deepEqual(
-                    session.visibility.steps.map((step) => step.rule),
-                    [{ kind: "neighborhood", seeds: [node], depth: 2 }],
+                    session.visibility.steps.map((step) => [step.on, step.rule]),
+                    [[true, { kind: "neighborhood", seeds: [node], depth: 2 }]],
                 );
-                assert.equal(toggle.getAttribute("aria-pressed"), "true");
             });
         },
         TIMEOUT_MS,

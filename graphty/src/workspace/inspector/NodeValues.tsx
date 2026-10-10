@@ -24,16 +24,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, neighborhoodKey, nodeKey } from "./inspected";
 import { finishedRuns, selectNode, takeNodeValuesFocus } from "./reads";
-import {
-    count,
-    edgeName,
-    formatNumber,
-    groupName,
-    NEIGHBOR_FILTER_WORDS,
-    neighborFilterOnWords,
-    neighborhoodWords,
-    valueText,
-} from "./words";
+import { count, edgeName, formatNumber, groupName, NEIGHBOR_FILTER_WORDS, neighborhoodWords, valueText } from "./words";
 
 /** How many of a node's attributes show before "N more attributes". */
 const ATTRIBUTES_SHOWN = 6;
@@ -248,7 +239,8 @@ async function showNeighborhood(
  * Its header picks how far out (Hops 1 | 2 | 3) and, on a directed graph, which way edges are
  * followed (Follow: Out | In | All); a change reselects and relists. Past one hop it lists the
  * selected nodes other than the center, under the same heading form. Filter to neighbors adds
- * one filter step keeping the same neighborhood; pressed again, it takes it away.
+ * one filter step keeping the same neighborhood, or turns that step back on; only the step's
+ * checkbox in Filters turns it off.
  * @param props - Component props
  * @param props.center - The node at the center
  * @param props.hops - How many hops out the neighborhood reaches
@@ -261,7 +253,7 @@ export function NeighborList({
     direction = "all",
 }: Readonly<{ center: NodeId; hops?: number; direction?: SelectionDirection }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    // The Filter to neighbors toggle reads the steps, so it follows each change to them.
+    // Filter to neighbors reads the steps, so it follows each change to them.
     useVisibilityVersion(session);
     const heading = useRef<HTMLElement>(null);
     // The list takes focus as it opens, and Esc anywhere in it returns to the center node: a
@@ -338,18 +330,11 @@ export function NeighborList({
         ));
     }
     // The neighborhood step seeded on this center, at any reach: one center has one such step, so
-    // a 2-hop filter shows pressed at Hops 1 too, and pressing never adds a second. The step at
-    // this reach wins, then an on one.
+    // pressing never adds a second. The step at this reach wins.
     const seeded = session.visibility.steps.filter(
         (s) => s.rule.kind === "neighborhood" && s.rule.seeds.length === 1 && s.rule.seeds[0] === center,
     );
-    const filtered =
-        seeded.find((s) => s.rule.kind === "neighborhood" && s.rule.depth === reach) ??
-        seeded.find((s) => s.on) ??
-        seeded.at(0);
-    const filteredDepth = filtered?.rule.kind === "neighborhood" ? filtered.rule.depth : reach;
-    // The tooltip names the depth only when it differs from the reach shown.
-    const namedDepth = filteredDepth === reach ? undefined : filteredDepth;
+    const filtered = seeded.find((s) => s.rule.kind === "neighborhood" && s.rule.depth === reach) ?? seeded.at(0);
     const hopsLabel = `neighbor-hops-${nodeKey(center)}`;
     const followLabel = `neighbor-follow-${nodeKey(center)}`;
 
@@ -408,44 +393,21 @@ export function NeighborList({
                     {follow === "all" && (
                         // Beside the button (the theme flips it left at the window's edge): below, it would cover
                         // the first neighbor's name, part of the answer.
-                        <Tooltip
-                            position="right"
-                            label={
-                                filtered?.on === true ? neighborFilterOnWords(namedDepth) : NEIGHBOR_FILTER_WORDS.off
-                            }
-                        >
+                        <Tooltip position="right" label={NEIGHBOR_FILTER_WORDS}>
                             <Button
-                                variant={filtered?.on === true ? "filled" : "default"}
+                                variant="default"
                                 size="compact-xs"
-                                aria-pressed={filtered?.on === true}
                                 style={{ alignSelf: "flex-start" }}
                                 onClick={() => {
+                                    // A command, never a toggle: it adds this center's step at the
+                                    // reach shown, or turns that step on; only the step's own checkbox
+                                    // in Filters turns it off.
                                     const { steps } = session.visibility;
-                                    // Pressed again, the step it added goes; an off one is turned back on.
-                                    let next: FilterStep[];
-                                    if (filtered === undefined) {
-                                        next = [
-                                            ...steps,
-                                            {
-                                                id: newId(steps),
-                                                on: true,
-                                                rule: { kind: "neighborhood", seeds: [center], depth: reach },
-                                            },
-                                        ];
-                                    } else if (filtered.on) {
-                                        next = steps.filter((s) => s.id !== filtered.id);
-                                    } else {
-                                        // Turned back on at the reach shown.
-                                        next = steps.map((s) =>
-                                            s.id === filtered.id
-                                                ? {
-                                                      ...s,
-                                                      on: true,
-                                                      rule: { kind: "neighborhood", seeds: [center], depth: reach },
-                                                  }
-                                                : s,
-                                        );
-                                    }
+                                    const rule = { kind: "neighborhood", seeds: [center], depth: reach } as const;
+                                    const next: FilterStep[] =
+                                        filtered === undefined
+                                            ? [...steps, { id: newId(steps), on: true, rule }]
+                                            : steps.map((s) => (s.id === filtered.id ? { ...s, on: true, rule } : s));
                                     void writeSteps(session, store, next);
                                 }}
                             >

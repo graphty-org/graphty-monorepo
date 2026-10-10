@@ -230,35 +230,38 @@ describe("the inspector", () => {
         });
     });
 
-    it("draws Filter to neighbors as a button that says what it does, and how to undo it when on", async () => {
+    it("draws Filter to neighbors as a command that says what it does and where it is turned off", async () => {
         const { session: on } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
         await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
-        const toggle = await screen.findByRole("button", { name: "Filter to neighbors" });
-        assert.equal(toggle.getAttribute("data-variant"), "default");
-        assert.equal(toggle.getAttribute("aria-pressed"), "false");
-        await userEvent.hover(toggle);
-        const tip = await screen.findByText("Hide every node outside this neighborhood");
+        const command = await screen.findByRole("button", { name: "Filter to neighbors" });
+        assert.equal(command.getAttribute("data-variant"), "default");
+        assert.isNull(command.getAttribute("aria-pressed"));
+        await userEvent.hover(command);
+        const tip = await screen.findByText(
+            "Hide every node outside this neighborhood. Its step in Filters turns it off",
+        );
         // Beside the button (right, or left where the window ends), never below it over the first
         // neighbor's name.
         await waitFor(() => {
-            assert.isBelow(tip.getBoundingClientRect().top, toggle.getBoundingClientRect().bottom);
+            assert.isBelow(tip.getBoundingClientRect().top, command.getBoundingClientRect().bottom);
         });
 
-        await userEvent.click(toggle);
+        // Pressed, it adds the step and still reads as a command, not as pressed.
+        await userEvent.click(command);
         await waitFor(() => {
-            assert.equal(toggle.getAttribute("aria-pressed"), "true");
+            assert.lengthOf(on.visibility.steps, 1);
         });
-        assert.equal(toggle.getAttribute("data-variant"), "filled");
-        await userEvent.unhover(toggle);
-        await userEvent.hover(toggle);
-        assert.isNotNull(await screen.findByText(/Press again to show every node/));
+        assert.equal(command.getAttribute("data-variant"), "default");
+        assert.isNull(command.getAttribute("aria-pressed"));
     });
 
-    it("shows Filter to neighbors pressed at any reach of this center's filter, and never adds a second", async () => {
+    it("keeps one step per center: pressed at another reach it moves that step there and turns it on", async () => {
         const { session: on } = await renderInspector();
+        const reaches = (): [boolean, number][] =>
+            on.visibility.steps.map((step) => [step.on, step.rule.kind === "neighborhood" ? step.rule.depth : 0]);
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
@@ -269,29 +272,20 @@ describe("the inspector", () => {
         await screen.findByRole("group", { name: "n0 and 7 connections within 2 hops" });
         await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
         await waitFor(() => {
-            assert.deepEqual(
-                on.visibility.steps.map((step) => step.rule),
-                [{ kind: "neighborhood", seeds: ["n0"], depth: 2 }],
-            );
+            assert.deepEqual(reaches(), [[true, 2]]);
         });
 
-        // Back at one hop, the 2-hop filter on the same node still reads as on, and says how far.
+        // Turned off from its checkbox, then pressed at one hop: the same step, on, one hop out.
+        await act(async () => {
+            await on.visibility.setSteps(on.visibility.steps.map((step) => ({ ...step, on: false })));
+        });
         await userEvent.click(
             within(screen.getByRole("radiogroup", { name: "Hops" })).getByRole("radio", { name: "1" }),
         );
         await screen.findByRole("group", { name: "n0 and 3 connections" });
-        const toggle = screen.getByRole("button", { name: "Filter to neighbors" });
+        await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
         await waitFor(() => {
-            assert.equal(toggle.getAttribute("aria-pressed"), "true");
-        });
-        await userEvent.hover(toggle);
-        assert.isNotNull(await screen.findByText(/neighborhood 2 hops out/));
-
-        // Pressed, it takes that step away rather than stacking a second one.
-        await userEvent.click(toggle);
-        await waitFor(() => {
-            assert.lengthOf(on.visibility.steps, 0);
-            assert.equal(toggle.getAttribute("aria-pressed"), "false");
+            assert.deepEqual(reaches(), [[true, 1]]);
         });
     });
 

@@ -11,6 +11,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Built: Filter to neighbors is a plain command.** It adds this center's step at the
+  hops shown, or turns that one step on (moving it to the hops shown); a second press never deletes
+  it, and it is never drawn pressed. Off lives only on the step's checkbox in Filters, and the
+  tooltip says so ("... Its step in Filters turns it off"). Walk: `tmp/t2r2-13/walk/06-11.png`.
 - (2026-10-10) **Built: a weighted path's run row and its "Shortest path added" line give its
   total, "minutes 14", not "3 hops".** One helper, `pathLengthWords(run)` in
   `graphty/src/workspace/analyze/words.ts`, feeds both the row (`graph-place/rows.ts`) and the
@@ -64,11 +68,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-09) **The study tool reaches participants more often than the build does.** Every tool
   change gets a planted-failure check; click by name landing on a same-named control (r2-s17, s18,
   s30) needs a refusal like ambiguous names already get.
-- (2026-10-09) **Bars 2, 7, 8, 9 are scored by `tool/bars.mjs`**; per-change details live in git
-  history and each change's test.
 
 ## Decisions and reasons
 
+- (2026-10-10) **A command and a toggle on one button was the defect, not the words.** Participants
+  pressed "Filter to neighbors" twice and lost the step they had made; the pressed look and "Press
+  again to show every node" only explained the trap. One place turns a step off (its checkbox), as
+  for every other step. Kept: one step per center (a press at other hops moves that step rather
+  than stacking a second, which would intersect to the nearer reach). App only: the element's
+  `visibility.setSteps` already does all of it.
 - (2026-10-10) **A path's length words come from one function.** The row and the status line both
   said "N hops" from two copies; a weighted path's answer is its total, so both now call
   `pathLengthWords`, with the inspector's distance-only rule for "Total <column>". Unweighted (or a
@@ -163,15 +171,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   1.4.3); `--cm-segment-edge` kept (removing a published variable is breaking). **Arrow cursor on
   every control, the hand only on links** (Mantine's UnstyledButton default was the hand).
 
-- (2026-10-09, summarized) **Round 1 and dry-run calls, still standing:** a vertical list passes
-  `scrollbars="y"` and ellipsizes through `EllipsizedName`; the app breaks on long names and narrow
-  windows, not at 1440x900 (`REAL_VIEWPORT`); path and Replace words name the weight column and say
-  why a weight was not read; plain text counts as a condition only when the accepted rule matches
-  something (no syntax read in the app; Mantine's `description` links the hint); the element no
-  longer cancels canvas pointerdown (click-outside works for every consumer); a Select list that
-  fits opens whole; the path's Weight list already starts on the loaded weight; reopen is a fresh
-  fit (camera unsaved, owner door); a skipped weight's note says what the run did, then why; the
-  page that names the graph announces its load; an Add counts what it adds.
+- (2026-10-09, summarized) **Round 1 and dry-run calls, still standing:** vertical lists pass
+  `scrollbars="y"` and ellipsize through `EllipsizedName`; path and Replace words name the weight
+  column and why it was not read; plain text is a condition only when the accepted rule matches;
+  the element no longer cancels canvas pointerdown; reopen is a fresh fit (camera unsaved, owner
+  door); an Add counts what it adds.
 - (2026-10-09, condensed) **The bar scripts measure in the participant's own `real.mjs` session**
   (ops `measure`, `work`; checks in `measure.mjs`), each move with an `--expect`. Focus fell = body
   or null (shadow-root focus is kept); shared names count reachable controls, not list items; bar
@@ -208,6 +212,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-10) Did not work: a Python heredoc with `\\'` inside a single-quoted string (syntax
+  error); write the edit script to a file with the Write tool. Worked: `openKarate("data")` (the
+  Workspace's `initialState.place`) puts Filters beside the inspector in a real-element test, so the
+  step's checkbox is clicked by its name "Apply step: within 2 hops of <name>".
 - (2026-10-10) Did not work: a Python `str.replace` to add an assertion after a line two tests
   shared put it in both (the unweighted test then failed on "minutes 14"); anchor test edits on a
   line unique to the test. Worked: proving the row test fails without the fix by writing
@@ -265,37 +273,24 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   tool files, `node --test` on `git show HEAD:` copies in a scratch folder; prettier, not eslint,
   checks `design/ui/studio/tool/`. The app hears the element only through `session.on`.
 
-- (2026-10-09, condensed) A pilot's exact steps are in its agent transcript under
-  `.claudehistory/<session>/subagents/workflows/<wf>/agent-*.jsonl`; `--read` in a non-`--sr`
-  session tells where focus is.
-
 - (2026-10-09, summarized) **Measure before fixing a look.** A Playwright probe under
   `with-browser.sh` showed a list really overflowed (Mantine keeps a hidden ScrollArea bar mounted:
   check computed display); log a root's computed `display` when a rule "does nothing" (a `.dp`
   class collision made a grid flex; grep new root classes). `--expect selected=N` counts selected
   rows, not nodes. TS drops narrowing inside hoisted nested functions.
 
-- (2026-10-09, condensed) Seen, not mine: T7 in `tasks.real-element.test.tsx` reads Damping's
-  `value` outside its `waitFor` after Revert (the field re-syncs a commit later); read it inside.
-  Worked: proving a CSS fix's test fails by copying `git show HEAD:<file>` over it and back;
-  `--hover-at` over every control class before choosing a rule; re-walking every dry-run walk whose
-  path uses a changed door (`detours.sh T3 T4 ...`), which found the silent Control+O loss.
+- (2026-10-09, condensed) A pilot's exact steps are in `.claudehistory/<session>/subagents/`;
+  `--hover-at` over every control class before choosing a rule; re-walk every dry-run walk whose
+  path uses a changed door (`detours.sh T3 T4 ...`).
 - (2026-10-09) Worked: a local walk script beside the evidence (`r2-dry2-app-import-and-left-out/walk.sh`)
   when rewalk.sh's fixed steps stop one click short; a real-element test of "does not move" reads
   the control's `getBoundingClientRect().left` before and after the click.
 
 - (2026-10-09, condensed) **Test and walk lessons.** A second load in a test needs
-  `session.data.import(..., { mode: "merge" })` (default replaces). Prove "nothing follows" by
-  spying the element call and settling it in `act`, never a sleep. `--sr` walks give the Tab
-  order; `--expect-not` on a placeholder proves nothing (prove every check on the broken build);
-  a miss exits 0, only `--expect` fails a walk. A build from the shared tree holds others'
-  unfinished edits. Read graders' state lines before coding (the "starts on None" task was a
-  verification). Prove a test fails without the fix with `git diff -- <mine> > patch; git apply -R`
-  or a one-line sed revert. Focus after a write: a module-level request taken in an effect keyed on
-  the element's change version. Hooks: copy `.husky/_/` AND the top-level hooks into the temp dir
-  (the shim runs `$(dirname $(dirname $0))/<hook>`, else every hook exits 0); commit scope `tools`,
-  not `studio`. Open: a run hidden by an Everything edit shows a blank Style tab
-  (`defaultRow` null on empty bindings; `tmp/t2r1-11/a/06.png`).
+  `{ mode: "merge" }`. Prove "nothing follows" by spying the element call, never a sleep; prove
+  every walk check on the broken build (only `--expect` fails a walk). A build from the shared tree
+  holds others' unfinished edits. Hooks: copy `.husky/_/` AND the top-level hooks into the temp
+  dir, else every hook exits 0. Open: a run hidden by an Everything edit shows a blank Style tab.
 
 - (2026-10-09, condensed) Did not work: leaving edits uncommitted while others commit in the same
   files (`17bf87085` swept my hunks); commit as soon as hunks pass. Did not work:

@@ -169,7 +169,10 @@ export function Inspector(): React.JSX.Element {
         content = body.values;
     } else {
         content = (
+            // The underline tabs: the pill form drew the chosen tab as a filled button beside a
+            // plain word, which read as a label ("Style:") and a button that did nothing.
             <Tabs
+                variant="default"
                 value={tab}
                 onChange={(next) => {
                     if (next === "style" || next === "values") {

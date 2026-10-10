@@ -12,7 +12,7 @@ import { channelsFor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent as realInput } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -165,6 +165,10 @@ describe("the Style tab on the real element", () => {
             assert.isNotNull(
                 within(within(tab).getByRole("group", { name: "Shape" })).getByRole("button", { name: /^Shape / }),
             );
+            // Style and Values read as tabs: the chosen one is not drawn as a filled button.
+            const chosen = screen.getByRole("tab", { name: "Style" });
+            assert.equal(chosen.getAttribute("aria-selected"), "true");
+            assert.equal(getComputedStyle(chosen).backgroundColor, "rgba(0, 0, 0, 0)");
             // Nothing of the reader's is set yet, so neither side carries the dot.
             assert.isNotNull(within(tab).getByRole("radio", { name: "Nodes" }));
             assert.isNotNull(within(tab).getByRole("radio", { name: "Edges" }));
@@ -217,7 +221,18 @@ describe("the Style tab on the real element", () => {
             });
             // The line now reads what it is bound to, and the Nodes side carries the dot.
             assert.isNotNull(within(styleTab()).getByRole("button", { name: /Detach Color/ }));
-            assert.isNotNull(within(styleTab()).getByRole("radio", { name: "Nodes, set" }));
+            const nodes = within(styleTab()).getByRole("radio", { name: "Nodes, set" });
+            assert.isNotNull(nodes);
+            // The dot sits clear of the word, and the side says what it means on hover.
+            const label = styleTab().querySelector<HTMLElement>(`label[for="${nodes.id}"]`);
+            const word = label?.querySelector("[aria-hidden]")?.getBoundingClientRect();
+            const dot = label?.querySelector(".mantine-Indicator-indicator")?.getBoundingClientRect();
+            assert.isTrue(
+                word !== undefined && dot !== undefined && dot.left >= word.right,
+                "the dot does not touch the word",
+            );
+            await realInput.hover(label ?? nodes);
+            assert.isNotNull(await screen.findByText("This row sets node properties"));
         },
         TIMEOUT_MS * 2,
     );

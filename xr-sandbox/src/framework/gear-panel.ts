@@ -207,7 +207,7 @@ export function createGearPanel(scene: Scene, zones: Zones, fw: Framework): Gear
                     ROW,
                     70,
                 );
-                toggle.isEnabled = !t.unavailable;
+                toggle.isEnabled = !t.unavailable && !(t.arm === "microphone" && !fw.armed.microphone && !isOn);
                 toggle.background = isOn ? "#3f6b3a" : "#34405a";
                 r.addControl(toggle);
                 const name = guiButton(

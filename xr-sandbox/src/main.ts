@@ -322,6 +322,10 @@ async function boot(): Promise<void> {
                 });
                 fw.armed.microphone = true;
                 log.log("arm", { microphone: true });
+                // The preset's techniques that waited for the microphone switch on now.
+                for (const id of resolved.techniques) {
+                    fw.setOn(id, true);
+                }
             })
             .catch((e: unknown) => {
                 box.checked = false;

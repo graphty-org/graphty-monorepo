@@ -21,6 +21,8 @@
         "@graphty/graph-samples": "workspace:*",
         "@graphty/layout": "workspace:*",
         "@graphty/remote-logger": "workspace:*",
+        "double-metaphone": "2.0.1",
+        "fastest-levenshtein": "1.0.16",
         "iwer": "^2.5.0"
     },
     "devDependencies": {

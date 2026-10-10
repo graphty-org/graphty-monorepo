@@ -26,6 +26,17 @@ describe("statusComment", () => {
         assert.doesNotMatch(statusComment("published", { run: RUN }), /^@/);
     });
 
+    it("names a nightly's versions, its dist-tag and the command that graduates it", () => {
+        const sha = "abcdef1234567890abcdef1234567890abcdef12";
+        const c = statusComment("nightly", { run: RUN, sha, tags: "@graphty/layout@1.2.3-next.7" });
+        assert.match(
+            c,
+            /^\*\*Nightly published\*\* from abcdef1: @graphty\/layout@1\.2\.3-next\.7 under the npm dist-tag `next`\./,
+        );
+        assert.ok(c.includes(`gh workflow run release.yml --ref master -f graduate=${sha}`));
+        assert.equal(reportsFailure(c, RUN, "1"), false);
+    });
+
     it("names every published package and version", () => {
         assert.match(statusComment("published", { run: RUN, tags: "a@1.0.0,b@2.0.0" }), /a@1\.0\.0, b@2\.0\.0 tagged/);
     });

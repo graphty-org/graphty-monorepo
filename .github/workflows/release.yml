@@ -42,6 +42,14 @@ name: Release
 #
 # Ad hoc release: `gh workflow run release.yml --ref master`, optionally `-f packages=graph-format,graph-io` (nx
 # project names) to release only those; every other project is held for that run, on top of release-hold.json.
+#
+# The nightly channel (design/decisions/2026-10-10-nightly-next-channel.md), off until the repository variable
+# NIGHTLY_ENABLED is "true". With it on, a scheduled attempt or a restart that passes every lane opens no release
+# pull request: it publishes each changed package as X.Y.Z-next.<run number> under the npm dist-tag `next`, from
+# the builds the run tested, with no version commit, git tag or GitHub release, and never touches `latest`. X.Y.Z
+# is the version the next stable release would give it. An attempt skips a commit that already has a nightly.
+# A person's dispatch still cuts the stable release pull request, and graduates a chosen nightly when given
+# `-f graduate=<the nightly's full commit id>`: the stable release is cut from that commit instead of master's newest.
 on:
     workflow_dispatch:
         inputs:
@@ -52,6 +60,11 @@ on:
                 type: boolean
             packages:
                 description: "Release only these nx projects (comma separated). Empty: every package with releasable commits."
+                required: false
+                default: ""
+                type: string
+            graduate:
+                description: "Graduate a nightly: the full commit id a published nightly (dist-tag next) was built from. The stable release is cut from that commit. Empty: master's newest commit."
                 required: false
                 default: ""
                 type: string
@@ -90,6 +103,7 @@ jobs:
         if: ${{ github.event_name != 'push' && github.ref == 'refs/heads/master' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'master' && github.event.workflow_run.head_repository.full_name == github.repository)) }}
         runs-on: ubuntu-24.04
         permissions:
+            actions: read # find the marker a published nightly left
             contents: write # delete the branch of a release pull request that conflicts with master
             issues: read
             pull-requests: write # close that pull request
@@ -98,6 +112,8 @@ jobs:
         outputs:
             release: ${{ steps.releasable.outputs.release || 'false' }}
             sha: ${{ steps.pending.outputs.sha }}
+            # "next" publishes a nightly instead of opening the release pull request; "latest" is today's train
+            channel: ${{ steps.pending.outputs.channel }}
         steps:
             # The commit this run was started on (master's head when it was dispatched; the pushed
             # commit whose build passed for a restart), so the run's commit, Coveralls' commit and the tested
@@ -111,10 +127,30 @@ jobs:
               id: pending
               env:
                   CANDIDATE: ${{ github.event.workflow_run.head_sha || github.sha }}
+                  NIGHTLY_ENABLED: ${{ vars.NIGHTLY_ENABLED }}
+                  GRADUATE: ${{ inputs.graduate }}
               run: |
                   set -euo pipefail
                   skip() { echo "::notice::$1"; echo "pending=true" >> "$GITHUB_OUTPUT"; exit 0; }
+                  refuse() { echo "::error::$1"; exit 1; }
+                  # How many unexpired nightly markers (the train job keeps one per nightly) name this commit.
+                  nightlies() {
+                      gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=nightly-$1" --jq '[.artifacts[]
+                          | select((.expired | not) and .workflow_run.head_branch == "master"
+                              and .workflow_run.head_repository_id == .workflow_run.repository_id)] | length'
+                  }
                   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                  # A person's dispatch is a stable release, and with `graduate` it is cut from that nightly's
+                  # commit. Every other attempt publishes a nightly while the switch is on.
+                  channel=latest
+                  if [ -n "${GRADUATE:-}" ]; then
+                      [ "$TRIGGER" = workflow_dispatch ] || refuse "graduate is for a person's dispatch, not a scheduled attempt"
+                      [[ "$GRADUATE" =~ ^[0-9a-f]{40}$ ]] || refuse "graduate must be a full 40-character commit id, got '${GRADUATE}'"
+                      git merge-base --is-ancestor "$GRADUATE" HEAD || refuse "graduate ${GRADUATE} is not on master"
+                      [ "$(nightlies "$GRADUATE")" -gt 0 ] || refuse "no nightly was published from ${GRADUATE} (or its marker expired after 90 days)"
+                  elif [ "${NIGHTLY_ENABLED:-}" = true ] && [ "$TRIGGER" != workflow_dispatch ]; then
+                      channel=next
+                  fi
                   # A master push restarts only a held train; with nothing held it touches nothing. A publish hold
                   # does not count: no train can clear it, only re-running the failed publish run.
                   if [ "$TRIGGER" = workflow_run ] && [ -z "$(tools/release-held.sh find --train)" ]; then
@@ -158,7 +194,18 @@ jobs:
                       git rev-parse -q --verify "refs/tags/${project}@${version}" >/dev/null ||
                           skip "the last release (${last}) has no tag ${project}@${version} yet; its publish run must finish first"
                   done < <(git log -1 --format=%b "$last" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
-                  { echo "pending=false"; echo "sha=${CANDIDATE}"; } >> "$GITHUB_OUTPUT"
+                  if [ -n "${GRADUATE:-}" ]; then
+                      # nx reads the last release's tags from the candidate's history; a nightly older than the last
+                      # stable release would version the same numbers a second time.
+                      [ -z "$last" ] || git merge-base --is-ancestor "$last" "$GRADUATE" ||
+                          refuse "graduate ${GRADUATE} is older than the last release (${last}); pick a newer nightly"
+                      git checkout --quiet --detach "$GRADUATE"
+                      CANDIDATE=$GRADUATE
+                  fi
+                  if [ "$channel" = next ] && [ "$(nightlies "$CANDIDATE")" -gt 0 ]; then
+                      skip "a nightly was already published from ${CANDIDATE}"
+                  fi
+                  { echo "pending=false"; echo "sha=${CANDIDATE}"; echo "channel=${channel}"; } >> "$GITHUB_OUTPUT"
 
             - uses: pnpm/action-setup@v4
               if: ${{ steps.pending.outputs.pending == 'false' }}
@@ -348,7 +395,7 @@ jobs:
     held:
         name: Hold the release
         needs: [pick, ci, t4, hosts, audit, llm, train]
-        if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && needs.train.result != 'success' && needs.train.outputs.pr == '')) }}
+        if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && needs.train.result != 'success' && needs.train.outputs.pr == '' && needs.train.outputs.nightly == '')) }}
         runs-on: ubuntu-24.04
         permissions:
             actions: read
@@ -365,6 +412,7 @@ jobs:
             LLM_RESULT: ${{ needs.llm.result }}
             LLM_OWNER_ITEM: ${{ needs.llm.outputs.owner_item }}
             TRAIN_RESULT: ${{ needs.train.result }}
+            CHANNEL: ${{ needs.pick.outputs.channel }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -385,9 +433,11 @@ jobs:
                   what=()
                   llm_lane="LLM regression"
                   [ -z "$LLM_OWNER_ITEM" ] || llm_lane="LLM regression (owner item: Google account)"
+                  train_lane="release pull request"
+                  [ "${CHANNEL:-}" != next ] || train_lane="nightly publish"
                   results=()
                   for lane in "candidate pick=$PICK_RESULT" "CI=$CI_RESULT" "T4 GPU=$T4_RESULT" "Hosts=$HOSTS_RESULT" \
-                      "security audit=$AUDIT_RESULT" "$llm_lane=$LLM_RESULT" "release pull request=$TRAIN_RESULT"; do
+                      "security audit=$AUDIT_RESULT" "$llm_lane=$LLM_RESULT" "$train_lane=$TRAIN_RESULT"; do
                       results+=("${lane%%=*} ${lane#*=}")
                       case "${lane#*=}" in success | skipped) ;; *) what+=("${lane%%=*}") ;; esac
                   done
@@ -469,7 +519,8 @@ jobs:
                       --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
     # Versions the candidate and opens the release pull request, only after the full suite, the T4, Hosts, the
-    # audit and the LLM regression tests all passed on it.
+    # audit and the LLM regression tests all passed on it. On the nightly channel it publishes the candidate under
+    # the npm dist-tag `next` instead, from the same builds, and opens no pull request.
     train:
         name: Open the release pull request
         needs: [pick, ci, t4, hosts, audit, llm]
@@ -478,15 +529,18 @@ jobs:
         permissions:
             actions: read
             contents: write
+            id-token: write # npm trusted publishing of a nightly
             issues: write
             pull-requests: write
             statuses: write
-        # Set as soon as the release pull request exists, so the held job knows this run opened one even when a
-        # later step of this job fails.
+        # Set as soon as the release pull request exists (or the nightly is published), so the held job knows this
+        # run released something even when a later step of this job fails.
         outputs:
             pr: ${{ steps.open.outputs.pr }}
+            nightly: ${{ steps.nightly.outputs.tags }}
         env:
             GH_TOKEN: ${{ github.token }}
+            CHANNEL: ${{ needs.pick.outputs.channel }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -508,6 +562,7 @@ jobs:
                   path: ${{ runner.temp }}/builds
 
             - name: Keep the builds for the publish job
+              if: ${{ needs.pick.outputs.channel != 'next' }}
               uses: actions/upload-artifact@v4
               with:
                   name: release-builds-${{ needs.pick.outputs.sha }}
@@ -554,11 +609,12 @@ jobs:
             # date, a person) starts CI and Lint PR Title as usual, and they report on the new head.
             - name: Open the release pull request
               id: open
-              if: ${{ steps.version.outputs.commit != '' }}
+              if: ${{ steps.version.outputs.commit != '' && needs.pick.outputs.channel != 'next' }}
               env:
                   SHA: ${{ needs.pick.outputs.sha }}
                   COMMIT: ${{ steps.version.outputs.commit }}
                   PACKAGES: ${{ inputs.packages }}
+                  GRADUATE: ${{ inputs.graduate }}
               run: |
                   set -euo pipefail
                   node tools/release-diff.mjs "$SHA" "$COMMIT"
@@ -570,8 +626,10 @@ jobs:
                   kind=scheduled
                   [ "$TRIGGER" != workflow_dispatch ] || kind="ad hoc"
                   [ "$TRIGGER" != workflow_run ] || kind="restarted"
+                  which="master's newest commit"
+                  [ -z "$GRADUATE" ] || { kind="graduating"; which="the commit of the nightly chosen to graduate"; }
                   {
-                      echo "The ${kind} release train versions ${SHA}, master's newest commit, after the full CI suite, the T4 GPU lane, Hosts, the security audit and the LLM regression tests passed on it in ${run_url}."
+                      echo "The ${kind} release train versions ${SHA}, ${which}, after the full CI suite, the T4 GPU lane, Hosts, the security audit and the LLM regression tests passed on it in ${run_url}."
                       [ -z "${PACKAGES// /}" ] || echo "Only these packages are released: ${PACKAGES}."
                       echo
                       echo "Releases:"
@@ -588,6 +646,90 @@ jobs:
                           -f description="release train: versions and changelogs only, on a commit that passed the full suite, the T4, Hosts, the audit and the LLM regression tests" \
                           -f target_url="$run_url" >/dev/null
                   done
+
+            # The nightly channel: each package the version commit versions, as X.Y.Z-next.<run number> (X.Y.Z is
+            # the version the next stable release would give it), published under the npm dist-tag `next` with
+            # trusted publishing, from the builds this run tested. Nothing is committed, tagged or given a GitHub
+            # release, and `latest` never moves: npm moves only the tag it is given. A package not on npm yet is
+            # left out, because the registry would make its first version `latest` and its first publish is the
+            # owner's (CLAUDE.md, "A new package's first npm publish").
+            - name: Give the changed packages their nightly versions
+              id: next
+              if: ${{ steps.version.outputs.commit != '' && needs.pick.outputs.channel == 'next' }}
+              env:
+                  COMMIT: ${{ steps.version.outputs.commit }}
+              run: |
+                  set -euo pipefail
+                  projects=()
+                  tags=()
+                  while read -r project version; do
+                      root=$(pnpm exec nx show project "$project" --json | jq -r .root)
+                      manifest="${root}/package.json"
+                      [ "$(jq -r '.private // false' "$manifest")" != true ] || continue
+                      name=$(jq -r .name "$manifest")
+                      if [ -z "$(npm view "$name" version 2>/dev/null)" ]; then
+                          echo "::warning::${name} is not on npm yet, so it gets no nightly; its first publish is a stable release"
+                          continue
+                      fi
+                      next="${version}-next.${GITHUB_RUN_NUMBER}"
+                      jq --indent 4 --arg v "$next" '.version = $v' "$manifest" > "$RUNNER_TEMP/package.json"
+                      cp "$RUNNER_TEMP/package.json" "$manifest"
+                      projects+=("$project")
+                      tags+=("${name}@${next}")
+                  done < <(git log -1 --format=%b "$COMMIT" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
+                  echo "projects=$(IFS=,; echo "${projects[*]}")" >> "$GITHUB_OUTPUT"
+                  echo "tags=$(IFS=,; echo "${tags[*]}")" >> "$GITHUB_OUTPUT"
+                  printf '%s\n' "${tags[@]}" > "$RUNNER_TEMP/nightly.txt"
+
+            - name: Put each tested build in its package
+              if: ${{ steps.next.outputs.projects != '' }}
+              run: |
+                  for dir in "$RUNNER_TEMP"/builds/build-*; do
+                      pkg=${dir##*/build-}
+                      mkdir -p "${pkg}/dist"
+                      cp -a "${dir}/." "${pkg}/dist/"
+                  done
+
+            # npm 11 for OIDC trusted publishing; pinned for the reason the publish job gives.
+            - name: Upgrade npm for trusted publishing
+              if: ${{ steps.next.outputs.projects != '' }}
+              run: npm install -g npm@11
+
+            - name: Publish the nightly under the next dist-tag
+              id: nightly
+              if: ${{ steps.next.outputs.projects != '' }}
+              env:
+                  PROJECTS: ${{ steps.next.outputs.projects }}
+                  TAGS: ${{ steps.next.outputs.tags }}
+                  NPM_CONFIG_PROVENANCE: true
+                  NODE_AUTH_TOKEN: ""
+                  HUSKY: "0"
+              run: |
+                  set -euo pipefail
+                  pnpm exec nx release publish --projects="$PROJECTS" --tag next --nxBail=false
+                  echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+            # The marker the pick job reads: a later attempt skips a commit that already has a nightly, and a
+            # graduation must name a commit that has one.
+            - name: Mark the commit as having a nightly
+              if: ${{ steps.version.outputs.commit != '' && needs.pick.outputs.channel == 'next' }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: nightly-${{ needs.pick.outputs.sha }}
+                  path: ${{ runner.temp }}/nightly.txt
+                  retention-days: 90
+                  if-no-files-found: error
+
+            - name: Announce the nightly
+              if: ${{ steps.nightly.outputs.tags != '' }}
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  SHA: ${{ needs.pick.outputs.sha }}
+                  TAGS: ${{ steps.nightly.outputs.tags }}
+              run: |
+                  # no RELEASE_NOTIFY: a nightly is routine, so its comment mentions nobody
+                  node tools/release-status.mjs nightly --sha "$SHA" --tags "$TAGS" \
+                      --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
             # Everything passed on this commit: a held train is released by this one. Only the train hold closes;
             # a publish hold waits for its own re-run.

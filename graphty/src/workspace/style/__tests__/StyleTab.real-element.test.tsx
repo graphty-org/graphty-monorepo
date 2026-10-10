@@ -365,6 +365,55 @@ describe("the Style tab on the real element", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
+        "T9: sizes Everything by a run's result, on the Everything row, and the nodes grow with it",
+        async () => {
+            const { session, element } = await openWithGraph();
+            // A chord, so nodes 1 and 3 have three edges and 2 and 4 have two.
+            await session.data.addEdges([{ source: "1", target: "3" }]);
+            const { runId } = await session.runs.start("degree");
+            await session.styles.settled();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+
+            await userEvent.click(within(tab).getByRole("button", { name: "Size by attribute" }));
+            const list = await screen.findByRole("dialog", { name: "From data" });
+            await userEvent.click(
+                within(within(list).getByRole("group", { name: "Degree" })).getAllByRole("option")[0],
+            );
+
+            const path = session.results.path(runId);
+            await waitFor(
+                () => {
+                    const mine = readerLayers(session).filter((l) => l.userData?.[EVERYTHING_KEY] === true);
+                    assert.lengthOf(mine, 1, "one Everything layer holds the size");
+                    const size = mine[0].encode?.["node.size"];
+                    assert.equal(size !== undefined && "by" in size ? size.by : undefined, path);
+                    assert.deepEqual(mine[0].selector, { match: "has", path }, "scoped to what the run measured");
+                    assert.isAbove(element.getNode("1")?.size ?? 0, element.getNode("2")?.size ?? 0);
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.isNull(screen.queryByText("Size could not be changed"));
+            // The line reads the result, on the Everything row.
+            assert.isNotNull(within(styleTab()).getByRole("button", { name: /Detach Size/ }));
+
+            // Back to a fixed size: the line goes to the layer that paints everything, and the
+            // scoped layer, now empty, is gone.
+            await userEvent.click(within(styleTab()).getByRole("button", { name: /Detach Size/ }));
+            await waitFor(
+                () => {
+                    const mine = readerLayers(session).filter((l) => l.userData?.[EVERYTHING_KEY] === true);
+                    assert.lengthOf(mine, 1);
+                    assert.deepEqual(mine[0].selector, { match: "everything" });
+                    assert.isUndefined(mine[0].encode?.["node.size"]);
+                },
+                { timeout: TIMEOUT_MS },
+            );
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
         "T9: a new Size line's list offers Fixed size first, one Enter away; the bind icon stays",
         async () => {
             const { session, store } = await openWithGraph();

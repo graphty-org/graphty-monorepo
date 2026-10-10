@@ -1,5 +1,5 @@
-The study runs on build 897d9aed9ffe served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r3d1-897d9aed9/`
-(graphty@0.8.61, commit 897d9aed9), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build 26f3bb968e43 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r3d2-26f3bb968/`
+(graphty@0.8.61, commit 26f3bb968), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -801,3 +801,10 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   not by a hover (T20); the "Filter to neighbors" tooltip's second sentence (T12R); the edge
   inspector's label and value shading (T24 B). No prompt was wrong, so `tasks.md` is unchanged. No
   bar, floor, step limit or success path changed.
+
+- **2026-10-10, during round 3: the build moved from 897d9aed9ffe to 26f3bb968e43.** The previous
+  build, served from `.study-builds/tier2-r3d1-897d9aed9/`, stays frozen as it was. The new build
+  (`.study-builds/tier2-r3d2-26f3bb968/`) carries one app fix, no element change: under a filter
+  step the Overview holds only Nodes showing and Edges showing, and the whole graph's rows sit in a
+  second section headed Full graph; with no step on, the Overview is one section, as before. No
+  bar, floor, step limit or prompt changed.

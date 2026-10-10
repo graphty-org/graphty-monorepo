@@ -178,7 +178,9 @@ jobs:
             # Each project is an invocation of its own. vitest reads fileParallelism from the ROOT config, so the
             # config serialises a whole run that selects node-device-errors or node-limits; naming either beside
             # `node` would serialise the main suite too.
-            - run: node scripts/run-node-shard.js --project=node
+            # node-gpu-alone is the rest of the main suite: the files that hold the GPU for seconds per submission,
+            # run after the node project and one at a time, so no short GPU test waits behind them (issue #1884).
+            - run: node scripts/run-node-shard.js --project=node --project=node-gpu-alone
             # The files that break a device on purpose: a worker they kill takes eleven files with it instead of
             # the whole lane.
             - run: node scripts/run-node-shard.js --project=node-device-errors
@@ -190,7 +192,7 @@ jobs:
             # `--project=node` is 114 of the 125 node files; the second line is the remaining eleven, which without
             # it would run under the subgroups feature only -- and they are the device-loss and lifecycle paths,
             # where a missing-subgroup code path is most likely to behave differently.
-            - run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node
+            - run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node --project=node-gpu-alone
             - run: GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors
             # The key carries the container image, not just runner.os. Playwright downloads a browser build
             # matched to the distribution it detects, and every other lane keys on `Linux` alone -- so without

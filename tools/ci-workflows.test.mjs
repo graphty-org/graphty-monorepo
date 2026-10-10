@@ -1654,6 +1654,31 @@ describe(".mergify.yml and the T4", () => {
     });
 });
 
+describe("the webgpu-graph-algorithms node suite on every lane", () => {
+    // Issue #1884: the files that hold the GPU for seconds per submission are the node-gpu-alone project, which runs
+    // after the node project and alone. A lane that names only `--project=node` silently drops them.
+    it("selects node-gpu-alone wherever it selects the node project, except a run of one named file", () => {
+        const pkg = JSON.parse(
+            readFileSync(new URL("../webgpu-graph-algorithms/package.json", import.meta.url), "utf8"),
+        );
+        const lines = [
+            ...SHARDS.map((s) => s["test-command"]),
+            ...Object.values(pkg.scripts),
+            ...workflow("hosts.yml").split("\n"),
+            ...workflow("gpu.yml").split("\n"),
+        ].filter(
+            (line) =>
+                /run-node-shard\.js|vitest run/.test(line) &&
+                /--project[= ]node(?![\w-])/.test(line) &&
+                !/\.test\.ts\b/.test(line),
+        );
+        assert.ok(lines.length >= 9, `found only ${lines.length} node-suite invocations`);
+        for (const line of lines) {
+            assert.match(line, /--project[= ]node-gpu-alone\b/, line);
+        }
+    });
+});
+
 describe("hosts.yml", () => {
     it("runs nightly, and a pull request's Windows leg on the short scope", () => {
         const hosts = workflow("hosts.yml");

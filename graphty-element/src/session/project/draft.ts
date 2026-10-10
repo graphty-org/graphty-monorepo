@@ -27,6 +27,7 @@ import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
 import { mergeRowPatches, type RowPatch, rowPatchBytes } from "./arrangement";
 import type { TouchedIds } from "./graphOps";
+import type { Counted } from "./History";
 import type { LayoutChoice, NoteEntry, ProjectState, RunEntry, VisibilityState } from "./state";
 import { strictStateEnabled, strictViolation } from "./strict";
 
@@ -206,55 +207,79 @@ export function touchedBy(patch: Patch, into: TouchedIds): void {
  * @param patch - The patch.
  * @param token - The resident snapshot's graph token.
  * @param seen - Results and indexes already counted against an older step.
+ * @param tokens - Where to add the graph token of every snapshot id index a result counted here
+ *     reads through: only for those does whether the index costs anything depend on `token`.
  * @returns Bytes.
  */
-export function patchCharge(patch: Patch, token: number, seen: WeakSet<object>): number {
+export function patchCharge(patch: Patch, token: number, seen: Counted, tokens?: Set<number>): number {
     let bytes = 0;
     for (const entry of patch.entries) {
-        if (entry.slice === "sets") {
-            // A kept set's record, held by reference and shared by every step that has it: a
-            // member edit keeps both whole records, 8 bytes a node member and the edge columns.
-            for (const value of [entry.prior, entry.next]) {
-                if (value !== ABSENT && value !== undefined && !seen.has(value as object)) {
-                    seen.add(value as object);
-                    bytes += recordBytes(value as ElementSet);
-                }
-            }
-
-            continue;
-        }
-
-        if (entry.slice === "notes") {
-            // A note's record, held by reference and shared by every step that has it.
-            for (const value of [entry.prior, entry.next]) {
-                if (value !== ABSENT && value !== undefined && !seen.has(value as object)) {
-                    seen.add(value as object);
-                    bytes += noteBytes((value as NoteEntry).note);
-                }
-            }
-
-            continue;
-        }
-
-        if (entry.slice !== "runs") {
-            continue;
-        }
-
         for (const value of [entry.prior, entry.next]) {
-            const result = value === ABSENT ? undefined : (value as RunEntry).result;
-            if (result === undefined || seen.has(result)) {
+            if (value === ABSENT || value === undefined) {
                 continue;
             }
 
-            seen.add(result);
-            const retained = retentionOf(result);
-            bytes += retained.bytes;
-            for (const index of retained.indexes) {
-                if (index.token !== token && !seen.has(index.index)) {
-                    seen.add(index.index);
-                    bytes += index.bytes;
-                }
+            if (entry.slice === "sets") {
+                // A kept set's record, held by reference and shared by every step that has it: a
+                // member edit keeps both whole records, 8 bytes a node member and the edge columns.
+                bytes += once(value as object, seen, () => recordBytes(value as ElementSet));
+            } else if (entry.slice === "notes") {
+                // A note's record, held by reference and shared by every step that has it.
+                bytes += once(value as object, seen, () => noteBytes((value as NoteEntry).note));
+            } else if (entry.slice === "runs") {
+                bytes += resultCharge((value as RunEntry).result, token, seen, tokens);
             }
+        }
+    }
+
+    return bytes;
+}
+
+/**
+ * What something held by reference costs the first time a charge pass meets it.
+ * @param value - The thing.
+ * @param seen - What the pass has counted.
+ * @param bytes - What it costs.
+ * @returns Its cost, or 0 when it was counted already.
+ */
+function once(value: object, seen: Counted, bytes: () => number): number {
+    if (seen.has(value)) {
+        return 0;
+    }
+
+    seen.add(value);
+    return bytes();
+}
+
+/**
+ * What a run result retains, the first time a charge pass meets it: its columns and caches, and
+ * each id index it reads through that is not the resident snapshot's.
+ * @param result - The result, if the run has one.
+ * @param token - The resident snapshot's graph token.
+ * @param seen - What the pass has counted.
+ * @param tokens - Where to add the graph token of every snapshot id index the result reads through.
+ * @returns Bytes.
+ */
+function resultCharge(
+    result: RunEntry["result"] | undefined,
+    token: number,
+    seen: Counted,
+    tokens?: Set<number>,
+): number {
+    if (result === undefined || seen.has(result)) {
+        return 0;
+    }
+
+    seen.add(result);
+    const retained = retentionOf(result);
+    let { bytes } = retained;
+    for (const index of retained.indexes) {
+        if (index.token !== null) {
+            tokens?.add(index.token);
+        }
+
+        if (index.token !== token) {
+            bytes += once(index.index, seen, () => index.bytes);
         }
     }
 

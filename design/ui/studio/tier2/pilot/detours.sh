@@ -103,8 +103,8 @@ T20-K) walk T20-K "empty $K" '--key Tab --key Tab --key Tab --key Tab --key Ente
     '--key ArrowRight --key ArrowRight' '--expect "Weight: km (farther)"' '--key Escape' '--expect "Open as a new graph"' ;;
 # Wrong turn: "Open project or file..." from the start screen, and from inside a project.
 T20-D1) walk T20-D1 empty '--click "No thanks"' '--click "Open project or file..." --upload bus-stops.csv' \
-    '--expect "Higher means"' '--click "Role of minutes"' '--click "Weight"' '--click "Farther"' '--click "Load"' \
-    '--key p' '--expect "minutes (farther"' '--click "Weight"' '--key Escape' '--key Escape' ;;
+    '--expect "Open as a new graph"' '--click "Role of minutes"' '--click "Weight"' '--expect "Higher means"' \
+    '--click "Farther"' '--click "Load"' '--key p' '--expect "minutes (farther"' '--click "Weight"' '--key Escape' '--key Escape' ;;
 T20-D2) walk T20-D2 setup:$SET/bus-stops-ranked.txt '--click "Main menu"' '--click "Open project or file..." --upload trails.csv' \
     '--key Tab' '--key Escape' '--click "Cancel"' ;;
 # ---- T21: replace -----------------------------------------------------------------------------

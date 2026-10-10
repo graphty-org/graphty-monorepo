@@ -10,35 +10,36 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-09 -- Round 1 CLOSED. Answer to "did we dry run?": YES (four builds walked, then the
-  frozen build), and on the walked routes 0 participants met a broken control (every session.log
-  empty, no grade decided by a defect). BUT it walked only the key's routes, by pointer only, and
-  never dry-ran the study tool -- so detour defects, focus faults and tool faults reached sessions.
-- 2026-10-09 -- Round 2 starts only after: tool fixed (<=4 alive, exact matches, real file drop,
-  every follow-up, no facilitator files in reach), bar 2/7/8/9 scripts built with planted failures,
-  and a dry run of each task's success path PLUS its two commonest round 1 wrong turns, by pointer
-  AND keyboard. A dry run report must list every detour walked.
-- 2026-10-09 -- Round 2 tests three door changes: find hint to a rule (T22), source inspector "..."
-  with Replace (T21), start-screen Open through the Data page (T20). Credit each only on its route;
-  a pass on the old route says nothing about the change.
-- 2026-10-09 -- Watch in round 2: does T22 clear its 3-of-4 floor via the hint; does the T20 Data
-  page route keep tier 1's open-your-own-file under its bar (one extra Load step); T12R's ArrowDown
-  now opens a tie (false-answer trap, "shared_chapters 17"); stale key ", out of date" (bar 5).
+- 2026-10-09 -- Round 2 PLANNED (`tier2/rounds/round-2/plan.md`, `sessions.py`): 56 sessions on
+  8f0d5a6f7791; core four 8 each, T22 raised to 8 (only bar 1 failure), T4 and T24 4, T19 and T23
+  3, T12R 2. Core four and T22 swap round 1's halves. Gate before session 1: detours clean on the
+  frozen build, `--prove` 5 in a row, open-work lists, follow-ups, <=4 alive.
+- 2026-10-09 -- Answer to "did we dry run before round 2?": YES, and wider than round 1: detour
+  walks by pointer AND keyboard (`dry-run-r2-1.md`), then pilots on three builds, then pilots on
+  the study build. BUT the detour script had last run on a working-tree build, not the frozen
+  one, and the workflow starts sessions straight after the plan, with no preflight step. I ran the
+  30 detours (30 of 30 pass) and `--prove` x5 (5 of 5 clean) on the frozen build myself.
+- 2026-10-09 -- A failing walk is not yet a fault: T20-D1 "failed" because the walk expected
+  "Higher means" before the column was made the weight; the screen was right. Look at the PNG
+  before classing a FAIL.
+- 2026-10-09 -- Round 2 credits three door changes only on their own routes (T22 find hint, T21
+  source "...", T20 start-screen open through the Data page); graders record the route taken.
+- 2026-10-09 -- Watch in round 2: T22 floor (now 7 of 8); T20 and T18 cost (bar 11); T12R's Down
+  arrow opening a tie (false-answer trap); stale key ", out of date" (bar 5); second path run
+  replacing the first (bar 2, graders must rule).
 - 2026-10-09 -- Expected to keep failing: bar 10 on drawn names overlapping (element label
-  placement, not fixed between rounds). Report it as the class, never per-instance (layout unseeded).
+  placement). Report the class, never per instance (layout unseeded).
 - 2026-10-09 -- Persona scripts decided 2 of 3 round 1 non-successes (Tom's two-attempt exit).
-  Read the persona FILE before blaming the screen; grade "scripted exit" as a label beside G.
-- 2026-10-09 -- Histories steer first moves; the SECOND place looked is the real signal (the
-  column was second for 4 of 4 on T22, 6 of 7 on T20).
-- 2026-10-09 -- Check each session's 01.png against its expected start: under load a setup click
-  can land or not while setup.log says "could not click" either way.
-- 2026-10-09 -- Never wrap `real.mjs --start` in `with-browser.sh` (it takes its own slot).
+  Read the persona FILE before blaming the screen; "scripted exit" is a label beside G.
+- 2026-10-09 -- Histories steer first moves; the SECOND place looked is the real signal.
+- 2026-10-09 -- Check each session's 01.png against its expected start; never wrap
+  `real.mjs --start` in `with-browser.sh` (it takes its own slot).
 - 2026-10-07 -- One skeptic's weakening stands unless the other answers its reason with evidence;
   never override a grader without new evidence.
 - 2026-10-06 -- All participants are one model: failure strong, pass weak. Solid = scripted repro
   or a cause in code.
-- 2026-10-07 -- Stop rule: if round 2 does not move the core four over round 1 (success, ease
-  4.07), go to real users (graphty.app opt-in data, 5-8 analysts, a real screen-reader user).
+- 2026-10-07 -- Stop rule: if round 2 does not move the core four over round 1 (round 1: 29 of 31
+  valid core sessions, ease 5.19), go to real users (graphty.app opt-in data, 5-8 analysts).
 
 ## Priorities and values
 
@@ -79,6 +80,17 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-09 (researcher, round 2 plan) -- 56 sessions, the studio's cap. Every task was touched
+  by a change, so "touched at 4 or more" plus full size for the core four and T22 needs 60; as in
+  tier 1 rounds 2 and 3 the cap held and the off-path-touched tasks (T19 notes keys, T23 find list)
+  run at 3 with all-must-pass. T22 raised 4 -> 8 because it alone missed bar 1. Core four and T22
+  swap round 1's halves (each persona meets the other dataset; keeps round 1's checked balance);
+  Dana keeps T4 (two-sheet history), Ruth and Jordan keep T12R and swap halves; still no Ruth on
+  T19. Setup starts only: frozen `tasks.md` forbids saved-project starts, though the workflow asked
+  for them. Run order puts T20 and T22 first so the new routes surface early. Rejected: going to
+  60 (breaks the per-round cap with no new reason); dropping T12R (its route changed and it holds
+  a false-answer trap).
+
 - 2026-10-09 (researcher, round 1 closed) -- Read `rounds/round-1/insights.md` and
   `decisions.md`. Taught: a dry run removes faults only where it walks; the commonest detours and
   the tool itself must be walked too, else sessions spend time on build and tool faults instead of
@@ -87,25 +99,12 @@ reasons, in short:
   words at rest do not rise; "Select where" waits unless the hint fails for 3+ in one place;
   drawn-name overlap filed against the element. Nothing new for the owner.
 
-- 2026-10-09 (researcher, key matched to the 8f0d5a6f7791 pilots) -- New build section (what
-  changed vs 2dcea6dd5bba, plus a list of screens the key never described), and inline fixes where
-  the key was now false: T12R path 5 -> 4 steps (find list marks first result; ArrowDown now opens
-  a tie), T4 left-out heading icon, T24 B name click, PageRank's "Values" heading, T19 start-screen
-  entries "from ddf8b3b63039 on". Reason for changing T12R's count: T12R is not in bar 11, so the
-  count is guidance, not a limit; no bar moved. Did not edit tier 1's `../answers.md` T12 keyboard
-  path (out of scope); the tier 2 T12R entry says it is one key shorter now. The build's own
-  change list (criteria log, "the find option that Enter picks marked", "click on a node's label
-  pick it") explained two of the three key breaks -- read it before the pilots next time.
-- 2026-10-09 (researcher, key matched to 2dcea6dd5bba) -- build section + ~20 scoped edits; kept
-  older-build sentences only where a citation may lead a grader there; added traps participants
-  can land on even when pilots called them defects. No prompt wrong; no bar moved.
-
-- 2026-10-09 (researcher, earlier key matches: ddf8b3b63039, fabc16247403, eaea2a75d95b, folded)
-  -- Each time: build section plus scoped edits; delete notes for screens no longer drawn rather
-  than leave "record any participant" lines (they prime graders); re-point citations whose folders
-  a newer pilot overwrote; settle pilot conflicts from the screen before the click; marked the
-  three round 2 routes with walked counts (T21 8); told graders `work.json` "gone" for T21's
-  replaced file and "step-1 off" are tool records, not lost work. No prompt or bar changed.
+- 2026-10-09 (researcher, key matched to each new build: 8f0d5a6f7791, 2dcea6dd5bba, ddf8b3b63039,
+  fabc16247403, eaea2a75d95b; folded) -- Each time a build section plus scoped edits; T12R's path
+  5 -> 4 steps on 8f0d5 (Down arrow now opens a tie), no bar moved because T12R is outside bar 11.
+  Delete notes for screens no longer drawn (they prime graders); re-point citations a newer pilot
+  overwrote; settle pilot conflicts from the screen before the click; read the build's own change
+  list first -- it explained most key breaks.
 
 - 2026-10-09 (researcher, round 2 key and grading wording) -- Added "Round 2 route" entries to T20
   (start-screen Open through the Data page, 10), T21 (source inspector "...", 7), T22 (find hint to
@@ -197,24 +196,20 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-09 (round 2 plan) -- Worked: checking the detour walks' `session.json` build stamps
+  before claiming the frozen build was walked (they read 5ac7ca8f7058, a working-tree build).
+  Worked: running `pilot/detours.sh all` (LANES=2) and `real.mjs --prove` x5 in the background
+  while writing the plan; about 40 minutes. Worked: `sessions.py` copied from round 1 with extra
+  asserts (sizes, the half swap, no Ruth on T19). Did not work: trusting a walk's FAIL as a
+  defect -- T20-D1's expectation was out of date; fixed the walk's order of checks.
+
 - 2026-10-09 -- Full pilot of all 20 halves on each new frozen build before a round: WORKED again
   (8f0d5a6f7791). It caught a key path that a build fix silently broke (T12R ArrowDown) -- exactly
   the failure a round would otherwise spend sessions finding. Keep it per build, not per round.
 
-- 2026-10-09 (2dcea key) -- Worked: one scratch python of exact (old, new) pairs, each asserted
-  once, then grep for non-ASCII. Worked: reading the build's own change-log entry first -- it
-  listed the fixes ("All N rows", tooltip left, no filled menu item, Hops reach) that explained
-  most mismatches before I opened any report.
-
-- 2026-10-09 (eaea key) -- Worked again: one script of exact (old, new) pairs, each asserted to
-  match a stated count, then an ASCII grep. Did not work earlier: a dry run's fixes were recorded
-  in its own report (`dry-run-r2-3.md`) but not in `answers.md`, so the next pilot re-found them
-  as mismatches. Lesson: every dry run's "gone" list edits the key in the same commit.
-
-- 2026-10-09 (fabc key) -- Worked: one edit file of (section, old, new) triples, matched
-  whitespace-insensitively inside the task's section with an assert per triple, plus an ASCII
-  assert before writing: 65 edits applied on the first run (`tmp/researcher/r2d1-key/`). Worked:
-  when two pilots disagree about a control, look at the screen BEFORE the click, not after.
+- 2026-10-09 (key matches, folded) -- Worked: one scratch python of (section, old, new) edits,
+  each asserted, then an ASCII grep; reading the build's change-log entry first. Did not work: a
+  dry run's fixes left in its own report and not in `answers.md`, so the next pilot re-found them.
 
 - 2026-10-09 (round 2 key) -- Worked: applying each task's edits as (old, new) pairs scoped to the
   task's section with an assert per pair; viewing the two screenshots where pilots disagreed

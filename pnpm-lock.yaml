@@ -14569,7 +14569,6 @@ snapshots:
       - utf-8-validate
       - vite
 
-
   '@vitest/browser@4.1.11(patch_hash=5860fc4758e760f7fedfc33fe2a20f7c1ee40625ab65617bb47a68677bd11e67)(vite@6.4.3(@types/node@20.19.43)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.11)':
     dependencies:
       '@blazediff/core': 1.9.1

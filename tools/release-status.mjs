@@ -9,6 +9,7 @@
 //   held            a train attempt failed and the release is held (a restart that fails again too)
 //   published       the publish job tagged every package and every version is on npm
 //   publish-failed  the publish job failed (a re-run of it reports again, success or failure)
+//   nightly         the train passed on the nightly channel and published --tags under the npm dist-tag `next`
 //   run-ended       a backstop (release-watch.yml): a release run ended badly (--what is its conclusion) and no
 //                   failure comment here names that run and attempt -- it never reached its own announce step
 //   dequeued        the release pull request (--pr URL, head --sha) left the merge queue without merging
@@ -54,6 +55,9 @@ export function statusComment(outcome, f, notify = "") {
         case "publish-failed":
             text = `**Publish failed**${rerun} on ${sha}: not every version is tagged and on npm. Details: ${ref(f.issue)}. Re-running the failed jobs of the run publishes what is missing.`;
             break;
+        case "nightly":
+            text = `**Nightly published** from ${sha}${restart}${rerun}: ${list(f.tags) || "no package"} under the npm dist-tag \`next\`. Graduate it with \`gh workflow run release.yml --ref master -f graduate=${f.sha}\`.`;
+            break;
         case "run-ended":
             text = `**Release run ended ${f.what || "badly"}**${rerun} on ${sha}, and no comment here reported a failure for it: it stopped before announcing its outcome. Read the run; re-running its failed jobs retries it.`;
             break;
@@ -62,7 +66,7 @@ export function statusComment(outcome, f, notify = "") {
             break;
         default:
             throw new Error(
-                `unknown outcome "${outcome}" (opened, held, published, publish-failed, run-ended, dequeued)`,
+                `unknown outcome "${outcome}" (opened, held, published, publish-failed, nightly, run-ended, dequeued)`,
             );
     }
     const mention = notify.trim() ? notify.trim() + " " : "";

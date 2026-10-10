@@ -2143,10 +2143,15 @@ describe("release.yml", () => {
             ["T4", "T4 GPU"],
             ["HOSTS", "Hosts"],
             ["AUDIT", "security audit"],
-            ["TRAIN", "release pull request"],
         ]) {
             assert.ok(held.includes(`"${name}=$${result}_RESULT"`), name);
         }
+        // the train's lane is named for what it does on the run's channel
+        assert.ok(held.includes('"$train_lane=$TRAIN_RESULT"'), "train");
+        assert.match(
+            held,
+            /train_lane="release pull request"\n\s+\[ "\$\{CHANNEL:-\}" != next \] \|\| train_lane="nightly publish"\n/,
+        );
         // the LLM lane is named an owner item when the provider refused the account
         assert.ok(held.includes('"$llm_lane=$LLM_RESULT"'), "LLM regression");
         assert.match(held, /\[ -z "\$LLM_OWNER_ITEM" \] \|\| llm_lane="LLM regression \(owner item: Google account\)"/);
@@ -2179,8 +2184,9 @@ describe("release.yml", () => {
         const trainNeeds = /\n {8}needs: \[([^\]]*)\]/.exec(train)[1].split(", ");
         const condition = /\n {8}if: \$\{\{ (.*) \}\}\n/.exec(held)[1];
         // the condition as JavaScript: GitHub's expression syntax here is a subset of it. `pr` is the train's
-        // output: the release pull request it opened, "" (GitHub's value for an unset output) when it opened none.
-        const runs = (results, release = "true", pr = "") =>
+        // output: the release pull request it opened, "" (GitHub's value for an unset output) when it opened none;
+        // `nightly` likewise the versions a nightly published.
+        const runs = (results, release = "true", pr = "", nightly = "") =>
             new Function(
                 "needs",
                 `return ${condition.replace(/\balways\(\)/g, "true").replace(/!cancelled\(\)/g, "true")};`,
@@ -2190,7 +2196,7 @@ describe("release.yml", () => {
                         j,
                         {
                             result: results[j] ?? "success",
-                            outputs: j === "pick" ? { release } : j === "train" ? { pr } : {},
+                            outputs: j === "pick" ? { release } : j === "train" ? { pr, nightly } : {},
                         },
                     ]),
                 ),
@@ -2272,6 +2278,13 @@ describe("release.yml", () => {
 
         // Issue #1768: a bookkeeping step after the pull request opened (closing the held issue, announcing it)
         // failed the train, and this job posted "Release held" for a release that was going ahead.
+        it("opens no held issue when a step fails after a nightly was published", () => {
+            for (const result of NOT_SUCCESS.filter((r) => r !== "skipped")) {
+                assert.equal(runs({ train: result }, "true", "", "@graphty/layout@1.2.3-next.7"), false, result);
+            }
+            assert.match(train, /\n {12}nightly: \$\{\{ steps.nightly.outputs.tags \}\}\n/);
+        });
+
         it("opens no held issue when a step fails after the train opened its pull request", () => {
             const pr = "https://github.com/graphty-org/graphty-monorepo/pull/1800";
             for (const result of NOT_SUCCESS.filter((r) => r !== "skipped")) {
@@ -2435,7 +2448,9 @@ describe("release.yml", () => {
         // tools/release-held.sh (the held train issue, or none; `publishHold` an open publish hold, which only a
         // plain `find` returns). `trigger` is the workflow's TRIGGER: "schedule" for a scheduler dispatch
         // (scheduled=true), "workflow_dispatch" for one by hand.
-        const pending = (trigger, heldIssue, trainPr = false, publishHold = "") => {
+        // `nightly` is the NIGHTLY_ENABLED switch, `graduate` the dispatch input, `markers` how many nightly markers
+        // the artifacts API finds for a commit.
+        const pickRun = (trigger, heldIssue, trainPr = false, publishHold = "", nightly = {}) => {
             const script = /- name: Skip while the previous release is pending[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
                 pick,
             )[1];
@@ -2445,7 +2460,8 @@ describe("release.yml", () => {
                 mkdirSync(join(dir, "bin"));
                 // `gh pr list` names the open train pull request; `gh pr view` finds it still pending
                 const gh = trainPr ? 'case "$2" in list) echo 77;; view) echo pending;; esac' : "";
-                writeFileSync(join(dir, "bin", "gh"), `#!/bin/sh\n${gh}\n`, { mode: 0o755 });
+                const api = `case "$1" in api) echo ${nightly.markers ?? 0};; esac`;
+                writeFileSync(join(dir, "bin", "gh"), `#!/bin/sh\n${api}\n${gh}\n`, { mode: 0o755 });
                 // no release commit yet, so no tag to wait for
                 writeFileSync(join(dir, "bin", "git"), "#!/bin/sh\n", { mode: 0o755 });
                 writeFileSync(
@@ -2467,14 +2483,58 @@ describe("release.yml", () => {
                         GITHUB_RUN_ID: "1",
                         CANDIDATE: "abc123",
                         GITHUB_OUTPUT: output,
+                        NIGHTLY_ENABLED: nightly.enabled ?? "",
+                        GRADUATE: nightly.graduate ?? "",
                     },
                 });
-                assert.equal(run.status, 0, run.stderr);
-                return readFileSync(output, "utf8");
+                return { status: run.status, stderr: run.stderr, out: readFileSync(output, "utf8") };
             } finally {
                 rmSync(dir, { recursive: true, force: true });
             }
         };
+        const pending = (...args) => {
+            const run = pickRun(...args);
+            assert.equal(run.status, 0, run.stderr);
+            return run.out;
+        };
+
+        it("publishes a nightly only when the switch is on, and never for a person's dispatch", () => {
+            const on = { enabled: "true" };
+            assert.equal(pending("schedule", "", false, "", on), "pending=false\nsha=abc123\nchannel=next\n");
+            assert.equal(pending("workflow_run", "1234", false, "", on), "pending=false\nsha=abc123\nchannel=next\n");
+            assert.equal(
+                pending("workflow_dispatch", "", false, "", on),
+                "pending=false\nsha=abc123\nchannel=latest\n",
+            );
+            // off unless exactly "true": unset, empty or anything else is today's train
+            for (const enabled of ["", "false", "TRUE", "1"]) {
+                assert.equal(
+                    pending("schedule", "", false, "", { enabled }),
+                    "pending=false\nsha=abc123\nchannel=latest\n",
+                );
+            }
+            assert.match(pick, /NIGHTLY_ENABLED: \$\{\{ vars.NIGHTLY_ENABLED \}\}/);
+            // a commit that already has a nightly is not tested and published again
+            assert.equal(pending("schedule", "", false, "", { enabled: "true", markers: 1 }), "pending=true\n");
+        });
+
+        it("graduates only a published nightly on master, by a person's dispatch", () => {
+            const sha = "0123456789abcdef0123456789abcdef01234567";
+            const ok = pending("workflow_dispatch", "", false, "", { enabled: "true", graduate: sha, markers: 1 });
+            assert.equal(ok, `pending=false\nsha=${sha}\nchannel=latest\n`);
+            const refused = (trigger, nightly) => {
+                const run = pickRun(trigger, "", false, "", nightly);
+                assert.equal(run.status, 1, run.stderr);
+                assert.equal(run.out, "", "refused before any output");
+            };
+            refused("schedule", { enabled: "true", graduate: sha, markers: 1 });
+            refused("workflow_dispatch", { graduate: "abc123", markers: 1 });
+            refused("workflow_dispatch", { graduate: "$(touch pwned)", markers: 1 });
+            refused("workflow_dispatch", { graduate: sha, markers: 0 });
+            assert.match(pick, /git merge-base --is-ancestor "\$GRADUATE" HEAD \|\| refuse /);
+            assert.match(pick, /git merge-base --is-ancestor "\$last" "\$GRADUATE" \|\|/);
+            assert.match(pick, /git checkout --quiet --detach "\$GRADUATE"\n\s+CANDIDATE=\$GRADUATE\n/);
+        });
 
         it("is started by every completed CI run of a push to master", () => {
             assert.match(
@@ -2492,22 +2552,22 @@ describe("release.yml", () => {
         });
 
         it("starts the held release on the pushed commit when a held issue is open", () => {
-            assert.equal(pending("workflow_run", "1234"), "pending=false\nsha=abc123\n");
+            assert.equal(pending("workflow_run", "1234"), "pending=false\nsha=abc123\nchannel=latest\n");
         });
 
         it("never starts when no held issue is open", () => {
             assert.equal(pending("workflow_run", ""), "pending=true\n");
             // the schedule, unlike a restart, runs only when nothing is held
-            assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\n");
+            assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\nchannel=latest\n");
             assert.equal(pending("schedule", "1234"), "pending=true\n");
-            assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\n");
+            assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\nchannel=latest\n");
         });
 
         it("never restarts a train for a publish hold, which only a re-run publish clears; the schedule still skips", () => {
             assert.equal(pending("workflow_run", "", false, "1440"), "pending=true\n");
             assert.equal(pending("schedule", "", false, "1440"), "pending=true\n");
             // a train hold beside it still restarts
-            assert.equal(pending("workflow_run", "1234", false, "1440"), "pending=false\nsha=abc123\n");
+            assert.equal(pending("workflow_run", "1234", false, "1440"), "pending=false\nsha=abc123\nchannel=latest\n");
             assert.match(pick, /\[ -z "\$\(tools\/release-held.sh find --train\)" \]/);
             assert.match(pick, /held=\$\(tools\/release-held.sh find\)\n/);
         });
@@ -2516,9 +2576,9 @@ describe("release.yml", () => {
             // scheduled=true: TRIGGER is "schedule"
             assert.equal(pending("schedule", "", true), "pending=true\n");
             assert.equal(pending("schedule", "1234"), "pending=true\n");
-            assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\n");
+            assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\nchannel=latest\n");
             // by hand (scheduled=false): runs despite the held issue, waits for an open train pull request
-            assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\n");
+            assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\nchannel=latest\n");
             assert.equal(pending("workflow_dispatch", "", true), "pending=true\n");
         });
 
@@ -2537,6 +2597,18 @@ describe("release.yml", () => {
         });
     });
 
+    it("is the only workflow that publishes to npm, so npm's trusted-publisher entries stay one per package", () => {
+        const dir = new URL("../.github/workflows/", import.meta.url);
+        const publishers = readdirSync(dir)
+            .filter((f) => /\.ya?ml$/.test(f))
+            .filter((f) =>
+                /nx release publish|npm publish|pnpm publish|yarn publish|changeset publish/.test(
+                    readFileSync(new URL(f, dir), "utf8").replace(/^\s*#.*$/gm, ""),
+                ),
+            );
+        assert.deepEqual(publishers, ["release.yml"]);
+    });
+
     it("publishes only on a push that lands a release branch, from the train's builds, with OIDC", () => {
         assert.match(
             publish,
@@ -2545,7 +2617,25 @@ describe("release.yml", () => {
         assert.match(publish, /id-token: write/);
         assert.match(publish, /node tools\/release-diff.mjs "\$sha" "\$commit"/);
         assert.match(publish, /\.workflow_run.head_branch == "master"/);
-        assert.doesNotMatch(train, /id-token|nx release publish/);
+        // the train's only publish is the nightly: dist-tag next, on the nightly channel, never latest
+        assert.deepEqual(train.match(/nx release publish[^\n]*/g), [
+            'nx release publish --projects="$PROJECTS" --tag next --nxBail=false',
+        ]);
+        assert.match(
+            train,
+            /- name: Give the changed packages their nightly versions\n\s+id: next\n\s+if: \$\{\{ steps.version.outputs.commit != '' && needs.pick.outputs.channel == 'next' \}\}/,
+        );
+        assert.match(train, /next="\$\{version\}-next.\$\{GITHUB_RUN_NUMBER\}"/);
+        assert.match(
+            train,
+            /- name: Publish the nightly under the next dist-tag\n\s+id: nightly\n\s+if: \$\{\{ steps.next.outputs.projects != '' \}\}/,
+        );
+        assert.match(
+            train,
+            /- name: Open the release pull request\n\s+id: open\n\s+if: \$\{\{ steps.version.outputs.commit != '' && needs.pick.outputs.channel != 'next' \}\}/,
+        );
+        assert.doesNotMatch(release.replace(/^\s*#.*$/gm, ""), /--tag latest|npm dist-tag (add|rm)/);
+        assert.doesNotMatch(train, /gh release create|git tag /);
         // a Mergify merge commit of any other pull request never names the release branch, so it never publishes
         const marker = /contains\(github.event.head_commit.message, '([^']+)'\)/.exec(publish)[1];
         assert.ok(!"Merged #42, #43, #44\n\nMerged by Mergify Merge Queue".includes(marker));

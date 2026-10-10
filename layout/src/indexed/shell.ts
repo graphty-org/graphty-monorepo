@@ -50,7 +50,7 @@ export function shellRows(
     }
     const turn = rotate === "networkx" ? Math.PI / shells.length : rotate;
     if (!Number.isFinite(turn)) {
-        throw new Error(`rotate must be a finite number of radians or "networkx", not ${String(rotate)}`);
+        throw new TypeError(`rotate must be a finite number of radians or "networkx", not ${String(rotate)}`);
     }
     const radiusBump = scale / shells.length;
     let radius = radiusBump;

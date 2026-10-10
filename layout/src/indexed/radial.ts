@@ -117,6 +117,27 @@ function radialRings(g: GraphSnapshot, root: number | null): { rings: number[][]
 }
 
 /**
+ * The leaves of the breadth-first tree under each reached node (1 for a leaf), summed deepest ring first.
+ * @param n - node count
+ * @param rings - node indices per ring, the root's first
+ * @param parent - each node's breadth-first parent
+ * @param reachedRings - how many rings, from the root's, the root reaches
+ * @returns the leaf count per node, 0 for a node the root cannot reach
+ */
+function leavesUnder(n: number, rings: readonly number[][], parent: Int32Array, reachedRings: number): F64 {
+    const leaves = new Float64Array(n);
+    for (let k = reachedRings - 1; k >= 0; k--) {
+        for (const u of rings[k]) {
+            leaves[u] ||= 1;
+            if (k > 0) {
+                leaves[parent[u]] += leaves[u];
+            }
+        }
+    }
+    return leaves;
+}
+
+/**
  * Each node within its breadth-first parent's sector. The root's sector is the whole circle; a node's share of its
  * parent's sector is in proportion to the leaves under it, handed out in edge order, and the node sits at the middle of
  * its share. A deeper node's share is narrowed to the wedge its edges can reach without crossing a neighbouring branch,
@@ -143,16 +164,7 @@ function sectorRows(
     // the unreachable nodes, if any, are the last ring: the only one past the root's whose nodes have no parent
     const last = rings.at(-1) ?? [];
     const reachedRings = rings.length > 1 && parent[last[0]] === -1 ? rings.length - 1 : rings.length;
-    // leaves under each reached node, deepest ring first
-    const leaves = new Float64Array(n);
-    for (let k = reachedRings - 1; k >= 0; k--) {
-        for (const u of rings[k]) {
-            leaves[u] ||= 1;
-            if (k > 0) {
-                leaves[parent[u]] += leaves[u];
-            }
-        }
-    }
+    const leaves = leavesUnder(n, rings, parent, reachedRings);
     // the sector each node hands out to its children, in ring (edge) order and in proportion to their leaves. Past the
     // root it is the node's own share of its parent's sector, narrowed to the wedge between the tangents at the node's
     // ring that meet the next ring, so no edge to a child can cut across a neighbouring branch (Eades, 1992)

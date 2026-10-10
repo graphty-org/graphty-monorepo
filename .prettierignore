@@ -19,6 +19,11 @@ graphty-element/jsx.ts
 *.min.js
 *.bundle.js
 
+# The design studio's round records (design/ui/studio/rounds/, tier2/rounds/): session logs,
+# transcripts and grades its study tool and agents write while a round runs, kept as written.
+design/ui/studio/rounds/
+design/ui/studio/*/rounds/
+
 # Package manager
 pnpm-lock.yaml
 

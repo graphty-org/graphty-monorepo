@@ -14,7 +14,14 @@ import { DATASETS } from "@graphty/graph-samples";
 import type { StoryObj } from "@storybook/html-vite";
 
 import type { GeneratorName } from "../src/index.js";
-import { ALGORITHM_GROUPS, GALLERY_PAGES, type GalleryPage, galleryTitle, type Network, presetWithSeed } from "./catalog.js";
+import {
+    ALGORITHM_GROUPS,
+    GALLERY_PAGES,
+    type GalleryPage,
+    galleryTitle,
+    type Network,
+    presetWithSeed,
+} from "./catalog.js";
 import { elementsOf, GENERATE, markDirected, SIZES } from "./demo.js";
 import { EXAMPLES, spread } from "./examples.js";
 import { formatTile } from "./formats.js";

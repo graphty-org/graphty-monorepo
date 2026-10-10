@@ -1,5 +1,5 @@
-The study runs on build b6d932823642 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r3-b6d932823/`
-(graphty@0.8.61, commit b6d932823), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build 897d9aed9ffe served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r3d1-897d9aed9/`
+(graphty@0.8.61, commit 897d9aed9), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -776,3 +776,11 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   cause not traced (T19). T4 A, T12R, T21 B and T24 keep 8f0d5a6f7791's notes until they are
   matched. No bar, floor, step limit or prompt changed: the success paths' counts that bar 11 and
   the steps measure use are unchanged, and the round 2 routes that got shorter are graded as before.
+
+- **2026-10-10, during round 3: the build moved from b6d932823642 to 897d9aed9ffe.** The previous
+  build, served from `.study-builds/tier2-r3-b6d932823/`, stays frozen as it was. The new build
+  (`.study-builds/tier2-r3d1-897d9aed9/`) carries app fixes only, no element change: the Overview's
+  whole-graph rows take the shared row heading, a tie picked from the find box moves focus to the
+  tie's values, the Data page header stays in place when the table pane scrolls, the Selection
+  cleared notice comes down when a new selection is made, and Filter to neighbors is disabled, with
+  its reason, while its filter is on. No bar, floor, step limit or prompt changed.

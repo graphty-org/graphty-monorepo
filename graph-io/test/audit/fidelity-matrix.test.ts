@@ -29,6 +29,7 @@ import { describe, expect, it } from "vitest";
 import { countUnrepresentableIds } from "../../src/common/export.js";
 import { csvExporter } from "../../src/formats/csv/exporter.js";
 import { csvImporter } from "../../src/formats/csv/importer.js";
+import { cxExporter } from "../../src/formats/cx/exporter.js";
 import { cxImporter } from "../../src/formats/cx/importer.js";
 import { cx2Exporter } from "../../src/formats/cx2/exporter.js";
 import { cx2Importer } from "../../src/formats/cx2/importer.js";
@@ -45,11 +46,13 @@ import { jsonExporter } from "../../src/formats/json/exporter.js";
 import { jsonImporter } from "../../src/formats/json/importer.js";
 import { neo4jExporter } from "../../src/formats/neo4j/exporter.js";
 import { neo4jImporter } from "../../src/formats/neo4j/importer.js";
+import { oboExporter } from "../../src/formats/obo/exporter.js";
 import { oboImporter } from "../../src/formats/obo/importer.js";
 import { pajekExporter } from "../../src/formats/pajek/exporter.js";
 import { pajekImporter } from "../../src/formats/pajek/importer.js";
 import { xgmmlExporter } from "../../src/formats/xgmml/exporter.js";
 import { xgmmlImporter } from "../../src/formats/xgmml/importer.js";
+import { registry } from "../../src/registry.js";
 import {
     type CommonExportOptions,
     type CommonImportOptions,
@@ -75,13 +78,13 @@ type AnyExportOptions = Record<string, unknown> & CommonExportOptions;
 type AnyImportOptions = Record<string, unknown> & CommonImportOptions;
 
 interface Pair {
-    /** Null for a format graph-io only reads. */
+    /** Null for a format the matrix only reads (cys: a session archive, written by its own tests). */
     readonly exporter: GraphExporter<AnyExportOptions> | null;
     readonly importer: GraphImporter<AnyImportOptions>;
 }
 
 const PAIRS: Readonly<Record<CorpusFormat, Pair>> = {
-    cx: { exporter: null, importer: cxImporter },
+    cx: { exporter: cxExporter, importer: cxImporter },
     cx2: {
         exporter: cx2Exporter,
         importer: cx2Importer,
@@ -118,7 +121,7 @@ const PAIRS: Readonly<Record<CorpusFormat, Pair>> = {
         exporter: pajekExporter,
         importer: pajekImporter,
     },
-    obo: { exporter: null, importer: oboImporter },
+    obo: { exporter: oboExporter, importer: oboImporter },
     xgmml: {
         exporter: xgmmlExporter,
         importer: xgmmlImporter,
@@ -143,12 +146,12 @@ function exporterOf(format: CorpusFormat): GraphExporter<AnyExportOptions> {
 }
 
 /** Formats without mixed direction: the export of an expanded snapshot needs a policy. */
-const NO_MIXED_DIRECTION: ReadonlySet<CorpusFormat> = new Set(["dot", "gml", "json", "neo4j"]);
+const NO_MIXED_DIRECTION: ReadonlySet<CorpusFormat> = new Set(["cx", "dot", "gml", "json", "neo4j", "obo"]);
 
 /** The export options a target needs so that export() can run on any corpus snapshot. */
 function exportOptionsFor(target: CorpusFormat): AnyExportOptions {
     const options: AnyExportOptions = {};
-    if (target === "graphml" || target === "gml") {
+    if (target === "graphml" || target === "gml" || target === "cx" || target === "obo") {
         options.sanitizeIds = "mangle";
     }
     if (target === "gml") {
@@ -163,10 +166,13 @@ function exportOptionsFor(target: CorpusFormat): AnyExportOptions {
 // ============================================================ the inputs
 
 interface Input {
-    /** "gexf/minimal.gexf" or "synthetic/DYNAMIC_1_3". */
+    /** "gexf/minimal.gexf", "synthetic/DYNAMIC_1_3" or "built/edge-label-title". */
     readonly label: string;
-    readonly format: CorpusFormat;
+    /** Null for a snapshot built in code: it has no source format and no same-format trip. */
+    readonly format: CorpusFormat | null;
     readonly text: string | Uint8Array;
+    /** Builds the snapshot of an input with no source format. */
+    readonly build?: () => GraphSnapshot;
     /** Importer options the file needs (a tab delimiter, a paired node or relationship file). */
     readonly importOptions: AnyImportOptions;
     /** Whether the file is a node table (CSV) with no edge rows. */
@@ -229,14 +235,69 @@ function allInputs(): Input[] {
         nodeTable: false,
     });
     inputs.push({ label: "synthetic/OPEN_1_2", format: "gexf", text: OPEN_1_2, importOptions: {}, nodeTable: false });
+    inputs.push({
+        label: "built/edge-label-title",
+        format: null,
+        text: "",
+        importOptions: {},
+        nodeTable: false,
+        build: edgeLabelTitle,
+    });
+    inputs.push({
+        label: "built/node-label-beside-name",
+        format: null,
+        text: "",
+        importOptions: {},
+        nodeTable: false,
+        build: nodeLabelBesideName,
+    });
     return inputs;
+}
+
+/**
+ * An edge label-role column under a name no importer gives it ("title"), which no corpus file
+ * produces: each exporter's edge-label rename (or role-dropped) note is checked against it.
+ * @returns the snapshot
+ */
+function edgeLabelTitle(): GraphSnapshot {
+    const b = new GraphBuilder({ directed: true, weightDtype: "f64" });
+    b.declareEdgeColumn({ name: "title", dtype: "string", role: "label" });
+    for (const id of [1, 2, 3]) {
+        b.addNode(id);
+    }
+    b.addEdge(1, 2);
+    b.addEdge(2, 3);
+    b.setEdgeValue("title", 0, "ab");
+    b.setEdgeValue("title", 1, "bc");
+    return b.freeze();
+}
+
+/**
+ * A node label column named "title" beside a plain node column "name": formats whose label slot
+ * reads back as "name" (CX) rename the plain column, and their rename note must name the new name.
+ * @returns the snapshot
+ */
+function nodeLabelBesideName(): GraphSnapshot {
+    const b = new GraphBuilder({ directed: true, weightDtype: "f64" });
+    b.declareNodeColumn({ name: "title", dtype: "string", role: "label" });
+    b.declareNodeColumn({ name: "name", dtype: "string" });
+    for (const id of [1, 2]) {
+        b.addNode(id);
+    }
+    b.addEdge(1, 2);
+    b.setNodeValue("title", 0, "A");
+    b.setNodeValue("title", 1, "B");
+    b.setNodeValue("name", 0, "a");
+    b.setNodeValue("name", 1, "b");
+    return b.freeze();
 }
 
 const INPUTS = allInputs();
 
 interface Loaded {
     readonly snapshot: GraphSnapshot;
-    readonly report: ImportReport;
+    /** Null for a built input. */
+    readonly report: ImportReport | null;
 }
 
 async function load(
@@ -255,7 +316,14 @@ const originals = new Map<string, Promise<Loaded>>();
 function original(input: Input): Promise<Loaded> {
     let loaded = originals.get(input.label);
     if (loaded === undefined) {
-        loaded = load(input.format, input.text, input.importOptions);
+        const { format, build } = input;
+        if (format !== null) {
+            loaded = load(format, input.text, input.importOptions);
+        } else if (build === undefined) {
+            throw new Error(`${input.label} has neither a format nor a builder`);
+        } else {
+            loaded = Promise.resolve({ snapshot: build(), report: null });
+        }
         originals.set(input.label, loaded);
     }
     return loaded;
@@ -304,6 +372,16 @@ function metaDiffs(expected: GraphSnapshot, actual: GraphSnapshot): SnapshotDiff
             // default comes back with the key the exporter wrote for its direction
             if (ee.gml === undefined && valuesEqual(aa.gml, { directed: expected.directed ? "1" : "0" }, 0)) {
                 delete aa.gml;
+            }
+            // the cx exporter writes its own metaData aspect (counts and id counters of what it
+            // writes) and a cyTableColumn aspect declaring the attribute types: the file's bookkeeping
+            const ec = ee.cx;
+            const ac = aa.cx;
+            if (typeof ec === "object" && ec !== null && typeof ac === "object" && ac !== null) {
+                const { metaData: _em, cyTableColumn: _et, ...ecRest } = ec as Record<string, unknown>;
+                const { metaData: _am, cyTableColumn: _at, ...acRest } = ac as Record<string, unknown>;
+                ee.cx = ecRest;
+                aa.cx = acRest;
             }
             if (!valuesEqual(ee, aa, 0)) {
                 diffs.push({
@@ -469,6 +547,8 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     // direction and pairs
     ["W_NEO4J_UNDIRECTED_AS_DIRECTED", { global: DIRECTION }],
     ["W_CX2_UNDIRECTED_AS_DIRECTED", { global: DIRECTION }],
+    ["W_CX_UNDIRECTED_AS_DIRECTED", { global: DIRECTION }],
+    ["W_OBO_UNDIRECTED_AS_DIRECTED", { global: DIRECTION }],
     ["W_CSV_DIRECTION_DROPPED", { global: DIRECTION }],
     ["W_DIRECTION_DROPPED", { global: DIRECTION }],
     ["W_MIXED_DIRECTION", { global: DIRECTION }],
@@ -479,7 +559,8 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     ["W_MULTI_EDGES", { global: ["edgeCount", "topology", "flags"] }],
     ["W_SELF_LOOPS", { global: ["edgeCount", "topology", "flags"] }],
     // edge ids
-    ["W_EDGE_IDS_GENERATED", { global: ["edges.id:extra", "edges.key:extra", "edges.Id:extra"] }],
+    // the generated id column takes the importer's rename (CX: "id#cx") when an edge column already holds its name
+    ["W_EDGE_IDS_GENERATED", { global: ["edges.id:extra", "edges.id#*:extra", "edges.key:extra", "edges.Id:extra"] }],
     ["W_EDGE_IDS_DROPPED", { column: MISSING_CLASS }],
     ["W_GRAPHML_EDGE_ID_TEXT", { column: DTYPE_CLASS }],
     ["W_GEXF_EDGE_ID_TEXT", { column: DTYPE_CLASS }],
@@ -491,7 +572,8 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     // roles and names
     ["W_ROLE_DROPPED", { column: ROLE_CLASS }],
     ["W_CSV_ROLE_NAME", { column: ROLE_CLASS }],
-    ["W_ROLE_ASSUMED", { column: ROLE_CLASS }],
+    // CX: a graph column "name" or "description" takes the graph's own name or description (meta, not a column)
+    ["W_ROLE_ASSUMED", { global: ["graph.name:missing", "graph.description:missing"], column: ROLE_CLASS }],
     ["W_COLUMN_NAME_CHANGED", { column: RENAME_CLASS }],
     ["W_ROLE_SHAPE", { column: [...ROLE_CLASS, ...DTYPE_CLASS] }],
     ["W_POSITION_Z_DROPPED", { column: ["value"] }],
@@ -552,6 +634,17 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     ["W_LIST_UNSUPPORTED", { column: MISSING_CLASS }],
     ["W_JSON_UNSUPPORTED", { column: MISSING_CLASS }],
     ["W_CX2_JSON_AS_STRING", { column: DTYPE_CLASS }],
+    ["W_CX_JSON_AS_STRING", { column: DTYPE_CLASS }],
+    // OBO: what the ontology vocabulary has no slot for reads back inside its catch-all columns
+    ["W_COLUMN_AS_PROPERTY_VALUE", { global: ["nodes.property_value:*"], column: MISSING_CLASS }],
+    ["W_OBO_EDGE_COLUMN_AS_QUALIFIER", { global: ["edges.qualifiers:*", "weights", "flags"], column: MISSING_CLASS }],
+    ["W_GRAPH_COLUMN_AS_METADATA", { column: MISSING_CLASS }],
+    ["W_RELATION_ASSUMED", { global: ["edges.relation:*"] }],
+    ["W_OBO_TYPE_GAINED", { global: ["nodes.type:extra"] }],
+    ["W_OBO_EDGE_ORDER", { global: ["topology", "weights", "edges.*:value"] }],
+    // the cross-format trip compares no graph meta (metaDiffs runs in same-format trips only), and the
+    // ontology id is the header's, not a column's
+    ["W_OBO_ONTOLOGY_NAME", { unobservable: true }],
     ["W_COMPONENTS_FLATTENED", { column: MISSING_CLASS }],
     ["W_GEXF_KIND_DROPPED", { column: MISSING_CLASS }],
     ["W_TEMPORAL_TABLE_SHAPE", { column: MISSING_CLASS }],
@@ -776,14 +869,21 @@ function phantoms(t: Trip): LossNote[] {
         if (model.restored === true || model.unobservable === true) {
             return false;
         }
+        const promised = n.code === "W_COLUMN_NAME_CHANGED" ? readsBackAs(n) : null;
+        if (promised !== null) {
+            // a rename note is exercised only by a difference on the name it promises the column reads back under
+            return !kinds.some((k) => sameColumn(promised, k.column));
+        }
         if (n.column !== null) {
             // a column note is exercised by any difference on that column (or its renamed form):
-            // once a column is missing or renamed, its dtype or role cannot be observed
+            // once a column is missing or renamed, its dtype or role cannot be observed. A note on
+            // the weight column is seen in the weights, which its global kinds name
             const { column } = n;
             return !kinds.some(
                 (k) =>
                     sameColumn(column, k.column) ||
-                    (k.table.startsWith("extension:") && k.table.slice("extension:".length) === column),
+                    (k.table.startsWith("extension:") && k.table.slice("extension:".length) === column) ||
+                    explains(n, k),
             );
         }
         return !kinds.some((k) => explains(n, k));
@@ -815,11 +915,14 @@ function sameFormatExportOptions(input: Input, snapshot: GraphSnapshot): AnyExpo
 }
 
 describe("fidelity matrix: same-format round trips over every corpus file", () => {
-    for (const input of INPUTS.filter((i) => TARGETS.includes(i.format))) {
+    for (const input of INPUTS) {
         const { format } = input;
+        if (format === null || !TARGETS.includes(format)) {
+            continue;
+        }
         it(`${input.label} -> ${format} -> ${format}: equal snapshot, meta and extension tables`, async () => {
             const { snapshot, report } = await original(input);
-            expect(report.errorCount, `import of ${input.label} has errors`).toBe(0);
+            expect(report?.errorCount, `import of ${input.label} has errors`).toBe(0);
             const { importer } = PAIRS[format];
             const exporter = exporterOf(format);
 
@@ -895,6 +998,29 @@ describe("fidelity matrix: same-format round trips over every corpus file", () =
 });
 
 // ============================================================ cross-format round trips
+
+/** Exporters the matrix does not run: cys writes a session archive, covered by its own tests. */
+const UNMATRIXED: ReadonlySet<string> = new Set(["cys"]);
+
+function isCorpusFormat(format: string): format is CorpusFormat {
+    return (CORPUS_FORMATS as readonly string[]).includes(format);
+}
+
+describe("fidelity matrix: coverage", () => {
+    it("every exporter of the default registry has corpus files and runs in the matrix", () => {
+        const formats = registry.exporters().map((e) => e.format);
+        expect(formats.length).toBeGreaterThan(0);
+        for (const exporter of registry.exporters()) {
+            if (UNMATRIXED.has(exporter.format)) {
+                continue;
+            }
+            expect(isCorpusFormat(exporter.format), `${exporter.format} has no corpus format`).toBe(true);
+            if (isCorpusFormat(exporter.format)) {
+                expect(PAIRS[exporter.format].exporter, `${exporter.format} has no matrix exporter`).toBe(exporter);
+            }
+        }
+    });
+});
 
 describe("fidelity matrix: every ordered pair of formats", () => {
     for (const input of INPUTS) {

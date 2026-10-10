@@ -7,28 +7,27 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- 2026-10-09 Round 1 closed; ALL my word proposals adopted (decisions change 4, 8, 10, 14).
-  Round 2 judges them: if the find hint fails with 3+ looking in one place, a "Select where"
-  route comes next -- words were the cheaper try, not the last.
-- 2026-10-09 Find hint: the ELEMENT decides if the text is a rule (`scope.count({ where })`,
-  ok or only "number-needs-backticks"); the app reads no syntax. Line: "To select by a value,
-  start with =, such as <example>" from `exampleRule`, monospace. Watch T22 (below floor).
-- 2026-10-09 "Total <weight column>" for "Total distance" (7 of 7); unweighted note leads with
-  "Each edge counts as 1." -- watch T20 that nobody calls it gibberish again.
-- 2026-10-09 One name per thing: load status uses `headerName` + "N rows left out", spoken once
-  in one polite region; "N runs out of date" (not rows); Add summary per-file counts.
-- 2026-10-09 Key title ", out of date" from `run.stale` -- the tree's own words, no color marks.
-- 2026-10-09 Replace page button "Replace" (not "Load"); Shortest path aliases chain, quickest,
-  link, between; description "shortest path by weight", not "route". Hops stays.
-- 2026-10-09 New at rest in round 2: only the inspector "..." menu and the key's out-of-date
-  mark. Bar 9 (words at rest) now gets a real script -- count it, do not assume it holds.
-- 2026-10-09 Dry run: yes, 4 builds + frozen pilot, no broken control on its routes; but it
-  walked only answer-key routes, by pointer, and never the study tool. Round 2 waits for a dry
-  run of detours (pointer AND keyboard) and the tool. Word faults hide on detours: walk them.
+- 2026-10-09 Round 2 (tier 2): participants read the facilitator's tasks.md, so every route
+  that WORKED is weak; a problem found anyway is robust. Never reword on a round 2 pass.
+- 2026-10-09 Round 2 proposals (below, "Decisions"): example rule on every find "No match";
+  "=" back in the backtick correction; selection layer named by its rule or names, not "13
+  edges"; path row shows the weighted total; key "full graph" for "on N nodes"; shorter
+  unweighted note. Net words at rest go DOWN -- bar 9 (b) failed because my round 2 fixes added
+  words and removed none. Every word fix from now on names what it deletes.
+- 2026-10-09 Bare numbers in rules: element change (owner list; it changes what a refused
+  selector does). Until then the app's words carry the backtick; "backtick" is not a reader word.
+- 2026-10-09 Dry run answer: yes, it happened, and no session hit a broken control on a walked
+  route; the faults sat on the one unwalked detour (styling a selection: width 8, gray A9A9A9,
+  layer named by count). Word faults hide on detours -- add "style a selection, read the key"
+  and a scripted words-at-rest count to every preflight.
+- 2026-10-09 Find hint: the ELEMENT decides if the text is a rule (`scope.count({ where })`);
+  the app reads no syntax. 0 of 8 typed "=" first; 6 of 8 hit bare "No match".
+- 2026-10-09 Kept as worked (round 1 evidence, round 2 did not contradict): "Higher means",
+  "Total <weight column>", Replace page words, "N rows left out", ", out of date".
+- 2026-10-09 Deferred, mine to re-raise only on evidence: Hops, Select endpoints, Capacity,
+  Leave out preselected; Toast role=alert is a compact-mantine fix later.
 - 2026-10-09 Live-region words: wording a status is not done until it is announced once
   ("RunningCancel", role=alert per keystroke were word bugs too).
-- 2026-10-09 Deferred, mine to re-raise only on evidence: Hops, Select endpoints, Leave out
-  preselected; Toast role=alert is a compact-mantine fix later.
 - 2026-10-07 Unset meaning never read as distance (element); bare numbers in rules is on the
   owner list; element English leaks are element defects (code + params).
 - 2026-10-07 CSV export headers `results.louvain.group` may be a format contract -- one-way door.
@@ -148,7 +147,28 @@ I read this file at the start of every session and update it as I decide and lea
   each fixes a confirmed finding with the fewest words and nothing new at rest. "Select where"
   routes held back so the words' effect is measured alone. Studio, reversible.
 
+- 2026-10-09 Tier 2 round 2 proposals (mine, to the studio, reversible, untested): (1)
+  `graph-place/FindBox.tsx`: a no-match that is not a rule adds "To select by a value, type a
+  rule, such as =<exampleRule>" (reuses `exampleRule`; reason: 6 of 8 met bare "No match", sev
+  3); (2) `ruleRefusalWords`: put "=" before the suggestion (engineer 5: typed as shown it is a
+  plain search); (3) `style/StyleTab.tsx selectionName`: a rule-made selection is named by its
+  rule (`selection.origin.text`), 2 to 3 nodes by their names, else the count (sev 2, 7
+  sessions); (4) path run row: weighted total "<column> <total>" in place of "4 hops" (sev 2;
+  same form as "value 17"); (5) `analyze/words.ts weightRead`: `Each edge counts as 1;
+  "<column>" has no meaning set.` (-4 words, read as a warning in r2-s28, s29); (6)
+  `canvas/legendWords.ts rowName`: "PageRank, full graph" when the run covered the full graph,
+  else keep "on N nodes" (sev 2, eight sessions; glossary state word). Reason: each fixes a
+  confirmed finding and the set lowers words at rest.
+
 ## Tried: worked / did not work
+
+- 2026-10-09 DID NOT WORK (tier 2 round 2): bare "No match" for a condition in the reader's
+  words (6 of 8, r2-s12 six wrong turns); "Put numbers in backticks:" without "=" (r2-s15 "I
+  don't know what a backtick is"); a selection layer named "13 edges" / "2 nodes" (7 sessions);
+  "Shortest path 4 hops" beside minutes (5 doubted the weight); "PageRank on 20 nodes" with 15
+  drawn (8 stopped); my round 2 additions raised words at rest on every tier 2 screen (bar 9 b).
+- 2026-10-09 HELD (weak evidence, facilitator text read): the find hint once reached (7 of 8),
+  "Higher means: Not set" left correctly on Replace (8 of 8, quoting the line under it).
 
 - 2026-10-09 WORKED (tier 2 round 1): "Higher means" on the load page (every participant who
   reached it chose right); "Loaded weight minutes (farther)"; the Replace page title and "Was N;
@@ -252,48 +272,20 @@ I read this file at the start of every session and update it as I decide and lea
   "<Method> running" then "<Method> finished". Both from the element's load and run events; no
   English from the element. Watch for double speech with the existing "added, running".
 
-- **Labels (T10, T15).** The build follows the round 8 decision: the Label "+" (tooltip "Add label
-  line") adds an empty line and opens "Pick an attribute". Risk to watch: an empty line's
-  accessible name "Label, Above: no attribute, draws nothing" is honest but long; and whether
-  first-time users expect "name" rather than "attribute". The Les Miserables sample's name
-  attribute is `name` (generated GML), which helps. Measure before rewording.
-- **Neighbors (T12).** "<Name>'s 17 connections", each by name with "value N" (or nothing when
-  unweighted). Ids in place of names break this; the fix is adopting #895 in the app. Check that
-  the degree and the "N connections" chip read as links.
-- **Find.** Placeholder must list only what the box really returns in the build (does it find
-  values and notes in tier 1? Notes are not in tier 1). Likely honest wording for tier 1: "Find
-  nodes, edges, values" or narrower. Verify live, then fix.
-- **Legend sentence.** Write it in the app from the element's facts: "Larger = higher PageRank",
-  "Color = Louvain community (6)". One sentence, no advice, no threshold comparisons.
-- **Analyze headings.** "Measure the graph" paused 16 of 21; betweenness 29% direct. The headings
-  are app words now. Candidates must be tested in a tree-test comparison, not decided by taste;
-  question-shaped headings were rejected pending that test.
-- **Start screen empty Recent.** The build prints "Projects you open or create appear here. They
-  are kept in this browser." on first run. The template says the section is absent with no
-  recents, and an empty surface carries no sentence. Weigh against round 8 finding 13 (people
-  confused the list with their files). Leaning: drop the sentence on first run; keep the
-  "remembered in this browser" line where recents exist. Check live.
-- **Usage-data card draft (to the owner, keeping every commitment):** "Your data is yours. We never
-  see the data you analyze. If you agree, the app records how it is used -- which commands, how
-  long they take, errors, and a recording of the screen with every name, value and file content
-  masked -- so we can make it easier to use. Only graphty's author reads it, with the help of the
-  AI coding assistant (Claude Code) he builds the app with." Buttons unchanged. It keeps: data
-  yours, never seen, usage collected, purpose, the only readers. It names the replay plainly
-  rather than hiding it, since hiding it would be the trust-buster.
-- **Tooltip delay** 500 ms (studio number) vs 1000 ms (compact-mantine ships). Not a word issue,
-  but a 1 s wait on unlabeled icons was the steepest moment in the old novice walkthrough. Watch
-  toolbar first clicks.
-- **Disabled reasons** are words too: every disabled control states its reason in its tooltip and
-  aria-describedby, e.g. the toolbar with nothing drawn.
-
-- **Round 3 watch list (2026-10-07).** (1) every run named by its method, including layout
-  "Group by" and the key's group rows; (2) participants reading element English in layout refusals;
-  (3) does "Show all labels" read as the route to every name, without the task echoing it; (4) do
-  load/run announcements speak once, with the method name; (5) bar 9 word count on the served
-  build; (6) does anyone misstate what PageRank measures with no on-screen basis.
+- **Older tier 1 threads (summarized 2026-10-09).** Labels: an empty label line's accessible
+  name is long; measure before rewording. Neighbors: a count must open to names. Find
+  placeholder names only what the box returns. Legend: one plain sentence from element facts,
+  no advice. Analyze headings: test in a tree test, never by taste. Start screen: no sentence on
+  an empty Recent; keep "remembered in this browser" where recents exist. Usage card draft
+  (data yours, never seen, what is recorded incl. masked replay, who reads it) is with the owner.
+  Disabled controls state their reason in tooltip and aria-describedby. Tooltip delay 500 vs
+  1000 ms is compact-mantine's.
 
 ## Sources
 
+- `design/ui/studio/tier2/rounds/round-2/insights.md`, `scores.md`, `preflight.md`, `expert/`
+  (figma 1, 2, 16, 23; engineer 5); screenshots `sessions/r2-s12/03.png`, `r2-s15/06.png`,
+  `expert/figma/path/06.png` (2026-10-09)
 - `design/ui/studio/tier2/rounds/round-1/insights.md`, `scores.md`, `expert/` (figma, a11y, visual);
   screenshot `sessions/r1-s46/12.png`; transcripts r1-s05, r1-s19 (2026-10-09)
 

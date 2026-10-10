@@ -219,6 +219,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/remote-logger` | `remote-logger/` | 1.3.11 | Remote logging client and server for browser debugging |
 | `@graphty/compact-mantine` | `compact-mantine/` | 0.8.11 | Compact size variants for Mantine UI components, for dense UIs |
 | `@graphty/visual-review` | `visual-review/` | 0.0.1 | Visual review of any Storybook: capture in GitHub Actions, baselines in git (Git LFS), accept or reject in a local page, a pull request gate; a CLI, configured per repository by `visual-review.config.json` |
+| `@graphty/xr-sandbox` | `xr-sandbox/` | 0.0.0 | Private playground for trying VR control techniques on a graph on Meta Quest 3 and Galaxy XR: switchable technique modules, presets, an input arbiter, remote logging and an IWER dry run (`npm run dryrun`); design in `design/xr/sandbox/` |
 
 ## Monorepo Structure
 

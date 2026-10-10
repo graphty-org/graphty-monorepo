@@ -185,6 +185,10 @@ export function neighborhoodWords(center: string, around: number, hops = 1): str
 /** What Filter to neighbors does, and where it is turned off. */
 export const NEIGHBOR_FILTER_WORDS = "Hide every node outside this neighborhood. Its step in Filters turns it off";
 
+/** Why Filter to neighbors is disabled: its step is already on at the reach shown. */
+export const NEIGHBOR_FILTER_APPLIED_WORDS =
+    "The drawing already shows only this neighborhood. Its step in Filters turns it off";
+
 /**
  * A selection's size, leaving out a zero half ("2 nodes selected", "3 nodes, 1 edge selected").
  * @param nodes - how many nodes are selected.

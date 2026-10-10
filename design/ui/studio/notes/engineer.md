@@ -11,14 +11,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-10) **Fixed: "Selection cleared" goes when a new selection is made.** `Notice` has an
-  optional `endsWithSelection` (`state/store.ts`); the `selection.clear` command sets it, and the
-  `selection:changed` listener in `canvas/CanvasOverlays.tsx` drops such a notice on the next
-  non-empty selection. Other notices keep their 6 s timer. Test: `undoWords.real-element.test.tsx`
-  "takes the Selection cleared notice down" (find box rule, Enter, Escape, Enter again; fails
-  without the fix). Walk `tmp/r3-dry1-selection-cleared-notice-ends/`: `T22A/09.png` and `12.png`
-  show the toast after Escape; `T22A-fast/03.png` (Escape and Enter in one step, inside the 6 s)
-  shows "3 edges selected" with no toast.
+- (2026-10-10, condensed) **Fixed: "Selection cleared" goes when a new selection is made**
+  (`Notice.endsWithSelection` in `state/store.ts`, dropped in `canvas/CanvasOverlays.tsx`; test in
+  `undoWords.real-element.test.tsx`; walk `tmp/r3-dry1-selection-cleared-notice-ends/`).
 
 - (2026-10-10, condensed) **Built: the Data page's table pane keeps its scrollbar room**
   (`scrollbar-gutter: stable` on `.dp-main`; headless vitest hides scrollbars, so the test reads
@@ -49,9 +44,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   FindBox's rule as the option Enter picks is now committed. Still to do: build, `--prove`,
   `detours.sh all`, `rewalk.sh routes:tier2/rounds/round-2`, fix what fails, write the round 3
   preflight's walk table, commit. The "#n among kinds" refusal is already committed with its check.
-- (2026-10-10, condensed) **Built:** Filter to neighbors is a plain command (adds or turns on
-  this center's step; off lives on the step's checkbox); a weighted path's row and announcement
-  give its total ("minutes 14") via `pathLengthWords(run)` in `analyze/words.ts`.
+- (2026-10-10) **Built: Filter to neighbors is disabled, with its reason, while its step is on at
+  the reach shown** (`applied` in `inspector/NodeValues.tsx`, `NEIGHBOR_FILTER_APPLIED_WORDS` in
+  `inspector/words.ts`); still a plain command that adds or turns on this center's step, off on the
+  step's checkbox. Test: toolbar `tasks.real-element.test.tsx` "pressed twice" (fails without).
+  Re-pilot `tier2/rounds/r3/pilot/T23A-disabled/`, `T23B-disabled/`; answer key T23 updated. A
+  weighted path gives its total ("minutes 14") via `pathLengthWords(run)` in `analyze/words.ts`.
 - (2026-10-09, condensed) **Built on 10-09:** 24 px xs checkbox target (compact-mantine);
   find-list arrows scroll the row into view; participants run outside the studio's files
   (`--brief`, `--start` refusals, `--leaks`); a selection layer's Color or Width starts at the
@@ -69,6 +67,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   planted-failure check.
 
 ## Decisions and reasons
+
+- (2026-10-10) **A command with nothing to do is disabled and says why, in its tooltip.** Filter to
+  neighbors stays a command (round 2: a toggle confused on and off with the step's own checkbox),
+  but when its step is already on at this reach a press changed nothing and said nothing. Disabled
+  by `data-disabled` and `aria-disabled`, not `disabled`, so Mantine's tooltip still opens on hover
+  (the TopBar Export and toolbar pattern); the click handler returns early. Only the exact reach
+  disables it: at another reach a press moves the one step there, which is a change.
 
 - (2026-10-10) **A notice that describes the selection ends with it, by a flag on the notice.** Not
   by matching its words and not by a second notice slot: one optional field, set by the one
@@ -197,6 +202,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the app, a run's Values view from its shape.
 
 ## Tried: worked / did not work
+
+- (2026-10-10) In `real.mjs`, a `--hover` right after `--click` on the same button prints
+  `tooltip: null` (the pointer never left, so no new mouseenter); hover something else first. A
+  `--click` on an `aria-disabled` button is refused by Playwright as "element is not enabled",
+  which is what a participant pressing it would get: nothing.
 
 - (2026-10-10) Did not work: `document.body.focus()` before Escape after a find-box pick; the pick
   moved focus to the values and body is not focusable, so Escape went to the inspector and the

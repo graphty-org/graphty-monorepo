@@ -24,7 +24,16 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, neighborhoodKey, nodeKey } from "./inspected";
 import { finishedRuns, selectNode, takeValuesFocus } from "./reads";
-import { count, edgeName, formatNumber, groupName, NEIGHBOR_FILTER_WORDS, neighborhoodWords, valueText } from "./words";
+import {
+    count,
+    edgeName,
+    formatNumber,
+    groupName,
+    NEIGHBOR_FILTER_APPLIED_WORDS,
+    NEIGHBOR_FILTER_WORDS,
+    neighborhoodWords,
+    valueText,
+} from "./words";
 
 /** How many of a node's attributes show before "N more attributes". */
 const ATTRIBUTES_SHOWN = 6;
@@ -347,6 +356,9 @@ export function NeighborList({
         (s) => s.rule.kind === "neighborhood" && s.rule.seeds.length === 1 && s.rule.seeds[0] === center,
     );
     const filtered = seeded.find((s) => s.rule.kind === "neighborhood" && s.rule.depth === reach) ?? seeded.at(0);
+    // That step already on at the reach shown: a press would change nothing, so the command is drawn
+    // disabled and its tooltip says why (data-disabled, so the tooltip still shows on hover).
+    const applied = filtered?.on === true && filtered.rule.kind === "neighborhood" && filtered.rule.depth === reach;
     const hopsLabel = `neighbor-hops-${nodeKey(center)}`;
     const followLabel = `neighbor-follow-${nodeKey(center)}`;
 
@@ -407,12 +419,20 @@ export function NeighborList({
                     {follow === "all" && (
                         // Beside the button (the theme flips it left at the window's edge): below, it would cover
                         // the first neighbor's name, part of the answer.
-                        <Tooltip position="right" label={NEIGHBOR_FILTER_WORDS}>
+                        <Tooltip
+                            position="right"
+                            label={applied ? NEIGHBOR_FILTER_APPLIED_WORDS : NEIGHBOR_FILTER_WORDS}
+                        >
                             <Button
                                 variant="default"
                                 size="compact-xs"
                                 style={{ alignSelf: "flex-start" }}
+                                aria-disabled={applied || undefined}
+                                data-disabled={applied || undefined}
                                 onClick={() => {
+                                    if (applied) {
+                                        return;
+                                    }
                                     // A command, never a toggle: it adds this center's step at the
                                     // reach shown, or turns that step on; only the step's own checkbox
                                     // in Filters turns it off.

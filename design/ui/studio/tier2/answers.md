@@ -1075,15 +1075,21 @@ so a pointer left on the Selection row then rests on the PageRank row (`T22B/17.
   Hops "1" segment, not on a table row (`rounds/r1d3/pilot/T23A/05.png`), and Hops 2 a plain list
   of names; record any participant who reads the change as another feature. On B (no weights) both
   are plain alphabetical lists; `--click role=radio:2` works on both. "Filter to neighbors" is an
-  outlined button before and after the click, never drawn or reported as pressed, and its tooltip is
-  always "Hide every node outside this neighborhood. Its step in Filters turns it off"
-  (`rounds/r3/pilot/T23A/06.png` against `07.png`, `09.png`; `T23B/08.png`, `13.png`). Pressing it
-  again while its step is on does nothing visible: no second step, no notice (`T23A/14.png`,
-  `T23B/12.png`). The way back is the step's checkbox in Filters on the Data page ("Apply step:
-  within 2 hops of Ava"): unticked, the step stays listed as "within 2 hops of Ava" / "off", every
-  node returns and the chip goes (`T23A/15.png`, `T23B/20.png`); pressing the button again then ticks
-  that same step (`T23A/16.png`). On screen only the header chip shows that the filter is on. Record
-  any participant who presses the button again expecting it to undo the filter. (On 8f0d5a6f7791 and
+  outlined button, never drawn or reported as pressed, with the tooltip "Hide every node outside
+  this neighborhood. Its step in Filters turns it off" (`rounds/r3/pilot/T23A/06.png`). Once its
+  step is on at the reach shown it is drawn disabled (gray text and border) and its tooltip, still
+  shown on hover, reads "The drawing already shows only this neighborhood. Its step in Filters turns
+  it off"; a second press does nothing, and `--click "Filter to neighbors"` reports "element is not
+  enabled" (`rounds/r3/pilot/T23A-disabled/04.png` to `08.png`,
+  `T23B-disabled/04.png`). The tooltip does not open on the hover that stays on the button right after the
+  press; it opens once the pointer leaves and comes back. The way back is the step's checkbox in
+  Filters on the Data page ("Apply step: within 2 hops of Ava"): unticked, the step stays listed as
+  "within 2 hops of Ava" / "off", every node returns, the chip goes and the button is enabled again
+  with its first tooltip (`T23A-disabled/10.png`, `12.png`; `T23B-disabled/08.png`); pressing it then ticks that same
+  step (`T23A-disabled/13.png`). Record any participant who reads the disabled button as broken, or presses it
+  expecting it to undo the filter. On b6d932823 and earlier the button looked the same before and
+  after the press and a second press did nothing, silently (`rounds/r3/pilot/T23A/14.png`,
+  `T23B/12.png`). (On 8f0d5a6f7791 and
   earlier the button stayed pressed and a second press removed the step.) The header chip "15 of 20 nodes" (B "12 of 15 nodes"), drawn after a
   filter icon and named "Filter: 15 of 20 nodes" to a screen reader (`--click "15 of 20 nodes"`
   still finds it, `rounds/r2/pilot/T23A/07.png`, `13.png`), has the tooltip
@@ -1103,7 +1109,7 @@ so a pointer left on the Selection row then rests on the PageRank row (`T22B/17.
   click on empty canvas, which also clears the selection and closes the neighbor list
   (`T23B/10.png`); on A two pairs of nodes (about 716,745 / 735,745 and 567,758 / 583,752) sit almost on top of each other and their halos merge, so a count of halos on the drawing can come out one or two short; the counts on screen are unaffected (`rounds/r2d2/pilot/T23A/04.png` to `06.png`). The left panel's graph title ("Graph Florentine families"), a button, also opens it, with the filter and the neighbors' selection kept (`rounds/r2d2/pilot/T23B-old-build-d5a3bee/09.png`). The setup hands over
   with the pointer off the page; on both halves the PageRank row is already highlighted on the
-  first screen because the setup's last click selected it, not a hover (`T23B/01.png`). Closing the neighbor list and opening it again for the same node while its 2-hop filter is on (a click on empty canvas, then `/`, Medici, Enter, `g`) brings it back at Hops 2 ("Medici and 11 connections", Selection 12) with "Filter to neighbors" looking as it does before any press, so the panel does not show that this neighborhood is already filtered (`rounds/r3/pilot/T23B/18.png`). (On 2dcea6dd5bba it came back with the button pressed, and pressing it removed the filter, `rounds/r2d3/pilot/T23B/14.png` to `16.png`.) (On eaea2a75d95b it came back at Hops 1 with the button pressed for the 2-hop filter, `rounds/r2d2/pilot/T23B/15.png` to `17.png`.)
+  first screen because the setup's last click selected it, not a hover (`T23B/01.png`). Closing the neighbor list and opening it again for the same node while its 2-hop filter is on (a click on empty canvas, then `/`, Medici, Enter, `g`) brings it back at Hops 2 ("Medici and 11 connections", Selection 12) with "Filter to neighbors" drawn disabled and its tooltip saying the drawing already shows only this neighborhood (`rounds/r3/pilot/T23B-disabled/06.png`, `07.png`; on b6d932823 and earlier it looked as it does before any press, `rounds/r3/pilot/T23B/18.png`). (On 2dcea6dd5bba it came back with the button pressed, and pressing it removed the filter, `rounds/r2d3/pilot/T23B/14.png` to `16.png`.) (On eaea2a75d95b it came back at Hops 1 with the button pressed for the 2-hop filter, `rounds/r2d2/pilot/T23B/15.png` to `17.png`.)
 - **S:** the count read from the screen and the drawing narrowed to exactly those people and the
   starting one (the chip). **SD:** right after a detour (Hops 1 first, a filter on an attribute
   undone), or counted by hand from the list. **F:** a wrong count, the drawing not narrowed,

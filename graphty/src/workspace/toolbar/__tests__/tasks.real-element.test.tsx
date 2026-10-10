@@ -439,6 +439,16 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             await waitFor(() => {
                 assert.equal(session.visibility.summary.visibleNodes, grown + 1);
             });
+            // Its step is on at this reach, so a second press would change nothing: the command is
+            // drawn disabled, and its tooltip, still shown on hover, says why.
+            await waitFor(() => {
+                assert.equal(command.getAttribute("data-disabled"), "true");
+                assert.equal(command.getAttribute("aria-disabled"), "true");
+            });
+            await userEvent.hover(command);
+            await screen.findByText(
+                "The drawing already shows only this neighborhood. Its step in Filters turns it off",
+            );
             await userEvent.click(command);
             await waitFor(() => {
                 assert.deepEqual(
@@ -456,6 +466,11 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             await screen.findByRole("group", { name: words });
             const reopened = await screen.findByRole("radiogroup", { name: "Hops" });
             assert.isTrue(within(reopened).getByRole<HTMLInputElement>("radio", { name: "2" }).checked);
+            // Reopened under its own filter, the command is still disabled.
+            assert.equal(
+                screen.getByRole("button", { name: "Filter to neighbors" }).getAttribute("data-disabled"),
+                "true",
+            );
             assert.equal(session.selection.nodes.length, grown + 1);
             // The heading is drawn whole: wrapped, never cut.
             const heading = screen
@@ -480,6 +495,12 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 );
             });
             assert.isNotNull(within(filters).getByRole("treeitem", { name: stepWords }));
+            // With the step off, the command is enabled again.
+            await waitFor(() => {
+                assert.isNull(
+                    screen.getByRole("button", { name: "Filter to neighbors" }).getAttribute("data-disabled"),
+                );
+            });
 
             // Pressed again, the command turns that same step back on.
             await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));

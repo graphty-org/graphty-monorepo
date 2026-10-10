@@ -391,6 +391,10 @@ describe("knowing the picture is final", () => {
         // two blur passes and a merge -- and each of those fetches its shader source the same
         // way. Until they arrive the layer composes nothing, again silently, so the frame
         // shows the node without its glow.
+        //
+        // The layout plays no part here, so it is one that arrives finished: settling the
+        // physics layout first was most of this test's time.
+        await graph.setLayout("circular");
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
         await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });

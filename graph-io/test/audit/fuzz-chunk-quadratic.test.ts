@@ -42,7 +42,6 @@ import { charactersExamined, countColumnReads } from "../helpers/work-meter.js";
 const MB = 1024 * 1024;
 const CHUNK = 16 * 1024;
 const BENCH = process.env.IO_BENCH === "1";
-const LONG = 600_000;
 
 /**
  * The most characters a linear reader may examine per input character. The linear readers examine
@@ -273,80 +272,45 @@ describe.skipIf(!BENCH)("fuzz audit: 50 MB end-to-end import times, a measuremen
         return performance.now() - t0;
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "CSV: a 50 MB quoted cell in 16 KB chunks imports",
-        async () => {
-            const ms = await timeImport("csv", chunkedBytes(csvCell(50), CHUNK));
-            console.log(`csv 50 MB cell in 16 KB chunks: ${ms.toFixed(0)} ms`);
-        },
-        LONG,
-    );
+    it("CSV: a 50 MB quoted cell in 16 KB chunks imports", async () => {
+        const ms = await timeImport("csv", chunkedBytes(csvCell(50), CHUNK));
+        console.log(`csv 50 MB cell in 16 KB chunks: ${ms.toFixed(0)} ms`);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "CSV: an unclosed quote followed by 50 MB of rows in 16 KB chunks fails",
-        async () => {
-            const ms = await timeImport(
-                "csv",
-                chunkedBytes(`source,target,label\na,b,"oops\n${"a,b,c\n".repeat((50 * MB) / 6)}`, CHUNK),
-            );
-            console.log(`csv unclosed quote + 50 MB in 16 KB chunks: ${ms.toFixed(0)} ms`);
-        },
-        LONG,
-    );
+    it("CSV: an unclosed quote followed by 50 MB of rows in 16 KB chunks fails", async () => {
+        const ms = await timeImport(
+            "csv",
+            chunkedBytes(`source,target,label\na,b,"oops\n${"a,b,c\n".repeat((50 * MB) / 6)}`, CHUNK),
+        );
+        console.log(`csv unclosed quote + 50 MB in 16 KB chunks: ${ms.toFixed(0)} ms`);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "Pajek: a 50 MB label in 16 KB chunks imports",
-        async () => {
-            const ms = await timeImport("pajek", chunkedBytes(`*Vertices 1\n${line(50)}*Edges\n1 1\n`, CHUNK));
-            console.log(`pajek 50 MB label in 16 KB chunks: ${ms.toFixed(0)} ms`);
-        },
-        LONG,
-    );
+    it("Pajek: a 50 MB label in 16 KB chunks imports", async () => {
+        const ms = await timeImport("pajek", chunkedBytes(`*Vertices 1\n${line(50)}*Edges\n1 1\n`, CHUNK));
+        console.log(`pajek 50 MB label in 16 KB chunks: ${ms.toFixed(0)} ms`);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "GraphML: a 50 MB attribute value in 16 KB chunks imports",
-        async () => {
-            const doc = `<?xml version="1.0"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns"><graph id="G" edgedefault="directed"><node id="${"x".repeat(50 * MB)}"/></graph></graphml>`;
-            const ms = await timeImport("graphml", chunkedBytes(doc, CHUNK));
-            console.log(`graphml 50 MB attribute in 16 KB chunks: ${ms.toFixed(0)} ms`);
-        },
-        LONG,
-    );
+    it("GraphML: a 50 MB attribute value in 16 KB chunks imports", async () => {
+        const doc = `<?xml version="1.0"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns"><graph id="G" edgedefault="directed"><node id="${"x".repeat(50 * MB)}"/></graph></graphml>`;
+        const ms = await timeImport("graphml", chunkedBytes(doc, CHUNK));
+        console.log(`graphml 50 MB attribute in 16 KB chunks: ${ms.toFixed(0)} ms`);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "GraphML: a 50 MB comment in 16 KB chunks imports",
-        async () => {
-            const doc = `<?xml version="1.0"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns"><!-- ${"x".repeat(50 * MB)} --><graph id="G" edgedefault="directed"><node id="a"/></graph></graphml>`;
-            const ms = await timeImport("graphml", chunkedBytes(doc, CHUNK));
-            console.log(`graphml 50 MB comment in 16 KB chunks: ${ms.toFixed(0)} ms`);
-        },
-        LONG,
-    );
+    it("GraphML: a 50 MB comment in 16 KB chunks imports", async () => {
+        const doc = `<?xml version="1.0"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns"><!-- ${"x".repeat(50 * MB)} --><graph id="G" edgedefault="directed"><node id="a"/></graph></graphml>`;
+        const ms = await timeImport("graphml", chunkedBytes(doc, CHUNK));
+        console.log(`graphml 50 MB comment in 16 KB chunks: ${ms.toFixed(0)} ms`);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "JSON: a node with 100k keys imports",
-        async () => {
-            const keys = Array.from({ length: 100_000 }, (_, i) => `"k${i}":${i}`).join(",");
-            const ms = await timeImport("json", `{"nodes":[{"id":"a",${keys}}],"links":[]}`);
-            console.log(`json 100k keys: ${ms.toFixed(0)} ms`);
-        },
-        LONG,
-    );
+    it("JSON: a node with 100k keys imports", async () => {
+        const keys = Array.from({ length: 100_000 }, (_, i) => `"k${i}":${i}`).join(",");
+        const ms = await timeImport("json", `{"nodes":[{"id":"a",${keys}}],"links":[]}`);
+        console.log(`json 100k keys: ${ms.toFixed(0)} ms`);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "CSV: a 100k-column header imports",
-        async () => {
-            const header = ["source", "target", ...Array.from({ length: 100_000 }, (_, i) => `c${i}`)].join(",");
-            const ms = await timeImport("csv", `${header}\na,b,${new Array<string>(100_000).fill("1").join(",")}\n`);
-            console.log(`csv 100k columns: ${ms.toFixed(0)} ms`);
-        },
-        LONG,
-    );
+    it("CSV: a 100k-column header imports", async () => {
+        const header = ["source", "target", ...Array.from({ length: 100_000 }, (_, i) => `c${i}`)].join(",");
+        const ms = await timeImport("csv", `${header}\na,b,${new Array<string>(100_000).fill("1").join(",")}\n`);
+        console.log(`csv 100k columns: ${ms.toFixed(0)} ms`);
+    });
 });

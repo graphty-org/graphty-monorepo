@@ -13,6 +13,8 @@
 import rootConfig from "../eslint.config.js";
 import tseslint from "typescript-eslint";
 
+import nodePositionFunnel from "./eslint-rules/node-position-funnel.mjs";
+
 export default tseslint.config(
     // Inherit all rules from root config (includes JSDoc). All but one block: this package's
     // stories are in its tsconfig, so they keep the type-aware rules the root turns off for
@@ -63,6 +65,18 @@ export default tseslint.config(
                 },
             ],
         },
+    },
+
+    // ============================================
+    // NODE MESHES MOVE ONLY THROUGH THE POSITION FUNNEL
+    // ============================================
+    // A 2D view puts every node on Z = 0, and every direct write to a node mesh's position is a
+    // place that rule has to be re-applied by hand. The rule and its reasons:
+    // eslint-rules/node-position-funnel.mjs.
+    {
+        files: ["src/**/*.ts"],
+        plugins: { local: { rules: { "node-position-funnel": nodePositionFunnel } } },
+        rules: { "local/node-position-funnel": "error" },
     },
 
     // ============================================

@@ -180,6 +180,8 @@ export const JSON_LOSS = Object.freeze({
     OBOGRAPHS_ID_CHANGED: OBOGRAPHS_LOSS.ID_CHANGED,
     /** Obographs: a property_value's xsd datatype has no place in basicPropertyValues and reads back unset. */
     OBOGRAPHS_DATATYPE_DROPPED: OBOGRAPHS_LOSS.DATATYPE_DROPPED,
+    /** Obographs: a graph without a node type column is written with CLASS nodes and reads back with a type column holding Term. */
+    OBOGRAPHS_TYPE_GAINED: OBOGRAPHS_LOSS.TYPE_GAINED,
     /** Obographs: a node column outside the OBO vocabulary reads back inside the property_value column. */
     COLUMN_AS_PROPERTY_VALUE: OBOGRAPHS_SHARED_LOSS.COLUMN_AS_PROPERTY_VALUE,
     /** Obographs: an edge without a relation is written with the pred is_a. */

@@ -180,6 +180,38 @@ test("waitForSettle times out if layout never settles", async () => {
     assert.match(error.message, /settle|timeout/i, "Error message should mention settling or timeout");
 });
 
+test("timing.settleTimeoutMs sets how long waitForSettle waits", async () => {
+    graph = await createTestGraphWithData();
+
+    const layoutManager = graph.getLayoutManager();
+    await layoutManagerInternals.setLayout(layoutManager, "mock");
+    const layoutEngine = layoutManager.layoutEngine as MockLayoutEngine;
+    layoutEngine.setSettled(false);
+
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const listenersBefore = graph.listenerCount();
+    let settled = false;
+    // Longer than the 30 s default, so a capture still waiting past the default is reading the
+    // option. The margins absorb the few intervals vi.waitFor advances a fake clock by.
+    const outcome = graph
+        .captureScreenshot({ timing: { waitForSettle: true, settleTimeoutMs: 60_000 } })
+        .then(
+            () => null,
+            (reason: unknown) => reason,
+        )
+        .finally(() => {
+            settled = true;
+        });
+    await captureWaitingForSettle(listenersBefore);
+
+    await vi.advanceTimersByTimeAsync(SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS + 10_000);
+    assert.isFalse(settled, "still waiting past the default, before the timeout it was given");
+    await vi.advanceTimersByTimeAsync(20_000);
+    const error = await outcome;
+    assert.ok(error instanceof Error, "gave up at the timeout it was given");
+    assert.match(error.message, /settle|timeout/i);
+});
+
 test("waitForOperations waits for pending operations", async () => {
     graph = await createTestGraphWithData();
 

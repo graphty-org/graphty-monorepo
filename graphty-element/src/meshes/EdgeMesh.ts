@@ -17,6 +17,7 @@ import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBu
 
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
+import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { CustomLineRenderer } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
@@ -680,9 +681,12 @@ void main() {
             texture.uOffset -= perFrame * scene.getAnimationRatio();
         });
 
+        const releaseFrames = animatesEveryFrame(scene);
+
         // The texture and the per-frame callback belong to this mesh alone; without this every
         // rebuilt animated line would leave both behind.
         mesh.onDisposeObservable.addOnce(() => {
+            releaseFrames();
             scene.onBeforeRenderObservable.remove(observer);
             texture.dispose();
         });

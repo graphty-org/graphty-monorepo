@@ -1,7 +1,7 @@
 /**
  * @file Two glowing styles on screen are each drawn at their own strength.
  *
- * Glow is drawn by ONE Babylon `GlowLayer` per scene. Its `intensity` belongs to the layer, and
+ * Glow is drawn by ONE effect layer per scene. Its strength belongs to the layer, and
  * `NodeEffects.applyGlowEffect` used to write the style's strength there, so the last glowing
  * style applied set the strength of every glowing node: a faint glow and a strong one drew
  * identically. This file paints a faint glow on one node and a strong one on the other and reads
@@ -20,8 +20,7 @@ const HEIGHT = 360;
 const FRAMES = 8;
 /**
  * The strong-to-faint glow ratio with placement cancelled out. Drawn at one strength it is exactly
- * 1. Each at its own strength it measured 2.1, not 10: the strong glow's centre saturates the 8-bit
- * glow map, so brightness grows less than the strength does.
+ * 1. Each at its own strength the faint glow is drawn at a tenth of the strong one's opacity.
  */
 const RATIO_FLOOR = 1.5;
 
@@ -98,13 +97,16 @@ describe("glow strength per style", () => {
     }
 
     /**
-     * Sum of the red and blue channels in a square around a point: the glow is magenta.
+     * How much a glow changed a square around a point: the per-channel change from a frame with no
+     * glow, summed. The glow is blended over the canvas, so it can darken a channel as well as
+     * lighten one.
      * @param pixels - The frame.
      * @param at - The centre.
      * @param half - Half the side of the square.
-     * @returns The summed brightness.
+     * @param baseline - The frame with no glow.
+     * @returns The summed change.
      */
-    function brightness(pixels: Uint8Array, at: { x: number; y: number }, half: number): number {
+    function brightness(pixels: Uint8Array, at: { x: number; y: number }, half: number, baseline: Uint8Array): number {
         const width = graph.engine.getRenderWidth();
         const height = graph.engine.getRenderHeight();
         let total = 0;
@@ -116,7 +118,9 @@ describe("glow strength per style", () => {
                 }
 
                 const offset = (y * width + x) * 4;
-                total += pixels[offset] + pixels[offset + 2];
+                for (let c = 0; c < 3; c++) {
+                    total += Math.abs(pixels[offset + c] - baseline[offset + c]);
+                }
             }
         }
 
@@ -168,8 +172,8 @@ describe("glow strength per style", () => {
             `both nodes project to separate points on screen: ${JSON.stringify({ faintAt, strongAt })}`,
         );
 
-        const faintGlow = brightness(glowing, faintAt, half) - brightness(baseline, faintAt, half);
-        const strongGlow = brightness(glowing, strongAt, half) - brightness(baseline, strongAt, half);
+        const faintGlow = brightness(glowing, faintAt, half, baseline);
+        const strongGlow = brightness(glowing, strongAt, half, baseline);
 
         await session.styles.remove(strong.id);
         await session.styles.remove(faint.id);
@@ -219,14 +223,14 @@ describe("glow strength per style", () => {
             selector: { match: "ids", nodes: ["faint"] },
             set: set(0.1),
         });
-        const fresh = brightness(await frame(), at, half) - brightness(baseline, at, half);
+        const fresh = brightness(await frame(), at, half, baseline);
 
         // The 100 source mesh stays cached with no instances once the node leaves it. If it
         // still counted toward the layer's strength, 0.1 would be 1/1000 of it and round to 0.
         await session.styles.update(layer.id, { set: set(100) });
         await frame();
         await session.styles.update(layer.id, { set: set(0.1) });
-        const after = brightness(await frame(), at, half) - brightness(baseline, at, half);
+        const after = brightness(await frame(), at, half, baseline);
         await session.styles.remove(layer.id);
 
         assert.isAbove(fresh, 0, "a glow of 0.1 draws something");

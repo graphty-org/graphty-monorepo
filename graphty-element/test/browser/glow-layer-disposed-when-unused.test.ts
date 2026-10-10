@@ -1,14 +1,14 @@
 /**
  * @file The glow layer is disposed once no node on screen glows, and comes back when one does.
  *
- * A GlowLayer is a full-screen post-process: a render target, a blur and a merge every frame.
+ * The glow layer is a full-screen post-process: a render target, a blur and a merge every frame.
  * It used to outlive the last glowing node for the life of the scene. `node.glow` is a mesh
  * channel, so a node that stops glowing moves to another cached source mesh, and the old glowing
  * source stayed in the layer's inclusion list with no instances. The list never emptied, so the
  * layer kept rendering nothing at full cost every frame.
  */
 
-import type { GlowLayer } from "@babylonjs/core";
+import type { EffectLayer } from "@babylonjs/core";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
@@ -61,8 +61,8 @@ describe("glow layer when no node glows", () => {
         )) as unknown as Uint8Array;
     }
 
-    function glowLayers(): GlowLayer[] {
-        return graph.scene.effectLayers.filter((layer) => layer.getClassName() === "GlowLayer") as GlowLayer[];
+    function glowLayers(): EffectLayer[] {
+        return graph.scene.effectLayers.filter((layer) => layer.name === "graphty-node-glow");
     }
 
     function changedPixels(a: Uint8Array, b: Uint8Array): number {

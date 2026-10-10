@@ -239,6 +239,13 @@ graphs named:
   `learningRate` is the fraction of that step it takes (default 0.5, stable for any value up to 1); `lambda` weights
   the reported loss only; `maxIterations` defaults to 1000. Unconnected cliques of 3 to 30 nodes now split and
   converge on every seed. Labels, embeddings, loss and iteration counts differ from 2.x's on every graph.
+- **`syncClustering` keeps connected communities apart.** 3.x before the fix for issue #1698 also pulled every node
+  toward the origin at each step, scaled by its degree, and ran until the loss settled, so the communities it found a
+  few iterations in blurred together and k-means split on degree instead: on planted partitions of 4 groups of 20
+  nodes (pIn 0.5, pOut 0.02) the mean purity was 0.68. Each node now moves part of the way to the mean of its
+  out-neighbors' embeddings with no pull toward the origin, and a run also stops once the cluster assignment has held
+  for 10 iterations, which counts as `converged`. That purity is now 0.98, and runs end in tens of iterations rather
+  than hundreds. Labels, embeddings, loss and iteration counts differ on every graph.
 - **`grsbm` keeps a split only when it raises the whole partition's modularity.** 2.x, and 3.x before the fix for
   issue #960, compared the two halves' modularity terms alone with the parent split's and kept a split that lowered
   that number by up to 0.01, so it kept splits that hurt the partition and refused ones that helped. A split is now

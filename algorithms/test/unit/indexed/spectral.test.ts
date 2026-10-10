@@ -172,19 +172,22 @@ describe("indexed.spectralClustering", () => {
     }
 
     it("reports whether the eigenpairs met the tolerance", () => {
-        // A path's small eigenvalues crowd together (2 - 2 cos(pi j / n)), so on a long path
-        // subspace iteration reaches its round cap first; a short path converges.
-        const path = (n: number): GraphSnapshot => {
+        // Subspace iteration converges at the ratio of neighbouring eigenvalues of shift * I - L, and
+        // the shift is the largest weighted d(u) + d(v). One heavy edge on a short path stretches the
+        // shift to about 2e4 while the small eigenvalues stay below 4, so that ratio is within 1e-3 of
+        // 1 and the iteration reaches its round cap; the same path with unit weights converges. A
+        // 20-node path keeps each of the cap's rounds cheap where a long unit path costs seconds.
+        const path = (n: number, heavy: number): GraphSnapshot => {
             const b = new GraphBuilder({ directed: false });
             for (let i = 0; i + 1 < n; i++) {
-                b.addEdge(i, i + 1);
+                b.addEdge(i, i + 1, i === 0 ? heavy : 1);
             }
             return b.freeze();
         };
-        expect(spectralClustering(path(6), { k: 3, laplacianType: "unnormalized" }).converged).toBe(true);
-        const long = spectralClustering(path(250), { k: 3, laplacianType: "unnormalized" });
-        expect(long.converged).toBe(false);
-        expect(long.eigenvalues.length).toBe(3);
+        expect(spectralClustering(path(20, 1), { k: 3, laplacianType: "unnormalized" }).converged).toBe(true);
+        const stretched = spectralClustering(path(20, 1e4), { k: 3, laplacianType: "unnormalized" });
+        expect(stretched.converged).toBe(false);
+        expect(stretched.eigenvalues.length).toBe(3);
     });
 
     for (const type of TYPES) {

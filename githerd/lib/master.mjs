@@ -89,10 +89,14 @@ export function updateLane(name, saved, runs, config, now) {
     recordScheduled(lane, prev, sorted, at);
     const events = trackInFlight(lane, prev, sorted, name, config.lanes[name], now);
 
-    const done = sorted.find((r) => r.status === "completed");
+    // The newest run with a verdict: a skipped or cancelled run (a push the release workflow skips,
+    // a superseded restart) is none, and an older run that finishes after it still counts.
+    const done = sorted.find((r) => r.status === "completed" && classify(r.conclusion) !== "neutral");
+    // A record an older githerd left on a neutral run is no bound.
     const backwards =
         done &&
         prev.runId !== null &&
+        classify(prev.conclusion) !== "neutral" &&
         (done.id < prev.runId || (done.id === prev.runId && done.run_attempt < prev.attempt));
     if (!done || backwards) return { lane, events };
     applyDone(lane, prev, done, name, at, events);

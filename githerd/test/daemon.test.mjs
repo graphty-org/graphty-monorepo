@@ -1868,6 +1868,77 @@ describe("the poll loop", () => {
             expect(jobs.map((j) => [j.id, j.state])).toEqual([["incident-release-failed-issue-1799", "queued"]]);
         });
 
+        /**
+         * Runs the failed sequence, then puts an older githerd's leftovers in place: the incident
+         * keyed on skipped run 38001930188, the lane's record on a skipped run, no failed run kept.
+         * @returns {Promise<any>} the daemon
+         */
+        async function failedAsLeft() {
+            scene.release = SEQUENCE.slice(0, 2).reverse();
+            const daemon = await start();
+            await poll(daemon);
+            clock = new Date("2026-10-02T12:03:00Z");
+            await poll(daemon);
+            const esc = daemon.state.escalations["release-failed:issue-1799"];
+            delete daemon.state.escalations["release-failed:issue-1799"];
+            const key = "release-failed:38001930188";
+            daemon.state.escalations[key] = { ...esc, key, summary: "release run 38001930188 failed" };
+            daemon.state.jobs = {};
+            Object.assign(daemon.state.master.lanes.release, { runId: 38003216412, conclusion: "skipped" });
+            delete daemon.state.master.lanes.release.redRun;
+            return daemon;
+        }
+
+        // After the fix merged: the restart passed, then the scheduled train passed and closed #1799.
+        const RECOVERY = [
+            rel(37999277658, B, "failure", "workflow_run", 1),
+            rel(38001930188, D, "skipped", "push", 17),
+            rel(38002708223, D, "cancelled", "workflow_run", 20),
+            rel(38002738423, D, "success", "workflow_run", 40),
+            rel(38003216412, A, "skipped", "push", 26),
+            rel(38004006492, A, "cancelled", "workflow_run", 30),
+            rel(38007185586, A, "success", "workflow_dispatch", 50),
+            rel(38007334616, C, "skipped", "push", 52),
+        ];
+
+        it("resolves the incident and ends its queued job once a passing run hides behind a skipped one", async () => {
+            const daemon = await failedAsLeft();
+            clock = new Date("2026-10-02T12:40:00Z");
+            await poll(daemon);
+            expect(daemon.state.jobs["incident-release-failed-38001930188"].state).toBe("queued");
+            scene.release = [...RECOVERY].reverse();
+            clock = new Date("2026-10-02T12:55:00Z");
+            await poll(daemon);
+            // The jobs follow the escalations a poll later.
+            clock = new Date("2026-10-02T12:58:00Z");
+            await poll(daemon);
+            expect(daemon.state.master.lanes.release).toMatchObject({ verdict: "green", runId: 38007185586 });
+            expect(daemon.state.escalations["release-failed:38001930188"].resolvedAt).not.toBeNull();
+            expect(daemon.state.jobs["incident-release-failed-38001930188"]).toMatchObject({
+                state: "cancelled",
+                reason: "the release recovered",
+            });
+        });
+
+        it("resolves the incident once release.yml closed its hold issue, before githerd sees the passing run", async () => {
+            const daemon = await failedAsLeft();
+            clock = new Date("2026-10-02T12:40:00Z");
+            await poll(daemon);
+            expect(daemon.state.escalations["release-failed:38001930188"]).toMatchObject({
+                holdIssue: 1799,
+                resolvedAt: null,
+            });
+            scene.issues = [{ ...hold, state: "closed", updated_at: "2026-10-02T12:50:00Z" }];
+            // Issues are read after the release is judged, and the jobs follow a poll later.
+            for (const at of ["12:55", "12:58", "13:01"]) {
+                clock = new Date(`2026-10-02T${at}:00Z`);
+                await poll(daemon);
+            }
+            expect(daemon.state.master.lanes.release.verdict).toBe("red");
+            expect(daemon.state.escalations["release-failed:38001930188"].resolvedAt).not.toBeNull();
+            expect(daemon.state.jobs["incident-release-failed-38001930188"].state).toBe("cancelled");
+        });
+
         it("corrects in place an incident an older githerd keyed on a skipped run, naming the hold issue", async () => {
             scene.release = SEQUENCE.slice(0, 2).reverse();
             const daemon = await start();

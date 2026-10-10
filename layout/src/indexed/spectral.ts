@@ -63,10 +63,12 @@ function distinctNeighbours(g: GraphSnapshot): number[][] {
     const lists: number[][] = [];
     for (let u = 0; u < g.nodeCount; u++) {
         const list: number[] = [];
+        let previous = -1;
         for (let a = g.rowPtr[u]; a < g.rowPtr[u + 1]; a++) {
             const v = g.colIdx[a];
-            if (v !== u && v !== list[list.length - 1]) {
+            if (v !== u && v !== previous) {
                 list.push(v);
+                previous = v;
             }
         }
         lists.push(list);

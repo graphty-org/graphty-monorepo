@@ -2123,6 +2123,8 @@ export class Graphty extends LitElement {
     get renderer(): RendererRequest;
     set renderer(value: RendererRequest);
     get rendererStatus(): RendererStatus | null;
+    get renderOnDemand(): boolean;
+    set renderOnDemand(value: boolean);
     get repeatedEdges(): DuplicatePolicy | undefined;
     set repeatedEdges(value: DuplicatePolicy | undefined);
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
@@ -3066,6 +3068,8 @@ class Node_2 {
     pinOnDrag: boolean;
     refreshSelectionOverlay(): void;
     get roundRadius(): number | null;
+    // @internal
+    setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
@@ -4030,6 +4034,7 @@ export class RenderManager implements Manager {
     graphRoot: TransformNode;
     holdFrames(): () => void;
     init(): Promise<void>;
+    requestFrame(): void;
     // (undocumented)
     scene: Scene;
     startRenderLoop(updateCallback: (frameMs: number) => void): void;
@@ -4304,6 +4309,7 @@ export interface ScreenshotOptions {
     timing?: {
         waitForSettle?: boolean;
         waitForOperations?: boolean;
+        settleTimeoutMs?: number;
     };
     // (undocumented)
     transparentBackground?: boolean;

@@ -318,14 +318,12 @@ describe("Log Server", () => {
             body: JSON.stringify(logData),
         });
 
-        // Give time for file write
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        // Verify file was written
-        expect(fs.existsSync(logFilePath)).toBe(true);
-        const content = fs.readFileSync(logFilePath, "utf-8");
-        expect(content).toContain("File log test");
+        // The server appends through a write stream, so the line lands after the response.
+        // Wait for it, under the test's own time limit.
+        const read = (): string => (fs.existsSync(logFilePath) ? fs.readFileSync(logFilePath, "utf-8") : "");
+        while (!read().includes("File log test")) {
+            await new Promise((resolve) => setImmediate(resolve));
+        }
 
         // Cleanup
         fs.unlinkSync(logFilePath);

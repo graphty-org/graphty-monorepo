@@ -3,17 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "../../../../test/test-utils";
 import { UndoSplitButton } from "../UndoSplitButton";
 
+/** How long a touch is held still before it is a hold: compact-mantine's pressGesture HOLD_MS. */
+const HOLD_MS = 500;
+
 const defaultProps = {
     canUndo: true,
     onUndo: vi.fn(),
     onOpenHistory: vi.fn(),
 };
-
-const wait = (ms: number) =>
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    new Promise((resolve) => {
-        setTimeout(resolve, ms);
-    });
 
 describe("UndoSplitButton", () => {
     describe("rendering", () => {
@@ -103,7 +100,7 @@ describe("UndoSplitButton", () => {
             expect(onUndo).not.toHaveBeenCalled();
         });
 
-        it("opens History from a touch held still, and the lift that ends it does not undo", async () => {
+        it("opens History from a touch held still, and the lift that ends it does not undo", () => {
             const onOpenHistory = vi.fn();
             const onUndo = vi.fn();
 
@@ -112,9 +109,15 @@ describe("UndoSplitButton", () => {
             const undoHalf = screen.getByRole("button", { name: "Undo" });
             const touch = { pointerType: "touch", pointerId: 7, isPrimary: true, clientX: 5, clientY: 5 };
 
-            fireEvent.pointerDown(undoHalf, touch);
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await wait(600);
+            vi.useFakeTimers();
+            try {
+                fireEvent.pointerDown(undoHalf, touch);
+                vi.advanceTimersByTime(HOLD_MS - 1);
+                expect(onOpenHistory).not.toHaveBeenCalled();
+                vi.advanceTimersByTime(1);
+            } finally {
+                vi.useRealTimers();
+            }
 
             expect(onOpenHistory).toHaveBeenCalledTimes(1);
 

@@ -111,9 +111,6 @@ const LIT_CAP_MARGIN = 3;
  */
 const NODE_SPREAD = 30;
 
-/** How many frames to render before reading, enough for the instanced-colour shader to compile. */
-const FRAMES = 60;
-
 /** What one frame says about the surface of the one node in it. */
 interface Surface {
     /** The widest red-minus-green found on the node. */
@@ -192,7 +189,7 @@ describe("a lit node's surface", () => {
 
     beforeAll(async () => {
         ({ container, graph } = await mountOneNode("3d"));
-        surface = surfaceOf(await readFrame(graph, FRAMES));
+        surface = surfaceOf(await readFrame(graph));
     });
 
     afterAll(() => {
@@ -259,7 +256,7 @@ describe("a 2D node's surface", () => {
 
     beforeAll(async () => {
         ({ container, graph } = await mountOneNode("2d"));
-        surface = surfaceOf(await readFrame(graph, FRAMES));
+        surface = surfaceOf(await readFrame(graph));
     });
 
     afterAll(() => {

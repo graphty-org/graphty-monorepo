@@ -498,14 +498,11 @@ function pairMismatch(
 }
 
 describe("indexed.allPairsShortestPath -- paths", () => {
-    // One case per fixture and strategy. Measured at load average 70: the slowest case (the 90-node
-    // directed fixture) took 36 ms alone and 127 ms with --coverage; all 24 took 0.27 s and 0.53 s.
-    // The 10 s limit is about 80 times the slowest case, room for a machine far busier than that.
+    // One case per fixture and strategy.
     const cases = allFixtures().flatMap(({ name, graph }) =>
         (["floyd-warshall", "per-source"] as const).map((method) => ({ name, graph, method })),
     );
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it.each(cases)("walks every reachable pair: $name, $method", { timeout: 10_000 }, ({ graph, method }) => {
+    it.each(cases)("walks every reachable pair: $name, $method", ({ graph, method }) => {
         const s = checksummedSnapshot(graph);
         const own = allPairsShortestPath(s, { method, paths: true });
         expect(pathMismatches(s, own, s.weights), "own weights").toEqual([]);

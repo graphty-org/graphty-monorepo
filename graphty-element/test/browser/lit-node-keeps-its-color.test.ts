@@ -48,7 +48,6 @@ const MIN_CHROMA = 0.04;
 /** How far in from the silhouette a pixel must be to count as surface. */
 const INTERIOR_RADIUS = 2;
 
-const FRAMES = 60;
 const CASE_TIMEOUT_MS = 30000;
 
 interface Lch {
@@ -201,7 +200,7 @@ async function mount(color: string): Promise<{ container: HTMLElement; graph: Gr
     const radius = Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z);
     await graph.setCameraState({ alpha: YAW, beta: Math.PI / 2 - PITCH, radius, target });
 
-    return { container, graph, frame: await readFrame(graph, FRAMES) };
+    return { container, graph, frame: await readFrame(graph) };
 }
 
 for (const [name, color] of [

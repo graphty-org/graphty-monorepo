@@ -1,3 +1,13 @@
+## 0.9.15 (2026-10-10)
+
+### 🩹 Fixes
+
+- **compact-mantine:** mark a queued popout reposition so settled-layout waits for it ([#1825](https://github.com/graphty-org/graphty-monorepo/issues/1825))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.14 (2026-10-09)
 
 This was a version bump only for compact-mantine to align it with other projects, there were no code changes.

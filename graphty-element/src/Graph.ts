@@ -154,6 +154,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
+import { animatesEveryFrame } from "./managers/everyFrameAnimations";
 import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
@@ -501,6 +502,20 @@ export class Graph implements GraphContext {
     private inputManager: InputManager;
     /** While an immersive session is active: its mode and when it started, stamped on steps. */
     private immersiveSince: string | null = null;
+
+    /**
+     * Whether drawing on demand is switched on (`layoutBehavior.rendering.onDemand`).
+     * @returns True when the render loop may skip frames.
+     */
+    private readonly drawsOnDemand = (): boolean => this.viewSettings.behavior.rendering?.onDemand === true;
+    /**
+     * Whether the picture the model describes is on screen and final, and no headset is showing
+     * it -- a VR or AR view moves with the reader's head, which the loop cannot see. Asked only
+     * while drawing on demand is on. See `RenderManager.mayRest`.
+     * @returns True when a frame that changes nothing may be skipped.
+     */
+    private readonly pictureIsFinal = (): boolean =>
+        this.updateManager.frameIsStable && (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
     private selectionManager: SelectionManager;
@@ -587,7 +602,10 @@ export class Graph implements GraphContext {
         this.element.appendChild(this.canvas);
 
         // Initialize RenderManager
-        this.renderManager = new RenderManager(this.canvas, this.eventManager);
+        this.renderManager = new RenderManager(this.canvas, this.eventManager, {
+            pictureIsFinal: this.pictureIsFinal,
+            drawsOnDemand: this.drawsOnDemand,
+        });
 
         // Get references from RenderManager for backward compatibility
         this.engine = this.renderManager.engine;
@@ -873,6 +891,12 @@ export class Graph implements GraphContext {
         // counting it there kept the seeded layout from starting over, so new data was drawn from
         // where the old graph had got to instead of as opening it draws it.
         this.layoutManager.graphWritesWaiting = () => dispatcherOf(this.session).graphWritesQueued;
+
+        // Every change to project state reaches the picture through a pass, so a graph drawn on
+        // demand draws the frame after each one: a style, the data, a setting, an undo.
+        lane.passEnded = () => {
+            this.renderManager.requestFrame();
+        };
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
         // way, and the layout engine can place every drawn edge.
@@ -1464,7 +1488,11 @@ export class Graph implements GraphContext {
         // The engine was opened on a canvas not yet in the page, which sized it 300 by 150.
         opened.resize();
 
-        this.renderManager = new RenderManager(canvas, this.eventManager, { engine: opened });
+        this.renderManager = new RenderManager(canvas, this.eventManager, {
+            engine: opened,
+            pictureIsFinal: this.pictureIsFinal,
+            drawsOnDemand: this.drawsOnDemand,
+        });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
@@ -1784,6 +1812,7 @@ export class Graph implements GraphContext {
             },
             node: { ...current.node, ...behavior.node },
             labels: { ...current.labels, ...behavior.labels },
+            rendering: { ...current.rendering, ...behavior.rendering },
         };
 
         // Checked whole, the project half over the settings in force, before anything is written.
@@ -1795,6 +1824,8 @@ export class Graph implements GraphContext {
         this.writeViewSettings((settings) => {
             settings.behavior = view;
         });
+        // A label declutter switched on or off changes the picture without moving anything.
+        this.renderManager.requestFrame();
 
         // ON-DEMAND EXPANSION IS SWITCHED ON HERE, and it is the only place it can be. The two
         // fetchers are declared in the behaviour schema, so a consumer sets them the same way
@@ -4044,7 +4075,8 @@ export class Graph implements GraphContext {
     private settleDimension(twoD: boolean, frame: boolean): void {
         if (twoD) {
             for (const node of this.getNodes()) {
-                node.mesh.position.z = 0;
+                const { x, y } = node.mesh.position;
+                node.setMeshPosition(x, y, 0);
             }
         } else {
             // The array kept every node's Z through the 2D view; a 3D engine that rebuilt has
@@ -4780,6 +4812,10 @@ export class Graph implements GraphContext {
             this.eventManager.emit("animation-progress", { progress });
         };
 
+        // A recording takes a frame from the canvas only when one is drawn, so a graph drawn on
+        // demand draws every frame while it records: a still graph would otherwise record nothing.
+        const releaseFrames = animatesEveryFrame(this.scene);
+
         try {
             // Handle animated camera mode
             if (options.cameraMode === "animated") {
@@ -4794,6 +4830,7 @@ export class Graph implements GraphContext {
 
             return result;
         } finally {
+            releaseFrames();
             // Clear reference when done
             this.activeCapture = null;
         }

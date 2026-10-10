@@ -300,13 +300,7 @@ describe("the memory budget, at 100k nodes", () => {
     });
 
     it("the derived-input cache stays within max(256 MB, 1.5 x the snapshot's bytes)", () => {
-        const ids = Array.from({ length: NODES }, (_, i) => `n${String(i)}`);
-        const graph = new InputGraph(
-            ids,
-            Array.from(GRAPH.src, (src, e) => [ids[src], ids[GRAPH.dst[e]]] as const),
-            false,
-        );
-        const full = graph.snapshot().byteLength({ columns: true, ids: true });
+        const full = h.session.data.snapshot().byteLength({ columns: true, ids: true });
         assert.strictEqual(
             new DerivedInputs({ release: () => undefined }).bound,
             Math.max(256 * MB, Math.ceil(1.5 * full)),
@@ -314,8 +308,20 @@ describe("the memory budget, at 100k nodes", () => {
 
         // At this size the 256 MB floor is the bound, and exceeding it takes hundreds of
         // derivations. The eviction reads the bound and nothing else, so it is exercised at the
-        // other term, 1.5 x the snapshot, the bound of a graph large enough for it to dominate.
-        const inputs = new DerivedInputs({ release: () => undefined, limit: Math.ceil(1.5 * full) });
+        // other term, 1.5 x the snapshot, the bound of a graph large enough for it to dominate --
+        // on a tenth of the graph, because the bound scales with the snapshot and building and
+        // deriving from the whole one is seconds of work that checks nothing more.
+        const small = barabasiAlbertGraph({ n: NODES / 10, m: 5, seed: 1 });
+        const ids = Array.from({ length: NODES / 10 }, (_, i) => `n${String(i)}`);
+        const graph = new InputGraph(
+            ids,
+            Array.from(small.src, (src, e) => [ids[src], ids[small.dst[e]]] as const),
+            false,
+        );
+        const inputs = new DerivedInputs({
+            release: () => undefined,
+            limit: Math.ceil(1.5 * graph.snapshot().byteLength({ columns: true, ids: true })),
+        });
 
         // Distinct half-graph scopes, both orientations, each let go after its run: well past
         // the bound in total.

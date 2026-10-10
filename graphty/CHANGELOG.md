@@ -1,3 +1,33 @@
+## 0.8.63 (2026-10-10)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.23.0
+
+## 0.8.62 (2026-10-10)
+
+### 🚀 Features
+
+- **graphty:** show the app's own words for each AI result code ([#1792](https://github.com/graphty-org/graphty-monorepo/issues/1792))
+- **algorithms:** list each undirected link-prediction pair once on request ([#723](https://github.com/graphty-org/graphty-monorepo/issues/723))
+
+### 🩹 Fixes
+
+- **graphty-element:** make ExecutionResult code and params optional ([#1792](https://github.com/graphty-org/graphty-monorepo/issues/1792))
+- **graphty:** send error reports through an allowlist ([445f7988a](https://github.com/graphty-org/graphty-monorepo/commit/445f7988a))
+- **graphty-element:** run each assistant tool batch in its own short transaction ([#1721](https://github.com/graphty-org/graphty-monorepo/issues/1721))
+- **graphty:** pre-bundle react-dom/client for the story tests ([a0e224688](https://github.com/graphty-org/graphty-monorepo/commit/a0e224688))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.43
+- Updated compact-mantine to 0.9.15
+- Updated graphty-element to 3.22.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.61 (2026-10-09)
 
 ### 🩹 Fixes

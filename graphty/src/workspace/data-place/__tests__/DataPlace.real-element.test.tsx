@@ -95,338 +95,278 @@ describe("the Data place on the real element", () => {
         await page.viewport(1366, 768);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "lists the graph file as one source holding a node table and an edge table, and follows undo",
-        async () => {
-            const { session } = await openDataPlace();
-            const place = screen.getByRole("region", { name: "Data place" });
-            assert.isNotNull(within(place).getByRole("heading", { name: "Les Miserables" }));
-            // Nothing loaded: no source rows.
+    it("lists the graph file as one source holding a node table and an edge table, and follows undo", async () => {
+        const { session } = await openDataPlace();
+        const place = screen.getByRole("region", { name: "Data place" });
+        assert.isNotNull(within(place).getByRole("heading", { name: "Les Miserables" }));
+        // Nothing loaded: no source rows.
+        assert.isNull(within(place).queryByRole("tree", { name: "Sources" }));
+
+        await importGraphFile(session);
+
+        const file = await within(place).findByRole("treeitem", { name: "les-miserables.gml" });
+        const { counts } = session.data.lastImport() ?? assert.fail("no import report");
+        assert.include(file.textContent, `${String(counts.nodes)} nodes, ${String(counts.edges)} edges`);
+        const nodes = within(tree("Sources")).getByRole("treeitem", { name: "Node table" });
+        const quiet = `${String(counts.nodeRecords)} rows, ${String(counts.nodes)} nodes`;
+        assert.include(nodes.textContent, quiet);
+        // The quiet line reaches a screen reader too.
+        assert.equal(describedBy(nodes), quiet);
+        assert.isNotNull(within(tree("Sources")).getByRole("treeitem", { name: "Edge table" }));
+
+        await session.undo();
+        await waitFor(() => {
             assert.isNull(within(place).queryByRole("tree", { name: "Sources" }));
+        });
+    });
 
-            await importGraphFile(session);
+    it("lists every attribute the element describes, with its fill when some elements lack a value", async () => {
+        const { session } = await openDataPlace();
+        await importGraphFile(session);
 
-            const file = await within(place).findByRole("treeitem", { name: "les-miserables.gml" });
-            const { counts } = session.data.lastImport() ?? assert.fail("no import report");
-            assert.include(file.textContent, `${String(counts.nodes)} nodes, ${String(counts.edges)} edges`);
-            const nodes = within(tree("Sources")).getByRole("treeitem", { name: "Node table" });
-            const quiet = `${String(counts.nodeRecords)} rows, ${String(counts.nodes)} nodes`;
-            assert.include(nodes.textContent, quiet);
-            // The quiet line reaches a screen reader too.
-            assert.equal(describedBy(nodes), quiet);
-            assert.isNotNull(within(tree("Sources")).getByRole("treeitem", { name: "Edge table" }));
-
-            await session.undo();
-            await waitFor(() => {
-                assert.isNull(within(place).queryByRole("tree", { name: "Sources" }));
-            });
-        },
-        TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "lists every attribute the element describes, with its fill when some elements lack a value",
-        async () => {
-            const { session } = await openDataPlace();
-            await importGraphFile(session);
-
-            const attributes = await screen.findByRole("tree", { name: "Attributes" });
-            for (const a of session.data.attributes()) {
-                const row = within(attributes).getByRole("treeitem", { name: `${a.name}, ${a.kind} attribute` });
-                if (a.completeness < 1) {
-                    const fill = `${String(Math.floor(a.completeness * 100))}%`;
-                    assert.include(row.textContent, fill, a.name);
-                    assert.include(describedBy(row), fill, a.name);
-                }
+        const attributes = await screen.findByRole("tree", { name: "Attributes" });
+        for (const a of session.data.attributes()) {
+            const row = within(attributes).getByRole("treeitem", { name: `${a.name}, ${a.kind} attribute` });
+            if (a.completeness < 1) {
+                const fill = `${String(Math.floor(a.completeness * 100))}%`;
+                assert.include(row.textContent, fill, a.name);
+                assert.include(describedBy(row), fill, a.name);
             }
-            const born = session.data.attributes().find((a) => a.kind === "node" && a.name === "born");
-            assert.equal(born?.completeness, 0.25);
-            // Subheads in the design's order.
-            assert.deepEqual(
-                within(attributes)
-                    .getAllByRole("treeitem")
-                    .filter((row) => row.getAttribute("aria-level") === "1")
-                    .map((row) => row.getAttribute("aria-label")),
-                ["Node attributes", "Edge attributes"],
-            );
-            // No two rows of the place share an accessible name (section 4).
-            const names = within(screen.getByRole("region", { name: "Data place" }))
+        }
+        const born = session.data.attributes().find((a) => a.kind === "node" && a.name === "born");
+        assert.equal(born?.completeness, 0.25);
+        // Subheads in the design's order.
+        assert.deepEqual(
+            within(attributes)
                 .getAllByRole("treeitem")
-                .map((row) => row.getAttribute("aria-label"));
-            assert.equal(new Set(names).size, names.length, names.join(" | "));
-        },
-        TIMEOUT_MS,
-    );
+                .filter((row) => row.getAttribute("aria-level") === "1")
+                .map((row) => row.getAttribute("aria-label")),
+            ["Node attributes", "Edge attributes"],
+        );
+        // No two rows of the place share an accessible name (section 4).
+        const names = within(screen.getByRole("region", { name: "Data place" }))
+            .getAllByRole("treeitem")
+            .map((row) => row.getAttribute("aria-label"));
+        assert.equal(new Set(names).size, names.length, names.join(" | "));
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "opens an attribute's inspector on a click, and Edit source... opens the Data page",
-        async () => {
-            const { session, store } = await openDataPlace();
-            await importGraphFile(session);
+    it("opens an attribute's inspector on a click, and Edit source... opens the Data page", async () => {
+        const { session, store } = await openDataPlace();
+        await importGraphFile(session);
 
-            await userEvent.click(await screen.findByRole("treeitem", { name: "group, node attribute" }));
-            // The id is the attribute's path, as the inspector and the Style tab read it.
-            assert.deepEqual(store.get().inspected, { kind: "attribute", id: "data.group" });
-            await waitFor(() => {
-                const row = within(tree("Attributes")).getByRole("treeitem", { name: "group, node attribute" });
-                assert.equal(row.getAttribute("aria-selected"), "true", "the open attribute's row stays selected");
-            });
-            // A click on the quiet fill text is a click on the row.
-            await userEvent.click(within(tree("Attributes")).getByText("25%"));
-            assert.deepEqual(store.get().inspected, { kind: "attribute", id: "data.born" });
+        await userEvent.click(await screen.findByRole("treeitem", { name: "group, node attribute" }));
+        // The id is the attribute's path, as the inspector and the Style tab read it.
+        assert.deepEqual(store.get().inspected, { kind: "attribute", id: "data.group" });
+        await waitFor(() => {
+            const row = within(tree("Attributes")).getByRole("treeitem", { name: "group, node attribute" });
+            assert.equal(row.getAttribute("aria-selected"), "true", "the open attribute's row stays selected");
+        });
+        // A click on the quiet fill text is a click on the row.
+        await userEvent.click(within(tree("Attributes")).getByText("25%"));
+        assert.deepEqual(store.get().inspected, { kind: "attribute", id: "data.born" });
 
-            const menu = await menuOf(within(tree("Sources")).getByRole("treeitem", { name: "les-miserables.gml" }));
-            // Rename waits for the element (#894). One load of one file can be replaced.
-            assert.deepEqual(
-                within(menu)
-                    .getAllByRole("menuitem")
-                    .map((item) => item.textContent),
-                ["Edit source...", "Replace with file..."],
-            );
-            await userEvent.click(within(menu).getByRole("menuitem", { name: "Edit source..." }));
-            assert.equal(store.get().page, "data-page");
-        },
-        TIMEOUT_MS,
-    );
+        const menu = await menuOf(within(tree("Sources")).getByRole("treeitem", { name: "les-miserables.gml" }));
+        // Rename waits for the element (#894). One load of one file can be replaced.
+        assert.deepEqual(
+            within(menu)
+                .getAllByRole("menuitem")
+                .map((item) => item.textContent),
+            ["Edit source...", "Replace with file..."],
+        );
+        await userEvent.click(within(menu).getByRole("menuitem", { name: "Edit source..." }));
+        assert.equal(store.get().page, "data-page");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "gives the source's inspector a \"...\" holding the row menu's verbs, and none on two loads",
-        async () => {
-            const { session, store } = await openDataPlace();
-            await importGraphFile(session);
+    it("gives the source's inspector a \"...\" holding the row menu's verbs, and none on two loads", async () => {
+        const { session, store } = await openDataPlace();
+        await importGraphFile(session);
 
-            await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "les-miserables.gml" }));
-            assert.equal(store.get().inspected?.kind, "source");
-            await userEvent.click(await screen.findByRole("button", { name: "Source actions" }));
-            const menu = await screen.findByRole("menu");
-            assert.deepEqual(
-                within(menu)
-                    .getAllByRole("menuitem")
-                    .map((item) => item.textContent),
-                ["Edit source...", "Replace with file..."],
-            );
-            await userEvent.click(within(menu).getByRole("menuitem", { name: "Edit source..." }));
-            assert.equal(store.get().page, "data-page");
+        await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "les-miserables.gml" }));
+        assert.equal(store.get().inspected?.kind, "source");
+        await userEvent.click(await screen.findByRole("button", { name: "Source actions" }));
+        const menu = await screen.findByRole("menu");
+        assert.deepEqual(
+            within(menu)
+                .getAllByRole("menuitem")
+                .map((item) => item.textContent),
+            ["Edit source...", "Replace with file..."],
+        );
+        await userEvent.click(within(menu).getByRole("menuitem", { name: "Edit source..." }));
+        assert.equal(store.get().page, "data-page");
 
-            // A second load: neither verb can replace one source among two, so neither menu holds any.
-            store.set({ page: "panels", place: "data" });
-            await session.data.import(
-                { type: "gml", name: "second.gml", config: { data: GRAPH_FILE_GML } },
-                { mode: "merge" },
-            );
-            await waitFor(() => {
-                assert.equal(within(tree("Sources")).getAllByRole("treeitem", { name: /\.gml$/ }).length, 2);
-            });
-            await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "second.gml" }));
-            assert.equal(store.get().inspected?.kind, "source");
-            assert.isNull(screen.queryByRole("button", { name: "Source actions" }));
-        },
-        TIMEOUT_MS,
-    );
+        // A second load: neither verb can replace one source among two, so neither menu holds any.
+        store.set({ page: "panels", place: "data" });
+        await session.data.import(
+            { type: "gml", name: "second.gml", config: { data: GRAPH_FILE_GML } },
+            { mode: "merge" },
+        );
+        await waitFor(() => {
+            assert.equal(within(tree("Sources")).getAllByRole("treeitem", { name: /\.gml$/ }).length, 2);
+        });
+        await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "second.gml" }));
+        assert.equal(store.get().inspected?.kind, "source");
+        assert.isNull(screen.queryByRole("button", { name: "Source actions" }));
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "shows a clicked source table in the table dock on its tab, never the Data page",
-        async () => {
-            const { session, store } = await openDataPlace(TABLE_BUILT);
-            await importGraphFile(session);
+    it("shows a clicked source table in the table dock on its tab, never the Data page", async () => {
+        const { session, store } = await openDataPlace(TABLE_BUILT);
+        await importGraphFile(session);
 
-            await userEvent.click(await screen.findByRole("treeitem", { name: "Edge table" }));
-            assert.equal(store.get().page, "panels");
+        await userEvent.click(await screen.findByRole("treeitem", { name: "Edge table" }));
+        assert.equal(store.get().page, "panels");
+        assert.isTrue(store.get().dockOpen);
+        await waitFor(() => {
+            const edges = screen.getByRole("tab", { name: "Edges" });
+            assert.equal(edges.getAttribute("aria-selected"), "true");
+        });
+
+        await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "Node table" }));
+        await waitFor(() => {
+            const nodes = screen.getByRole("tab", { name: "Nodes" });
+            assert.equal(nodes.getAttribute("aria-selected"), "true");
+        });
+        assert.equal(store.get().page, "panels");
+    });
+
+    it("opens the edge table when the source row of an edge list, which has no children, is clicked", async () => {
+        const { session, store } = await openDataPlace(TABLE_BUILT);
+        // A dropped edge list, opened as the start page opens it.
+        const csv = "source,target,weight\nAva,Ben,3\nBen,Cy,5\nCy,Ava,1\n";
+        const opened = await session.project.open(new File([csv], "friends.csv"), { fileName: "friends.csv" });
+        await opened.draft?.load({ mode: "replace" });
+        assert.isFalse(store.get().dockOpen);
+
+        const row = await screen.findByRole("treeitem", { name: "friends.csv" });
+        assert.isNull(row.getAttribute("aria-expanded"), "a single-table source has nothing to expand");
+        await userEvent.click(row);
+        assert.isTrue(store.get().dockOpen);
+        assert.equal(store.get().dockTab, "edges");
+        await waitFor(() => {
+            assert.equal(screen.getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
+        });
+    });
+
+    it("Add label line binds a new layer's node label to the attribute and selects it, as one undoable step", async () => {
+        const { session, store } = await openDataPlace();
+        await importGraphFile(session);
+        const before = session.styles.list().length;
+
+        const menu = await menuOf(await screen.findByRole("treeitem", { name: "label, node attribute" }));
+        await userEvent.click(within(menu).getByRole("menuitem", { name: "Add label line" }));
+
+        await waitFor(() => {
+            assert.equal(session.styles.list().length, before + 1);
+        });
+        // A new row on top, its node label bound to the column, selected.
+        const layer = session.styles.list().at(-1);
+        assert.equal(layer?.name, "label");
+        assert.include(JSON.stringify(layer?.encode?.["node.label"]), '"data.label"');
+        await waitFor(() => {
+            assert.deepEqual(store.get().inspected, { kind: "layer-row", id: layer?.id });
+        });
+
+        await session.undo();
+        await waitFor(() => {
+            assert.equal(session.styles.list().length, before);
+        });
+    });
+
+    it("Show in table on an edge attribute opens the table dock", async () => {
+        const { session, store } = await openDataPlace(TABLE_BUILT);
+        await importGraphFile(session);
+
+        const value = within(await screen.findByRole("tree", { name: "Attributes" })).getByRole("treeitem", {
+            name: "value, edge attribute",
+        });
+        const menu = await menuOf(value);
+        await userEvent.click(within(menu).getByRole("menuitem", { name: "Show in table" }));
+
+        await waitFor(() => {
             assert.isTrue(store.get().dockOpen);
-            await waitFor(() => {
-                const edges = screen.getByRole("tab", { name: "Edges" });
-                assert.equal(edges.getAttribute("aria-selected"), "true");
-            });
+        });
+        const dock = await screen.findByRole("region", { name: "Table" });
+        // On the table that holds the attribute, and the ask is spent once it is shown.
+        assert.equal(within(dock).getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
+        await waitFor(() => {
+            assert.isNull(store.get().dockColumn);
+        });
+    });
 
-            await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "Node table" }));
-            await waitFor(() => {
-                const nodes = screen.getByRole("tab", { name: "Nodes" });
-                assert.equal(nodes.getAttribute("aria-selected"), "true");
-            });
-            assert.equal(store.get().page, "panels");
-        },
-        TIMEOUT_MS,
-    );
+    it("Show in table brings a column off the right edge into view", async () => {
+        const { session } = await openDataPlace(TABLE_BUILT);
+        await session.data.import({ type: "json", name: "wide.json", config: { data: WIDE_JSON } });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "opens the edge table when the source row of an edge list, which has no children, is clicked",
-        async () => {
-            const { session, store } = await openDataPlace(TABLE_BUILT);
-            // A dropped edge list, opened as the start page opens it.
-            const csv = "source,target,weight\nAva,Ben,3\nBen,Cy,5\nCy,Ava,1\n";
-            const opened = await session.project.open(new File([csv], "friends.csv"), { fileName: "friends.csv" });
-            await opened.draft?.load({ mode: "replace" });
-            assert.isFalse(store.get().dockOpen);
+        const menu = await menuOf(await screen.findByRole("treeitem", { name: "m16, node attribute" }));
+        await userEvent.click(within(menu).getByRole("menuitem", { name: "Show in table" }));
 
-            const row = await screen.findByRole("treeitem", { name: "friends.csv" });
-            assert.isNull(row.getAttribute("aria-expanded"), "a single-table source has nothing to expand");
-            await userEvent.click(row);
-            assert.isTrue(store.get().dockOpen);
-            assert.equal(store.get().dockTab, "edges");
-            await waitFor(() => {
-                assert.equal(screen.getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
-            });
-        },
-        TIMEOUT_MS,
-    );
+        const dock = await screen.findByRole("region", { name: "Table" });
+        await waitFor(() => {
+            const viewport = within(dock).getByTestId("data-table-viewport");
+            assert.isAbove(viewport.scrollLeft, 0, "the table scrolled toward the column");
+            const header = within(dock)
+                .getAllByTestId("data-table-header")
+                .find((cell) => cell.textContent === "m16");
+            const shown = header?.getBoundingClientRect();
+            const box = viewport.getBoundingClientRect();
+            assert.isTrue(shown !== undefined && shown.right <= box.right + 1 && shown.left >= box.left - 1);
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "Add label line binds a new layer's node label to the attribute and selects it, as one undoable step",
-        async () => {
-            const { session, store } = await openDataPlace();
-            await importGraphFile(session);
-            const before = session.styles.list().length;
+    it("the attribute inspector's ... holds the same Add label line, Filter to... and Show in table", async () => {
+        const { session, store } = await openDataPlace(TABLE_BUILT);
+        await importGraphFile(session);
+        const before = session.styles.list().length;
 
-            const menu = await menuOf(await screen.findByRole("treeitem", { name: "label, node attribute" }));
-            await userEvent.click(within(menu).getByRole("menuitem", { name: "Add label line" }));
+        await userEvent.click(await screen.findByRole("treeitem", { name: "label, node attribute" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Attribute actions" }));
+        const menu = await screen.findByRole("menu");
+        assert.deepEqual(
+            within(menu)
+                .getAllByRole("menuitem")
+                .map((item) => item.textContent),
+            ["Add label line", "Filter to...", "Show in table"],
+        );
+        await userEvent.click(within(menu).getByRole("menuitem", { name: "Add label line" }));
+        await waitFor(() => {
+            assert.equal(session.styles.list().length, before + 1);
+        });
+        const layer = session.styles.list().at(-1);
+        assert.include(JSON.stringify(layer?.encode?.["node.label"]), '"data.label"');
+        await waitFor(() => {
+            assert.deepEqual(store.get().inspected, { kind: "layer-row", id: layer?.id });
+        });
+    });
 
-            await waitFor(() => {
-                assert.equal(session.styles.list().length, before + 1);
-            });
-            // A new row on top, its node label bound to the column, selected.
-            const layer = session.styles.list().at(-1);
-            assert.equal(layer?.name, "label");
-            assert.include(JSON.stringify(layer?.encode?.["node.label"]), '"data.label"');
-            await waitFor(() => {
-                assert.deepEqual(store.get().inspected, { kind: "layer-row", id: layer?.id });
-            });
+    it("opens the table dock on the nodes tab from Node table and on the edges tab from Edge table", async () => {
+        const { session, store } = await openDataPlace(TABLE_BUILT);
+        await importGraphFile(session);
 
-            await session.undo();
-            await waitFor(() => {
-                assert.equal(session.styles.list().length, before);
-            });
-        },
-        TIMEOUT_MS,
-    );
+        await userEvent.click(await within(tree("Sources")).findByRole("treeitem", { name: "Node table" }));
+        const dock = await screen.findByRole("region", { name: "Table" });
+        assert.equal(within(dock).getByRole("tab", { name: "Nodes" }).getAttribute("aria-selected"), "true");
+        assert.equal(store.get().page, "panels");
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "Show in table on an edge attribute opens the table dock",
-        async () => {
-            const { session, store } = await openDataPlace(TABLE_BUILT);
-            await importGraphFile(session);
-
-            const value = within(await screen.findByRole("tree", { name: "Attributes" })).getByRole("treeitem", {
-                name: "value, edge attribute",
-            });
-            const menu = await menuOf(value);
-            await userEvent.click(within(menu).getByRole("menuitem", { name: "Show in table" }));
-
-            await waitFor(() => {
-                assert.isTrue(store.get().dockOpen);
-            });
-            const dock = await screen.findByRole("region", { name: "Table" });
-            // On the table that holds the attribute, and the ask is spent once it is shown.
+        await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "Edge table" }));
+        await waitFor(() => {
             assert.equal(within(dock).getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
-            await waitFor(() => {
-                assert.isNull(store.get().dockColumn);
-            });
-        },
-        TIMEOUT_MS,
-    );
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "Show in table brings a column off the right edge into view",
-        async () => {
-            const { session } = await openDataPlace(TABLE_BUILT);
-            await session.data.import({ type: "json", name: "wide.json", config: { data: WIDE_JSON } });
+    it("shows Find past 15 attributes, and Find narrows the list by name", async () => {
+        const { session } = await openDataPlace();
+        await session.data.import({ type: "json", name: "wide.json", config: { data: WIDE_JSON } });
 
-            const menu = await menuOf(await screen.findByRole("treeitem", { name: "m16, node attribute" }));
-            await userEvent.click(within(menu).getByRole("menuitem", { name: "Show in table" }));
+        const find = await screen.findByRole("searchbox", { name: "Find attribute" });
+        const attributes = tree("Attributes");
+        assert.isNotNull(within(attributes).getByRole("treeitem", { name: "m01, node attribute" }));
+        await userEvent.type(find, "m16");
+        await waitFor(() => {
+            assert.isNull(within(attributes).queryByRole("treeitem", { name: "m01, node attribute" }));
+        });
+        assert.isNotNull(within(attributes).getByRole("treeitem", { name: "m16, node attribute" }));
 
-            const dock = await screen.findByRole("region", { name: "Table" });
-            await waitFor(() => {
-                const viewport = within(dock).getByTestId("data-table-viewport");
-                assert.isAbove(viewport.scrollLeft, 0, "the table scrolled toward the column");
-                const header = within(dock)
-                    .getAllByTestId("data-table-header")
-                    .find((cell) => cell.textContent === "m16");
-                const shown = header?.getBoundingClientRect();
-                const box = viewport.getBoundingClientRect();
-                assert.isTrue(shown !== undefined && shown.right <= box.right + 1 && shown.left >= box.left - 1);
-            });
-        },
-        TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "the attribute inspector's ... holds the same Add label line, Filter to... and Show in table",
-        async () => {
-            const { session, store } = await openDataPlace(TABLE_BUILT);
-            await importGraphFile(session);
-            const before = session.styles.list().length;
-
-            await userEvent.click(await screen.findByRole("treeitem", { name: "label, node attribute" }));
-            await userEvent.click(await screen.findByRole("button", { name: "Attribute actions" }));
-            const menu = await screen.findByRole("menu");
-            assert.deepEqual(
-                within(menu)
-                    .getAllByRole("menuitem")
-                    .map((item) => item.textContent),
-                ["Add label line", "Filter to...", "Show in table"],
-            );
-            await userEvent.click(within(menu).getByRole("menuitem", { name: "Add label line" }));
-            await waitFor(() => {
-                assert.equal(session.styles.list().length, before + 1);
-            });
-            const layer = session.styles.list().at(-1);
-            assert.include(JSON.stringify(layer?.encode?.["node.label"]), '"data.label"');
-            await waitFor(() => {
-                assert.deepEqual(store.get().inspected, { kind: "layer-row", id: layer?.id });
-            });
-        },
-        TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "opens the table dock on the nodes tab from Node table and on the edges tab from Edge table",
-        async () => {
-            const { session, store } = await openDataPlace(TABLE_BUILT);
-            await importGraphFile(session);
-
-            await userEvent.click(await within(tree("Sources")).findByRole("treeitem", { name: "Node table" }));
-            const dock = await screen.findByRole("region", { name: "Table" });
-            assert.equal(within(dock).getByRole("tab", { name: "Nodes" }).getAttribute("aria-selected"), "true");
-            assert.equal(store.get().page, "panels");
-
-            await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "Edge table" }));
-            await waitFor(() => {
-                assert.equal(within(dock).getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
-            });
-        },
-        TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "shows Find past 15 attributes, and Find narrows the list by name",
-        async () => {
-            const { session } = await openDataPlace();
-            await session.data.import({ type: "json", name: "wide.json", config: { data: WIDE_JSON } });
-
-            const find = await screen.findByRole("searchbox", { name: "Find attribute" });
-            const attributes = tree("Attributes");
-            assert.isNotNull(within(attributes).getByRole("treeitem", { name: "m01, node attribute" }));
-            await userEvent.type(find, "m16");
-            await waitFor(() => {
-                assert.isNull(within(attributes).queryByRole("treeitem", { name: "m01, node attribute" }));
-            });
-            assert.isNotNull(within(attributes).getByRole("treeitem", { name: "m16, node attribute" }));
-
-            // Nothing matches: one gray line says so.
-            await userEvent.type(find, "x");
-            assert.isNotNull(await screen.findByText('No match for "m16x"'));
-        },
-        TIMEOUT_MS,
-    );
+        // Nothing matches: one gray line says so.
+        await userEvent.type(find, "x");
+        assert.isNotNull(await screen.findByText('No match for "m16x"'));
+    });
 });

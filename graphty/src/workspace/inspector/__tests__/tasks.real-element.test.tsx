@@ -130,492 +130,434 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         await page.viewport(1366, 768);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T6: the graph's Overview shows the element's counts for karate",
-        async () => {
-            const { session } = await openWorkspace();
-            await session.data.import({ config: { url: "/samples/karate.gml" } });
-            await waitFor(
-                () => {
-                    assert.equal(session.data.statistics().nodeCount, 34);
-                },
-                { timeout: TIMEOUT_MS },
-            );
-            const statistics = session.data.statistics();
+    it("T6: the graph's Overview shows the element's counts for karate", async () => {
+        const { session } = await openWorkspace();
+        await session.data.import({ config: { url: "/samples/karate.gml" } });
+        await waitFor(
+            () => {
+                assert.equal(session.data.statistics().nodeCount, 34);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const statistics = session.data.statistics();
 
-            await waitFor(() => {
-                assert.include(inspector().getByRole("group", { name: "Nodes" }).textContent, "34");
-            });
-            assert.include(inspector().getByRole("group", { name: "Edges" }).textContent, String(statistics.edgeCount));
-            assert.include(inspector().getByRole("group", { name: "Direction" }).textContent, "Undirected");
-            assert.include(
-                inspector().getByRole("group", { name: "Components" }).textContent,
-                String(statistics.components.count),
-            );
-            // The header names the source once.
-            assert.isNotNull(inspector().getByRole("button", { name: "From karate.gml" }));
-        },
-        TIMEOUT_MS * 2,
-    );
+        await waitFor(() => {
+            assert.include(inspector().getByRole("group", { name: "Nodes" }).textContent, "34");
+        });
+        assert.include(inspector().getByRole("group", { name: "Edges" }).textContent, String(statistics.edgeCount));
+        assert.include(inspector().getByRole("group", { name: "Direction" }).textContent, "Undirected");
+        assert.include(
+            inspector().getByRole("group", { name: "Components" }).textContent,
+            String(statistics.components.count),
+        );
+        // The header names the source once.
+        assert.isNotNull(inspector().getByRole("button", { name: "From karate.gml" }));
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T12: a picked node opens on Values, and Degree lists its neighbors in name order, each with its tie",
-        async () => {
-            const { session } = await openRings();
-            await pick(session, "n0");
+    it("T12: a picked node opens on Values, and Degree lists its neighbors in name order, each with its tie", async () => {
+        const { session } = await openRings();
+        await pick(session, "n0");
 
-            const values = await inspector().findByRole("tab", { name: "Values" });
-            assert.equal(values.getAttribute("aria-selected"), "true");
-            await userEvent.click(inspector().getByRole("button", { name: /Degree/ }));
+        const values = await inspector().findByRole("tab", { name: "Values" });
+        assert.equal(values.getAttribute("aria-selected"), "true");
+        await userEvent.click(inspector().getByRole("button", { name: /Degree/ }));
 
-            const list = await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
-            const rows = rowButtons(list);
-            // In name order, as two hops list them; each tie value beside its name.
-            assert.deepEqual(
-                rows.map((row) => row.textContent),
-                ["Node 11", "Node 56", "Node 69"],
-            );
-            await userEvent.click(rows[1]);
-            await waitFor(() => {
-                assert.deepEqual([...session.selection.nodes], ["n5"]);
-            });
-        },
-        TIMEOUT_MS * 2,
-    );
+        const list = await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
+        const rows = rowButtons(list);
+        // In name order, as two hops list them; each tie value beside its name.
+        assert.deepEqual(
+            rows.map((row) => row.textContent),
+            ["Node 11", "Node 56", "Node 69"],
+        );
+        await userEvent.click(rows[1]);
+        await waitFor(() => {
+            assert.deepEqual([...session.selection.nodes], ["n5"]);
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T12 from the Neighborhood command: one node selected opens the same neighbor list by name",
-        async () => {
-            const { session } = await openRings();
-            await pick(session, "n0");
+    it("T12 from the Neighborhood command: one node selected opens the same neighbor list by name", async () => {
+        const { session } = await openRings();
+        await pick(session, "n0");
 
-            // The node's own menu in the inspector, where the Neighborhood command lives.
-            await userEvent.click(await inspector().findByRole("button", { name: "Node actions" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: /^Neighborhood/ }));
-            const list = await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
-            assert.deepEqual(
-                rowButtons(list).map((row) => row.textContent),
-                ["Node 11", "Node 56", "Node 69"],
-            );
-        },
-        TIMEOUT_MS * 2,
-    );
+        // The node's own menu in the inspector, where the Neighborhood command lives.
+        await userEvent.click(await inspector().findByRole("button", { name: "Node actions" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Neighborhood/ }));
+        const list = await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
+        assert.deepEqual(
+            rowButtons(list).map((row) => row.textContent),
+            ["Node 11", "Node 56", "Node 69"],
+        );
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T12 by keyboard only: Degree, the neighbor names, and Esc back to the node",
-        async () => {
-            const { session } = await openRings();
-            await pick(session, "n0");
+    it("T12 by keyboard only: Degree, the neighbor names, and Esc back to the node", async () => {
+        const { session } = await openRings();
+        await pick(session, "n0");
 
-            inspector()
-                .getByRole("button", { name: /Degree/ })
-                .focus();
-            await userEvent.keyboard("{Enter}");
-            const list = await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
-            // Focus lands on the checked Hops choice, not a neighbor row and not the whole list.
-            assert.equal(document.activeElement, within(list).getByRole("radio", { name: "1" }));
+        inspector()
+            .getByRole("button", { name: /Degree/ })
+            .focus();
+        await userEvent.keyboard("{Enter}");
+        const list = await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
+        // Focus lands on the checked Hops choice, not a neighbor row and not the whole list.
+        assert.equal(document.activeElement, within(list).getByRole("radio", { name: "1" }));
 
-            await userEvent.keyboard("{Escape}");
-            await waitFor(() => {
-                assert.deepEqual([...session.selection.nodes], ["n0"]);
-            });
-            // Focus is back on Degree, so Enter opens the list again with no mouse.
-            await waitFor(() => {
-                assert.equal(document.activeElement, inspector().getByRole("button", { name: /Degree/ }));
-            });
-            await userEvent.keyboard("{Enter}");
-            const again = await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
-            const first = rowButtons(again)[0];
-            await waitFor(() => {
-                assert.equal(document.activeElement, within(again).getByRole("radio", { name: "1" }));
-            });
-            // Enter on a name picks that node.
-            first.focus();
-            await userEvent.keyboard("{Enter}");
-            await waitFor(() => {
-                assert.deepEqual([...session.selection.nodes], ["n1"]);
-            });
-        },
-        TIMEOUT_MS * 2,
-    );
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.deepEqual([...session.selection.nodes], ["n0"]);
+        });
+        // Focus is back on Degree, so Enter opens the list again with no mouse.
+        await waitFor(() => {
+            assert.equal(document.activeElement, inspector().getByRole("button", { name: /Degree/ }));
+        });
+        await userEvent.keyboard("{Enter}");
+        const again = await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
+        const first = rowButtons(again)[0];
+        await waitFor(() => {
+            assert.equal(document.activeElement, within(again).getByRole("radio", { name: "1" }));
+        });
+        // Enter on a name picks that node.
+        first.focus();
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.deepEqual([...session.selection.nodes], ["n1"]);
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T12 on a directed graph: the arrow keys change Follow and focus stays on Follow, Hops unchanged",
-        async () => {
-            const { session } = await openRings();
-            await session.config.set({ data: { directed: true } });
-            await pick(session, "n0");
+    it("T12 on a directed graph: the arrow keys change Follow and focus stays on Follow, Hops unchanged", async () => {
+        const { session } = await openRings();
+        await session.config.set({ data: { directed: true } });
+        await pick(session, "n0");
 
-            inspector()
-                .getByRole("button", { name: /Degree/ })
-                .focus();
-            await userEvent.keyboard("{Enter}");
-            const follow = await inspector().findByRole("radiogroup", { name: "Follow" });
-            within(follow).getByRole("radio", { checked: true }).focus();
-            await userEvent.keyboard("{ArrowRight}");
-            await waitFor(() => {
-                assert.equal(within(follow).getByRole("radio", { checked: true }).getAttribute("value"), "out");
-            });
-            await userEvent.keyboard("{ArrowRight}");
-            // Each change reselects and relists; focus must follow neither into Hops nor off the list.
-            await waitFor(() => {
-                const now = inspector().getByRole("radiogroup", { name: "Follow" });
-                assert.equal(within(now).getByRole("radio", { checked: true }).getAttribute("value"), "in");
-                assert.equal(document.activeElement, within(now).getByRole("radio", { checked: true }));
-            });
-            const hops = inspector().getByRole("radiogroup", { name: "Hops" });
-            assert.equal(within(hops).getByRole("radio", { checked: true }).getAttribute("value"), "1");
-        },
-        TIMEOUT_MS * 2,
-    );
+        inspector()
+            .getByRole("button", { name: /Degree/ })
+            .focus();
+        await userEvent.keyboard("{Enter}");
+        const follow = await inspector().findByRole("radiogroup", { name: "Follow" });
+        within(follow).getByRole("radio", { checked: true }).focus();
+        await userEvent.keyboard("{ArrowRight}");
+        await waitFor(() => {
+            assert.equal(within(follow).getByRole("radio", { checked: true }).getAttribute("value"), "out");
+        });
+        await userEvent.keyboard("{ArrowRight}");
+        // Each change reselects and relists; focus must follow neither into Hops nor off the list.
+        await waitFor(() => {
+            const now = inspector().getByRole("radiogroup", { name: "Follow" });
+            assert.equal(within(now).getByRole("radio", { checked: true }).getAttribute("value"), "in");
+            assert.equal(document.activeElement, within(now).getByRole("radio", { checked: true }));
+        });
+        const hops = inspector().getByRole("radiogroup", { name: "Hops" });
+        assert.equal(within(hops).getByRole("radio", { checked: true }).getAttribute("value"), "1");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T12 from the find box: a pick moves focus to the inspector's title, not a value row",
-        async () => {
-            const { session } = await openRings();
-            await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "Node 0");
-            // The node first, then the edges named by it.
-            await screen.findAllByRole("option", { name: /Node 0/ });
-            await userEvent.keyboard("{Enter}");
-            await waitFor(() => {
-                assert.deepEqual([...session.selection.nodes], ["n0"]);
-            });
-            // The title that names the pick, not Degree: a ring on a value row reads as chosen, and
-            // Enter there would open the neighbors.
-            await waitFor(() => {
-                assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
-            });
-            // A heading with no focus mark: a box reads as an editable name, an underline as a link.
-            const title = inspector().getByRole("heading", { level: 2, name: "n0" });
-            assert.equal(title, document.activeElement);
-            assert.equal(getComputedStyle(title).textDecorationLine, "none");
-            assert.equal(getComputedStyle(title).outlineStyle, "none");
-            await userEvent.keyboard("{Enter}");
-            assert.isNull(inspector().queryByRole("group", { name: "Node 0 and 3 connections" }));
-        },
-        TIMEOUT_MS * 2,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T12 from the find box: an edge picked with Down and Enter moves focus to the inspector's title",
-        async () => {
-            const { session } = await openRings();
-            const box = screen.getByRole("combobox", { name: "Find" });
-            await userEvent.type(box, "Node 0");
-            // The node first, then the edges named by it: Down to the first edge.
-            await screen.findByRole("option", { name: /Node 0 -> Node 1/ });
-            const options = screen.getAllByRole("option");
-            const at = options.findIndex((option) => / -> /.test(option.textContent));
-            assert.isAbove(at, 0);
-            await userEvent.keyboard("{ArrowDown}".repeat(at + 1));
-            await userEvent.keyboard("{Enter}");
-            await waitFor(() => {
-                assert.equal(session.selection.edges.length, 1);
-            });
-            await waitFor(() => {
-                assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
-            });
-            // A following "/" goes to the find box as the shortcut, not as a typed slash.
-            await userEvent.keyboard("/");
-            await waitFor(() => {
-                assert.equal(document.activeElement, box);
-            });
-            assert.equal((box as HTMLInputElement).value, "");
-        },
-        TIMEOUT_MS * 2,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T7: a measure row shows its top 10, a node its rank, and Rerun revises the same row",
-        async () => {
-            const { session, store } = await openRings();
-            const id = await runToEnd(session, "pagerank");
-
-            await pick(session, "n0");
-            // A run is named by its method.
-            const label = "PageRank";
-            const rank = await inspector().findByRole("group", { name: label });
-            assert.match(rank.textContent ?? "", /#\d+ of 12/);
-
-            // Opened from Why this look, PageRank's row is a Measure, not Groups.
-            await userEvent.click(inspector().getByRole("tab", { name: "Style" }));
-            const lines: HTMLElement[] = await inspector().findAllByTestId("why-line");
-            const line = lines.find((why) => why.textContent.startsWith(label));
-            if (line === undefined) {
-                throw new Error(`no Why this look line for ${label}`);
-            }
-            await userEvent.click(within(line).getByRole("button"));
-            await waitFor(() => {
-                assert.equal(
-                    screen
-                        .getByRole("complementary", { name: "Inspector" })
-                        .querySelector("[data-inspected]")
-                        ?.getAttribute("data-inspected"),
-                    "measure-row",
-                );
-            });
-            assert.isNotNull(inspector().getByText("Measure"));
-            assert.isNull(inspector().queryByText("Groups"));
-
-            act(() => {
-                store.set({ inspected: { kind: "measure-row", id }, tabs: { "measure-row": "values" } });
-            });
-            const top = await inspector().findByRole("group", { name: "Top 10" });
-            assert.isAtMost(rowButtons(top).length, 10);
-            assert.isAbove(rowButtons(top).length, 0);
-
-            const madeWith = inspector().getByRole("group", { name: "Made with" });
-            const field = within(madeWith).getByRole("spinbutton", { name: "Damping factor" });
-            const before = field.getAttribute("value");
-            await userEvent.clear(field);
-            await userEvent.type(field, "0.5{Enter}");
-            // Revert drops the change: the bar goes and the field shows the run's value again.
-            await userEvent.click(await inspector().findByRole("button", { name: "Revert" }));
-            await waitFor(() => {
-                assert.equal(inspector().getByRole("status").textContent, "");
-            });
-            assert.equal(
-                within(inspector().getByRole("group", { name: "Made with" }))
-                    .getByRole("spinbutton", { name: "Damping factor" })
-                    .getAttribute("value"),
-                before,
-            );
-
-            const again = within(inspector().getByRole("group", { name: "Made with" })).getByRole("spinbutton", {
-                name: "Damping factor",
-            });
-            await userEvent.clear(again);
-            await userEvent.type(again, "0.5{Enter}");
-            const bar = await inspector().findByRole("status");
-            assert.include(bar.textContent, "Settings changed since the run");
-            await userEvent.click(inspector().getByRole("button", { name: "Rerun" }));
-
-            await waitFor(
-                () => {
-                    const runs = session.runs.list().filter((run) => run.algorithm === "pagerank");
-                    assert.lengthOf(runs, 1);
-                    assert.equal(runs[0].status, "succeeded");
-                    assert.include(Object.values(runs[0].params), 0.5);
-                },
-                { timeout: TIMEOUT_MS },
-            );
-            assert.equal(inspector().getByRole("status").textContent, "");
-            // The bar and its Rerun are gone; focus is on the inspector's title, not the page.
+    it("T12 from the find box: a pick moves focus to the inspector's title, not a value row", async () => {
+        const { session } = await openRings();
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "Node 0");
+        // The node first, then the edges named by it.
+        await screen.findAllByRole("option", { name: /Node 0/ });
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.deepEqual([...session.selection.nodes], ["n0"]);
+        });
+        // The title that names the pick, not Degree: a ring on a value row reads as chosen, and
+        // Enter there would open the neighbors.
+        await waitFor(() => {
             assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
-        },
-        TIMEOUT_MS * 2,
-    );
+        });
+        // A heading with no focus mark: a box reads as an editable name, an underline as a link.
+        const title = inspector().getByRole("heading", { level: 2, name: "n0" });
+        assert.equal(title, document.activeElement);
+        assert.equal(getComputedStyle(title).textDecorationLine, "none");
+        assert.equal(getComputedStyle(title).outlineStyle, "none");
+        await userEvent.keyboard("{Enter}");
+        assert.isNull(inspector().queryByRole("group", { name: "Node 0 and 3 connections" }));
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "T8: Louvain's row shows its groups, a group its members, and Why this look names it for Color",
-        async () => {
-            const { session, store } = await openRings();
-            await runToEnd(session, "betweenness");
-            const id = await runToEnd(session, "louvain");
+    it("T12 from the find box: an edge picked with Down and Enter moves focus to the inspector's title", async () => {
+        const { session } = await openRings();
+        const box = screen.getByRole("combobox", { name: "Find" });
+        await userEvent.type(box, "Node 0");
+        // The node first, then the edges named by it: Down to the first edge.
+        await screen.findByRole("option", { name: /Node 0 -> Node 1/ });
+        const options = screen.getAllByRole("option");
+        const at = options.findIndex((option) => / -> /.test(option.textContent));
+        assert.isAbove(at, 0);
+        await userEvent.keyboard("{ArrowDown}".repeat(at + 1));
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.equal(session.selection.edges.length, 1);
+        });
+        await waitFor(() => {
+            assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
+        });
+        // A following "/" goes to the find box as the shortcut, not as a typed slash.
+        await userEvent.keyboard("/");
+        await waitFor(() => {
+            assert.equal(document.activeElement, box);
+        });
+        assert.equal((box as HTMLInputElement).value, "");
+    });
 
-            await pick(session, "n3");
-            await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
-            const why: HTMLElement[] = await inspector().findAllByTestId("why-line");
-            const label = "Louvain";
-            const louvain = why.find((line) => line.textContent.startsWith(label));
-            if (louvain === undefined) {
-                throw new Error(`no Why this look line for ${label}`);
-            }
-            assert.include(louvain.textContent, "Color");
-            // The line and the header each show the color Louvain painted.
-            assert.isNotNull(louvain.querySelector(".mantine-ColorSwatch-root"));
-            assert.isNotNull(
+    it("T7: a measure row shows its top 10, a node its rank, and Rerun revises the same row", async () => {
+        const { session, store } = await openRings();
+        const id = await runToEnd(session, "pagerank");
+
+        await pick(session, "n0");
+        // A run is named by its method.
+        const label = "PageRank";
+        const rank = await inspector().findByRole("group", { name: label });
+        assert.match(rank.textContent ?? "", /#\d+ of 12/);
+
+        // Opened from Why this look, PageRank's row is a Measure, not Groups.
+        await userEvent.click(inspector().getByRole("tab", { name: "Style" }));
+        const lines: HTMLElement[] = await inspector().findAllByTestId("why-line");
+        const line = lines.find((why) => why.textContent.startsWith(label));
+        if (line === undefined) {
+            throw new Error(`no Why this look line for ${label}`);
+        }
+        await userEvent.click(within(line).getByRole("button"));
+        await waitFor(() => {
+            assert.equal(
                 screen
                     .getByRole("complementary", { name: "Inspector" })
-                    .querySelector("[data-inspected] .mantine-ColorSwatch-root"),
+                    .querySelector("[data-inspected]")
+                    ?.getAttribute("data-inspected"),
+                "measure-row",
             );
-            // The line's name opens Louvain's row.
-            await userEvent.click(within(louvain).getByRole("button"));
-            assert.equal(store.get().inspected?.id, id);
-            await userEvent.click(await inspector().findByRole("tab", { name: "Values" }));
-            const groups = Number(inspector().getByRole("group", { name: "Groups" }).textContent?.replace(/\D/g, ""));
-            assert.equal(groups, session.runs.get(id)?.result?.summary().groups?.length);
+        });
+        assert.isNotNull(inspector().getByText("Measure"));
+        assert.isNull(inspector().queryByText("Groups"));
 
-            const sizes = inspector().getByRole("group", { name: "Sizes" });
-            await userEvent.click(rowButtons(sizes)[0]);
-            // A group row opens on Style; its size is on Values.
-            await userEvent.click(await inspector().findByRole("tab", { name: "Values" }));
-            const members = await inspector().findByRole("button", { name: /^Size/ });
-            await userEvent.click(members);
-            await waitFor(() => {
-                assert.isAbove(session.selection.nodes.length, 1);
-                // The selection change closed the row: the inspector shows the selection.
-                assert.isNull(store.get().inspected);
+        act(() => {
+            store.set({ inspected: { kind: "measure-row", id }, tabs: { "measure-row": "values" } });
+        });
+        const top = await inspector().findByRole("group", { name: "Top 10" });
+        assert.isAtMost(rowButtons(top).length, 10);
+        assert.isAbove(rowButtons(top).length, 0);
+
+        const madeWith = inspector().getByRole("group", { name: "Made with" });
+        const field = within(madeWith).getByRole("spinbutton", { name: "Damping factor" });
+        const before = field.getAttribute("value");
+        await userEvent.clear(field);
+        await userEvent.type(field, "0.5{Enter}");
+        // Revert drops the change: the bar goes and the field shows the run's value again.
+        await userEvent.click(await inspector().findByRole("button", { name: "Revert" }));
+        await waitFor(() => {
+            assert.equal(inspector().getByRole("status").textContent, "");
+        });
+        assert.equal(
+            within(inspector().getByRole("group", { name: "Made with" }))
+                .getByRole("spinbutton", { name: "Damping factor" })
+                .getAttribute("value"),
+            before,
+        );
+
+        const again = within(inspector().getByRole("group", { name: "Made with" })).getByRole("spinbutton", {
+            name: "Damping factor",
+        });
+        await userEvent.clear(again);
+        await userEvent.type(again, "0.5{Enter}");
+        const bar = await inspector().findByRole("status");
+        assert.include(bar.textContent, "Settings changed since the run");
+        await userEvent.click(inspector().getByRole("button", { name: "Rerun" }));
+
+        await waitFor(
+            () => {
+                const runs = session.runs.list().filter((run) => run.algorithm === "pagerank");
+                assert.lengthOf(runs, 1);
+                assert.equal(runs[0].status, "succeeded");
+                assert.include(Object.values(runs[0].params), 0.5);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.equal(inspector().getByRole("status").textContent, "");
+        // The bar and its Rerun are gone; focus is on the inspector's title, not the page.
+        assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
+    });
+
+    it("T8: Louvain's row shows its groups, a group its members, and Why this look names it for Color", async () => {
+        const { session, store } = await openRings();
+        await runToEnd(session, "betweenness");
+        const id = await runToEnd(session, "louvain");
+
+        await pick(session, "n3");
+        await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
+        const why: HTMLElement[] = await inspector().findAllByTestId("why-line");
+        const label = "Louvain";
+        const louvain = why.find((line) => line.textContent.startsWith(label));
+        if (louvain === undefined) {
+            throw new Error(`no Why this look line for ${label}`);
+        }
+        assert.include(louvain.textContent, "Color");
+        // The line and the header each show the color Louvain painted.
+        assert.isNotNull(louvain.querySelector(".mantine-ColorSwatch-root"));
+        assert.isNotNull(
+            screen
+                .getByRole("complementary", { name: "Inspector" })
+                .querySelector("[data-inspected] .mantine-ColorSwatch-root"),
+        );
+        // The line's name opens Louvain's row.
+        await userEvent.click(within(louvain).getByRole("button"));
+        assert.equal(store.get().inspected?.id, id);
+        await userEvent.click(await inspector().findByRole("tab", { name: "Values" }));
+        const groups = Number(inspector().getByRole("group", { name: "Groups" }).textContent?.replace(/\D/g, ""));
+        assert.equal(groups, session.runs.get(id)?.result?.summary().groups?.length);
+
+        const sizes = inspector().getByRole("group", { name: "Sizes" });
+        await userEvent.click(rowButtons(sizes)[0]);
+        // A group row opens on Style; its size is on Values.
+        await userEvent.click(await inspector().findByRole("tab", { name: "Values" }));
+        const members = await inspector().findByRole("button", { name: /^Size/ });
+        await userEvent.click(members);
+        await waitFor(() => {
+            assert.isAbove(session.selection.nodes.length, 1);
+            // The selection change closed the row: the inspector shows the selection.
+            assert.isNull(store.get().inspected);
+        });
+    });
+
+    it("an edge, an attribute, the Everything row and a group's members each show the element's values", async () => {
+        const { session, store } = await openRings();
+        const id = await runToEnd(session, "louvain");
+
+        // An edge: its two ends, each selecting its node, and the file's weight.
+        const bridge = session.data.edges().find((edge) => edge.source === "n0" && edge.target === "n6");
+        if (bridge === undefined) {
+            throw new Error("the bridge edge is missing");
+        }
+        await act(async () => {
+            await session.selection.apply({ edges: [bridge.id] });
+        });
+        assert.include((await inspector().findByRole("button", { name: /^From/ })).textContent, "n0");
+        assert.include(inspector().getByRole("button", { name: /^To/ }).textContent, "n6");
+        assert.include(inspector().getByRole("group", { name: "weight" }).textContent, "9");
+        assert.deepEqual(controlNames(), [...new Set(controlNames())]);
+
+        // An attribute: its table and completeness.
+        act(() => {
+            session.selection.clear();
+        });
+        act(() => {
+            store.set({ inspected: { kind: "attribute", id: "data.label" } });
+        });
+        assert.include((await inspector().findByRole("group", { name: "Table" })).textContent, "Nodes");
+        assert.include(inspector().getByRole("group", { name: "Has a value" }).textContent, "100%");
+
+        // The Everything row: what it covers, from the element's counts.
+        act(() => {
+            store.set({ inspected: { kind: "everything-row" }, tabs: { "everything-row": "values" } });
+        });
+        assert.include((await inspector().findByText(/^Covers every node and edge/)).textContent, "12 nodes, 13 edges");
+
+        // A group row: its members are the nodes Louvain put in that group.
+        const group = session.runs.get(id)?.result?.summary().groups?.[0];
+        if (group === undefined) {
+            throw new Error("Louvain found no groups");
+        }
+        act(() => {
+            store.set({
+                inspected: { kind: "group-row", id: JSON.stringify([id, group.group]) },
+                tabs: { "group-row": "values" },
             });
-        },
-        TIMEOUT_MS * 2,
-    );
+        });
+        const members = await inspector().findByRole("group", { name: "Members" });
+        const names = rowButtons(members).map((row) => row.textContent);
+        assert.lengthOf(names, Math.min(10, group.size));
+        const louvain = session.runs.get(id);
+        const field = louvain === undefined ? null : RESULT_SHAPE_CONTRACTS[louvain.shape].primaryField;
+        assert.isNotNull(field);
+        for (const name of names) {
+            assert.equal(louvain?.result?.node(name)?.[field ?? ""], group.group);
+        }
+        assert.deepEqual(controlNames(), [...new Set(controlNames())]);
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "an edge, an attribute, the Everything row and a group's members each show the element's values",
-        async () => {
-            const { session, store } = await openRings();
-            const id = await runToEnd(session, "louvain");
+        // The run row and a neighborhood: no two reachable controls share a name.
+        act(() => {
+            store.set({ inspected: { kind: "run-row", id }, tabs: { "run-row": "values" } });
+        });
+        await inspector().findByRole("group", { name: "Sizes" });
+        assert.deepEqual(controlNames(), [...new Set(controlNames())]);
+        await pick(session, "n0");
+        await userEvent.click(await inspector().findByRole("button", { name: /Degree/ }));
+        await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
+        assert.deepEqual(controlNames(), [...new Set(controlNames())]);
+    });
 
-            // An edge: its two ends, each selecting its node, and the file's weight.
-            const bridge = session.data.edges().find((edge) => edge.source === "n0" && edge.target === "n6");
-            if (bridge === undefined) {
-                throw new Error("the bridge edge is missing");
+    it("every fixed row has a Style: the Selection's highlight, a group's color and eye, a run opening on Style", async () => {
+        const { session, store } = await openRings();
+        const id = await runToEnd(session, "louvain");
+
+        // The Selection row: Highlight > Color writes the element's selectionStyle.
+        act(() => {
+            store.set({ inspected: { kind: "selection-row", id: "selection" } });
+        });
+        const highlight = await inspector().findByRole("group", { name: "Highlight" });
+        const hex = within(within(highlight).getByRole("group", { name: "Nodes" })).getByRole("textbox", {
+            name: /Color/,
+        });
+        await userEvent.clear(hex);
+        await userEvent.type(hex, "FF0000{Enter}");
+        await waitFor(() => {
+            assert.equal(session.config.selectionStyle.color.toUpperCase(), "#FF0000");
+        });
+
+        // A group row opens on Style; its Fill paints that group only.
+        const groups = session.runs.get(id)?.result?.summary().groups ?? [];
+        assert.isAtLeast(groups.length, 2, "Louvain split the two rings");
+        const [first, second] = groups;
+        const louvain = session.runs.get(id);
+        const field = louvain === undefined ? "" : (RESULT_SHAPE_CONTRACTS[louvain.shape].primaryField ?? "");
+        const memberOf = (group: string | number): string => {
+            const node = session.data.nodes().find((n) => louvain?.result?.node(n.id)?.[field] === group);
+            if (node === undefined) {
+                throw new Error(`no node in group ${String(group)}`);
             }
-            await act(async () => {
-                await session.selection.apply({ edges: [bridge.id] });
-            });
-            assert.include((await inspector().findByRole("button", { name: /^From/ })).textContent, "n0");
-            assert.include(inspector().getByRole("button", { name: /^To/ }).textContent, "n6");
-            assert.include(inspector().getByRole("group", { name: "weight" }).textContent, "9");
-            assert.deepEqual(controlNames(), [...new Set(controlNames())]);
+            return String(node.id);
+        };
+        const inFirst = memberOf(first.group);
+        const inSecond = memberOf(second.group);
+        const colorOf = (node: string): string | undefined =>
+            session.styles.explain({ node }).merged["node.color"]?.hex.slice(0, 7).toLowerCase();
+        const citesRun = (node: string): boolean => {
+            const painter = session.styles.explain({ node }).channels.find((c) => c.channel === "node.color");
+            return painter !== undefined && session.runs.bindings(id).includes(painter.layerId);
+        };
+        assert.isTrue(citesRun(inFirst) && citesRun(inSecond), "the run paints both groups");
+        const otherBefore = colorOf(inSecond);
+        act(() => {
+            store.set({ inspected: { kind: "group-row", id: JSON.stringify([id, first.group]) } });
+        });
+        const fill = await inspector().findByRole("group", { name: "Fill" });
+        const fillHex = within(fill).getByRole("textbox", { name: /Color/ });
+        await userEvent.clear(fillHex);
+        await userEvent.type(fillHex, "123456{Enter}");
+        await act(async () => {
+            await session.styles.settled();
+        });
+        await waitFor(() => {
+            assert.equal(colorOf(inFirst), "#123456");
+        });
+        assert.equal(colorOf(inSecond), otherBefore, "another group keeps its color");
 
-            // An attribute: its table and completeness.
-            act(() => {
-                session.selection.clear();
-            });
-            act(() => {
-                store.set({ inspected: { kind: "attribute", id: "data.label" } });
-            });
-            assert.include((await inspector().findByRole("group", { name: "Table" })).textContent, "Nodes");
-            assert.include(inspector().getByRole("group", { name: "Has a value" }).textContent, "100%");
+        // The group's eye hides that group's paint and no other.
+        await userEvent.click(
+            await screen.findByRole("button", { name: `Hide ${groupNameOf(first.rank, first.group)}` }),
+        );
+        await act(async () => {
+            await session.styles.settled();
+        });
+        await waitFor(() => {
+            assert.isFalse(citesRun(inFirst));
+        });
+        assert.isTrue(citesRun(inSecond));
 
-            // The Everything row: what it covers, from the element's counts.
-            act(() => {
-                store.set({ inspected: { kind: "everything-row" }, tabs: { "everything-row": "values" } });
-            });
-            assert.include(
-                (await inspector().findByText(/^Covers every node and edge/)).textContent,
-                "12 nodes, 13 edges",
-            );
-
-            // A group row: its members are the nodes Louvain put in that group.
-            const group = session.runs.get(id)?.result?.summary().groups?.[0];
-            if (group === undefined) {
-                throw new Error("Louvain found no groups");
-            }
-            act(() => {
-                store.set({
-                    inspected: { kind: "group-row", id: JSON.stringify([id, group.group]) },
-                    tabs: { "group-row": "values" },
-                });
-            });
-            const members = await inspector().findByRole("group", { name: "Members" });
-            const names = rowButtons(members).map((row) => row.textContent);
-            assert.lengthOf(names, Math.min(10, group.size));
-            const louvain = session.runs.get(id);
-            const field = louvain === undefined ? null : RESULT_SHAPE_CONTRACTS[louvain.shape].primaryField;
-            assert.isNotNull(field);
-            for (const name of names) {
-                assert.equal(louvain?.result?.node(name)?.[field ?? ""], group.group);
-            }
-            assert.deepEqual(controlNames(), [...new Set(controlNames())]);
-
-            // The run row and a neighborhood: no two reachable controls share a name.
-            act(() => {
-                store.set({ inspected: { kind: "run-row", id }, tabs: { "run-row": "values" } });
-            });
-            await inspector().findByRole("group", { name: "Sizes" });
-            assert.deepEqual(controlNames(), [...new Set(controlNames())]);
-            await pick(session, "n0");
-            await userEvent.click(await inspector().findByRole("button", { name: /Degree/ }));
-            await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
-            assert.deepEqual(controlNames(), [...new Set(controlNames())]);
-        },
-        TIMEOUT_MS * 2,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "every fixed row has a Style: the Selection's highlight, a group's color and eye, a run opening on Style",
-        async () => {
-            const { session, store } = await openRings();
-            const id = await runToEnd(session, "louvain");
-
-            // The Selection row: Highlight > Color writes the element's selectionStyle.
-            act(() => {
-                store.set({ inspected: { kind: "selection-row", id: "selection" } });
-            });
-            const highlight = await inspector().findByRole("group", { name: "Highlight" });
-            const hex = within(within(highlight).getByRole("group", { name: "Nodes" })).getByRole("textbox", {
-                name: /Color/,
-            });
-            await userEvent.clear(hex);
-            await userEvent.type(hex, "FF0000{Enter}");
-            await waitFor(() => {
-                assert.equal(session.config.selectionStyle.color.toUpperCase(), "#FF0000");
-            });
-
-            // A group row opens on Style; its Fill paints that group only.
-            const groups = session.runs.get(id)?.result?.summary().groups ?? [];
-            assert.isAtLeast(groups.length, 2, "Louvain split the two rings");
-            const [first, second] = groups;
-            const louvain = session.runs.get(id);
-            const field = louvain === undefined ? "" : (RESULT_SHAPE_CONTRACTS[louvain.shape].primaryField ?? "");
-            const memberOf = (group: string | number): string => {
-                const node = session.data.nodes().find((n) => louvain?.result?.node(n.id)?.[field] === group);
-                if (node === undefined) {
-                    throw new Error(`no node in group ${String(group)}`);
-                }
-                return String(node.id);
-            };
-            const inFirst = memberOf(first.group);
-            const inSecond = memberOf(second.group);
-            const colorOf = (node: string): string | undefined =>
-                session.styles.explain({ node }).merged["node.color"]?.hex.slice(0, 7).toLowerCase();
-            const citesRun = (node: string): boolean => {
-                const painter = session.styles.explain({ node }).channels.find((c) => c.channel === "node.color");
-                return painter !== undefined && session.runs.bindings(id).includes(painter.layerId);
-            };
-            assert.isTrue(citesRun(inFirst) && citesRun(inSecond), "the run paints both groups");
-            const otherBefore = colorOf(inSecond);
-            act(() => {
-                store.set({ inspected: { kind: "group-row", id: JSON.stringify([id, first.group]) } });
-            });
-            const fill = await inspector().findByRole("group", { name: "Fill" });
-            const fillHex = within(fill).getByRole("textbox", { name: /Color/ });
-            await userEvent.clear(fillHex);
-            await userEvent.type(fillHex, "123456{Enter}");
-            await act(async () => {
-                await session.styles.settled();
-            });
-            await waitFor(() => {
-                assert.equal(colorOf(inFirst), "#123456");
-            });
-            assert.equal(colorOf(inSecond), otherBefore, "another group keeps its color");
-
-            // The group's eye hides that group's paint and no other.
-            await userEvent.click(
-                await screen.findByRole("button", { name: `Hide ${groupNameOf(first.rank, first.group)}` }),
-            );
-            await act(async () => {
-                await session.styles.settled();
-            });
-            await waitFor(() => {
-                assert.isFalse(citesRun(inFirst));
-            });
-            assert.isTrue(citesRun(inSecond));
-
-            // The run's row opens on Style the first time.
-            act(() => {
-                store.set({ inspected: { kind: "run-row", id } });
-            });
-            await waitFor(() => {
-                assert.equal(inspector().getByRole("tab", { selected: true }).textContent, "Style");
-            });
-        },
-        TIMEOUT_MS * 2,
-    );
+        // The run's row opens on Style the first time.
+        act(() => {
+            store.set({ inspected: { kind: "run-row", id } });
+        });
+        await waitFor(() => {
+            assert.equal(inspector().getByRole("tab", { selected: true }).textContent, "Style");
+        });
+    });
 });
 
 /**

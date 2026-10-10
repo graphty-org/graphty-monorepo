@@ -1,3 +1,18 @@
+## 0.6.43 (2026-10-10)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** honor maxIter in the spring-electrical layout ([#1766](https://github.com/graphty-org/graphty-monorepo/issues/1766))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.4.0
+- Updated layout to 2.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.42 (2026-10-09)
 
 ### 🩹 Fixes

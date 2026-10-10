@@ -13,9 +13,9 @@
 
 # A run_step check that fails ends the run at once (run_step exits), so a formatting or lint slip is
 # reported in seconds instead of after the build and the tests. The source-only checks run first,
-# before the build; then the build, knip, lint with type-check (inside each package's lint), and the
-# tests. Two checks run in the background and are reported at the end: the SonarQube scan (45-60 s)
-# and the screenshots. A run_step failure stops both (the EXIT trap).
+# before the build, the SonarQube changed-lines scan among them; then the build, knip, lint with
+# type-check (inside each package's lint), and the tests. The screenshots run in the background and
+# are reported at the end; a run_step failure stops them (the EXIT trap).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -41,31 +41,29 @@ echo "Pre-push validation"
 echo "========================================"
 echo ""
 
-# The source-only checks (formatting, links, the tool and config checks), and run_step and the colors
-# every step below uses. tools/prepush-source-checks.sh says why they come first and when they are skipped.
+# The source-only checks (formatting, links, the tool and config checks, SonarQube's changed-lines
+# scan), and run_step, the colors and SONAR_LOG every step below uses.
+# tools/prepush-source-checks.sh says why they come first and when they are skipped.
 source "$SCRIPT_DIR/prepush-source-checks.sh"
 
 # Track failures.
 #
-# FAILED is the overall verdict and decides the exit code, so every test block and the SonarQube
-# step OR into it (a run_step failure exits on the spot instead).
+# FAILED is the overall verdict and decides the exit code, so every background step ORs into it
+# (a run_step failure exits on the spot instead).
 # It must NOT be used to grade an individual step: a step-specific verdict needs its
-# own flag (SONAR_FAILED below), or an earlier step's failure is reported against a step
+# own flag, or an earlier step's failure is reported against a step
 # that passed -- knip failing once made the summary print "Some tests failed" on a run
 # where every test passed.
 FAILED=0
-SONAR_FAILED=0
 
 # The background steps: each its own process group (setsid), killed by the EXIT trap, so a push that
 # ends early (a failed step, Ctrl-C, a tool timeout killing this script) takes them with it. A
 # screenshot capture staged for a push that did not pass is thrown away, never promoted.
 MAIN_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 PUSH_HEAD="$(git rev-parse HEAD)"
-SONAR_PGID=""
 SCREENSHOTS_PGID=""
 SCREENSHOTS_STAGED=0
 cleanup() {
-    [ -n "$SONAR_PGID" ] && kill -- -"$SONAR_PGID" 2>/dev/null
     if [ -n "$SCREENSHOTS_PGID" ]; then
         # Its whole session too: the capture's time limits (timeout) put its steps in groups of their own.
         pkill -s "$SCREENSHOTS_PGID" 2>/dev/null
@@ -89,50 +87,12 @@ affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }
 # The same packages as directories (nx names remote-logger by its package name).
 DIR_LIST=$(echo "$PROJECT_LIST" | tr ',' ' ' | sed 's#@graphty/##g')
 
-# SonarQube (changed lines): tools/sonar-gate.mjs scans the files this push changes on the owner's
-# SonarQube server and fails the push on a NEW issue or security hotspot on a line the push adds or
-# changes; issues master already has never block. It passes with a boxed warning when the server
-# cannot be reached (off the owner's network), and blocks on any other setup problem (no token, an
-# admin token, no Java), saying how to fix it. It never runs in CI: the server is not reachable from
-# GitHub Actions. About 45-60 s for a typical push, so it runs in the BACKGROUND from the end of the
-# build until just before the summary, while lint and the tests run; it costs the gate almost no
-# wall-clock time. To push past a false positive: `// NOSONAR(<rule>): <reason>` on the line, a
-# reasoned path entry in sonar-project.properties, or -- emergencies only -- a
-# `Sonar-Bypass: <reason>` trailer on the HEAD commit. See design/sonarqube/design.md.
-#
-# Its own process group, killed by the EXIT trap (above), so a push that ends early takes the scanner
-# and its JRE with it and frees the scan lock. Its own flag, SONAR_FAILED, per the rule at the top of
-# this file.
-SONAR_LOG="$(git rev-parse --path-format=absolute --git-common-dir)/sonar/prepush-$(basename "$ROOT_DIR").log"
-mkdir -p "$(dirname "$SONAR_LOG")"
-start_sonar() {
-    echo -e "${YELLOW}> SonarQube (changed lines), in the background${NC}"
-    setsid node tools/sonar-gate.mjs >"$SONAR_LOG" 2>&1 &
-    SONAR_PGID=$!
-    echo ""
-}
-join_sonar() {
-    echo -e "${YELLOW}> SonarQube (changed lines)${NC}"
-    if wait "$SONAR_PGID"; then
-        cat "$SONAR_LOG"
-        echo -e "${GREEN}[PASS] SonarQube (changed lines) passed${NC}"
-    else
-        cat "$SONAR_LOG"
-        echo -e "${RED}[FAIL] SonarQube (changed lines) failed${NC}"
-        FAILED=1
-        SONAR_FAILED=1
-    fi
-    SONAR_PGID=""
-    echo ""
-}
-# Under the summary: repeat a skipped check's warning so it does not scroll away, and say what to
-# do about a SonarQube failure.
+# Under the summary: repeat a skipped check's warning so it does not scroll away. SONAR_LOG holds the
+# output of the SonarQube step's last run on this checkout (tools/prepush-source-checks.sh), which is
+# this push's run, or the earlier one on exactly these files when the source-only checks were skipped.
 sonar_reminder() {
     if grep -q "SonarQube did NOT check this push" "$SONAR_LOG" 2>/dev/null; then
-        echo -e "${YELLOW}Reminder: SonarQube did NOT check this push (see its box above).${NC}"
-    fi
-    if [ "$SONAR_FAILED" -eq 1 ]; then
-        echo -e "${RED}SonarQube failed: fix each new finding it listed (a false positive takes NOSONAR(<rule>) with a reason), or the setup problem it named.${NC}"
+        echo -e "${YELLOW}Reminder: SonarQube did NOT check this push (see its box in the source-only checks).${NC}"
     fi
 }
 
@@ -181,11 +141,9 @@ run_step "Knip (production dependencies)" "pnpm run lint:knip:prod"
 # A push that affects no package (tools/, the root package.json scripts, knip.config.ts, docs) stops
 # here: knip has checked it, and everything below is per affected package. The published-dependency
 # check (below for the other pushes) runs over every package, as CI's does: a change to the check
-# itself, or to tools/workspace-files.mjs, can fail it. The SonarQube step runs in the foreground.
+# itself, or to tools/workspace-files.mjs, can fail it.
 if [ -z "$PROJECT_LIST" ]; then
     run_step "Published dependencies" "pnpm run check:published-deps"
-    start_sonar
-    join_sonar
     sonar_reminder
     exit "$FAILED"
 fi
@@ -196,11 +154,6 @@ fi
 # cache on identical inputs, which nx shares across this repository's worktrees. That rebuild cost a
 # graphty-only push the whole chain a second time.
 run_step "Lint" "NX_DAEMON=false pnpm exec nx run-many -t lint --projects=$PROJECT_LIST --parallel=3 --skip-nx-cache --exclude-task-dependencies"
-
-# Start the SonarQube step only after Lint. A build deletes its dist/ first, and the scanner walks the
-# whole tree and dies with NoSuchFileException when a folder vanishes mid-walk (seen 2026-10-02); no
-# step from here on rewrites a dist/. It is joined just before the summary.
-start_sonar
 
 # Pack every published package and compare the files it would ship with its package.json: an
 # import nobody declared, a dependency nothing imports, an @graphty range the workspace version
@@ -234,8 +187,8 @@ fi
 # or a capture that works longer than PREPUSH_SCREENSHOTS_TIMEOUT (default 45m) does. The limit counts
 # only work: it starts once the capture holds its lock, and each Storybook's capture starts its share
 # once it holds a browser slot, so a long wait behind the test shards' browsers never fails it (its log
-# says when it waits and when it works). Its own process group, killed by the EXIT trap like
-# SonarQube's, so a step that stops the gate stops the capture with it.
+# says when it waits and when it works). Its own process group, killed by the EXIT trap,
+# so a step that stops the gate stops the capture with it.
 SCREENSHOTS_LOG="$MAIN_DIR/tmp/visual-preview/prepush-$(basename "$ROOT_DIR").log"
 mkdir -p "$(dirname "$SCREENSHOTS_LOG")"
 echo -e "${YELLOW}> Screenshots, in the background (log: $SCREENSHOTS_LOG)${NC}"
@@ -279,8 +232,6 @@ else
 fi
 SCREENSHOTS_PGID=""
 echo ""
-
-join_sonar
 
 # Summary -- the overall verdict, so this one reads the global FAILED flag on purpose:
 # a knip-only failure must still fail the push.

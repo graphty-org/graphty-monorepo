@@ -11,6 +11,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **The source inspector is headed by its Sources row's own icon.** One map,
+  `SOURCE_GLYPHS` in `glyphs.ts` (icon plus color: warning in `--cm-text-danger` for the left-out
+  row, node and edge glyphs for the tables, file for the load), drawn by `SourceGlyph`
+  (`DataPlace.tsx`) in both the Sources tree and the inspector header (`Header.source`, set in
+  `headerOf`'s source case). Test: the left-out case in `DataPage.real-element.test.tsx` compares
+  the heading's lucide class with the row's (failed without it: `lucide-file-text`). Evidence
+  `tmp/r2-dry4-source-inspector-glyph/{T4A,T4B}/10-13.png`.
+
 - (2026-10-09) **A click on a node's drawn name picks the node when its label style sets
   `pickable: true`** (new, additive, default unset = today: the label plane is pickable by
   Babylon's default, carries no node id, so it takes the pick and answers no node -- a name click

@@ -5,7 +5,16 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { announce, LABEL, replacedWhilePending, reportsFailure, statusComment, TITLE } from "./release-status.mjs";
+import {
+    announce,
+    dequeueFacts,
+    dequeueKey,
+    LABEL,
+    replacedWhilePending,
+    reportsFailure,
+    statusComment,
+    TITLE,
+} from "./release-status.mjs";
 
 const RUN = "https://github.com/o/r/actions/runs/1";
 
@@ -64,6 +73,28 @@ describe("statusComment", () => {
         assert.match(c, /Run: https:\/\/github\.com\/o\/r\/actions\/runs\/1$/);
     });
 
+    it("names the dequeued release pull request, why, the failing checks and the queue run", () => {
+        const c = statusComment(
+            "dequeued",
+            {
+                run: RUN,
+                sha: "abcdef123",
+                pr: "https://github.com/o/r/pull/7",
+                left: "2026-10-10T00:17:58Z",
+                what: "Dequeued -- checks failed",
+                checks: "All Checks Pass (u1), Queue Checks Pass (u2)",
+                queue: "https://github.com/o/r/pull/8",
+            },
+            "@x",
+        );
+        assert.match(
+            c,
+            /^@x \*\*Release pull request dequeued\*\*: https:\/\/github\.com\/o\/r\/pull\/7 left the merge queue at 2026-10-10T00:17:58Z without merging \(Dequeued -- checks failed\), on abcdef1\. Nothing was published\. Failing checks: All Checks Pass \(u1\), Queue Checks Pass \(u2\)\. Queue run: https:\/\/github\.com\/o\/r\/pull\/8\./,
+        );
+        assert.ok(c.includes(dequeueKey("https://github.com/o/r/pull/7", "2026-10-10T00:17:58Z")));
+        assert.ok(!reportsFailure(c, RUN, "1"), "not a release run failure");
+    });
+
     it("refuses an unknown outcome", () => {
         assert.throws(() => statusComment("skipped", { run: RUN }), /unknown outcome/);
     });
@@ -84,6 +115,48 @@ describe("reportsFailure", () => {
         assert.ok(!reportsFailure(held("1"), `${RUN}0`, "1"));
         assert.ok(!reportsFailure(statusComment("opened", { run: RUN, pr: "p" }), RUN, "1"));
         assert.ok(!reportsFailure(statusComment("published", { run: RUN }), RUN, "1"));
+    });
+});
+
+describe("dequeueFacts", () => {
+    // the "Mergify Merge Queue" check run of release pull request #1840 (2026-10-10), shortened
+    const run = {
+        completed_at: "2026-10-10T00:17:58Z",
+        details_url: "https://dashboard.mergify.com/x",
+        output: {
+            title: "Dequeued \u2014 checks failed",
+            summary: [
+                "- \u2705 **Entered queue** \u2014 `2026-10-10 00:05 UTC` \u00b7 Rule: `release`",
+                "- \u274c **Checks failed** \u00b7 on draft #1841",
+                "",
+                "## Reason",
+                "",
+                "- `Queue Checks Pass`",
+                "- `Lint PR Title`",
+                "",
+                "Failing checks:",
+                "- \u274c [`All Checks Pass`](https://github.com/o/r/runs/1) ([job log](https://github.com/o/r/runs/1))",
+                "- \u274c [`Queue Checks Pass`](https://github.com/o/r/runs/2) ([job log](https://github.com/o/r/runs/2))",
+                "",
+                "## Hint",
+                "- [ ] `check-success=Queue Checks Pass`",
+            ].join("\n"),
+        },
+    };
+    it("reads the reason, the failing checks, the queue draft and when it left", () => {
+        assert.deepEqual(dequeueFacts(run, "o/r"), {
+            what: "Dequeued -- checks failed",
+            checks: "All Checks Pass (https://github.com/o/r/runs/1), Queue Checks Pass (https://github.com/o/r/runs/2)",
+            queue: "https://github.com/o/r/pull/1841",
+            left: "2026-10-10T00:17:58Z",
+        });
+    });
+    it("falls back to Mergify's page with no draft, and to nothing with no check run", () => {
+        assert.equal(
+            dequeueFacts({ ...run, output: { title: "Dequeued", summary: "" } }, "o/r").queue,
+            run.details_url,
+        );
+        assert.deepEqual(dequeueFacts(undefined, "o/r"), { what: "", checks: "", queue: "", left: "" });
     });
 });
 
@@ -164,7 +237,7 @@ describe("announce", () => {
 
     it("skips a run-ended comment when a failure of that run attempt is already reported", async () => {
         const { calls, request } = fake([{ number: 8 }], [{ body: statusComment("held", { run: RUN }) }]);
-        const unlessReported = { run: RUN, attempt: "1", since: "2026-10-09T12:00:00Z" };
+        const unlessReported = { since: "2026-10-09T12:00:00Z", reported: (b) => reportsFailure(b, RUN, "1") };
         assert.equal(await announce({ request, repo: "o/r", body: "hi", unlessReported }), null);
         assert.deepEqual(
             calls.map(([m, p]) => `${m} ${p}`),
@@ -178,9 +251,33 @@ describe("announce", () => {
     it("posts a run-ended comment when only a success of that run was announced", async () => {
         const { calls, request } = fake([{ number: 8 }], [{ body: statusComment("opened", { run: RUN, pr: "p" }) }]);
         assert.equal(
-            await announce({ request, repo: "o/r", body: "hi", unlessReported: { run: RUN, attempt: "1" } }),
+            await announce({
+                request,
+                repo: "o/r",
+                body: "hi",
+                unlessReported: { reported: (b) => reportsFailure(b, RUN, "1") },
+            }),
             8,
         );
         assert.deepEqual(calls.at(-1), ["POST", "/repos/o/r/issues/8/comments", { body: "hi" }]);
+    });
+
+    it("posts one comment per dequeue: the same pull request and time again posts nothing", async () => {
+        const f = { run: RUN, pr: "https://github.com/o/r/pull/7", left: "2026-10-10T00:17:58Z" };
+        const reported = (left) => (b) => b.includes(dequeueKey(f.pr, left));
+        const { request } = fake([{ number: 8 }], [{ body: statusComment("dequeued", f) }]);
+        assert.equal(
+            await announce({ request, repo: "o/r", body: "hi", unlessReported: { reported: reported(f.left) } }),
+            null,
+        );
+        assert.equal(
+            await announce({
+                request,
+                repo: "o/r",
+                body: "hi",
+                unlessReported: { reported: reported("2026-10-11T00:00:00Z") },
+            }),
+            8,
+        );
     });
 });

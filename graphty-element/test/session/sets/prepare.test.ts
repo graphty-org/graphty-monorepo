@@ -250,7 +250,6 @@ describe("member edits", () => {
         assert.strictEqual(refusal(() => sets.addMembers(fixed, { nodes: [Number.NaN] })).code, "E_BAD_COMMAND");
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("refuses an edit to a set holding more than 1M edge members", () => {
         assert.strictEqual(MAX_EDGE_MEMBER_EDIT, 1_000_000);
         const { sets } = harness();
@@ -276,7 +275,7 @@ describe("member edits", () => {
             refusal(() => small.sets.addMembers(at, { edges: [edge("a", "b", "3")] })).code,
             "E_TOO_LARGE",
         );
-    }, 60_000);
+    });
 });
 
 describe("the revision moves by the delta", () => {

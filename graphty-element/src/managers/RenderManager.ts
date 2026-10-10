@@ -696,7 +696,7 @@ export class RenderManager implements Manager {
     private sameAsDrawn(): boolean {
         const from = this.drawnFrom;
         const camera = this.scene.activeCamera;
-        if (camera === null || camera.uniqueId !== from.camera) {
+        if (camera?.uniqueId !== from.camera) {
             return false;
         }
 

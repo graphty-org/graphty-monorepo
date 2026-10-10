@@ -925,6 +925,16 @@ class Session implements ElementSession {
     }
 
     /**
+     * Publishes `canvas:empty-click`.
+     * @param at - Where the click landed.
+     * @param at.x - Its distance from the drawing's left edge, in CSS pixels.
+     * @param at.y - Its distance from the drawing's top edge, in CSS pixels.
+     */
+    emptyClick(at: { readonly x: number; readonly y: number }): void {
+        publish(this.watchers, "canvas:empty-click", { x: at.x, y: at.y });
+    }
+
+    /**
      * Watch the session.
      * @param event - Which event.
      * @param handler - Called with the event's detail.

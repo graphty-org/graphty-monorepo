@@ -11,66 +11,105 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-10) **Built: Filter to neighbors is a plain command.** It adds this center's step at the
-  hops shown, or turns that one step on (moving it to the hops shown); a second press never deletes
-  it, and it is never drawn pressed. Off lives only on the step's checkbox in Filters, and the
-  tooltip says so ("... Its step in Filters turns it off"). Walk: `tmp/t2r2-13/walk/06-11.png`.
-- (2026-10-10) **Built: a weighted path's run row and its "Shortest path added" line give its
-  total, "minutes 14", not "3 hops".** One helper, `pathLengthWords(run)` in
-  `graphty/src/workspace/analyze/words.ts`, feeds both the row (`graph-place/rows.ts`) and the
-  announcement; it reads the element's published `cost` and `caveats.weight` (distance only, the
-  same rule as the inspector's "Total minutes"). Walk: `design/ui/studio/tmp/t2r2-12/walk/11.png`.
-- (2026-10-09) **Built: a 24 px target on the extra-small checkbox; find-list arrows scroll the row
-  into view.** compact-mantine's xs Checkbox input grows to 24 x 24 (margin -6, paints nothing;
-  `::before` draws the 12 px face from the input's state colors): pixel-identical box, axe
-  target-size 0 on both filter-step screens. The find list did NOT scroll to the arrows' row on
-  8f0d5a6f7791 (`tmp/t2r2-10/find/04.png`); `FindBox` now scrolls it (and its group heading)
-  into view; `scrollable-region-focusable` on `.ws-find-viewport` recorded as a criteria exception.
-- (2026-10-09) **Built: participants run outside the studio's files, and a read voids them.**
-  `--brief <round>/sessions/<id>` writes the participant's folder under `<worktree>/tmp/studio-sessions/`
-  (same path below it); `--start` refuses a round `sessions/<id>` folder or a briefed folder inside
-  `design/ui/studio`, and a scratch folder without its own briefing; `--end` copies back with
-  `leaks.json`; `--leaks` reads the participant's Claude Code logs (opening prompt names the folder
-  and "study participant"). The workflow briefs, prompts, ends (twice) and grades on that. Round 2
-  routes that worked are weak evidence until re-run (weight meaning, Replace, find's rule hint).
-- (2026-10-09) **Did the dry run work? Mostly.** About 30 of ~355 recorded problems were build
-  faults, none above severity 2, no grade decided by one; the only `session.log` line is r2-s13's
-  900 s idle close. Twelve of the thirty sit on the one detour no dry run walked: styling a
-  selection. The dry run must walk what participants style, not only what the answer key styles.
-- (2026-10-09) **Built: a Color or Width added to a selection's layer starts at the highlight
-  look.** `session.styles.highlightStyle(target)` (element, additive) states what `highlight()`
-  paints with no set; `startingValue(descriptor, session, selector)` reads it when the layer the
-  line lands on names ids. Everything and run rows keep the descriptor default. Open, not the
-  app's: at width 24 the element's selection band grows with the line and covers the tie while
-  selected (`tmp/t2r2-7/walk/09.png`); width units stay an owner question.
-- (2026-10-09) **Built: an Add that repeats loaded ties says so and offers Replace.** The element
-  already had the count (`LoadReport.repeated.seen`); only the draft's merge report read 0, since it
-  measures in a scratch session without the graph's edges. Fixed in the element (pairs handed to
-  the measure); the Add page shows one line above the buttons and "Replace <source>" beside Load,
-  which reopens the page as Replace on the same file. Walk: `design/ui/studio/tmp/t2r2-5/`.
-- (2026-10-09) **Find box, severity 3:** "chapters 10" says only "No match". Proposed: when plain
-  text names part of a column the app already lists after "=", hint "=<column> >= `10`"; for bare
-  numbers an opt-in element parse option (`bareNumbers`, default off, additive) instead of changing
-  what the selector accepts (that would be breaking).
+- (2026-10-10) **Built: a selection's own row made from a rule is named by the rule.**
+  `selectionName` in `style/StyleTab.tsx` reads `session.selection.origin`: a text origin that
+  starts with "=" names the row by the rest ("minutes >= `10`"), shown in the layer list, the
+  inspector header and the key ("Edge color: minutes >= `10`"); every other selection keeps its
+  node id, edge ends or count. Walk: `tmp/t2r2b-8/rule/06-09.png`. Open: on that walk the new
+  edge Color line showed 000000, not the band's 0077BB the highlight-look test expects -- check
+  whether `highlightStyle("edge")` or the walk's Line + Color path differs from the test's.
+- (2026-10-10) **Built: readers' words find Shortest path in the Analyze list.** Aliases now
+  include "linked", "between", "in between", "fewest", "chain" (search only, never shown;
+  "linked" replaced "link", which it contains). Walk on 3ee5ca8b0e01: Shift+A, "linked",
+  Shortest path, From, pick, To, pick, Find path = 8 steps, Chloe-Ava-Ivan-Kofi-Milo
+  (`tmp/t2r2b-11/linked/02-09.png`). Open: "linked" also lists Louvain and Leiden first ("densely
+  linked groups", Louvain marked Start here); after picking Shortest path focus is on the
+  dialog, not From, so typing a name types nothing (`tmp/t2r2b-11/fewest/05.png`) -- one more
+  step on every path; putting focus in From would bring T18 to 7.
+- (2026-10-10) **Built: the find box gives a way on from a typed condition, and Enter runs it.**
+  Plain text that finds nothing and reads as no rule gets "No match for ... To select by a value,
+  type a rule such as =<example>"; a rule shown under the box (the text as a rule, or the
+  element's backtick rewrite, now with its "=") is the last option and the one Enter picks; a
+  click runs it too. Text-as-rule is judged by the element's new `selection.count` (reads the
+  target as `apply` does), not `scope.count`. Walk: `tmp/t2r2b-4/find/01-07.png`.
+- (2026-10-10) **Built: three keyboard focus faults on tier 2 controls.** A second Esc in an
+  empty find box keeps focus there (the `blur()` is gone); a Hops or Follow change by arrow keys
+  keeps focus on that control (the list remounts on every reselect, so a module flag names the
+  control to refocus); leaving the filter step editor (Tab out, or a click on anything else) saves
+  a whole, changed rule, a half-made one stays a draft, and Esc says "Step not added." or 'Not
+  saved: "..." is as it was.' on the status line. Walk: `tmp/t2r2b-6/find/07,08,13,16,17.png`.
+- (2026-10-10) **Unfinished, uncommitted: the round 3 dry run from real routes.** In the worktree,
+  not committed: `real.mjs` (Tab after a setup starts at Main menu; `REAL_MISS_FAILS=1` makes a
+  scripted walk's miss exit 2; self-test checks for both), `detours.sh` (round 2 detours R2-* and
+  keyboard sweeps KS-*), `rewalk.sh` (replays a session's transcript route, `routes:<round>`),
+  README, the owner-decisions entry for `canvas:empty-click` (its code is in bde1e5de0), and
+  FindBox's rule as the option Enter picks is now committed. Still to do: build, `--prove`,
+  `detours.sh all`, `rewalk.sh routes:tier2/rounds/round-2`, fix what fails, write the round 3
+  preflight's walk table, commit. The "#n among kinds" refusal is already committed with its check.
+- (2026-10-10) **Built: bar 10's scripted counts in `tool/bars.mjs`** (`measure.mjs` `bar10()`):
+  text cut off with no title, accessible name, tooltip (hovered, 1 s delay) or whole copy on
+  screen, and visible error codes / field paths, on every bar 8 screen plus long-names.csv's Data
+  place, inspector and find box, at 1440x900 and 1280x800. Planted clipped name and E_BAD_SELECTOR
+  are caught and printed by screen and element. On 7fe0a48412cc: 0 unreadable cuts (12 cut but
+  readable: find rows by tooltip, a column by name, the inspector title by its id row), 0 codes.
+- (2026-10-10, condensed) **Built:** Filter to neighbors is a plain command (adds or turns on
+  this center's step; off lives on the step's checkbox); a weighted path's row and announcement
+  give its total ("minutes 14") via `pathLengthWords(run)` in `analyze/words.ts`.
+- (2026-10-09, condensed) **Built on 10-09:** 24 px xs checkbox target (compact-mantine);
+  find-list arrows scroll the row into view; participants run outside the studio's files
+  (`--brief`, `--start` refusals, `--leaks`); a selection layer's Color or Width starts at the
+  highlight look (`styles.highlightStyle`; open: width 24 band covers the tie); an Add that
+  repeats loaded ties says so and offers Replace. Dry run verdict: ~30 of ~355 problems were build
+  faults, 12 on the one detour no dry run walked (styling a selection): walk what participants do.
 - (2026-10-09) **Drawn names covering names and the picked tie stay graphty-element's** (label
   placement, no size floor). Not a round 3 app change; no workaround in the app.
-- (2026-10-09) **A layer made from a rule should be named by the rule**, not "13 edges"
-  (`selection.origin.text` is already read in `FindBox`). Smallest fix for "the key says nothing".
 - (2026-10-09) **Open from the round 2 audit, app:** two-table source has no Edit/Replace and no
   reason; "Edit source..." lands on "Replace: ..."; the refused rule's fix drops "="; neighbor
   Back row scrolls the inspector sideways.
 - (2026-10-09) **Dry run = `tier2/pilot/detours.sh all`** on every new frozen build, plus this
   round's detours: style a selection (width, color, name), click away from an open step editor,
   run a path twice, reopen the Path form, open a newer copy of a loaded file.
-- (2026-10-09) **Script before calling it a defect:** a half-made filter step discarded on another
-  selection (the tool's click caused r2-s17/18), empty-canvas click while a run is selected, edge
-  width units (`EdgeMesh.ts` *20 and /40; "8" drawn as a hairline).
+- (2026-10-09) **Script before calling it a defect:** empty-canvas click while a run is
+  selected, edge width units (`EdgeMesh.ts` *20 and /40; "8" drawn as a hairline). (The half-made
+  step on another selection is settled: a whole rule saves on leaving, 2026-10-10.)
 - (2026-10-09) **The study tool reaches participants more often than the build does.** Every tool
   change gets a planted-failure check; click by name landing on a same-named control (r2-s17, s18,
   s30) needs a refusal like ambiguous names already get.
 
 ## Decisions and reasons
 
+- (2026-10-10) A rule selection's row takes the rule's text without its "=", trimmed, not a
+  sentence ("Edges where ..."): the rule is the reader's own words and the key already titles the
+  section "Edge color: <row>". Only text origins starting with "=" count; a plain text search or a
+  `{ where }` target keeps the count, since the first is not a rule and the second has no text a
+  reader typed. A hand-picked set with the same ids as an earlier rule reuses that rule's row
+  (rows are found by ids), so it shows the rule's name -- left as is.
+- (2026-10-10) **Path search words go in aliases, not in the line a reader sees.** Matching
+  is a substring of name, line, aliases, key; a word in the line would also be shown. The test
+  asserts Shortest path is among the results for each word, not alone: "between" rightly also
+  finds Betweenness, and "linked" the community runs.
+- (2026-10-10) **Keep `selection.count`; the earlier "drop it" was wrong.** `scope.count({ where })`
+  reads a rule as a node scope, so "minutes >= `10`" (an edge column) counted 0 and the box said
+  "No match" with an example instead of offering the rule; a real-element test with real typing
+  caught it, the unit test did not (its bare-number text took the refusal path, which never counts).
+  Asking "what would Enter select" belongs to the element, so FindBox calls `selection.count`.
+- (2026-10-10) **Leaving the step editor saves; a click away no longer only keeps a draft.** A
+  whole, changed rule is written when focus leaves the form (`onBlur` with a target outside it) or
+  the editor unmounts (a click elsewhere moves the inspector on); one `keep` ref stops a double
+  write and the Esc path. After a Tab-out the editor moves on to the saved step only if the
+  inspector still shows it, so a click that opened something else is never overridden by the
+  async write. An incomplete rule still waits as the "+" draft (the a97eb3b67 behavior, kept for
+  that case only).
+- (2026-10-10) **Hops/Follow focus: the effect's deps were never the cause.** `showNeighborhood`
+  reselects, the selection change closes the inspector row and `store.set` opens it again, so
+  `NeighborList` mounts fresh and its focus-on-open effect sends focus to Hops. Fix: the control's
+  `onChange` sets `refocusControl` to its label id and the effect focuses that group's checked
+  radio (ids hold quotes from `nodeKey`: `CSS.escape`). App only; no element change.
+- (2026-10-10) **Bar 10 counts visually hidden text as off screen, and a copy on screen as
+  readable.** The first run reported every Mantine VisuallyHidden status line (1 px box) as cut;
+  the same rule `wordsOnScreen` uses now skips them. A node's title cut while its id row shows it
+  whole is readable (criteria: "a wider view"). Raw refusal text and raw file statements have no
+  fixed shape: left to the experts. Counts are findings, not a failing exit.
 - (2026-10-10) **A command and a toggle on one button was the defect, not the words.** Participants
   pressed "Filter to neighbors" twice and lost the step they had made; the pressed look and "Press
   again to show every node" only explained the trap. One place turns a step off (its checkbox), as
@@ -82,33 +121,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `pathLengthWords`, with the inspector's distance-only rule for "Total <column>". Unweighted (or a
   non-distance weight) keeps "4 hops". No element change: `cost` and `caveats.weight` were
   already published.
-- (2026-10-09) **Only participant folders are refused in the studio, not every folder.** Pilots,
-  experts, graders' repros and `--prove` start under `design/ui/studio` by design; a literal "refuse
-  anything under the studio tree" would break them. A participant folder is recognized by place
-  (`rounds/*/sessions/*`, the old layout) or by holding `briefing.md`. Scratch mirrors the studio
-  path so `--end` and the plan lookup need no record file. The leak check is the backstop, since
-  `tmp/studio-sessions/` is still in the same repository: it flags facilitator names anywhere, any
-  `personas/` path, any studio path but its own copy, `real.mjs` and `tool/files/`, any `..`, and a
-  Grep/Glob with no folder. Checked on r2-s05's real log: it names `tasks.md` and the persona read.
-
-- (2026-10-09) **A bigger target is the input itself, not a pseudo-element hit area.** axe measures
-  the focusable element's box, so a `::after` hit area clicks but still fails target-size (it did,
-  in a probe: "12px by 12px", the containing tree row as the too-near neighbor). The input is the
-  24 px target and draws nothing; `background-clip: content-box` with 12 px padding hides its
-  face, `::before` (`border-color`/`background-color: inherit`) draws the box, so every state rule
-  keeps working; `outline-offset: -5px` keeps the ring 1 px off the drawn box. xs only (keyed on
-  Mantine's `data-size`). Limit: on rows under 24 px the area overhangs 2 px; a row painted later
-  (positioned, as Tree's) wins that overlap, so the next row keeps its clicks, but the next row's
-  box takes the previous row's bottom 2 px. Real filter rows are 44 px.
-- (2026-10-09) **Scroll the arrows' row with `scrollIntoView({ block: "nearest" })`, keyed on the
-  option id, not on every render** (a render-time scroll would fight a reader's wheel). The first
-  row of a group brings its heading too, or ArrowUp to the top hides "Nodes 64".
-
-- (2026-10-09) **The line lands on the row's own topmost layer, so read its selector, not
-  `fresh`.** After a selection's first edit the inspector moves to the new layer's row, where
-  `fresh` is undefined; reading `fresh?.selector` gave Color the highlight and Width the default.
-  The real-element test caught it (width 8, not 24). Rejected: a scaled width in the app (copies
-  an element constant and hides the units question).
+- (2026-10-09, summarized 2026-10-10) **Study folders, targets, scrolling, selection lines:**
+  only participant folders (`rounds/*/sessions/*` or holding `briefing.md`) are refused in the
+  studio; pilots, experts and `--prove` start there by design, and the leak check is the backstop.
+  A 24 px xs checkbox target is the input itself (axe measures the focusable box; a `::after` hit
+  area still fails), its face drawn by `::before`. The find list scrolls the arrows' row with
+  `scrollIntoView({ block: "nearest" })` keyed on the option id, never every render. A selection
+  row's line reads its own topmost layer's selector, not `fresh` (undefined after the first edit).
 
 - (2026-10-09, condensed) **Read the report type before adding a field:** the repeated-ties count
   already existed (`repeated.seen`); the defect was the measured merge, fixed in the element.
@@ -185,33 +204,34 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Columns after "=" omit run results; edge-only `edgePage` selection (owner door); dijkstra over a
   negative undirected weight freezes the page.
 
-- (2026-10-09) **A run row's Style tab offers only the sides the run's own layers cover** (built,
-  see Top of mind). A node-only result has nothing to say about edges (the algorithm-styles rule).
-  Rejected: a run-named edge layer with an empty selector (paints every edge, breaks the rule).
-- (2026-10-09) **Audit findings name the owning package; the canvas label clipping is the
-  element's.** The fit frames spheres only, so any app fix (smaller font, padding) would hide an
-  element defect. The legend card's label overlap waits on the same element fact (label bounds).
-- (2026-10-08, summarized) **Older dry-run calls and element facts:** camera unsaved; a step named
-  by what changed; a reopened load replaces itself; Esc exits only an empty import page; no script
-  focus ring after a pointer action; shared-control defects fixed in compact-mantine; a resolved
-  option is a caveat (`caveats.method`), never written into params; a left-out row names its
-  missing END; label draw order is `onTop`; what a rule tested is `selection.originPaths`, never
-  parsed; find moves the camera only to an off-screen pick; facts are rows, not chips.
-- (2026-10-07, condensed) **Tier 2 element work (owner doors):** edge pick 5a2b3b605; filter steps
-  `setSteps`, counts only in `plan` (8966b0888); stale runs ce34f31f3 (Replace never reruns);
-  every load a source f141b1283; edge-attribute filter 559f5dcb2 (`nodes: "ends"`); coded selector
-  refusals 3d89d43c3. Next: run results typed per field; several node types last.
-- (2026-10-07, condensed) **App-only (no door):** edge click opens the edge inspector (e666ae17d);
-  Export warnings worded by the app (`export/lossWords.ts`); a run's Values view comes from its
-  shape (`viewOf()`). Element English still on screen (estimate reasons, layout descriptions):
-  codes from the element are an owner door.
-- (2026-09-13 to 10-07) Older standing decisions: no default layout seed in the element (the app
-  seeds, `LAYOUT_SEED`); any new site showing a run calls `runName`; test the element before the
-  app; a run paints when it finishes; group-row color fallback in `graph-place/rows.ts` stays until
-  #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
+- (2026-10-09, summarized 2026-10-10) **Older element and app calls, still standing:** a run row's
+  Style tab offers only the sides its own layers cover; audit findings name the owning package
+  (canvas label clipping is the element's); camera unsaved; a reopened load replaces itself; a
+  resolved option is a caveat, never written into params; what a rule tested is
+  `selection.originPaths`, never parsed; tier 2 element doors: edge pick 5a2b3b605, filter steps
+  8966b0888, stale runs ce34f31f3, every load a source f141b1283, edge-attribute filter 559f5dcb2,
+  coded selector refusals 3d89d43c3; app-only: edge inspector e666ae17d, Export warnings worded by
+  the app, a run's Values view from its shape.
 
 ## Tried: worked / did not work
 
+- (2026-10-10) Worked: proving the rule-name test fails by disabling the branch (`&& false`)
+  gave "expected [ '2 edges' ] to deeply equal [ 'minutes >= `10`' ]". Did not work at first: a
+  rule typed with backticks gets no option row under the box (only "Rule: press Enter to select
+  matches"), so the test waits for that line, not an option.
+- (2026-10-10) Worked: a real-element test with real typing for every path a unit adds. The
+  backtick-typed condition failed only there (edge column counted as a node scope). Did not work:
+  running vitest while another agent rebuilt the shared dists (graph-io chunks missing, "Failed to
+  import test file"); wait until its `nx run graphty:build` exits, then rerun.
+- (2026-10-10) Resuming after an interrupted session: check `git log` and `tmp/<session>/` before
+  redoing a task. Focus after actions (inspector title after a run or find pick, Degree after
+  Back, no canvas ring after a pointer click) was already on the branch (c9430b8d7, refined in
+  7f61a2ab2); its re-pilot shots still hold (`tmp/r1-dry2-focus-after-actions/T12RA/09.png`
+  Degree focused, `T24A/02.png` no canvas outline). Worked: nothing to redo.
+- (2026-10-10) Did not work: running `bars.mjs` on `graphty/dist` of the shared worktree; another
+  agent rebuilt it mid-run (ENOENT on index.html). Copy the dist into the task folder and pass
+  `--dist`. Seen, not mine: tier 1's "a node's Values with its neighbors" step misses (click on
+  "Degree" times out) on 7fe0a48412cc.
 - (2026-10-10) Did not work: a Python heredoc with `\\'` inside a single-quoted string (syntax
   error); write the edit script to a file with the Write tool. Worked: `openKarate("data")` (the
   Workspace's `initialState.place`) puts Filters beside the inspector in a real-element test, so the
@@ -220,77 +240,33 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   shared put it in both (the unweighted test then failed on "minutes 14"); anchor test edits on a
   line unique to the test. Worked: proving the row test fails without the fix by writing
   `git show HEAD:<file>` over the source, running, and copying the new file back.
-- (2026-10-09) Worked: finding a workflow agent's log by its opening prompt. Workflow subagent logs
-  are `~/.claude/projects/<proj>/<session>/subagents/workflows/wf_*/agent-*.jsonl`; the first user
-  lines can be the harness's relayed request, so read every user line before the first assistant
-  line. Filtering by mtime since the briefing keeps the scan of ~19k logs to a second.
-
-- (2026-10-09) Worked: an axe probe as a throwaway compact-mantine browser test before choosing
-  the CSS (printed `failureSummary`); a pixel diff of the 24 px crop around the box against the
-  frozen build's `bars.mjs` capture (bbox None). `userEvent.click(container, { position })` clicks
-  a page point as long as what is hit is inside the container. Seen, not mine: `bars.mjs` MISSes
-  "a node's Values with its neighbors" on 8f0d5a6f7791 too (Degree click times out), and bar 9 (b)
-  is over round 1's counts on the shared tree.
-
-- (2026-10-09) Worked: a pixel check in an app real-element test from public API only --
-  `element.captureScreenshot`, the midpoint of two `nodeScreenPosition`s scaled by bitmap width
-  over the element's CSS width, the mean of a 9 px square, styled tie against an unstyled one.
-  Without the fix the two differed by 2 (of 765); with it, well over 30. Select ties for a walk
-  with find `=minutes >= \`10\`` on bus-stops.
-
-- (2026-10-09) Worked: a one-off element test printing `JSON.stringify(await draft.report(...))`
-  before writing code -- it showed `repeated.seen: 0` beside `counts.edges: 82`, which placed the
-  defect in the measure, not the type. `session.data.import` takes `{ config: { file } }`, not
-  `{ file }`. The app's real-element project is `--project=real-element` (`browser` excludes
-  them); `?raw` imports of `design/ui/studio/tool/files/*.csv` work from graphty tests.
-
-- (2026-10-09) Worked for a critique: reading `insights.md` section 2 first (it answers "was it
-  the build or the design"), then grepping `startingValue` and `ruleFromText` to place each fix in
-  its package before proposing it; `for f in */session.log; do [ -s $f ] ...` finds the sessions
-  where the tool or build spoke.
+- (2026-10-09, summarized 2026-10-10) **Probes before code.** Workflow subagent logs live in
+  `~/.claude/projects/<proj>/<session>/subagents/workflows/wf_*/agent-*.jsonl` (read every user
+  line before the first assistant line; filter by mtime). An axe probe as a throwaway
+  compact-mantine test before choosing CSS. A pixel check from public API only:
+  `element.captureScreenshot` at a `nodeScreenPosition` midpoint scaled by bitmap over CSS width,
+  9 px mean, styled against unstyled. Print `JSON.stringify(await draft.report(...))` before
+  coding to place a defect. `data.import` takes `{ config: { file } }`; app real-element tests run
+  with `--project=real-element`; `?raw` imports of `tool/files/*.csv` work. For a critique read
+  `insights.md` section 2 first, then grep to place each fix in its package. Seen, not mine:
+  `bars.mjs` misses "a node's Values with its neighbors" (Degree click times out).
 
 - (2026-10-09, condensed) Never edit a script while it runs (bash reads by offset; use a copy);
   `chmod +x` new scripts and read their output, not the exit code; 2x2 `montage` sheets for 900 x
   700 shots. Control names: "Filter: <n> of <m> nodes", "Source actions", "Graph#1".
-- (2026-10-09) Did not work: a left-edge test with `getBoundingClientRect().left` of a padded
-  `Text` -- the box starts before its padding, so the broken build passed. Worked: a Range over
-  the element's contents (`range.selectNodeContents(el).getBoundingClientRect().left`) for where
-  the text is drawn.
+- (2026-10-09, summarized 2026-10-10) **Geometry and proof in tests.** Where text is drawn:
+  a Range over the element's contents, not a padded box's `left`. A point on a drawn name: walk up
+  from `nodeScreenPosition(id)` past its `radius` to the first point `elementAt` answers. Prove a
+  test fails without the change by writing `git show HEAD:<file>` over the source, running, and
+  copying back (no stash); tool files with `node --test` on HEAD copies; prettier checks
+  `design/ui/studio/tool/`. Pilot walks: rebuild from `repilot.sh` and its shots, run it bare,
+  contact sheets with `montage`.
 
-- (2026-10-09) Worked: an app real-element test that finds a point on a drawn name with public
-  API only -- walk up from `nodeScreenPosition(id)` past its `radius` and take the first point
-  `elementAt` answers the node (the app lint rule `graphty/no-element-mutation` refuses
-  `element.graph`). Seen, not mine: `tsc` in graphty-element flags `maxNodes` in
-  `test/managers/LayoutManager.test.ts` because `layout/dist` predates the master merge (stale
-  build, not a source error).
-
-- (2026-10-09, summarized) Pilot walks: rebuild a lost walk from `repilot.sh` and its screenshots;
-  run repilot.sh bare (inside `with-browser.sh` it held a slot with no browser); re-pilot fixed
-  screens by script, then contact sheets (`montage *.png -tile 4x -geometry 720x450`).
-
-- (2026-10-09, condensed) Proving a test fails without the change: copy the changed file aside,
-  write `git show HEAD:<file>` (or a one-line python edit) over it, run, copy back -- no stash. For
-  tool files, `node --test` on `git show HEAD:` copies in a scratch folder; prettier, not eslint,
-  checks `design/ui/studio/tool/`. The app hears the element only through `session.on`.
-
-- (2026-10-09, summarized) **Measure before fixing a look.** A Playwright probe under
-  `with-browser.sh` showed a list really overflowed (Mantine keeps a hidden ScrollArea bar mounted:
-  check computed display); log a root's computed `display` when a rule "does nothing" (a `.dp`
-  class collision made a grid flex; grep new root classes). `--expect selected=N` counts selected
-  rows, not nodes. TS drops narrowing inside hoisted nested functions.
-
-- (2026-10-09, condensed) A pilot's exact steps are in `.claudehistory/<session>/subagents/`;
-  `--hover-at` over every control class before choosing a rule; re-walk every dry-run walk whose
-  path uses a changed door (`detours.sh T3 T4 ...`).
-- (2026-10-09) Worked: a local walk script beside the evidence (`r2-dry2-app-import-and-left-out/walk.sh`)
-  when rewalk.sh's fixed steps stop one click short; a real-element test of "does not move" reads
-  the control's `getBoundingClientRect().left` before and after the click.
-
-- (2026-10-09, condensed) **Test and walk lessons.** A second load in a test needs
-  `{ mode: "merge" }`. Prove "nothing follows" by spying the element call, never a sleep; prove
-  every walk check on the broken build (only `--expect` fails a walk). A build from the shared tree
-  holds others' unfinished edits. Hooks: copy `.husky/_/` AND the top-level hooks into the temp
-  dir, else every hook exits 0. Open: a run hidden by an Everything edit shows a blank Style tab.
+- (2026-10-09, summarized 2026-10-10) **Measure before fixing a look; walk lessons.** Probe
+  computed `display` and real overflow under `with-browser.sh` before CSS; `--expect selected=N`
+  counts rows; a pilot's exact steps are in `.claudehistory/<session>/subagents/`; re-walk every
+  walk whose path uses a changed door; a second test load needs `{ mode: "merge" }`; prove
+  "nothing follows" by spying, never a sleep; hooks: copy `.husky/_/` AND top-level hooks.
 
 - (2026-10-09, condensed) Did not work: leaving edits uncommitted while others commit in the same
   files (`17bf87085` swept my hunks); commit as soon as hunks pass. Did not work:

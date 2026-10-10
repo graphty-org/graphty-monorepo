@@ -130,7 +130,17 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
     "shortest-path": {
         name: "Shortest path",
         answers: "The fewest steps, or the shortest path by weight, between two nodes.",
-        aliases: ["route", "dijkstra", "how are they connected", "chain", "quickest", "link", "between"],
+        aliases: [
+            "route",
+            "dijkstra",
+            "how are they connected",
+            "chain",
+            "quickest",
+            "linked",
+            "between",
+            "in between",
+            "fewest",
+        ],
         startHere: true,
     },
     astar: {

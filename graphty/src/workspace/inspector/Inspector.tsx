@@ -85,16 +85,23 @@ export function Inspector(): React.JSX.Element {
     const attributeActionsOf = useAttributeActions();
     const sourceActionsOf = useSourceActions();
 
-    // The inspector shows the selected thing: a selection change closes an open row.
+    // The inspector shows the selected thing: a selection change closes an open row, and so does
+    // a click on empty canvas, which lets go of a run or row selected while no node was.
     useEffect(() => {
         if (session === null) {
             return undefined;
         }
-        return session.on("selection:changed", () => {
+        const close = (): void => {
             if (store.get().inspected !== null) {
                 store.set({ inspected: null });
             }
-        });
+        };
+        const stops = [session.on("selection:changed", close), session.on("canvas:empty-click", close)];
+        return () => {
+            for (const stop of stops) {
+                stop();
+            }
+        };
     }, [session, store]);
 
     const resolved = resolveInspected(

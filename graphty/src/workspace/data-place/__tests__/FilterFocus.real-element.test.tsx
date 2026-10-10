@@ -113,6 +113,41 @@ describe("Filters focus and keys on the real element", () => {
         assert.strictEqual(document.activeElement, plus);
     });
 
+    it("Tab out of the step editor saves the edit; Escape saves nothing and says so", async () => {
+        const { session, store } = await openWithGraph();
+        await session.visibility.setSteps([
+            { id: "a", on: true, rule: { kind: "range", attribute: "data.value", min: 2, nodes: "ends" } },
+        ]);
+        await userEvent.click(await within(filters()).findByRole("treeitem", { name: "value is at least 2" }));
+        const value = await screen.findByRole("textbox", { name: "Value" });
+        await userEvent.clear(value);
+        await userEvent.type(value, "9");
+        // Value is the editor's last field before Save step, which waits for a change: one Tab
+        // goes to Save step, the next leaves the editor.
+        await userEvent.tab();
+        assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Save step" }));
+        assert.equal(session.visibility.steps[0]?.rule.kind === "range" && session.visibility.steps[0].rule.min, 2);
+        await userEvent.tab();
+        await waitFor(() => {
+            assert.deepEqual(session.visibility.steps[0]?.rule, {
+                kind: "range",
+                attribute: "data.value",
+                min: 9,
+                nodes: "ends",
+            });
+        });
+        assert.equal(store.get().announcement, 'Saved "value is at least 9". The step is on.');
+
+        // Escape after another change leaves the step as it was, and the status line says so.
+        const again = screen.getByRole("textbox", { name: "Value" });
+        await userEvent.clear(again);
+        await userEvent.type(again, "10");
+        await userEvent.keyboard("{Escape}");
+        assert.isNull(store.get().inspected);
+        assert.equal(store.get().announcement, 'Not saved: "value is at least 9" is as it was.');
+        assert.equal(session.visibility.steps[0]?.rule.kind === "range" && session.visibility.steps[0].rule.min, 9);
+    });
+
     it("deleting a step moves focus to the next row, the one above for the last, then +", async () => {
         const { session } = await openWithGraph();
         await session.visibility.setSteps([

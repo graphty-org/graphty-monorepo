@@ -11,6 +11,7 @@ import "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, beforeEach, describe, it } from "vitest";
+import { page, userEvent as realInput } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { clearRecent } from "../../project/recent";
@@ -186,6 +187,46 @@ describe("Notes, on the real element", () => {
             });
             assert.isNotNull(screen.getByText("No notes."));
             assert.lengthOf(session.notes.list(), 0);
+        },
+        TIMEOUT_MS,
+    );
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "a click on empty canvas lets go of a selected run, so the next note is about the graph",
+        async () => {
+            // Wide enough that the canvas is drawn beside both panels.
+            await page.viewport(1366, 768);
+            const store = createWorkspaceStore();
+            const session = await openSample(store);
+            await session.runs.start("pagerank", {});
+            await userEvent.click(await screen.findByRole("treeitem", { name: "PageRank" }));
+            await waitFor(() => {
+                assert.isNotNull(store.get().inspected);
+            });
+
+            // A spot near the canvas's lower right corner with no node or edge under it.
+            const element = document.querySelector("graphty-element");
+            assert.isNotNull(element);
+            const canvas = (element.shadowRoot ?? element).querySelector("canvas");
+            assert.isNotNull(canvas);
+            const box = canvas.getBoundingClientRect();
+            const host = element.getBoundingClientRect();
+            const spot = { x: Math.round(box.width) - 20, y: Math.round(box.height) - 20 };
+            await waitFor(() => {
+                assert.isNull(element.elementAt({ x: spot.x + box.left - host.left, y: spot.y + box.top - host.top }));
+            });
+            await realInput.click(canvas, { position: spot });
+            await waitFor(() => {
+                assert.isNull(store.get().inspected);
+            });
+
+            (document.activeElement as HTMLElement | null)?.blur();
+            await userEvent.keyboard("n");
+            const field = await screen.findByRole("textbox", { name: "Note" });
+            const editor = field.closest<HTMLElement>(".nt-editor");
+            assert.isNotNull(editor);
+            assert.isNotNull(within(editor).queryByText("Graph"), "the note is about the graph");
+            assert.isNull(within(editor).queryByText("PageRank"), "not about the run left behind");
         },
         TIMEOUT_MS,
     );

@@ -87,6 +87,13 @@ describe("the Analyze popover's words", () => {
         );
     });
 
+    it("finds Shortest path for the words readers use for how two nodes are connected", () => {
+        for (const word of ["linked", "between", "fewest", "chain", "in between", "Linked"]) {
+            const keys = groupAlgorithms(BUILT_IN_ALGORITHMS, word).flatMap((g) => g.entries.map((d) => d.key));
+            assert.include(keys, "shortest-path", word);
+        }
+    });
+
     it("never shows a raw option key or choice value as a label", () => {
         for (const descriptor of BUILT_IN_ALGORITHMS) {
             for (const option of descriptor.options.filter((o) => o.internal !== true)) {

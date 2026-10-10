@@ -117,3 +117,8 @@
 .ws-graph-footer-glyph {
     vertical-align: -2px;
 }
+
+/* A rule offered as an option is set like every rule the box quotes. */
+.ws-find-rule .cm-result-name {
+    font-family: var(--mantine-font-family-monospace);
+}

@@ -35,8 +35,8 @@ const colors = {
 /** Maximum number of ports to try when scanning for available port */
 const MAX_PORT_SCAN_ATTEMPTS = 100;
 
-/** Maximum port number allowed (ports 9000-9099 per project guidelines) */
-const MAX_PORT_NUMBER = 9099;
+/** Maximum port number allowed: servherd, and this machine's firewall, use ports 9000-9999 */
+const MAX_PORT_NUMBER = 9999;
 
 /** Maximum retries for binding after EADDRINUSE during listen */
 const MAX_BIND_RETRIES = 10;
@@ -49,7 +49,7 @@ const MAX_BIND_RETRIES = 10;
  * @param startPort - Starting port to try
  * @param host - Host to bind to
  * @param quiet - Suppress output messages
- * @param maxPort - Maximum port number to scan up to (default: 9099)
+ * @param maxPort - Maximum port number to scan up to (default: 9999)
  * @returns Promise resolving to bound server and actual port
  */
 async function tryBindWithRetry(
@@ -158,7 +158,7 @@ async function isPortAvailable(port: number, host: string): Promise<boolean> {
  * @param basePort - Starting port number
  * @param host - Host to bind to
  * @param quiet - Suppress output messages
- * @param maxPort - Maximum port number to scan up to (default: 9099)
+ * @param maxPort - Maximum port number to scan up to (default: 9999)
  * @returns Promise resolving to available port number
  * @throws Error if no available port found within MAX_PORT_SCAN_ATTEMPTS
  */
@@ -235,7 +235,7 @@ export interface DualServerOptions {
     jsonlWriter?: JsonlWriter;
     /** Only serve /log POST and /health GET endpoints (default: false) */
     logReceiveOnly?: boolean;
-    /** Maximum port number to scan up to (default: 9099) */
+    /** Maximum port number to scan up to (default: 9999) */
     maxPortNumber?: number;
 }
 

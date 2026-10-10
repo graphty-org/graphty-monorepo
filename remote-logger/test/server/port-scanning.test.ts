@@ -438,7 +438,7 @@ describe("Port scanning", () => {
                 httpEnabled: true,
                 mcpEnabled: false,
                 quiet: true,
-                // maxPortNumber not specified - should use default 9099
+                // maxPortNumber not specified - should use default 9999
             });
 
             expect(dualServer.httpPort).toBe(testPort);

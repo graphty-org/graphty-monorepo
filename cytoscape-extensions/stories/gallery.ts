@@ -7,7 +7,7 @@
 
 import type { Core } from "cytoscape";
 
-import { markDone, newCore, type Outcome, reportFailure, retireAll } from "./demo.js";
+import { fitToContainer, markDone, newCore, type Outcome, reportFailure, retireAll } from "./demo.js";
 
 export interface Tile {
     /** The heading, such as the method call. */
@@ -63,7 +63,10 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
                 const cy = newCore(canvas);
                 await t.load(cy);
                 const out = await t.run(cy);
-                const why = out.detail ? ` (${out.detail})` : "";
+                // fit to the size the tile has now, which also sets the node and edge sizes for that zoom
+                fitToContainer(cy);
+                // "CPU -- why", not "CPU (why)": a reason can hold parentheses of its own
+                const why = out.detail ? ` -- ${out.detail}` : "";
                 status.textContent = `${out.ran.toUpperCase()}${why}${out.note ? `\n${out.note}` : ""}`;
                 status.style.color = "#14532d";
             } catch (e) {

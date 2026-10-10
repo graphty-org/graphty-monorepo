@@ -304,6 +304,36 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
+        "T12 from the find box: an edge picked with Down and Enter moves focus to the inspector's title",
+        async () => {
+            const { session } = await openRings();
+            const box = screen.getByRole("combobox", { name: "Find" });
+            await userEvent.type(box, "Node 0");
+            // The node first, then the edges named by it: Down to the first edge.
+            await screen.findByRole("option", { name: /Node 0 -> Node 1/ });
+            const options = screen.getAllByRole("option");
+            const at = options.findIndex((option) => / -> /.test(option.textContent));
+            assert.isAbove(at, 0);
+            await userEvent.keyboard("{ArrowDown}".repeat(at + 1));
+            await userEvent.keyboard("{Enter}");
+            await waitFor(() => {
+                assert.equal(session.selection.edges.length, 1);
+            });
+            await waitFor(() => {
+                assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
+            });
+            // A following "/" goes to the find box as the shortcut, not as a typed slash.
+            await userEvent.keyboard("/");
+            await waitFor(() => {
+                assert.equal(document.activeElement, box);
+            });
+            assert.equal((box as HTMLInputElement).value, "");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
         "T7: a measure row shows its top 10, a node its rank, and Rerun revises the same row",
         async () => {
             const { session, store } = await openRings();

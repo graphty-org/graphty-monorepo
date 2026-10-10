@@ -45,24 +45,24 @@ export function selectNode(session: GraphSession, id: NodeId): void {
     void session.selection.apply({ nodes: [id] });
 }
 
-/** Set by a find pick, so the next node view puts keyboard focus on the inspector's title. */
-let nodeValuesFocus = false;
+/** Set by a find pick, so the next node or edge view puts keyboard focus on the inspector's title. */
+let valuesFocus = false;
 
 /**
- * Asks the node view the next selection draws to put keyboard focus on the inspector's title, so
- * typing after a find pick no longer lands in the find box.
+ * Asks the node or edge view the next selection draws to put keyboard focus on the inspector's
+ * title, so typing after a find pick no longer lands in the find box.
  */
-export function focusNodeValuesNext(): void {
-    nodeValuesFocus = true;
+export function focusValuesNext(): void {
+    valuesFocus = true;
 }
 
 /**
- * Takes a pending request from `focusNodeValuesNext`, once.
- * @returns whether the node view should take focus now.
+ * Takes a pending request from `focusValuesNext`, once.
+ * @returns whether the view should take focus now.
  */
-export function takeNodeValuesFocus(): boolean {
-    const asked = nodeValuesFocus;
-    nodeValuesFocus = false;
+export function takeValuesFocus(): boolean {
+    const asked = valuesFocus;
+    valuesFocus = false;
     return asked;
 }
 

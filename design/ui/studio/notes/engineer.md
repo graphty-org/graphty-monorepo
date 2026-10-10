@@ -11,6 +11,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Fixed: a tie picked from the find box moves focus to the tie's values.** One
+  request for both views: `focusValuesNext()` / `takeValuesFocus()` in `inspector/reads.ts`
+  (renamed from the node-only pair); `FindBox` asks on every hit pick; `EdgeValues` takes it on
+  render and focuses the inspector title, as `NodeValues` does. Test `tasks.real-element.test.tsx`
+  "an edge picked with Down and Enter" (fails without the fix: focus stays on the input). Walk on
+  the fresh build `tmp/r3-dry1-find-tie-pick-moves-focus/walk/04-07.png`: Medici, Down, Enter
+  leaves the box unfocused, "/" focuses it empty, a letter searches.
 - (2026-10-10) **Built: the Overview heads its whole-graph rows with the shared heading.** Under
   a filter step, "Full graph" is compact-mantine's `DataRowHeader` (bold, 32 px, row inset), not a
   dimmed Text that read as a row missing its value (`inspector/GraphValues.tsx`). Test:
@@ -72,22 +79,22 @@ meaning set.`; neighbor heading drops "within N hops" (the status line keeps it)
   highlight look (`styles.highlightStyle`; open: width 24 band covers the tie); an Add that
   repeats loaded ties says so and offers Replace. Dry run verdict: ~30 of ~355 problems were build
   faults, 12 on the one detour no dry run walked (styling a selection): walk what participants do.
-- (2026-10-09) **Drawn names covering names and the picked tie stay graphty-element's** (label
-  placement, no size floor). Not a round 3 app change; no workaround in the app.
-- (2026-10-09) **Open from the round 2 audit, app:** two-table source has no Edit/Replace and no
+- (2026-10-09) **Open from the round 2 audit.** Element: drawn names covering names and the
+  picked tie (label placement, no size floor); no workaround in the app. App: two-table source has no Edit/Replace and no
   reason; "Edit source..." lands on "Replace: ..."; the refused rule's fix drops "="; neighbor
   Back row scrolls the inspector sideways.
 - (2026-10-09) **Dry run = `tier2/pilot/detours.sh all`** on every new frozen build, plus this
   round's detours: style a selection (width, color, name), click away from an open step editor,
   run a path twice, reopen the Path form, open a newer copy of a loaded file.
-- (2026-10-09) **Script before calling it a defect:** empty-canvas click while a run is
-  selected, edge width units (`EdgeMesh.ts` *20 and /40; "8" drawn as a hairline). (The half-made
-  step on another selection is settled: a whole rule saves on leaving, 2026-10-10.)
-- (2026-10-09) **The study tool reaches participants more often than the build does.** Every tool
-  change gets a planted-failure check; click by name landing on a same-named control (r2-s17, s18,
-  s30) needs a refusal like ambiguous names already get.
+- (2026-10-09, condensed) Script before calling it a defect (empty-canvas click while a run is
+  selected, edge width units); every study-tool change gets a planted-failure check.
 
 ## Decisions and reasons
+
+- (2026-10-10) **One focus request for a find pick, not one per kind.** The pick sets it, and
+  whichever view the selection draws (node or edge) takes it once; a second flag per kind would
+  let a stale node request fire on a later node view. The edge view consumes it only once the
+  edge record exists, so an early render with no record does not swallow it.
 
 - (2026-10-10) **A repeated announcement is keyed in the store, not by clearing the region.**
   The counter sits in `store.set`, the one place every writer goes through, so no caller changes;
@@ -203,6 +210,10 @@ meaning set.`; neighbor heading drops "within N hops" (the status line keeps it)
   the app, a run's Values view from its shape.
 
 ## Tried: worked / did not work
+
+- (2026-10-10) Did not work at first: the edge-pick test matched " -- " ties; the test's two
+  rings load as a directed graph, so the joiner is " -> " (`edgeJoiner`). Read the failure
+  screenshot before changing the code.
 
 - (2026-10-10) Worked: `MutationObserver.takeRecords()` before `disconnect()` in a test; did not
   work: reading records in the observer's callback, which runs as a microtask after the test had

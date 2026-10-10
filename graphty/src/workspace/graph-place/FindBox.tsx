@@ -5,7 +5,7 @@ import { ScrollArea, Text, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { focusNodeValuesNext } from "../inspector/reads";
+import { focusValuesNext } from "../inspector/reads";
 import { edgeJoiner, edgeName, selectionWords } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useSessionVersion } from "./useSessionVersion";
@@ -389,10 +389,8 @@ export function FindBox(): React.JSX.Element {
             return;
         }
         const { hit } = option;
-        if (hit.kind !== "edge") {
-            // The keyboard follows the pick into the node's values, out of the box (task T12).
-            focusNodeValuesNext();
-        }
+        // The keyboard follows the pick into the node's or the edge's values, out of the box (task T12).
+        focusValuesNext();
         await session.selection.apply(hit.target);
         // The inspector shows what is selected once no row is open.
         store.set({ inspected: null });

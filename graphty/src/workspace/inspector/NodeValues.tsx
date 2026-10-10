@@ -23,7 +23,7 @@ import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, neighborhoodKey, nodeKey } from "./inspected";
-import { finishedRuns, selectNode, takeNodeValuesFocus } from "./reads";
+import { finishedRuns, selectNode, takeValuesFocus } from "./reads";
 import { count, edgeName, formatNumber, groupName, NEIGHBOR_FILTER_WORDS, neighborhoodWords, valueText } from "./words";
 
 /** How many of a node's attributes show before "N more attributes". */
@@ -123,9 +123,9 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
         const back = degree.current?.querySelector("button");
         if (returnToDegree && back !== null && back !== undefined) {
             returnToDegree = false;
-            takeNodeValuesFocus();
+            takeValuesFocus();
             back.focus();
-        } else if (summary.current !== null && takeNodeValuesFocus()) {
+        } else if (summary.current !== null && takeValuesFocus()) {
             focusInspectorTitle();
         }
     });
@@ -448,6 +448,12 @@ export function NeighborList({
 export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const edge = session?.data.edge(id);
+    // A find pick of this edge puts focus on the inspector's title, as the node view does.
+    useEffect(() => {
+        if (edge !== undefined && takeValuesFocus()) {
+            focusInspectorTitle();
+        }
+    });
     if (session === null || edge === undefined) {
         return null;
     }

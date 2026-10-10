@@ -10,6 +10,11 @@ made and evidence comes in.
 
 ## Top of mind
 
+- 2026-10-10 -- Answer key matched to the round 3 build b6d932823642 for T4 B, T17, T18, T19,
+  T20, T21 A, T22, T23. STILL OWED: T4 A, T12R A/B, T21 B, T24 A/B (pilots exist in
+  `tier2/rounds/r3/pilot/`, entries not yet matched). Grading traps that moved: "full graph" on the
+  key under a filter, the bare "Full graph" Overview row, T22's bare-number route now 3 steps, and
+  "Filter to neighbors" never pressed (second press silent).
 - 2026-10-09 -- T22 and T24 now say "point out on the drawing", not "stand out" (and not "show", a
   View menu word); T22's "see where" became "how ... lie across" ("where" is avoided). Key
   unchanged: T22 credits a selection or a color, T24 only the two ends selected. Compare with
@@ -37,7 +42,6 @@ made and evidence comes in.
   check a bar names before trusting "built".
 - 2026-10-09 -- Voids must be re-run by the runner, not by hope (r2-s05, r1-s04).
 - 2026-10-09 -- Click by name lands on same-named controls; confirm misclick-started faults by script.
-- 2026-10-09 -- Ease is flat (41 of 55 rated 6): report it, never lean on it.
 - 2026-10-09 -- Histories steer first moves; the SECOND place looked is the real signal.
 - 2026-10-06 -- All participants are one model: failure strong, pass weak.
 
@@ -79,6 +83,15 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-10 (researcher, round 3 answer key) -- Added a b6d932823642 section and rewrote each
+  stale claim in place, keeping the old build's wording as a parenthetical. Reason: graders read
+  the task entry, not the build sections, so a stale quote ("on 20 nodes", "On the path", "press
+  again") left in the entry would grade a correct reading as wrong. Did not change any step count
+  used by bar 11: the shorter T22 round 2 route (3 steps) is recorded, but the success paths' counts
+  stay, so round 3 compares with round 2 on the same limits. The T19 A missing "Opened friends"
+  toast was recorded as untraced, not as a defect or a tool fault: one of three opens, no alert
+  caught. No prompt changed: no pilot found a prompt that did not match the screens.
 
 - 2026-10-09 (researcher, round 3 prompts and re-runs) -- Reworded the second half of T22 and
   T24 to "point out on the drawing" (T24: "point out Gus and Ivan, and nobody else, on the
@@ -179,6 +192,10 @@ reasons, in short:
   the app; personas validate, never generate features.
 
 ## Tried: worked / did not work
+
+- 2026-10-10 (round 3 key) -- Worked again: exact-match (old, new) script, and spot-checking three
+  screenshots before trusting pilot reports. After a token-limit stop, check `git status` on the
+  key and every pilot folder's PNGs first: here nothing was half-written.
 
 - 2026-10-09 (round 3 prompts) -- Worked: writing each half's real briefing with `real.mjs
 --brief <scratch dir> --task T22A --persona <name>` and checking the prompt text the participant

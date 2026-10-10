@@ -757,3 +757,22 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   into view; and the element changes since (a click on empty canvas published and letting go of a
   selected run, every AI command result given a code and params), with master's merged in. No bar,
   floor, step limit or prompt changed.
+
+- **2026-10-10, before round 3: the answer key matched to the pilots on build b6d932823642.** Every
+  task half was piloted on the round 3 build from its start (`rounds/r3/pilot/`). For T4 B, T17,
+  T18, T19, T20, T21 A, T22 and T23 every success path landed on the first try with no script
+  errors, console errors or failed requests, and every reference value held; `answers.md` now
+  describes those screens, each change citing the pilot's screenshot: a section on this build; the
+  key's titles under a filter read "PageRank, full graph" (not "on 20 nodes") and the Overview's
+  sentence about whole-graph counts became a bare "Full graph" row (T17, T23); the path key is one
+  row, "Shortest path", with no "On the path" (T18, T20); the path's weight line is shorter, sits
+  above the Weight box in the popover and no longer says "A path needs a distance" (T18); a weighted
+  path's tree row reads "minutes 14" (B "km 7.5"), so the 4-hops misreading has nothing on screen to
+  come from (T20); the find box offers a fixable condition as a marked option that Enter runs, so
+  the bare-number and no-"=" routes are 3 steps (T22); the Hops 2 heading drops "within 2 hops",
+  and "Filter to neighbors" is never pressed, a second press does nothing and the way back is the
+  step's checkbox (T23); T4's Direction select, the menu covering the Nodes row's check mark and
+  "Show all rows" at the end of the caption line; one first reopen with no "Opened friends" toast,
+  cause not traced (T19). T4 A, T12R, T21 B and T24 keep 8f0d5a6f7791's notes until they are
+  matched. No bar, floor, step limit or prompt changed: the success paths' counts that bar 11 and
+  the steps measure use are unchanged, and the round 2 routes that got shorter are graded as before.

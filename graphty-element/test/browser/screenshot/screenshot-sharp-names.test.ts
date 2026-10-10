@@ -192,3 +192,20 @@ test("a 4x capture is drawn at 4x: four times the canvas per side, names as shar
         `the edge is ${String(lineFour)} pixels thick at 4x and ${String(lineOne)} at 1x`,
     );
 });
+
+test("a capture larger than the canvas is refused, not left pending, when its pixels cannot be encoded", async () => {
+    // Babylon encodes a render-target capture in a promise nobody awaits; a graph disposed
+    // mid-capture fails there, and the failure must reach the caller.
+    const toBlob = vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((callback) => {
+        callback(null);
+    });
+    let refused = false;
+    try {
+        await graph.captureScreenshot({ timing: { waitForSettle: false }, multiplier: 2 });
+    } catch {
+        refused = true;
+    } finally {
+        toBlob.mockRestore();
+    }
+    assert.isTrue(refused, "the capture is refused");
+});

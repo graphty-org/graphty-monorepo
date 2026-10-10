@@ -1,7 +1,10 @@
 import {
+    type Camera,
     CreateScreenshotAsync,
-    CreateScreenshotUsingRenderTargetAsync,
+    CreateScreenshotUsingRenderTarget,
     DefaultRenderingPipeline,
+    EncodeArrayBufferToBase64,
+    EncodeImageAsync,
     type Engine,
     FxaaPostProcess,
     type Mesh,
@@ -545,15 +548,11 @@ export class ScreenshotCapture {
             } else {
                 CustomLineRenderer.setPixelScale(this.scene, captureWidth / this.canvas.width);
                 try {
-                    dataUrl = await CreateScreenshotUsingRenderTargetAsync(
+                    dataUrl = await renderTargetCapture(
                         this.engine,
                         camera,
                         size,
-                        "image/png",
                         this.engine.getCreationOptions().antialias ? 4 : 1,
-                        false,
-                        undefined,
-                        true,
                     );
                 } finally {
                     CustomLineRenderer.setPixelScale(this.scene, 1);
@@ -816,4 +815,61 @@ interface EnhancementState {
     supersampledHeight: number;
     pipeline?: DefaultRenderingPipeline;
     fxaaPostProcess?: FxaaPostProcess;
+}
+
+/**
+ * Babylon's render-target capture, with its encode step owned here. Babylon encodes the pixels in a
+ * promise nobody awaits, on a shared engine it disposes when the last scene engine goes; a graph
+ * torn down mid-capture then threw an unhandled rejection and left the capture pending forever.
+ * Here a failed encode rejects the capture instead.
+ * @param engine - the scene's engine
+ * @param camera - the camera to draw from
+ * @param size - the image size in pixels
+ * @param size.width - the width
+ * @param size.height - the height
+ * @param samples - multisample count
+ * @returns the PNG as a data URL
+ */
+async function renderTargetCapture(
+    engine: Engine | WebGPUEngine,
+    camera: Camera,
+    size: { width: number; height: number },
+    samples: number,
+): Promise<string> {
+    return await new Promise<string>((resolve, reject) => {
+        const encode = (
+            width: number,
+            height: number,
+            data: ArrayBufferView,
+            done?: (result: string) => void,
+        ): void => {
+            EncodeImageAsync(data, width, height, "image/png", true)
+                .then(async (blob) => {
+                    done?.(`data:image/png;base64,${EncodeArrayBufferToBase64(await blob.arrayBuffer())}`);
+                })
+                .catch(reject);
+        };
+        CreateScreenshotUsingRenderTarget(
+            engine,
+            camera,
+            size,
+            (data) => {
+                resolve(data);
+            },
+            "image/png",
+            samples,
+            false,
+            undefined,
+            true,
+            false,
+            true,
+            undefined,
+            undefined,
+            encode,
+            undefined,
+            () => {
+                reject(new Error("render-target capture timed out"));
+            },
+        );
+    });
 }

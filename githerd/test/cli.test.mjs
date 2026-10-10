@@ -542,7 +542,10 @@ describe("mine and disown from inside a Claude session", () => {
 
         // The `<kind> <n>` spellings githerd's own questions use name the same pull request.
         for (const words of [["pr", "710"], ["pr:710"], ["pr-710"], ["#710"]])
-            expect(await cli(["mine", ...words], agent)).toMatchObject({ code: 0, out: expect.stringMatching(/^#710 /) });
+            expect(await cli(["mine", ...words], agent)).toMatchObject({
+                code: 0,
+                out: expect.stringMatching(/^#710 /),
+            });
         expect(await cli(["disown", "pr", "710"], agent)).toMatchObject({ code: 0 });
         expect(d.state.prOwners[710]).toBeUndefined();
         expect((await cli(["mine", "pr", "710", "extra"], agent)).code).toBe(1);

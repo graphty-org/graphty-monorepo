@@ -46,6 +46,9 @@ npm run datasets:convert # re-create src/datasets/*/data.ts from the recorded so
 npm run datasets:hosted  # build public-data/v1/ and src/datasets/hosted.ts (needs unzip and graph-format/dist)
 ```
 
+One test project (Node.js). It resolves `@graphty/graph-format` through `graph-format/dist`, so
+build graph-format first.
+
 ## The determinism contract (do not break it)
 
 - Every random draw comes from `RandomStream(seed, domain, block)` in `src/random/stream.ts`.

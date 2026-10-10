@@ -78,6 +78,25 @@ This project uses **Mantine** for all UI components. When building new UI:
 - Follow Mantine theming conventions in `src/theme.ts`
 - Use Mantine hooks for common patterns
 
+## UI Components
+
+- Use the default components. Never write a bespoke control to work around one
+- If a shared component is wrong, fix the shared component, so every caller gets the fix
+- Example (2026-09-13): the app shell's lock button grew a custom contrast ring because
+  Mantine's `light` active state measured 1.21:1 against the panel header where WCAG 1.4.11
+  asks 3:1. The ring left one control in the app behaving unlike every other toggle. The fix
+  belonged in `compact-mantine`'s ActionIcon theme, and once it was there the local ring was
+  deleted
+
+## Graph Styling
+
+- Node and edge appearance MUST be applied through a style layer, as a layer handed to
+  graphty-element through the StyleManager
+- It MUST NOT be applied manually under any circumstance -- never by mutating a mesh, a
+  material, or a node or edge object
+- The failure mode: styling applied outside the layer system is invisible to the layer list,
+  cannot be reordered, removed or persisted, and is silently lost at a dataset boundary
+
 ## Mobile Development
 
 When testing from mobile devices:
@@ -120,6 +139,11 @@ The element records each change and owns the history; the app never keeps its ow
 
 ## Testing
 
+- Test projects:
+    - `browser` - Browser-based tests (Playwright)
+    - `real-element` - `*.real-element.test.tsx`: the app with the real graphty-element, unmocked
+    - `storybook` - every story's play function as a test (its own CI shard, `graphty-storybook`)
+    - `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
 - Tests use **Vitest** with **Playwright** for browser testing
 - Component tests are co-located with components in `__tests__/` directories
 - Use `assert` instead of `expect` for assertions

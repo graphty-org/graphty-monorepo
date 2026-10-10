@@ -179,6 +179,27 @@ and is the only place the six are proved to work together rather than one at a t
 six registers a dummy extension and drives it through the routes its built-in equivalent is
 reached by. **A capability that is not exercised there is not promised.**
 
+### Registering an extension
+
+Every extension point is exported from `@graphty/graphty-element/extend`:
+
+```typescript
+import {
+    Algorithm,
+    DataSource,
+    LayoutEngine,
+    registerFormatWriter,
+    registerSnapshotLayout,
+} from "@graphty/graphty-element/extend";
+
+Algorithm.register(MyAlgorithm); // a DeclaredAlgorithm subclass
+registerSnapshotLayout({ descriptor, compute }); // a static layout over the snapshot
+LayoutEngine.register(MyIterativeEngine); // an iterative (step-by-step) layout engine
+DataSource.register(MyDataSource); // a reader that parses a file itself
+DataSource.register(DataSource.fromImporter(myGraphIoImporter, formatDescriptor)); // a graph-io importer as a reader
+registerFormatWriter({ descriptor, exporter }); // a graph-io exporter as a file writer
+```
+
 ### Where parity is vacuous or incomplete, stated rather than left to be found
 
 These are the clauses a reader should not assume from the sentence above. None is a capability the
@@ -264,6 +285,7 @@ without it: start them through servherd with PORT={{port}} (see the root CLAUDE.
 - **Manager Pattern**: Side effects handled through managers (always use manager methods, not direct manipulation)
 - **Observable Pattern**: Events via graphObservable, nodeObservable, edgeObservable
 - **Stateless Design**: APIs work regardless of call order
+- **Babylon.js** renders in 3D with mesh instancing; **Lit** is the Web Component framework
 
 ### Error Model
 
@@ -325,15 +347,31 @@ measured); k-core and Louvain are not offered, so they always take the CPU port 
 `src/testing/fakeAccelerator.ts` is the one fake, deterministic and
 frame-count-independent, and it is shared by the tests and the stories -- write no second one.
 
+The root CLAUDE.md's rule that graphty-element owns WebGPU detection, construction and lifecycle
+OVERRULES design 9.1 (`design/webgpu/webgpu-acceleration-plan.md`, "9.1 The seam is async, and the
+dependency direction"), whose dependency diagram ends at the app and makes the app the only
+importer of the GPU package. That section is superseded, not deleted; the decision record is
+`design/decisions/2026-09-19-graphty-element-owns-webgpu.md`.
+
 ### Test Projects
 
-| Project          | Environment         | Purpose                     |
-| ---------------- | ------------------- | --------------------------- |
-| `default`        | happy-dom           | Unit tests                  |
-| `browser`        | Playwright/Chromium | Browser integration tests   |
-| `storybook`      | Playwright          | Component tests via stories |
-| `interactions`   | Playwright          | User interaction tests      |
-| `llm-regression` | Node                | AI/LLM regression tests     |
+| Project          | Environment         | Purpose                                                                    |
+| ---------------- | ------------------- | -------------------------------------------------------------------------- |
+| `default`        | happy-dom           | Unit tests                                                                 |
+| `browser`        | Playwright/Chromium | Browser integration tests (5 CI shards)                                    |
+| `storybook`      | Playwright          | Component tests via stories (4 CI shards)                                  |
+| `interactions`   | Playwright          | User interaction tests                                                     |
+| `xr`             | Playwright          | WebXR: real VR and AR sessions on an emulated headset (IWER) and the XR UI |
+| `llm-regression` | Node                | AI/LLM regression tests: real, paid calls to an LLM provider               |
+
+Run one project with `npm test -- --project=<name>` (for example `--project=browser` or
+`--project=storybook`).
+
+`xr` runs in pre-push and in the CI browser shards. `llm-regression` calls the provider
+`VITE_LLM_REGRESSION_PROVIDER` names (`google` by default, model `gemini-3.8-flash`; `openai`,
+`anthropic`), with its key in `VITE_GOOGLE_API_KEY` (or `VITE_OPENAI_API_KEY`,
+`VITE_ANTHROPIC_API_KEY`). It runs in the release train (release.yml) on Google with the
+`GOOGLE_API_KEY` repository secret, never on a pull request or in the merge queue.
 
 `GRAPHTY_BROWSER_GPU` picks the Chromium flag set the `browser` project launches with --
 `swiftshader` for a workstation or a plain runner, `nvidia` for the GPU lane's card (add
@@ -463,6 +501,44 @@ rather than inferred because every agent involved in it complied with every inst
   `design/decisions/2026-09-27-only-the-owner-accepts-chromatic-changes.md`
 - Label text is drawn in a pinned test font registered as "Verdana" (`test/helpers/pin-label-font.ts`),
   so a label snapshot does not depend on which fonts the machine has installed
+
+## Graph Styling
+
+- Node and edge appearance MUST be applied through a style layer, as a layer handed to
+  graphty-element through the StyleManager
+- It MUST NOT be applied manually under any circumstance -- never by mutating a mesh, a
+  material, or a node or edge object
+- The failure mode: styling applied outside the layer system is invisible to the layer list,
+  cannot be reordered, removed or persisted, and is silently lost at a dataset boundary
+
+## Algorithm Styles
+
+- An algorithm's suggested style layers MUST write ONLY to the nodes and edges that are part of
+  that algorithm's own result. Dijkstra styles the nodes and edges ON the path; every other node
+  and edge MUST be left exactly as the layers beneath it painted them, UNMODIFIED
+- "Part of the result" means the element carries a value this algorithm produced. Degree colours
+  every node because every node HAS a degree; Dijkstra colours the path because only path
+  elements have `isInPath == true`. An element the algorithm has nothing to say about is not
+  the algorithm's to paint -- not even to a default, a muted grey, or a full opacity
+- Two ways a layer breaks this, both silent:
+    - an empty `selector: ""` matches EVERY node or edge, so the layer's `calculatedStyle` runs
+      on the whole graph. Calculated values are last-writer-wins, so the write lands whatever the
+      value is -- including the value the expression returns for "not in my result"
+    - a helper with an un-highlighted branch (`blueHighlight(false)` returns `#CCCCCC`) turns
+      "this element is not part of my result" into a paint instruction. So does an input that is
+      `undefined` before the algorithm has even run
+
+    Scope the layer with a selector that matches only the elements carrying a result
+    (``algorithmResults.graphty.dijkstra.isInPath == `true` ``), so a non-result element is never
+    visited at all
+
+- Dimming, fading, greying or hiding what an algorithm did NOT select is a READER's choice, not
+  the algorithm's. It belongs to the caller -- a story, the app, a user-added layer -- and MUST
+  NOT ship in `suggestedStyles`
+- Why: layers stack bottom to top, and `applySuggestedStyles(["a", "b"])` appends a's layers and
+  then b's, so the last algorithm applied wins every property it writes. One algorithm that
+  writes to everything erases every algorithm under it -- and stacking algorithms is the entire
+  point of style layers
 
 ## Edge Styling System
 

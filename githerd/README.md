@@ -71,7 +71,9 @@ owner's account added them.
 An issue labelled `blocked`, `research`, `in-progress`, `tracking` or any `needs-*` label (among
 others) gets no job. `tracking` is for an issue that only tracks other issues and stays open, such
 as a checklist of stages each filed as its own issue: githerd never makes a job of it, whatever its
-type. An issue a session reported `deferred` is not offered again until it changes (a comment, an
+type. The labels of such standing issues are `backlog.notWork` in the config (by default `tracking`,
+`release-status`, `githerd-heartbeat` and `dead-links`): githerd neither triages nor offers them, and
+a session that holds a job for one reports it `deferred`, never closing it. An issue a session reported `deferred` is not offered again until it changes (a comment, an
 edit or a label).
 
 Workers start while a slot is free: 3 working sessions, one more for urgent work, at most 6 idle

@@ -72,7 +72,15 @@ export const DEFAULTS = Object.freeze({
     // 2026-10-06): bugs, then infrastructure. Add "enhancement" to offer enhancements again.
     // `bundle`: an effort:low issue job also offers up to `bundleMax - 1` more small issues of its
     // type and package, to fix in one pull request (one CI run and one merge instead of several).
-    backlog: { agingDays: 60, issueTypes: ["bug", "infrastructure"], bundle: true, bundleMax: 4 },
+    backlog: {
+        agingDays: 60,
+        issueTypes: ["bug", "infrastructure"],
+        // Standing issues that stay open and are no work: a tracking list, and the ones the
+        // repository's automation keeps (release-status.mjs, the heartbeat, links-weekly.yml).
+        notWork: ["tracking", "release-status", "githerd-heartbeat", "dead-links"],
+        bundle: true,
+        bundleMax: 4,
+    },
     notify: { command: null, maxPerHour: 6 },
     digest: { weekday: "sun", hourUtc: 16, issue: null },
 });
@@ -128,7 +136,7 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  *   protectedPaths: string[], actions: Record<string, boolean>,
  *   workers: { model: string, slots: number, urgent: number, waiting: number, hoursPerDay: number,
  *     askMinutes: number, statusMinutes: number, maxActive: number, sessions: string[] | null },
- *   backlog: { agingDays: number, issueTypes: string[], bundle: boolean, bundleMax: number },
+ *   backlog: { agingDays: number, issueTypes: string[], notWork: string[], bundle: boolean, bundleMax: number },
  *   notify: { command: string[] | null, maxPerHour: number },
  *   digest: { weekday: string, hourUtc: number, issue: number | null },
  * }} Config
@@ -334,15 +342,15 @@ function workers(raw) {
 }
 
 /**
- * The `backlog` section: how fast an untouched issue ages up, the issue types githerd offers, and
- * whether an issue job bundles small issues, up to how many in all.
+ * The `backlog` section: how fast an untouched issue ages up, the issue types githerd offers, the
+ * labels of standing issues that are no work (never triaged nor offered), and whether an issue job bundles small issues, up to how many in all.
  * @param {unknown} raw the section as written
  * @returns {Config["backlog"]} the section
  */
 function backlog(raw) {
     const d = DEFAULTS.backlog;
-    if (raw === undefined) return { ...d, issueTypes: [...d.issueTypes] };
-    const { issueTypes, bundle, ...rest } = /** @type {any} */ (object(raw, "backlog"));
+    if (raw === undefined) return { ...d, issueTypes: [...d.issueTypes], notWork: [...d.notWork] };
+    const { issueTypes, notWork, bundle, ...rest } = /** @type {any} */ (object(raw, "backlog"));
     onlyKeys(raw, Object.keys(d), "backlog.");
     if (bundle !== undefined && typeof bundle !== "boolean") fail("backlog.bundle must be true or false");
     return {
@@ -351,6 +359,7 @@ function backlog(raw) {
             bundleMax: { min: 2, max: 10 },
         }),
         issueTypes: issueTypes === undefined ? [...d.issueTypes] : strings(issueTypes, "backlog.issueTypes"),
+        notWork: notWork === undefined ? [...d.notWork] : strings(notWork, "backlog.notWork"),
         bundle: bundle ?? d.bundle,
     };
 }

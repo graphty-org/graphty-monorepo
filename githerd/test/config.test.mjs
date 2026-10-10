@@ -68,13 +68,17 @@ describe("normalizeConfig", () => {
         expect(normalizeConfig(MINIMAL).backlog).toEqual({
             agingDays: 60,
             issueTypes: ["bug", "infrastructure"],
+            notWork: ["tracking", "release-status", "githerd-heartbeat", "dead-links"],
             bundle: true,
             bundleMax: 4,
         });
+        expect(with_({ backlog: { notWork: ["status"] } }).backlog.notWork).toEqual(["status"]);
+        expect(() => with_({ backlog: { notWork: "status" } })).toThrow(/backlog.notWork must be an array/);
         expect(with_({ backlog: { agingDays: 30 } }).backlog.issueTypes).toEqual(["bug", "infrastructure"]);
         expect(with_({ backlog: { issueTypes: ["bug", "infrastructure", "enhancement"] } }).backlog).toEqual({
             agingDays: 60,
             issueTypes: ["bug", "infrastructure", "enhancement"],
+            notWork: ["tracking", "release-status", "githerd-heartbeat", "dead-links"],
             bundle: true,
             bundleMax: 4,
         });

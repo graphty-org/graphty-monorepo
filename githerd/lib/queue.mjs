@@ -17,16 +17,17 @@
  */
 
 import { byOwner, TERMINAL } from "./board.mjs";
+import { DEFAULTS } from "./config.mjs";
 import { staleRevert } from "./master-fix.mjs";
 import { orderPosition } from "./owner.mjs";
 import { failingWords } from "./prs.mjs";
 
 const DAY = 24 * 60 * 60 * 1000;
 /**
- * Labels that keep an issue out of the queue, besides every `needs-*` label. `tracking` marks an
- * issue that only tracks other issues and stays open (#1183): it is never a job of its own.
+ * Labels that keep an issue out of the queue, besides every `needs-*` label and the not-work
+ * labels (`notWorkLabel`).
  */
-const NOT_READY = new Set(["blocked", "research", "in-progress", "tracking"]);
+const NOT_READY = new Set(["blocked", "research", "in-progress"]);
 /** Labels that mark a breaking change, held for the next major. */
 const BREAKING = new Set(["breaking", "breaking-change", "breaking-hold"]);
 /** The owner's override labels. */
@@ -261,6 +262,33 @@ export function masterRefs(state, number) {
 export const issueTypes = (config) => config?.backlog?.issueTypes ?? DEFAULT_ISSUE_TYPES;
 
 /**
+ * The label that makes an issue no work, or null: a standing issue that stays open, such as a
+ * tracking list (#1183) or one the repository's automation keeps (the release status #1749, the
+ * heartbeat). It is never triaged, queued or offered (`backlog.notWork`).
+ * @param {string[]} labels the issue's labels
+ * @param {any} config the normalized config
+ * @returns {string | null} the label
+ */
+export function notWorkLabel(labels, config) {
+    const notWork = config?.backlog?.notWork ?? DEFAULTS.backlog.notWork;
+    return labels.find((l) => notWork.includes(l)) ?? null;
+}
+
+/**
+ * The label that keeps an issue out of the queue, or null.
+ * @param {string[]} labels the issue's labels
+ * @param {any} config the normalized config
+ * @returns {string | null} the label
+ */
+function keptOutBy(labels, config) {
+    return (
+        notWorkLabel(labels, config) ??
+        labels.find((l) => NOT_READY.has(l) || l.startsWith("needs-") || BREAKING.has(l)) ??
+        null
+    );
+}
+
+/**
  * An issue's type label: the first configured type it carries, or null.
  * @param {string[]} labels the issue's labels
  * @param {any} config the normalized config
@@ -312,7 +340,7 @@ export function readyIssues(state, config, now) {
     const ranked = [];
     for (const [n, issue] of Object.entries(state.issues?.byNumber ?? {})) {
         const labels = issue.labels ?? [];
-        if (!issueReady(state, issue, labels)) continue;
+        if (!issueReady(state, issue, labels, config)) continue;
         const sortable = { number: Number(n), createdAt: issue.createdAt ?? null, next: ownerLabel(issue, NEXT) };
         if (missingLabelKinds(labels, config).length) triage.push(sortable);
         else if (openPrFor(state, Number(n)) === null) {
@@ -365,8 +393,8 @@ export function issueRefusal(state, n, config) {
     const issue = state.issues?.byNumber?.[n];
     if (!issue) return "the issue is unknown";
     const labels = issue.labels ?? [];
-    if (!issueReady(state, issue, labels)) {
-        const label = labels.find((l) => NOT_READY.has(l) || l.startsWith("needs-") || BREAKING.has(l));
+    if (!issueReady(state, issue, labels, config)) {
+        const label = keptOutBy(labels, config);
         return label ? `the issue is labelled ${label}` : "the issue is not an open, ready issue by the owner";
     }
     const type = issueType(labels, config);
@@ -381,11 +409,12 @@ export function issueRefusal(state, n, config) {
  * @param {any} state the daemon state
  * @param {any} issue the issue record
  * @param {string[]} labels its labels
+ * @param {any} config the normalized config
  * @returns {boolean} true when ready
  */
-function issueReady(state, issue, labels) {
+function issueReady(state, issue, labels, config) {
     if (issue.state !== "open" || !byOwner(state, issue.author) || ownerLabel(issue, SKIP)) return false;
-    return !labels.some((l) => NOT_READY.has(l) || l.startsWith("needs-") || BREAKING.has(l));
+    return keptOutBy(labels, config) === null;
 }
 
 // ---------------------------------------------------------------------------------------------

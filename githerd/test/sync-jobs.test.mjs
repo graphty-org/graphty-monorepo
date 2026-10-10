@@ -794,6 +794,24 @@ describe("syncJobs: issues", () => {
         expect(issueRefusal(state, 1183, CONFIG)).toBe("the issue is labelled tracking");
     });
 
+    it("neither triages nor offers a standing issue the repository's automation keeps", () => {
+        // 2026-10-10: the release status issue (#1749, github-actions[bot]) was triaged, then
+        // queued as issue-1749 and claimed. A "Release held:" issue by the same bot is work.
+        const state = base();
+        state.trust.bots = ["github-actions[bot]"];
+        const bot = { author: "github-actions[bot]" };
+        issue(state, 1749, ["release-status"], bot);
+        issue(state, 1750, ["dead-links"], bot);
+        issue(state, 1751, ["infrastructure", "priority:low", "effort:low", "release-status"], bot);
+        issue(state, 1752, ["bug", "priority:high", "effort:medium"], bot);
+        expect(sync(state).created).toEqual(["issue-1752"]);
+        expect(issueRefusal(state, 1751, CONFIG)).toBe("the issue is labelled release-status");
+        // A full pass judges every open issue but the standing ones.
+        state.triagePasses.queue.push({ scope: "full", issues: [1749, 1750, 1751, 1752] });
+        expect(sync(state).created).toEqual(["triage-full-1"]);
+        expect(state.jobs["triage-full-1"].facts.batch).toEqual([1752]);
+    });
+
     it("does not offer an issue again after a session reported it not-needed", () => {
         const state = base();
         issue(state, 1, LABELED);

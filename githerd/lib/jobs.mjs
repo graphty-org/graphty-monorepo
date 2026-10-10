@@ -65,6 +65,7 @@ import {
     mergeHeld,
     missingLabelKinds,
     NEXT,
+    notWorkLabel,
     ownerLabel,
     prWork,
     readyIssues,
@@ -477,7 +478,8 @@ function triageJobs(state, config, now, add) {
     const merges = state.merged?.count ?? 0;
     const passes = (state.triagePasses ??= { refreshAt: merges, fullAt: merges, queue: [], seq: 0 });
     const open = Object.entries(state.issues?.byNumber ?? {})
-        .filter(([, i]) => i.state === "open" && byOwner(state, i.author))
+        // A standing issue that is no work (a tracking list, the release status) gets no verdict.
+        .filter(([, i]) => i.state === "open" && byOwner(state, i.author) && !notWorkLabel(i.labels ?? [], config))
         .map(([n, i]) => ({ number: Number(n), title: String(i.text ?? "").split("\n")[0] }))
         .sort((a, b) => a.number - b.number);
     schedulePasses(state, passes, open, merges);

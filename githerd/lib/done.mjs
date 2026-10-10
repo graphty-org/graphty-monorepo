@@ -45,7 +45,7 @@ import * as board from "./board.mjs";
 import { updateBranchCommand } from "./prs.mjs";
 import { raiseItem } from "./notify.mjs";
 import { recordVerdict } from "./proposals.mjs";
-import { failingRequired, masterRefs } from "./queue.mjs";
+import { failingRequired, masterRefs, notWorkLabel } from "./queue.mjs";
 import { run } from "./worktrees.mjs";
 
 /** `githerd/merge` decision lines a worker can fix itself: the `!` title, an unknown package, the issue revision. */
@@ -854,6 +854,13 @@ export async function githerdDone(ctx, job, report, session) {
  */
 async function settleClaim(ctx, job, report, session) {
     const { now } = ctx;
+    // An issue that became a standing one after its job was made (a tracking list, the release
+    // status) is no work: its not-needed is a deferral, so nothing proposes to close it.
+    const label =
+        job.kind === "issue" && report.outcome === "not-needed"
+            ? notWorkLabel(ctx.state.issues?.byNumber?.[numberOf(job.target)]?.labels ?? [], ctx.config)
+            : null;
+    if (label) report = { ...report, outcome: "deferred", reason: `the issue is labelled ${label}; it is no work` };
     const holder = job.holder;
     const moved = () => job.state !== "working" || job.holder?.session !== holder?.session;
     const movedReply = () =>

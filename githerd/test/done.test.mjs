@@ -820,6 +820,22 @@ describe("githerdDone", () => {
         expect(s.proposals["issue:9"]).toMatchObject({ kind: "not-needed", status: "unconfirmed", proposedBy: "w1" });
     });
 
+    it("takes not-needed on an issue that became a standing one as a deferral, proposing no close", async () => {
+        // 2026-10-10: the release status issue (#1749) was triaged and queued before it had a
+        // label that keeps it out; its holder must be able to end the job without closing it.
+        const labels = ["infrastructure", "release-status"];
+        const s = state({ issues: { byNumber: { 9: { state: "open", updatedAt: "2026-10-03T00:00:00Z", labels } } } });
+        const job = (s.jobs["issue-9"] = working("issue", "9"));
+        const { ctx } = setup(s);
+        const ok = await githerdDone(ctx, job, report({ outcome: "not-needed" }), "w1");
+        expect(JSON.parse(ok.text)).toMatchObject({ verified: true });
+        expect(job).toMatchObject({
+            state: "cancelled",
+            reason: "deferred: the issue is labelled release-status; it is no work",
+        });
+        expect(s.proposals).toBeUndefined();
+    });
+
     it("ends an issue job deferred with its reason, closing nothing, and remembers the issue's revision", async () => {
         const s = state({ issues: { byNumber: { 9: { state: "open", updatedAt: "2026-10-03T00:00:00Z" } } } });
         const job = (s.jobs["issue-9"] = working("issue", "9"));

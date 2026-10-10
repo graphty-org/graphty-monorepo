@@ -75,8 +75,16 @@ export function containerStart() {
     }
 }
 
-/** Pushes `tools/push-queue.sh` lets run at once unless `PUSH_QUEUE_SLOTS` says otherwise. */
-const PUSH_QUEUE_SLOTS = 3;
+/**
+ * How many pushes the push queue script runs at once: `PUSH_QUEUE_SLOTS` when githerd's environment
+ * sets it, else the default the script itself declares (`SLOTS=${PUSH_QUEUE_SLOTS:-<n>}`), else 1.
+ * @param {string} script the push queue script
+ * @returns {number} the gate slots
+ */
+export function pushQueueSlots(script) {
+    const declared = /^SLOTS=\$\{PUSH_QUEUE_SLOTS:-(\d+)\}/m.exec(readFileSync(script, "utf8"))?.[1];
+    return Number(process.env.PUSH_QUEUE_SLOTS || declared) || 1;
+}
 
 /**
  * The machine's push queue script of a repository, found where the sessions find it: the main
@@ -93,17 +101,19 @@ export const pushQueueScript = (root) =>
  * The push queue every session pushes through (`tools/push-queue.sh`, design section 4.8): its
  * tickets in `tmp/push-queue/` of the main checkout, each named `<rank>-<arrival ns>-<pid>` and
  * holding `<cwd> :: <command>`. A ticket whose process is gone is dropped, as the script drops it;
- * the first three live ones, critical first, then by arrival, are running.
+ * the first `pushQueueSlots` live ones, critical first, then by arrival, are running.
  * @param {string} root the main checkout
- * @returns {{holder: string | null, waiters: number, missing?: true}} the running pushes' worktrees
- *   (null when none runs), and the number waiting behind them; `missing` when the repository has no
- *   queue script
+ * @returns {{holder: string | null, waiters: number, slots: number, missing?: true}} the running
+ *   pushes' worktrees (null when none runs), the number waiting behind them, and the queue's gate
+ *   slots (`pushQueueSlots`); `missing` when the repository has no queue script
  */
 export function pushQueueTickets(root) {
-    if (!pushQueueScript(root)) return { holder: null, waiters: 0, missing: true };
+    const script = pushQueueScript(root);
+    if (!script) return { holder: null, waiters: 0, slots: 0, missing: true };
+    const slots = pushQueueSlots(script);
     const live = liveTickets(root);
-    const running = live.slice(0, PUSH_QUEUE_SLOTS).map((t) => `pid ${t.pid} (${basename(t.cwd)})`);
-    return { holder: running.length ? running.join(", ") : null, waiters: Math.max(0, live.length - PUSH_QUEUE_SLOTS) };
+    const running = live.slice(0, slots).map((t) => `pid ${t.pid} (${basename(t.cwd)})`);
+    return { holder: running.length ? running.join(", ") : null, waiters: Math.max(0, live.length - slots), slots };
 }
 
 /**

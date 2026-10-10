@@ -828,14 +828,17 @@ jobs:
               run: echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)" && sudo sysctl -w kernel.core_pattern=core
 
             # VITEST_BUDGET_CHECK warns about any passing test that used more than a quarter of its time
-            # limit and fails the shard for one that used more than half (tools/vitest-time-budget.mjs): a
-            # test that close to its limit fails as a flake on a busy machine. Only here, not in the pre-push
-            # gate, whose machine runs several shards at once.
+            # limit (tools/vitest-time-budget.mjs): a test that close to its limit fails as a flake on a busy
+            # machine. VITEST_BUDGET_BASE is the branch a pull request merges into (the checkout has every
+            # branch, fetch-depth 0); a test over half its limit fails the shard only when the pull request
+            # changed its file. Empty on a merge-queue run, the release train and a dispatch, which only warn.
+            # Only here, not in the pre-push gate, whose machine runs several shards at once.
             - name: Run tests
               id: tests
               run: ${{ matrix.test-command }}
               env:
                   VITEST_BUDGET_CHECK: "1"
+                  VITEST_BUDGET_BASE: ${{ github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true' && format('origin/{0}', github.base_ref) || '' }}
 
             # Every vitest run in CI writes test-results/junit-*.xml (vitest.ci-junit.mjs,
             # ciReporters). Upload them to Mergify Test Insights, which flags flaky tests -- detection

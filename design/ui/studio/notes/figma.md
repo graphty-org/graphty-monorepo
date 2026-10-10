@@ -5,10 +5,15 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-09 (tier 2 round 2 walkthrough).
+Last updated: 2026-10-09 (tier 2 round 2 critique).
 
 ## Top of mind
 
+0. (2026-10-09) Round 2 is weak evidence for passes: participants read the facilitator's task
+   file (avoided words, follow-ups). Do not credit the three new routes until re-run under a
+   briefing-only start. Failures found anyway are robust. The dry run happened (30 of 30 detour
+   walks) and build faults were ~9% of problems, but 12 of 30 sat on the unwalked detour
+   (styling a selection): seed every dry run with the last round's detours.
 1. (2026-10-09) Round 2 walkthrough on 8f0d5a6f7791: 42 findings (round 1: 35), 1 at severity 3
    (backtick numbers in rules, element). The count rose on new ground: detours round 1 never
    walked. Bar 10 counts findings, so a deeper walk can fail it; say so in every report.
@@ -103,6 +108,18 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- 2026-10-09 (me, round 2 critique) Round 3 changes, smallest per verified problem: (1) the
+  find box runs what it recognizes -- one Enter-able row "Select where <rule> (n)" for a typed
+  condition, a column word or a bare number, fed by a lenient parse in graphty-element (additive:
+  accepts input refused today, returns the normalized rule or a { code, params } reason); (2) a
+  layer made from a selection starts with a visible Width and a non-gray Color and is named by
+  its rule, not its count (app defaults and words); (3) "Add to" that would duplicate every tie
+  says so and offers Replace (element reports the duplicate count as a fact); (4) bar 8: step
+  checkbox hit area 24 px in compact-mantine, the find results' scroll area focusable; (5) step
+  editor: Tab and blur commit, "Filter to..." puts the caret in Value; (6) "Filter to neighbors"
+  stays a command. Not now: label overlap (element, large), live inspector, eye vs checkbox, row
+  grammar, Replace placement and the weight route (re-run them under a clean briefing first).
+  Reason: severity 3 and bar-8 first, each in its owning package, one change per failure.
 - 2026-10-09 (me, round 2 walkthrough) Severity 3 only for backtick numbers (code syntax on the
   rule success path, bar 10 class). The recognized-but-dead typed condition is 2: the hint gives
   the exact line to retype, so it slows but does not mislead. Tab-then-Escape losing an edit is
@@ -201,30 +218,20 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   unreachable after a plain Open. My walkthrough's Enter-commit finding was not met by any
   session (a pass is weak; keep the fix, it is cheap). Lesson: a dry run on the answer key's
   route cannot find detour defects; walk the previous round's wrong turns too.
-- 2026-10-07 Re-pilot of round 2's fixes (nine tasks, scripted). Worked: Size "+" opens "Size by
-  attribute" at once with Fixed size first and id/name disabled "Holds groups, not amounts" (the
-  Label "+" pattern transferred cleanly); runs named "PageRank" on key, row and node; group layouts
-  enable after a community run with the group preselected; "Show all labels" removes the hidden
-  count. Not yet shown: whether newcomers find these unprompted. Columns by group was the only
-  layout that made clusters easier to tell apart; Circle in 3D reads as a filled disc.
-- 2026-10-07 Round 2 on the real app. Worked: neighbors task 8 of 8 at 0.9x (all through the
-  Degree row, the round-1 unification); first-time personas 34 of 34; no false done in 56; save
-  and reopen 3 of 3. Did not: removing the empty Size "Open list" (sizing chain still 18 of 18);
-  the run rename decided in round 1 never shipped; the chevron added to the Degree row sits outside
-  its button (4 of 6 pointer users clicked it first). Lesson: a decided change must be checked in
-  the build before the round, and a glyph that looks clickable must be inside the hit area.
-
-- 2026-10-06 Round 1 close. Accepted from my proposal: Neighborhood opens the list, empty Size
-  list fixed (by hiding the arrow, not filling the list), No crossings refusal, wheel zoom, focus
-  fixes, no signpost, no toolbar words. Rejected: the DataRow chevron (confounds round 2) and my
-  "N different values" wording (adds words). Lesson: propose the one smallest change per failure
-  so a round can attribute the result; deletion beats rewording.
-
-- 2026-10-06 Round 1 on the real app. Worked: no false "done" in 29 (round 8: 10 of 21 on names),
-  the empty-line Label "+", run repaints at once, the legend in the exported image. Did not:
-  neighbors by name (menu door selects without listing), Size "Open list" empty, "No crossings"
-  silent reset, Selection row emptying the inspector. Lesson: the remaining failures are doors
-  that lead somewhere different from the home, and controls that do nothing visible.
+- 2026-10-06 to 10-07 Tier 1 rounds 1 and 2, summarized 2026-10-09. Worked: Size "+" opening
+  its list at once (the Label "+" pattern transfers), Neighborhood unified with the Degree row
+  (8 of 8), runs named after the algorithm, no false done. Did not: a decided rename that never
+  shipped; a chevron outside its button's hit area; doors that lead somewhere other than the
+  home; controls that do nothing visible. Lessons: check a decided change in the build before the
+  round; one smallest change per failure so a round can attribute it; deletion beats rewording.
+- 2026-10-09 Tier 2 round 2 sessions (55 valid, 55 succeeded). Worked: load-time "Higher means"
+  (7 of 7 S), Replace in the source "...". Did not, by evidence: the find box answering a
+  column word or "chapters 10" with only "No match" (6 of 8); backticks; a selection layer's
+  starting Width 8 (a hairline, `r2-s14/15.png`) and Color A9A9A9 (the gray ties already have);
+  "Add to" offering 82 edges from 41 with Load primary (`r2-s33/05.png`). Caveat: participants
+  read the facilitator's task file, so every pass is weak this round; failures still stand.
+  Lesson: the dry run removes faults only where it walks; it walked styling a run, not a
+  selection, and 12 of 30 build faults sat on that one detour.
 
 - 2026-09-06 to 10-04, summarized 2026-10-09. Worked: Figma popovers and a bottom toolbar
   (owner liked them), the "+" pattern wherever the result showed at once, file actions in the main

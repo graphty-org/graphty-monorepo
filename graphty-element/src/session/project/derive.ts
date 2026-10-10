@@ -85,39 +85,62 @@ function copyAll(state: ProjectState): Copies {
 }
 
 /**
+ * Bring a copy of the pinned set up to live state on the keys named.
+ * @param copies - The copies; `pins` may be replaced.
+ * @param state - Live state.
+ * @param changed - Node keys; any other key copies the whole set.
+ */
+function catchUpPins(copies: Copies, state: ProjectState, changed: ReadonlySet<string>): void {
+    if (![...changed].every((key) => key.startsWith("n:"))) {
+        // Not a node key: the whole slice may have moved.
+        copies.pins = new Set(state.pins);
+        return;
+    }
+
+    const pins = copies.pins as Set<NodeId>;
+    for (const key of changed) {
+        const id = nodeOfKey(key);
+        if (state.pins.has(id)) {
+            pins.add(id);
+        } else {
+            pins.delete(id);
+        }
+    }
+}
+
+/**
+ * Bring a copy of a keyed map up to live state on the keys named.
+ * @param copy - The copy.
+ * @param live - The live map.
+ * @param changed - The keys.
+ */
+function catchUpMap(
+    copy: Map<string, unknown>,
+    live: ReadonlyMap<string, unknown>,
+    changed: ReadonlySet<string>,
+): void {
+    for (const key of changed) {
+        if (live.has(key)) {
+            copy.set(key, live.get(key));
+        } else {
+            copy.delete(key);
+        }
+    }
+}
+
+/**
  * Bring copies up to live state on the keys named, and on nothing else.
  * @param copies - Copies that differ from live state only on those keys.
  * @param state - Live state.
- * @param keys - Keys per slice; a `pins` key is a node key, and any other copies the whole set.
+ * @param keys - Keys per slice.
  */
 function catchUp(copies: Copies, state: ProjectState, keys: ReadonlyMap<DerivedSlice, ReadonlySet<string>>): void {
     for (const [slice, changed] of keys) {
         if (slice === "pins") {
-            const pins = copies.pins as Set<NodeId>;
-            if (![...changed].every((key) => key.startsWith("n:"))) {
-                // Not a node key: the whole slice may have moved.
-                copies.pins = new Set(state.pins);
-                continue;
-            }
-
-            for (const key of changed) {
-                const id = nodeOfKey(key);
-                if (state.pins.has(id)) {
-                    pins.add(id);
-                } else {
-                    pins.delete(id);
-                }
-            }
+            catchUpPins(copies, state, changed);
         } else if (slice in copies) {
-            const live = state[slice] as ReadonlyMap<string, unknown>;
             const copy = copies[slice as KeyedSlice] as Map<string, unknown>;
-            for (const key of changed) {
-                if (live.has(key)) {
-                    copy.set(key, live.get(key));
-                } else {
-                    copy.delete(key);
-                }
-            }
+            catchUpMap(copy, state[slice] as ReadonlyMap<string, unknown>, changed);
         }
     }
 }
@@ -345,12 +368,8 @@ export class DerivationLane {
             this.dirty = new Map();
             const { restores } = this;
             this.passCauseValue = this.cause;
-            // The spare last matched the state `shown` replaced: catch it up on what that pass
-            // derived and on what this one derives. The other copies are what `shown` reads.
-            const copies = this.spare;
             const before = this.shownCopies;
-            catchUp(copies, this.state, this.spareBehind);
-            catchUp(copies, this.state, dirty);
+            const copies = this.targetCopies(dirty);
             const target = frozenOver(this.state, copies);
 
             for (const slice of HOOK_ORDER) {
@@ -367,13 +386,7 @@ export class DerivationLane {
                 }
             }
 
-            // A baseline adopted while the pass ran already shows live state, and owns both copies.
-            if (this.shownCopies === before) {
-                this.spare = before;
-                this.spareBehind = dirty;
-                this.shownCopies = copies;
-                this.shown = target;
-            }
+            this.show(target, copies, before, dirty);
             // Checked once the picture has caught up with live state: a pass that another will
             // follow draws a target that writes made since have already moved past.
             if (this.afterPass !== null && this.next === null) {
@@ -387,6 +400,43 @@ export class DerivationLane {
             this.current = null;
             pass.resolve();
         }
+    }
+
+    /**
+     * The copies a pass derives to: the spare, which last matched the state `shown` replaced,
+     * caught up on what that pass derived and on what this one derives.
+     * @param dirty - The keys this pass derives.
+     * @returns The copies, now matching live state.
+     */
+    private targetCopies(dirty: ReadonlyMap<DerivedSlice, ReadonlySet<string>>): Copies {
+        const copies = this.spare;
+        catchUp(copies, this.state, this.spareBehind);
+        catchUp(copies, this.state, dirty);
+        return copies;
+    }
+
+    /**
+     * Take a finished pass's target as what the picture shows; the copies it replaces become the
+     * spare. A baseline adopted while the pass ran already shows live state and owns both copies.
+     * @param target - The pass's target.
+     * @param copies - Its copies.
+     * @param before - The copies `shown` read when the pass began.
+     * @param dirty - The keys the pass derived.
+     */
+    private show(
+        target: ProjectState,
+        copies: Copies,
+        before: Copies,
+        dirty: ReadonlyMap<DerivedSlice, ReadonlySet<string>>,
+    ): void {
+        if (this.shownCopies !== before) {
+            return;
+        }
+
+        this.spare = before;
+        this.spareBehind = dirty;
+        this.shownCopies = copies;
+        this.shown = target;
     }
 
     /**

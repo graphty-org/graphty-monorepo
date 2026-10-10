@@ -107,8 +107,8 @@ export interface LayoutOptionFields {
      */
     readonly dim?: 2 | 3;
     /**
-     * Seed of the layouts that draw random numbers: graphty-random, graphty-spectral, graphty-planar, graphty-arf and
-     * the three simulations. The same seed gives the same positions; without one, positions that depend on random
+     * Seed of the layouts that draw random numbers: graphty-random, graphty-spectral (above 500 nodes), graphty-arf
+     * and the three simulations. The same seed gives the same positions; without one, positions that depend on random
      * numbers differ from run to run. The other layouts ignore it.
      */
     readonly seed?: number;

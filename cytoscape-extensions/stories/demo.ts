@@ -136,14 +136,26 @@ const sized =
         return s === undefined ? size : Math.max(size * s.network * s.zoom, minPixels / s.view);
     };
 
+/** A node's size: 8 units, times its data("scale") when a story sizes nodes by a value (degree, population, ...). */
+const nodeSize = (ele: { cy(): Core; data(key: string): unknown }): number => {
+    const scale = ele.data("scale");
+    return sized(8, 2)(ele) * (typeof scale === "number" ? scale : 1);
+};
+
 const STYLE = [
     {
         selector: "node",
-        style: { width: sized(8, 2), height: sized(8, 2), "background-color": "#7a8aa6", "border-width": 0 },
+        style: { width: nodeSize, height: nodeSize, "background-color": "#7a8aa6", "border-width": 0 },
     },
     { selector: "node[color]", style: { "background-color": "data(color)" } },
     { selector: "edge", style: { width: sized(0.5), "line-color": "#b8c0cc", "curve-style": "straight" } },
     { selector: "edge[color]", style: { "line-color": "data(color)", width: sized(2) } },
+    // a directed graph's edges point from source to target (markDirected)
+    // Cytoscape draws an arrow at least 29 units wide whatever the edge width: scaled to about half a node
+    {
+        selector: "edge.directed",
+        style: { "target-arrow-shape": "triangle", "arrow-scale": 0.15, "target-arrow-color": "#9aa3b0" },
+    },
 ];
 
 /**
@@ -171,6 +183,31 @@ function largeStyle(edgeCount: number): StylesheetJson {
 
 /** A network with more nodes than this is drawn as a large one (newCore); the force stories go up to 50,000. */
 const LARGE = 5_000;
+
+/**
+ * Draws the edges of a graph added after the core was made as the large style draws them, when there are more than
+ * 5,000: faint and thin, so they read as a haze instead of covering the nodes.
+ * @param cy - the core
+ */
+export function fadeManyEdges(cy: Core): void {
+    const edges = cy.edges().length;
+    if (edges > LARGE) {
+        cy.style()
+            .fromJson([...STYLE, ...largeStyle(edges)])
+            .update();
+    }
+}
+
+/**
+ * Draws arrows on the edges of a directed graph.
+ * @param cy - the core
+ * @param directed - whether the graph is directed
+ */
+export function markDirected(cy: Core, directed: boolean): void {
+    if (directed && cy.edges().length <= LARGE) {
+        cy.edges().addClass("directed");
+    }
+}
 
 let live: Core[] = [];
 
@@ -227,7 +264,7 @@ const FIT_PADDING = 30;
  * @param cy - the core
  * @returns how many nodes lie outside the view
  */
-function fitToContainer(cy: Core): number {
+export function fitToContainer(cy: Core): number {
     cy.resize();
     const nodes = cy.nodes();
     let main = cy.collection();

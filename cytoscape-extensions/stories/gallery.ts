@@ -1,13 +1,29 @@
 /**
  * A gallery: one small Cytoscape per tile, each running one layout, algorithm, generator, dataset or format on a
- * seeded graph, with the backend that ran and why under it. Tiles run one after another, and the root's whenDone()
+ * seeded graph, with what the picture shows under it (and, where a GPU could have run, which backend ran and why). Tiles run one after another, and the root's whenDone()
  * resolves once every tile has finished, which is what a visual-review capture waits for. No tile shows a time:
  * the pictures are meant to be the same on every run.
  */
 
 import type { Core } from "cytoscape";
 
-import { markDone, newCore, type Outcome, reportFailure, retireAll } from "./demo.js";
+import { fadeManyEdges, fitToContainer, markDone, newCore, type Outcome, reportFailure, retireAll } from "./demo.js";
+
+/**
+ * The backend line of a tile: which backend ran and why, or why nothing ran; nothing when the run has no backend to
+ * report (a one-shot layout, a generator, a dataset).
+ * @param out - the outcome
+ * @returns the line, or ""
+ */
+function statusLine(out: Outcome): string {
+    if (out.ran === "not run") {
+        return out.detail ?? "";
+    }
+    if (!out.detail) {
+        return "";
+    }
+    return `Ran on the ${out.ran.toUpperCase()}: ${out.detail}`;
+}
 
 export interface Tile {
     /** The heading, such as the method call. */
@@ -62,9 +78,11 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
             try {
                 const cy = newCore(canvas);
                 await t.load(cy);
+                fadeManyEdges(cy);
                 const out = await t.run(cy);
-                const why = out.detail ? ` (${out.detail})` : "";
-                status.textContent = `${out.ran.toUpperCase()}${why}${out.note ? `\n${out.note}` : ""}`;
+                // fitted to the main graph, not to far-flung isolated nodes; what the picture shows first, the backend after
+                fitToContainer(cy);
+                status.textContent = [out.note, statusLine(out)].filter(Boolean).join("\n");
                 status.style.color = "#14532d";
             } catch (e) {
                 status.textContent = `failed: ${(e as Error).message}`;

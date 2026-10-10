@@ -84,7 +84,8 @@ export async function runLayout(cy: Core, layout: string, run: LayoutRun): Promi
     }
     const backend = await layoutOnce(cy, { ...options, ...run.extra });
     if (!backend) {
-        return { ran: "cpu", detail: "a one-shot layout: there is no GPU implementation" };
+        // a one-shot layout runs only on the CPU: nothing to report
+        return { ran: "cpu", detail: null };
     }
     return { ran: backend.ran, detail: backend.ran === "gpu" ? backend.device : backend.reason };
 }
@@ -137,6 +138,17 @@ export async function placeForAlgorithm(cy: Core, seed: number): Promise<void> {
         gpu: "off",
         animate: false,
     });
+}
+
+/**
+ * ForceAtlas2 on the CPU, seeded, run until it settles: the picture the generator and dataset stories draw.
+ * @param cy - the core
+ * @param seed - the seed
+ * @param extra - more ForceAtlas2 options (linlog, strongGravity, weight, ...)
+ * @returns when the nodes are placed
+ */
+export async function placeSettled(cy: Core, seed: number, extra: Record<string, unknown> = {}): Promise<void> {
+    await runLayout(cy, "forceatlas2", { gpuMode: "off", seed, iterations: 0, animate: false, extra });
 }
 
 /**

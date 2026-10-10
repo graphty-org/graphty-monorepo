@@ -3,21 +3,21 @@
  * tile. Each page of stories/catalog.ts's GALLERY_PAGES is a folder of stories (stories/gallery/, written by
  * test/demo-catalog.test.ts): an Overview with every tile of the page, and one story per tile showing it full size.
  *
- * These are the pictures CI captures and compares, so each is deterministic: seeded graphs, fixed iteration counts, no
- * animation, no times. Each tile says which backend ran and why. The capture browser has no WebGPU (visual-review
- * removes navigator.gpu), so there every tile reports the CPU and the reason; on a machine with a GPU the
- * simulations and the GPU-capable algorithms may report the GPU instead. Run a large network on the GPU from the
- * Demo stories.
+ * These are the pictures CI captures and compares, so each is deterministic: seeded graphs, layouts run to a fixed
+ * count or until they settle, no animation, no times. Each tile says what its picture shows, and a tile that could run
+ * on the GPU says which backend ran and why. The capture browser has no WebGPU (visual-review removes navigator.gpu),
+ * so there those tiles report the CPU and the reason; on a machine with a GPU the simulations and the GPU-capable
+ * algorithms may report the GPU instead. Run a large network on the GPU from the Demo stories.
  */
 
-import { DATASETS } from "@graphty/graph-samples";
 import type { StoryObj } from "@storybook/html-vite";
 
 import type { ExportFormat, GeneratorName } from "../src/index.js";
-import { ALGORITHM_GROUPS, GALLERY_PAGES, type GalleryPage, type Network, presetWithSeed } from "./catalog.js";
-import { elementsOf, GENERATE, SIZES } from "./demo.js";
+import { ALGORITHM_GROUPS, GALLERY_PAGES, type GalleryPage, type Network } from "./catalog.js";
+import { elementsOf, GENERATE, markDirected, SIZES } from "./demo.js";
 import { renderGallery, type Tile } from "./gallery.js";
-import { colorBy, counts, CPU_LAYOUT, placeForAlgorithm, roundTrip, runAlgorithm, runLayout } from "./run.js";
+import { colorBy, CPU_LAYOUT, placeForAlgorithm, roundTrip, runAlgorithm } from "./run.js";
+import { LAYOUT_SHOWCASE, showDataset, showGenerator, showLayout } from "./showcase.js";
 
 const SEED = 42;
 
@@ -32,9 +32,6 @@ function networkOf(network: Network): Tile["load"] {
     };
 }
 
-/** The layouts that need a particular kind of graph: planar needs a planar one, bipartite a bipartite one. */
-const LAYOUT_NETWORK: Partial<Record<string, Network>> = { planar: "random-tree", bipartite: "grid" };
-
 /** A gallery page: the line above its tiles (`every` is true on the Overview), and the tile for each of its names. */
 interface Page {
     intro(every: boolean): string;
@@ -42,23 +39,26 @@ interface Page {
 }
 
 /**
- * Every layout on a 100-node Barabasi-Albert network (a random tree for planar, a grid for bipartite). Without a GPU,
- * spring-electrical (GPU only) does not run and its tile says why.
+ * Every layout, each on a graph that shows what it does. Without a GPU, spring-electrical (GPU only) does not run and
+ * its tile says so.
  */
 const layouts: Page = {
     intro: (every) =>
-        `${every ? "Every layout, seed 42" : "Seed 42"}; the force simulations run 100 iterations with backend auto.`,
+        `${every ? "Every layout, each on a graph that shows what it does" : "Seed 42"}; the force simulations run until they settle, with backend auto.`,
     tile: (layout) => ({
         title: `graphty-${layout}`,
-        load: networkOf(LAYOUT_NETWORK[layout] ?? "barabasi-albert"),
+        load: (cy) => LAYOUT_SHOWCASE[layout].load(cy, SEED),
         run: async (cy) => {
             try {
-                return await runLayout(cy, layout, { gpuMode: "auto", seed: SEED, iterations: 100, animate: false });
+                return await showLayout(cy, layout, SEED, "auto");
             } catch (e) {
                 // spring-electrical exists only on the GPU: without one it does not run, and the tile says why
                 if (layout === "spring-electrical" && /no CPU simulation/.test((e as Error).message)) {
                     cy.elements().remove(); // nothing was placed: an empty tile, not a heap of nodes in a corner
-                    return { ran: "not run", detail: (e as Error).message };
+                    return {
+                        ran: "not run",
+                        detail: "graphty-spring-electrical runs only on a GPU, and this browser has no WebGPU. On a machine with one, this tile shows the layout.",
+                    };
                 }
                 throw e;
             }
@@ -87,38 +87,28 @@ function algorithms(group: keyof typeof ALGORITHM_GROUPS): Page {
     };
 }
 
-/** Every generator with its preset, seed 42, colored by its planted communities where it has them. */
+/** Every generator with its preset, laid out and colored to show its model. */
 const generators: Page = {
     intro: (every) =>
-        `${every ? "Every generator of cy.graphtyGenerate, seed 42" : "Seed 42"}; laid out by ForceAtlas2 on the CPU.`,
+        `${every ? "Every generator of cy.graphtyGenerate, seed 42" : "Seed 42"}; each laid out and colored to show its model.`,
     tile: (name) => ({
         title: name,
-        load: async (cy) => {
-            await cy.graphtyGenerate(name as GeneratorName, presetWithSeed(name as GeneratorName, SEED) as never);
-        },
-        run: async (cy) => {
-            colorBy(cy, cy.nodes().some((n) => n.data("community") !== undefined) ? "community" : null);
-            await placeForAlgorithm(cy, SEED);
-            return { ...CPU_LAYOUT, detail: "layout held on the CPU", note: counts(cy) };
-        },
+        load: () => undefined,
+        run: async (cy) => ({ ran: "cpu", detail: null, note: await showGenerator(cy, name as GeneratorName, SEED) }),
     }),
 };
 
-/** Every bundled dataset, colored by its ground truth where it has one. */
+/** Every bundled dataset, laid out and colored to show what it holds. */
 const datasets: Page = {
     intro: (every) =>
-        `${every ? "Every bundled dataset of cy.graphtyDataset; laid" : "Laid"} out by ForceAtlas2 on the CPU (a random layout above 2,000 nodes).`,
+        `${every ? "Every bundled dataset of cy.graphtyDataset" : "A bundled dataset"}, laid out and colored to show what it holds.`,
     tile: (name) => ({
         title: name,
         load: async (cy) => {
-            await cy.graphtyDataset(name);
+            const { directed } = await cy.graphtyDataset(name);
+            markDirected(cy, directed);
         },
-        run: async (cy) => {
-            const info = DATASETS.find((d) => d.name === name);
-            colorBy(cy, info?.groundTruth ?? null);
-            await placeForAlgorithm(cy, SEED);
-            return { ...CPU_LAYOUT, detail: "layout held on the CPU", note: counts(cy) };
-        },
+        run: async (cy) => ({ ran: "cpu", detail: null, note: await showDataset(cy, name, SEED) }),
     }),
 };
 

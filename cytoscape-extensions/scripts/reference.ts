@@ -537,8 +537,9 @@ const METHOD_NOTES: Readonly<Record<string, string>> = {
 
 // What a layout does that its options table cannot say.
 const LAYOUT_NOTES: Readonly<Record<string, string>> = {
-    spectral: "Starts its eigenvector solver from random values: pass `seed` for the same positions on every run.",
-    planar: "Places one cycle of the graph on a circle and every other node at the average position of its already placed neighbors, plus a small random offset. It does not guarantee a drawing without crossings: on a 3 x 3 grid, edges cross and two nodes can land on the same point. Only the nodes off that cycle get the random offset: pass `seed` for the same positions on every run. When the cycle covers every node (a ring), there is nothing random and `seed` has no effect. For K5, K3,3 and a connected graph with more than 3n - 6 distinct edges (n nodes), `run()` throws `G is not planar.` and emits no events ([failures before the run](../guide/layouts#events)). Any other graph that is not planar is drawn with crossing edges.",
+    spectral:
+        "Places nodes by the eigenvectors of the graph Laplacian with the smallest nonzero eigenvalues, so nodes close in the graph land close together: a path becomes a line, a ring a circle and a grid a grid. Up to 500 nodes the result is exact and `seed` has no effect; above that the eigenvectors are approximated from random start values: pass `seed` for the same positions on every run.",
+    planar: "Draws a planar graph with no two edges crossing, as NetworkX's `planar_layout` does: it finds a planar embedding and places the nodes on grid points from it. The same graph always gives the same positions; `seed` has no effect. For a graph that is not planar, `run()` throws `G is not planar.` and emits no events ([failures before the run](../guide/layouts#events)).",
     bfs: "When a node cannot be reached from `root`, `run()` throws `bfs_layout didn't include all nodes. Graph may be disconnected.` and emits no events ([failures before the run](../guide/layouts#events)).",
     radial: "The nodes `root` cannot reach go on one extra ring outside the others.",
     "spring-electrical":

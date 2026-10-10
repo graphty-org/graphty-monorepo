@@ -344,6 +344,8 @@ export function NeighborList({
         seeded.find((s) => s.on) ??
         seeded.at(0);
     const filteredDepth = filtered?.rule.kind === "neighborhood" ? filtered.rule.depth : reach;
+    // The tooltip names the depth only when it differs from the reach shown.
+    const namedDepth = filteredDepth === reach ? undefined : filteredDepth;
     const hopsLabel = `neighbor-hops-${nodeKey(center)}`;
     const followLabel = `neighbor-follow-${nodeKey(center)}`;
 
@@ -405,9 +407,7 @@ export function NeighborList({
                         <Tooltip
                             position="right"
                             label={
-                                filtered?.on === true
-                                    ? neighborFilterOnWords(filteredDepth === reach ? undefined : filteredDepth)
-                                    : NEIGHBOR_FILTER_WORDS.off
+                                filtered?.on === true ? neighborFilterOnWords(namedDepth) : NEIGHBOR_FILTER_WORDS.off
                             }
                         >
                             <Button

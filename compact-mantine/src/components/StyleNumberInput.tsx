@@ -188,7 +188,7 @@ export interface StyleNumberInputProps {
  * />
  * ```
  */
-export function StyleNumberInput(props: StyleNumberInputProps): React.JSX.Element {
+export function StyleNumberInput(props: Readonly<StyleNumberInputProps>): React.JSX.Element {
     const {
         label,
         value,

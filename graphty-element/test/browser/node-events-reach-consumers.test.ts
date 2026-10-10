@@ -179,10 +179,22 @@ describe("the DOM mirror of a node event", () => {
             details.push(event.detail);
         });
 
-        const node = element.graph.getNode("a");
-        assert.isDefined(node, "the fixture has a node to hover");
-        element.graph.eventManager.emitNodeEvent("node-hover", { node: node, data: { id: "a" } });
+        await element.waitForSettled();
+        let at = element.nodeScreenPosition("a");
+        await vi.waitFor(() => {
+            at = element.nodeScreenPosition("a");
+            assert.isTrue(at?.visible, "node a is on screen");
+        });
+        await hover(element, { x: 2, y: 2 });
+        await hover(element, { x: at?.x ?? 0, y: at?.y ?? 0 });
 
+        await vi.waitFor(() => {
+            assert.deepStrictEqual(
+                details.map((d) => d.nodeId),
+                ["a"],
+                "the real hover reached node a",
+            );
+        });
         assert.notProperty(details[0], "tooltip", "no layer wrote a tooltip, so there are no words");
     });
 

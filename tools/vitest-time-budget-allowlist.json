@@ -22,6 +22,13 @@
             "issue": 1806
         },
         {
+            "file": "graphty-element/test/session/sets/scale.test.ts",
+            "name": "the memory budget, at 100k nodes > the derived-input cache stays within max(256 MB, 1.5 x the snapshot's bytes)",
+            "durationMs": 16880,
+            "limitMs": 30000,
+            "issue": 1806
+        },
+        {
             "file": "graphty/src/components/shell/__tests__/AppShell.real-element.test.tsx",
             "name": "the shell's main flows, by real input, on the real graphty-element > keeps a second metric's layers over the first's on the element",
             "durationMs": 7790,
@@ -39,6 +46,13 @@
             "file": "visual-review/test/page.test.mjs",
             "name": "review page: Accept takes what the filter shows, on an iPad > held upright: under Removed, a component's Accept and the bar's take only removed items",
             "durationMs": 2610,
+            "limitMs": 5000,
+            "issue": 1808
+        },
+        {
+            "file": "visual-review/test/page.test.mjs",
+            "name": "review page: a pull request > filters by decision, shows each decision on its tile, and undoes one without opening it",
+            "durationMs": 2790,
             "limitMs": 5000,
             "issue": 1808
         }

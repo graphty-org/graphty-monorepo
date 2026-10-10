@@ -20,14 +20,61 @@ import { type Browser, chromium, type Page } from "playwright";
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 const TMP_DIR = resolve(process.cwd(), "tmp");
 
+/**
+ * Wait until the element has drawn its finished picture: data loaded, layout converged, camera
+ * framed. The element waits for the custom element to upgrade first.
+ * @param page - The story page.
+ */
+async function waitForStablePicture(page: Page): Promise<void> {
+    await page.waitForFunction(() => {
+        const elem = document.querySelector("graphty-element") as { waitForStableFrame?: unknown } | null;
+        return typeof elem?.waitForStableFrame === "function";
+    });
+    await page.evaluate(async () => {
+        const elem = document.querySelector("graphty-element") as unknown as {
+            waitForStableFrame: () => Promise<void>;
+        };
+        await elem.waitForStableFrame();
+    });
+}
+
+/**
+ * Wait until the camera has stopped moving: two drawn frames in a row with the camera in the
+ * same place. A camera the reader moved keeps drifting under inertia for a few frames.
+ * @param page - The story page.
+ */
+async function waitForCameraAtRest(page: Page): Promise<void> {
+    await page.evaluate(() => {
+        (window as { lastCameraKey?: string }).lastCameraKey = undefined;
+    });
+    await page.waitForFunction(
+        () => {
+            const elem = document.querySelector("graphty-element") as {
+                graph?: { scene: { activeCamera: { position: { x: number; y: number; z: number } } | null } };
+            } | null;
+            const position = elem?.graph?.scene.activeCamera?.position;
+            if (!position) {
+                return false;
+            }
+
+            const key = `${String(position.x)},${String(position.y)},${String(position.z)}`;
+            const state = window as { lastCameraKey?: string };
+            const still = state.lastCameraKey === key;
+            state.lastCameraKey = key;
+            return still;
+        },
+        undefined,
+        { polling: "raf" },
+    );
+}
+
 async function captureStory(page: Page, storyId: string, filename: string): Promise<void> {
     const storyUrl = `${STORYBOOK_URL}/iframe.html?id=${storyId}&viewMode=story`;
     await page.goto(storyUrl, { waitUntil: "networkidle" });
 
     // Wait for component to load
     await page.waitForSelector("graphty-element", { timeout: 10000 });
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await page.waitForTimeout(1000);
+    await waitForStablePicture(page);
 
     // Take screenshot
     const canvas = page.locator("canvas");
@@ -42,8 +89,7 @@ async function checkZoomBehavior(page: Page): Promise<void> {
     await page.goto(storyUrl, { waitUntil: "networkidle" });
 
     await page.waitForSelector("graphty-element", { timeout: 10000 });
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await page.waitForTimeout(1000);
+    await waitForStablePicture(page);
 
     // Capture before zoom
     const canvas = page.locator("canvas");
@@ -62,8 +108,7 @@ async function checkZoomBehavior(page: Page): Promise<void> {
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await page.waitForTimeout(500);
+    await waitForCameraAtRest(page);
 
     // Capture after zoom
     await canvas.screenshot({

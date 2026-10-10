@@ -59,47 +59,33 @@ describe("VercelAiProvider", () => {
         });
 
         // These tests require actual API keys - run manually or in integration tests
-        // Using 30 second timeout for API calls
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it.skipIf(!process.env.OPENAI_API_KEY)(
-            "generates text response",
-            async () => {
-                const provider = new VercelAiProvider("openai");
-                provider.configure({ apiKey: getApiKey("OPENAI_API_KEY"), model: "gpt-4o-mini" });
+        it.skipIf(!process.env.OPENAI_API_KEY)("generates text response", async () => {
+            const provider = new VercelAiProvider("openai");
+            provider.configure({ apiKey: getApiKey("OPENAI_API_KEY"), model: "gpt-4o-mini" });
 
-                const response = await provider.generate(
-                    [{ role: "user", content: "Say 'hello' and nothing else" }],
-                    [],
-                );
+            const response = await provider.generate([{ role: "user", content: "Say 'hello' and nothing else" }], []);
 
-                assert.ok(response.text.toLowerCase().includes("hello"));
-            },
-            30000,
-        );
+            assert.ok(response.text.toLowerCase().includes("hello"));
+        });
 
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it.skipIf(!process.env.OPENAI_API_KEY)(
-            "handles tool calls",
-            async () => {
-                const provider = new VercelAiProvider("openai");
-                provider.configure({ apiKey: getApiKey("OPENAI_API_KEY"), model: "gpt-4o-mini" });
+        it.skipIf(!process.env.OPENAI_API_KEY)("handles tool calls", async () => {
+            const provider = new VercelAiProvider("openai");
+            provider.configure({ apiKey: getApiKey("OPENAI_API_KEY"), model: "gpt-4o-mini" });
 
-                const response = await provider.generate(
-                    [{ role: "user", content: "Get the current weather in Paris" }],
-                    [
-                        {
-                            name: "getWeather",
-                            description: "Get weather for a city",
-                            parameters: z.object({ city: z.string() }),
-                        },
-                    ],
-                );
+            const response = await provider.generate(
+                [{ role: "user", content: "Get the current weather in Paris" }],
+                [
+                    {
+                        name: "getWeather",
+                        description: "Get weather for a city",
+                        parameters: z.object({ city: z.string() }),
+                    },
+                ],
+            );
 
-                assert.ok(response.toolCalls.length > 0);
-                assert.strictEqual(response.toolCalls[0].name, "getWeather");
-            },
-            30000,
-        );
+            assert.ok(response.toolCalls.length > 0);
+            assert.strictEqual(response.toolCalls[0].name, "getWeather");
+        });
     });
 
     describe("Anthropic", () => {
@@ -115,22 +101,14 @@ describe("VercelAiProvider", () => {
             await expect(provider.generate([{ role: "user", content: "test" }], [])).rejects.toThrow(/API key/);
         });
 
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it.skipIf(!process.env.ANTHROPIC_API_KEY)(
-            "generates text response",
-            async () => {
-                const provider = new VercelAiProvider("anthropic");
-                provider.configure({ apiKey: getApiKey("ANTHROPIC_API_KEY") });
+        it.skipIf(!process.env.ANTHROPIC_API_KEY)("generates text response", async () => {
+            const provider = new VercelAiProvider("anthropic");
+            provider.configure({ apiKey: getApiKey("ANTHROPIC_API_KEY") });
 
-                const response = await provider.generate(
-                    [{ role: "user", content: "Say 'hello' and nothing else" }],
-                    [],
-                );
+            const response = await provider.generate([{ role: "user", content: "Say 'hello' and nothing else" }], []);
 
-                assert.ok(response.text.toLowerCase().includes("hello"));
-            },
-            30000,
-        );
+            assert.ok(response.text.toLowerCase().includes("hello"));
+        });
     });
 
     describe("Google", () => {
@@ -146,22 +124,14 @@ describe("VercelAiProvider", () => {
             await expect(provider.generate([{ role: "user", content: "test" }], [])).rejects.toThrow(/API key/);
         });
 
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it.skipIf(!process.env.GOOGLE_API_KEY)(
-            "generates text response",
-            async () => {
-                const provider = new VercelAiProvider("google");
-                provider.configure({ apiKey: getApiKey("GOOGLE_API_KEY") });
+        it.skipIf(!process.env.GOOGLE_API_KEY)("generates text response", async () => {
+            const provider = new VercelAiProvider("google");
+            provider.configure({ apiKey: getApiKey("GOOGLE_API_KEY") });
 
-                const response = await provider.generate(
-                    [{ role: "user", content: "Say 'hello' and nothing else" }],
-                    [],
-                );
+            const response = await provider.generate([{ role: "user", content: "Say 'hello' and nothing else" }], []);
 
-                assert.ok(response.text.toLowerCase().includes("hello"));
-            },
-            30000,
-        );
+            assert.ok(response.text.toLowerCase().includes("hello"));
+        });
     });
 
     describe("configure", () => {
@@ -252,33 +222,28 @@ describe("VercelAiProvider", () => {
             ).rejects.toThrow(/API key/);
         });
 
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it.skipIf(!process.env.OPENAI_API_KEY)(
-            "streams text response",
-            async () => {
-                const provider = new VercelAiProvider("openai");
-                provider.configure({ apiKey: getApiKey("OPENAI_API_KEY"), model: "gpt-4o-mini" });
+        it.skipIf(!process.env.OPENAI_API_KEY)("streams text response", async () => {
+            const provider = new VercelAiProvider("openai");
+            provider.configure({ apiKey: getApiKey("OPENAI_API_KEY"), model: "gpt-4o-mini" });
 
-                const chunks: string[] = [];
-                let completed = false;
+            const chunks: string[] = [];
+            let completed = false;
 
-                await provider.generateStream(
-                    [{ role: "user", content: "Say 'hello' and nothing else" }],
-                    [],
-                    createCallbacks({
-                        onChunk: (text) => chunks.push(text),
-                        onComplete: () => {
-                            completed = true;
-                        },
-                    }),
-                );
+            await provider.generateStream(
+                [{ role: "user", content: "Say 'hello' and nothing else" }],
+                [],
+                createCallbacks({
+                    onChunk: (text) => chunks.push(text),
+                    onComplete: () => {
+                        completed = true;
+                    },
+                }),
+            );
 
-                assert.ok(chunks.length > 0);
-                assert.ok(completed);
-                const fullText = chunks.join("");
-                assert.ok(fullText.toLowerCase().includes("hello"));
-            },
-            30000,
-        );
+            assert.ok(chunks.length > 0);
+            assert.ok(completed);
+            const fullText = chunks.join("");
+            assert.ok(fullText.toLowerCase().includes("hello"));
+        });
     });
 });

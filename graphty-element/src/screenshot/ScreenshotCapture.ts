@@ -9,6 +9,7 @@ import {
 } from "@babylonjs/core";
 
 import { type Graph, operationQueueOf } from "../Graph.js";
+import { requestFrame } from "../managers/frameRequests.js";
 import { copyToClipboard } from "./clipboard.js";
 import { SCREENSHOT_CONSTANTS } from "./constants.js";
 import { calculateDimensions } from "./dimensions.js";
@@ -399,6 +400,8 @@ export class ScreenshotCapture {
             this.scene.onAfterRenderObservable.addOnce(() => {
                 resolve();
             });
+            // An on-demand render loop at rest draws nothing until asked.
+            requestFrame(this.scene);
         });
     }
 

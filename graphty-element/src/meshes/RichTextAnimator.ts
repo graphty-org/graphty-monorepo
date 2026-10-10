@@ -1,5 +1,7 @@
 import { Color3, Mesh, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
 
+import { requestFrame } from "../managers/frameRequests";
+
 export type AnimationType = "none" | "pulse" | "bounce" | "shake" | "glow" | "fill";
 
 export interface AnimationOptions {
@@ -44,6 +46,8 @@ export class RichTextAnimator {
         this.sceneCallback = () => {
             this.animationTime += 0.016 * this.options.animationSpeed;
             this.updateAnimation(mesh, material, progressCallback);
+            // An animation never ends, so it keeps an on-demand render loop drawing.
+            requestFrame(this.scene);
         };
 
         this.scene.registerBeforeRender(this.sceneCallback);

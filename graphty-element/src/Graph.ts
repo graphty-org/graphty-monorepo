@@ -116,9 +116,11 @@ import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } 
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
     openWebGPUEngine,
+    RENDER_MODES,
     RENDERER_REQUESTS,
     type RendererRequest,
     type RendererStatus,
+    type RenderMode,
 } from "./managers/RenderManager";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
@@ -525,6 +527,14 @@ export class Graph implements GraphContext {
 
         // Initialize RenderManager
         this.renderManager = new RenderManager(this.canvas, this.eventManager);
+        // Every graph event may change what is drawn (or a consumer's handler for it may), so each
+        // asks an on-demand render loop for a frame. Read through `this.renderManager`, which init
+        // can replace.
+        const requestRender = (): void => {
+            this.renderManager.requestRender();
+        };
+        this.eventManager.onGraphEvent.add(requestRender);
+        this.eventManager.onNodeEvent.add(requestRender);
 
         // Get references from RenderManager for backward compatibility
         this.engine = this.renderManager.engine;
@@ -748,6 +758,7 @@ export class Graph implements GraphContext {
         // (design/sets 6.2): a held frame holds that work too.
         setsNotifierOfSession(this.session).useFrames((callback) => {
             const observer = this.scene.onBeforeRenderObservable.addOnce(callback);
+            this.renderManager.requestRender();
             return () => {
                 this.scene.onBeforeRenderObservable.remove(observer);
             };
@@ -1278,6 +1289,40 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Chooses when the graph is drawn. Takes effect on the next frame, at any time.
+     * @param mode - `"continuous"` (the default) draws on every animation frame. `"on-demand"`
+     *     draws only on a frame after something changed what the graph shows -- data, a style,
+     *     the layout, the camera, the canvas size, an animation, input -- and draws nothing while
+     *     the graph is at rest. A change made directly on the Babylon scene is not seen; call
+     *     {@link Graph.requestRender} after one.
+     */
+    setRenderMode(mode: RenderMode): void {
+        if (!RENDER_MODES.includes(mode)) {
+            throw new TypeError(`renderMode must be "continuous" or "on-demand", not ${JSON.stringify(mode)}`);
+        }
+
+        this.renderManager.renderMode = mode;
+        this.renderManager.requestRender();
+    }
+
+    /**
+     * When the graph is drawn, as set by {@link Graph.setRenderMode}.
+     * @returns The mode; `"continuous"` unless something else was set.
+     */
+    get renderMode(): RenderMode {
+        return this.renderManager.renderMode;
+    }
+
+    /**
+     * Draw the graph on the next frame. Needed only with the `"on-demand"` render mode, after
+     * changing the Babylon scene directly (a material, a mesh, an animation of your own); every
+     * change made through the graph's own API is drawn without it.
+     */
+    requestRender(): void {
+        this.renderManager.requestRender();
+    }
+
+    /**
      * The renderer asked for through {@link Graph.setRenderer}.
      * @returns The request; `"webgl"` unless something else was set.
      */
@@ -1358,7 +1403,9 @@ export class Graph implements GraphContext {
         // The engine was opened on a canvas not yet in the page, which sized it 300 by 150.
         opened.resize();
 
+        const { renderMode } = this.renderManager;
         this.renderManager = new RenderManager(canvas, this.eventManager, { engine: opened });
+        this.renderManager.renderMode = renderMode;
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
@@ -4540,6 +4587,8 @@ export class Graph implements GraphContext {
 
         // Store reference for cancellation
         this.activeCapture = capture;
+        // A recording takes a video frame for each frame drawn, so every frame is drawn while it runs.
+        const releaseFrames = this.renderManager.drawEveryFrame();
 
         // Set up progress event handler
         const onProgress = (progress: number): void => {
@@ -4562,6 +4611,7 @@ export class Graph implements GraphContext {
         } finally {
             // Clear reference when done
             this.activeCapture = null;
+            releaseFrames();
         }
     }
 

@@ -22,6 +22,7 @@ import { InputController } from "../cameras/TwoDInputController";
 import type { GraphBackgroundConfig } from "../config/GraphStyle";
 import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
+import { onFrameRequest } from "./frameRequests";
 import type { Manager } from "./interfaces";
 
 /**
@@ -45,6 +46,15 @@ export type ActiveRenderer = "webgl" | "webgpu";
 
 /** Every value a {@link RendererRequest} can take, for validating a string from an attribute. */
 export const RENDERER_REQUESTS: readonly RendererRequest[] = ["webgl", "webgpu", "auto"];
+
+/**
+ * When the graph is drawn: on every animation frame (`"continuous"`), or only on a frame after
+ * something changed what it shows (`"on-demand"`).
+ */
+export type RenderMode = "continuous" | "on-demand";
+
+/** Every value a {@link RenderMode} can take, for validating a string from an attribute. */
+export const RENDER_MODES: readonly RenderMode[] = ["continuous", "on-demand"];
 
 /**
  * Which renderer a graph is drawn with, and why when it is not the one asked for.
@@ -251,6 +261,20 @@ export class RenderManager implements Manager {
     private lastFrameFence: WebGLSync | null = null;
     /** The time of the ticks skipped since the last frame drawn, for the GPU to catch up. */
     private skippedMs = 0;
+    /** When frames are drawn; see {@link RenderMode}. */
+    renderMode: RenderMode = "continuous";
+    /** Whether something asked for the next frame to be drawn; see {@link requestRender}. */
+    private redrawRequested = true;
+    /** How many callers need every frame drawn whatever the mode; see {@link drawEveryFrame}. */
+    private everyFrameHolds = 0;
+    /** The canvas size and the scene's count of loading assets as of the last frame drawn. */
+    private drawnWidth = -1;
+    private drawnHeight = -1;
+    private drawnWaiting = 0;
+    /** Ask for a frame; kept as one function so it can be added to observables and removed. */
+    private readonly requestOnEvent = (): void => {
+        this.requestRender();
+    };
     private resizeHandler: () => void;
     /** The one skybox dome, and the image it shows; null while the background is a colour. */
     private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
@@ -324,6 +348,13 @@ export class RenderManager implements Manager {
         // Set background color
         const backgroundColor = this.config.backgroundColor ?? DEFAULT_BACKGROUND_COLOR;
         this.scene.clearColor = Color4.FromHexString(backgroundColor);
+
+        // What an on-demand loop is told about. Most changes are also seen by the update pass;
+        // input is here for the ones it cannot see, such as a tooltip hidden when the pointer
+        // leaves a node. The graph's own events are wired by the Graph, which owns them.
+        onFrameRequest(this.scene, this.requestOnEvent);
+        this.scene.onPrePointerObservable.add(this.requestOnEvent);
+        this.scene.onPreKeyboardObservable.add(this.requestOnEvent);
     }
 
     /**
@@ -405,17 +436,23 @@ export class RenderManager implements Manager {
             this.skippedMs = 0;
 
             try {
-                // Call update callback
+                // The update pass runs on every tick in either mode: it is what notices a change
+                // (a layout step, a style edit, a camera move) and asks for the frame that shows it.
                 if (this.updateCallback) {
                     this.updateCallback(frameMs);
                 }
 
-                // Update camera - NOTE: This might be redundant with UpdateManager.update()
-                // this.camera.update() is already called in UpdateManager.update()
-                // Commenting out to avoid double updates
-                // this.camera.update();
+                if (!this.frameIsWanted()) {
+                    return;
+                }
 
-                // Render scene
+                // Cleared before drawing, so a callback run during this frame that needs one more
+                // (an animation, a pass still finishing) asks for it.
+                this.redrawRequested = false;
+                this.drawnWidth = this.engine.getRenderWidth();
+                this.drawnHeight = this.engine.getRenderHeight();
+                this.drawnWaiting = this.scene.getWaitingItemsCount();
+
                 this.scene.render();
                 this.fenceFrame();
             } catch (error) {
@@ -430,6 +467,65 @@ export class RenderManager implements Manager {
                 reportCaught(error);
             }
         });
+    }
+
+    /**
+     * Whether this tick draws a frame.
+     *
+     * Always, in `"continuous"` mode. In `"on-demand"` mode only when something asked for one
+     * ({@link requestRender}, which the update pass, the element's own animations, pointer and
+     * keyboard input and every graph event do), or when something the loop reads for itself
+     * changed: the canvas was resized (which clears it), an asset is loading or has just
+     * finished, a Babylon animation is running, or the scene is presented to an XR device, which
+     * needs every frame.
+     * @returns True to draw.
+     */
+    private frameIsWanted(): boolean {
+        if (this.renderMode === "continuous" || this.everyFrameHolds > 0 || this.redrawRequested) {
+            return true;
+        }
+
+        const waiting = this.scene.getWaitingItemsCount();
+
+        return (
+            this.engine.getRenderWidth() !== this.drawnWidth ||
+            this.engine.getRenderHeight() !== this.drawnHeight ||
+            waiting > 0 ||
+            waiting !== this.drawnWaiting ||
+            this.scene.animatables.length > 0 ||
+            this.scene.activeCamera?.getClassName() === "WebXRCamera"
+        );
+    }
+
+    /**
+     * Ask for the graph to be drawn on the next frame.
+     *
+     * Only an `"on-demand"` loop needs asking, and only for a change it cannot see: a material,
+     * mesh or observer the caller edited directly on the Babylon scene. The element asks for
+     * itself on every change it makes.
+     */
+    requestRender(): void {
+        this.redrawRequested = true;
+    }
+
+    /**
+     * Draw every frame, whatever the render mode, until the returned function is called. For
+     * work that reads frames as they are drawn, such as recording the canvas to a video.
+     * Holds nest, and releasing twice is a no-op.
+     * @returns Releases this hold.
+     */
+    drawEveryFrame(): () => void {
+        this.everyFrameHolds++;
+        let released = false;
+
+        return (): void => {
+            if (released) {
+                return;
+            }
+
+            released = true;
+            this.everyFrameHolds--;
+        };
     }
 
     /**
@@ -554,6 +650,7 @@ export class RenderManager implements Manager {
     private setBackgroundColor(color: string): void {
         try {
             this.scene.clearColor = Color4.FromHexString(color);
+            this.requestRender();
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
             this.eventManager.emitGraphError(null, err, "other", {

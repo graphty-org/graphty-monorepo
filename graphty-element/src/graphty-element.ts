@@ -23,7 +23,7 @@ import {
 } from "./events";
 import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf } from "./Graph";
 import type { NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
-import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
+import type { RendererRequest, RendererStatus, RenderMode } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
@@ -4172,6 +4172,64 @@ export class Graphty extends LitElement {
      */
     get rendererStatus(): RendererStatus | null {
         return this.#graph.rendererStatus;
+    }
+
+    /**
+     * When the graph is drawn: `"continuous"` (the default) on every animation frame, or
+     * `"on-demand"` only on a frame after something changed what it shows.
+     *
+     * On demand, a graph at rest draws nothing, which frees the page's main thread and the GPU
+     * and saves battery. Every change made through the element is still drawn: data, styles, the
+     * layout, the camera, a resize, animations, pointer and keyboard input. A change made
+     * directly on the Babylon scene (`element.graph.scene`), such as a material edit or a callback
+     * of your own before each frame, is not seen: call {@link requestRender} after it, or keep
+     * `"continuous"`. See the renderer guide.
+     *
+     * Can be changed at any time. An unrecognised value is reported and ignored, for the reason
+     * given on `acceleration`.
+     * @returns The mode; `"continuous"` unless it was set.
+     * @since 3.22.0
+     * @example HTML attribute
+     * ```html
+     * <graphty-element render-mode="on-demand"></graphty-element>
+     * ```
+     */
+    @property({ attribute: "render-mode", reflect: true })
+    get renderMode(): RenderMode {
+        return this.#graph.renderMode;
+    }
+    /**
+     * Sets when the graph is drawn, from the next frame on.
+     */
+    set renderMode(value: RenderMode) {
+        const oldValue = this.#graph.renderMode;
+
+        try {
+            this.#graph.setRenderMode(value);
+        } catch (error) {
+            console.error(
+                `<graphty-element>: ${error instanceof Error ? error.message : String(error)}. Keeping "${oldValue}".`,
+            );
+            return;
+        }
+
+        this.requestUpdate("renderMode", oldValue);
+    }
+
+    /**
+     * Draw the graph on the next frame.
+     *
+     * Needed only with `render-mode="on-demand"`, after changing the Babylon scene directly; every
+     * change made through the element is drawn without it.
+     * @since 3.22.0
+     * @example
+     * ```typescript
+     * element.graph.scene.getMeshByName("my-marker")?.setEnabled(false);
+     * element.requestRender();
+     * ```
+     */
+    requestRender(): void {
+        this.#graph.requestRender();
     }
 
     /**

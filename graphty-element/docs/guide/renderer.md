@@ -70,3 +70,34 @@ Not yet, for this element. Measured frame times at 10,000 and 100,000 nodes are 
 At those sizes a frame is spent on the CPU -- the element's own update and Babylon.js deciding
 what to draw -- and under WebGL the GPU itself is busy for a small part of it (GPU time under
 WebGPU is not yet measured). That is why `webgl` stays the default.
+
+## When the graph is drawn
+
+By default the element draws the graph on every animation frame, about 60 times a second, even
+while nothing on it changes. Set `render-mode="on-demand"` to draw only when something changed:
+
+```html
+<graphty-element render-mode="on-demand"></graphty-element>
+```
+
+A graph at rest then draws nothing, which leaves the page's main thread and the GPU free and saves
+battery on a laptop. Measured on a 1440 x 900 graph of 300 nodes at rest for 5 seconds: 111 frames
+and 5.1 s of main-thread work by default, no frames and 0.1 s on demand.
+
+Everything the element itself changes is still drawn: loading or editing data, styles, the layout
+moving, the camera (including its inertia and animated moves), a resize, animated labels and
+edges, VR and AR, screenshots and video capture, and pointer and keyboard input on the canvas.
+
+A change you make directly on the Babylon.js scene (`element.graph.scene`) is not seen, because
+the element cannot tell it happened: a mesh you hide, a material you edit, or a callback of your
+own on `onBeforeRenderObservable`. (A Babylon.js animation started with `scene.beginAnimation` is
+seen, and drawn for as long as it runs.) After such a change, ask for a frame:
+
+```typescript
+element.graph.scene.getMeshByName("my-marker")?.setEnabled(false);
+element.requestRender();
+```
+
+For something of your own that changes every frame, keep the default
+`render-mode="continuous"`, or call `requestRender()` once per frame for as long as it runs. The
+mode can be switched at any time, from the attribute or the `renderMode` property.

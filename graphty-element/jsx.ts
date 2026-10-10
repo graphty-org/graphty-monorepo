@@ -184,6 +184,10 @@ export interface GraphtyElementJSXProps {
      */
     renderer?: Graphty["renderer"];
     /**
+     * Sets when the graph is drawn, from the next frame on.
+     */
+    renderMode?: Graphty["renderMode"];
+    /**
      * Sets the threshold and applies it immediately.
      *
      * A value that is not a whole number of 0 or more is reported and then ignored, leaving the
@@ -286,6 +290,10 @@ export interface GraphtyElementJSXProps {
      * Sets detailed profiling mode. Enables hierarchical timing and advanced stats collection.
      */
     "enable-detailed-profiling"?: boolean;
+    /**
+     * Sets when the graph is drawn, from the next frame on.
+     */
+    "render-mode"?: string;
     /**
      * Sets the threshold and applies it immediately.
      *

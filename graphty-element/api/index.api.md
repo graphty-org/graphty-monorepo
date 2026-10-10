@@ -1660,6 +1660,8 @@ export class Graph implements GraphContext {
     render(): void;
     get rendererRequest(): RendererRequest;
     get rendererStatus(): RendererStatus | null;
+    get renderMode(): RenderMode;
+    requestRender(): void;
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
     resolveCameraPreset(preset: string, options?: {
         nodes?: Iterable<string | number>;
@@ -1717,6 +1719,7 @@ export class Graph implements GraphContext {
     setLayoutScope(scope: ScopeInput | undefined): Promise<void>;
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setRenderer(request: RendererRequest): void;
+    setRenderMode(mode: RenderMode): void;
     setRenderSettings(_settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
     setRunning(running: boolean): void;
     setSelectionStyle(selection: GraphSelectionStyleInput): void;
@@ -2093,8 +2096,11 @@ export class Graphty extends LitElement {
     get renderer(): RendererRequest;
     set renderer(value: RendererRequest);
     get rendererStatus(): RendererStatus | null;
+    get renderMode(): RenderMode;
+    set renderMode(value: RenderMode);
     get repeatedEdges(): DuplicatePolicy | undefined;
     set repeatedEdges(value: DuplicatePolicy | undefined);
+    requestRender(): void;
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
     resolveCameraPreset(preset: string, options?: {
         nodes?: Iterable<string | number>;
@@ -3979,6 +3985,7 @@ export class RenderManager implements Manager {
     // (undocumented)
     camera: CameraManager;
     dispose(): void;
+    drawEveryFrame(): () => void;
     // (undocumented)
     engine: Engine | WebGPUEngine;
     getRenderStats(): {
@@ -3989,11 +3996,16 @@ export class RenderManager implements Manager {
     graphRoot: TransformNode;
     holdFrames(): () => void;
     init(): Promise<void>;
+    renderMode: RenderMode;
+    requestRender(): void;
     // (undocumented)
     scene: Scene;
     startRenderLoop(updateCallback: (frameMs: number) => void): void;
     stopRenderLoop(): void;
 }
+
+// @public
+export type RenderMode = "continuous" | "on-demand";
 
 // @public
 export interface ResultRef {

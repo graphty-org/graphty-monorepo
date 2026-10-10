@@ -1,6 +1,7 @@
 import { type Camera, Matrix, type Mesh, type Observer, type Scene, Vector3, Viewport } from "@babylonjs/core";
 
 import type { Node } from "../Node";
+import { requestFrame } from "./frameRequests";
 import type { GraphContext } from "./GraphContext";
 
 /**
@@ -243,6 +244,12 @@ export class LabelDeclutter {
             this.quiet = 0;
         } else if (++this.quiet === QUIET_FRAMES) {
             this.publish();
+        }
+
+        // The counts are published only after QUIET_FRAMES frames, so an on-demand render loop
+        // has to draw that many after the last change.
+        if (this.quiet < QUIET_FRAMES) {
+            requestFrame(this.scene);
         }
     }
 

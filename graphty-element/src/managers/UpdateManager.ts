@@ -10,6 +10,7 @@ import type { Node, NodeRenderState } from "../Node";
 import type { ElementMask } from "../session/scope/index";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
+import { requestFrame } from "./frameRequests";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 import type { LayoutManager } from "./LayoutManager";
@@ -425,6 +426,7 @@ export class UpdateManager implements Manager {
         // A mask has just hidden or revealed something, so the cached list of what is drawn is
         // out of date. See `settleActiveMeshFreeze`.
         this.sceneChanged = true;
+        this.pictureChanged = true;
 
         if (nodesMoved) {
             const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
@@ -967,6 +969,13 @@ export class UpdateManager implements Manager {
             // Something is moving again, so whatever was drawn before is no longer the last word.
             this.drawnFrameIsFinished = false;
         }
+
+        // What an on-demand render loop draws on: this pass changed what is drawn, or the
+        // finished picture has not been drawn yet. Once it has and nothing moves, no frame is
+        // asked for, and an idle graph draws nothing.
+        if (this.passChangedPicture || !this.drawnFrameIsFinished) {
+            requestFrame(this.graphContext.getScene());
+        }
     }
 
     /**
@@ -1215,6 +1224,16 @@ export class UpdateManager implements Manager {
     /** Set by anything in this frame that changed what is drawn. See `settleActiveMeshFreeze`. */
     private sceneChanged = true;
 
+    /**
+     * Like {@link sceneChanged}, less the edge walk a layout engine whose edges cannot be counted
+     * forces on every frame: that walk says nothing about whether anything moved, so it would
+     * keep an on-demand render loop drawing a graph at rest.
+     */
+    private pictureChanged = true;
+
+    /** Whether the last pass changed the picture, so the frame after it has to be drawn. */
+    private passChangedPicture = true;
+
     /** Whether a freeze of the list of what is visible was asked for and not withdrawn since. */
     private activeMeshesFrozen = false;
 
@@ -1264,6 +1283,7 @@ export class UpdateManager implements Manager {
             this.edgeWalkForced = false;
             this.lastWalkedEdgeCount = -1;
             this.sceneChanged = true;
+            this.pictureChanged = true;
 
             return true;
         }
@@ -1278,12 +1298,17 @@ export class UpdateManager implements Manager {
         if (edgeCount < 0 || edgeCount !== this.lastWalkedEdgeCount) {
             this.lastWalkedEdgeCount = edgeCount;
             this.sceneChanged = true;
+            // Uncounted edges walk every frame; whether the picture changed is the nodes' answer.
+            if (edgeCount >= 0 || this.anyNodeMoved()) {
+                this.pictureChanged = true;
+            }
 
             return true;
         }
 
         if (this.anyNodeMoved()) {
             this.sceneChanged = true;
+            this.pictureChanged = true;
 
             return true;
         }
@@ -1371,6 +1396,7 @@ export class UpdateManager implements Manager {
     forceEdgeWalk(): void {
         this.edgeWalkForced = true;
         this.sceneChanged = true;
+        this.pictureChanged = true;
     }
 
     /**
@@ -1406,9 +1432,14 @@ export class UpdateManager implements Manager {
 
         this.lastMeshCount = meshCount;
 
-        const changed = this.sceneChanged || structureChanged || this.cameraMoved();
+        // Asked on every pass, not only when nothing else changed: an on-demand render loop
+        // draws a camera move whatever else the pass did.
+        const cameraMoved = this.cameraMoved();
+        const changed = this.sceneChanged || structureChanged || cameraMoved;
 
+        this.passChangedPicture = this.pictureChanged || structureChanged || cameraMoved;
         this.sceneChanged = false;
+        this.pictureChanged = false;
 
         if (changed) {
             // Withdraws a freeze Babylon has not run yet; see below.

@@ -17,6 +17,7 @@ import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBu
 
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
+import { requestFrame } from "../managers/frameRequests";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { CustomLineRenderer } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
@@ -678,6 +679,8 @@ void main() {
             }
 
             texture.uOffset -= perFrame * scene.getAnimationRatio();
+            // The line keeps moving, so it keeps an on-demand render loop drawing.
+            requestFrame(scene);
         });
 
         // The texture and the per-frame callback belong to this mesh alone; without this every

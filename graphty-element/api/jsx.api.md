@@ -192,6 +192,7 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
     "position-scale"?: string;
+    "render-mode"?: string;
     "repeated-edges"?: string;
     "run-algorithms-on-load"?: boolean;
     "starting-camera-distance"?: string;
@@ -224,6 +225,7 @@ export interface GraphtyElementJSXProps {
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
     positionScale?: Graphty["positionScale"];
     renderer?: Graphty["renderer"];
+    renderMode?: Graphty["renderMode"];
     repeatedEdges?: Graphty["repeatedEdges"];
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
     selectionStyle?: Graphty["selectionStyle"];

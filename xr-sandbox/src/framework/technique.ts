@@ -94,7 +94,29 @@ export interface TechniqueContext {
     log(message: string, data?: Record<string, unknown>): void;
     /** A per-frame hook, run only while the technique is on, timed for the frame budget. */
     onFrame(fn: (dtMs: number) => void): void;
+    /**
+     * Ask for a line of text (plan section 1.3): the text entry technique's keyboard when it is on,
+     * a row of canned chips when it is off. Resolves with the text, or null when dismissed.
+     */
+    text: {
+        request(r: TextRequest): Promise<string | null>;
+        /** For the text entry technique only: become the provider, or stop being it with null. */
+        provide(fn: TextProvider | null): void;
+    };
 }
+
+/** A request for a line of text. */
+export interface TextRequest {
+    /** What the text is for, shown above the field ("Note on Medici"). */
+    label: string;
+    /** Text the field starts with. */
+    initial?: string;
+    /** The hand that asked. */
+    hand?: Hand;
+}
+
+/** Answers a text request: the text, or null when dismissed. */
+export type TextProvider = (r: TextRequest) => Promise<string | null>;
 
 /** A technique module. */
 export interface Technique {

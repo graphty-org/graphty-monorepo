@@ -16,6 +16,7 @@ import { createInput, type Edge, type InputLayer } from "./input";
 import type { Logger } from "./logging";
 import type { Settings } from "./settings";
 import type { HoverInfo, PressSession, Technique, TechniqueContext } from "./technique";
+import { createTextSeam } from "./text-seam";
 
 /** Framework actions, filled in by the panels that implement them. */
 export interface FrameworkActions {
@@ -98,6 +99,9 @@ export function createFramework(
     };
     anchors["graph-top"].parent = graph.root;
     anchors["graph-top"].position.set(0, 0.32, 0);
+    const textSeam = createTextSeam(scene, (m, d) => {
+        log.log(m, d);
+    });
 
     const badges: Record<Hand, Chip> = {
         left: createChip(scene, "badge-left", 0.1, 0.022, true),
@@ -242,6 +246,12 @@ export function createFramework(
                 log.log(`${t.id}.${message}`, { technique: t.id, ...data });
             },
             onFrame: (fn) => list.push(fn),
+            text: {
+                request: (r) => textSeam.request(r),
+                provide: (fn) => {
+                    textSeam.provide(fn);
+                },
+            },
         };
     };
 

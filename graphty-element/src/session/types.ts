@@ -1491,6 +1491,15 @@ export interface SessionEventMap {
      * current when it does.
      */
     "selection:origin-changed": { readonly origin: SelectionTarget | null };
+    /**
+     * A click landed on empty canvas: no node and no edge under it.
+     *
+     * Published for every such click, after it cleared the selection and also when nothing was
+     * selected, which `selection:changed` cannot tell: a host showing something else as chosen
+     * (a run, a panel's row) learns that the reader let go of it on the drawing. `x` and `y` are
+     * where, in CSS pixels from the drawing's top left corner, as `elementAt` takes a point.
+     */
+    "canvas:empty-click": { readonly x: number; readonly y: number };
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
     /**
@@ -2378,6 +2387,13 @@ export interface ElementSession extends GraphSession {
      * the verbs differ -- the stack is still the one that decides -- only the shape of the answer.
      */
     readonly paint: ElementPaint;
+    /**
+     * Publishes `canvas:empty-click`; the renderer calls it for a click on empty canvas.
+     * @param at - Where the click landed.
+     * @param at.x - Its distance from the drawing's left edge, in CSS pixels.
+     * @param at.y - Its distance from the drawing's top edge, in CSS pixels.
+     */
+    emptyClick(at: { readonly x: number; readonly y: number }): void;
 }
 
 /**

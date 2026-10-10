@@ -3190,6 +3190,10 @@ export type SessionDataConfig = Readonly<z.output<typeof DataConfig>>;
 
 // @public
 export interface SessionEventMap {
+    "canvas:empty-click": {
+        readonly x: number;
+        readonly y: number;
+    };
     "capabilities:changed": {
         readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
     };

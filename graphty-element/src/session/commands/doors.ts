@@ -1132,6 +1132,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...SESSION,
             paint: READ,
+            emptyClick: EVENTS,
         },
     },
     {

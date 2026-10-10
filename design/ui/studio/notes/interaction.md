@@ -15,47 +15,41 @@ save and reopen.
 
 ## Top of mind
 
-- 2026-10-09 **A dry run must walk the detours, by pointer AND keyboard, and the study tool must be
-  dry-run too.** Tier 2 round 1 had a dry run (four builds plus the frozen build), but only on the
-  answer key's routes, by pointer only. Participants met build defects only on detours (Edges Color
-  to Everything, halo tint, focus to the page after Add/Delete step, Enter not committing a step);
-  the study tool reached them more often than the build did (over four browsers, wrong-row matches,
-  a dead synthetic drop, missing bar scripts). Round 2 starts only after a written detour walk.
-- 2026-10-09 **Round 2 changes I own or watch** (one door per problem): find's empty line offers
-  "start with =" only when the ELEMENT accepts "=text" as a rule (no app parsing); the source
-  inspector gets a "..." menu (Edit source, Replace), not visible buttons; a data file opened from
-  the start screen goes through the Data page; focus after Add/Delete step and find's Escape, Enter
-  commits and Escape closes a step edit; load words true and spoken once; key says ", out of date";
-  no silent Everything in style lines; path Weight starts on the loaded weight.
-- 2026-10-09 **Round 2 answer: the dry run happened and participants mostly met design questions,
-  not broken controls.** About 30 of 355 recorded problems were build faults, none above severity
-  2, no grade decided by one; 12 of the 30 sat on the one detour no walk covered (styling a
-  selection: a new line starts at the element's default, the look every tie already has, so it
-  draws nothing). The worse leak was the study: participants read `tasks.md` (control names,
-  follow-ups), so round 2's route credits are void until re-run with briefing-only sessions.
-- 2026-10-09 **Round 2 results on what I watched:** the "start with =" hint failed its floor (6 of
-  8 typed the data's words, "chapters 10", and got only "No match"; backticks stopped 7); Replace
-  in "..." found 8 of 8 but by guessing and under facilitator leakage; Open on a newer copy still
-  offers only Add, which doubles the ties (82 from 41). Next: column rows in the plain find list,
-  Enter runs the element's corrected rule, a new line opens its value, a doubling Add says so in
-  place with a Replace door. Not "Select where..." yet.
-- 2026-10-09 **A starting value equal to what is drawn is a silent no-op.** A line added with "+"
-  must ask for its value (open the picker), not start on the default the layer below already draws.
-- 2026-10-09 **A visible door beats a new route,** but words at rest do not rise: the Director chose
-  a header "..." over my visible buttons. Surface existing commands; do not add homes.
-- 2026-10-09 **The halo tint was a defect, not a design question** (its docs say ring). Read the
-  component's own contract before calling something a design choice.
-- 2026-10-09 **Two routes to one command must behave the same** (Open from start vs inside a project
-  differed). Same lesson as neighbors: the door a newcomer picks is the broken one.
+- 2026-10-10 **A route that worked in round 2 proves little; a problem found anyway is solid.**
+  Participants read the facilitator's task file (control names, follow-ups; 13 of 16 follow-ups
+  answered early). Round 2's three new routes (weight meaning at load, Replace in "...", the find
+  rule hint) are uncredited until a clean re-run. Round 3 waits on study-tool fixes: sessions
+  outside the studio tree, a transcript leak check that voids, a planted-fault self-test.
+- 2026-10-10 **The walk list is always one round behind.** 12 of 30 build faults sat on the one
+  unwalked detour (styling a selection). Next dry run scripts throwaway pilots' real routes, and a
+  keyboard walk presses every control on the screen; a fault found is fixed before freeze, never
+  handed on (the find box's second Escape slipped through that way).
+- 2026-10-10 **Round 3 find box (mine to watch, T22):** a miss shows the element's example line
+  once; the element's suggestion keeps its "="; a shown rule is Enter's option and clickable. One
+  path, credited together. Not yet: column rows, "Select where..." (only if 3+ of 8 still stall).
+  Bare numbers and backticks stay with the owner (breaking).
+- 2026-10-10 **A starting value equal to what is drawn is a silent no-op** -- fixed by the element's
+  look, not my picker: `highlightStyle(target)` gives a selection layer's Color/Width the highlight
+  look. My "+ opens the picker" is HELD so round 3 can tell which change helped.
+- 2026-10-10 **Focus faults to verify on the round 3 build:** second Escape keeps focus in find;
+  Follow arrows never move into Hops (effect re-ran every render); Tab or click away commits a step
+  edit, Escape cancels and says so; a repeated status message is spoken again.
+- 2026-10-10 **A command is a command, a toggle is a checkbox.** "Filter to neighbors" pressed twice
+  deleted its step silently; now it always adds/turns on, and only the step's checkbox turns off.
+- 2026-10-10 **Doubling Add (T21, sev 3):** element reports repeated edges from `data.prepare()`;
+  the Add page shows one line and "Replace <source>" beside Load (same command as "..."). Never
+  match file names in the app.
+- 2026-10-10 **Words at rest go down, never up** (bar 9 b failed on all four tier 2 screens). Scope
+  words only when drawing and run differ; no new words for any fix.
+- 2026-10-10 **Prompts must not invite the behavior the task does not measure** ("stand out" made
+  the styling detour). Discount behavior a prompt's own words ask for.
 - 2026-10-07 **A decided change that is not verified on the served build is not done.**
-- 2026-10-07 **Recovery routes are first-class.** "Back to start" must never be the only way to a
-  setting.
-- 2026-10-07 **Simulated participants are one model and follow their histories.** Trust
-  reproductions and causes in code; graders label scripted persona exits.
+- 2026-10-07 **Recovery routes are first-class.** "Back to start" must never be the only route.
+- 2026-10-07 **Simulated participants are one model.** Trust reproductions and causes in code.
 - 2026-10-06 **Change one thing per problem per round,** so the round can tell what helped.
 - 2026-10-06 **Every detour must work or not look clickable. Refusals in place until the value
   changes.**
-- 2026-10-06 **Where a fix goes:** graph logic in graphty-element; flows, focus, words in the app;
+- 2026-10-06 **Where a fix goes:** graph facts in graphty-element; flows, focus, words in the app;
   shared control defects in compact-mantine.
 
 ## Priorities and values
@@ -172,8 +166,29 @@ text })`; accepted or refused only with `number-needs-backticks` -> "To select b
   faces only (element). Not now: "Select where..." (only if the hint fails), Filters' home, label
   overlap (element issue), bare numbers (owner), compact-mantine Toast role and segment contrast.
 
+- 2026-10-10 Tier 2 round 2 closed (Design Director, from insights and the red team). Round 3 is
+  gated on three study-tool fixes (leak closed, pilot-route dry run, every named bar script real
+  with a planted fault). My proposals' fate: find box "way on" TAKEN in a narrower form (example
+  line on a miss, "=" kept on the suggestion, shown rule runs on Enter or click) -- my column rows
+  REJECTED as a second door among node hits. "+" opens the value picker HELD (one change per
+  problem; the element's `highlightStyle` is the fix measured). Doubling Add says so in place with
+  Replace beside Load: TAKEN, but the count comes from the element, not file names. Also taken:
+  three focus fixes, step edit commits on Tab/click-away, "Filter to neighbors" as a plain command,
+  repeated status re-announced, rule-named layers, weighted path row shows "<column> <total>",
+  Shortest path search aliases, 24 px hit area on the extra-small Checkbox (compact-mantine). Not
+  changed: label overlap (element, owner), bare numbers and edge width units (owner, breaking),
+  neighbor list by distance (waits on the element), "Components 1" under a filter (held so the
+  words change is measured alone). Reason throughout: no second door where one is measured.
+
 ## Tried: worked / did not work
 
+- 2026-10-10 Round 2 (all 55 sessions succeeded; weak evidence because of the leak). Did not work:
+  the "start with =" hint (shown only when the exact column and a condition are typed; 6 of 8 typed
+  "chapters 10" or ">= 10" and got "No match"; backticks stopped 7); a new style line on the
+  element default (draws nothing); a second Escape in find (drops focus); Follow arrows (jump into
+  Hops); "Filter to neighbors" as a toggle; the 12 px step checkbox. Unproven: Replace in "..."
+  (8 of 8 found it by guessing, under the leak), weight meaning at load. Disputed, to script: a
+  half-made step discarded on another selection; empty-canvas click while a run is selected.
 - 2026-09-13..29 (summarized) Did not work: v1 panel locks and autohide (one rule needed); a
   palette and search box that did not focus (initial focus goes to what opened); silent undo (5 of
   5 lost a step; Ctrl+Y must be Redo off macOS); a filter-step undo that DELETED the step

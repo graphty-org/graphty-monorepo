@@ -19,6 +19,14 @@ import { SimulationLayoutEngine } from "./SimulationLayoutEngine";
  * who has tuned an ngraph force layout before already knows.
  */
 const springElectricalLayoutOptionsSchema = defineOptions({
+    maxIter: {
+        schema: z.number().int().positive().nullable().default(null),
+        meta: {
+            label: "Max Iterations",
+            description: "Iteration cap; null runs until the layout settles",
+            advanced: true,
+        },
+    },
     springLength: {
         schema: z.number().positive().default(10),
         meta: {

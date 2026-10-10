@@ -34,7 +34,8 @@ const SAFETY_ROUNDS = A.safetyRounds || 6;
 const START_ROUND = A.startRound || 1;
 const SKIP_PREPARE = !!A.skipPrepare;
 const MAX_SESSIONS = A.maxSessions || 56;
-const SLOTS = A.browserSlots || 4;
+// Never above 4: in tier 2 round 1 more than four sessions ran at once (load about 158) and clicks timed out.
+const SLOTS = Math.min(A.browserSlots || 4, 4);
 const DRY_RUN_PASSES = A.dryRunPasses || 4;
 const MAX_DECISIONS = A.maxDecisions || 15;
 const USERS = A.users || "returning"; // 'returning' or 'first-time': how participants are framed
@@ -172,12 +173,14 @@ const PLAN = {
                     persona: { type: "string" },
                     dataset: { type: "string" },
                     start: { type: "string" },
+                    followup: { type: "string" },
                 },
                 required: ["id", "task", "persona"],
             },
         },
+        dist: { type: "string" },
     },
-    required: ["sessions"],
+    required: ["sessions", "dist"],
 };
 const VERDICT = {
     type: "object",
@@ -199,6 +202,8 @@ const PILOT = {
     properties: {
         task: { type: "string" },
         reached: { type: "boolean" },
+        detours: { type: "array", items: { type: "string" } },
+        keyboard: { type: "boolean" },
         mismatches: { type: "array", items: { type: "string" } },
         defects: { type: "array", items: { type: "string" } },
     },
@@ -216,7 +221,9 @@ const CHECK = {
 
 // ---------------- Helpers ----------------
 // At most SLOTS browser-driving agents alive at once, so no session's clock runs while it waits
-// for a browser (sessions that waited 17-50 minutes for a slot were voided).
+// for a browser (sessions that waited 17-50 minutes for a slot were voided). EVERY agent that may
+// drive a browser takes a slot here: participants, graders (they reproduce with real.mjs), experts,
+// pilots, engineers checking a fix, build freezes (--prove) and the tool dry run. Never nest slot().
 let alive = 0;
 const waiting = [];
 async function slot(fn) {
@@ -235,13 +242,26 @@ async function slot(fn) {
 let build = null;
 
 async function freezeBuild(tag, phaseName) {
-    return agent(
-        `${RULES}\nFreeze a study build "${tag}". In ${ST}: rebuild graphty-element, compact-mantine (if it builds) and graphty (Sentry variables unset). Copy graphty/dist to ${BUILDS}/tier${TIER}-${tag}-<short sha>/ (never overwrite an existing frozen dir). Serve it for the owner through servherd (load the tools with ToolSearch "select:mcp__servherd__servherd_start,mcp__servherd__servherd_info"): name "${SERVER}", protocol https, cwd ${ST}/graphty, command "env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} npx vite preview --host 0.0.0.0 --port {{port}} --strictPort --outDir <the frozen dir>", description naming the tier and round. Starting the same name again replaces the previous round's server. Confirm <url>/?next answers 200. Update the first line of ${T}/criteria.md to "The study runs on build <sha> served from <dir>" (record the previous build in the change log). Run REAL_DIST=<dir> node ${SD}/tool/real.mjs --prove and fix the tool only if needed. Commit criteria.md. Return sha, dir, url (with ?next), ok.`,
-        { label: `freeze build ${tag}`, phase: phaseName, schema: BUILD },
+    return slot(() =>
+        agent(
+            `${RULES}\nFreeze a study build "${tag}". In ${ST}: rebuild graphty-element, compact-mantine (if it builds) and graphty (Sentry variables unset). Copy graphty/dist to ${BUILDS}/tier${TIER}-${tag}-<short sha>/ (never overwrite an existing frozen dir). Serve it for the owner through servherd (load the tools with ToolSearch "select:mcp__servherd__servherd_start,mcp__servherd__servherd_info"): name "${SERVER}", protocol https, cwd ${ST}/graphty, command "env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} npx vite preview --host 0.0.0.0 --port {{port}} --strictPort --outDir <the frozen dir>", description naming the tier and round. Starting the same name again replaces the previous round's server. Confirm <url>/?next answers 200. Update the first line of ${T}/criteria.md to "The study runs on build <sha> served from <dir>" (record the previous build in the change log). Run REAL_DIST=<dir> node ${SD}/tool/real.mjs --prove and fix the tool only if needed. Commit criteria.md. Return sha, dir, url (with ?next), ok.`,
+            { label: `freeze build ${tag}`, phase: phaseName, schema: BUILD },
+        ),
     );
 }
 
-async function pilotAll(tag, phaseName) {
+// The dry run walks more than the answer key's route. In tier 2 round 1 it walked only the success
+// paths, and participants who took the commonest detours met build defects there (edge color under
+// an open run's layer written to Everything, the selection halo tinting a node's own color, focus
+// falling to the page after Add or Delete step, Enter not committing a step edit). So each pilot
+// walks the success path, the task's commonest detours, and the success path again by keyboard.
+// prevRound: the previous round's folder, whose wrong turns name the detours (none before round 1).
+async function pilotAll(tag, phaseName, prevRound) {
+    const pastTurns = prevRound
+        ? "the wrong turns participants took on this task in " +
+          prevRound +
+          " (insights.md, scores.md, the session transcripts) and "
+        : "";
     const ids = await agent(
         `Read ${T}/tasks.md and return every ${NAME} task id with its dataset variants as separate ids (e.g. T17A, T17B).`,
         {
@@ -261,7 +281,7 @@ async function pilotAll(tag, phaseName) {
                 (id) => () =>
                     slot(() =>
                         agent(
-                            `${RULES}\nPilot ${NAME} task ${id} on the frozen build (first line of ${T}/criteria.md): read ${SD}/tool/README.md, the task in ${T}/tasks.md and its success path in ${T}/answers.md; walk it with real.mjs (REAL_DIST set; session ${T}/rounds/${tag}/pilot/${id}/), clicking from the task's real start to its end exactly as a participant can (clicks, typing, keys; never by URL), looking at every screenshot, and checking the data stays the task's own data the whole way. Do not change code. Always --end. Return reached, every mismatch between the answer key and the screen, and every defect (anything a participant could trip over), each with its screenshot path.`,
+                            `${RULES}\nPilot ${NAME} task ${id} on the frozen build (first line of ${T}/criteria.md): read ${SD}/tool/README.md, the task in ${T}/tasks.md and its success path in ${T}/answers.md; walk it with real.mjs (REAL_DIST set; sessions under ${T}/rounds/${tag}/pilot/${id}/), always from the task's real start, exactly as a participant can (clicks, typing, keys; never by URL), looking at every screenshot, and checking the data stays the task's own data the whole way. Walk it THREE ways, each its own session: (1) the success path by pointer; (2) the task's two or three commonest DETOURS, each walked as far as a participant would take it -- ${pastTurns}what a person would try first if they did not know the success path (another panel, the search box, a right-click, a menu, the toolbar, styling from where they are, opening a file from the start screen); (3) the success path again by KEYBOARD only (Tab, Shift+Tab, Enter, Space, Escape, arrows), recording each focused control's screen-reader name and every place focus falls to the page body. In every field you open, press Enter, Tab and Escape and check each does what a person expects. A dry run that passes on the answer key's route is necessary but not sufficient. Do not change code. Always --end. Write ${T}/rounds/${tag}/pilot/${id}/report.md (every route walked, what happened, screenshot paths). Return reached, the detours walked, keyboard (true if the keyboard walk reached the end), every mismatch between the answer key and the screen (from the success path), and every defect on ANY of the three walks (anything a participant could trip over, including focus lost, a missing or duplicate name, a key that does nothing), each with its route and screenshot path.`,
                             { label: `${tag} pilot: ${id}`, phase: phaseName, schema: PILOT },
                         ),
                     ),
@@ -306,9 +326,15 @@ async function implement(units, tag, phaseName) {
                 const r = [];
                 for (const u of g.items)
                     r.push(
-                        await agent(
-                            `${RULES}\n${asRole("engineer")}\nIMPLEMENT in ${ST}:\n${JSON.stringify(u, null, 2)}\nRead the code first; change the package that owns the problem; add a test that fails without the change; rebuild what you changed and check the acceptance on a fresh local build with real.mjs (REAL_DIST pointing at ${ST}/graphty/dist, session under ${SD}/tmp/${tag}-${u.id}/), looking at every screenshot. If the change would need a BREAKING public API change, record it for the owner in ${SD}/owner-decisions.md and implement the non-breaking part only (or nothing), saying so. Run the affected lint and nearest tests. Commit. Return done, commit, summary and any problem.`,
-                            { label: `${tag}: ${u.id} ${u.title || ""}`.slice(0, 80), phase: phaseName, schema: DONE },
+                        await slot(() =>
+                            agent(
+                                `${RULES}\n${asRole("engineer")}\nIMPLEMENT in ${ST}:\n${JSON.stringify(u, null, 2)}\nRead the code first; change the package that owns the problem; add a test that fails without the change; rebuild what you changed and check the acceptance on a fresh local build with real.mjs (REAL_DIST pointing at ${ST}/graphty/dist, session under ${SD}/tmp/${tag}-${u.id}/), looking at every screenshot. If the change would need a BREAKING public API change, record it for the owner in ${SD}/owner-decisions.md and implement the non-breaking part only (or nothing), saying so. Run the affected lint and nearest tests. Commit. Return done, commit, summary and any problem.`,
+                                {
+                                    label: `${tag}: ${u.id} ${u.title || ""}`.slice(0, 80),
+                                    phase: phaseName,
+                                    schema: DONE,
+                                },
+                            ),
                         ),
                     );
                 return r;
@@ -325,7 +351,7 @@ async function implement(units, tag, phaseName) {
 // The dry run: participants' time goes to learning what users need, never to rediscovering
 // implementation flaws. Pilot every task, fix every implementation or polish defect a participant
 // would trip over, freeze again and re-pilot, until the pilots come back clean.
-async function dryRun(tag, phaseName, pilots) {
+async function dryRun(tag, phaseName, pilots, prevRound) {
     for (let d = 1; d <= DRY_RUN_PASSES; d++) {
         const defects = pilots.flatMap((p) => (p.defects || []).map((x) => `${(p.task || "").slice(0, 12)}: ${x}`));
         if (!defects.length) {
@@ -333,7 +359,7 @@ async function dryRun(tag, phaseName, pilots) {
             return;
         }
         const triage = await agent(
-            `${RULES}\n${asRole("director")}\nDRY RUN before the ${tag} sessions. Piloting every ${NAME} task on the frozen build found the ${defects.length} defects below. The study's sessions must be spent learning what users need, not tripping over implementation flaws. Triage each: (a) an implementation or polish defect a participant could hit -- truncated or clipped text, misalignment, a control that does nothing or gives no feedback, a button enabled when it should not be, focus left behind, typing landing in the wrong field, a wrong or inconsistent component, inconsistent lists, raw internal text on screen, broken values, a missing unit -- FIX IT NOW; (b) an open design question the study exists to answer (where something should live, what users expect, naming a concept users have not seen) -- leave it for the sessions.${A.dryRunExtra ? " " + A.dryRunExtra : ""} Write the triage to ${T}/dry-run-${tag}-${d}.md (every defect, its class, the reason). Return the (a) fixes as units (group related defects into one coherent unit, package that owns it, files, acceptance naming the pilot screenshot), and "insights": two sentences for the owner on what the dry run found.\n\nDEFECTS:\n${defects.join("\n")}`,
+            `${RULES}\n${asRole("director")}\nDRY RUN before the ${tag} sessions. Piloting every ${NAME} task on the frozen build (success path, commonest detours, and by keyboard) found the ${defects.length} defects below. The study's sessions must be spent learning what users need, not tripping over implementation flaws. Triage each: (a) an implementation or polish defect a participant could hit -- truncated or clipped text, misalignment, a control that does nothing or gives no feedback, a button enabled when it should not be, focus left behind or falling to the page, a key (Enter, Escape, Tab) that does nothing where a person expects it to, a missing or duplicate screen-reader name, a defect met on a detour, typing landing in the wrong field, a wrong or inconsistent component, inconsistent lists, raw internal text on screen, broken values, a missing unit -- FIX IT NOW; (b) an open design question the study exists to answer (where something should live, what users expect, naming a concept users have not seen) -- leave it for the sessions.${A.dryRunExtra ? " " + A.dryRunExtra : ""} Write the triage to ${T}/dry-run-${tag}-${d}.md (every defect, its class, the reason). Return the (a) fixes as units (group related defects into one coherent unit, package that owns it, files, acceptance naming the pilot screenshot), and "insights": two sentences for the owner on what the dry run found.\n\nDEFECTS:\n${defects.join("\n")}`,
             { label: `${tag}: dry run triage ${d}`, phase: phaseName, schema: UNITS, effort: "high" },
         );
         if (triage?.insights) log(`${tag} dry run ${d}: ${triage.insights}`);
@@ -345,11 +371,60 @@ async function dryRun(tag, phaseName, pilots) {
         await implement(units, `${tag}-dry${d}`, phaseName);
         build = await freezeBuild(`${tag}d${d}`, phaseName);
         log(`${tag}: dry-run build ${d}: ${build?.url || "not served"} (commit ${build?.sha || "?"})`);
-        pilots = await pilotAll(`${tag}d${d}`, phaseName);
+        pilots = await pilotAll(`${tag}d${d}`, phaseName, prevRound);
     }
     log(
         `${tag}: dry run still finding defects after ${DRY_RUN_PASSES} passes; the sessions go ahead and the leftovers are in ${T}/dry-run-${tag}-*.md`,
     );
+}
+
+// The study TOOL gets its own dry run before every round's sessions. In tier 2 round 1 the tool
+// reached participants more often than the build did: more than four sessions alive at once, a
+// matcher that took the first partial match, a synthetic file drop the app ignored, a void session
+// never re-run, follow-ups never sent, a participant reading facilitator files -- and the scripts
+// that four bars are scored by did not exist, so those bars could not hold whatever happened.
+const TOOL_CHECK = (
+    RD,
+) => `Check mechanically, on the frozen build, before any session (read ${SD}/tool/README.md first):
+1. The browser gate: start six sessions at once through ${SD}/tool/with-browser.sh; a one-second poll never shows more than ${SLOTS} studio browsers alive; the gate refuses BROWSER_SLOTS above 4; every session is ended afterwards.
+2. The matcher: a click on a name that matches more than one control is refused with the candidate list, never resolved to the first match.
+3. File drop: a file dropped on the start screen opens in the app (a real file chooser or setInputFiles, not synthetic events); where the tool cannot deliver it, it prints that the drop was not delivered.
+4. The tool walks each task's commonest detours (the dry-run reports under ${T}/rounds/*/pilot/) without a tool error.
+5. Every participant briefing folder under ${RD}/briefings/ holds only that participant's persona and task text: no answer key, facilitator notes, follow-up prompt, avoided-words list or criteria.
+6. Every bar in ${T}/criteria.md that is scored by a script (or a check, count or lister) names a script that EXISTS, FAILS on a planted failure of its own, and runs on the frozen build. A script that reads zero items fails.`;
+async function toolDryRun(tag, RD, phaseName) {
+    for (let k = 1; k <= 2; k++) {
+        const c = await slot(() =>
+            agent(
+                `${RULES}
+TOOL DRY RUN ${k} before the ${NAME} ${tag} sessions. ${TOOL_CHECK(RD)}
+Change nothing. Write ${RD}/tool-dry-run-${k}.md. Return ok (all pass), every problem, and a summary.`,
+                {
+                    label: `${tag}: tool dry run ${k}`,
+                    phase: phaseName,
+                    schema: CHECK,
+                },
+            ),
+        );
+        if (c?.ok) return true;
+        log(`${tag}: tool dry run ${k} found: ${(c?.problems || ["no answer"]).join("; ")}`);
+        if (k === 2) return false;
+        await implement(
+            [
+                {
+                    id: `${tag}-tool`,
+                    title: "make the study tool pass its dry run",
+                    package: "study tool",
+                    files: [`${SD}/tool/`],
+                    what: (c?.problems || []).join("\n"),
+                    acceptance: TOOL_CHECK(RD),
+                },
+            ],
+            `${tag}-tool`,
+            phaseName,
+        );
+    }
+    return false;
 }
 
 const commitDocs = (msg, label, phaseName) =>
@@ -368,6 +443,7 @@ const pre = await agent(
 4. ${SKIP_PREPARE ? `The first line of ${T}/criteria.md names a frozen build directory that exists, and criteria.md says it is frozen.` : `No frozen-criteria line blocks a review (if criteria.md already says "Frozen", say so: the review will only check it).`}
 5. ${T}/rounds/round-${START_ROUND}/sessions/ does not exist or is empty, so no earlier session's raw data is overwritten.
 6. The machine has at most ${SLOTS} studio browsers alive (pgrep -fc chrom; list what holds them).
+7. Every bar in ${T}/criteria.md that is scored by a script (or a check, count or lister) names a script that exists (in round 1 of tier 2 the scripts for four bars were never built, so those bars could not be scored).
 Return ok (all pass), every problem, and a two-line summary.`,
     { label: "preflight", phase: "Preflight", schema: CHECK, effort: "low" },
 );
@@ -401,7 +477,8 @@ if (!SKIP_PREPARE) {
     );
     build = await freezeBuild(`r${START_ROUND}`, "Prepare");
     log(`${NAME} build for round ${START_ROUND}: ${build?.url || "not served"} (commit ${build?.sha || "?"})`);
-    await dryRun(`r${START_ROUND}`, "Prepare", await pilotAll(`r${START_ROUND}`, "Prepare"));
+    const prev = START_ROUND > 1 ? `${T}/rounds/round-${START_ROUND - 1}` : "";
+    await dryRun(`r${START_ROUND}`, "Prepare", await pilotAll(`r${START_ROUND}`, "Prepare", prev), prev);
 }
 
 // ---------------- Rounds ----------------
@@ -417,25 +494,35 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
               ` (${T}/rounds/round-${r - 1}/scores.md) and tasks whose path changed, while covering every task. A task that re-tests a fix must not use any word the fix put on screen.`
             : "";
     const plan = await agent(
-        `${RULES}\n${asRole("researcher")}\nPlan ${NAME} round ${r} per ${T}/criteria.md (frozen) and ${T}/roster.md, on the frozen build at the top of criteria.md.${reweight} Each session names its start (setup or saved project${USERS === "returning" ? " reflecting the returning user's history" : ""}). At most ${MAX_SESSIONS} sessions. Session ids r${r}-s01... Write ${RD}/plan.md. Return the sessions.`,
+        `${RULES}\n${asRole("researcher")}\nPlan ${NAME} round ${r} per ${T}/criteria.md (frozen) and ${T}/roster.md, on the frozen build at the top of criteria.md.${reweight} Each session names its start (setup or saved project${USERS === "returning" ? " reflecting the returning user's history" : ""}) and, where tasks.md gives the task a follow-up question, that question as "followup" (the workflow asks it after the participant stops; the participant never sees it before). At most ${MAX_SESSIONS} sessions. Session ids r${r}-s01... Write ${RD}/plan.md. Then write each participant's BRIEFING folder ${RD}/briefings/<id>/ holding only persona.md (the persona${USERS === "returning" ? " and their history with the app" : ""}) and task.md (only the words the participant is told for this task and dataset): never the answer key, facilitator notes, follow-up, avoided-words list, criteria or other tasks. Return the sessions and "dist", the frozen build directory named on the first line of criteria.md.`,
         { label: `${P}: plan`, phase: "Round", schema: PLAN, effort: "high" },
     );
     const sessions = (plan?.sessions || []).slice(0, MAX_SESSIONS);
     if ((plan?.sessions || []).length > MAX_SESSIONS)
         log(`${P}: plan had ${plan.sessions.length} sessions; ran the first ${MAX_SESSIONS}`);
+    const DIST = build?.dir || plan?.dist;
+    if (!(await toolDryRun(`r${r}`, RD, "Round"))) {
+        log(
+            `${NAME} stops before round ${r}'s sessions: the study tool or a bar's script failed its dry run twice (see ${RD}/tool-dry-run-*.md)`,
+        );
+        break;
+    }
     log(`${P}: ${sessions.length} sessions on ${build?.url || "the frozen build"}`);
     const endSession = (s) =>
         agent(
             `Run exactly this command and return its output, nothing else: node ${SD}/tool/real.mjs --end ${RD}/sessions/${s.id}`,
             { label: `${P}: ${s.id} end`, phase: "Round", effort: "low" },
         );
+    // Participants get only their briefing folder and the frozen build directory, never a studio
+    // path: in round 1 a participant told to read criteria.md also read the facilitator notes.
+    const PRULES = `RULES: Plain ASCII only. Never run git. Read nothing except the two files in your briefing folder and your own session folder; never open, list or search any other file or folder (the app's source, other sessions, anything else on this machine). Use the app only through the commands below.`;
     const participate = async (s) => {
+        const brief = `${RD}/briefings/${s.brief || s.id}`;
         const who =
             USERS === "returning"
-                ? `a RETURNING user of this app. Become this person: read ONLY your persona (find "${s.persona}" in ${T}/roster.md and the persona files it points to) including your history with the app`
-                : `a FIRST-TIME user: you have never seen this app. Become this person: read ONLY your persona (find "${s.persona}" in ${T}/roster.md and the persona file it points to)`;
-        const dataset = s.dataset ? " (dataset " + s.dataset + ")" : "";
-        const prompt = `${RULES}\nYOU ARE A STUDY PARTICIPANT, ${who}, and your task ${s.task}${dataset} in ${T}/tasks.md (only that section). OFF LIMITS: app source, ${T}/answers.md, other tasks or sessions, the designers' notes and all other studio files.\nUse the app only through ${SD}/tool/real.mjs with REAL_DIST set to the frozen build named on the first line of ${T}/criteria.md (read only that first line): --start ${RD}/sessions/${s.id} ${s.start || "<the task's start>"}, then --step one action at a time, LOOKING at each new screenshot before deciding the next action (you may point at a spot on the last screenshot with --click-at). Before each step, say in one or two sentences, in character, what you see and what you will try next. Stop when you are done, would give up, or keep repeating without progress (no step limit), then --end.\nWrite ${RD}/sessions/${s.id}/transcript.md as you go (append after every step, so nothing is lost if the session stops): your per-step notes, every command, and at the end in character: did you finish, how easy or difficult it was from 1 (very difficult) to 7 (very easy), what confused you. Return the transcript path.`;
+                ? `a RETURNING user of this app. Become this person: read ${brief}/persona.md, including your history with the app`
+                : `a FIRST-TIME user: you have never seen this app. Become this person: read ${brief}/persona.md`;
+        const prompt = `${PRULES}\nYOU ARE A STUDY PARTICIPANT, ${who}. Your task is in ${brief}/task.md.\nUse the app only through node ${SD}/tool/real.mjs with REAL_DIST=${DIST}: --start ${RD}/sessions/${s.id} ${s.start || "<the start named in task.md>"}, then --step one action at a time, LOOKING at each new screenshot before deciding the next action (you may point at a spot on the last screenshot with --click-at). Before each step, say in one or two sentences, in character, what you see and what you will try next. Stop when you are done, would give up, or keep repeating without progress (no step limit). Do NOT --end: the facilitator ends the session.\nWrite ${RD}/sessions/${s.id}/transcript.md as you go (append after every step, so nothing is lost if the session stops): your per-step notes, every command, and at the end in character: did you finish, how easy or difficult it was from 1 (very difficult) to 7 (very easy), what confused you. Return the transcript path.`;
         const attempts = [
             [prompt, { label: `${P}: ${s.id} ${s.task} ${s.persona}`.slice(0, 80), phase: "Round" }],
             [
@@ -451,31 +538,41 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
         ];
         for (const [p, o] of attempts) {
             const t = await agent(p, o);
+            // Every follow-up is sent: in round 1 two sessions never got theirs.
+            if (t && s.followup)
+                await agent(
+                    `${PRULES}\nYou are the study participant whose session is ${RD}/sessions/${s.id}/ (persona in ${brief}/persona.md; read your transcript.md there to remember what you did). The facilitator now asks you: "${s.followup}"\nAnswer in character. You may look at the screen again with node ${SD}/tool/real.mjs --step on that session (REAL_DIST=${DIST}); do NOT --end. Append the question and your answer to the transcript under "Follow-up". Return the answer.`,
+                    { label: `${P}: ${s.id} follow-up`, phase: "Round" },
+                );
             await endSession(s); // a stopped agent must never keep its browser
             if (t) return t;
         }
         return null;
     };
+    const followupCheck = (s) =>
+        s.followup
+            ? ' The transcript must hold the answer to the follow-up "' +
+              s.followup +
+              '"; if it does not, list that as a problem of kind behavior.'
+            : "";
+    const grade = (t, s) =>
+        t
+            ? slot(() =>
+                  agent(
+                      `${RULES}\nGrade ${NAME} session ${s.id} (task ${s.task}, persona ${s.persona}) strictly by ${T}/criteria.md and the task's success definition in ${T}/answers.md, from the LAST screenshot and any saved files in ${RD}/sessions/${s.id}/ (downloads/ included), never from the participant's own rating. Record the participant model (sonnet if the transcript says so). VOID only if the tool or the run failed, or the participant opened any file outside ${RD}/briefings/${s.brief || s.id}/ and its own session folder (say why).${followupCheck(s)} Count steps and wrong turns against the success path; record a false "done" whenever the participant claims done while the screen shows otherwise (truth_on_screen if the screen itself said so). List each problem with severity 0-4, kind and evidence (step and screenshot). A build defect you can reproduce with a scripted real.mjs path (under ${RD}/repro/${s.id}/, through the browser gate) is marked build-defect with the repro. Write ${RD}/sessions/${s.id}/grade.md.`,
+                      { label: `${P}: grade ${s.id}`, phase: "Round", schema: GRADE },
+                  ),
+              )
+            : {
+                  session: s.id,
+                  task: s.task,
+                  persona: s.persona,
+                  grade: "VOID",
+                  false_done: false,
+                  problems: [{ what: "all three attempts ended without a transcript", severity: 0 }],
+              };
     const both = await parallel([
-        () =>
-            pipeline(
-                sessions,
-                (s) => slot(() => participate(s)),
-                (t, s) =>
-                    t
-                        ? agent(
-                              `${RULES}\nGrade ${NAME} session ${s.id} (task ${s.task}, persona ${s.persona}) strictly by ${T}/criteria.md and the task's success definition in ${T}/answers.md, from the LAST screenshot and any saved files in ${RD}/sessions/${s.id}/ (downloads/ included), never from the participant's own rating. Record the participant model (sonnet if the transcript says so). VOID only if the tool or the run failed (say why). Count steps and wrong turns against the success path; record a false "done" whenever the participant claims done while the screen shows otherwise (truth_on_screen if the screen itself said so). List each problem with severity 0-4, kind and evidence (step and screenshot). A build defect you can reproduce with a scripted real.mjs path (under ${RD}/repro/${s.id}/, through the browser gate) is marked build-defect with the repro. Write ${RD}/sessions/${s.id}/grade.md.`,
-                              { label: `${P}: grade ${s.id}`, phase: "Round", schema: GRADE },
-                          )
-                        : {
-                              session: s.id,
-                              task: s.task,
-                              persona: s.persona,
-                              grade: "VOID",
-                              false_done: false,
-                              problems: [{ what: "all three attempts ended without a transcript", severity: 0 }],
-                          },
-            ),
+        () => pipeline(sessions, (s) => slot(() => participate(s)), grade),
         () =>
             parallel(
                 EXPERTS.map(
@@ -490,9 +587,17 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
                 ),
             ),
     ]);
-    const grades = (both[0] || []).filter(Boolean);
+    const firstGrades = both[0] || [];
+    // A void session is re-run once under a new id (r1-s04 -> r1-s04b), from the same briefing: in
+    // round 1 a void session was never re-run and its task lost a participant.
+    const rerun = sessions
+        .filter((s, i) => !firstGrades[i] || firstGrades[i].grade === "VOID")
+        .map((s) => ({ ...s, id: `${s.id}b`, brief: s.id }));
+    if (rerun.length) log(`${P}: re-running ${rerun.length} void sessions: ${rerun.map((s) => s.id).join(", ")}`);
+    const again = rerun.length ? await pipeline(rerun, (s) => slot(() => participate(s)), grade) : [];
+    const grades = [...firstGrades, ...(again || [])].filter(Boolean);
     const voids = grades.filter((g) => g.grade === "VOID").length;
-    if (voids) log(`${P}: ${voids} void sessions (see their grade.md for why)`);
+    if (voids) log(`${P}: ${voids} void sessions, re-runs included (see their grade.md for why)`);
     await agent(
         `${RULES}\n${asRole("researcher")}\nScore ${NAME} round ${r}: every bar in ${T}/criteria.md, per task and dataset, from these grades ${JSON.stringify(grades)} and the expert and audit findings in ${RD}/expert/. Count sessions run on sonnet separately. Confirmed problems (two participants, a reproduced defect, or an expert finding the audit or a session also shows), candidate insights with evidence. Write ${RD}/scores.md.`,
         { label: `${P}: score`, phase: "Round", effort: "high" },
@@ -579,7 +684,7 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
     log(
         `${NAME} build for round ${r + 1}: ${build?.url || "not served"} (commit ${build?.sha || "?"}); pilot screenshots in ${T}/rounds/r${r + 1}/pilot/`,
     );
-    await dryRun(`r${r + 1}`, "Round", await pilotAll(`r${r + 1}`, "Round"));
+    await dryRun(`r${r + 1}`, "Round", await pilotAll(`r${r + 1}`, "Round", RD), RD);
     await parallel(
         ROLES.map(
             (x) => () =>

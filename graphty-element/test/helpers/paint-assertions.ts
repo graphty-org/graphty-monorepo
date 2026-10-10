@@ -43,12 +43,6 @@ const BOOTSTRAP_NODE_KEY = bootstrapNodePaint().meshKey;
 /** The same, for an edge. */
 const BOOTSTRAP_EDGE_KEY = bootstrapEdgePaint().meshKey;
 
-/** How many frames to render before reading the buffer, by default. */
-const DEFAULT_FRAMES = 60;
-
-/** How long to leave between those frames, in milliseconds. */
-const DEFAULT_FRAME_MS = 10;
-
 /**
  * How bright a pixel's strongest channel may be and still count as ink.
  *
@@ -333,25 +327,18 @@ export async function assertRunSettles<T>(run: Run<T>, ms: number, what: string)
 }
 
 /**
- * Render until the shaders have compiled, then read the frame off the GPU.
+ * Wait for the finished picture, then read the frame off the GPU.
  *
  * Babylon compiles a shader asynchronously and the instanced colour buffer is a define on that
  * shader, so the first frames draw in the source material's own colour rather than the instance's.
+ * A fixed number of frames is a guess at how long that takes; the stable frame waits for it.
  * @param graph - The graph to read.
- * @param frames - How many frames to render first.
- * @param frameMs - How long to leave between them.
  * @returns The frame.
  */
-export async function readFrame(graph: Graph, frames = DEFAULT_FRAMES, frameMs = DEFAULT_FRAME_MS): Promise<Frame> {
+export async function readFrame(graph: Graph): Promise<Frame> {
     const { engine } = graph;
 
-    for (let frame = 0; frame < frames; frame++) {
-        graph.scene.render();
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise<void>((done) => {
-            setTimeout(done, frameMs);
-        });
-    }
+    await graph.waitForStableFrame();
 
     const width = engine.getRenderWidth();
     const height = engine.getRenderHeight();

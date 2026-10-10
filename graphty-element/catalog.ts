@@ -34,6 +34,26 @@ export * from "./src/catalog/index";
 // The tables
 // ---------------------------------------------------------------------------------------------
 
+export type {
+    AiKeyShape,
+    AiKeyShapeCheck,
+    AiKeyShapeCode,
+    AiModelDescriptor,
+    AiProviderDescriptor,
+    AiProviderId,
+    AiResultCode,
+    AiResultParams,
+} from "./src/catalog/ai";
+export {
+    AI_PROVIDER_DESCRIPTORS,
+    AI_PROVIDER_IDS,
+    AI_RESULT_CODES,
+    AI_STAGES,
+    AI_STATES,
+    AI_TOOL_CALL_STATUSES,
+    aiProviderDescriptor,
+    checkApiKeyShape,
+} from "./src/catalog/ai";
 export type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey, LegacyAlgorithmMapping } from "./src/catalog/algorithms";
 export { algorithmByKey, algorithmByLegacyKey, BUILT_IN_ALGORITHMS } from "./src/catalog/algorithms";
 export { CAMERA_DESCRIPTORS, cameraDescriptor, camerasForMode } from "./src/catalog/cameras";

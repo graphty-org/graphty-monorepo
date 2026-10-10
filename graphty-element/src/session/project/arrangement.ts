@@ -22,7 +22,7 @@
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { NodeId } from "../../catalog/types";
-import { otherIdSpelling } from "../../data/nodeIdSpelling";
+import { otherIdSpelling, rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { type ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "../../data/positions";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { PositionEntry } from "../types";
@@ -379,13 +379,14 @@ export class Arrangement {
         const values: number[] = [];
         const at = { x: 0, y: 0, z: 0 };
         for (const entry of entries) {
-            const row = rowOf(snapshot, entry.id, 0);
+            // An integer id may be written either way; the step records the id the graph holds.
+            const row = rowOfEitherSpelling(snapshot.ids, entry.id);
             if (row === INVALID_INDEX) {
                 throw badPosition(`The graph holds no node ${JSON.stringify(entry.id)} to place.`, entry.id);
             }
 
             lane.read(row, at);
-            ids.push(entry.id);
+            ids.push(snapshot.ids.idOf(row));
             rows.push(row);
             // In 2D the lane holds every node on the Z = 0 plane, so the Z given is ignored and
             // the step records the 0 the lane holds: redone, it lands where it landed.

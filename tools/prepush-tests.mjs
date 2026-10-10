@@ -17,6 +17,13 @@
  *   resolves its command (gateShards below); without <base> (PREPUSH_ALL=1) every shard runs. One
  *   whose policy is "never" never runs here. CI runs them all either way.
  *
+ * A shard that already PASSED on this branch with byte-identical inputs -- its package's files and
+ * those of every package it depends on or reads, their build outputs, the root files, the Node
+ * version (tools/prepush-inputs.mjs) -- is skipped with a [SKIP] line saying when and on which commit
+ * it passed. So a push after a failed gate re-runs the shard that failed and every shard whose inputs
+ * changed, and nothing else. Passes are kept per branch in <main checkout>/tmp/prepush-passes/;
+ * PREPUSH_RERUN_ALL=1 runs every shard.
+ *
  * Shards run side by side: browser shards each take one slot of <main checkout>/tmp/with-browser.sh
  * (the machine's shared cap of four browsers) when it exists, and at most two shards without a
  * browser run at once. Every shard then takes one machine-wide test slot (tools/test-slots.mjs), which
@@ -48,6 +55,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { SHARDS } from "./ci-test-matrix.mjs";
+import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-inputs.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -194,6 +202,60 @@ function childTriggers(shards, changed) {
     return (s) => ({ specs: new Set(found[s.shard]?.specs ?? []), config: found[s.shard]?.config ?? [] });
 }
 
+/**
+ * Shards that already passed on this branch with byte-identical inputs (tools/prepush-inputs.mjs)
+ * are not run again; every other shard runs, and a pass is recorded when the shard's inputs are the
+ * same after it as before it. PREPUSH_RERUN_ALL=1, a detached HEAD or an unreadable package graph
+ * skips nothing.
+ * @param shards the shards the gate would run
+ * @param main the main checkout, which keeps the records in tmp/prepush-passes/
+ * @returns `{ run, record(shard) }`; record returns a note for the shard's PASS line
+ */
+function passed(shards, main) {
+    const none = { run: shards, record: () => "" };
+    let branch = "";
+    try {
+        branch = execFileSync("git", ["symbolic-ref", "--short", "-q", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
+    } catch {
+        // detached
+    }
+    if (shards.length === 0 || !branch || process.env.PREPUSH_RERUN_ALL === "1") {
+        return none;
+    }
+    const keys = shardKeys(ROOT);
+    if (!keys) {
+        console.log("Test shards: the package graph could not be read, so no shard is skipped or recorded.");
+        return none;
+    }
+    const keyOf = keys();
+    const before = new Map(shards.map((s) => [s.shard, keyOf(s)]));
+    const store = passStore(main, branch);
+    const { run, skipped } = partitionByPasses(shards, before, store.read());
+    for (const { shard, pass } of skipped) {
+        console.log(
+            `  [SKIP] ${shard.shard}: passed at ${pass.at} on ${pass.sha.slice(0, 9)} with byte-identical inputs (key ${pass.key.slice(0, 12)}; PREPUSH_RERUN_ALL=1 runs it)`,
+        );
+    }
+    const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
+    const record = (shard, log) => {
+        const key = before.get(shard.shard);
+        try {
+            // A run that passed no test proves nothing about these inputs (an empty include, a filter).
+            if (testsPassed(log) === 0) {
+                return "; not recorded: its log shows no test that passed";
+            }
+            if (!key || keys()(shard) !== key) {
+                return "; not recorded: its inputs changed while it ran";
+            }
+            store.record(shard.shard, { key, sha, at: new Date().toISOString() });
+            return "";
+        } catch (e) {
+            return `; not recorded: ${e.message.split("\n")[0]}`;
+        }
+    };
+    return { run, record };
+}
+
 async function main() {
     if (process.argv[2] === "--triggers") {
         const out = {};
@@ -214,20 +276,26 @@ async function main() {
               .split("\n")
               .filter(Boolean)
         : null;
-    const shards = gateShards(all, changed, changed === null ? null : childTriggers(all, changed));
-    const skipped = all.filter((s) => !shards.includes(s));
+    const gated = gateShards(all, changed, changed === null ? null : childTriggers(all, changed));
+    const skipped = all.filter((s) => !gated.includes(s));
     if (skipped.length > 0) {
         console.log(
             `Left to CI (this push changes none of the files they test): ${skipped.map((s) => s.shard).join(", ")}`,
         );
     }
-    if (shards.length === 0) {
-        console.log("No affected package has a test shard to run here.");
-        return;
-    }
     const main = dirname(
         execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8" }).trim(),
     );
+    const passes = passed(gated, main);
+    const shards = passes.run;
+    if (shards.length === 0) {
+        console.log(
+            gated.length === 0
+                ? "No affected package has a test shard to run here."
+                : "Every shard already passed on these inputs.",
+        );
+        return;
+    }
     const gate = join(main, "tmp/with-browser.sh");
     const logs = join(ROOT, "tmp/prepush-tests");
     mkdirSync(logs, { recursive: true });
@@ -276,7 +344,14 @@ async function main() {
             }
             if (code === 0) {
                 warmed.add(family(shard));
-                console.log(`  [PASS] ${shard.shard} (${secs}s)`);
+                // The pass is recorded from the whole log, so only once the log stream has finished.
+                const report = () =>
+                    console.log(`  [PASS] ${shard.shard} (${secs}s)${passes.record(shard, readFileSync(log, "utf8"))}`);
+                if (out.destroyed) {
+                    report();
+                } else {
+                    out.end(report);
+                }
                 next();
                 return;
             }

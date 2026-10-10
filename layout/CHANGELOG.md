@@ -1,3 +1,30 @@
+## 2.3.0 (2026-10-10)
+
+### 🚀 Features
+
+- **layout:** add an optional maxIter iteration cap to SpringElectricalOptions ([#1766](https://github.com/graphty-org/graphty-monorepo/issues/1766))
+
+### 🩹 Fixes
+
+- **algorithms:** state the maxNodes guard without a negated comparison ([e381c1e43](https://github.com/graphty-org/graphty-monorepo/commit/e381c1e43))
+- **layout:** refuse n x n allocations in kamadaKawai with E_TOO_LARGE ([eeaeb0d13](https://github.com/graphty-org/graphty-monorepo/commit/eeaeb0d13))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.2.14 (2026-10-09)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.26
+- Updated graph-format to 1.3.11
+- Updated algorithms to 3.3.13
+
 ## 2.2.13 (2026-10-09)
 
 ### 🧱 Updated Dependencies

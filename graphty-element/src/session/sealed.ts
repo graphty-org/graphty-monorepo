@@ -17,7 +17,7 @@ import { GraphtyError } from "../errors";
  *     and the values the set yields are unchanged by it.
  * @returns The sealed set.
  */
-export function sealedSet<T>(values: Iterable<T>, hint: string, alias?: (value: T) => T | undefined): ReadonlySet<T> {
+export function sealedSet<T>(values: Iterable<T>, hint: string, alias?: (value: T) => unknown): ReadonlySet<T> {
     const set = new Set<T>(values);
 
     if (alias) {
@@ -31,8 +31,9 @@ export function sealedSet<T>(values: Iterable<T>, hint: string, alias?: (value: 
                     return true;
                 }
 
+                // `has` of a value the set cannot hold is false, so the alias need not be a T.
                 const other = alias(value);
-                return other !== undefined && exact(other);
+                return other !== undefined && exact(other as T);
             },
         });
     }

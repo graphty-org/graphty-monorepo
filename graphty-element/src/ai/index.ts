@@ -58,6 +58,7 @@ export type {
     ToolDefinition,
     VercelProviderType,
     WebLlmModelInfo,
+    WebLlmProviderOptions,
 } from "./providers";
 export {
     createProvider,
@@ -70,7 +71,7 @@ export {
 } from "./providers";
 
 // Keys (Phase 7)
-export type { ApiKeyManagerOptions, PersistenceConfig } from "./keys";
+export type { ApiKeyManagerOptions, PassphrasePersistenceConfig, PersistenceConfig } from "./keys";
 export { ApiKeyManager } from "./keys";
 
 // Prompt Builder (Phase 3)

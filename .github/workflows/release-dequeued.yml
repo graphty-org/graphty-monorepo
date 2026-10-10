@@ -1,0 +1,46 @@
+# Tells the owner when a release pull request (branch release/train-*, opened by github-actions[bot]) leaves the
+# merge queue without merging: a "Release pull request dequeued" comment on the "Release status" issue, mentioning
+# RELEASE_NOTIFY, naming the pull request, the failing checks and the queue run (tools/release-status.mjs
+# dequeued, which reads them from the "Mergify Merge Queue" check run on its head). Mergify posts no pull request
+# comments here (.mergify.yml, status_comments: none), and without this a release that passed the train but
+# failed its queue run published nothing and said nothing.
+#
+# The trigger is the "dequeued" label Mergify's app puts on every pull request that leaves the queue unmerged. A
+# label added by a GitHub App (not by this repository's GITHUB_TOKEN) starts workflows. pull_request_target, not
+# pull_request: it runs master's copy of this file with no merge commit needed, so a release pull request that
+# conflicts with master is announced too, and it checks out nothing from the pull request.
+name: Release dequeued
+
+on:
+    pull_request_target:
+        types: [labeled]
+
+permissions:
+    checks: read
+    contents: read
+    issues: write
+
+jobs:
+    announce:
+        name: Announce a release pull request that left the merge queue
+        if: >-
+            ${{ github.event.label.name == 'dequeued' && startsWith(github.event.pull_request.head.ref, 'release/train-')
+            && github.event.pull_request.user.login == 'github-actions[bot]' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: master
+                  sparse-checkout: |
+                      tools/release-status.mjs
+                  sparse-checkout-cone-mode: false
+
+            - name: Comment on the Release status issue
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PR_URL: ${{ github.event.pull_request.html_url }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: node tools/release-status.mjs dequeued --pr "$PR_URL" --sha "$HEAD_SHA" --run "$RUN_URL"

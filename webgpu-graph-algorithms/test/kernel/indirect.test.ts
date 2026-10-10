@@ -100,7 +100,6 @@ describe("indirect-finalize and Kernel.dispatchIndirect (spec 5.4; P4-T1)", () =
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("an indirect dispatch runs exactly count items: fill (iota) over 4M poisoned words through slot 7 writes every index and no poison survives; slot 0 (count 0) leaves every poison word", async (t) => {
         const ctx = await context(t);
         expect(FILL_SLOT).toBe(7);
@@ -125,7 +124,7 @@ describe("indirect-finalize and Kernel.dispatchIndirect (spec 5.4; P4-T1)", () =
             }
         }
         expect(touched, "first word an empty indirect dispatch touched").toBe(-1);
-    }, 120_000);
+    });
 
     it("a slot beyond the binding is E_INVALID_ARGUMENT { argument: 'slot' }; a BoundKernel of another kernel is E_INVALID_ARGUMENT { argument: 'bound' }", async (t) => {
         const ctx = await context(t);

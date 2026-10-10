@@ -18,6 +18,7 @@ import type { AbstractMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { nextFrame } from "../helpers/real-input";
 
 /** Two nodes, so selecting one leaves something unselected to compare against. */
 const NODES = [{ id: "alpha" }, { id: "omega" }];
@@ -114,10 +115,7 @@ describe("what a selected node looks like", () => {
     async function frames(): Promise<void> {
         for (let frame = 0; frame < 10; frame++) {
             graph.scene.render();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise<void>((done) => {
-                setTimeout(done, 10);
-            });
+            await nextFrame();
         }
     }
 

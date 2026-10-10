@@ -8,15 +8,18 @@ import { withGroups } from "./components.js";
 export interface SyncClusteringOptions {
     /** Number of cluster centres: an integer in `[1, nodeCount]` (legacy rounds a fraction up; the port throws). */
     readonly numClusters: number;
-    /** Iteration cap; default 100. */
+    /** Iteration cap; default 1000. */
     readonly maxIterations?: number | undefined;
     /** Stop when the loss changes by less than this between iterations; default 1e-6. */
     readonly tolerance?: number | undefined;
     /** Seed of the embedding initialisation and the centre draws; default 42. */
     readonly seed?: number | undefined;
-    /** Gradient step; default 0.01. */
+    /**
+     * Fraction of the full step each node takes; default 0.5. The full step (1) moves a node to the sum of its
+     * out-neighbours' embeddings over (out-degree + 1). Stable up to 1; above 0.5 a bipartite part can oscillate.
+     */
     readonly learningRate?: number | undefined;
-    /** Weight of the neighbour-reconstruction and regularisation terms; default 0.1. */
+    /** Weight of the neighbour and regularisation terms in the loss (and its convergence test); default 0.1. */
     readonly lambda?: number | undefined;
 }
 
@@ -66,10 +69,12 @@ function distance(a: F64, i: number, b: F64, j: number, dim: number): number {
 
 /**
  * SynC over a snapshot: node embeddings seeded from degree and a seeded generator, pulled toward
- * their out-neighbours by gradient steps, and clustered by k-means with k-means++ centres. The
- * arithmetic, and the order of every random draw, are the legacy `syncClustering`'s, so for the same
- * seed the labels and embeddings agree with it to rounding; the port draws from its own generator
- * instead of replacing `Math.random` for the duration of the call.
+ * their out-neighbours by gradient steps, and clustered by k-means with k-means++ centres. Each
+ * node's step is scaled by its out-degree, so a small clique and a large one both settle into one
+ * point within a few iterations; with the defaults, unconnected cliques of any size come back as
+ * separate clusters. The order of every random draw is the legacy `syncClustering`'s, but legacy
+ * took the same fixed step at every node, so its results differ (see issue #1600). The port draws
+ * from its own generator instead of replacing `Math.random` for the duration of the call.
  *
  * Weights are ignored and a parallel arc pulls once per arc. The seeding degree is legacy's: in plus
  * out when directed, the stored arc count when undirected, so an undirected self-loop counts once.
@@ -80,10 +85,10 @@ function distance(a: F64, i: number, b: F64, j: number, dim: number): number {
 export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions): SyncClusteringResult {
     const {
         numClusters,
-        maxIterations = 100,
+        maxIterations = 1000,
         tolerance = 1e-6,
         seed = 42,
-        learningRate = 0.01,
+        learningRate = 0.5,
         lambda = 0.1,
     } = options;
     const n = s.nodeCount;
@@ -174,7 +179,10 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
         iterations++;
         assign();
 
-        // Every gradient from the embeddings before this step, then one step for all.
+        // Every gradient from the embeddings before this step, then one step for all. Each node's step is its
+        // gradient divided by the gradient's own slope, lambda * (out-degree + 1) (a Jacobi step), so a node
+        // moves the same fraction of the way to its minimum whatever its degree. A fixed step for every node
+        // (before issue #1600) barely moved low-degree nodes in 100 iterations and overshot high-degree ones.
         gradient.fill(0);
         for (let u = 0; u < n; u++) {
             const row = u * dim;
@@ -188,8 +196,12 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
                 gradient[row + k] += lambda * emb[row + k];
             }
         }
-        for (let i = 0; i < emb.length; i++) {
-            emb[i] -= learningRate * gradient[i];
+        for (let u = 0; u < n; u++) {
+            // lambda 0 has no gradient to follow, so the embeddings stay put.
+            const step = lambda === 0 ? 0 : learningRate / (lambda * (rowPtr[u + 1] - rowPtr[u] + 1));
+            for (let k = u * dim; k < (u + 1) * dim; k++) {
+                emb[k] -= step * gradient[k];
+            }
         }
 
         sums.fill(0);

@@ -217,9 +217,19 @@ class LineTokens {
             this.endToken();
             return i + 1;
         }
-        this.current += this.line[i];
+        // the whole run up to the next quote (or blank, outside quotes) in one slice: appending one
+        // character at a time builds a rope node per character, and a 50 MB label spent seconds in GC
+        let end = i + 1;
+        while (end < this.line.length) {
+            const d = this.line.charCodeAt(end); // NOSONAR(S7758): reads UTF-16 code units on purpose
+            if (d === 34 || (!this.quoted && isBlank(d))) {
+                break;
+            }
+            end++;
+        }
+        this.current += this.line.slice(i, end);
         this.started = true;
-        return i + 1;
+        return end;
     }
 
     /**

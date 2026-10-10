@@ -49,7 +49,6 @@ describe("sabotage: advance-expand (spec 11.9 item 1; P8-T5)", () => {
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the real kernel passes the check (factor 0)", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "sabotage-advance" });
@@ -60,17 +59,16 @@ describe("sabotage: advance-expand (spec 11.9 item 1; P8-T5)", () => {
         } finally {
             ctx.dispose();
         }
-    }, 120_000);
+    });
 
     for (const mutation of ROWS) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(`${ID}/${mutation.name}: fails the check by >= ${mutation.minFactor}x`, async (t) => {
             requireGpu(t);
             const report = await withSabotage(ID, mutation, (ctx) => advanceReport(ctx));
             console.warn(`[sabotage] ${ID}/${mutation.name}: factor ${report.worst} at ${report.worstLabel}`);
             expect(report.worst).toBeGreaterThanOrEqual(mutation.minFactor);
             expect(() => assertCheckPasses(report)).toThrow();
-        }, 120_000);
+        });
     }
 
     it("the normative body is restored after every mutation", () => {

@@ -7,6 +7,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { nextFrame } from "../helpers/real-input";
 
 describe("2D/3D Mode Switching", () => {
     let graph: Graph;
@@ -33,11 +34,6 @@ describe("2D/3D Mode Switching", () => {
         }
 
         return new Map(graph.getNodes().map((node) => [node.id, node.mesh.position.z]));
-    }
-
-    function delay(ms: number): Promise<void> {
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
     beforeEach(async () => {
@@ -90,9 +86,8 @@ describe("2D/3D Mode Switching", () => {
             await graph.setViewMode("3d");
             await operationQueueOf(graph).waitForCompletion();
 
-            // Wait for layout to settle
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await delay(500);
+            // Wait for the layout to converge
+            await graph.waitForStableFrame();
 
             // Store original 3D Z positions (may be non-zero)
             // The mesh positions are synced from the layout engine on the frame loop, so they
@@ -204,8 +199,7 @@ describe("2D/3D Mode Switching", () => {
             await graph.setLayout("ngraph");
             await graph.setViewMode("3d");
             await operationQueueOf(graph).waitForCompletion();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await delay(500); // Let layout settle
+            await graph.waitForStableFrame(); // Let layout settle
             graph.setRunning(false);
 
             const original = zOf();
@@ -226,8 +220,7 @@ describe("2D/3D Mode Switching", () => {
             }
         });
 
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it("should handle multiple round-trips correctly", { timeout: 45000 }, async () => {
+        it("should handle multiple round-trips correctly", async () => {
             // Setup in 3D mode
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -317,8 +310,7 @@ describe("2D/3D Mode Switching", () => {
     });
 
     describe("Edge Cases", () => {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it("should handle rapid consecutive mode switches", { timeout: 30000 }, async () => {
+        it("should handle rapid consecutive mode switches", async () => {
             // Setup
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -339,16 +331,13 @@ describe("2D/3D Mode Switching", () => {
                 originalZPositions.set(node.id, node.mesh.position.z);
             }
 
-            // Rapid switches without waiting
+            // Rapid switches, a frame apart, none awaited
             void graph.setViewMode("2d");
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await delay(10);
+            await nextFrame();
             void graph.setViewMode("3d");
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await delay(10);
+            await nextFrame();
             void graph.setViewMode("2d");
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await delay(10);
+            await nextFrame();
             void graph.setViewMode("3d");
 
             // Wait for all to complete

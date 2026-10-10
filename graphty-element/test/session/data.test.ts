@@ -17,12 +17,16 @@ describe("reading one node or one edge", () => {
         harness.session.dispose();
     });
 
-    it('misses without coercing, so 1 and "1" stay two different nodes', () => {
+    it('finds an integer id in either spelling, and keeps 1 and "1" apart when the graph holds both', () => {
         const harness = makeSession();
         harness.add([{ id: 1 }]);
 
-        assert.isDefined(harness.session.data.node(1));
-        assert.isUndefined(harness.session.data.node("1"));
+        assert.strictEqual(harness.session.data.node(1)?.id, 1);
+        assert.strictEqual(harness.session.data.node("1")?.id, 1, "the record carries the id the graph holds");
+
+        harness.add([{ id: "1" }]);
+        assert.strictEqual(harness.session.data.node(1)?.id, 1);
+        assert.strictEqual(harness.session.data.node("1")?.id, "1");
         harness.session.dispose();
     });
 

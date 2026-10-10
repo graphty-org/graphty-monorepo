@@ -33,8 +33,7 @@ test("screenshot capture completes even when layout is already settled", async (
     graph = await createTestGraphWithData();
 
     // Wait for layout to settle before taking screenshot
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await graph.waitForStableFrame();
 
     const result = await graph.captureScreenshot({
         timing: { waitForSettle: true },

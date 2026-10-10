@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../../src/Graph";
 import { dispatcherOf } from "../../../src/session/GraphSession";
+import { nextFrame } from "../../helpers/real-input";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [{ id: "node1" }, { id: "node2" }, { id: "node3" }];
@@ -23,7 +24,7 @@ const TEST_EDGES = [
  * NOT by writing the mesh. The mesh is drawn from the position array, and every frame a running
  * layout redraws every node from it -- so a node moved only on the mesh went back where the array
  * had it, pinned or not, whenever the layout was still running when a test began. It usually had
- * come to rest in the 200 ms the setup waits, so the tests passed on a fast machine and failed on
+ * come to rest in the 200 ms the setup used to wait, so the tests passed on a fast machine and failed on
  * a loaded CI runner.
  * @param graph - The graph.
  * @param id - The node.
@@ -69,8 +70,7 @@ describe("pinOnDrag Behavior", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await operationQueueOf(graph).waitForCompletion();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 200));
+            await graph.waitForSettled();
         });
 
         afterEach(() => {
@@ -129,8 +129,7 @@ describe("pinOnDrag Behavior", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await operationQueueOf(graph).waitForCompletion();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 200));
+            await graph.waitForSettled();
         });
 
         afterEach(() => {
@@ -171,8 +170,7 @@ describe("pinOnDrag Behavior", () => {
                 graphInternal.layoutManager.step();
             }
 
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await nextFrame();
 
             assert.isDefined(node1.mesh.position, "Node should have valid position");
             assert.isTrue(isFinite(node1.mesh.position.x), "X should be finite");

@@ -11,7 +11,7 @@
  * the real disposal rather than a mock of one.
  */
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 
@@ -60,16 +60,13 @@ describe("a node whose mesh has been disposed", () => {
     }
 
     /**
-     * Render a few frames, which is when a paint reaches a mesh.
+     * Wait for the render loop to draw every node's mesh again, which is when a paint reaches it.
+     * @param message - What the failure says.
      */
-    async function frames(): Promise<void> {
-        for (let frame = 0; frame < 5; frame++) {
-            graph.scene.render();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise<void>((done) => {
-                setTimeout(done, 10);
-            });
-        }
+    async function untilRebuilt(message: string): Promise<void> {
+        await vi.waitFor(() => {
+            assert.strictEqual(withLiveMeshes(), 3, message);
+        });
     }
 
     it("is rebuilt by the render loop", async () => {
@@ -80,9 +77,7 @@ describe("a node whose mesh has been disposed", () => {
         graph.getMeshCache().clear();
         assert.strictEqual(withLiveMeshes(), 0, "the disposal really happened, so the rebuild means something");
 
-        await frames();
-
-        assert.strictEqual(withLiveMeshes(), 3, "the render loop noticed and rebuilt them");
+        await untilRebuilt("the render loop noticed and rebuilt them");
     });
 
     it("comes back carrying a style change that arrived while it was gone", async () => {
@@ -93,9 +88,7 @@ describe("a node whose mesh has been disposed", () => {
             selector: { match: "everything" },
             set: { "node.color": "#FF0000" },
         });
-        await frames();
-
-        assert.strictEqual(withLiveMeshes(), 3, "every mesh is back");
+        await untilRebuilt("every mesh is back");
 
         const node = graph.getNode("alpha");
         assert.isDefined(node);

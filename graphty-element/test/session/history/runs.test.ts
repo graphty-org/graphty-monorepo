@@ -53,8 +53,9 @@ async function gated(): Promise<Gated> {
  * @param session - The session.
  */
 async function idle(session: GraphSession): Promise<void> {
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    // The session's queue and its passes run on promise chains, no timers: one macrotask yield
+    // lets them all run.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     await dispatcherOf(session).lane.settled();
 }
 

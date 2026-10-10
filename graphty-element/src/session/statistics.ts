@@ -9,6 +9,7 @@
 
 import { type GraphSnapshot, INVALID_INDEX, type NodeId, type U32 } from "@graphty/graph-format";
 
+import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { arrayColumn, buildHistogram } from "./results/statistics";
 import { COMPONENT_SIZE_CAP, type ComponentStatistics, type DirectionProvenance, type GraphStatistics } from "./types";
 
@@ -110,7 +111,7 @@ function summariseComponents(snapshot: GraphSnapshot, labels: Int32Array, count:
         isolatedCount,
         truncatedSizes,
         componentOf(id: NodeId): number | undefined {
-            const index = snapshot.ids.indexOf(id);
+            const index = rowOfEitherSpelling(snapshot.ids, id);
             return index === INVALID_INDEX ? undefined : labels[index];
         },
     };

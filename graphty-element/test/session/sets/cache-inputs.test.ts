@@ -38,6 +38,8 @@ import {
 } from "../../../src/session/sets/resolve";
 import { scopeSignature, signatureCounters } from "../../../src/session/sets/signature";
 import { InputGraph, resolutionOver } from "../../algorithms/input/harness";
+import { makeSession } from "../helpers";
+import { stubResult } from "../runs/harness";
 import { reachableBytes } from "./bytes";
 import { type EdgeRecord, TestGraph } from "./graphs";
 
@@ -455,8 +457,6 @@ describe("the resolution cache, input by input", () => {
 
 describe("the latent defect of a saved predicate over results", () => {
     it("re-resolves a saved { where } over results.pr after pr re-runs with no data change", async () => {
-        const { makeSession } = await import("../helpers");
-        const { stubResult } = await import("../runs/harness");
         let generation = 0;
         const harness = makeSession({
             runs: {

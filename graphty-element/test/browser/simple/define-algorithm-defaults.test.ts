@@ -7,7 +7,7 @@
 
 import "../../../src/graphty-element";
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { defineAlgorithm, type GraphtyError, isGraphtyError } from "../../../extend";
 import type { Graphty } from "../../../index";
@@ -198,11 +198,8 @@ describe("cancelling a whole-graph function", () => {
         assert.instanceOf(error, DOMException);
         assert.strictEqual(error.name, "AbortError");
         assert.strictEqual(run.status, "canceled");
-        const deadline = Date.now() + 5000;
-        while (!stopped && Date.now() < deadline) {
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((settle) => setTimeout(settle, 10));
-        }
-        assert.isTrue(stopped, "the author's own loop unwound");
+        await vi.waitFor(() => {
+            assert.isTrue(stopped, "the author's own loop unwound");
+        });
     });
 });

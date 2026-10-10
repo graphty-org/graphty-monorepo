@@ -26,7 +26,7 @@
  */
 
 import { Vector3 } from "@babylonjs/core";
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 
@@ -46,12 +46,6 @@ const EDGES = [
 
 /** How long to give the layout before deciding it is never going to settle. */
 const SETTLE_TIMEOUT_MS = 10000;
-
-/** How long to let the element keep drawing after settlement, standing in for a capture's tail. */
-const TAIL_MS = 300;
-
-/** Room for the settle, the tail and a cold start. */
-const CASE_TIMEOUT_MS = 20000;
 
 /**
  * How far a reported box may sit from the graph it claims to frame, in world units.
@@ -163,18 +157,6 @@ describe("framing the graph", () => {
     });
 
     /**
-     * Let the element draw for a while.
-     * @param ms - How long to leave it alone.
-     * @returns A promise that resolves once that long has passed.
-     */
-    async function draw(ms: number): Promise<void> {
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        return new Promise<void>((done) => {
-            setTimeout(done, ms);
-        });
-    }
-
-    /**
      * Wait for the layout to stop moving.
      * @returns Whether it stopped, as opposed to running out of time.
      */
@@ -209,40 +191,32 @@ describe("framing the graph", () => {
         return worst;
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "frames the graph the layout has produced, not the one it produced a step earlier",
-        async () => {
-            assert.isTrue(await settle(), "the layout settled");
-            await draw(TAIL_MS);
+    it("frames the graph the layout has produced, not the one it produced a step earlier", async () => {
+        assert.isTrue(await settle(), "the layout settled");
+        // The capture's tail: the element frames once more after settling, before the final frame.
+        await graph.waitForStableFrame();
 
-            assert.isNotEmpty(framings, "the element framed the graph at least once");
+        assert.isNotEmpty(framings, "the element framed the graph at least once");
 
-            const wrong = framings.filter((framing) => worstError(framing) > TOLERANCE);
+        const wrong = framings.filter((framing) => worstError(framing) > TOLERANCE);
 
-            assert.deepEqual(
-                wrong.map((framing) => worstError(framing).toFixed(6)),
-                [],
-                `${String(wrong.length)} of ${String(framings.length)} framings measured a graph the layout had already moved on from`,
-            );
-        },
-        CASE_TIMEOUT_MS,
-    );
+        assert.deepEqual(
+            wrong.map((framing) => worstError(framing).toFixed(6)),
+            [],
+            `${String(wrong.length)} of ${String(framings.length)} framings measured a graph the layout had already moved on from`,
+        );
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "honours a zoomToFit() asked for after the layout has stopped",
-        async () => {
-            assert.isTrue(await settle(), "the layout settled");
-            await draw(TAIL_MS);
+    it("honours a zoomToFit() asked for after the layout has stopped", async () => {
+        assert.isTrue(await settle(), "the layout settled");
+        await graph.waitForStableFrame();
 
-            const before = framings.length;
+        const before = framings.length;
 
-            graph.zoomToFit();
-            await draw(TAIL_MS);
+        graph.zoomToFit();
 
+        await vi.waitFor(() => {
             assert.isAbove(framings.length, before, "asking to fit the graph in view fits the graph in view");
-        },
-        CASE_TIMEOUT_MS,
-    );
+        });
+    });
 });

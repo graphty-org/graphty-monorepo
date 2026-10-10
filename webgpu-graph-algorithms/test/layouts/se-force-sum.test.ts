@@ -18,8 +18,6 @@ import { assertCheckPasses, type CheckReport, mergeReports, ratioOf } from "../h
 import { SE_BASE_OPTIONS, SE_TUNING, seStages, seTolerance, withSeSim } from "../helpers/se-parity.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
-
 interface SumCase {
     readonly name: string;
     readonly snapshot: () => GraphSnapshot;
@@ -70,42 +68,37 @@ describe("spring-electrical force-sum invariant: one iteration, |sum F| <= tol x
     });
 
     for (const c of CASES) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(
-            `${c.name}: the net force vanishes within the traced tolerance, twice bitwise`,
-            async (t) => {
-                requireGpu(t);
-                const s = c.snapshot();
-                try {
-                    const start = c.positions() ?? startPositions(s, SE_BASE_OPTIONS, false);
-                    const runOnce = (): Promise<F32> =>
-                        withSeSim(ctx, SE_BASE_OPTIONS, SE_TUNING, async (sim) => {
-                            sim.load(s, Float32Array.from(start));
-                            const st = seStages(sim);
-                            await st.run("K3");
-                            return asF32(await st.read("force"));
-                        });
-                    const a = await runOnce();
-                    const b = await runOnce();
-                    expectBitwiseEqual(a, b, `${c.name}: run 1 vs run 2`);
-                    const { ratio, total } = netForceRatio(a, s.nodeCount);
-                    expect(total, `${c.name}: some force exists`).toBeGreaterThan(0);
-                    const report: CheckReport = {
-                        worst: ratioOf(ratio, seTolerance("se-force-sum").value),
-                        worstLabel: c.name,
-                        samples: s.nodeCount,
-                    };
-                    reports.push(report);
-                    console.warn(
-                        `[se-force-sum] ${c.name}: |sum F| / sum |F| = ${ratio.toExponential(3)} (ratio ${report.worst.toExponential(3)})`,
-                    );
-                    assertCheckPasses(report);
-                } finally {
-                    ctx.release(s);
-                }
-            },
-            CASE_TIMEOUT,
-        );
+        it(`${c.name}: the net force vanishes within the traced tolerance, twice bitwise`, async (t) => {
+            requireGpu(t);
+            const s = c.snapshot();
+            try {
+                const start = c.positions() ?? startPositions(s, SE_BASE_OPTIONS, false);
+                const runOnce = (): Promise<F32> =>
+                    withSeSim(ctx, SE_BASE_OPTIONS, SE_TUNING, async (sim) => {
+                        sim.load(s, Float32Array.from(start));
+                        const st = seStages(sim);
+                        await st.run("K3");
+                        return asF32(await st.read("force"));
+                    });
+                const a = await runOnce();
+                const b = await runOnce();
+                expectBitwiseEqual(a, b, `${c.name}: run 1 vs run 2`);
+                const { ratio, total } = netForceRatio(a, s.nodeCount);
+                expect(total, `${c.name}: some force exists`).toBeGreaterThan(0);
+                const report: CheckReport = {
+                    worst: ratioOf(ratio, seTolerance("se-force-sum").value),
+                    worstLabel: c.name,
+                    samples: s.nodeCount,
+                };
+                reports.push(report);
+                console.warn(
+                    `[se-force-sum] ${c.name}: |sum F| / sum |F| = ${ratio.toExponential(3)} (ratio ${report.worst.toExponential(3)})`,
+                );
+                assertCheckPasses(report);
+            } finally {
+                ctx.release(s);
+            }
+        });
     }
 
     it("prints the worst ratio of the fixture set", () => {

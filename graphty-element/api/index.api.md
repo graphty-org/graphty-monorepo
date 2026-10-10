@@ -1875,7 +1875,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -2522,6 +2522,13 @@ export type GraphtyErrorCode =
 * canvas reported. The session's data and results still work; only the view is unavailable.
 */
 | "E_NO_WEBGL"
+/**
+* A feature the caller asked for needs an optional peer package that is not installed.
+* `details.package` names the package to install and `details.feature` the feature that
+* needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
+* picks a feature that does not need it.
+*/
+| "E_MISSING_PACKAGE"
 /**
 * The operation is well formed but this build or this host cannot perform it: a
 * worker-hosted session asked for `snapshot()`, a mutating command asked to jump the queue,
@@ -4545,6 +4552,23 @@ export interface XRModeConfig {
     enabled: boolean;
     optionalFeatures?: string[];
     referenceSpaceType: XRReferenceSpaceType_2;
+}
+
+// @public
+export interface XRSessionEndedEvent {
+    cause: "exit" | "device";
+    mode: "vr" | "ar";
+    // (undocumented)
+    type: "xr-session-ended";
+}
+
+// @public
+export interface XRSessionStartedEvent {
+    mode: "vr" | "ar";
+    referenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded" | "viewer";
+    requestedReferenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded";
+    // (undocumented)
+    type: "xr-session-started";
 }
 
 // @public

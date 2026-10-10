@@ -38,7 +38,7 @@ import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
 import type { VisibilityService } from "../commands/visibility";
 import type { CodedFact, ProgressChange } from "../shared";
-import type { HistoryCode, ProjectConfig } from "../types";
+import type { HistoryCode, HistoryStepId, ProjectConfig } from "../types";
 import { Arrangement, type ArrangementOp, mergeRowPatches } from "./arrangement";
 import { DerivationLane } from "./derive";
 import {
@@ -278,6 +278,12 @@ export interface TransactionOptions {
      * pointer moves write the lane before anything is dispatched (design section 5.3).
      */
     readonly moves?: boolean;
+    /**
+     * A step this transaction continues: its patch merges into that step while the step is the
+     * newest applied one, and otherwise records as its own step with `provenance.after` set to it,
+     * as a deferred member does.
+     */
+    readonly after?: HistoryStepId;
 }
 
 /** What moved live project state. */
@@ -1014,7 +1020,7 @@ export class Dispatcher {
             { label, fact: options.fact ?? { code: "transaction", params: { label } } },
             null,
             options.provenance ?? {},
-            null,
+            options.after ?? null,
             this.tick++,
             {
                 status: "open",

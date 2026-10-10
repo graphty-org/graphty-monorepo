@@ -70,7 +70,7 @@ async function runFrames(): Promise<void> {
     }
 }
 
-// eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+// eslint-disable-next-line local/no-test-timing -- no condition to wait on, loading the 100,000-node, 500,000-edge graph and its sets takes about 2 s locally and an estimated 8 s on CI (the file's 15 s locally is 61 s there), more than a third of the 10 s hook budget; tracked in #1636
 beforeAll(async () => {
     h = makeSession({ directed: false });
     h.add(
@@ -123,7 +123,6 @@ afterAll(() => {
 });
 
 describe("a freeze with live sets, at 100k nodes", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("re-resolves each live scope exactly once, and a 200-row count panel after it resolves nothing", async () => {
         const before = cacheCounters.misses;
 
@@ -146,11 +145,10 @@ describe("a freeze with live sets, at 100k nodes", () => {
         }
 
         assert.strictEqual(cacheCounters.misses - panel, 0, "every row served from what the frames resolved");
-    }, 120_000);
+    });
 });
 
 describe("the memory budget, at 100k nodes", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the bitmap cache stays within 64 MB plus its pins, and reports exactly the bytes it holds", async () => {
         const cache = cacheOf();
         const { evictions } = cacheCounters;
@@ -179,7 +177,7 @@ describe("the memory budget, at 100k nodes", () => {
         }
 
         assert.strictEqual(cacheCounters.misses - misses, 0);
-    }, 120_000);
+    });
 
     it("the summary cache holds one fixed-size entry per set, whatever the set's size", async () => {
         const cache = cacheOf();
@@ -228,7 +226,6 @@ describe("the memory budget, at 100k nodes", () => {
         );
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("a definition holds 8 bytes a node member and 20 an edge member plus its interned ids, and a resolution materialises none", async () => {
         const snapshot = h.session.data.snapshot();
         const rows = Array.from({ length: 100_000 }, (_, i) => Math.floor((i * snapshot.edgeCount) / 100_000));
@@ -277,7 +274,7 @@ describe("the memory budget, at 100k nodes", () => {
             64 + 2 + 8 * rows.length,
         );
         h.session.sets.remove(nodes);
-    }, 120_000);
+    });
 
     it("a capture holds a node member as one id slot and an edge member in the columns' form", () => {
         const snapshot = h.session.data.snapshot();
@@ -302,7 +299,6 @@ describe("the memory budget, at 100k nodes", () => {
         assert.strictEqual(reachableBytes(edges), 20 * edges.length, "five 4-byte columns");
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the derived-input cache stays within max(256 MB, 1.5 x the snapshot's bytes)", () => {
         const ids = Array.from({ length: NODES }, (_, i) => `n${String(i)}`);
         const graph = new InputGraph(
@@ -310,14 +306,21 @@ describe("the memory budget, at 100k nodes", () => {
             Array.from(GRAPH.src, (src, e) => [ids[src], ids[GRAPH.dst[e]]] as const),
             false,
         );
-        const inputs = new DerivedInputs({ release: () => undefined });
         const full = graph.snapshot().byteLength({ columns: true, ids: true });
-        assert.strictEqual(inputs.bound, Math.max(256 * MB, Math.ceil(1.5 * full)));
+        assert.strictEqual(
+            new DerivedInputs({ release: () => undefined }).bound,
+            Math.max(256 * MB, Math.ceil(1.5 * full)),
+        );
+
+        // At this size the 256 MB floor is the bound, and exceeding it takes hundreds of
+        // derivations. The eviction reads the bound and nothing else, so it is exercised at the
+        // other term, 1.5 x the snapshot, the bound of a graph large enough for it to dominate.
+        const inputs = new DerivedInputs({ release: () => undefined, limit: Math.ceil(1.5 * full) });
 
         // Distinct half-graph scopes, both orientations, each let go after its run: well past
         // the bound in total.
         let admitted = 0;
-        for (let k = 0; k < 24; k++) {
+        for (let k = 0; k < 24 && admitted <= 2 * inputs.bound; k++) {
             const scope = graph.scope(ids.filter((_, i) => (i + k) % 3 !== 0 || i % 24 === k));
             for (const orientation of ["declared", "undirected"] as const) {
                 const holder = {};
@@ -335,8 +338,8 @@ describe("the memory budget, at 100k nodes", () => {
             }
         }
 
-        assert.isAbove(admitted, inputs.bound, "the reads exceeded the bound, so the bound was exercised");
-    }, 300_000);
+        assert.isAbove(admitted, 2 * inputs.bound, "the reads exceeded the bound, so the bound was exercised");
+    });
 
     it("the sets code never built an EdgeIdIndex", () => {
         assert.strictEqual(edgeIndexOf.mock.calls.length, 0);

@@ -62,6 +62,12 @@ const browserGpu: keyof typeof BROWSER_FLAGS =
 const browserName: "chromium" | "webkit" = process.env.GRAPHTY_BROWSER === "webkit" ? "webkit" : "chromium";
 const gpuRequire = process.env.GRAPHTY_GPU_REQUIRE ?? "";
 const noiseFloorWrite = process.env.GRAPHTY_NOISE_FLOOR_WRITE ?? "";
+/**
+ * The per-test budget of the node project. A recording run (GRAPHTY_NOISE_FLOOR_WRITE=1, started by hand to rewrite the
+ * committed noise fixtures) runs the writer cases, which measure the UNSCALED fixtures and take up to tens of minutes
+ * on one adapter; every other run skips them and keeps the 30 s budget.
+ */
+const nodeTestTimeout = noiseFloorWrite === "1" ? 1_800_000 : 30_000;
 
 /**
  * The environment of the Chromium child (spec 12.2 GRAPHTY_EGL_LIB_DIR): on the dev box headless Chromium finds
@@ -292,7 +298,7 @@ export default defineConfig({
                     globals: true,
                     environment: "node",
                     pool: "forks",
-                    testTimeout: 30_000,
+                    testTimeout: nodeTestTimeout,
                     hookTimeout: 60_000,
                     include: [
                         "test/*.test.ts",

@@ -133,25 +133,29 @@ describe("the last algorithm named in applySuggestedStyles", () => {
     });
 
     /**
-     * Hold every reordering move back before it reaches the queue, so the queue is certainly
-     * idle before the moves arrive. A wait that holds only because of when microtasks happen to
-     * run then fails, and one that waits for the moves themselves does not.
-     * @param ms - How long to hold each move.
+     * Hold every reordering move back a turn of the event loop before it reaches the queue --
+     * and, when asked, until the queue is idle as well -- so the queue is certainly idle before
+     * the moves arrive. A wait that holds only because of when microtasks happen to run then
+     * fails, and one that waits for the moves themselves does not.
+     * @param untilIdle - Whether to hold each move until the operation queue is idle.
      */
-    const holdMoves = (ms: number): void => {
+    const holdMoves = (untilIdle: boolean): void => {
         const { styles } = session;
         const move = styles.move.bind(styles);
 
         (styles as { move: (...args: Parameters<typeof styles.move>) => PromiseLike<void> }).move = async (...args) => {
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, ms));
+            if (untilIdle) {
+                await operationQueueOf(graph).waitForCompletion();
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, 0));
 
             return move(...args);
         };
     };
 
     it("is on top once waitForSettled alone has settled, however late the reorder is queued", async () => {
-        holdMoves(300);
+        holdMoves(true);
 
         assert.isTrue(graph.applySuggestedStyles(["graphty:louvain", "graphty:pagerank"]));
         await graph.waitForSettled();
@@ -165,7 +169,7 @@ describe("the last algorithm named in applySuggestedStyles", () => {
 
     it("is on top and painted once waitForStableFrame alone has settled", async () => {
         // No queue drain and no `styles.settled()`: waitForStableFrame is the documented wait.
-        holdMoves(0);
+        holdMoves(false);
 
         assert.isTrue(graph.applySuggestedStyles(["graphty:louvain", "graphty:pagerank"]));
         await graph.waitForStableFrame();

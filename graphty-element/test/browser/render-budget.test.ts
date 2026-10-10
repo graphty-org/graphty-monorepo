@@ -142,7 +142,7 @@ describe("the cost of drawing a whole graph", () => {
     for (const [nodeCount, edgeCount] of GRAPHS) {
         const name = `${String(nodeCount)} nodes, ${String(edgeCount)} edges`;
 
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+        // eslint-disable-next-line local/no-test-timing -- no condition to wait on: loading and drawing the 10,000-node graph took 25.8 s in a loaded pre-push gate, over the 15 s browser default; tracked in #1636
         it(
             `stays within its baseline for ${name}`,
             async () => {

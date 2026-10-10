@@ -13,12 +13,12 @@ function noop(): void {
 }
 
 // Mock manager for testing
-function createMockManager(name: string, initDelay = 0, shouldFail = false): Manager {
+function createMockManager(name: string, asyncInit = false, shouldFail = false): Manager {
     return {
         async init() {
-            if (initDelay > 0) {
-                // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-                await new Promise((resolve) => setTimeout(resolve, initDelay));
+            if (asyncInit) {
+                // Finish on a later task, as a real manager's init would
+                await new Promise((resolve) => setTimeout(resolve, 0));
             }
 
             if (shouldFail) {
@@ -81,8 +81,8 @@ describe("LifecycleManager Logging", () => {
 
     test("should log each manager initialization with timing", async () => {
         const managers = new Map<string, Manager>([
-            ["test1", createMockManager("test1", 10)],
-            ["test2", createMockManager("test2", 10)],
+            ["test1", createMockManager("test1", true)],
+            ["test2", createMockManager("test2", true)],
         ]);
         const lifecycleManager = new LifecycleManager(managers, eventManager, ["test1", "test2"]);
 
@@ -103,7 +103,9 @@ describe("LifecycleManager Logging", () => {
     });
 
     test("should log init failures with error details", async () => {
-        const managers = new Map<string, Manager>([["failing-manager", createMockManager("failing-manager", 0, true)]]);
+        const managers = new Map<string, Manager>([
+            ["failing-manager", createMockManager("failing-manager", false, true)],
+        ]);
         const lifecycleManager = new LifecycleManager(managers, eventManager, ["failing-manager"]);
 
         try {

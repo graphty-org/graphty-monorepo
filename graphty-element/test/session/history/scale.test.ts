@@ -36,7 +36,7 @@ import { blankHarness } from "./fixture-session";
 /** The largest graph a session holds, less room for the steps below to add to it. */
 const NODES = DEFAULT_LIMITS.renderCeiling - 1000;
 const EDGES = 2 * NODES;
-/** Building the graph and the million-row structures takes longer than the project's default. */
+/** Building the baseline graph takes longer than the project's hook budget. */
 const TIMEOUT_MS = 120_000;
 
 /** A capture: 12 bytes of coordinates and an 8-byte id slot per row. */
@@ -83,7 +83,7 @@ describe("what each kind of step retains, at the largest graph a session holds",
     let session: ElementSession;
     let rows: number;
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, loading the 99,000-node, 198,000-edge baseline takes about 3.8 s locally and an estimated 18 s on CI (the file's 7.6 s locally is 37 s there), more than a third of the 10 s hook budget; tracked in #1636
     beforeAll(async () => {
         harness = await bigGraph();
         session = harness.session as ElementSession;
@@ -255,133 +255,123 @@ describe("what each kind of step retains, at the largest graph a session holds",
         );
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "a run of steps that each keep a capture stays within the budget",
-        async () => {
-            const { history } = session;
-            await session.data.import(
-                {
-                    type: "json",
-                    config: {
-                        data: JSON.stringify({
-                            nodes: Array.from({ length: NODES }, (_, at) => ({ id: `w${String(at)}` })),
-                            edges: [],
-                        }),
-                    },
+    it("a run of steps that each keep a capture stays within the budget", async () => {
+        const { history } = session;
+        await session.data.import(
+            {
+                type: "json",
+                config: {
+                    data: JSON.stringify({
+                        nodes: Array.from({ length: NODES }, (_, at) => ({ id: `w${String(at)}` })),
+                        edges: [],
+                    }),
                 },
-                { mode: "replace" },
-            );
-            history.limitBytes = 10 * CAPTURE_PER_ROW * NODES;
-            for (const layout of [
-                "circular",
-                "spiral",
-                "shell",
-                "random",
-                "grid",
-                "circular",
-                "spiral",
-                "shell",
-                "random",
-                "grid",
-                "circular",
-                "spiral",
-                "shell",
-            ]) {
-                await session.layout.set(layout);
-                assert.isAtMost(history.bytes, history.limitBytes, `after switching to ${layout}`);
-            }
+            },
+            { mode: "replace" },
+        );
+        history.limitBytes = 10 * CAPTURE_PER_ROW * NODES;
+        for (const layout of [
+            "circular",
+            "spiral",
+            "shell",
+            "random",
+            "grid",
+            "circular",
+            "spiral",
+            "shell",
+            "random",
+            "grid",
+            "circular",
+            "spiral",
+            "shell",
+        ]) {
+            await session.layout.set(layout);
+            assert.isAtMost(history.bytes, history.limitBytes, `after switching to ${layout}`);
+        }
 
-            assert.isAtLeast(history.steps.length, 2, "the latest steps are kept");
-        },
-        TIMEOUT_MS,
-    );
+        assert.isAtLeast(history.steps.length, 2, "the latest steps are kept");
+    });
 });
 
 describe("at a million nodes and five million edges, without a scene", () => {
     const MILLION = 1_000_000;
     const ARCS = 5 * MILLION;
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "a snapshot and a degree result are estimated at their storage, and a history of steps that size stays within 256 MiB",
-        () => {
-            const src = new Uint32Array(ARCS);
-            const dst = new Uint32Array(ARCS);
-            for (let at = 0; at < ARCS; at++) {
-                src[at] = at % MILLION;
-                dst[at] = (at % MILLION) + 1 + ((Math.floor(at / MILLION) * 7919) % (MILLION - 1));
-                dst[at] %= MILLION;
-            }
+    it("a snapshot and a degree result are estimated at their storage, and a history of steps that size stays within 256 MiB", () => {
+        const src = new Uint32Array(ARCS);
+        const dst = new Uint32Array(ARCS);
+        for (let at = 0; at < ARCS; at++) {
+            src[at] = at % MILLION;
+            dst[at] = (at % MILLION) + 1 + ((Math.floor(at / MILLION) * 7919) % (MILLION - 1));
+            dst[at] %= MILLION;
+        }
 
-            const snapshot = fromEdgeArrays({ nodeCount: MILLION, src, dst, directed: true });
-            const graphBytes = snapshotBytes(snapshot);
-            const storage = snapshot.rowPtr.byteLength + snapshot.colIdx.byteLength;
-            assert.isAtLeast(graphBytes, storage, "the adjacency arrays are counted");
-            assert.isAtMost(graphBytes, storage + 64 * MILLION + 1024 * 1024, "and the id map, at most");
+        const snapshot = fromEdgeArrays({ nodeCount: MILLION, src, dst, directed: true });
+        const graphBytes = snapshotBytes(snapshot);
+        const storage = snapshot.rowPtr.byteLength + snapshot.colIdx.byteLength;
+        assert.isAtLeast(graphBytes, storage, "the adjacency arrays are counted");
+        assert.isAtMost(graphBytes, storage + 64 * MILLION + 1024 * 1024, "and the id map, at most");
 
-            const degrees = snapshot.degree();
-            const result = createRunResult({
-                runId: "deg",
-                shape: "node-metric",
-                fields: [
-                    {
-                        name: "value",
-                        plainName: "value",
-                        technicalName: "value",
-                        kind: "node",
-                        type: "number",
-                        path: "results.deg.value",
-                    },
-                ],
-                measured: { nodes: MILLION, edges: ARCS },
-                nodes: Array.from({ length: MILLION }, (_, at) => ({ id: at, values: { value: degrees[at] } })),
-                caveats: {
-                    exact: true,
-                    direction: "as-loaded",
-                    precision: "f64",
-                    method: "degree",
-                    facts: [],
-                    notes: [],
+        const degrees = snapshot.degree();
+        const result = createRunResult({
+            runId: "deg",
+            shape: "node-metric",
+            fields: [
+                {
+                    name: "value",
+                    plainName: "value",
+                    technicalName: "value",
+                    kind: "node",
+                    type: "number",
+                    path: "results.deg.value",
                 },
-                durationMs: 1,
-            });
-            assert.isAtLeast(retentionOf(result).bytes, 24 * MILLION, "a value, a rank and a percentile per node");
-            assert.isAtMost(retentionOf(result).bytes, 24 * MILLION + 1024 * 1024);
+            ],
+            measured: { nodes: MILLION, edges: ARCS },
+            nodes: Array.from({ length: MILLION }, (_, at) => ({ id: at, values: { value: degrees[at] } })),
+            caveats: {
+                exact: true,
+                direction: "as-loaded",
+                precision: "f64",
+                method: "degree",
+                facts: [],
+                notes: [],
+            },
+            durationMs: 1,
+        });
+        assert.isAtLeast(retentionOf(result).bytes, 24 * MILLION, "a value, a rank and a percentile per node");
+        assert.isAtMost(retentionOf(result).bytes, 24 * MILLION + 1024 * 1024);
 
-            // The steps a million-node session records: a replacing import keeping that graph,
-            // captures, runs of that size, and small edits between them.
-            const history = new History<null>({
-                forward: () => undefined,
-                backward: () => undefined,
-                merge: () => null,
-            });
-            const capture = CAPTURE_PER_ROW * MILLION;
-            const sizes = [
-                graphBytes,
-                capture,
-                retentionOf(result).bytes,
-                1024,
-                capture,
-                retentionOf(result).bytes,
-                capture,
-                512,
-                capture,
-            ];
-            for (let round = 0; round < 4; round++) {
-                for (const size of sizes) {
-                    history.record({ label: "Step", patch: null, bytes: { done: size, undone: size } });
-                    const protectedSteps = Math.min(history.steps.length, 1);
-                    assert.isTrue(
-                        history.bytes <= history.limitBytes || history.steps.length <= protectedSteps,
-                        `${String(history.bytes)} bytes over ${String(history.limitBytes)}`,
-                    );
-                }
+        // The steps a million-node session records: a replacing import keeping that graph,
+        // captures, runs of that size, and small edits between them.
+        const history = new History<null>({
+            forward: () => undefined,
+            backward: () => undefined,
+            merge: () => null,
+        });
+        const capture = CAPTURE_PER_ROW * MILLION;
+        const sizes = [
+            graphBytes,
+            capture,
+            retentionOf(result).bytes,
+            1024,
+            capture,
+            retentionOf(result).bytes,
+            capture,
+            512,
+            capture,
+        ];
+        for (let round = 0; round < 4; round++) {
+            for (const size of sizes) {
+                history.record({ label: "Step", patch: null, bytes: { done: size, undone: size } });
+                const protectedSteps = Math.min(history.steps.length, 1);
+                assert.isTrue(
+                    history.bytes <= history.limitBytes || history.steps.length <= protectedSteps,
+                    `${String(history.bytes)} bytes over ${String(history.limitBytes)}`,
+                );
             }
+        }
 
-            assert.strictEqual(history.limitBytes, 256 * 1024 * 1024);
-            assert.isAtLeast(history.steps.length, 4, "the budget holds a few of the largest steps");
-        },
-        TIMEOUT_MS,
-    );
+        assert.strictEqual(history.limitBytes, 256 * 1024 * 1024);
+        assert.isAtLeast(history.steps.length, 4, "the budget holds a few of the largest steps");
+    });
 });

@@ -7,7 +7,7 @@
 # the affected Storybooks on this commit merged into origin/master (tools/visual-preview.sh --head),
 # which become the pull request's local preview on the owner's review page.
 #
-# It also runs "SonarQube (changed lines)" (tools/sonar-gate.mjs, in the background): a new SonarQube
+# It also runs "SonarQube (changed lines)" (tools/sonar-gate.mjs, before the build): a new SonarQube
 # issue or security hotspot on a line this push adds or changes fails the push. Off the owner's network
 # it passes with a warning. For a false positive: `// NOSONAR(<rule>): <reason>` on the line, or a
 # reasoned path entry in sonar-project.properties. Emergencies only: a `Sonar-Bypass: <reason>` trailer

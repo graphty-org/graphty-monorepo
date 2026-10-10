@@ -213,11 +213,18 @@ describe("README.md code samples", () => {
             noEmit: true,
             composite: false,
             incremental: false,
+            // Without a list, every @types package in node_modules (three, semver, lodash...) is loaded and checked.
+            types: [],
         });
-        const errors = ts
-            .getPreEmitDiagnostics(program)
-            .filter((d) => d.file === undefined || d.file.fileName.startsWith(OUT))
-            .map((d) => `${d.file?.fileName ?? "(options)"}: ${ts.flattenDiagnosticMessageText(d.messageText, "\n")}`);
+        // Only the samples' own diagnostics: checking all of src/ is the build's job and most of the time spent here.
+        const errors = [
+            ...program.getOptionsDiagnostics(),
+            ...program.getGlobalDiagnostics(),
+            ...files.flatMap((f) => {
+                const file = program.getSourceFile(f);
+                return [...program.getSyntacticDiagnostics(file), ...program.getSemanticDiagnostics(file)];
+            }),
+        ].map((d) => `${d.file?.fileName ?? "(options)"}: ${ts.flattenDiagnosticMessageText(d.messageText, "\n")}`);
         assert.deepEqual(errors, []);
     });
 

@@ -333,17 +333,22 @@ describe("FR vs @graphty/layout's FruchtermanReingoldSimulation: the second refe
             const label = caseLabel(graph, k);
             const asserted = ADMITTED[label];
             const printed = [...HORIZONS.filter((h) => !asserted.includes(h)), PRINTED];
-            it(`${label}: twice bitwise; within fr-layout-oracle after ${asserted.join(", ")} iterations, ${printed.join(", ")} printed; the temperature schedule bitwise`, async (t) => {
-                requireGpu(t);
-                const s = paritySnapshot(graph, gpuScale(), false);
-                try {
-                    const options: FruchtermanReingoldOptions = { ...FR_BASE_OPTIONS, k };
-                    assertUnitStart(options);
-                    await compare(ctx, s, options, null, asserted, printed, label);
-                } finally {
-                    ctx.release(s);
-                }
-            });
+            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work took over 30 s (karate/k=auto) and 12.7 s (karate/k=0.3) on the macOS Metal host lane in release run 38029503050, more than a third of the 30 s budget; tracked in #1636
+            it(
+                `${label}: twice bitwise; within fr-layout-oracle after ${asserted.join(", ")} iterations, ${printed.join(", ")} printed; the temperature schedule bitwise`,
+                async (t) => {
+                    requireGpu(t);
+                    const s = paritySnapshot(graph, gpuScale(), false);
+                    try {
+                        const options: FruchtermanReingoldOptions = { ...FR_BASE_OPTIONS, k };
+                        assertUnitStart(options);
+                        await compare(ctx, s, options, null, asserted, printed, label);
+                    } finally {
+                        ctx.release(s);
+                    }
+                },
+                CASE_TIMEOUT,
+            );
         }
     }
 

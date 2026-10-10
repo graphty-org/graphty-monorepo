@@ -335,28 +335,43 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         ctx.release(grid);
     });
 
-    it("the maxDepth normalisation cases on the grid, each compared with the oracle under the SAME raw value: 0 and -1 are the source alone, 2.5 is 3, Infinity and NaN are no cap; none throws", async (t) => {
+    // The maxDepth normalisation cases on the grid, each compared with the oracle under the SAME raw value; none
+    // throws. One case per raw value, and the reference (no cap, or 3) is the oracle's, which checkRun already holds
+    // the GPU to: run as one case the seven differentials took 11 s on CI's lavapipe (issue #1809).
+    it("maxDepth 0 and -1 on the grid are the source alone, each compared with the oracle under the SAME raw value; neither throws", async (t) => {
         const ctx = await context(t);
         const grid = snapshotOf(gridEdges(30, 30), { label: "grid-normalise" });
-        const uncapped = await checkRun(ctx, "grid uncapped", grid, 0);
-        const three = await checkRun(ctx, "grid maxDepth 3", grid, 0, { maxDepth: 3 });
         for (const raw of [0, -1]) {
             const alone = await checkRun(ctx, `grid maxDepth ${raw}`, grid, 0, { maxDepth: raw });
             expect(alone.visitedCount).toBe(1);
             expect(alone.levels).toBe(1);
             expect(Array.from(alone.order)).toEqual([0]);
         }
+        ctx.release(grid);
+    });
+
+    it("maxDepth 2.5 on the grid is 3, compared with the oracle under the SAME raw value; it does not throw", async (t) => {
+        const ctx = await context(t);
+        const grid = snapshotOf(gridEdges(30, 30), { label: "grid-normalise" });
+        const three = bfsOracle(grid, 0, 3);
         const half = await checkRun(ctx, "grid maxDepth 2.5", grid, 0, { maxDepth: 2.5 });
         expectBitwiseEqual(half.depth, three.depth, "maxDepth 2.5 vs 3: depth");
         expect(half.visitedCount).toBe(three.visitedCount);
-        for (const raw of [Number.POSITIVE_INFINITY, Number.NaN]) {
+        ctx.release(grid);
+    });
+
+    for (const raw of [Number.POSITIVE_INFINITY, Number.NaN]) {
+        it(`maxDepth ${raw} on the grid is no cap, compared with the oracle under the SAME raw value; it does not throw`, async (t) => {
+            const ctx = await context(t);
+            const grid = snapshotOf(gridEdges(30, 30), { label: "grid-normalise" });
+            const uncapped = bfsOracle(grid, 0);
             const same = await checkRun(ctx, `grid maxDepth ${raw}`, grid, 0, { maxDepth: raw });
             expectBitwiseEqual(same.depth, uncapped.depth, `maxDepth ${raw} vs no cap: depth`);
             expect(same.visitedCount).toBe(uncapped.visitedCount);
-            expect(same.levels).toBe(uncapped.levels);
-        }
-        ctx.release(grid);
-    });
+            expect(same.levels).toBe(levelCountOf(uncapped.depth));
+            ctx.release(grid);
+        });
+    }
 
     it("the inspect seam: levelsPerSubmit 1 hands back every level's frontier (the next level's input queue) as the oracle's set, with frontierCount and level from the block", async (t) => {
         const ctx = await context(t);

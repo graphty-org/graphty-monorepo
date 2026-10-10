@@ -266,12 +266,16 @@ describe("compared with Cytoscape's built-in algorithms", () => {
         expect(cond.condensed.snapshot.edgeCount).toBe(1);
     });
 
-    it("kargerMinCut, stoerWagner and minSTCut: the bridge, as kargerStein finds it", () => {
+    it("kargerMinCut, stoerWagner and minSTCut: the bridge, a cut no larger than kargerStein's", () => {
         const cy = graph(BARBELL);
-        const theirs = cy.elements().kargerStein();
         const karger = cy.elements().graphtyKargerMinCut({ randomSeed: 1 });
-        expect(ids(karger.cut)).toEqual(ids(theirs.cut));
+        expect(ids(karger.cut)).toEqual(["e3"]);
         expect(karger.value).toBe(1);
+        // kargerStein is randomized and unseeded: it usually finds the bridge, but sometimes returns a larger
+        // cut (two edges around one node). It always returns a valid cut, never one smaller than the minimum.
+        const theirs = cy.elements().kargerStein();
+        expect(cy.elements().difference(theirs.cut).components().length).toBe(2);
+        expect(theirs.cut.length).toBeGreaterThanOrEqual(karger.value);
         expect(sets([karger.partitionFirst, karger.partitionSecond])).toEqual([
             ["a", "b", "c"],
             ["d", "e", "f"],

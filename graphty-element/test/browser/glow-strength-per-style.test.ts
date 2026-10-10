@@ -13,11 +13,9 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
-import { nextFrame } from "../helpers/real-input";
 
 const WIDTH = 480;
 const HEIGHT = 360;
-const FRAMES = 8;
 /**
  * The strong-to-faint glow ratio with placement cancelled out. Drawn at one strength it is exactly
  * 1. Each at its own strength it measured 2.1, not 10: the strong glow's centre saturates the 8-bit
@@ -54,15 +52,10 @@ describe("glow strength per style", () => {
         // Not a count of frames: the glow is drawn only once the render loop has applied the
         // style to the node (the frame after the style pass), and once the glow layer that
         // application creates has loaded and compiled its shaders. Until then Babylon composes no
-        // glow at all. The first glow took 6 to 7 of the 8 frames below on an idle workstation;
+        // glow at all. The first glow took 6 to 7 frames on an idle workstation;
         // on a loaded runner it took more, and the faint glow read exactly 0. The stable-frame
         // wait covers both: no style work pending, and every effect layer's shaders ready.
         await graph.waitForStableFrame();
-
-        for (let at = 0; at < FRAMES; at++) {
-            graph.scene.render();
-            await nextFrame();
-        }
 
         const { engine } = graph;
 

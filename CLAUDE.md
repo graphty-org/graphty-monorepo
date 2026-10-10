@@ -342,7 +342,7 @@ The `tools/` directory contains build scripts:
 | `test-slots.mjs` | The machine-wide limit on concurrent test runs: every package's vitest config takes a slot through it, and `node tools/test-slots.mjs <command>` holds one for a whole command (each pre-push shard). Off on GitHub Actions and with `GRAPHTY_TEST_SLOTS=0` |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast`. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
-| `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks), about a minute. `tmp/push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
+| `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks, the SonarQube changed-lines scan), about two minutes. `tmp/push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
 | `prepush-inputs.mjs` | Content hashes for the gate: the checkout's fingerprint, and each test shard's input key (its package and the packages it depends on or reads by relative path, their build outputs, the root files, the Node version). `prepush-tests.mjs` skips a shard that already passed on this branch with the same key and prints `[SKIP]` with when and where; `PREPUSH_RERUN_ALL=1` runs every shard |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
@@ -374,10 +374,10 @@ from there and never print them. The checked-in `.claude/settings.json` denies a
 
 After the scan, `.husky/pre-commit` runs `tools/format-staged.sh`: prettier on the staged files,
 staged again (it skips a file that also has unstaged changes, `visual-baselines/` and merge commits).
-`tools/prepush.sh` runs its source-only checks (formatting, links, the tool and config checks,
+`tools/prepush.sh` runs its source-only checks (formatting, links, the tool and config checks, SonarQube,
 `tools/prepush-source-checks.sh`) before the build, and stops at the first failing check instead of
 running the rest. `tmp/push-queue.sh` runs the same checks before the push waits for a gate slot, so
-a slip fails in about a minute; the gate then skips them if nothing in the checkout changed.
+a slip fails in about two minutes; the gate then skips them if nothing in the checkout changed.
 
 `tools/prepush.sh` stops first if `node_modules` does not match `pnpm-lock.yaml` (pnpm keeps a
 copy of the installed lockfile at `node_modules/.pnpm/lock.yaml`), and `.husky/post-merge` warns
@@ -388,7 +388,8 @@ when a merge or pull changed the lockfile. Either way, run `pnpm install`.
 The pre-push gate runs "SonarQube (changed lines)" (`tools/sonar-gate.mjs`) on the owner's
 SonarQube server, which is reachable only on the owner's network, so it is never part of CI. It
 fails a push on a NEW issue or security hotspot on a line the push adds or changes; what master
-already has never blocks, even on a touched line. It runs in the background while the tests run.
+already has never blocks, even on a touched line. It is one of the source-only checks
+(`tools/prepush-source-checks.sh`), so it runs before the push waits for a gate slot and before the build.
 The settings (`SONAR_HOST_URL`, `SONAR_PROJECT_KEY`, `SONAR_TOKEN`, `SONAR_SCANNER_JAVA_EXE_PATH`)
 come from the environment or `.env`; never print the token or put it on a command line. Design and
 the backlog burn-down plan: `design/sonarqube/design.md`; server settings: `design/sonarqube/server-settings.md`.

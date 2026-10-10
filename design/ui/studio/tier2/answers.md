@@ -25,7 +25,7 @@ grade against a hand calculation. Every value was then read again on the study b
 from the final walk's screens (`pilot/<task>-final/`), and agrees.
 
 **Every value and every "known on this build" note is re-recorded on the build a round studies**
-(criteria, preflight items 3 to 5). This key is recorded on build 2dcea6dd5bba, the round 2 study build (its section below, after eaea2a75d95b's); a note that build no longer shows has been deleted or reworded, not left
+(criteria, preflight items 3 to 5). This key is recorded on build 8f0d5a6f7791, the round 2 study build (its section below, after 2dcea6dd5bba's); a note that build no longer shows has been deleted or reworded, not left
 for graders.
 
 **The first round 1 build, 16dcf3494700.** Round 1 was first planned on build 16dcf3494700. Every task half was piloted on it from the start `roster.md` names, with screenshots in
@@ -123,7 +123,7 @@ screen and cites `rounds/r2/`. The notes above still hold, except:
   reruns PageRank or asks what is out of date.
 - A run's Values tab opens with a collapsible "Summary" heading over its first row ("Path 5 nodes,
   4 edges"), and the run's subtitle reads the kind word and a link-styled time ("Path ran Oct 9,
-  5:54:06 AM") (`rounds/r2/pilot/T18A/10.png`); for PageRank the kind word is "Measure" ("Measure ran Oct 9, ...", `rounds/r2d3/pilot/T21A/07.png`).
+  5:54:06 AM") (`rounds/r2/pilot/T18A/10.png`); for PageRank the kind word is "Measure" ("Measure ran Oct 9, ...", `rounds/r2d3/pilot/T21A/07.png`). On 8f0d5a6f7791 PageRank's Values tab heads that first section "Values" instead of "Summary" (`rounds/r2d4/pilot/T21A/02.png`, `06.png`, `07.png`).
 - A selected node is marked by its yellow halo only; under a style layer that colors nodes (every
   ranked start), its fill does not change (pixels identical before and after,
   `rounds/r2/pilot/T24A/03.png` against `06.png`; `T23B/04.png`).
@@ -216,8 +216,8 @@ and cites `rounds/r2d2/pilot/`. The notes above still hold, except:
   `T17B-eaea2a75d/work.json`). The shortest path run's own label is "Shortest route", which no
   screen shows (`T18B/work.json`). Grade from the screen.
 
-**The round 2 study build, 2dcea6dd5bba (graphty@0.8.61).** Round 2 runs on build 2dcea6dd5bba
-(`criteria.md`, first line; buildStamp `2dcea6dd5bba graphty@0.8.61`). Every task half was piloted
+**The previous round 2 study build, 2dcea6dd5bba (graphty@0.8.61).** Round 2 was to run on build
+2dcea6dd5bba (buildStamp `2dcea6dd5bba graphty@0.8.61`). Every task half was piloted
 on it from its start, with screenshots in `rounds/r2d3/pilot/<task><half>/`. Every success path
 landed on the first try with no script errors, console errors or failed requests, every reference
 value held, and `work.json` shows nothing gone (T21's replaced file aside). Where this build's
@@ -236,6 +236,69 @@ eaea2a75d95b above still hold, except:
   alike (T24).
 - On B, Escape with focus on the Selection row shows the toast "Selection cleared: 13 edges"
   (T22).
+
+**The round 2 study build, 8f0d5a6f7791 (graphty@0.8.61).** Round 2 runs on build 8f0d5a6f7791
+(`criteria.md`, first line). Every task half was piloted on it from its start, with screenshots
+in `rounds/r2d4/pilot/<task><half>/`. Every success path in this key landed on the first try with no script errors,
+console errors or failed requests, every reference value held, and `work.json` shows nothing gone
+(T21's replaced file aside), with one exception: T12R's path, which this build shortens to 4 steps
+(its entry below). The notes on 2dcea6dd5bba above still hold, except:
+
+- The find list marks its first result as soon as a name is typed, so Enter picks it; Down arrow
+  now moves the mark to the second result. On T12R that is the person's first tie, so the old
+  path's Down arrow and Enter open a tie, not the person (T12R).
+- After Enter picks a tie in the find list, focus stays in the emptied find box; after Enter picks
+  a node, focus moves to the inspector (T12R).
+- The "1 row left out" inspector's heading carries the red-orange warning triangle its Sources row
+  carries; the source's own inspector keeps the plain document icon (T4).
+- A click on a node's drawn name selects that node and opens its inspector (T24 B).
+- PageRank's Values tab heads its first section "Values", not "Summary"
+  (`rounds/r2d4/pilot/T21A/02.png`); the path run's tab still heads it "Summary" (T21, T18).
+
+Screens this key did not describe, all the same on 2dcea6dd5bba where it was walked:
+
+- T4: the open "Add a table" menu also covers the green check mark on the "Nodes: people.csv" row
+  in the Tables list (A, `rounds/r2d4/pilot/T4A/06.png`).
+- T17: the T17 notes hold on this build, A walked with its follow-up (`rounds/r2d4/pilot/T17A/07.png`,
+  `08.png`, `11.png`, `12.png`; pixel for pixel the same as `rounds/r2d3/pilot/T17A/07.png`).
+- T18 B: the ranked start's key already holds two PageRank rows, "Size: PageRank" (a gray wedge)
+  and "Color: PageRank" (an orange gradient), both 0.03066 to 0.1458 (`rounds/r2d4/pilot/T18B/01.png`);
+  after the run "Shortest path / On the path" (black swatch) sits above them, and the five path
+  nodes are drawn black although the key still shows the orange PageRank gradient
+  (`07.png`, `11.png`). Record any participant who reads a black node as off the gradient.
+- T19: after Tab moves focus from a half-written note to the editor's Cancel button, Escape removes
+  the button's ring and no focus mark is drawn anywhere, while the note and its text stay open
+  (`rounds/r2d4/pilot/T19A/13.png`, `14.png`); Control+Enter from Cancel still saves the note
+  (`16.png`). Before the first step the inspector shows the PageRank run (Style tab), as every
+  ranked setup leaves it (`T19A/01.png`).
+- T20 A: a click on the graph title ("bus-stops.csv") brings back the Overview with the path still
+  drawn, and the tree's "Shortest path 4 hops" row loses its blue selected fill
+  (`rounds/r2d4/pilot/T20A/12.png` against `13.png`); the Park-to-Clinic route edge ends under the
+  large Clinic node with no visible arrowhead (`12.png`); in the Overview, the "Loaded weight" label
+  and its value "minutes (farther)" nearly touch (`07.png`).
+- T20 B: of the two route nodes that overlap, Creek is at about 790,636 (hovering there names it)
+  and Summit at about 755,645 (`rounds/r2d4/pilot/T20B/14.png`). The "Higher means" label sits at
+  about y 270 and its choice buttons at about y 283 to 305 (`05.png`): a point at y 272 lands on
+  the label, not a choice.
+- T22: with a lone "=" typed, the first column row ("id, Node column") is drawn filled, as the
+  marked option (`rounds/r2d4/pilot/T22A/03.png`, `T22B/03.png`). What Enter does there has not
+  been walked; record any participant who presses it.
+- T22: after Escape clears the selection with focus on the Everything row, that row stays drawn
+  selected while the inspector shows Graph / Overview (A, `rounds/r2d4/pilot/T22A/13.png` to
+  `15.png`). After Control+Z undoes "Size on PageRank", the nodes are not drawn at one size: on B
+  the highest-ranked (Valjean, Myriel) are among the smallest dots and many low-ranked ones are
+  larger, the same after the camera turns, while the Everything layer reads Size 1
+  (`rounds/r2d4/pilot/T22B/13.png`, `15.png` to `17.png`; the same on `rounds/r2/pilot/T22B/13.png`).
+  Record any participant who reads node sizes after that undo.
+- T23 A: hovering the PageRank row in the left panel shows an eye (visibility) icon at the row's
+  right edge as well as the history icon (`rounds/r2d4/pilot/T23A/09.png`).
+- T24 B: the setup's key reads "Size: PageRank" and "Color: PageRank", both 0.04282 to 0.3273
+  (`rounds/r2d4/pilot/T24B/01.png`). Searching "Stadium" lists the results under the headings
+  "Nodes 1" and "Edges 3", with "Stadium" in bold in each tie's title (`10.png`).
+- For graders reading `work.json` (T18 B): the PageRank run is `pagerank PageRank (label
+  Influence)` with layer `influence_1 Influence`, the path run `shortest_path Shortest path (label
+  Shortest route)` with layers "Shortest route (nodes)" and "Shortest route (edges)"; no screen
+  shows "Influence" or "Shortest route". Grade from the screen.
 
 **Routes the round 2 build adds (walked on ddf8b3b63039).** Three round 2 changes open routes this key did
 not list: the find box answers a typed condition with the rule that would read it (T22), the
@@ -380,7 +443,7 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   one who says everything arrived is `false-done`. The counts can be read from the Graph page's
   Overview, the source row or the source's inspector. Both inspectors show the left-out row under its own "Left out"
   heading; only the source's inspector also has a "Loaded" section with the whole source's Nodes and Edges, first
-  (`rounds/r2d2/pilot/T4A/15.png`, `16.png`). The "1 row left out" inspector holds no counts. Its heading carries the plain document icon, the same as the source's, not the red-orange warning triangle that marks its row in the Sources list (`rounds/r2d3/pilot/T4A/14.png`, `T4B/17.png`). On 2dcea6dd5bba the screens are `rounds/r2d3/pilot/T4A/` (after Load `11.png`, the Data page `12.png`, the hover `13.png`, the "1 row left out" inspector `14.png`, the source's `15.png`) and `T4B/` (after Load `14.png`, the Data page `15.png`, the hover `16.png`, the two inspectors `17.png`, `18.png`).
+  (`rounds/r2d2/pilot/T4A/15.png`, `16.png`). The "1 row left out" inspector holds no counts. Its heading carries the red-orange warning triangle that marks its row in the Sources list, while the source's own inspector keeps the plain document icon (`rounds/r2d4/pilot/T4A/14.png`, `T4B/17.png`, `18.png`; on 2dcea6dd5bba the left-out row's heading had the plain document icon, `rounds/r2d3/pilot/T4A/14.png`). On 8f0d5a6f7791 the screens are `rounds/r2d4/pilot/T4A/` (01.png to 15.png) and `T4B/` (01.png to 18.png), every other value as below. On 2dcea6dd5bba the screens are `rounds/r2d3/pilot/T4A/` (after Load `11.png`, the Data page `12.png`, the hover `13.png`, the "1 row left out" inspector `14.png`, the source's `15.png`) and `T4B/` (after Load `14.png`, the Data page `15.png`, the hover `16.png`, the two inspectors `17.png`, `18.png`).
 - **Note:** the people's names are an Attribute, not the label, by default; the drawing shows no names (`rounds/r2d1/pilot/T4A/11.png`), so a participant can check that every person arrived only by the count (Nodes 12; B 10), not by name. The left-out row names its sender only by id (p11, Kemi Bello in people.csv; B s04, Dina Moss): either the id or the looked-up name is right. The emails (and passes) column also comes in as an Attribute, with "Weight: none (each
   edge counts 1)", and nothing on the import page says how to make it the weight
   (`rounds/r1d3/pilot/T4A/06.png`). Neither is part of the task; record any participant who stops
@@ -576,9 +639,9 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
 - **The save:** Control+S on this build opens "Save friends as" and keeps the project in this
   browser ("Saved friends in this browser."); Recent projects lists it after reopening as "friends"
   over "In this browser - 20 nodes - Oct 9, 2026, 5:58 AM" (the date and time of the save)
-  (`rounds/r2/pilot/T19A/09.png`, `10.png`, `11.png`). On ddf8b3b63039 the start screen's Start
-  offers "Open project or file..." (Ctrl+O) and "New from data...", the Recent projects row has a
-  "..." menu, and the row's subtitle wraps so that "AM" sits alone on a third line (`T19A/10.png`); on fabc16247403 it fits on one line, "In this browser - 20 nodes - Oct 9, 9:54 AM" (B "15 nodes") (`rounds/r2d1/pilot/T19A/10.png`, `T19B/09.png`).
+  (`rounds/r2/pilot/T19A/09.png`, `10.png`, `11.png`). From ddf8b3b63039 on (8f0d5a6f7791 included, `rounds/r2d4/pilot/T19B/12.png`) the start screen's Start
+  offers "Open project or file..." (Ctrl+O) and "New from data...", and the Recent projects row has a
+  "..." menu; on ddf8b3b63039 the row's subtitle wraps so that "AM" sits alone on a third line (`T19A/10.png`); on fabc16247403 it fits on one line, "In this browser - 20 nodes - Oct 9, 9:54 AM" (B "15 nodes") (`rounds/r2d1/pilot/T19A/10.png`, `T19B/09.png`).
   Opening it shows the toast "Opened friends" (B "Opened Florentine families") (`T19A/11.png`).
   After Save the dialog closes and no focus mark can be seen anywhere; the note card's ring is
   gone (`T19A/09.png`). That save
@@ -600,7 +663,7 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
 - **Watch:** after the reopen, A's drawing is framed as before (about x 450 to 1030, y 110 to 775
   against x 440 to 1040, y 100 to 780, `rounds/r1d4/pilot/T19A/11.png` against `09.png`); B's is
   shifted down (about y 205 to 735 instead of 155 to 735, `rounds/r1d4/pilot/T19B/11.png` against
-  `09.png`), with a toast "Opened Florentine families". On d5a3bee20b61 the drawing keeps its shape, framed a little smaller (A) or smaller and lower (B): B's top-left node is at about 569,157 before and 590,216 after, its bottom node at 698,715 and 703,719, with the same nodes beside the same neighbors (`rounds/r2d2/pilot/T19A-old-build-d5a3bee/11.png` against `13.png`; `T19B-old-build-d5a3bee/11.png` against `13.png`), and the same on eaea2a75d95b (`rounds/r2d2/pilot/T19A/11.png` against `13.png`; `T19B/11.png` against `14.png`) and on 2dcea6dd5bba (`rounds/r2d3/pilot/T19A/09.png` against `11.png`; `T19B/09.png` against `12.png`, success state `T19B/13.png`, the ambiguous sample click `T19B/11.png`). How the reopened drawing is framed is the open camera question in `../owner-decisions.md`. Colors, sizes and key are unchanged, so
+  `09.png`), with a toast "Opened Florentine families". On d5a3bee20b61 the drawing keeps its shape, framed a little smaller (A) or smaller and lower (B): B's top-left node is at about 569,157 before and 590,216 after, its bottom node at 698,715 and 703,719, with the same nodes beside the same neighbors (`rounds/r2d2/pilot/T19A-old-build-d5a3bee/11.png` against `13.png`; `T19B-old-build-d5a3bee/11.png` against `13.png`), and the same on eaea2a75d95b (`rounds/r2d2/pilot/T19A/11.png` against `13.png`; `T19B/11.png` against `14.png`) and on 2dcea6dd5bba (`rounds/r2d3/pilot/T19A/09.png` against `11.png`; `T19B/09.png` against `12.png`, success state `T19B/13.png`, the ambiguous sample click `T19B/11.png`) and on 8f0d5a6f7791 (`rounds/r2d4/pilot/T19A/09.png` against `11.png`; `T19B/09.png` against `14.png`, success states `T19A/12.png`, `T19B/15.png`, the ambiguous sample click `T19B/13.png`). How the reopened drawing is framed is the open camera question in `../owner-decisions.md`. Colors, sizes and key are unchanged, so
   this is not `work-lost`. The app reopens on the Graph place, not Notes; the only sign of a note
   there is the inspector's small "1 note" link (`T19A/11.png`). After the graph's note is saved,
   its header reads "From friends.csv 1 note", which counts only the graph's notes, not the
@@ -1000,7 +1063,7 @@ so a pointer left on the Selection row then rests on the PageRank row (`T22B/17.
   band passing behind the label's white box; the button's tooltip "Edge actions" (`03.png`); the
   menu (`04.png`); after Select endpoints, Station and Stadium ringed in yellow, "2 nodes
   selected", Nodes 2, "Edges joining these nodes 1", the left panel's Selection row 2 (`05.png`).
-  The open menu covers the inspector's From value ("Station") and the end of the "Values" tab label ("Valu" still shows); the label "From" still shows (`rounds/r2d2/pilot/T24B/04.png`). B was walked on eaea2a75d95b with every screen above, the near miss, the find-box routes and "4" included (`rounds/r2d2/pilot/T24B/01.png` to `09.png`); A likewise (`rounds/r2d2/pilot/T24A/01.png` to `06.png`). After Select endpoints the blue band on the Station-Stadium line is gone, so nothing marks the tie itself (`06.png`). Walked again on 2dcea6dd5bba (`rounds/r2d3/pilot/T24A/01.png` to `05.png`, `T24B/01.png` to `12.png`). On B a click on a node's drawn name (726,182, inside the "Stadium" label) counts as empty canvas and, with nothing selected, changes nothing (`rounds/r2d3/pilot/T24B/11.png`): record any participant who clicks a name to pick a stop and gets no response. On a build where names take clicks the same click selects Stadium and opens its node inspector (id Stadium, Degree 3, PageRank 0.08953, #4 of 10). Searching the tie's title "Station -> Stadium" lists the tie with no "minutes: 4" line under it (`T24B/08.png`), unlike searching "4" (`06.png`); the minutes are read once the tie is opened.
+  The open menu covers the inspector's From value ("Station") and the end of the "Values" tab label ("Valu" still shows); the label "From" still shows (`rounds/r2d2/pilot/T24B/04.png`). B was walked on eaea2a75d95b with every screen above, the near miss, the find-box routes and "4" included (`rounds/r2d2/pilot/T24B/01.png` to `09.png`); A likewise (`rounds/r2d2/pilot/T24A/01.png` to `06.png`). After Select endpoints the blue band on the Station-Stadium line is gone, so nothing marks the tie itself (`06.png`). Walked again on 2dcea6dd5bba (`rounds/r2d3/pilot/T24A/01.png` to `05.png`, `T24B/01.png` to `12.png`). On B a click on a node's drawn name (726,182, inside the "Stadium" label) selects that stop and opens its node inspector (id Stadium, Degree 3, PageRank 0.08953, #4 of 10); with Station and Stadium already selected, the plain click drops the selection to Stadium alone, Station loses its ring and the Selection row reads 1 (`rounds/r2d4/pilot/T24B/12.png`). Record any participant who clicks a name after Select endpoints and ends with one stop selected. On 2dcea6dd5bba the same click counted as empty canvas and changed nothing (`rounds/r2d3/pilot/T24B/11.png`). B's key reads "Size: PageRank" and "Color: PageRank", both 0.04282 to 0.3273 (`rounds/r2d4/pilot/T24B/01.png`). Searching the tie's title "Station -> Stadium" lists the tie with no "minutes: 4" line under it (`T24B/08.png`), unlike searching "4" (`06.png`); the minutes are read once the tie is opened.
 - **Success path (A):** `--click-at 755,586` (the middle of the Gus-Ivan line on the pilot's
   drawing; the tool prints `edge with id "13"`); read the inspector; `--click "Edge actions"`;
   `--click "Select endpoints"`. B: `--click-at 762,145` (on the plainly visible part of the Station-Stadium line, `rounds/r2d3/pilot/T24B/12.png`; the earlier point 752,170 lies on the top edge of the white "Stadium" label and, on a build where names take clicks, picks Stadium instead; the middle of the Station-Stadium line,
@@ -1038,11 +1101,23 @@ so a pointer left on the Selection row then rests on the PageRank row (`T22B/17.
 
 ## T12R. One person and who they are tied to, for a returning user
 
-Graded with tier 1's key (`../answers.md`, T12): the same names, counts and grades. What differs from the ranked starts, walked on both halves on fabc16247403 (`rounds/r2d1/pilot/T12RA/`, `T12RB/`) and A again on eaea2a75d95b (`rounds/r2d2/pilot/T12RA/`, every screen below matching; the 5-step path landed on the first try with no script, console or request errors). An older citation is kept only where this build shows the same screen:
+Graded with tier 1's key (`../answers.md`, T12): the same names, counts and grades. What differs from the ranked starts, walked on both halves on fabc16247403 (`rounds/r2d1/pilot/T12RA/`, `T12RB/`) and A again on eaea2a75d95b (`rounds/r2d2/pilot/T12RA/`, every screen below matching; the 5-step path landed on the first try with no script, console or request errors), and both halves again on 8f0d5a6f7791 (`rounds/r2d4/pilot/T12RA/`, `T12RB/`), where the path is 4 steps (below). An older citation is kept only where this build shows the same screen:
 
-- **The path is 5 steps** (no sample to open): `--key /`; `--type Javert` (B: Medici); `--key
-ArrowDown`; `--key Enter`; `--click "Degree"` (the row's name is "Degree 17", B "Degree 6").
-  After Enter, focus is in the inspector at the node's title heading, but no mark is drawn: the
+- **The path is 4 steps on 8f0d5a6f7791** (no sample to open): `--key /`; `--type Javert` (B:
+  Medici); `--key Enter`; `--click "Degree"` (the row's name is "Degree 17", B "Degree 6"). On this
+  build the find list marks its first result, the node, as soon as the name is typed, so Enter
+  picks the node (`rounds/r2d4/pilot/T12RA/03.png`, `08.png` to `10.png`; `T12RB/03.png`, `06.png`
+  to `08.png`). Earlier builds marked nothing, and the path was 5 steps, with `--key ArrowDown`
+  before Enter. On this build ArrowDown moves the mark to the first tie ("Javert -- Valjean", B
+  "Acciaiuoli -- Medici") and Enter opens that tie's inspector (`T12RA/04.png`, `05.png`;
+  `T12RB/04.png`, `05.png`): the "picks a tie instead of the node" detour below. Tier 1's
+  keyboard path (`../answers.md`, T12) is one key shorter on this build for the same reason: no
+  Down arrow. Expect returning participants to press Down arrow by habit. A's tie inspector reads
+  "shared_chapters 17", the same number as Javert's 17 connections; 17 given from that screen,
+  with no names, is not a read of the neighbors. After Enter picks a tie, focus stays in the
+  emptied find box (its ring shows), so a following `/` is typed into the box as text ("No match
+  for "/Javert"", `T12RA/06.png`, `07.png`) and the box has to be cleared by hand.
+  After Enter picks the node, focus is in the inspector at the node's title heading, but no mark is drawn: the
   title is plain white text (`rounds/r1d4/pilot/T12RA/05.png`, `T12RB/05.png`); a keyboard
   user needs Tab to reach the Degree row. Selecting the node does not move the camera.
 - **The node's values:** the inspector header reads "Javert / Node" (a node icon and a color

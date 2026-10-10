@@ -10,15 +10,19 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-09 -- YES, DRY RUNS WERE DONE, and the last one is clean: four before round 1, then
-  four rounds of dry run/pilot before round 2, the last a pilot of all 20 halves on the frozen
-  study build 2dcea6dd5bba (`tier2/rounds/r2d3/pilot/`). Every success path landed first try,
-  0 script/console/request errors, every value held, nothing lost. Participants will NOT hit
-  implementation faults on the key's routes; what is left is known design risk (in the key) and
-  key drift, fixed in `answers.md` the same day.
-- 2026-10-09 -- New on 2dcea6dd5bba that graders must watch: the import page's row counts are
-  link-blue BUTTONS that switch the table and close the unmatched-row view (T4, T20); a click on a
-  drawn name does nothing (T24 B); Ravi-Pia path tie drawn through Quinn (T18 A follow-up).
+- 2026-10-09 -- YES, DRY RUNS WERE DONE before round 2, the last a pilot of all 20 halves on the
+  frozen study build 8f0d5a6f7791 (`tier2/rounds/r2d4/pilot/`): 0 script/console/request errors,
+  every value held, nothing lost, every success path first try EXCEPT T12R, whose key path broke.
+  Key re-recorded on 8f0d5a6f7791 the same day; no bar moved.
+- 2026-10-09 -- T12R on 8f0d5a6f7791: the find list now marks its first result, so the old
+  Down-arrow + Enter habit opens the person's first TIE (A's tie reads "shared_chapters 17" =
+  Javert's 17, a false-answer trap), and focus stays in the find box after a tie. Path is 4 steps.
+  This is a UX change that tests exactly the returning user's habit -- watch it, do not explain it.
+- 2026-10-09 -- New on 8f0d5a6f7791 for graders: a click on a drawn name selects the node (T24 B
+  drops a two-stop selection to one); left-out row's inspector has the warning triangle (T4);
+  black path nodes over an orange PageRank key (T18 B); uneven sizes after undoing Size (T22 B).
+- 2026-10-09 -- Still on the build: row counts are link-blue buttons (T4, T20); Ravi-Pia path tie
+  drawn through Quinn (T18 A follow-up).
 - 2026-10-09 -- Round 2 UX risks to watch (design, not build faults): legend "PageRank on 20
   nodes" beside chip "19 of 20" (T17, T23); T18's "A path needs a distance" line may push a weight
   set as distance (`meaning-wrong`); T4 Load enabled with one file and no edges;
@@ -41,9 +45,6 @@ made and evidence comes in.
   from Graph (T17). Round 2 tests the fixes for the first three.
 - 2026-10-09 -- Persona scripts can decide outcomes: read the persona FILE, not just the roster
   briefing, before calling a give-up the screen's fault. "Scripted exit" = label only, grade G.
-- 2026-10-09 -- Histories steer first moves; count the SECOND place looked as the real signal.
-- 2026-10-09 -- The unseeded layout makes overlap instances non-deterministic; report the class.
-- 2026-10-09 -- Experts find how a reached screen behaves; sessions find whether a user reaches it.
 - 2026-10-07 -- Do not override a grader without new evidence; one skeptic's weakening stands
   unless the other answers its reason with evidence.
 - 2026-10-06 -- All participants are one model: N alike is not independent. Failure strong, pass
@@ -90,13 +91,18 @@ reasons, in short:
 
 ## Decisions and reasons
 
-- 2026-10-09 (researcher, key matched to the 2dcea6dd5bba pilots) -- Added a build section and
-  about 20 scoped edits from 14 pilot reports. Kept older-build sentences as "on earlier builds"
-  only where a grader may meet a citation to them; deleted T23's Hops 1 trap note as no longer on
-  screen (reopened list now at Hops 2, matching the pressed button). Added newly seen traps
-  graders need (row-count buttons, click on a drawn name, Quinn overlap) even though the pilots
-  called some "defects", because a participant can land on them. No prompt wrong; no bar moved.
-  Did not have reports for T17 A, T18 B, T21 B, T23 A, T12R: left their entries untouched.
+- 2026-10-09 (researcher, key matched to the 8f0d5a6f7791 pilots) -- New build section (what
+  changed vs 2dcea6dd5bba, plus a list of screens the key never described), and inline fixes where
+  the key was now false: T12R path 5 -> 4 steps (find list marks first result; ArrowDown now opens
+  a tie), T4 left-out heading icon, T24 B name click, PageRank's "Values" heading, T19 start-screen
+  entries "from ddf8b3b63039 on". Reason for changing T12R's count: T12R is not in bar 11, so the
+  count is guidance, not a limit; no bar moved. Did not edit tier 1's `../answers.md` T12 keyboard
+  path (out of scope); the tier 2 T12R entry says it is one key shorter now. The build's own
+  change list (criteria log, "the find option that Enter picks marked", "click on a node's label
+  pick it") explained two of the three key breaks -- read it before the pilots next time.
+- 2026-10-09 (researcher, key matched to 2dcea6dd5bba) -- build section + ~20 scoped edits; kept
+  older-build sentences only where a citation may lead a grader there; added traps participants
+  can land on even when pilots called them defects. No prompt wrong; no bar moved.
 
 - 2026-10-09 (researcher, earlier key matches: ddf8b3b63039, fabc16247403, eaea2a75d95b, folded)
   -- Each time: build section plus scoped edits; delete notes for screens no longer drawn rather
@@ -195,6 +201,10 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-09 -- Full pilot of all 20 halves on each new frozen build before a round: WORKED again
+  (8f0d5a6f7791). It caught a key path that a build fix silently broke (T12R ArrowDown) -- exactly
+  the failure a round would otherwise spend sessions finding. Keep it per build, not per round.
+
 - 2026-10-09 (2dcea key) -- Worked: one scratch python of exact (old, new) pairs, each asserted
   once, then grep for non-ASCII. Worked: reading the build's own change-log entry first -- it
   listed the fixes ("All N rows", tooltip left, no filled menu item, Hops reach) that explained
@@ -285,6 +295,10 @@ reasons, in short:
   transcripts only.
 
 ## Thinking
+
+- 2026-10-09 -- Histories steer first moves; the SECOND place looked is the real signal. The
+  unseeded layout makes overlap instances non-deterministic; report the class. Experts find how a
+  reached screen behaves; sessions find whether a user reaches it.
 
 - **Dry runs must walk detours, and the tool must be dry-run too (2026-10-09).** The answer key's
   route is the one route participants are least likely to stray from; round 1's defects and tool

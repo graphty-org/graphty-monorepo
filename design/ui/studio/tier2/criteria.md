@@ -670,3 +670,21 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   label pick it, the run scope's data digest renamed dataDigest, size refusals with E_TOO_LARGE for
   n x n layouts and algorithms, the WebLLM provider built inside enableAiControl, a click timed by
   its events). No bar, floor, step limit or prompt changed.
+
+- **2026-10-09, before round 2: the answer key re-recorded on 8f0d5a6f7791.** Every task half was
+  piloted on the study build from its start (`rounds/r2d4/pilot/`). Every success path but T12R's
+  landed on the first try with no script errors, console errors or failed requests, every
+  reference value held, and nothing was lost. `answers.md` now names this build, gives a section
+  on it, and corrects what it still said about 2dcea6dd5bba: T12R's path is 4 steps, because the
+  find list now marks its first result and the old path's Down arrow and Enter open the person's
+  first tie, and focus stays in the find box after a tie is picked (T12R); the "1 row left out"
+  inspector is headed by the warning triangle of its Sources row (T4); a click on a drawn name
+  selects the stop (T24 B); PageRank's Values tab heads its first section "Values" (T21). It also
+  records screens the key did not describe: the "Add a table" menu covering the Nodes row's check
+  mark (T4), B's starting PageRank key and the path drawn black over it (T18), focus lost after
+  Escape on the note editor's Cancel (T19), the title click's Overview and the route edge with no
+  arrowhead (T20 A), which overlapping node is Creek and which Summit (T20 B), the marked first
+  column under a lone "=", the Everything row left selected and the uneven node sizes after
+  undoing Size on PageRank (T22), the eye icon on the PageRank row (T23 A), and B's key range and
+  find headings (T24); this build's citations for T17 and T19 and the start screen's entries
+  still present (T19). T12R is not in bar 11, so no bar, floor, step limit or prompt changed.

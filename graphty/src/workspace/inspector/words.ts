@@ -168,9 +168,9 @@ export function count(count: number, noun: string): string {
 }
 
 /**
- * A neighborhood's heading and status line: "Javert and 17 connections" at one hop, and past one
- * hop how far it reaches, "Javert and 40 connections within 2 hops", since only the one-hop count
- * is direct ties. The center is named beside the count, so the heading agrees with the Selection
+ * A neighborhood's heading and status line: "Javert and 17 connections". The status line past one
+ * hop says how far it reaches, "Javert and 40 connections within 2 hops", since only the one-hop
+ * count is direct ties; the heading leaves that to the Hops control under it. The center is named beside the count, so the heading agrees with the Selection
  * count beside it (the center and its connections: 41).
  * @param center - the center node's name.
  * @param around - how many nodes, the center left out.

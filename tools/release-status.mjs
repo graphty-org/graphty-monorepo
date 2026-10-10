@@ -110,7 +110,7 @@ export function dequeueFacts(run, repo) {
     );
     const draft = /on draft #(\d+)/.exec(summary)?.[1];
     return {
-        what: (run?.output?.title ?? "").replace(/\s*\u2014\s*/g, " -- "),
+        what: (run?.output?.title ?? "").replaceAll("\u2014", "--"),
         checks: checks.join(", "),
         queue: draft ? `https://github.com/${repo}/pull/${draft}` : (run?.details_url ?? ""),
         left: run?.completed_at ?? "",

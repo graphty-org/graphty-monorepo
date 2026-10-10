@@ -368,9 +368,29 @@ async function incidentAnswer(job, report, view) {
         const pr = await prAnswer(report.pr, fix, view);
         return pr && "holds" in pr ? { ciPending: fix } : pr;
     }
+    if (scope === "queue") return onMaster(fix, view);
     const master = await laneAnswer(job.facts?.lane ?? String(job.target).split(" / ")[0], fix, view);
     if (scope !== "shared" || !master || !("holds" in master)) return master;
     return canaryAnswer(job.facts?.prs ?? [], fix, view);
+}
+
+/**
+ * A dequeued release's incident (release-queue.mjs): the fix is on master, so the merge queue,
+ * which tests on top of master, runs it when githerd requeues the release. A failure that does not
+ * reproduce on master names master's head as the fix.
+ * @param {string} fix the fix commit
+ * @param {View} view what the check reads
+ * @returns {Promise<Answer>} the answer
+ */
+async function onMaster(fix, view) {
+    const tip = view.state.master?.headSha;
+    if (tip && (await view.io.contains(fix, tip))) return { holds: true };
+    return {
+        missing: [
+            `${fix.slice(0, 9)} is not on master yet: merge its pull request, or, when the failure does not reproduce on master, ` +
+                "report master's head as pushedHead with the evidence in your findings",
+        ],
+    };
 }
 
 /**

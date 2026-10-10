@@ -43,7 +43,14 @@ const INCIDENT_DONE = /** @type {Record<string, string>} */ ({
     shared: "the failing check passes on master at a commit with your fix, and on one other open pull request after it is updated from master.",
     release: "npm has every version the release tagged, and master has the release's version commit.",
     local: "the pre-push gate passes on the last green commit of master.",
+    queue: "your fix is on master (or, if the failure does not reproduce on master, you report master's head); githerd then requeues the release pull request.",
 });
+
+/** What a dequeued release's incident is for (release-queue.mjs). */
+const QUEUE_PURPOSE =
+    "The merge queue dequeued the release pull request: a check failed on its queue draft, so nothing was published. " +
+    "Find why the failing test or job failed there and fix it in one pull request against master. " +
+    "Never push to, edit or close the release pull request, and never dispatch a release: githerd requeues it with a @mergifyio queue comment once your fix is on master.";
 
 /** What a verdict job is for: Claude judges a master failure no pattern recognized (design 4.4). */
 const VERDICT_PURPOSE =
@@ -174,6 +181,7 @@ function promotePurpose(f) {
  */
 function purposeOf(job, { refresh, verdict }) {
     if (verdict) return VERDICT_PURPOSE;
+    if (job.kind === "incident" && job.facts?.scope === "queue") return QUEUE_PURPOSE;
     if (refresh) return REFRESH_PURPOSE;
     if (job.kind === "issue" && job.facts?.scope === "promote") return promotePurpose(job.facts);
     if (job.kind === "issue" && job.facts?.references?.length) return verifyPurpose(job);

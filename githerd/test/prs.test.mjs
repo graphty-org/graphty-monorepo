@@ -531,6 +531,20 @@ describe("whyStuck", () => {
         expect(stuck(rec)).toContain("dequeued by the merge queue: the visual gate");
     });
 
+    it("a dequeued release train says githerd requeues it by comment, never by updating its branch", () => {
+        const release = node({
+            author: { login: "github-actions" },
+            headRefName: "release/train-38002738423",
+            title: "chore(release): publish",
+        });
+        const rec = polls([release])["704"];
+        rec.labels = ["dequeued"];
+        const [why] = stuck(rec);
+        expect(why).toContain("githerd never updates a release branch");
+        expect(why).toContain("@mergifyio queue once the fix is on master");
+        expect(why).not.toContain("githerd updates the branch");
+    });
+
     it("claimed by a live claim", () => {
         const rec = polls([node()])["704"];
         const claims = { "pr:704": { holder: "githerd-1", holderName: "graphty-monorepo-bc" } };

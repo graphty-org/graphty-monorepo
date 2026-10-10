@@ -170,6 +170,7 @@ import {
     updatePrs,
     whyStuck,
 } from "./prs.mjs";
+import { requeueReleases } from "./release-queue.mjs";
 import { nextStackRecord, recoverInherited, updateDequeued, upkeepStacks } from "./upkeep.mjs";
 import { issueTypes, jobInUse, jobOrder, NEXT, prOf, SKIP } from "./queue.mjs";
 import {
@@ -2461,7 +2462,8 @@ export async function startDaemon({
     /**
      * Updates, through the `upkeep` group, the pull requests whose failure was inherited from master
      * once master is green on it again (upkeep.mjs recoverInherited), and those Mergify dequeued on
-     * the visual gate (updateDequeued).
+     * the visual gate (updateDequeued); requeues a dequeued release pull request once its failure
+     * is fixed (release-queue.mjs).
      * @param {string} branch the default branch
      */
     async function inheritedUpdates(branch) {
@@ -2485,6 +2487,9 @@ export async function startDaemon({
         ];
         const masterRed = state.master.verdict === "red";
         await updateDequeued(ctx, { prs, done: state.dequeueUpdates, tip, releasePattern, masterRed, fixes });
+        await requeueReleases({ gh: github(), repo: config.repo, ledger }, state, releasePattern).catch((err) =>
+            ledger({ kind: "error", where: "release-queue", error: err.message }),
+        );
     }
 
     /**

@@ -604,14 +604,14 @@ export function countsAsBreaking(rec) {
  * The reasons a PR is not merging, in the order of design section 6.5.
  * @param {number} number the PR number
  * @param {PrRecord} rec its record
- * @param {{ master: MasterView,
+ * @param {{ master: MasterView, config?: {release?: {commitPattern?: string | null} | null},
  *   claims?: Record<string, { holder: string, holderName?: string | null }>,
  *   sessions?: Record<string, { branch?: string, name?: string }> }} ctx `claims` and `sessions`
- *   hold only the live ones
+ *   hold only the live ones; `config` names the release train's commit
  * @returns {string[]} the reasons, empty when nothing holds the PR
  */
 export function whyStuck(number, rec, ctx) {
-    const reasons = [...pullRequestReasons(rec, ctx.master)];
+    const reasons = [...pullRequestReasons(rec, ctx.master, ctx.config?.release?.commitPattern)];
 
     const claim = ctx.claims?.[`pr:${number}`];
     if (claim) reasons.push(`claimed by ${claim.holderName ?? claim.holder}`);
@@ -625,14 +625,16 @@ export function whyStuck(number, rec, ctx) {
  * The reasons that come from the pull request itself, in the order of design section 6.5.
  * @param {PrRecord} rec its record
  * @param {MasterView} master the default branch's verdict
+ * @param {string | null} [releasePattern] the config's release commit pattern
  * @returns {string[]} the reasons
  */
-function pullRequestReasons(rec, master) {
+function pullRequestReasons(rec, master, releasePattern = null) {
     const reasons = [];
     if (rec.draft) reasons.push("draft");
     if (rec.mergeStatus?.state === "failure") reasons.push(rec.mergeStatus.description);
     if (rec.conflictSightings >= 2) reasons.push("conflicting");
-    if (rec.labels?.includes(DEQUEUED)) reasons.push(`dequeued by the merge queue: ${dequeuedWhy(rec)}`);
+    if (rec.labels?.includes(DEQUEUED))
+        reasons.push(`dequeued by the merge queue: ${dequeuedWhy(rec, releasePattern)}`);
     if (rec.ownerRejected) reasons.push("owner rejected images: fix needed");
     else if (rec.ownerGate) reasons.push("waiting on owner: visual review");
     if (countsAsBreaking(rec)) reasons.push("breaking: held for a grouped major");
@@ -688,10 +690,14 @@ export function greenAndClean(rec) {
 /**
  * Why the merge queue's dequeue still holds a pull request, from what githerd reads of it.
  * @param {PrRecord} rec the record, labelled `dequeued`
+ * @param {string | null} releasePattern the config's release commit pattern
  * @returns {string} the reason
  */
-function dequeuedWhy(rec) {
+function dequeuedWhy(rec, releasePattern) {
     if (rec.ownerGate) return "the visual gate";
+    // githerd never updates a release branch (release-queue.mjs).
+    if (isReleaseTrain(rec, releasePattern))
+        return "its queue run failed; githerd never updates a release branch: it raises the failure as work and comments @mergifyio queue once the fix is on master (not while labelled hold), unless the next release attempt re-cuts it first";
     if (greenAndClean(rec)) return "its queue run failed, githerd updates the branch to requeue it";
     return "its own checks or a conflict hold it";
 }

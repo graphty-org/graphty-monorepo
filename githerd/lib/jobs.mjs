@@ -14,6 +14,8 @@
  * - `incident-local-<step>`: the pre-push gate failing on the green commit (the reference worktree).
  * - `incident-shared-<key>`: a failure key shared by several open pull requests while master is
  *   green (shared.mjs), unless an open pull request is already its fix.
+ * - `incident-queue-<pr>-<draft>`: a release pull request the merge queue dequeued, whose failure
+ *   no open issue tracks (release-queue.mjs); done once the fix is on master, which requeues it.
  * - `pr-<n>`: the owner's non-draft pull requests with an own failing required check, a conflict
  *   seen twice (the only work of a stacked one), or the owner's visual reject. One that changes
  *   githerd's own config, hooks or worker instructions is `facts.ownerOnly`: offered to the owner's
@@ -71,6 +73,7 @@ import {
 import { promotionsDue, utcDay } from "./advisory.mjs";
 import { touches } from "./prs.mjs";
 import { CRITICAL, guardIssue } from "./master-fix.mjs";
+import { queueJobId } from "./release-queue.mjs";
 import { sharedJobSpecs } from "./shared.mjs";
 
 /** Issues in one triage job (design 8.1). */
@@ -241,17 +244,47 @@ function incidentJobs(state, add, cancel) {
         live.add(job.id);
     }
     for (const spec of sharedJobSpecs(state).values()) live.add(add(spec).id);
+    for (const spec of releaseQueueSpecs(state)) live.add(add(spec).id);
     const ended = {
         master: "master's incident ended or went intermittent",
         shared: "the shared failure ended, or an open pull request fixes it",
         verdict: "a verdict was recorded, or master's incident ended",
         release: "the release recovered",
         local: "the gate passes on the green commit",
+        queue: "the release pull request closed, was requeued, or an issue tracks its failure",
     };
     for (const job of Object.values(state.jobs)) {
         const scope = job.facts?.scope;
         if (job.kind === "incident" && scope in ended && !live.has(job.id)) cancel(job, ended[scope]);
     }
+}
+
+/**
+ * The `incident` job of each dequeued release pull request (release-queue.mjs) whose failure no
+ * issue tracks and that githerd has not requeued. A done job is not made again: its being done is
+ * what requeues the pull request.
+ * @param {any} state the daemon state
+ * @returns {any[]} the job specs
+ */
+function releaseQueueSpecs(state) {
+    const out = [];
+    for (const [n, r] of Object.entries(state.releaseQueue ?? {})) {
+        const id = queueJobId(n, r);
+        if (r.issue || r.requeued || state.jobs[id]?.state === "done") continue;
+        const where = r.draft ? `queue draft #${r.draft}` : "its queue draft";
+        const failed = r.tests.length
+            ? r.tests.map((/** @type {any} */ t) => `${t.test} (${t.job}, run ${t.runId})`).join("; ")
+            : `see the failed jobs of ${where}`;
+        out.push({
+            id,
+            kind: "incident",
+            target: r.tests[0]?.test ?? `release #${n} merge-queue run`,
+            priority: "urgent",
+            reason: `release #${n} was dequeued: ${where} failed: ${failed}`,
+            facts: { scope: "queue", release: Number(n), draft: r.draft, tests: r.tests },
+        });
+    }
+    return out;
 }
 
 /**

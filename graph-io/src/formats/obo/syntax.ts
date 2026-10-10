@@ -126,10 +126,10 @@ export function splitTagValue(line: string): TagValue | null {
 }
 
 /** The characters stripComment() acts on. */
-const COMMENT_MARKS = '\\"!';
+const COMMENT_MARKS = String.raw`\"!`;
 
 /** The characters hasStrayBrace() acts on. */
-const BRACE_MARKS = '\\"[]{}';
+const BRACE_MARKS = String.raw`\"[]{}`;
 
 /**
  * Strip the hidden comment: an unescaped `!` outside quotes that starts the value or follows

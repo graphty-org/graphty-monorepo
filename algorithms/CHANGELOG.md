@@ -1,3 +1,26 @@
+## 3.4.0 (2026-10-10)
+
+### 🚀 Features
+
+- **algorithms:** list each undirected link-prediction pair once on request ([#723](https://github.com/graphty-org/graphty-monorepo/issues/723))
+
+### 🩹 Fixes
+
+- **algorithms:** state the maxNodes guard without a negated comparison ([e381c1e43](https://github.com/graphty-org/graphty-monorepo/commit/e381c1e43))
+- **algorithms:** refuse n x n allocations in teraHAC and hierarchicalClustering with E_TOO_LARGE ([39649b740](https://github.com/graphty-org/graphty-monorepo/commit/39649b740))
+- **algorithms:** scale each SynC step by the node's degree so unconnected cliques split ([#1600](https://github.com/graphty-org/graphty-monorepo/issues/1600))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.3.13 (2026-10-09)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.26
+- Updated graph-format to 1.3.11
+
 ## 3.3.12 (2026-10-09)
 
 ### 🧱 Updated Dependencies

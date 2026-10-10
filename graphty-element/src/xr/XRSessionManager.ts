@@ -6,6 +6,25 @@ const logger: Logger = GraphtyLogger.getLogger(["graphty", "xr", "session"]);
 
 export type XRReferenceSpaceType = "local" | "local-floor" | "bounded-floor" | "unbounded";
 
+/**
+ * The reference space a session runs in: the configured type, or the first of its fallbacks the
+ * device granted. `"viewer"` is the last resort, when the device refused every other type.
+ */
+export type XRGrantedReferenceSpaceType = XRReferenceSpaceType | "viewer";
+
+/** Why an XR session ended: the element left it (`"exit"`), or the device or browser ended it. */
+export type XRSessionEndCause = "exit" | "device";
+
+/**
+ * The reference spaces tried, in order, for a configured type: the type itself, then
+ * `local-floor`, then `local` (which every immersive session supports). A device that refuses all of them gets Babylon's `viewer` space.
+ * @param requested - The configured reference space type
+ * @returns The types to try, first to last, without repeats
+ */
+export function referenceSpaceFallbacks(requested: XRReferenceSpaceType): XRReferenceSpaceType[] {
+    return requested === "local" ? ["local"] : [...new Set<XRReferenceSpaceType>([requested, "local-floor", "local"])];
+}
+
 interface XRSessionConfig {
     vr: {
         enabled: boolean;
@@ -19,6 +38,8 @@ interface XRSessionConfig {
     };
     /** Whether XR sessions track hands (`xr.input.handTracking`). Defaults to true. */
     handTracking?: boolean;
+    /** Called once when a session the manager started ends, however it ended. */
+    onSessionEnded?: (ended: { mode: "immersive-vr" | "immersive-ar"; cause: XRSessionEndCause }) => void;
 }
 
 /**
@@ -56,6 +77,8 @@ export class XRSessionManager {
     private _config: XRSessionConfig;
     private xrHelper: WebXRDefaultExperience | null = null;
     private activeMode: "immersive-vr" | "immersive-ar" | null = null;
+    private referenceSpaceType: XRGrantedReferenceSpaceType | null = null;
+    private exiting = false;
 
     /**
      * Creates a new XRSessionManager instance
@@ -165,7 +188,7 @@ export class XRSessionManager {
 
             // Actually enter the VR session
             logger.debug("Entering VR session");
-            await this.xrHelper.baseExperience.enterXRAsync("immersive-vr", "local-floor");
+            await this.enterSession(this.xrHelper, "immersive-vr", this._config.vr.referenceSpaceType);
             logger.debug("Entered VR session");
 
             // Log available features
@@ -230,7 +253,7 @@ export class XRSessionManager {
 
             // Actually enter the AR session
             logger.debug("Entering AR session");
-            await this.xrHelper.baseExperience.enterXRAsync("immersive-ar", "local-floor");
+            await this.enterSession(this.xrHelper, "immersive-ar", this._config.ar.referenceSpaceType);
             logger.debug("Entered AR session");
 
             // Log available features
@@ -256,6 +279,65 @@ export class XRSessionManager {
     }
 
     /**
+     * Start the session, in the configured reference space or the first fallback the device grants
+     * (see {@link referenceSpaceFallbacks}), and watch for it to end.
+     * @param helper - The XR experience the session runs in
+     * @param mode - The session mode
+     * @param requested - The configured reference space type
+     */
+    private async enterSession(
+        helper: WebXRDefaultExperience,
+        mode: "immersive-vr" | "immersive-ar",
+        requested: XRReferenceSpaceType,
+    ): Promise<void> {
+        const { baseExperience } = helper;
+        const { sessionManager } = baseExperience;
+        const candidates = referenceSpaceFallbacks(requested);
+        // Babylon asks the session for one type and, refused, falls back to "viewer" without saying
+        // so. For the session's first reference space only, try each candidate, and hand Babylon
+        // the first one the device grants.
+        const setSpace = sessionManager.setReferenceSpaceTypeAsync.bind(sessionManager);
+        sessionManager.setReferenceSpaceTypeAsync = async () => {
+            sessionManager.setReferenceSpaceTypeAsync = setSpace;
+            for (const type of candidates) {
+                try {
+                    await sessionManager.session.requestReferenceSpace(type);
+                } catch {
+                    continue;
+                }
+
+                this.referenceSpaceType = type;
+                return await setSpace(type);
+            }
+
+            // Refused everything: Babylon's own fallback, the viewer space lowered to floor height.
+            this.referenceSpaceType = "viewer";
+            return await setSpace(requested);
+        };
+
+        // A fallback is granted only if the session was asked for it; "local" always is.
+        const optionalFeatures = candidates.slice(1).filter((type) => type !== "local");
+        await baseExperience.enterXRAsync(mode, requested, undefined, { optionalFeatures });
+        logger.debug("Reference space", { requested, granted: this.referenceSpaceType });
+
+        sessionManager.onXRSessionEnded.addOnce(() => {
+            const cause: XRSessionEndCause = this.exiting ? "exit" : "device";
+            this.activeMode = null;
+            this.referenceSpaceType = null;
+            if (cause === "device" && this.xrHelper === helper) {
+                // Disposed after Babylon's own end handler has restored the render loop, which it
+                // does after notifying this observer.
+                this.xrHelper = null;
+                queueMicrotask(() => {
+                    helper.dispose();
+                });
+            }
+
+            this._config.onSessionEnded?.({ mode, cause });
+        });
+    }
+
+    /**
      * Exit the current XR session and clean up resources
      * @returns Promise that resolves when session is exited
      */
@@ -264,16 +346,21 @@ export class XRSessionManager {
             return; // No active session to exit
         }
 
+        this.exiting = true;
         try {
             await this.xrHelper.baseExperience.exitXRAsync();
             this.xrHelper.dispose();
             this.xrHelper = null;
             this.activeMode = null;
+            this.referenceSpaceType = null;
         } catch (error) {
             // Clean up even if exit fails
             this.xrHelper = null;
             this.activeMode = null;
+            this.referenceSpaceType = null;
             throw new Error(`Failed to exit XR mode: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            this.exiting = false;
         }
     }
 
@@ -302,6 +389,15 @@ export class XRSessionManager {
     }
 
     /**
+     * The reference space the active session runs in: the configured type, or the fallback the
+     * device granted instead (see {@link referenceSpaceFallbacks}).
+     * @returns The granted reference space type, or null if no session is active
+     */
+    public getReferenceSpaceType(): XRGrantedReferenceSpaceType | null {
+        return this.referenceSpaceType;
+    }
+
+    /**
      * Cleanup all XR resources
      */
     public dispose(): void {
@@ -311,5 +407,6 @@ export class XRSessionManager {
         }
 
         this.activeMode = null;
+        this.referenceSpaceType = null;
     }
 }

@@ -342,7 +342,7 @@ The `tools/` directory contains build scripts:
 | `test-slots.mjs` | The machine-wide limit on concurrent test runs: every package's vitest config takes a slot through it, and `node tools/test-slots.mjs <command>` holds one for a whole command (each pre-push shard). Off on GitHub Actions and with `GRAPHTY_TEST_SLOTS=0` |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast`. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
-| `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks), about a minute. `tmp/push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
+| `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks, the SonarQube changed-lines scan), about two minutes. `tmp/push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
 | `prepush-inputs.mjs` | Content hashes for the gate: the checkout's fingerprint, and each test shard's input key (its package and the packages it depends on or reads by relative path, their build outputs, the root files, the Node version). `prepush-tests.mjs` skips a shard that already passed on this branch with the same key and prints `[SKIP]` with when and where; `PREPUSH_RERUN_ALL=1` runs every shard |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
@@ -374,10 +374,10 @@ from there and never print them. The checked-in `.claude/settings.json` denies a
 
 After the scan, `.husky/pre-commit` runs `tools/format-staged.sh`: prettier on the staged files,
 staged again (it skips a file that also has unstaged changes, `visual-baselines/` and merge commits).
-`tools/prepush.sh` runs its source-only checks (formatting, links, the tool and config checks,
+`tools/prepush.sh` runs its source-only checks (formatting, links, the tool and config checks, SonarQube,
 `tools/prepush-source-checks.sh`) before the build, and stops at the first failing check instead of
 running the rest. `tmp/push-queue.sh` runs the same checks before the push waits for a gate slot, so
-a slip fails in about a minute; the gate then skips them if nothing in the checkout changed.
+a slip fails in about two minutes; the gate then skips them if nothing in the checkout changed.
 
 `tools/prepush.sh` stops first if `node_modules` does not match `pnpm-lock.yaml` (pnpm keeps a
 copy of the installed lockfile at `node_modules/.pnpm/lock.yaml`), and `.husky/post-merge` warns
@@ -388,7 +388,8 @@ when a merge or pull changed the lockfile. Either way, run `pnpm install`.
 The pre-push gate runs "SonarQube (changed lines)" (`tools/sonar-gate.mjs`) on the owner's
 SonarQube server, which is reachable only on the owner's network, so it is never part of CI. It
 fails a push on a NEW issue or security hotspot on a line the push adds or changes; what master
-already has never blocks, even on a touched line. It runs in the background while the tests run.
+already has never blocks, even on a touched line. It is one of the source-only checks
+(`tools/prepush-source-checks.sh`), so it runs before the push waits for a gate slot and before the build.
 The settings (`SONAR_HOST_URL`, `SONAR_PROJECT_KEY`, `SONAR_TOKEN`, `SONAR_SCANNER_JAVA_EXE_PATH`)
 come from the environment or `.env`; never print the token or put it on a command line. Design and
 the backlog burn-down plan: `design/sonarqube/design.md`; server settings: `design/sonarqube/server-settings.md`.
@@ -485,6 +486,8 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 
 **graphty:**
 - `browser` - Browser-based tests (Playwright)
+- `real-element` - `*.real-element.test.tsx`: the app with the real graphty-element, unmocked
+- `storybook` - every story's play function as a test (its own CI shard, `graphty-storybook`)
 - `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
 
 **graphty-element:**
@@ -559,9 +562,12 @@ CI, and Mergify queues only ready pull requests.
 | `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build (the packages, then the Storybooks, Lint, Checks and Docs jobs beside the tests), sharded tests (16 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. The test jobs start as soon as the `Build` job has built and uploaded the packages. On a push to master only the build jobs (Build, Storybooks, Lint, Checks, Docs) run; the summaries pass when they do |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
 | `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), push to master (publishes a merged release pull request), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts and audit on the candidate, then opens the release pull request; on the merge, tags and publishes it with npm trusted publishing. Anything red holds the release and opens one "Release held: <what> failed on <sha>" issue |
+| `release-watch.yml` | After every Release run (`workflow_run`, completed) | The backstop for the release announcements: a Release run that ended badly (failure, cancelled, timed out, startup failure) with no failure comment for that run attempt on the `Release status` issue gets one there (`tools/release-status.mjs run-ended`). Silent on success and skipped runs, on a pending run the release-train concurrency group replaced, and on a first attempt that only lost its T4 spot runner |
+| `release-dequeued.yml` | `pull_request_target` labeled `dequeued` on a `release/train-*` pull request by github-actions[bot] | Mergify dropped the release pull request from the merge queue: a comment on the `Release status` issue naming it, the reason, the failing checks and the queue run, read from its `Mergify Merge Queue` check run (`tools/release-status.mjs dequeued`), once per dequeue |
 | `deploy-pages.yml` | After every green CI run (the build) on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- no release PR, nothing published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
+| `restricted-cpu-stress.yml` | Weekly (Sundays), dispatch; never on PRs, master pushes or the release train | Every gating test shard of ci.yml under a fixed cgroup CPU quota (half the runner's CPU); files or comments on one issue per failing test in the flaky-test tracker's format, marked load-sensitive (`tools/restricted-cpu-stress.mjs`). Gates nothing; a branch dispatch files nothing |
 | `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
 | `hosts.yml` | PR touching `webgpu-graph-algorithms/` or `graph-format/`, nightly, dispatch, called by `release.yml`; never on a push to master | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows; a PR runs the 15-minute `windows-scan-questions` scope, advisory); a red run on the release candidate holds the release |
 | `master-guard.yml` | After CI (the build) or the nightly Hosts on master | CI red on master: freezes the Mergify queue (only `priority:critical` PRs merge), opens a revert of the commit when its parent was green, and a `priority:critical` issue; a failure that looks external (an outside service's 5xx or network error, a lost runner, the same job red on an earlier commit) gets neither freeze nor revert, a re-run, and the evidence in the issue. The next green master CI lifts the freeze and closes the guard's revert pull requests it shows are not needed. Hosts red: a `priority:critical` issue naming the merges since the lane's last green run; never a freeze (`tools/master-guard.mjs`) |
@@ -623,7 +629,10 @@ closes it. The scheduled attempts skip while either hold is open. Every release 
 attempt, a release pull request opened, a publish that succeeded or failed, again after a restart or a
 re-run) is announced as a comment on the one open `Release status` issue (label `release-status`) by
 `tools/release-status.mjs`, mentioning the people in the repository variable `RELEASE_NOTIFY`; attempts
-that do nothing announce nothing. Never edit or push to a release branch, and never close one
+that do nothing announce nothing. A run that ends badly before it announces anything (no job
+started, a job never got a runner, the announce step failed, a failure after the release pull request
+was announced) is announced there by `release-watch.yml` instead. A release pull request that leaves the merge queue unmerged (Mergify labels it `dequeued`) is
+announced there by `release-dequeued.yml`, with the failing checks and the queue run. Never edit or push to a release branch, and never close one
 unless it must be replaced: while one is open, no new train runs. An ad hoc release cuts the same
 pull request at once, for the owner or an agent the owner asked:
 `gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never
@@ -679,12 +688,12 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 25 test shards on a merge-queue run, a manual dispatch or the release train (a push
+The CI runs 26 test shards on a merge-queue run, a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 16 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
 layout, algorithms-default) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
-graphty, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
+graphty, graphty-storybook, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
 - `graph-format`
@@ -695,7 +704,7 @@ shard. The shards:
 - `cytoscape-extensions`, `cytoscape-extensions-cytoscape-versions` (the suite on the oldest and newest Cytoscape 3.x)
 - `algorithms-default`, `algorithms-browser`
 - `layout`
-- `graphty`
+- `graphty`, `graphty-storybook`
 - `remote-logger`
 - `visual-review`
 - `compact-mantine`
@@ -866,6 +875,23 @@ Each package has its own CLAUDE.md with package-specific guidance:
 
 ### Testing
 
+- **UI tests drive real input.** A test of something a reader does -- click, drag, scroll, type,
+  pinch -- makes the browser do it and asserts what the reader would see, read through the public
+  API (the camera moved, the node is selected and not pinned, the field holds the text, the
+  sheet opened). Never `notifyObservers`, a controller's private state, `fireEvent.change` or a
+  fake session standing in for the element.
+  - Why: six UI bugs passed every gate because their tests reached the state another way: a
+    click that pinned every node (32ab43099), Cmd+Z ignored on macOS and the element stealing
+    focus on load (5f3bd991f), a search field that discarded every keystroke and a palette that
+    opened unfocused (1d81de253), runs that deleted each other's layers and a Present panel with
+    no handlers (a25fe32e5), single-key shortcuts switched off by a hidden list (4e07ebf42), and
+    a node left off the plane in 2D (#1341). Each now has a test that fails when it comes back.
+  - How: in graphty-element, `test/helpers/real-input.ts` (mouse, wheel, touch and device pixel
+    ratio through the DevTools protocol) and `userEvent` from `vitest/browser` for keys, as in
+    `test/interactions/real-input.test.ts`. In graphty, `userEvent` from `vitest/browser` in a
+    `*.real-element.test.tsx`. A story that exists to show an interaction reaches its state by
+    that interaction in its play function (pointer events on the canvas, clicks on the controls),
+    and graphty's play functions run as tests in the `storybook` project.
 - Use `assert` instead of `expect` in layout tests
 - Tests wait on conditions and assert on counted work; the `local/no-test-timing` lint rule enforces it.
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
@@ -1057,6 +1083,13 @@ built API differs from the committed report. Build, then run `npm run api:report
 and commit the report with the change. An agent whose pull request changes the report says so in
 the pull request description: which entry points, what was added, changed or removed, and whether
 it is breaking.
+
+The same check fails when the report adds a property typed plain `string` to a result type -- a type
+whose name ends in `Result`, `Summary`, `Estimate`, `Recommendation` or `Explanation`, or one a
+`GraphSession` method returns -- compared with the merge base with origin/master. Use an exported
+string-literal union of codes or a `CodedFact` `{ code, params }` instead. Identifiers, names of the
+consumer's data and catalog names are allowed by `PLAIN_STRING_ALLOWLIST` in `tools/api-report.mjs`,
+and a descriptor's `description` is catalog data. Fields that already exist never fail.
 
 ### Module System
 

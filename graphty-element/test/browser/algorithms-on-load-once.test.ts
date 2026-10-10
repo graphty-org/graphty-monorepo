@@ -53,22 +53,18 @@ async function makeGraph(): Promise<{ graph: Graph; starts: Map<string, number> 
  * @param target - the graph to wait on
  */
 async function settle(target: Graph): Promise<void> {
-    for (let round = 0; round < 50; round++) {
-        await operationQueueOf(target).waitForCompletion();
-        const busy = target
-            .getSession()
-            .runs.list()
-            .some((run) => run.status === "queued" || run.status === "running");
+    await vi.waitFor(
+        async () => {
+            await operationQueueOf(target).waitForCompletion();
+            const busy = target
+                .getSession()
+                .runs.list()
+                .filter((run) => run.status === "queued" || run.status === "running");
 
-        if (!busy) {
-            return;
-        }
-
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 20));
-    }
-
-    throw new Error("the runs never finished");
+            assert.deepStrictEqual(busy, [], "every run has finished");
+        },
+        { timeout: 10_000 },
+    );
 }
 
 describe("the load-time algorithm list", () => {

@@ -235,9 +235,8 @@ describe("Custom Sink", () => {
                 name: "async-flush-sink",
                 write: vi.fn(),
                 flush: async () => {
-                    // Simulate async operation
-                    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-                    await new Promise((resolve) => setTimeout(resolve, 10));
+                    // Finish on a later task, so flush() must really await the sink
+                    await new Promise((resolve) => setTimeout(resolve, 0));
                     flushed = true;
                 },
             };
@@ -261,8 +260,7 @@ describe("Custom Sink", () => {
                 name: "flush-sink-1",
                 write: vi.fn(),
                 flush: async () => {
-                    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-                    await new Promise((resolve) => setTimeout(resolve, 5));
+                    await new Promise((resolve) => setTimeout(resolve, 0));
                     flushOrder.push("sink1");
                 },
             };

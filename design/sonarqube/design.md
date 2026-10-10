@@ -341,11 +341,10 @@ gate needs fixing, not more bypasses.
   ("Sonar way") and the rules to deactivate for each language, and `--setup` and the baseline job
   make the server's profile match it (creating it, setting the parent, deactivating the listed
   rules and reactivating any other). The baseline job restores it when it changes.
-- `tools/prepush.sh`: start `tools/sonar-gate.mjs` in the background (its own process group,
-  killed by an `EXIT` trap) after "Lint", join it before the summary
-  under its own flag (`SONAR_FAILED`), as the file's own rule about per-step flags requires. When
-  no package is affected, the early exit runs the step in the foreground first, so a push that
-  touches only `tools/` is still checked.
+- `tools/prepush-source-checks.sh`: run `tools/sonar-gate.mjs` as the last of the source-only
+  checks, which the push queue runs before a push waits for a gate slot and `tools/prepush.sh`
+  runs before the build (2026-10-09; it had run in the background after "Lint", so a push it
+  failed held a gate slot through the build and the tests first). It needs no build output.
 - `.husky/pre-push`: its header comment lists the new step and the bypass trailer.
 - `.gitignore`: `.scannerwork/`, in the gate's own commit, for scans run by hand (the gate and the
   baseline job write outside the worktree).

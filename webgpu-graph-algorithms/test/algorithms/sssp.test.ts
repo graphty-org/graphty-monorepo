@@ -234,7 +234,6 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
     for (const fixture of FIXTURES) {
         for (const directed of [false, true]) {
             const kind = directed ? "directed" : "undirected";
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(`${fixture.name} (${kind}): dist bitwise vs the f32 oracle and within the derived tolerance of the f64 one, the triangle inequality, predArc by the plateau rule, reachedCount, run twice`, async (t) => {
                 const ctx = await context(t);
                 const s = snapshotOf(fixture.edges, {
@@ -248,7 +247,7 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
                     await checkRun(ctx, `${fixture.name} ${kind} from ${source}`, s, source);
                 }
                 ctx.release(s);
-            }, 300_000);
+            });
         }
     }
 
@@ -267,7 +266,6 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
         ctx.release(karate);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("cutoff on the weighted route (the integer grid from the corner): an integer distance some node attains exactly is reached (the <= case), -1 is the source alone, Infinity is no cap, a non-integer cap between two integers is the floor's set, NaN is E_INVALID_ARGUMENT { argument: 'cutoff' } before any device work", async (t) => {
         const ctx = await context(t);
         const grid = snapshotOf(weightedEdges(gridEdges(30, 30), "integer", 2), { label: "sssp-grid-cutoff" });
@@ -296,9 +294,9 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
         const nan = await expectRejection(sssp(ctx, grid, 0, { cutoff: Number.NaN }), "E_INVALID_ARGUMENT");
         expect(nan.details).toMatchObject({ argument: "cutoff" });
         ctx.release(grid);
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 43 s on CI's lavapipe, 28 s on lavapipe on the dev box under load, 20 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it("the unit-weight route (PD-22): on an unweighted snapshot sssp(s, source) with no options (the element's call) is the BFS -- dist the depths as f32, predArc a tight arc one depth down, reachedCount the visited count; cutoff Infinity is the same, 2.5 reaches depth <= 2, -1 the source alone, NaN is refused; an all-ones override on a weighted snapshot takes the same route", async (t) => {
         const ctx = await context(t);
         for (const [name, edges, sources] of [
@@ -338,7 +336,6 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
         ctx.release(weighted);
     }, 300_000);
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("weights overrides (PD-22): an F64 vector differing from the column on the weighted grid; an integer U32 vector on the unweighted path and an F32 one on the unweighted grid, bitwise the f32 oracle's on that vector and NOT the depths (the option is never dropped when the snapshot's own flags say unit weights); a short vector is E_INVALID_ARGUMENT { argument: 'weights' }", async (t) => {
         const ctx = await context(t);
         const grid = snapshotOf(weightedEdges(gridEdges(30, 30), "integer", 2), { label: "sssp-override-grid" });
@@ -371,7 +368,7 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
             expect(short.details).toMatchObject({ argument: "weights" });
             ctx.release(s);
         }
-    }, 300_000);
+    });
 
     it("a negative weight (a column or an override) is E_UNSUPPORTED { feature: 'sssp.negativeWeights' } with a bellmanFord hint; a NaN or an infinite override is E_UNSUPPORTED { feature: 'sssp.nonFiniteWeights' }; all before any device work", async (t) => {
         const ctx = await context(t);
@@ -401,7 +398,6 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
         ctx.release(grid);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the round count, exact and derived: the 64-node path at weight 2 under delta 32 dispatches 64 near rounds and three far pass-throughs (the level word reads 67), and no far entry is ever dropped (every node reached)", async (t) => {
         const ctx = await context(t);
         const path = snapshotOf(weightTwoPath(), { label: "sssp-weight2" });
@@ -434,9 +430,8 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
         ).toHaveLength(3);
         expect(modes.indexOf(1), "the first far round follows the first bucket's 16 near rounds").toBe(16);
         ctx.release(path);
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the inspect stage comparison (P8-T15 Step 2): on the weighted karate at roundsPerSubmit 1 and delta 1 (several buckets) the block after submit k is round k's (the level word counts rounds, done rises only at the last), the threshold word climbs the f32 delta ladder one step per far round and never otherwise, and the far-round count is the ladder step above the oracle's farthest f32 distance (the near-round count follows the schedule and is only bounded)", async (t) => {
         const ctx = await context(t);
         const karate = snapshotOf(weightedEdges(KARATE_EDGES, "uniform", 1), { label: "karate-inspect" });
@@ -499,7 +494,7 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
             "near rounds: at least one per reached node beyond the source is the bound",
         ).toBeLessThanOrEqual(want.reachedCount);
         ctx.release(karate);
-    }, 120_000);
+    });
 
     it("the noise-floor fixture (P8-T15 Step 6): dist on the integer 30 x 30 grid from 0, written for this adapter class under GRAPHTY_NOISE_FLOOR_WRITE=1 (test/noise-floor.test.ts holds the classes bitwise)", async (t) => {
         const ctx = await context(t);
@@ -602,11 +597,10 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
         expect(worst, "the spread vs the tolerance in use").toBeLessThanOrEqual(ssspTolerance().value);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the sabotage check passes on the real kernels (factor 0)", async (t) => {
         const ctx = await context(t);
         const report = await ssspReport(ctx);
         expect(report.worst).toBe(0);
         assertCheckPasses(report);
-    }, 120_000);
+    });
 });

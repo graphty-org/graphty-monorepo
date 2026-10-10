@@ -1875,7 +1875,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -2093,6 +2093,8 @@ export class Graphty extends LitElement {
     get renderer(): RendererRequest;
     set renderer(value: RendererRequest);
     get rendererStatus(): RendererStatus | null;
+    get renderOnDemand(): boolean;
+    set renderOnDemand(value: boolean);
     get repeatedEdges(): DuplicatePolicy | undefined;
     set repeatedEdges(value: DuplicatePolicy | undefined);
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
@@ -2522,6 +2524,13 @@ export type GraphtyErrorCode =
 * canvas reported. The session's data and results still work; only the view is unavailable.
 */
 | "E_NO_WEBGL"
+/**
+* A feature the caller asked for needs an optional peer package that is not installed.
+* `details.package` names the package to install and `details.feature` the feature that
+* needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
+* picks a feature that does not need it.
+*/
+| "E_MISSING_PACKAGE"
 /**
 * The operation is well formed but this build or this host cannot perform it: a
 * worker-hosted session asked for `snapshot()`, a mutating command asked to jump the queue,
@@ -3022,6 +3031,8 @@ class Node_2 {
     pinOnDrag: boolean;
     refreshSelectionOverlay(): void;
     get roundRadius(): number | null;
+    // @internal
+    setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
@@ -3982,6 +3993,7 @@ export class RenderManager implements Manager {
     graphRoot: TransformNode;
     holdFrames(): () => void;
     init(): Promise<void>;
+    requestFrame(): void;
     // (undocumented)
     scene: Scene;
     startRenderLoop(updateCallback: (frameMs: number) => void): void;
@@ -4236,6 +4248,7 @@ export interface ScreenshotOptions {
     timing?: {
         waitForSettle?: boolean;
         waitForOperations?: boolean;
+        settleTimeoutMs?: number;
     };
     // (undocumented)
     transparentBackground?: boolean;
@@ -4545,6 +4558,23 @@ export interface XRModeConfig {
     enabled: boolean;
     optionalFeatures?: string[];
     referenceSpaceType: XRReferenceSpaceType_2;
+}
+
+// @public
+export interface XRSessionEndedEvent {
+    cause: "exit" | "device";
+    mode: "vr" | "ar";
+    // (undocumented)
+    type: "xr-session-ended";
+}
+
+// @public
+export interface XRSessionStartedEvent {
+    mode: "vr" | "ar";
+    referenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded" | "viewer";
+    requestedReferenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded";
+    // (undocumented)
+    type: "xr-session-started";
 }
 
 // @public

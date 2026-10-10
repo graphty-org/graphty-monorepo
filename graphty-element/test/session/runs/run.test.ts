@@ -1,4 +1,4 @@
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { isGraphtyError } from "../../../src/errors";
 import { GraphtyError } from "../../../src/errors/GraphtyError";
@@ -185,7 +185,7 @@ describe("progress", () => {
     it("turns a report into a fraction, an eta and a percentage on the queue's own channel", async () => {
         const { run, queue, progress } = makeRun(async (context) => {
             context.report({ phase: "measuring", completed: 25, total: 100, message: "Measuring nodes" });
-            await settle(5);
+            await settle();
             context.report({ completed: 50 });
 
             return { result: stubResult(context.runId) };
@@ -259,9 +259,11 @@ describe("cancelling", () => {
 
     it("aborts the work's own signal, so a running algorithm stops", async () => {
         let aborted = false;
+        let looping = false;
         const { run, queue } = makeRun(async (context) => {
             while (!context.signal.aborted) {
-                await settle(1);
+                looping = true;
+                await settle();
             }
 
             aborted = true;
@@ -270,7 +272,9 @@ describe("cancelling", () => {
 
         run.start();
         const body = queue.runLatest();
-        await settle(5);
+        await vi.waitFor(() => {
+            assert.isTrue(looping, "the work is running");
+        });
         run.cancel();
         await body;
 
@@ -293,7 +297,7 @@ describe("cancelling", () => {
         const { run, queue } = makeRun(
             async (context) => {
                 while (!context.signal.aborted) {
-                    await settle(1);
+                    await settle();
                 }
 
                 throw new DOMException("stopped", "AbortError");
@@ -334,7 +338,7 @@ describe("the time box", () => {
         const { run, queue } = makeRun(
             async (context) => {
                 while (!(context.timeBox?.aborted ?? false)) {
-                    await settle(1);
+                    await settle();
                 }
 
                 return { result: stubResult(context.runId) };
@@ -359,7 +363,7 @@ describe("the time box", () => {
 
     it("is partial whatever stopped it, when the caveats say why it stopped early (#933)", async () => {
         const { run, queue } = makeRun(async (context) => {
-            await settle(1);
+            await settle();
 
             return {
                 result: stubResult(context.runId),
@@ -379,7 +383,7 @@ describe("the time box", () => {
 
     it("words the reason from a cause the work gives as a code (#866)", async () => {
         const { run, queue } = makeRun(async (context) => {
-            await settle(1);
+            await settle();
 
             return {
                 result: stubResult(context.runId),
@@ -400,7 +404,7 @@ describe("the time box", () => {
         const { run, queue } = makeRun(
             async (context) => {
                 while (!(context.timeBox?.aborted ?? false)) {
-                    await settle(1);
+                    await settle();
                 }
 
                 sawAbort = context.signal.aborted;
@@ -461,7 +465,7 @@ describe("failing", () => {
 
             run.start();
             await queue.runLatest();
-            await settle(20);
+            await settle();
 
             assert.strictEqual(run.status, "failed");
             assert.deepStrictEqual(seen, []);

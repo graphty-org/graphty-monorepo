@@ -37,7 +37,6 @@ import { adapterClass, LANE_RESIDUES, sampleStrided, writeNoiseFixture } from ".
 import { assertCheckPasses, ratioOf } from "../helpers/sabotage.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
 const WRITER_TIMEOUT = 1_200_000;
 /** The fixtures of the stage comparison; the two one-cell fixtures run at nearMax 8 (the sampling path). */
 const FIXTURES: readonly string[] = [
@@ -218,76 +217,66 @@ describe("grid tier inspect(): every stage against the oracle's (spec 11.9 item 
     for (const name of FIXTURES) {
         for (const dim of [2, 3] as const) {
             const label = `${name}/${dim}d`;
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-            it(
-                `${label}: G1, G2, G3 bitwise, the pyramid, G6, G7, K5 and the K1 grid block within their traced tolerances, twice bitwise`,
-                async (t) => {
-                    requireGpu(t);
-                    const options = { ...GRID_BASE_OPTIONS, dim };
-                    const { snapshot: s, start } = gridFixture(name, gpuScale(), options);
-                    try {
-                        const tuning = tuningOf(name);
-                        const a = await captureGridStages(ctx, s, start, options, null, tuning);
-                        const b = await captureGridStages(ctx, s, start, options, null, tuning);
-                        for (const key of GRID_STAGE_KEYS) {
-                            expectBitwiseEqual(
-                                a.stages[key].values,
-                                b.stages[key].values,
-                                `${label}/${key}: run 1 vs run 2`,
-                            );
-                        }
-                        assertCapture(a, label);
-                        // structure that needs no tolerance: the scan closes at n, the sampling path ran where meant to
-                        const { cellStart } = a.stages;
-                        expect(cellStart.values[cellStart.values.length - 1], `${label}: cellStart[cells + 1]`).toBe(
-                            s.nodeCount,
+            it(`${label}: G1, G2, G3 bitwise, the pyramid, G6, G7, K5 and the K1 grid block within their traced tolerances, twice bitwise`, async (t) => {
+                requireGpu(t);
+                const options = { ...GRID_BASE_OPTIONS, dim };
+                const { snapshot: s, start } = gridFixture(name, gpuScale(), options);
+                try {
+                    const tuning = tuningOf(name);
+                    const a = await captureGridStages(ctx, s, start, options, null, tuning);
+                    const b = await captureGridStages(ctx, s, start, options, null, tuning);
+                    for (const key of GRID_STAGE_KEYS) {
+                        expectBitwiseEqual(
+                            a.stages[key].values,
+                            b.stages[key].values,
+                            `${label}/${key}: run 1 vs run 2`,
                         );
-                        if (SAMPLED.includes(name)) {
-                            expect(a.stages.k1.values[7], `${label}: maxCellOccupancy above nearMax`).toBeGreaterThan(
-                                NEAR_MAX_SAMPLING,
-                            );
-                        }
-                        if (name === "outside5") {
-                            expect(a.stages.k1.values[6], `${label}: outsideGrid`).toBeGreaterThan(0);
-                        }
-                    } finally {
-                        ctx.release(s);
                     }
-                },
-                CASE_TIMEOUT,
-            );
+                    assertCapture(a, label);
+                    // structure that needs no tolerance: the scan closes at n, the sampling path ran where meant to
+                    const { cellStart } = a.stages;
+                    expect(cellStart.values[cellStart.values.length - 1], `${label}: cellStart[cells + 1]`).toBe(
+                        s.nodeCount,
+                    );
+                    if (SAMPLED.includes(name)) {
+                        expect(a.stages.k1.values[7], `${label}: maxCellOccupancy above nearMax`).toBeGreaterThan(
+                            NEAR_MAX_SAMPLING,
+                        );
+                    }
+                    if (name === "outside5") {
+                        expect(a.stages.k1.values[6], `${label}: outsideGrid`).toBeGreaterThan(0);
+                    }
+                } finally {
+                    ctx.release(s);
+                }
+            });
         }
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "a pinned node (clumpy100, 2D): its force is computed, K5 leaves it in place, every stage still within tolerance",
-        async (t) => {
-            requireGpu(t);
-            const { snapshot: s, start } = gridFixture("clumpy100", gpuScale(), GRID_BASE_OPTIONS);
-            try {
-                const pinned = pinIndex(s.nodeCount);
-                const mask = pinMask(s.nodeCount, pinned);
-                const a = await captureGridStages(ctx, s, start, GRID_BASE_OPTIONS, mask);
-                assertCapture(a, "clumpy100-pinned/2d");
-                const force = a.stages.nearField.values;
-                expect(
-                    Math.hypot(force[3 * pinned], force[3 * pinned + 1], force[3 * pinned + 2]),
-                    "the pinned node's force",
-                ).toBeGreaterThan(0);
-                for (let k = 0; k < 3; k++) {
-                    expect(a.stages.positions.values[3 * pinned + k], `pinned position component ${k}`).toBe(
-                        k === 2 ? 0 : start[3 * pinned + k],
-                    );
-                }
-            } finally {
-                ctx.release(s);
+    it("a pinned node (clumpy100, 2D): its force is computed, K5 leaves it in place, every stage still within tolerance", async (t) => {
+        requireGpu(t);
+        const { snapshot: s, start } = gridFixture("clumpy100", gpuScale(), GRID_BASE_OPTIONS);
+        try {
+            const pinned = pinIndex(s.nodeCount);
+            const mask = pinMask(s.nodeCount, pinned);
+            const a = await captureGridStages(ctx, s, start, GRID_BASE_OPTIONS, mask);
+            assertCapture(a, "clumpy100-pinned/2d");
+            const force = a.stages.nearField.values;
+            expect(
+                Math.hypot(force[3 * pinned], force[3 * pinned + 1], force[3 * pinned + 2]),
+                "the pinned node's force",
+            ).toBeGreaterThan(0);
+            for (let k = 0; k < 3; k++) {
+                expect(a.stages.positions.values[3 * pinned + k], `pinned position component ${k}`).toBe(
+                    k === 2 ? 0 : start[3 * pinned + k],
+                );
             }
-        },
-        CASE_TIMEOUT,
-    );
+        } finally {
+            ctx.release(s);
+        }
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 13 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "writes this adapter's grid stage outputs of the UNSCALED random20k, isolated and clumpy100 and the f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {

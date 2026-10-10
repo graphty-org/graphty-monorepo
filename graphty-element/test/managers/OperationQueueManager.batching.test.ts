@@ -58,9 +58,9 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
                 { description: "Test operation" },
             );
 
-            // Operation should be queued but not executed
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 10));
+            // Operation should be queued but not executed: outside batch mode the queue starts
+            // work on a microtask, so one macrotask yield is past the point it would have run
+            await new Promise((resolve) => setTimeout(resolve, 0));
             expect(executed).toBe(false);
 
             void manager.exitBatchMode();

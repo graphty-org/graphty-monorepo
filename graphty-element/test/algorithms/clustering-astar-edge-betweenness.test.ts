@@ -7,7 +7,7 @@
  * heuristic must find the route Dijkstra finds.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { Algorithm } from "../../src/algorithms/Algorithm";
 import { AStarAlgorithm } from "../../src/algorithms/AStarAlgorithm";
@@ -17,6 +17,7 @@ import { HierarchicalClusteringAlgorithm } from "../../src/algorithms/Hierarchic
 import { MarkovClusteringAlgorithm } from "../../src/algorithms/MarkovClusteringAlgorithm";
 import { type AlgorithmOutput, type DeclaredAlgorithm, detachedRunContext } from "../../src/algorithms/results";
 import { SpectralClusteringAlgorithm } from "../../src/algorithms/SpectralClusteringAlgorithm";
+import { GraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
 import { createMockGraph } from "../helpers/mockGraph";
 
@@ -127,6 +128,38 @@ describe("clustering splits two triangles at the bridge", () => {
         assert.isTrue(groups.some((members) => members.includes("A") && members.includes("B")));
         assert.isTrue(groups.some((members) => members.includes("E") && members.includes("F")));
         assert.isFalse(groups.some((members) => members.includes("A") && members.includes("F")));
+    });
+
+    it("hierarchical clustering's E_TOO_LARGE, when its n x n tables cannot be allocated, survives a run's wrap", async () => {
+        const graph = await createMockGraph(TWO_TRIANGLES);
+        const algorithm = new HierarchicalClusteringAlgorithm(graph, { clusters: 2 });
+        // A first run freezes the derived snapshot, so only the clustering's own tables meet the stub
+        await algorithm.compute(detachedRunContext());
+        const Base = Uint32Array;
+        vi.stubGlobal(
+            "Uint32Array",
+            class extends Base {
+                constructor(...args: unknown[]) {
+                    if (args[0] === 36) {
+                        throw new RangeError("Array buffer allocation failed");
+                    }
+                    super(...(args as []));
+                }
+            },
+        );
+        let thrown: unknown;
+        try {
+            await algorithm.compute(detachedRunContext());
+        } catch (error) {
+            thrown = error;
+        } finally {
+            vi.unstubAllGlobals();
+        }
+
+        // What Run.fail does with a throw from compute
+        const failure = GraphtyError.wrap(thrown, { code: "E_INTERNAL", source: "run" });
+        assert.strictEqual(failure.code, "E_TOO_LARGE");
+        assert.include(failure.details, { nodeCount: 6, maxNodes: null, bytes: 28 * 36 });
     });
 
     it("hierarchical clustering into as many clusters as nodes leaves every node alone", async () => {

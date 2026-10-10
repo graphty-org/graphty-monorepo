@@ -331,13 +331,16 @@ describe("CLI", () => {
             try {
                 await main();
 
-                // Invoke the SIGINT handler
+                // Invoke the SIGINT handler, then wait for it to reach process.exit
                 expect(sigintHandlers.length).toBe(1);
+                const exited = new Promise<void>((resolve) => {
+                    mockExit.mockImplementation(() => {
+                        resolve();
+                        return undefined as never;
+                    });
+                });
                 sigintHandlers[0]();
-
-                // Wait for shutdown promise to resolve
-                // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-                await new Promise((resolve) => setTimeout(resolve, 10));
+                await exited;
 
                 expect(mockShutdown).toHaveBeenCalled();
                 expect(mockExit).toHaveBeenCalledWith(0);

@@ -8,15 +8,9 @@
  */
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, test } from "vitest";
+import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-
-/** How long the element needs to connect and finish its first update. */
-const ELEMENT_READY_MS = 300;
-
-/** How long a data-source assignment needs to reach the data manager. */
-const LOAD_SETTLE_MS = 200;
 
 /** Two nodes and one edge, as an inline JSON data source. */
 const FIRST_GRAPH = JSON.stringify({
@@ -50,8 +44,10 @@ async function createGraphtyElement(): Promise<Graphty> {
     element.style.display = "block";
     container.appendChild(element);
 
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
+    await element.updateComplete;
+    await vi.waitFor(() => {
+        assert.isTrue(element.graph.initialized, "the element initialised its graph");
+    });
 
     mounted = element;
 
@@ -67,8 +63,7 @@ async function loadInline(element: Graphty, data: string): Promise<void> {
     element.dataSource = "json";
     element.dataSourceConfig = { data };
 
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
+    await element.waitForSettled();
 }
 
 afterEach(() => {
@@ -113,8 +108,9 @@ describe("graphty-element.clearData", () => {
         // Naming a source with no config must not start anything on its own.
         element.dataSource = "json";
 
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
+        // A load, had one been started, would still be on the queue.
+        await element.updateComplete;
+        await element.waitForSettled();
 
         assert.strictEqual(element.graph?.getDataManager().nodes.size, 0);
     });

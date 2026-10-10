@@ -95,7 +95,7 @@ Read the preflight's problems, fix them, then launch for real with the same args
 | `safetyRounds`              | `6`                                                                | Hard cap on rounds                                                                            |
 | `startRound`, `skipPrepare` | `1`, `false`                                                       | Continue at a later round in a fresh run (see below)                                          |
 | `maxSessions`               | `56`                                                               | Sessions per round                                                                            |
-| `browserSlots`              | `4`                                                                | Browser-driving agents alive at once                                                          |
+| `browserSlots`              | `4`                                                                | Browser-driving agents alive at once; values above 4 are cut to 4                             |
 | `dryRunPasses`              | `4`                                                                | Fix-and-re-pilot passes before each round                                                     |
 | `maxDecisions`              | `15`                                                               | Changes the director may decide per round                                                     |
 | `team`, `teamRemove`        | the eleven roles                                                   | Add or rename roles (`{ steward: "Ontology Steward" }`) or drop optional ones                 |
@@ -114,9 +114,12 @@ true` rather than resuming the old one (see the lessons below).
    anything costly if one fails.
 2. **Prepare** -- waits for a clean branch; the researcher, user advocate and red team review the
    criteria once; the director applies the reviews and **freezes** them; a build is frozen and
-   served; every task is piloted; the **dry run** fixes what the pilots trip over.
-3. **Rounds** -- the researcher plans sessions; participants run through the browser semaphore,
-   each graded only from the final screen and saved files; the expert walkthroughs and the
+   served; every task is piloted three ways (the success path, its commonest detours, and by
+   keyboard); the **dry run** fixes what the pilots trip over.
+3. **Rounds** -- the researcher plans sessions and writes each participant's briefing folder; the
+   **tool dry run** checks the study tool and every bar's script, and the round stops if it fails
+   twice; participants run through the browser semaphore, get their follow-up question, and a void
+   session is re-run once as `<id>b`; each is graded only from the final screen and saved files; the expert walkthroughs and the
    screenshot audit run beside them; the researcher scores; two skeptics try to refute every
    finding; verified insights go to the owner; a verdict decides whether to stop. If not: every
    role proposes, the red team attacks, the director decides (with a generality check), engineers
@@ -126,8 +129,10 @@ true` rather than resuming the old one (see the lessons below).
    pull request.
 
 Outputs, per round `r`: `tier<N>/rounds/round-<r>/` (`plan.md`, `sessions/<id>/` with screenshots,
-`transcript.md` and `grade.md`, `expert/<role>.md`, `scores.md`, `insights.md`, `decisions.md`);
-pilots under `tier<N>/rounds/r<r>[d<pass>]/pilot/`; dry-run triage in `tier<N>/dry-run-r<r>-<pass>.md`.
+`transcript.md` and `grade.md`, `briefings/<id>/` (the only files a participant reads),
+`tool-dry-run-<k>.md`, `expert/<role>.md`, `scores.md`, `insights.md`, `decisions.md`); pilots, each with a
+`report.md` of every route walked, under `tier<N>/rounds/r<r>[d<pass>]/pilot/`; dry-run triage in
+`tier<N>/dry-run-r<r>-<pass>.md`.
 
 ## Keeping the owner informed
 
@@ -150,6 +155,36 @@ Each rule below exists because breaking it cost a run.
   wrong field, filters hiding their own settings, missing units) went straight to participants,
   and the round was stopped after five sessions. Participants exist to answer design questions,
   not to rediscover bugs.
+- **A dry run that passes on the answer key's route is necessary but not sufficient; it also walks
+  each task's commonest detours.** Tier 2 round 1's dry run walked every success path on four
+  builds and no participant met a broken control there -- but participants who took common detours
+  met build defects no walk had visited: adding Color under Edges while a run's layer was open wrote
+  it to Everything, the selection halo tinted a node's own color, focus fell to the page after Add
+  step and Delete step, and Enter did not commit a step edit. Each pilot now also walks the two or
+  three commonest detours, taken from the previous round's wrong turns and from what a person who
+  does not know the path would try first, and writes a report of every route it walked.
+- **The dry run also walks each task by keyboard and notes the screen-reader names.** Round 1 was
+  piloted by pointer only, so the focus faults above reached the accessibility expert instead of
+  being fixed first. Each pilot walks the success path again with Tab, Enter, Space, Escape and the
+  arrows, presses Enter, Tab and Escape in every field it opens, and reports focus falling to the
+  page, a key that does nothing, and a missing or duplicate name as defects.
+- **The study tool gets its own dry run before every round's sessions.** In round 1 the tool reached
+  participants more often than the build did: more than four sessions ran at once (load about 158,
+  click timeouts), the matcher took the first partial match ("Enjolras", the Sources row against the
+  panel heading), a synthetic file drop did nothing on screen, a void session was never re-run, two
+  follow-up questions were never asked, and a participant told to read the criteria's first line
+  read the facilitator notes and the avoided-words list. The workflow now enforces each: one
+  semaphore covers every agent that may drive a browser (participants, graders, experts, pilots,
+  engineers checking a fix, build freezes) and is capped at 4; a void session is re-run once as
+  `<id>b`; the follow-up is sent by the workflow, not left to the participant; participants get
+  only a briefing folder (persona and task text) and the frozen build directory, never a studio
+  path, and a session that opened anything else is void. The tool dry run checks the gate with six
+  sessions, an ambiguous click, a real file drop, the detours and the briefing folders.
+- **Every script a bar is scored by exists and passes a check before the round.** Round 1's
+  open-work lister, weight script, accessibility and word counts on tier 2 screens were never
+  built, so bars 2, 7, 8 and 9 could not hold whatever the sessions showed. The preflight checks
+  each named script exists; the tool dry run checks it fails on a planted failure of its own (a
+  script that reads zero items fails) and runs on the frozen build.
 - **Pilots walk each task from its real start by clicking, never by URL.** A mock-era check that
   opened each screen by address passed while 18 tasks had end screens no click could reach and
   data that changed between screens.
@@ -160,7 +195,8 @@ Each rule below exists because breaking it cost a run.
   2026-10-01 eight review agents each ran their own parallel crawls: 23 headless Chromium, 49 GB,
   swap full, an alert to the owner. In tier 1, participants queued 17 to 50 minutes for a browser
   slot while their clock ran, and those sessions were voided. The semaphore starts a participant
-  only when a slot is free, and the expert walkthroughs share it.
+  only when a slot is free, and every other browser-driving agent shares it (see the tool dry run
+  lesson above).
 - **Always `--end` a session, including after a failed attempt.** A stopped agent that never ended
   its session kept its browser slot until the idle timeout.
 - **Step notes are one or two sentences, in character.** Full think-aloud in long, screenshot-heavy

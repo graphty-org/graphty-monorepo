@@ -91,6 +91,22 @@ function naive(input: SortInput): NaiveCore {
 }
 
 /**
+ * Exact element-wise equality (Object.is, as toEqual uses for numbers) in one plain loop: toEqual over
+ * a 400k-entry array costs about 0.2 s, and the 20k-node test makes 30 such comparisons.
+ * @param actual - the computed values
+ * @param expected - the reference values
+ * @param what - the name in a failure message
+ */
+function expectSameNumbers(actual: ArrayLike<number>, expected: ArrayLike<number>, what: string): void {
+    expect(actual.length, `${what}.length`).toBe(expected.length);
+    for (let i = 0; i < expected.length; i++) {
+        if (!Object.is(actual[i], expected[i])) {
+            expect(actual[i], `${what}[${i}]`).toBe(expected[i]);
+        }
+    }
+}
+
+/**
  * Compare a sort result with the reference.
  * @param input - the input
  * @param useArena - the arena flag
@@ -100,20 +116,24 @@ function expectMatchesNaive(input: SortInput, useArena: boolean): void {
     const { core, arcCount, selfLoopCount, flags } = sortIntoCore(input, useArena);
     expect(arcCount).toBe(expected.colIdx.length);
     expect(selfLoopCount).toBe(countSelfLoops(input.src, input.dst, input.edgeCount));
-    expect(Array.from(core.rowPtr)).toEqual(expected.rowPtr);
-    expect(Array.from(core.colIdx)).toEqual(expected.colIdx);
+    expectSameNumbers(core.rowPtr, expected.rowPtr, "rowPtr");
+    expectSameNumbers(core.colIdx, expected.colIdx, "colIdx");
     if (core.arcToEdge === null || core.edgeToArc === null) {
         expect(flags.arcToEdgeIsIdentity).toBe(true);
-        expect(expected.arcToEdge).toEqual(expected.arcToEdge.map((_, i) => i));
+        expectSameNumbers(
+            expected.arcToEdge,
+            expected.arcToEdge.map((_, i) => i),
+            "arcToEdge",
+        );
     } else {
         expect(flags.arcToEdgeIsIdentity).toBe(false);
-        expect(Array.from(core.arcToEdge)).toEqual(expected.arcToEdge);
-        expect(Array.from(core.edgeToArc)).toEqual(expected.edgeToArc);
+        expectSameNumbers(core.arcToEdge, expected.arcToEdge, "arcToEdge");
+        expectSameNumbers(core.edgeToArc, expected.edgeToArc, "edgeToArc");
     }
     if (expected.weights === null) {
         expect(core.weights).toBeNull();
     } else {
-        expect(Array.from(core.weights as Float32Array)).toEqual(expected.weights);
+        expectSameNumbers(core.weights as Float32Array, expected.weights, "weights");
     }
     expect(flags.multigraph).toBe(expected.multigraph);
     expect(flags.hasSelfLoops).toBe(selfLoopCount > 0);

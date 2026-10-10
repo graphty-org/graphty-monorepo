@@ -618,7 +618,8 @@ class Selection implements SelectionOwner {
             return true;
         }
 
-        return typeof id === "string" && this.#edges.size > 0 && this.#edges.hasId(id);
+        // An edge id is text; the number it spells names the same edge.
+        return this.#edges.size > 0 && this.#edges.hasId(String(id));
     }
 
     /**

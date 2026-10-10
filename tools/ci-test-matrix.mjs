@@ -84,15 +84,20 @@ export const SHARDS = [
     // same coverage it wrote in series: the coverage thresholds apply to the `node` invocation alone
     // (vitest.config.ts, thresholdsActive), exactly as before, and the device-error invocation's report
     // still uploads as coverage-webgpu-graph-algorithms-node-device-errors for coverage.yml to merge.
+    // `--project=node-gpu-alone` beside `--project=node` is the rest of the main suite: the files that hold the GPU
+    // for seconds per submission, run after the node project and one at a time (vitest.config.ts, issue #1884).
     ...[
-        ["webgpu-graph-algorithms-node", "node scripts/run-node-shard.js --project=node --coverage"],
+        [
+            "webgpu-graph-algorithms-node",
+            "node scripts/run-node-shard.js --project=node --project=node-gpu-alone --coverage",
+        ],
         [
             "webgpu-graph-algorithms-node-device-errors",
             "COVERAGE_DIR=.coverage-parts/device-errors node scripts/run-node-shard.js --project=node-device-errors --coverage",
         ],
         [
             "webgpu-graph-algorithms-node-no-subgroups",
-            "GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node test/primitives test/layouts test/algorithms --passWithNoTests",
+            "GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node --project=node-gpu-alone test/primitives test/layouts test/algorithms --passWithNoTests",
         ],
         [
             "webgpu-graph-algorithms-node-no-subgroups-device-errors",
@@ -159,11 +164,19 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run layout:coverage",
         "needs-browser": false,
     },
-    // graphty - single shard (uses Playwright for browser-based vitest)
+    // graphty - every project but the stories (uses Playwright for browser-based vitest)
     {
         shard: "graphty",
         package: "graphty",
-        "test-command": "pnpm exec nx run graphty:coverage",
+        "test-command": "cd graphty && pnpm exec vitest run --project='!storybook' --coverage",
+        "needs-browser": true,
+    },
+    // graphty's stories: every play function run as a test, as graphty-element's storybook shards
+    // do. No coverage: the stories exercise the same source the graphty shard measures.
+    {
+        shard: "graphty-storybook",
+        package: "graphty",
+        "test-command": "cd graphty && pnpm exec vitest run --project=storybook",
         "needs-browser": true,
     },
     // remote-logger - single shard (has browser tests)
@@ -252,14 +265,16 @@ export const GROUPS = {
         "remote-logger",
         "compact-mantine",
         "graphty",
+        "graphty-storybook",
         "visual-review",
         "webgpu-graph-algorithms-browser",
     ],
 };
 
 // Group members whose lcov.info coverage.yml merges. visual-review and the webgpu browser smoke
-// never uploaded coverage, and adding them would change the published numbers.
-const NO_COVERAGE = new Set(["visual-review", "webgpu-graph-algorithms-browser"]);
+// never uploaded coverage, and adding them would change the published numbers; graphty-storybook
+// writes none (the graphty shard measures graphty).
+const NO_COVERAGE = new Set(["visual-review", "webgpu-graph-algorithms-browser", "graphty-storybook"]);
 
 /**
  * The matrix entry of one group, holding only the members a run must test.

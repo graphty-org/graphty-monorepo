@@ -20,7 +20,9 @@
  */
 
 import type { EdgeId, FieldBand, FieldDescriptor, NodeId, ResultShape, RunId } from "../../catalog/types";
+import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { retainedChanged } from "../project/retained";
 import type { Caveats } from "../runs/types";
 import type { CodedFact } from "../shared";
 import { englishReading, readingFactOf } from "./reading";
@@ -446,9 +448,15 @@ function valueAt(table: ElementTable, field: string, position: number): unknown 
  * @returns A frozen record, or undefined when the table holds no such id.
  */
 function recordOf(table: ElementTable, id: NodeId): Readonly<Record<string, unknown>> | undefined {
-    const position = table.index.indexOf(id);
-    if (!(position >= 0 && position < table.length)) {
-        return undefined;
+    const held = (at: number): boolean => at >= 0 && at < table.length;
+    let position = table.index.indexOf(id);
+    if (!held(position)) {
+        // An integer id may be written either way: `"34"` finds node `34`, `17` finds edge `"17"`.
+        const other = otherIdSpelling(id);
+        position = other === undefined ? -1 : table.index.indexOf(other);
+        if (!held(position)) {
+            return undefined;
+        }
     }
 
     const pending = table.pendingRanks;
@@ -1101,6 +1109,7 @@ class Result implements RunResult {
             limit,
         );
         this.#tops.set(key, top);
+        retainedChanged();
 
         return top;
     }
@@ -1353,6 +1362,10 @@ class Result implements RunResult {
      */
     shareNodeIndex(index: ResultIdIndex, token: number): void {
         const table = this.#nodes;
+        if (table.index === index && table.token === token) {
+            return;
+        }
+
         if (table.index !== index) {
             if (index.size !== table.length) {
                 return;
@@ -1368,6 +1381,7 @@ class Result implements RunResult {
         }
 
         table.token = token;
+        retainedChanged();
     }
 
     /**

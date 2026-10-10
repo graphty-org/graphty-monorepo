@@ -29,6 +29,11 @@
 # Refuses a pull request from a fork: its code would run on this machine. One preview runs at a
 # time (a lock), and each capture goes through tmp/with-browser.sh when this machine has it (the
 # shared cap on browsers).
+#
+# VISUAL_PREVIEW_TIMEOUT (default 45m; a whole number with s, m, h or d) bounds the work, not the
+# waits: it starts once this preview holds the lock, and each capture's share of it starts once that
+# capture holds its browser slot, so time queued behind another preview or behind the test shards'
+# browsers never counts. A step still running when it runs out fails the preview.
 
 set -euo pipefail
 
@@ -37,6 +42,19 @@ die() {
     if [[ -n "${STEP:-}" ]]; then echo "$*" >> "$LOG"; status failed; fi
     exit 1
 }
+
+LIMIT="${VISUAL_PREVIEW_TIMEOUT:-45m}"
+[[ "$LIMIT" =~ ^([0-9]+)([smhd]?)$ ]] || die "VISUAL_PREVIEW_TIMEOUT=$LIMIT is not a whole number with s, m, h or d"
+case "${BASH_REMATCH[2]}" in
+    m) LIMIT_S=$((BASH_REMATCH[1] * 60)) ;;
+    h) LIMIT_S=$((BASH_REMATCH[1] * 3600)) ;;
+    d) LIMIT_S=$((BASH_REMATCH[1] * 86400)) ;;
+    *) LIMIT_S=$((BASH_REMATCH[1])) ;;
+esac
+# Progress lines for whoever started this (the pre-push gate shows them): fd 3 stays this script's
+# own output even inside the steps whose output goes to the log.
+exec 3>&1
+say() { echo "$(date +%T) visual-preview: $*" >&3; }
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 MAIN="$(dirname "$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir)")"
@@ -107,6 +125,19 @@ status() { # <state> [projects...]
 }
 trap 'status failed' ERR
 
+# Runs a step with what is left of the limit (DEADLINE, set once the lock is held). Out of time is
+# exit 124, said in the log and on fd 3.
+bounded() { # <command...>
+    local left=$((DEADLINE - $(date +%s))) rc=0
+    if ((left > 0)); then timeout --kill-after=30s "$left" "$@" || rc=$?; else rc=124; fi
+    if [[ $rc -eq 124 || $rc -eq 137 ]]; then
+        echo "visual-preview: timed out while $STEP: more than $LIMIT of work (VISUAL_PREVIEW_TIMEOUT)" >> "$LOG"
+        say "timed out while $STEP: more than $LIMIT of work (VISUAL_PREVIEW_TIMEOUT)"
+        return 124
+    fi
+    return $rc
+}
+
 # git fetch into the main checkout, retried: the lock above covers only previews, and any other fetch
 # there (a gate, an agent, the review server) that moves the same ref first makes this one exit 1 with
 # "cannot lock ref ...: is at <new> but expected <old>" (issue #1548). The winner has already written the
@@ -114,7 +145,7 @@ trap 'status failed' ERR
 fetch_main() { # <refspec>...
     local err="" try
     for try in 1 2 3; do
-        err="$(git -C "$MAIN" fetch -q origin "$@" 2>&1)" && return 0
+        err="$(bounded git -C "$MAIN" fetch -q origin "$@" 2>&1)" && return 0
         echo "$err" >> "$LOG"
         [[ $try -eq 3 ]] || sleep "$try"
     done
@@ -123,8 +154,10 @@ fetch_main() { # <refspec>...
 
 status running
 exec 9> "$ROOT/.lock"
-flock 9
+flock -n 9 || { say "waiting for another preview to finish (the lock; not counted against $LIMIT)"; flock 9; }
+DEADLINE=$(($(date +%s) + LIMIT_S))
 : > "$LOG"
+say "working (limit $LIMIT, from now; the waits for browser slots are not counted)"
 echo "visual-preview: $KEY at ${HEAD:0:10} (log: $LOG)"
 
 if [[ "$MODE" == "head" ]]; then
@@ -161,26 +194,28 @@ STEP="checking out the merge tree"
 status running
 G=(git -c core.hooksPath=/dev/null -C "$WT")
 export GIT_LFS_SKIP_SMUDGE=1 HUSKY=0 NX_DAEMON=false
-[[ -e "$WT" ]] || git -C "$MAIN" -c core.hooksPath=/dev/null worktree add -q --detach "$WT" "$MERGE" >> "$LOG" 2>&1
-"${G[@]}" checkout -q --force --detach "$MERGE" >> "$LOG" 2>&1
-"${G[@]}" clean -fdq >> "$LOG" 2>&1
+[[ -e "$WT" ]] || bounded git -C "$MAIN" -c core.hooksPath=/dev/null worktree add -q --detach "$WT" "$MERGE" >> "$LOG" 2>&1
+bounded "${G[@]}" checkout -q --force --detach "$MERGE" >> "$LOG" 2>&1
+bounded "${G[@]}" clean -fdq >> "$LOG" 2>&1
 [[ -e "$WT/.env" ]] || ln -s "$MAIN/.env" "$WT/.env"
-"${G[@]}" lfs pull --include "visual-baselines/**,visual-fonts/**" >> "$LOG" 2>&1
+bounded "${G[@]}" lfs pull --include "visual-baselines/**,visual-fonts/**" >> "$LOG" 2>&1
 # The base branch's capture code, as CI runs it (ci.yml, "Use the base branch's capture code").
 rm -rf "$WT/visual-review/capture" "$WT/visual-review/trusted"
 "${G[@]}" archive "$MERGE^1" visual-review/capture visual-review/trusted | tar -x -C "$WT"
 
 STEP="installing dependencies"
 status running
-(cd "$WT" && pnpm install --frozen-lockfile) >> "$LOG" 2>&1
+(cd "$WT" && bounded pnpm install --frozen-lockfile) >> "$LOG" 2>&1
 
 # The projects the change affects (all of them when nx cannot tell).
 STEP="finding the affected projects"
 status running
 mapfile -t ALL < <(jq -r '.projects | keys[]' "$WT/visual-review.config.json")
-if AFFECTED="$(cd "$WT" && pnpm exec nx show projects --affected --base="$MERGE^1" --head="$MERGE" --json 2>> "$LOG")"; then
+if AFFECTED="$(cd "$WT" && bounded pnpm exec nx show projects --affected --base="$MERGE^1" --head="$MERGE" --json 2>> "$LOG")"; then
     mapfile -t PROJECTS < <(jq -r --argjson all "$(printf '%s\n' "${ALL[@]}" | jq -R . | jq -s .)" \
         '.[] | select(. as $p | $all | index($p))' <<< "$AFFECTED")
+elif [[ $? -eq 124 ]]; then
+    die "timed out while $STEP"
 else
     PROJECTS=("${ALL[@]}")
 fi
@@ -202,7 +237,7 @@ CAPTURES=()
 for P in "${PROJECTS[@]}"; do
     STEP="building the Storybook ($P)"
     status running "${PROJECTS[@]}"
-    (cd "$WT" && bash -c "$(jq -r --arg p "$P" '.projects[$p].build' visual-review.config.json)") >> "$LOG" 2>&1
+    (cd "$WT" && bounded bash -c "$(jq -r --arg p "$P" '.projects[$p].build' visual-review.config.json)") >> "$LOG" 2>&1
 
     STEP="capturing (${PROJECTS[*]})"
     status running "${PROJECTS[@]}"
@@ -211,9 +246,18 @@ for P in "${PROJECTS[@]}"; do
         REF="$(mktemp -d)"
         trap 'rm -rf "$REF"' EXIT
         cd "$WT"
-        REF_DIR="$(node visual-review/trusted/cli.mjs reference --project "$P" --out "$REF" 2>> "$OUT/$P.log" || true)"
-        env "${PREVIEW_ENV[@]}" "${WRAP[@]}" \
-            node visual-review/trusted/cli.mjs capture --project "$P" --out "$OUT/$P" --reference "$REF_DIR"
+        REF_DIR="$(bounded node visual-review/trusted/cli.mjs reference --project "$P" --out "$REF" 2>> "$OUT/$P.log" || true)"
+        # What is left of the limit is taken now and starts counting inside the browser slot.
+        LEFT=$((DEADLINE - $(date +%s)))
+        ((LEFT > 0)) || { say "$P: timed out before its capture started (more than $LIMIT of work)"; exit 124; }
+        [[ ${#WRAP[@]} -eq 0 ]] || say "$P: waiting for a browser slot (not counted against $LIMIT)"
+        RC=0
+        env "${PREVIEW_ENV[@]}" "${WRAP[@]}" bash -c \
+            'echo "$(date +%T) visual-preview: $1: capturing ($2 left)" >&3; shift; exec timeout --kill-after=30s "$@"' \
+            _ "$P" "${LEFT}s" node visual-review/trusted/cli.mjs capture --project "$P" --out "$OUT/$P" --reference "$REF_DIR" \
+            || RC=$?
+        [[ $RC -ne 124 && $RC -ne 137 ]] || say "$P: timed out: the capture ran past what was left of $LIMIT"
+        exit "$RC"
     ) >> "$OUT/$P.log" 2>&1 &
     CAPTURES+=("$!:$P")
 done

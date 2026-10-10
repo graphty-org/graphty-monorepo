@@ -38,7 +38,7 @@ import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
 import type { VisibilityService } from "../commands/visibility";
 import type { CodedFact, ProgressChange } from "../shared";
-import type { HistoryCode, ProjectConfig } from "../types";
+import type { HistoryCode, HistoryStepId, ProjectConfig } from "../types";
 import { Arrangement, type ArrangementOp, mergeRowPatches } from "./arrangement";
 import { DerivationLane } from "./derive";
 import {
@@ -57,6 +57,7 @@ import {
 } from "./draft";
 import { createdNodes, GraphOps, nodeKey, reshapes, restoresNodes, TouchedIds } from "./graphOps";
 import { frozenFact, History, type HistoryChangeReason, type OpenArrangement } from "./History";
+import { retainedVersion } from "./retained";
 import { createProjectState, type ProjectState } from "./state";
 import { checkInlineKey, checkSoleHolder, strictStateEnabled, verifyRetainedArrays } from "./strict";
 
@@ -278,6 +279,12 @@ export interface TransactionOptions {
      * pointer moves write the lane before anything is dispatched (design section 5.3).
      */
     readonly moves?: boolean;
+    /**
+     * A step this transaction continues: its patch merges into that step while the step is the
+     * newest applied one, and otherwise records as its own step with `provenance.after` set to it,
+     * as a deferred member does.
+     */
+    readonly after?: HistoryStepId;
 }
 
 /** What moved live project state. */
@@ -287,6 +294,11 @@ type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 interface ProjectChange {
     readonly slices: readonly string[];
     readonly cause: HistoryCause;
+    /**
+     * The note ids a command wrote, so the `note:changed` publisher compares those alone. Absent
+     * when the change does not say (an undo, a redo, a restore, a rollback): compare the slice.
+     */
+    readonly notes?: readonly string[];
 }
 
 /** Why the history, or what the next undo will do, changed. */
@@ -676,6 +688,16 @@ function slicesOf(patch: Patch): readonly Slice[] {
 }
 
 /**
+ * The note ids a patch wrote, each once, for a change; nothing when it wrote no note.
+ * @param patch - The patch.
+ * @returns The change's `notes`, or an empty object.
+ */
+function notesOf(patch: Patch): Pick<ProjectChange, "notes"> {
+    const notes = [...new Set(patch.entries.filter((entry) => entry.slice === "notes").map((entry) => entry.key))];
+    return notes.length === 0 ? {} : { notes };
+}
+
+/**
  * The error a `tx` dispatch gets once its transaction has been aborted or has failed.
  * @param label - The transaction.
  * @returns An `AbortError`.
@@ -792,6 +814,10 @@ export class Dispatcher {
     private nextCache: { key: string; value: NextUndo } | undefined;
     /** `history` reasons not yet published. */
     private readonly reasons: HistoryReason[] = [];
+    /** What the history's charges were last measured against: the resident token and the retained version. */
+    private charged = { token: Number.NaN, retained: -1 };
+    /** The token of every snapshot id index a charged run result reads through. */
+    private readonly indexTokens = new Set<number>();
     /** Above zero while a listener runs: a history call made then waits for a microtask. */
     private emitting = 0;
     /** The ids the steps passed by the history call under way touched; null outside one. */
@@ -1014,7 +1040,7 @@ export class Dispatcher {
             { label, fact: options.fact ?? { code: "transaction", params: { label } } },
             null,
             options.provenance ?? {},
-            null,
+            options.after ?? null,
             this.tick++,
             {
                 status: "open",
@@ -1450,10 +1476,17 @@ export class Dispatcher {
      */
     private emit(change: ProjectChange, derived: readonly ProjectChange[]): void {
         if (["graph", "runs", "sets", "notes"].some((slice) => change.slices.includes(slice))) {
-            // What run results and their id indexes cost depends on which snapshot is resident.
+            // What run results and their id indexes cost depends on which snapshot is resident:
+            // a new one moves the charge of an index of the old or the new snapshot. And what
+            // something held by reference retains can grow after it was charged.
             const { token } = this.store.state.graph;
-            const seen = new WeakSet();
-            this.history.recharge((patch) => patchCharge(patch, token, seen));
+            const retained = retainedVersion();
+            const before = this.charged;
+            const full =
+                retained !== before.retained ||
+                (token !== before.token && (this.indexTokens.has(token) || this.indexTokens.has(before.token)));
+            this.charged = { token, retained };
+            this.history.recharge((patch, seen) => patchCharge(patch, token, seen, this.indexTokens), full);
         }
 
         this.notify(() => this.events.project?.(change));
@@ -2113,7 +2146,7 @@ export class Dispatcher {
         }
 
         if (baseline) {
-            const change = { slices: slicesOf(patch), cause: "command" as const };
+            const change = { slices: slicesOf(patch), cause: "command" as const, ...notesOf(patch) };
             this.emit(change, [change]);
             this.release(group, true);
             this.startDeferred(group, null);
@@ -2172,7 +2205,7 @@ export class Dispatcher {
             // else is a pin no step records.
             this.arrangement.checkPins();
 
-            const change = { slices, cause: "command" as const };
+            const change = { slices, cause: "command" as const, ...notesOf(patch) };
             this.emit(change, [change]);
         }
 

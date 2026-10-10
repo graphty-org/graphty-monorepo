@@ -109,6 +109,9 @@ function createMinimalStyles(): Styles {
             labels: {
                 declutter: false,
             },
+            rendering: {
+                onDemand: false,
+            },
         },
         data: {
             knownFields: {

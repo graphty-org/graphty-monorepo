@@ -134,8 +134,25 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
             return;
         }
 
-        const was = told;
-        told = new Map(entries());
+        // One note written: compare it alone, so a single write costs the same at any size. Else
+        // (an undo, a redo, a restore, a rollback, a batch) compare the slice, in its own order.
+        // ponytail: a batch of k notes still walks the slice once; order them by `told` to avoid it.
+        const written = change.notes?.length === 1 ? change.notes : undefined;
+        let was: ReadonlyMap<NoteId, NoteEntry | undefined> = told;
+        if (written === undefined) {
+            told = new Map(entries());
+        } else {
+            was = new Map(written.map((id) => [id, told.get(id)]));
+            for (const id of written) {
+                const now = entries().get(id);
+                if (now === undefined) {
+                    told.delete(id);
+                } else {
+                    told.set(id, now);
+                }
+            }
+        }
+
         const moved = dispatcher.history.position < position ? "undo" : "redo";
         ({ position } = dispatcher.history);
         if (change.cause === "rollback") {
@@ -143,7 +160,7 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
         }
 
         const cause = change.cause === "restore" ? moved : change.cause;
-        for (const id of new Set([...was.keys(), ...told.keys()])) {
+        for (const id of written ?? new Set([...was.keys(), ...told.keys()])) {
             const before = was.get(id)?.note;
             const after = told.get(id)?.note;
             if (before === after) {

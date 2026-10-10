@@ -27,7 +27,7 @@
 // and importing the algorithms is what registers them under the names this asks for.
 import "../../src/algorithms";
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { operationQueueOf } from "../../src/Graph";
 import { Graphty } from "../../src/graphty-element";
@@ -54,12 +54,6 @@ const MOUNT_TIMEOUT_MS = 15000;
 /** How long the picture may take to stop changing. */
 const STABLE_TIMEOUT_MS = 20000;
 
-/** How long to leave for the frame that applies the last pass's paint. */
-const SETTLE_MS = 500;
-
-/** Mounting, loading, running an algorithm and settling is slower than the five-second default. */
-const TEST_TIMEOUT_MS = 60000;
-
 /** Where the element is mounted, kept so the test can take it down again. */
 let container: HTMLDivElement | null = null;
 
@@ -82,16 +76,12 @@ async function mount(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    const deadline = Date.now() + MOUNT_TIMEOUT_MS;
-
-    while (!mounted.graph.initialized) {
-        if (Date.now() > deadline) {
-            throw new Error("the element never finished initialising");
-        }
-
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+    await vi.waitFor(
+        () => {
+            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+        },
+        { timeout: MOUNT_TIMEOUT_MS },
+    );
 
     return mounted;
 }
@@ -133,57 +123,52 @@ describe("once the picture has settled", () => {
         container = null;
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "no element is still drawn from the paint the element gives one it has not styled yet",
-        async () => {
-            const element = await mount();
+    it("no element is still drawn from the paint the element gives one it has not styled yet", async () => {
+        const element = await mount();
 
-            // The story's own order: what to run, and the reader's layer, before the data -- a
-            // layer is a standing instruction rather than a pass over what happens to be loaded.
-            element.runAlgorithmsOnLoad = true;
-            element.algorithmsOnLoad = ["graphty:kruskal"];
-            element.layoutBehavior = { layout: { preSteps: 200 } };
+        // The story's own order: what to run, and the reader's layer, before the data -- a
+        // layer is a standing instruction rather than a pass over what happens to be loaded.
+        element.runAlgorithmsOnLoad = true;
+        element.algorithmsOnLoad = ["graphty:kruskal"];
+        element.layoutBehavior = { layout: { preSteps: 200 } };
 
-            // Fired and forgotten, which is the order a render function is forced into.
-            void element.session.styles.add({
-                name: "Reader - dim every edge",
-                target: "edge",
-                selector: { match: "everything" },
-                set: { "edge.color": "#999999" },
-            });
+        // Fired and forgotten, which is the order a render function is forced into.
+        void element.session.styles.add({
+            name: "Reader - dim every edge",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.color": "#999999" },
+        });
 
-            element.dataSourceConfig = { data: CATS };
-            element.dataSource = "json";
-            element.layoutConfig = { seed: 42 };
-            element.layout = "ngraph";
+        element.dataSourceConfig = { data: CATS };
+        element.dataSource = "json";
+        element.layoutConfig = { seed: 42 };
+        element.layout = "ngraph";
 
-            await element.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await element.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
 
-            const { graph, session } = element;
+        const { graph, session } = element;
 
-            graph.applySuggestedStyles("graphty:kruskal");
+        graph.applySuggestedStyles("graphty:kruskal");
 
-            await operationQueueOf(graph).waitForCompletion();
-            await session.styles.settled();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+        await operationQueueOf(graph).waitForCompletion();
+        await session.styles.settled();
+        // The frame that applies the last pass's paint.
+        await element.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
 
-            assert.deepStrictEqual(
-                { nodes: session.status.counts.nodes, edges: session.status.counts.edges },
-                EXPECTED,
-                "the fixture loaded whole, so what follows is about paint and not about a short load",
-            );
+        assert.deepStrictEqual(
+            { nodes: session.status.counts.nodes, edges: session.status.counts.edges },
+            EXPECTED,
+            "the fixture loaded whole, so what follows is about paint and not about a short load",
+        );
 
-            const stranded = drawnFromBootstrap(element);
+        const stranded = drawnFromBootstrap(element);
 
-            assert.deepStrictEqual(
-                stranded,
-                {},
-                "every node and edge has been repainted by the style stack since it was built; the meshes " +
-                    `still built from the element's own fallback paint are ${JSON.stringify(stranded)}`,
-            );
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.deepStrictEqual(
+            stranded,
+            {},
+            "every node and edge has been repainted by the style stack since it was built; the meshes " +
+                `still built from the element's own fallback paint are ${JSON.stringify(stranded)}`,
+        );
+    });
 });

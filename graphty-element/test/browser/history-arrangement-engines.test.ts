@@ -1,8 +1,10 @@
 /**
  * @file Undo and redo put the nodes where the history says under every engine (issue #1488):
  *
- * - Switching to 2D puts every node on the Z = 0 plane and the layout keeps it there. d3 drew a
- *   3D simulation under a 2D camera, and a switch that does not rebuild the engine left every Z.
+ * - Switching to 2D puts every node on the Z = 0 plane and the layout keeps it there, under every
+ *   engine registered with the layout registry (issue #1596): a node off the plane, that node
+ *   pinned, and that node held out of a scoped layout. d3 drew a 3D simulation under a 2D camera,
+ *   and a switch that does not rebuild the engine left every Z.
  * - A node an edge left behind, with a row and no record, is kept by an arrangement capture. The
  *   renderer's store answered "no rows" whenever no node had a record, so the capture was empty
  *   and redo left the node unplaced.
@@ -14,6 +16,8 @@
 import { afterEach, assert, describe, it } from "vitest";
 
 import { Graph } from "../../src/Graph";
+import { LayoutEngine } from "../../src/layout/LayoutEngine";
+import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
 
 const cleanups: (() => void)[] = [];
 
@@ -82,22 +86,104 @@ function frames(graph: Graph, count: number): void {
     }
 }
 
-describe.each(["ngraph", "d3", "spring"])("the arrangement under %s", (engine) => {
-    it("puts every node on the plane in 2D and keeps it there, and undo brings the Z back", async () => {
-        const graph = await begin(engine);
-        const session = graph.getSession();
-        const spatial = lane(graph);
+/**
+ * What a registered type needs beyond its defaults to build over `n1 -> n2 -> n3`. A type that
+ * builds with neither fails the case below: a new engine is covered by default, never skipped.
+ */
+const FIXTURES: Record<string, { options?: Record<string, unknown>; accelerator?: true }> = {
+    bfs: { options: { start: "n1" } },
+    bipartite: { options: { nodes: ["n1", "n3"] } },
+    // Told to keep three dimensions, fixed echoes the stored Z into 2D: the element must flatten it.
+    fixed: { options: { dim: 3 } },
+    multipartite: { options: { subsetKey: { a: ["n1", "n3"], b: ["n2"] } } },
+    // Exists only on an accelerator; the fake stands in for one (it has no CPU simulation to run).
+    "spring-electrical": { accelerator: true },
+};
 
-        await session.layout.setDimension("2d");
-        frames(graph, 20);
-        for (const [id, coords] of Object.entries(lane(graph))) {
-            assert.match(coords, /,0$/, `node ${id} is on the plane`);
-        }
+/**
+ * `n1 -> n2 -> n3` laid out by one engine in 3D, at rest, with n1 lifted off the plane.
+ * @param type - The registered layout type.
+ * @param variant - `pinned` pins n1; `held` scopes the layout to n2 and n3, so n1 is held.
+ * @returns The graph.
+ */
+async function lifted(type: string, variant: "free" | "pinned" | "held"): Promise<Graph> {
+    const container = document.createElement("div");
+    container.style.width = "400px";
+    container.style.height = "300px";
+    document.body.appendChild(container);
+    const graph = new Graph(container);
+    cleanups.push(() => {
+        graph.dispose();
+        container.remove();
+    });
+    await graph.init();
+    graph.engine.stopRenderLoop();
+    const fixture = FIXTURES[type] ?? {};
+    if (fixture.accelerator) {
+        graph.acceleration.setAccelerator(createFakeAccelerator());
+    }
 
-        await session.undo();
-        assert.deepEqual(lane(graph), spatial, "undone, the Z the history kept");
+    const session = graph.getSession();
+    await session.data.addNodes([{ id: "n1" }, { id: "n2" }, { id: "n3" }]);
+    await session.data.addEdges([
+        { src: "n1", dst: "n2" },
+        { src: "n2", dst: "n3" },
+    ]);
+    await graph.setLayout(type, fixture.options ?? {}, variant === "held" ? { scope: { nodes: ["n2", "n3"] } } : {});
+    frames(graph, 300);
+    await session.positions.set([{ id: "n1", x: 1, y: 2, z: 5 }]);
+    if (variant === "pinned") {
+        await session.positions.pin(["n1"]);
+    }
+
+    graph.getLayoutManager().running = false;
+    graph.getUpdateManager().stepFrames(1);
+    assert.match(lane(graph).n1, /,5$/, "n1 is off the plane before the switch");
+    assert.strictEqual(graph.getNode("n1")?.mesh.position.z, 5, "and drawn there");
+    return graph;
+}
+
+/**
+ * Switch to 2D, step, and check every node's row and mesh are on the plane; then undo.
+ * @param graph - A graph from `lifted`.
+ */
+async function flattensAndUndoes(graph: Graph): Promise<void> {
+    const session = graph.getSession();
+    const spatial = lane(graph);
+
+    await session.layout.setDimension("2d");
+    graph.getUpdateManager().stepFrames(1);
+    frames(graph, 20);
+    for (const [id, coords] of Object.entries(lane(graph))) {
+        assert.match(coords, /,0$/, `node ${id} is on the plane`);
+        assert.strictEqual(graph.getNode(id)?.mesh.position.z, 0, `node ${id} is drawn on the plane`);
+    }
+
+    await session.undo();
+    assert.deepEqual(lane(graph), spatial, "undone, the Z the history kept");
+}
+
+const types = LayoutEngine.getRegisteredTypes();
+const scoped = types.filter((type) => LayoutEngine.getClass(type)?.scoped === true);
+
+describe.each(types)("the 2D plane under %s", (type) => {
+    it("puts a node that was off the plane on it, and undo brings the Z back", async () => {
+        await flattensAndUndoes(await lifted(type, "free"));
     });
 
+    it("puts a pinned node that was off the plane on it", async () => {
+        await flattensAndUndoes(await lifted(type, "pinned"));
+    });
+});
+
+// Only a scoped engine can hold a node; any other refuses the scope (E_UNSUPPORTED).
+describe.each(scoped)("the 2D plane under a scoped %s", (type) => {
+    it("puts a node the layout holds on the plane", async () => {
+        await flattensAndUndoes(await lifted(type, "held"));
+    });
+});
+
+describe.each(["ngraph", "d3", "spring"])("the arrangement under %s", (engine) => {
     it("keeps a node an edge left behind where it was placed, through undo and redo", async () => {
         const graph = await begin(engine);
         const session = graph.getSession();

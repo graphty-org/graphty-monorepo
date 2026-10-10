@@ -112,6 +112,10 @@ export interface GraphtyElementJSXProps {
      */
     labelDeclutter?: Graphty["labelDeclutter"];
     /**
+     * Switches drawing on demand on or off.
+     */
+    renderOnDemand?: Graphty["renderOnDemand"];
+    /**
      * Sets what a selected node looks like.
      */
     selectionStyle?: Graphty["selectionStyle"];
@@ -257,6 +261,10 @@ export interface GraphtyElementJSXProps {
      * Switches label decluttering on or off.
      */
     "label-declutter"?: boolean;
+    /**
+     * Switches drawing on demand on or off.
+     */
+    "render-on-demand"?: boolean;
     /**
      * Sets the view mode. Switching between 2D and 3D is one undoable step; entering VR or AR is
      * not a step, and from 2D it switches to 3D first in the same step.
@@ -460,6 +468,14 @@ export interface GraphtyElementJSXProps {
      * Emitted after the style stack changed and the graph was repainted for it.
      */
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
+    /**
+     * Emitted when a VR or AR session has ended and the graph is back in its 3D view.
+     */
+    "onxr-session-ended"?: (event: CustomEvent<EventOfType<"xr-session-ended">>) => void;
+    /**
+     * Emitted when a VR or AR session has started and the graph is drawing into it.
+     */
+    "onxr-session-started"?: (event: CustomEvent<EventOfType<"xr-session-started">>) => void;
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
 }
 

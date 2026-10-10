@@ -13,20 +13,6 @@
             "durationMs": 9480,
             "limitMs": 15000,
             "issue": 1786
-        },
-        {
-            "file": "visual-review/test/page.test.mjs",
-            "name": "review page: Accept takes what the filter shows, on an iPad > held upright: under Removed, a component's Accept and the bar's take only removed items",
-            "durationMs": 2610,
-            "limitMs": 5000,
-            "issue": 1808
-        },
-        {
-            "file": "visual-review/test/page.test.mjs",
-            "name": "review page: a pull request > filters by decision, shows each decision on its tile, and undoes one without opening it",
-            "durationMs": 2790,
-            "limitMs": 5000,
-            "issue": 1808
         }
     ]
 }

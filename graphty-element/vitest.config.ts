@@ -63,6 +63,14 @@ const LODASH_FUNCTIONS = [
     "lodash/isEqual.js",
 ];
 
+/**
+ * The workspace packages, which resolve to their built dist/ outside node_modules. Vitest
+ * transforms every module outside node_modules, so in the Node projects it would run each of
+ * these packages' megabytes of built code through its transform pipeline on first import; they
+ * are loaded as plain Node modules instead, like any other dependency.
+ */
+const WORKSPACE_DIST = /\/(graph-format|graph-io|graph-samples|algorithms|layout|webgpu-graph-algorithms)\/dist\//;
+
 /** Everything the browser projects pre-bundle up front. */
 const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS];
 
@@ -270,6 +278,7 @@ export default defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "default",
+                    server: { deps: { external: [WORKSPACE_DIST] } },
                     setupFiles: ["./test/setup.ts"],
                     // The shared config's figure. Tests that import a whole entry point take several
                     // seconds on a CI runner or under the pre-push gate, past vitest's default five.
@@ -359,6 +368,7 @@ export default defineConfig({
                 },
                 test: {
                     name: "mesh",
+                    server: { deps: { external: [WORKSPACE_DIST] } },
                     environment: "node",
                     setupFiles: ["./test/mesh-testing/test-setup.ts"],
                     include: ["test/mesh-testing/**/*.test.ts"],

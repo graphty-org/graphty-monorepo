@@ -3887,7 +3887,8 @@ export class Graph implements GraphContext {
     private settleDimension(twoD: boolean, frame: boolean): void {
         if (twoD) {
             for (const node of this.getNodes()) {
-                node.mesh.position.z = 0;
+                const { x, y } = node.mesh.position;
+                node.setMeshPosition(x, y, 0);
             }
         } else {
             // The array kept every node's Z through the 2D view; a 3D engine that rebuilt has

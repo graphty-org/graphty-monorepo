@@ -291,6 +291,69 @@ describe("renderOnDemand", () => {
         assert.isAbove(restyled.count(), 0, "the new selection style was drawn");
     });
 
+    it("draws a camera moved and animated through the API, then rests", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+        const moved = countDraws(element);
+
+        await element.setCameraState({ position: { x: 0, y: 0, z: 40 }, target: { x: 0, y: 0, z: 0 } });
+        await restsOnTheCurrentPicture(element);
+        assert.isAbove(moved.count(), 0, "the camera move was drawn");
+
+        const animated = countDraws(element);
+        await element.setCameraState(
+            { position: { x: 0, y: 30, z: 30 }, target: { x: 0, y: 0, z: 0 } },
+            { animate: true, duration: 200 },
+        );
+        await restsOnTheCurrentPicture(element);
+        assert.isAbove(animated.count(), 0, "the camera animation was drawn");
+    });
+
+    for (const animation of [
+        { name: "an edge", target: "edge", set: { "edge.animationSpeed": 1 } },
+        { name: "a label", target: "node", set: { "node.label": "LABEL", "node.labelStyle": { animation: "pulse" } } },
+    ] as const) {
+        it(`keeps drawing while ${animation.name} animates, and rests once it stops`, async () => {
+            const element = await mounted(true);
+            await untilResting(element);
+
+            const layer = await element.session.styles.add({
+                name: "moving",
+                target: animation.target,
+                selector: { match: "everything" },
+                set: animation.set,
+            });
+            // Past the frames any edit draws while it settles, only the animation is left asking.
+            await drawsAcross(element, SETTLING_FRAMES);
+            assert.isAtLeast(await drawsAcross(element, RESTING_FRAMES), EVERY_FRAME, "the animation is drawn");
+
+            await element.session.styles.remove(layer.id);
+            await restsOnTheCurrentPicture(element);
+        });
+    }
+
+    it("takes a screenshot of a resting graph, and rests again after it", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+
+        const shot = await element.captureScreenshot({ multiplier: 1 });
+
+        assert.isAbove(shot.blob.size, 0, "the screenshot holds an image");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    it("draws every frame of a video recording of a resting graph, and rests after it", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+        const draws = countDraws(element);
+
+        const result = await element.graph.captureAnimation({ duration: 500, fps: 30, cameraMode: "stationary" });
+
+        assert.isAbove(result.blob.size, 0, "the recording holds video");
+        assert.isAbove(draws.count(), 5, "the still graph was drawn while it was recorded");
+        await restsOnTheCurrentPicture(element);
+    });
+
     it("switched off, draws every frame again", async () => {
         const element = await mounted(true);
         await untilResting(element);

@@ -111,6 +111,12 @@ export class DerivationLane {
      * with live state; what it throws goes where hook errors go. Null outside strict state.
      */
     afterPass: ((target: ProjectState) => void) | null = null;
+    /**
+     * Told at the end of every pass, after its hooks have brought the picture up to date: the one
+     * place every change to project state passes on its way to the screen, so a renderer that
+     * skips frames while nothing changes is told here that something did.
+     */
+    passEnded: (() => void) | null = null;
     /** What the running pass, or the last one, catches up with. */
     private passCauseValue: "command" | "undo" | "redo" | "restore" | "rollback" = "command";
 
@@ -306,6 +312,11 @@ export class DerivationLane {
             }
 
             this.current = null;
+            try {
+                this.passEnded?.();
+            } catch (error) {
+                this.onError(error);
+            }
             pass.resolve();
         }
     }

@@ -30,8 +30,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the computed style; `tmp/r3-dry1-import-pane-scrollbar-gutter/`).
 - (2026-10-10, condensed) **Fixed: a tie picked from the find box moves focus to its values**
   (`focusValuesNext()` / `takeValuesFocus()` in `inspector/reads.ts`; `tasks.real-element.test.tsx`).
-- (2026-10-10, condensed) **Built: the Overview heads its whole-graph rows with `DataRowHeader`**
-  (`inspector/GraphValues.tsx`). Rule: a heading over a run of rows is always `DataRowHeader`.
+- (2026-10-10) **Built: under a filter step, the whole graph's rows get their own "Full graph"
+  `ControlSection`** below an Overview that holds only "Nodes showing" / "Edges showing"
+  (`inspector/GraphValues.tsx`; no step: one Overview, unchanged). Replaces the `DataRowHeader`
+  caption, which read as a row missing its value. Test: Inspector.test "leads the Overview ...".
+  Commit 997395818. Checked on graphty/dist, not frozen yet: T17A/07 and T17B/07 show the
+  heading with a caret, Nodes 20 / 77 and Edges 254 inside; 08 (step off) is one Overview.
+  Evidence `tmp/r3-dry2-overview-full-graph-section/`. In that route, Add step already turns the
+  step on, so a following "Apply step" click turns it off.
 - (2026-10-10, condensed) **Built: words at rest under round 1** on rest, path inspector and
   neighbor list (`tmp/t2r2b-9/bars.log`); the edge inspector is one over (31 of 30). OPEN for the
   studio: which of its two true scope phrases goes.
@@ -74,6 +80,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-10) **A heading that splits a panel into two scopes is a `ControlSection`, not a
+  `DataRowHeader`.** `DataRowHeader` is a column caption: same inset and size as row labels, empty
+  trailing edge, so on its own above value rows it reads as a row whose value is missing (T17B
+  re-pilot: "77" read as the count still drawn). Use it only over a run that has a unit or column
+  to caption (Largest 10, Selection | Graph); a change of scope gets a section heading.
+
 - (2026-10-10) **A command with nothing to do is disabled and says why, in its tooltip.** Filter to
   neighbors stays a command (round 2: a toggle confused on and off with the step's own checkbox),
   but when its step is already on at this reach a press changed nothing and said nothing. Disabled
@@ -87,7 +99,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   selections. A notice about anything else is not taken down by a selection.
 
 - (2026-10-10) **A scrolling pane with a header row reserves its gutter** (`scrollbar-gutter:
-  stable`), rather than moving the header out of the pane: one CSS line, and the Add and Replace
+stable`), rather than moving the header out of the pane: one CSS line, and the Add and Replace
   pages share the pane. Costs 15 px of table width when nothing overflows.
 - (2026-10-10) **One focus request for a find pick, not one per kind.** The pick sets it, and
   whichever view the selection draws (node or edge) takes it once; a second flag per kind would
@@ -209,41 +221,22 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
-- (2026-10-10) Reproducing a missed notice: did not work by route alone (11 walks, none missed).
-  Worked as a method: copy the frozen build into tmp, `chmod -R u+w`, add `console.error("PROBE
-  ...")` at the store's `set` and around `project.open` in the bundle; real.mjs prints every
-  console error in the step's output, with page times. Read the pilot agent's own commands from
-  `.claudehistory/<session>/subagents/workflows/*/agent-*.jsonl` before trusting a triage row's
-  route: this one said "Back to start" and the pilot used `--reopen`.
-
-- (2026-10-10) In `real.mjs`, a `--hover` right after `--click` on the same button prints
-  `tooltip: null` (the pointer never left, so no new mouseenter); hover something else first. A
-  `--click` on an `aria-disabled` button is refused by Playwright as "element is not enabled",
-  which is what a participant pressing it would get: nothing.
-
-- (2026-10-10) Did not work: `document.body.focus()` before Escape after a find-box pick; the pick
-  moved focus to the values and body is not focusable, so Escape went to the inspector and the
-  selection stayed. Worked: `userEvent.click(document.body)`. In `real.mjs`, Escape in the find box
-  only empties it (second Escape keeps it); click the Selection row first, as the pilot did. A
-  walk step that waits past 6 s proves nothing about a notice: put the clear and the new
-  selection in one `--step`.
-
-- (2026-10-10) Did not work: a browser test that measured "File settings" before and after
-  forcing the pane to overflow passed WITHOUT the fix -- vitest's headless Chromium runs with
-  hidden scrollbars (clientWidth stayed 1069). The narrow default viewport also made the row
-  overflow sideways. Worked: assert the computed `scrollbar-gutter`, and measure positions on
-  `real.mjs` screenshots, which draw scrollbars.
-- (2026-10-10) Did not work at first: the edge-pick test matched " -- " ties; the test's two
-  rings load as a directed graph, so the joiner is " -> " (`edgeJoiner`). Read the failure
-  screenshot before changing the code.
-
-- (2026-10-10) Worked: `MutationObserver.takeRecords()` before `disconnect()` in a test; did not
-  work: reading records in the observer's callback, which runs as a microtask after the test had
-  already disconnected (an empty list, with or without the fix). Control on the frozen
-  `tier2-r2d4-8f0d5a6f7`: Medici then Strozzi by find prints "1 node selected" once; on the fixed
-  build twice (`tmp/t2r2b-14/frozen` vs `repeat2`). Did not work: `m.target.textContent.trim()`
-  in the tool's observer -- a record on the document itself has null text, which threw in the
-  page and failed every setup start in `--prove`; `textContent?.trim()` fixed it.
+- (2026-10-10, condensed) **Real.mjs and probe lessons.** A missed notice did not reproduce by
+  route (11 walks); probing worked: copy the frozen build, `chmod -R u+w`, add `console.error`
+  probes in the bundle (real.mjs prints them with page times). Read the pilot agent's own commands
+  in `.claudehistory/.../agent-*.jsonl` before trusting a triage row's route. `--hover` right after
+  `--click` on the same button gives `tooltip: null`; hover elsewhere first. A click on an
+  `aria-disabled` button is refused ("element is not enabled"). Escape in the find box only empties
+  it; put a clear and a new selection in one `--step` (a 6 s wait proves nothing about a notice).
+  Focus tests: `userEvent.click(document.body)`, not `document.body.focus()`.
+- (2026-10-10, condensed) **Test lessons.** Headless vitest Chromium hides scrollbars, so assert
+  computed `scrollbar-gutter` and measure on real.mjs shots. Test rings load directed (" -> "
+  joiner). Use `MutationObserver.takeRecords()` before `disconnect()`; `textContent?.trim()` in the
+  tool's observer (a document record has null text). Read the failure screenshot before changing
+  code.
+- (2026-10-10) Worked: real.mjs runs need no helper and no `rm -rf` (the safety check refuses a
+  variable path); pick a fresh session folder. With all four browser slots held by others,
+  `--start` waits ("waiting for a free browser slot"); it is not hung.
 
 - (2026-10-10) Did not work: `npm run build` while another agent's untracked
   `graphty/src/zz-probe/` test broke `tsc`; worked: `npx vite build --outDir tmp/<task>/dist`

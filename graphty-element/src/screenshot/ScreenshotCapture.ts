@@ -132,7 +132,7 @@ export class ScreenshotCapture {
 
         // 2. Wait for layout to settle if requested
         if (timing.waitForSettle) {
-            await this.waitForLayoutSettle();
+            await this.waitForLayoutSettle(timing.settleTimeoutMs ?? SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS);
         }
 
         // 3. Handle camera override
@@ -323,11 +323,12 @@ export class ScreenshotCapture {
      * Waits for the layout engine to settle before capturing a screenshot.
      * If no layout engine is active or it's already settled, returns immediately.
      * Throws ScreenshotError with LAYOUT_SETTLE_TIMEOUT if the layout doesn't settle
-     * within the configured timeout (SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS).
+     * within the given timeout.
+     * @param timeoutMs - How long to wait, in milliseconds.
      * @returns Promise that resolves when layout has settled
      * @internal
      */
-    private async waitForLayoutSettle(): Promise<void> {
+    private async waitForLayoutSettle(timeoutMs: number): Promise<void> {
         const layoutManager = this.graph.getLayoutManager();
 
         if (!layoutManager.layoutEngine) {
@@ -367,7 +368,7 @@ export class ScreenshotCapture {
                         ),
                     );
                 }
-            }, SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS);
+            }, timeoutMs);
 
             const handler = (): void => {
                 if (!completed && atRest()) {

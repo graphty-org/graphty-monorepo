@@ -15,7 +15,7 @@ import { handTracking } from "../scene/xr";
 import { createInput, type Edge, type InputLayer } from "./input";
 import type { Logger } from "./logging";
 import type { Settings } from "./settings";
-import type { HoverInfo, PressSession, TargetProvider, Technique, TechniqueContext } from "./technique";
+import type { HoverInfo, PressSession, TargetProvider, Technique, TechniqueContext, ToolOffer } from "./technique";
 import { createTextSeam } from "./text-seam";
 
 /** Framework actions, filled in by the panels that implement them. */
@@ -91,6 +91,16 @@ export function createFramework(
     let lastFrame = 0;
     const dominant = (): Hand => (settings.get("framework.dominantHand") === "left" ? "left" : "right");
     const off = (h: Hand): Hand => (h === "left" ? "right" : "left");
+    // The tools seam (plan section 1.3): offered tools by id, and which provider each hand holds.
+    const toolOffers = new Map<string, { owner: string; tool: ToolOffer }>();
+    const toolHeld: Record<Hand, string | null> = { left: null, right: null };
+    const toolReason = (id: string): string | null => {
+        const o = toolOffers.get(id);
+        if (!o) {
+            return `no tool ${id}`;
+        }
+        return on.has(o.owner) ? null : `${techniques.find((x) => x.id === o.owner)?.name ?? o.owner} is off`;
+    };
 
     const anchors = {
         "hand-left": new TransformNode("anchor-hand-left", scene),
@@ -275,6 +285,22 @@ export function createFramework(
                     textSeam.provide(fn);
                 },
             },
+            tools: {
+                offer: (tool) => {
+                    toolOffers.set(tool.id, { owner: t.id, tool });
+                },
+                take: (id, hand) => {
+                    const why = toolReason(id);
+                    if (!why) {
+                        toolOffers.get(id)?.tool.take(hand);
+                    }
+                    return why;
+                },
+                reason: toolReason,
+                hold: (hand, id) => {
+                    toolHeld[hand] = id === null ? null : t.id;
+                },
+            },
         };
     };
 
@@ -376,6 +402,12 @@ export function createFramework(
         };
         if (press.context === "node" && press.target < 0) {
             press.context = "graph";
+        }
+        // A hand holding a tool (design section 5.3): its select and squeeze go to the tool's provider.
+        const holder = toolHeld[e.hand];
+        if (holder && on.has(holder) && press.context !== "ui" && (e.channel === "select" || e.channel === "squeeze")) {
+            press.context = "tool";
+            press.detail = holder;
         }
         live.set(key, { press, startOrigin: (h?.origin ?? Vector3.Zero()).clone() });
         arbiter.start(press);

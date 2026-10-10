@@ -111,6 +111,28 @@ export interface TechniqueContext {
         /** For the text entry technique only: become the provider, or stop being it with null. */
         provide(fn: TextProvider | null): void;
     };
+    /**
+     * Hand-held tools (plan section 1.3): physical tools and dense picking offer them; the Figma
+     * toolbar, the palette and node menus hand them to the owner with `take`.
+     */
+    tools: {
+        /** Provider: offer a tool at prepare. */
+        offer(tool: ToolOffer): void;
+        /** Consumer: put tool `id` in a hand. Returns null, or why it cannot (to gray the item). */
+        take(id: string, hand: Hand): string | null;
+        /** Why tool `id` cannot be taken now, or null. */
+        reason(id: string): string | null;
+        /** Provider: what a hand holds; that hand's select and squeeze then have context "tool", detail = the provider's id. */
+        hold(hand: Hand, id: string | null): void;
+    };
+}
+
+/** A tool a technique offers to the others. */
+export interface ToolOffer {
+    /** "sieve", "probe", "slab". */
+    id: string;
+    /** Put it in this hand. */
+    take(hand: Hand): void;
 }
 
 /** A request for a line of text. */

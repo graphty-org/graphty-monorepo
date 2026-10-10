@@ -26,12 +26,7 @@ export interface ShellLayoutOptions extends CommonLayoutOptions {
  * @param center - at least 2 components
  * @returns `2 * n` values, NaN for a node in no shell
  */
-export function shellRows(
-    n: number,
-    shells: readonly ArrayLike<number>[],
-    scale: number,
-    center: readonly number[],
-): F64 {
+function shellRows(n: number, shells: readonly ArrayLike<number>[], scale: number, center: readonly number[]): F64 {
     const rows = new Float64Array(2 * n).fill(Number.NaN);
     if (shells.length === 0) {
         return rows;

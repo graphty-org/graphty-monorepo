@@ -5,10 +5,19 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-09 (tier 2 round 2 decided; 15 changes for round 3).
+Last updated: 2026-10-10 (round 3 first dry run triaged: 8 fixes in six units before the r3 sessions).
 
 ## Top of mind
 
+- 2026-10-10: ROUND 3 FIRST DRY RUN (`tier2/dry-run-r3-1.md`): 100 rows, 8 fixes in six app units
+  (Overview "Full graph" as a `DataRowHeader`, import pane `scrollbar-gutter`, stale "Selection
+  cleared" toast, "Filter to neighbors" disabled when it has nothing to do, tie pick moves focus,
+  missing "Opened <name>" on the first reopen). Refreeze and re-pilot T4, T17, T19, T21, T22, T23,
+  T12R before any r3 session. Over 80% of items were repeats the key already holds.
+- 2026-10-10: A "fewer words" cut can turn a sentence into a fake row ("Full graph" in row
+  styling). When text becomes a heading, use the shared heading component, never a dimmed line.
+- 2026-10-10: A plain command whose press would change nothing is disabled with its reason (as
+  Undo is). That is not a toggle; it keeps the round 2 "plain command" decision.
 - 2026-10-09: TIER 2 ROUND 2 DECIDED (`tier2/rounds/round-2/decisions.md`): 15 changes, study
   first. Yes, there was a dry run, and it worked on what it walked (about 30 of 355 problems were
   build faults, none above severity 2, none decided a grade). Twelve of the 30 sat on the one
@@ -33,15 +42,9 @@ Last updated: 2026-10-09 (tier 2 round 2 decided; 15 changes for round 3).
   (`DEFAULT_HIGHLIGHT`) it just does not expose. Expose the fact; never scale in the app.
 - 2026-10-09: Several proposals on one problem: ship one path (miss, hint, run) and hold the rest
   so a round can credit it. Reject flags whose off-state nobody wants (capability, not choice).
-- 2026-10-09: Persona scripts and prompt words decide outcomes ("stand out" invited styling).
-  Graders label behavior the prompt asked for; reword only prompts that do not measure it.
-- 2026-10-09: A simulated returning user goes first where its history points; credit the second
-  place they look. A failure is strong evidence, a pass weak.
 - 2026-10-09: Bar 10 drawn-name overlap stays graphty-element's label placement: owner evidence,
   never an app patch.
 - 2026-10-09: A pattern fixed in one place is a defect wherever it is missing. Grep for siblings.
-- 2026-10-08: TIER 2 CRITERIA FROZEN (`tier2/criteria.md`). 11 bars; "not scored" never holds; no
-  round cap; stall = no progress.
 - 2026-10-07: Words: glossary wins. Severity 4 needs a wrong conclusion a reader would act on.
 - Before a new element API, grow an existing method. Remove before adding; words at rest never rise.
 
@@ -136,28 +139,12 @@ Last updated: 2026-10-09 (tier 2 round 2 decided; 15 changes for round 3).
   issue), compact-mantine toast role and segmented fill, bare numbers (owner). Reason throughout:
   one door per problem so round 2 can credit each change; measurement before any app change.
 
-- 2026-10-09 -- Round 2 dry runs one to three (summarized; full text in
-  `tier2/dry-run-r2-{1,2,3}.md` and git history of this file). Fixed: the chosen segment's fill
-  and weight (compact-mantine), find's bare-number hint quoting the reader's own rule (element
-  `suggestion`, additive), `applyNow` not notifying an origin change and an unparsed suggestion
-  (element), the shared menu's pointer rule for an enabled first row (compact-mantine), "All N
-  rows" captions, the neighbor list's reach under a 2-hop filter and its wrapped heading, the
-  "Add a table" tooltip opening left (reversed a keep: reported every round, one prop), the
-  study tool's click timeouts and empty tooltip report. Kept with reasons named once: focus on a
-  heading (boxed and underlined each read as a control), transient tooltips and menus, "on N
-  nodes", the weight note's "a path needs a distance" (T18 follow-up measures it), "auto" on
-  the import page (a naming question).
-
-- 2026-10-09 -- Fourth round 2 dry run triage (me, `tier2/dry-run-r2-4.md`). Fixed: the source
-  inspector heading draws its row's glyph (the left-out row lost its warning triangle once
-  opened); "Advanced run settings" and the histogram's summary line aligned; the find box sets
-  quoted rules in monospace (a backtick read as an apostrophe) and marks the option Enter picks
-  (the path form already did); a click on a drawn name picks its node, as a new element label
-  option whose default keeps today's behavior and which the app turns on (Cytoscape.js passes
-  label clicks through by default, so it is a consumer's choice, not a default to change). Kept as
-  design: one name or two for project and file (the Graph title "friends-v2.csv" may be a T21
-  cue); the left-out row quoting the file's id (the key takes either). Reason throughout: a
-  defect is fixed only when a participant could hit it on a walked route or a common detour.
+- 2026-10-09 -- Round 2 dry runs one to four (summarized; full text in
+  `tier2/dry-run-r2-{1,2,3,4}.md` and git history of this file). Fixed in the owning package:
+  segment fill, find-box hints and Enter target, `applyNow` notify, shared menu first-row rule,
+  "All N rows", neighbor list reach, source inspector glyph, run inspector alignment, label clicks
+  as a new element option. Kept with reasons named once: focus on a heading, transient tooltips
+  and menus, "auto" on the import page, one name or two for project and file.
 
 - 2026-10-09 -- Tier 2 round 2 decisions (me, `tier2/rounds/round-2/decisions.md`), from insights,
   eight proposals and the red team, code claims checked in source. Study first: session folders
@@ -175,6 +162,18 @@ Last updated: 2026-10-09 (tier 2 round 2 decided; 15 changes for round 3).
   only when drawing and run differ); path aliases for bar 11; weighted total on the run row; Filter
   to neighbors a plain command; repeated status re-announced; T22/T24 lose "stand out". Held:
   label overlap (element), neighbor depth groups, "Edit source" title, "Components 1".
+
+- 2026-10-10 -- Round 3 first dry run triage (me, `tier2/dry-run-r3-1.md`). Fixed: the
+  Overview's "Full graph" (drawn as a row label, it read as a missing value and invited the
+  misreading the key grades; compact-mantine `DataRowHeader` already exists); the import pane's
+  header moving 15 px with its scrollbar (reversed the third round 2 dry run's "polish, leave":
+  a misalignment met on every two-table load, one CSS line); "Selection cleared" outliving the
+  selection that replaced it; "Filter to neighbors" doing nothing on a second press (disabled with
+  its reason); a tie pick leaving focus in the emptied find box (node picks already move it); the
+  first reopen of a saved project drawing no "Opened" notice (cause untraced; unit reproduces it
+  first). Kept: tie From/To in list-row style (they open their node, like Degree), "km 7.5" (the
+  Summary's own order), the 180 px tooltip wrap (shared rule), "11:0 3" (capture font: same gap
+  in "sh eet"), the Hops 2 heading without its reach (deliberate; the key records misreadings).
 
 ## Tried: worked / did not work
 
@@ -245,6 +244,12 @@ Last updated: 2026-10-09 (tier 2 round 2 decided; 15 changes for round 3).
   `owner-decisions.md` before ruling on a "units bug" -- the width question was already measured
   and on the owner's list, which settled the red team's objection in one read.
 
+- 2026-10-10 (round 3 first dry run) -- Worked: checking each "new" item against the key and the
+  four round 2 triages first; most of 92 were repeats, so time went to the eight that were not.
+  Worked: reading the screenshot before the claim (the tie values' gray was a clickable-row rule;
+  the timestamp gap appears inside words too). Did not work: a pilot claim with no traced cause
+  ("first open showed no notice") cannot be fixed by reading; it goes out as a reproduce-first unit.
+
 ## Thinking
 
 - **2026-10-09, what round 1 taught about the study itself:** a dry run that clears only the key's
@@ -270,6 +275,7 @@ Last updated: 2026-10-09 (tier 2 round 2 decided; 15 changes for round 3).
 
 ## Sources
 
+- Round 3 first dry run (2026-10-10): `tier2/dry-run-r3-1.md`, pilots in `tier2/rounds/r3/pilot/`.
 - Tier 2 round 2 (2026-10-09): `tier2/rounds/round-2/{plan,preflight,scores,insights,decisions}.md`; proposals in `notes/{user,researcher,ia,content,interaction,figma,visual,a11y,engineer,redteam}.md`.
 - Tier 2 round 1 (2026-10-09): `tier2/rounds/round-1/{plan,scores,insights,decisions}.md`, sessions in `tier2/rounds/round-1/sessions/`.
 

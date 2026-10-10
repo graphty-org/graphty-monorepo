@@ -7,33 +7,35 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- 2026-10-09 TIER 2 ROUND 1 word proposals (see Decisions 2026-10-09). Biggest: the find box's
-  "No match" for a typed condition (4 of 4, T22 under its floor) -- add one hint line naming
-  how a rule starts, only when the text holds a comparison sign. Words, not a new route.
-- 2026-10-09 "Total distance 14" has no unit (7 of 7): label it "Total <weight column>", the
-  2026-09-29 rule. Never "distance" for a value the data names.
-- 2026-10-09 "Not read -- weight's meaning is not set, and a path needs a distance" was
-  "gibberish" on a correct unweighted path (4 sessions). Lead with what the run did:
-  "Each edge counts as 1" plus the cause; never point at a remedy route the screen lacks.
-- 2026-10-09 Out-of-date run: the key must carry the tree's own words ", out of date" (bar 5
-  fails); the Replace status says "rows out of date" where it means runs.
-- 2026-10-09 One name per thing broke again: the load status says "Untitled" (fallback in
-  `project/actions.ts` headerName) while the header shows the graph's name.
-- 2026-10-09 Keep "hops" (field term, glossary) -- serve readers with Analyze aliases
-  ("chain", "quickest", "link", "between"), never a rename; the T23 task title says "step".
-- 2026-10-09 Dry-run lesson: participants met no broken control on dry-run routes; word
-  problems came from routes and detours the dry run never walked. Walk the commonest detours.
-- 2026-10-07 Shortest path on friends.csv reading tie strength as distance is a wrong answer,
-  not wording; an unset meaning must never be read as distance (element).
-- 2026-10-07 Bare numbers in rules (backticks) is a query-format change -> owner list; the app
-  words the element's refusal code and never works around it.
-- 2026-10-07 Element English leaks (layout refusals) are element defects: code + params.
-- 2026-10-07 CSV export headers `results.louvain.group` -- check whether a format contract
-  (one-way door) before renaming.
-- 2026-10-06 Words cannot fix a missing route; fix by deletion first; refusals sit next to the
-  control that failed; a word never promises what the screen does not do.
-- 2026-10-06 Budgets: at rest <= 50 words, inspector ~30 (max 40). Bar 9 never counted.
-- 2026-10-06 Simulated evidence: a fail is strong, a pass weak; task wording never echoes a fix.
+- 2026-10-09 Round 1 closed; ALL my word proposals adopted (decisions change 4, 8, 10, 14).
+  Round 2 judges them: if the find hint fails with 3+ looking in one place, a "Select where"
+  route comes next -- words were the cheaper try, not the last.
+- 2026-10-09 Find hint: the ELEMENT decides if the text is a rule (`scope.count({ where })`,
+  ok or only "number-needs-backticks"); the app reads no syntax. Line: "To select by a value,
+  start with =, such as <example>" from `exampleRule`, monospace. Watch T22 (below floor).
+- 2026-10-09 "Total <weight column>" for "Total distance" (7 of 7); unweighted note leads with
+  "Each edge counts as 1." -- watch T20 that nobody calls it gibberish again.
+- 2026-10-09 One name per thing: load status uses `headerName` + "N rows left out", spoken once
+  in one polite region; "N runs out of date" (not rows); Add summary per-file counts.
+- 2026-10-09 Key title ", out of date" from `run.stale` -- the tree's own words, no color marks.
+- 2026-10-09 Replace page button "Replace" (not "Load"); Shortest path aliases chain, quickest,
+  link, between; description "shortest path by weight", not "route". Hops stays.
+- 2026-10-09 New at rest in round 2: only the inspector "..." menu and the key's out-of-date
+  mark. Bar 9 (words at rest) now gets a real script -- count it, do not assume it holds.
+- 2026-10-09 Dry run: yes, 4 builds + frozen pilot, no broken control on its routes; but it
+  walked only answer-key routes, by pointer, and never the study tool. Round 2 waits for a dry
+  run of detours (pointer AND keyboard) and the tool. Word faults hide on detours: walk them.
+- 2026-10-09 Live-region words: wording a status is not done until it is announced once
+  ("RunningCancel", role=alert per keystroke were word bugs too).
+- 2026-10-09 Deferred, mine to re-raise only on evidence: Hops, Select endpoints, Leave out
+  preselected; Toast role=alert is a compact-mantine fix later.
+- 2026-10-07 Unset meaning never read as distance (element); bare numbers in rules is on the
+  owner list; element English leaks are element defects (code + params).
+- 2026-10-07 CSV export headers `results.louvain.group` may be a format contract -- one-way door.
+- 2026-10-06 Words cannot fix a missing route; refusals next to the failed control; a word
+  never promises what the screen does not do; task wording never echoes a fix.
+- 2026-10-06 Budgets: at rest <= 50 words, inspector ~30 (max 40).
+- 2026-10-06 Simulated evidence: a fail is strong, a pass weak.
 
 ## Priorities and values
 
@@ -139,6 +141,12 @@ I read this file at the start of every session and update it as I decide and lea
   path: aliases chain, quickest, link, between; its line says "path", not "route". Kept as is:
   hops, Select endpoints, Dijkstra, Higher means, the Replace report, "N of M nodes" chip.
   Reason: each fixes a confirmed finding with the fewest words; none adds text at rest.
+
+- 2026-10-09 Round 1 closed (tier 2 decisions.md): my seven proposals adopted as changes 4, 8,
+  10 and 14, with one correction I accept -- the find hint fires when the element says the text
+  is a rule, not when the app sees a comparison sign (the app must read no rule syntax). Reason:
+  each fixes a confirmed finding with the fewest words and nothing new at rest. "Select where"
+  routes held back so the words' effect is measured alone. Studio, reversible.
 
 ## Tried: worked / did not work
 

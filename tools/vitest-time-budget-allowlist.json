@@ -22,6 +22,13 @@
             "issue": 1803
         },
         {
+            "file": "graph-format/test/audit/invariants-validate.test.ts",
+            "name": "I3 near MAX_COUNT (design 11.3: E_TOO_LARGE at the add* call that crosses the limit) > refuses an explicit id past the 2^24 entries one id map holds with E_TOO_LARGE, never a bare RangeError",
+            "durationMs": 7690,
+            "limitMs": 30000,
+            "issue": 1803
+        },
+        {
             "file": "graph-format/test/build-output.test.ts",
             "name": "Build Output Tests > should publish no runtime code that stamps wire files as dev",
             "durationMs": 8820,
@@ -113,6 +120,20 @@
             "issue": 1806
         },
         {
+            "file": "graphty-element/test/packaging/babylon-side-effects.test.ts",
+            "name": "Babylon.js side-effect imports > every module calling an augmented method imports the module that installs it",
+            "durationMs": 8060,
+            "limitMs": 30000,
+            "issue": 1806
+        },
+        {
+            "file": "graphty-element/test/session/history/scale.test.ts",
+            "name": "what each kind of step retains, at the largest graph a session holds > thirty removals from the middle of the rows, undone without awaiting, cost one rebuild, at the next read",
+            "durationMs": 10610,
+            "limitMs": 30000,
+            "issue": 1806
+        },
+        {
             "file": "graphty/eslint-rules/__tests__/no-element-mutation.test.ts",
             "name": "no-element-mutation > valid > import type { Graph, Graphty as GraphtyElement } from \"@graphty/graphty-element\";\nimport type { GraphSession, TransactionScope } from \"@graphty/graphty-element/session\";\ndeclare const element: GraphtyElement;\ndeclare const graphty: Graph;\ndeclare const session: GraphSession;\ndeclare const tx: TransactionScope;\nsession.data.addNodes([{ id: \"a\" }]);\n",
             "durationMs": 27480,
@@ -144,6 +165,13 @@
             "file": "graphty/src/components/shell/__tests__/AppShell.real-element.test.tsx",
             "name": "the shell's main flows, by real input, on the real graphty-element > opens the command palette with its field focused, so typing goes straight in",
             "durationMs": 6820,
+            "limitMs": 15000,
+            "issue": 1786
+        },
+        {
+            "file": "graphty/src/components/shell/__tests__/AppShell.real-element.test.tsx",
+            "name": "the inspector's Pin verb on the real graphty-element > pins a numeric node by its printed id and draws the Pinned badge",
+            "durationMs": 4210,
             "limitMs": 15000,
             "issue": 1786
         },
@@ -603,6 +631,62 @@
             "issue": 1808
         },
         {
+            "file": "visual-review/test/page.test.mjs",
+            "name": "review page: a pull request > loads each tile's thumbnail from the server, not the full image",
+            "durationMs": 1290,
+            "limitMs": 5000,
+            "issue": 1808
+        },
+        {
+            "file": "visual-review/test/page.test.mjs",
+            "name": "review page: a pull request > spotlights the change: dimmed everywhere but around the changed pixels",
+            "durationMs": 1470,
+            "limitMs": 5000,
+            "issue": 1808
+        },
+        {
+            "file": "visual-review/test/page.test.mjs",
+            "name": "review page: a pull request > keeps focus on the page, so an iPad's keyboard reaches the shortcuts",
+            "durationMs": 1500,
+            "limitMs": 5000,
+            "issue": 1808
+        },
+        {
+            "file": "visual-review/test/page.test.mjs",
+            "name": "review page: a pull request > narrows by text and opens a number or a story id",
+            "durationMs": 1720,
+            "limitMs": 5000,
+            "issue": 1808
+        },
+        {
+            "file": "visual-review/test/page.test.mjs",
+            "name": "review page: a pull request > Find story narrows Accept to the stories it shows, and the question says so",
+            "durationMs": 1570,
+            "limitMs": 5000,
+            "issue": 1808
+        },
+        {
+            "file": "visual-review/test/page.test.mjs",
+            "name": "review page: a pull request > Shift+A accepts the project, and Finish states what it will do and who signs",
+            "durationMs": 1600,
+            "limitMs": 5000,
+            "issue": 1808
+        },
+        {
+            "file": "visual-review/test/page.test.mjs",
+            "name": "review page: a pull request > shows at once that Finish is checking, and says when it is cancelled",
+            "durationMs": 1400,
+            "limitMs": 5000,
+            "issue": 1808
+        },
+        {
+            "file": "visual-review/test/page.test.mjs",
+            "name": "review page: a pull request > offers no Finish while nothing is decided, and says why",
+            "durationMs": 1300,
+            "limitMs": 5000,
+            "issue": 1808
+        },
+        {
             "file": "visual-review/test/serve.test.mjs",
             "name": "serve: loading without waiting > answers 202 for a project still downloading, with the bytes, until it lands",
             "durationMs": 1460,
@@ -631,6 +715,13 @@
             "issue": 1808
         },
         {
+            "file": "visual-review/test/serve.test.mjs",
+            "name": "serve: local previews of a pull request > shows a preview for a project CI has not captured while another project of the run still downloads",
+            "durationMs": 1310,
+            "limitMs": 5000,
+            "issue": 1808
+        },
+        {
             "file": "webgpu-graph-algorithms/test/algorithms/bfs.test.ts",
             "name": "breadthFirstSearch (design 8.4 / 9.7; P8-T6) > the maxDepth normalisation cases on the grid, each compared with the oracle under the SAME raw value: 0 and -1 are the source alone, 2.5 is 3, Infinity and NaN are no cap; none throws",
             "durationMs": 11020,
@@ -649,6 +740,20 @@
             "name": "compile matrix on Chromium > compiles every case of fa2-attraction on Chromium (twin cases on both feature settings)",
             "durationMs": 44850,
             "limitMs": 120000,
+            "issue": 1809
+        },
+        {
+            "file": "webgpu-graph-algorithms/test/layouts/fa2-options.test.ts",
+            "name": "createForceAtlas2: creation errors and the repulsion tier rule (spec 7.8, 7.14) > applies the tier rule at load(): auto above exactMaxNodes and an explicit grid select the grid tier, exact never (spec 7.8)",
+            "durationMs": 8590,
+            "limitMs": 30000,
+            "issue": 1809
+        },
+        {
+            "file": "webgpu-graph-algorithms/test/layouts/frame-loop.test.ts",
+            "name": "frame loop on the GPU ForceAtlas2 simulation (spec 7.19; 11.4 last bullet) > a coalesced step() returns the same promise object: the OLDEST pending batch's (spec 7.19 item 3, 9.4 item 4)",
+            "durationMs": 10730,
+            "limitMs": 30000,
             "issue": 1809
         }
     ]

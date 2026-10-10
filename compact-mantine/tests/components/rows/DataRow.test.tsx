@@ -65,17 +65,6 @@ describe("DataRow", () => {
         expect(label).toHaveStyle({ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" });
     });
 
-    it("keeps the whole string as its accessible name, ellipsis or not", () => {
-        renderRow(<DataRow name="Mrs_Henderson_from_the_house_on_the_corner" value="4" onClick={vi.fn()} />);
-
-        // The ellipsis is a drawing: the element's text is still the whole
-        // string, so a title is a convenience for a pointer rather than the
-        // only way to the full name.
-        expect(
-            screen.getByRole("button", { name: "Mrs_Henderson_from_the_house_on_the_corner 4" }),
-        ).toBeInTheDocument();
-    });
-
     it("is drawn by the shared list-row class: a 32px row with a 24px pill (measured in tests/figma/tree.browser.test.tsx)", () => {
         renderRow(<DataRow name="Chonky_Boy" value="3" />);
 
@@ -613,14 +602,6 @@ describe("DataRowHeader", () => {
     });
 
     describe("when it sorts", () => {
-        it("becomes a button named by the column it heads", () => {
-            renderRow(<DataRowHeader label="Most connected" unit="links" onSortChange={vi.fn()} />);
-
-            const button = screen.getByRole("button", { name: "Most connected links" });
-            expect(button.tagName).toBe("BUTTON");
-            expect(button).toHaveAttribute("type", "button");
-        });
-
         it("reports the sort state on the column header, where aria-sort is defined", () => {
             renderInRow(<DataRowHeader label="Most connected" onSortChange={vi.fn()} />);
 

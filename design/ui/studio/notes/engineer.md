@@ -11,54 +11,59 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-09) **Round 2 screenshot audit done (`tier2/rounds/round-2/expert/engineer.md`, 33
-  findings, 2 at severity 3, both graphty-element labels).** New on study data: drawn names hide
-  each other (Farah under Chloe, Eli under Dev) and the picked tie under the "Stadium" label; labels
-  shrink to ~8 px at 900 x 700. Next app fixes, by severity: two-table source has no Edit/Replace
-  and no reason; "Edit source..." lands on "Replace: ..."; the refused rule's fix drops "=";
-  the neighbor Back row scrolls the inspector sideways.
-- (2026-10-09) **Tier 2 round 1 is closed. Its lesson: a dry run that walks only the answer key's
-  routes lets build defects reach participants on the detours.** On walked routes no participant
-  met a broken control (every `session.log` empty); off them they met style-to-Everything, the
-  halo tint, and focus loss after Add/Delete step. Round 2 starts only after the tool is fixed,
-  the bar scripts exist, and the dry run walks detours by pointer AND keyboard on the frozen build.
-- (2026-10-09) **The study tool reached participants more often than the build did.** Over four
-  sessions alive (load ~158, click timeouts), wrong-row matches, synthetic file drop doing nothing,
-  missing follow-ups, a participant reading facilitator files. Treat the tool as a product under
-  test: every tool change gets a planted-failure check before sessions run.
-- (2026-10-09) **Dry run for round 2 = `tier2/pilot/detours.sh all`** (success paths, `--sr`
-  keyboard walks, round 1 wrong turns, each with `--expect`); report `tier2/dry-run-r2-1.md`. Re-run
-  it on every new frozen build; a session starts only when it is clean. Re-pilot: `repilot.sh`.
+- (2026-10-09) **Round 2 critique: the next round's first fix is the study tool, not the app.**
+  Participants read the facilitator's `tasks.md` (13 of 16 follow-ups answered early; r2-s05
+  voided), so every route that worked is weak evidence. `real.mjs --start` must refuse a session
+  folder without the briefing it wrote, and participants run from that folder. Re-run the three new
+  routes (weight meaning at load, Replace in "...", find's rule hint) before crediting them.
+- (2026-10-09) **Did the dry run work? Mostly.** About 30 of ~355 recorded problems were build
+  faults, none above severity 2, no grade decided by one; the only `session.log` line is r2-s13's
+  900 s idle close. Twelve of the thirty sit on the one detour no dry run walked: styling a
+  selection. The dry run must walk what participants style, not only what the answer key styles.
+- (2026-10-09) **A new style line starts on the element's default, which is what is already drawn**
+  (`startingValue` in `style/row.ts` reads `descriptor.default`): edge Width 8 and Color A9A9A9
+  change nothing. Proposed: the app starts a line on a layer that does not target Everything one
+  visible step away (color from the app palette, width double the default). App choice, no door.
+- (2026-10-09) **Rerunning on a newer file: one door fixes two findings.** The Add page offers
+  "friends-v2 adds 0 nodes, 41 edges" and Load doubles ties. Proposed: graphty-element reports how
+  many added edges repeat an existing tie in the add preview (additive); the app says so and offers
+  Replace right there (reusing `useSourceActions`).
+- (2026-10-09) **Find box, severity 3:** "chapters 10" says only "No match". Proposed: when plain
+  text names part of a column the app already lists after "=", hint "=<column> >= `10`"; for bare
+  numbers an opt-in element parse option (`bareNumbers`, default off, additive) instead of changing
+  what the selector accepts (that would be breaking).
+- (2026-10-09) **Drawn names covering names and the picked tie stay graphty-element's** (label
+  placement, no size floor). Not a round 3 app change; no workaround in the app.
+- (2026-10-09) **A layer made from a rule should be named by the rule**, not "13 edges"
+  (`selection.origin.text` is already read in `FindBox`). Smallest fix for "the key says nothing".
+- (2026-10-09) **Open from the round 2 audit, app:** two-table source has no Edit/Replace and no
+  reason; "Edit source..." lands on "Replace: ..."; the refused rule's fix drops "="; neighbor
+  Back row scrolls the inspector sideways.
+- (2026-10-09) **Dry run = `tier2/pilot/detours.sh all`** on every new frozen build, plus this
+  round's detours: style a selection (width, color, name), click away from an open step editor,
+  run a path twice, reopen the Path form, open a newer copy of a loaded file.
+- (2026-10-09) **Script before calling it a defect:** a half-made filter step discarded on another
+  selection (the tool's click caused r2-s17/18), empty-canvas click while a run is selected, edge
+  width units (`EdgeMesh.ts` *20 and /40; "8" drawn as a hairline).
+- (2026-10-09) **The study tool reaches participants more often than the build does.** Every tool
+  change gets a planted-failure check; click by name landing on a same-named control (r2-s17, s18,
+  s30) needs a refusal like ambiguous names already get.
 - (2026-10-09) **Bars 2, 7, 8, 9 are scored by `tool/bars.mjs`**, each with one planted failure.
-  A bar with no script cannot hold, whatever sessions show.
-- (2026-10-09) **Round 2 build changes landed** (each tested): find hints the rule a typed condition
-  would be; source inspector "..." menu holds Replace and Edit source; a data file from the start
-  screen goes through the Data page; step-editor focus; true load words spoken once; ellipsized
-  find rows; ", out of date" on the canvas key; style lines never fall back to Everything
-  (`writeLine` requires the layer); halo draws back faces only; path Weight starts on the loaded
-  weight.
-- (2026-10-09) **Find marks the option Enter picks** (`target` in `FindBox` drives Enter, `current`
-  and `aria-activedescendant`); quoted rules are `ws-mono`.
-- (2026-10-09) **Label clicks pick the node when the label style sets `pickable: true`**
-  (additive, default off; resolved in `pickNodeId` via label metadata). Decided by the team.
-- (2026-10-09) **The neighbor list opens at the on filter step's reach**; its heading wraps via
-  compact-mantine `ControlSection wrapLabel` (additive). In `real.mjs` hover it as `"<text>#2"`.
-- (2026-10-09) **`real.mjs` reports what happened:** `slow click (landed)`, `tooltip: null`,
-  notices that came and went, ambiguous names refused with `"<name>#n"`; one 4-browser pool.
-- (2026-10-09) **Watch in round 2:** whether find's rule hint lets T22 succeed without help;
-  whether "..." on the source is found for Replace (T21, was median 9 steps); whether the Data-page
-  route costs tier 1's open-your-own-file bar; whether ", out of date" is noticed; any `session.log`
-  line at all (a non-empty log is a dry-run miss, record which detour).
-- (2026-10-09) **Open, not mine to fix in the app:** drawn names overlap and run off the canvas
-  (element label placement, severity 3 class); selection/focus ring contrast (#811); edge width
-  units (`EdgeMesh.ts` *20 and /40) need a script before being called a defect.
-- (2026-10-09) **One-session claims need a script first** (Analyze popover not closing, thin
-  Direction list): never call a defect from one session under load.
-- (2026-10-09) **Left-edge tests measure a Range over contents**, not the padded box.
-- (2026-10-09) **Per-change details for the round 2 fixes** are in this file's git history
-  and in each change's test; this file keeps only the lesson.
+- (2026-10-09) **Per-change details for the round 2 fixes** are in this file's git history and in
+  each change's test; this file keeps only the lesson.
 
 ## Decisions and reasons
+
+- (2026-10-09) **Round 2 critique: smallest changes, ranked by what a returning user loses.**
+  1 study tool (briefing only), 2 the Add page warns on repeated ties and offers Replace, 3 find's
+  hint for a condition in the reader's words, 4 a new line starts visible, 5 a rule-made layer is
+  named by its rule. Reason: 1 decides whether round 3 measures anything; 2 is the only finding one
+  slip from severity 4; 3 is the one confirmed broken habit; 4 caused twelve of the build faults;
+  5 is one string. Not changed: no new words at rest (bar 9 b already fails), no Filters hint on
+  the Graph place (found in 1 to 2 steps by 8 of 8), the path tool's place (find led all 8 to a
+  right answer), label placement in the app, the element's style defaults (neutral; the starting
+  value is the app's choice), the frozen build mid-round, the three new routes before a clean
+  re-run.
 
 - (2026-10-09) **An audit walks screens by script, both sizes, and reruns from the script.**
   `round-2/expert/engineer/audit.sh` (one `walk` per screen, `SIZE=`, `LANES=`) and `audit2.sh`
@@ -183,6 +188,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-09) Worked for a critique: reading `insights.md` section 2 first (it answers "was it
+  the build or the design"), then grepping `startingValue` and `ruleFromText` to place each fix in
+  its package before proposing it; `for f in */session.log; do [ -s $f ] ...` finds the sessions
+  where the tool or build spoke.
 
 - (2026-10-09) Did not work: editing `audit.sh` while a run of it is going -- bash reads a
   script by byte offset, so an edit can run garbage; I put new walks in a copy (`audit2.sh`) that

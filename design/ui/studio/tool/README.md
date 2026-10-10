@@ -350,10 +350,21 @@ reached:
   counted word printed): tier 1's screen at rest, at most 50; and tier 2's rest screen, a path
   run's inspector, an edge's inspector and the neighbor list, none above round 1's count in
   `bars-limits.json`.
+- **Bar 10, the scripted counts:** on every tier 2 screen bar 8 lists, and on `long-names.csv`'s
+  Data place, a node's inspector and the find box, at 1440 x 900 and again at 1280 x 800, each
+  printed with its screen and element: text cut off (`scrollWidth > clientWidth` on a box that
+  hides its overflow) with no title, accessible name or tooltip giving it whole (each such text is
+  hovered, and a tooltip holding the whole text counts as readable, as does a copy of the whole
+  text elsewhere on screen); and a visible error code
+  (`E_BAD_SELECTOR`) or field path (`results.louvain.group`, `data.weight`), the data's own words
+  left out. They are findings for the experts to rate, so they do not fail the run.
 
 Tier 1's screens and bar 7 run in the script's own browser; tier 2's screens are walked with
 `real.mjs` sessions under `<out dir>/sessions/`, whose screenshots show each screen measured.
 Before a reading is trusted, each check must fail on a planted case (an image with no text
-alternative, two buttons of one name, focus dropped to the page, a wrong weight reading of each
-kind), and a check that reads nothing fails. To measure a build before fixes replace it, copy
+alternative, two buttons of one name, focus dropped to the page, a clipped name, an
+`E_BAD_SELECTOR` string, a wrong weight reading of each kind), and a check that reads nothing
+fails; every planted case is printed with whether it was caught and on which screen and element.
+`with-browser.sh node --test design/ui/studio/tool/bar10.test.mjs` checks bar 10's counts on a
+known page. To measure a build before fixes replace it, copy
 `graphty/dist` first and pass the copy with `--dist`.

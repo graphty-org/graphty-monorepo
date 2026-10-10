@@ -11,6 +11,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Built: bar 10's scripted counts in `tool/bars.mjs`** (`measure.mjs` `bar10()`):
+  text cut off with no title, accessible name, tooltip (hovered, 1 s delay) or whole copy on
+  screen, and visible error codes / field paths, on every bar 8 screen plus long-names.csv's Data
+  place, inspector and find box, at 1440x900 and 1280x800. Planted clipped name and E_BAD_SELECTOR
+  are caught and printed by screen and element. On 7fe0a48412cc: 0 unreadable cuts (12 cut but
+  readable: find rows by tooltip, a column by name, the inspector title by its id row), 0 codes.
 - (2026-10-10) **Built: Filter to neighbors is a plain command.** It adds this center's step at the
   hops shown, or turns that one step on (moving it to the hops shown); a second press never deletes
   it, and it is never drawn pressed. Off lives only on the step's checkbox in Filters, and the
@@ -20,34 +26,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `graphty/src/workspace/analyze/words.ts`, feeds both the row (`graph-place/rows.ts`) and the
   announcement; it reads the element's published `cost` and `caveats.weight` (distance only, the
   same rule as the inspector's "Total minutes"). Walk: `design/ui/studio/tmp/t2r2-12/walk/11.png`.
-- (2026-10-09) **Built: a 24 px target on the extra-small checkbox; find-list arrows scroll the row
-  into view.** compact-mantine's xs Checkbox input grows to 24 x 24 (margin -6, paints nothing;
-  `::before` draws the 12 px face from the input's state colors): pixel-identical box, axe
-  target-size 0 on both filter-step screens. The find list did NOT scroll to the arrows' row on
-  8f0d5a6f7791 (`tmp/t2r2-10/find/04.png`); `FindBox` now scrolls it (and its group heading)
-  into view; `scrollable-region-focusable` on `.ws-find-viewport` recorded as a criteria exception.
-- (2026-10-09) **Built: participants run outside the studio's files, and a read voids them.**
-  `--brief <round>/sessions/<id>` writes the participant's folder under `<worktree>/tmp/studio-sessions/`
-  (same path below it); `--start` refuses a round `sessions/<id>` folder or a briefed folder inside
-  `design/ui/studio`, and a scratch folder without its own briefing; `--end` copies back with
-  `leaks.json`; `--leaks` reads the participant's Claude Code logs (opening prompt names the folder
-  and "study participant"). The workflow briefs, prompts, ends (twice) and grades on that. Round 2
-  routes that worked are weak evidence until re-run (weight meaning, Replace, find's rule hint).
+- (2026-10-09, condensed) **Built: a 24 px xs checkbox target (compact-mantine) and find-list
+  arrows scroll the row into view**; `scrollable-region-focusable` recorded as a criteria exception.
+- (2026-10-09, condensed) **Built: participants run outside the studio's files** (`--brief`,
+  `--start` refusals, `--leaks` voids a read). Round 2 routes that worked are weak evidence until re-run.
 - (2026-10-09) **Did the dry run work? Mostly.** About 30 of ~355 recorded problems were build
   faults, none above severity 2, no grade decided by one; the only `session.log` line is r2-s13's
   900 s idle close. Twelve of the thirty sit on the one detour no dry run walked: styling a
   selection. The dry run must walk what participants style, not only what the answer key styles.
-- (2026-10-09) **Built: a Color or Width added to a selection's layer starts at the highlight
-  look.** `session.styles.highlightStyle(target)` (element, additive) states what `highlight()`
-  paints with no set; `startingValue(descriptor, session, selector)` reads it when the layer the
-  line lands on names ids. Everything and run rows keep the descriptor default. Open, not the
-  app's: at width 24 the element's selection band grows with the line and covers the tie while
-  selected (`tmp/t2r2-7/walk/09.png`); width units stay an owner question.
-- (2026-10-09) **Built: an Add that repeats loaded ties says so and offers Replace.** The element
-  already had the count (`LoadReport.repeated.seen`); only the draft's merge report read 0, since it
-  measures in a scratch session without the graph's edges. Fixed in the element (pairs handed to
-  the measure); the Add page shows one line above the buttons and "Replace <source>" beside Load,
-  which reopens the page as Replace on the same file. Walk: `design/ui/studio/tmp/t2r2-5/`.
+- (2026-10-09, condensed) **Built: a Color or Width on a selection's layer starts at the highlight
+  look** (`session.styles.highlightStyle`, additive). Open: width 24 selection band covers the tie.
+- (2026-10-09, condensed) **Built: an Add that repeats loaded ties says so and offers Replace**
+  (element measures the draft with the graph's pairs).
 - (2026-10-09) **Find box, severity 3:** "chapters 10" says only "No match". Proposed: when plain
   text names part of a column the app already lists after "=", hint "=<column> >= `10`"; for bare
   numbers an opt-in element parse option (`bareNumbers`, default off, additive) instead of changing
@@ -71,6 +61,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-10) **Bar 10 counts visually hidden text as off screen, and a copy on screen as
+  readable.** The first run reported every Mantine VisuallyHidden status line (1 px box) as cut;
+  the same rule `wordsOnScreen` uses now skips them. A node's title cut while its id row shows it
+  whole is readable (criteria: "a wider view"). Raw refusal text and raw file statements have no
+  fixed shape: left to the experts. Counts are findings, not a failing exit.
 - (2026-10-10) **A command and a toggle on one button was the defect, not the words.** Participants
   pressed "Filter to neighbors" twice and lost the step they had made; the pressed look and "Press
   again to show every node" only explained the trap. One place turns a step off (its checkbox), as
@@ -212,6 +207,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-10) Did not work: running `bars.mjs` on `graphty/dist` of the shared worktree; another
+  agent rebuilt it mid-run (ENOENT on index.html). Copy the dist into the task folder and pass
+  `--dist`. Seen, not mine: tier 1's "a node's Values with its neighbors" step misses (click on
+  "Degree" times out) on 7fe0a48412cc.
 - (2026-10-10) Did not work: a Python heredoc with `\\'` inside a single-quoted string (syntax
   error); write the edit script to a file with the Write tool. Worked: `openKarate("data")` (the
   Workspace's `initialState.place`) puts Filters beside the inspector in a real-element test, so the

@@ -69,6 +69,7 @@ import { PNG } from "pngjs";
 
 import {
     axeViolations,
+    bar10,
     focusOnPage,
     LAUNCH,
     NAME_CHARS,
@@ -1103,8 +1104,9 @@ async function opEnd(s) {
     return { out: [`session ended: ${s.dir}`], code: 0, end: true };
 }
 // What the studio's bars read on the page as it is now (bars.mjs): axe, controls sharing a name,
-// focus fallen to the page, the app's words on screen. A plant ("img", "twins", "blur") puts a
-// known failure on the page first and takes it away after, to prove each check can fail.
+// focus fallen to the page, the app's words on screen, bar 10's cut text and raw strings. A plant
+// ("img", "twins", "blur", "cut", "raw") puts a known failure on the page first and takes it away
+// after, to prove each check can fail.
 async function measure(s, planted) {
     const { page } = s;
     s.cdp ??= await s.context.newCDPSession(page);
@@ -1118,11 +1120,50 @@ async function measure(s, planted) {
                 axe: await axeViolations(page),
                 names: await sameNames(s.cdp),
                 words: await page.evaluate(wordsOnScreen),
+                ...(await bar10Counts(page)),
             },
         };
     } finally {
         if (planted) await page.evaluate(unplant);
     }
+}
+// Bar 10's counts (measure.mjs bar10); a cut text with no title or name is hovered, and a tooltip
+// holding its whole text makes it readable. The pointer goes back off the page, as after a setup.
+async function bar10Counts(page) {
+    const { cut, raw } = await page.evaluate(bar10);
+    try {
+        for (const c of cut.filter((x) => !x.readable)) {
+            if (
+                !(await page.hover(`[data-studio-cut="${c.mark}"]`, { timeout: 2000 }).then(
+                    () => true,
+                    () => false,
+                ))
+            )
+                continue;
+            // compact-mantine opens a tooltip after 1 s
+            const tip = await page
+                .waitForFunction(
+                    (t) =>
+                        [...document.querySelectorAll("[role=tooltip]")].some(
+                            (x) => x.checkVisibility() && x.textContent.replace(/\s+/g, " ").includes(t),
+                        ),
+                    c.text,
+                    { timeout: 2500 },
+                )
+                .then(
+                    () => true,
+                    () => false,
+                );
+            if (tip) c.readable = "tooltip";
+        }
+    } finally {
+        await page.mouse.move(-1, -1);
+        await page.evaluate(() =>
+            document.querySelectorAll("[data-studio-cut]").forEach((e) => e.removeAttribute("data-studio-cut")),
+        );
+    }
+    for (const c of cut) delete c.mark;
+    return { cut, raw };
 }
 // --prove only: clears the graph through the element, as a lost table would go; says the source's name
 async function plantRemoval(s) {

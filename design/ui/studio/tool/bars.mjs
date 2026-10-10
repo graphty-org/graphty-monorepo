@@ -12,14 +12,20 @@
 //   bar 9: the app's own words on screen at rest, data values, names and numbers left out: (a) tier
 //          1's screen (Les Miserables, nothing selected, 1440 x 900) at most 50; (b) tier 2's four
 //          screens no higher than round 1's counts in bars-limits.json
+//   bar 10 (scripted counts): on every bar 8 tier 2 screen and on long-names.csv's Data place, a
+//          node's inspector and the find box, at 1440 x 900 and 1280 x 800, each with its screen and
+//          element: text cut off with no title, accessible name or tooltip giving it whole, and a
+//          visible error code or field path (measure.mjs bar10). Reported as findings for the
+//          experts' severity; they do not fail the run.
 //
 //   node bars.mjs <out dir> [--dist <build dir>] [--scheme dark|light]
 //
 // --scheme picks the app's color scheme for tier 1's screens (dark, the app's default, when left
 // out). Tier 2's screens are walked with real.mjs sessions (REAL_DIST=<build dir>), each in its own
 // browser slot. Before a check is trusted it must fail on a planted case: an image with no text
-// alternative (axe), two buttons of one name, focus dropped to the page, a wrong weight reading of
-// each kind; and a check that reads zero items fails. Writes <out dir>/bars.json and prints a
+// alternative (axe), two buttons of one name, focus dropped to the page, a clipped name and an
+// E_BAD_SELECTOR string (bar 10), a wrong weight reading of each kind; and a check that reads zero
+// items fails. Every planted case is printed with whether it was caught, and where. Writes <out dir>/bars.json and prints a
 // summary; exit 1 when a bar fails, a screen was not reached or a planted case was not caught.
 process.env.FC_FONTATIONS = "1"; // headless Chromium crashes on startup on this host without it
 
@@ -323,8 +329,13 @@ function ask(dir, req) {
         c.write(JSON.stringify(req) + "\n");
     });
 }
-const real = (...a) => {
-    const r = spawnSync(process.execPath, [REAL, ...a], { encoding: "utf8", env: { ...process.env, REAL_DIST: dist } });
+// the window sizes bar 10 counts at; bars 8 and 9 are measured at the first only
+const SIZES = ["1440x900", "1280x800"];
+const real = (size, ...a) => {
+    const r = spawnSync(process.execPath, [REAL, ...a], {
+        encoding: "utf8",
+        env: { ...process.env, REAL_DIST: dist, REAL_VIEWPORT: size },
+    });
     return { code: r.status, out: `${r.stdout || ""}${r.stderr || ""}`.trim() };
 };
 // a step that did not do what it says, or a screen that is not the one named
@@ -334,7 +345,7 @@ const MISSED =
 // Each walk: a setup and a list of moves. A move's steps, one "--step value" per string as in a
 // setup file, run as one real.mjs --step; an --expect in it confirms the screen arrived. Then the page
 // is measured when the move names a bar 8 screen, an action after which focus must not fall to the
-// page, or a bar 9 (b) screen whose words are counted.
+// page, a bar 9 (b) screen whose words are counted, or a screen only bar 10 counts on (audit).
 const steps = (...lines) =>
     lines.flatMap((l) => (l.includes(" ") ? [l.slice(0, l.indexOf(" ")), l.slice(l.indexOf(" ") + 1)] : [l]));
 const STEP = "weight is at least 4";
@@ -482,6 +493,38 @@ const WALKS = [
             { do: steps("--click Load", "--expect people and messages"), focus: "Load (two tables)" },
         ],
     },
+    {
+        // names of 40 or more characters and a 30-character column name
+        name: "long-names",
+        setup: null,
+        moves: [
+            {
+                do: steps(
+                    "--click No thanks",
+                    "--click New from data...",
+                    "--click choose a file...",
+                    "--upload long-names.csv",
+                    "--click Load",
+                    "--expect-not role=button:Load",
+                ),
+            },
+            {
+                do: steps("--click Data", "--expect average_minutes_between_visits"),
+                audit: "long names: the Data place",
+            },
+            {
+                do: steps(
+                    "--click role=button:Graph",
+                    "--key /",
+                    "--type Eastside Cold",
+                    "--key Enter",
+                    "--expect role=heading:Eastside Cold Storage and Packing Facility",
+                ),
+                audit: "long names: a node's inspector",
+            },
+            { do: steps("--key Escape", "--key /", "--type Northern"), audit: "long names: the find box" },
+        ],
+    },
 ];
 
 async function walkTier2(base) {
@@ -489,59 +532,87 @@ async function walkTier2(base) {
     const names = {};
     const focus = {};
     const words = {};
+    const cut = {};
+    const raw = {};
     const log = [];
     const planted = [];
-    for (const w of WALKS) {
-        const dir = join(base, w.name);
-        await rm(dir, { recursive: true, force: true });
-        let r = real("--start", dir, w.setup ? `setup:${w.setup}` : "empty");
-        if (r.code !== 0) {
-            log.push(`MISS ${w.name}: the session did not start: ${r.out.split("\n").slice(0, 3).join(" | ")}`);
-            continue;
-        }
-        let lost = false;
-        try {
-            for (const m of w.moves) {
-                const label = m.screen || m.focus || m.words || m.do.join(" ");
-                if (lost) {
-                    log.push(`MISS ${label}: an earlier move missed`);
-                    continue;
-                }
-                r = real("--step", dir, ...m.do);
-                const shot = r.out.split("\n").pop();
-                if (MISSED.test(r.out)) {
-                    lost = true;
-                    log.push(`MISS ${label}: ${r.out.split("\n").filter((l) => MISSED.test(l))[0]} (${shot})`);
-                    continue;
-                }
-                if (!m.screen && !m.focus && !m.words) continue;
-                const { data } = await ask(dir, { op: "measure" });
-                if (m.plant) {
-                    // each check must fail on its planted case before its readings are trusted
-                    const img = (await ask(dir, { op: "measure", plant: "img" })).data;
-                    if (!img.axe.some((v) => v.id === "image-alt" && serious(v)))
-                        planted.push("axe missed an image with no text alternative");
-                    const twins = (await ask(dir, { op: "measure", plant: "twins" })).data;
-                    if (!twins.names.shared.some((g) => g.some((x) => x.includes("Planted twin"))))
-                        planted.push("the shared-name check missed two buttons called Planted twin");
-                    const blur = (await ask(dir, { op: "measure", plant: "blur" })).data;
-                    if (!blur.focusOnPage) planted.push("the focus check missed focus dropped to the page");
-                    if (data.focusOnPage) planted.push("the focus check reported the page before anything was planted");
-                }
-                if (!data.names.controls) planted.push(`the shared-name check read no controls on "${label}"`);
-                if (m.screen) {
-                    screens[m.screen] = data.axe;
-                    names[m.screen] = data.names.shared;
-                }
-                if (m.focus) focus[m.focus] = data.focusOnPage;
-                if (m.words) words[m.words] = data.words;
-                log.push(`ok   ${label} (${shot})`);
+    const caught = [];
+    for (const size of SIZES)
+        for (const w of WALKS) {
+            const first = size === SIZES[0];
+            const dir = join(base, `${w.name}-${size}`);
+            await rm(dir, { recursive: true, force: true });
+            let r = real(size, "--start", dir, w.setup ? `setup:${w.setup}` : "empty");
+            if (r.code !== 0) {
+                log.push(`MISS ${w.name}: the session did not start: ${r.out.split("\n").slice(0, 3).join(" | ")}`);
+                continue;
             }
-        } finally {
-            real("--end", dir);
+            let lost = false;
+            try {
+                for (const m of w.moves) {
+                    const label = `${m.screen || m.audit || m.focus || m.words || m.do.join(" ")} at ${size}`;
+                    if (lost) {
+                        log.push(`MISS ${label}: an earlier move missed`);
+                        continue;
+                    }
+                    r = real(size, "--step", dir, ...m.do);
+                    const shot = r.out.split("\n").pop();
+                    if (MISSED.test(r.out)) {
+                        lost = true;
+                        log.push(`MISS ${label}: ${r.out.split("\n").filter((l) => MISSED.test(l))[0]} (${shot})`);
+                        continue;
+                    }
+                    if (!m.screen && !m.audit && !(first && (m.focus || m.words))) continue;
+                    const { data } = await ask(dir, { op: "measure" });
+                    if (m.plant) {
+                        // bar 10: a planted clipped name and a planted code, each found by screen and element
+                        const pc = (await ask(dir, { op: "measure", plant: "cut" })).data;
+                        const c = pc.cut.find((x) => x.text.startsWith("Planted cut") && !x.readable);
+                        if (c) caught.push(`a clipped name: caught on "${label}", ${c.element}: "${c.text}"`);
+                        else planted.push(`the cut-text check missed a planted clipped name on "${label}"`);
+                        const pr = (await ask(dir, { op: "measure", plant: "raw" })).data;
+                        const x = pr.raw.find((y) => y.text === "E_BAD_SELECTOR");
+                        if (x)
+                            caught.push(
+                                `an E_BAD_SELECTOR string: caught on "${label}", ${x.element}: ${x.kind} ${x.text}`,
+                            );
+                        else planted.push(`the raw-string check missed a planted E_BAD_SELECTOR on "${label}"`);
+                    }
+                    if (m.screen || m.audit) {
+                        cut[label] = data.cut; // every cut text, each with where it can be read whole
+                        raw[label] = data.raw;
+                    }
+                    if (!first) continue;
+                    if (m.plant) {
+                        // each check must fail on its planted case before its readings are trusted
+                        const img = (await ask(dir, { op: "measure", plant: "img" })).data;
+                        if (!img.axe.some((v) => v.id === "image-alt" && serious(v)))
+                            planted.push("axe missed an image with no text alternative");
+                        else caught.push(`an image with no text alternative: caught by axe on "${label}"`);
+                        const twins = (await ask(dir, { op: "measure", plant: "twins" })).data;
+                        if (!twins.names.shared.some((g) => g.some((x) => x.includes("Planted twin"))))
+                            planted.push("the shared-name check missed two buttons called Planted twin");
+                        else caught.push(`two buttons called Planted twin: caught on "${label}"`);
+                        const blur = (await ask(dir, { op: "measure", plant: "blur" })).data;
+                        if (!blur.focusOnPage) planted.push("the focus check missed focus dropped to the page");
+                        else caught.push(`focus dropped to the page: caught on "${label}"`);
+                        if (data.focusOnPage)
+                            planted.push("the focus check reported the page before anything was planted");
+                    }
+                    if (!data.names.controls) planted.push(`the shared-name check read no controls on "${label}"`);
+                    if (m.screen) {
+                        screens[m.screen] = data.axe;
+                        names[m.screen] = data.names.shared;
+                    }
+                    if (m.focus) focus[m.focus] = data.focusOnPage;
+                    if (m.words) words[m.words] = data.words;
+                    log.push(`ok   ${label} (${shot})`);
+                }
+            } finally {
+                real(size, "--end", dir);
+            }
         }
-    }
-    return { screens, names, focus, words, log, planted };
+    return { screens, names, focus, words, cut, raw, log, planted, caught };
 }
 
 async function outer() {
@@ -589,6 +660,8 @@ async function outer() {
                 screens: inn.screens,
                 wordsAtRest: inn.rest,
                 tier2: { screens: t2.screens, sharedNames: t2.names, focusOnPage: t2.focus, words: t2.words },
+                bar10: { cut: t2.cut, raw: t2.raw },
+                planted: { caught: t2.caught, missed: untrusted },
                 weights: { problems: weightProblems, notFinished, runs: inn.weights },
                 untrusted,
                 log: [...inn.log, ...t2.log],
@@ -599,6 +672,7 @@ async function outer() {
     );
     console.log(`build ${build}, tier 1 in the ${scheme} scheme`);
     console.log([...inn.log, ...t2.log].join("\n"));
+    console.log(`\nplanted cases, each check's claim beside its result:\n  ${t2.caught.join("\n  ")}`);
     if (untrusted.length) console.log(`\nNOT TRUSTED, a planted case was not caught:\n  ${untrusted.join("\n  ")}`);
     console.log(
         `\nbar 7 (a): ${inn.weights.length} runs, ${notFinished.length} did not finish; ${weightProblems.length} wrong readings`,
@@ -625,6 +699,20 @@ async function outer() {
     console.log("bar 9 (b): app words on tier 2's screens (limit: round 1's count, bars-limits.json)");
     for (const [k, n] of Object.entries(counts))
         console.log(`  ${k}: ${n} (limit ${limits.words?.[k] ?? "not recorded"})  ${t2.words[k].words.join(" ")}`);
+    console.log('\nbar 10, text cut off with no way to read it whole (screen: element "text"):');
+    const unreadable = Object.entries(t2.cut).flatMap(([name, cs]) =>
+        cs.filter((c) => !c.readable).map((c) => [name, c]),
+    );
+    for (const [name, c] of unreadable) console.log(`  ${name}: ${c.element} "${c.text}"`);
+    if (!unreadable.length) console.log("  none");
+    const readable = Object.values(t2.cut).flat().length - unreadable.length;
+    console.log(
+        `  (${readable} more cut but readable whole by a title, an accessible name, a tooltip or a copy on screen: bars.json)`,
+    );
+    console.log("bar 10, visible codes and field paths (screen: element kind text):");
+    for (const [name, rs] of Object.entries(t2.raw))
+        for (const r of rs) console.log(`  ${name}: ${r.element} ${r.kind} ${r.text}`);
+    if (!Object.values(t2.raw).flat().length) console.log("  none");
     console.log(`\n${join(out, "bars.json")}`);
     const fail =
         untrusted.length ||

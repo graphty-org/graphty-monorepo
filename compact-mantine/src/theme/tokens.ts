@@ -105,10 +105,7 @@ export const CM_COLORS = {
     "field-edge": t("transparent", "transparent"),
     /** the field edge under the pointer: Figma's hover outline (= border) */
     "field-edge-hover": t("#e6e6e6", "#444444"),
-    /**
-     * the selected segment's inset edge (= border); the panel track now fills its chosen option
-     * and draws no edge, but the variable stays for consumers that read it
-     */
+    /** the selected segment's inset edge (= border) */
     "segment-edge": t("#e6e6e6", "#444444"),
 } as const satisfies Record<string, CmColorToken>;
 

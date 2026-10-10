@@ -4,6 +4,12 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-10 -- Segmented control: Figma's face, not the inverse fill
+
+Segmented control: the owner chose Figma's white or dark face with a 1px edge over the inverse
+fill. It is more refined. Legibility of word options rests on the weight-600 label already decided
+on 2026-10-08.
+
 ## 2026-10-10 -- Decided by the team: count what a selection would hold (`selection.count`)
 
 **What.** Built on the studio branch. `session.selection.count(target)` returns `{ nodes, edges }`:

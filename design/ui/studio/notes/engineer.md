@@ -11,6 +11,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Owner decision: the chosen segment keeps Figma's face, never an inverse fill.**
+  Dark: a #2c2c2c face with a 1px #444 edge on the #383838 track; light: a white face with a 1px
+  #e6e6e6 edge on the #f5f5f5 track. `highContrast` gives the face a 3:1 edge. Word options read by
+  the weight-600 label decided on 10-08. Do not fill the segment again (the fill of c826a0c0d was
+  reverted); see `owner-decisions.md`.
+
 - (2026-10-10) **OPEN, not reproduced: a reopen from Recent projects once drew no "Opened friends"**
   (r3 pilot `T19A/11.png`). The pilot's route was `--reopen` (a fresh tab), not Back to start.
   Eleven walks on the frozen build b6d932823 (Back to start, `--reopen`, 30 s gaps, three walks at
@@ -195,9 +201,8 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   Filters step editor is a `<form>` (`focusNext`/`focusStep`).
 - (2026-10-09, summarized 2026-10-10) **Standing calls from 10-09:** the neighbor list opens at
   the ON filter step's depth (an off step is the reader's choice); sentence headings wrap by
-  per-section `wrapLabel` opt-in; a chosen segment is filled `--cm-bg-inverse` and every control
-  but a link shows the arrow cursor (compact-mantine `00-foundation.css.ts`; `--cm-segment-edge`
-  kept, removing it is breaking); a start-screen data file goes through the Data page; a
+  per-section `wrapLabel` opt-in; every control but a link shows the arrow cursor (compact-mantine
+  `00-foundation.css.ts`); the chosen segment's inverse fill was undone on 10-10 (below); a start-screen data file goes through the Data page; a
   pointer-opened menu focuses the menu; one neighborhood filter per center; no forced focus ring
   after a pointer click; a study tool that hides what a person saw is fixed in the tool, not the
   app (never lengthen `NOTICE_MS` for it); `OptionsForm` passes no value at a run setting's

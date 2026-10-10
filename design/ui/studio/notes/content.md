@@ -155,7 +155,7 @@ I read this file at the start of every session and update it as I decide and lea
   rule (`selection.origin.text`), 2 to 3 nodes by their names, else the count (sev 2, 7
   sessions); (4) path run row: weighted total "<column> <total>" in place of "4 hops" (sev 2;
   same form as "value 17"); (5) `analyze/words.ts weightRead`: `Each edge counts as 1;
-  "<column>" has no meaning set.` (-4 words, read as a warning in r2-s28, s29); (6)
+"<column>" has no meaning set.` (-4 words, read as a warning in r2-s28, s29); (6)
   `canvas/legendWords.ts rowName`: "PageRank, full graph" when the run covered the full graph,
   else keep "on N nodes" (sev 2, eight sessions; glossary state word). Reason: each fixes a
   confirmed finding and the set lowers words at rest.

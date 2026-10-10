@@ -41,6 +41,8 @@ export interface GraphView {
     setHover(hand: Hand, index: number): void;
     setLabelsVisible(on: boolean): void;
     markDirty(): void;
+    /** Dim every node not in `keep` (the slab), or stop dimming with null. Not a history step. */
+    setDim(keep: ReadonlySet<number> | null): void;
     /** Rebuild the buffers if the state, hover or preview changed. Call once per frame. */
     update(): void;
     pick(origin: Vector3, dir: Vector3, minAngleRad: number): NodePick | null;
@@ -147,8 +149,11 @@ export function createGraphView(
 
     const hover: Record<Hand, number> = { left: -1, right: -1 };
     let dirty = true;
+    // Edges depend only on visibility (the state), not on hover or dimming, so those skip them.
+    let edgesDirty = true;
     let rebuilds = 0;
     let labelsOn = true;
+    let dimKeep: ReadonlySet<number> | null = null;
     const tmpM = Matrix.Identity();
     const tmpS = new Vector3();
     const tmpP = new Vector3();
@@ -192,7 +197,7 @@ export function createGraphView(
                 Color3.LerpToRef(tmpC, WHITE, 0.25, tmpC);
                 scale *= 1.2;
             }
-            if (pv && !pv.keep.has(i)) {
+            if ((pv && !pv.keep.has(i)) || (dimKeep && !dimKeep.has(i))) {
                 Color3.LerpToRef(tmpC, bg, 0.75, tmpC);
                 scale *= 0.6;
             }
@@ -206,7 +211,7 @@ export function createGraphView(
             nodeColors[i * 4 + 3] = 1;
             labels[i]?.setEnabled(labelsOn && visible);
         }
-        for (let k = 0; k < e; k++) {
+        for (let k = 0; edgesDirty && k < e; k++) {
             const a = data.src[k];
             const b = data.dst[k];
             tmpA.set(data.positions[a * 3], data.positions[a * 3 + 1], data.positions[a * 3 + 2]);
@@ -232,12 +237,17 @@ export function createGraphView(
         } else {
             nodes.thinInstanceBufferUpdated("matrix");
             nodes.thinInstanceBufferUpdated("color");
-            edges.thinInstanceBufferUpdated("matrix");
+            if (edgesDirty) {
+                edges.thinInstanceBufferUpdated("matrix");
+            }
         }
         nodes.thinInstanceRefreshBoundingInfo(false);
-        edges.thinInstanceRefreshBoundingInfo(false);
+        if (edgesDirty) {
+            edges.thinInstanceRefreshBoundingInfo(false);
+        }
         rebuilds++;
         dirty = false;
+        edgesDirty = false;
     };
 
     // World positions of the nodes, refreshed only when the root moved.
@@ -283,6 +293,11 @@ export function createGraphView(
             dirty = true;
         },
         markDirty() {
+            dirty = true;
+            edgesDirty = true;
+        },
+        setDim(keep) {
+            dimKeep = keep;
             dirty = true;
         },
         update() {

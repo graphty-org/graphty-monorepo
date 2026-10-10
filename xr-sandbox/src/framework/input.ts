@@ -171,10 +171,13 @@ export function createInput(
             h.context = "ui";
         } else {
             // A technique's target provider (design section 5.2) first; the plain ray when it hits nothing.
-            const best = providers[h.hand]?.(h.origin, h.dir, minAngle) ?? graph.pick(h.origin, h.dir, minAngle);
+            const provided = providers[h.hand]?.(h.origin, h.dir, minAngle) ?? null;
+            const best = provided ?? graph.pick(h.origin, h.dir, minAngle);
             let node = best?.index ?? -1;
             // Hysteresis (rule 7): keep the current node unless the new one is clearly closer to the ray.
-            if (h.node >= 0 && node !== h.node) {
+            // A provider's pick is not checked here: it draws nodes elsewhere (the slab, the held copy), so
+            // the angle to the node's place in the graph means nothing; the provider keeps its own.
+            if (!provided && h.node >= 0 && node !== h.node) {
                 graph.nodeWorld(h.node, tmp).subtractInPlace(h.origin);
                 const t = Vector3.Dot(tmp, h.dir);
                 const cur = t > 0 ? Math.acos(Math.min(1, t / tmp.length())) : Math.PI;

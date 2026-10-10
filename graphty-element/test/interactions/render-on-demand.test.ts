@@ -37,6 +37,16 @@ const EMPTY: Point = { x: 30, y: HEIGHT - 30 };
 /** How many animation frames in a row must pass undrawn for the graph to count as resting. */
 const RESTING_FRAMES = 20;
 
+/**
+ * Draws across {@link RESTING_FRAMES} animation frames that count as drawing every frame: the
+ * element's loop and the test's wait are separate animation-frame callbacks, so the first and
+ * last frame may fall on either side of the count.
+ */
+const EVERY_FRAME = RESTING_FRAMES - 2;
+
+/** Animation frames after which a still graph drawing on demand has come to rest. */
+const SETTLING_FRAMES = 120;
+
 /** How many animation frames a wait for rest may take before it gives up. */
 const MAX_FRAMES = 1200;
 
@@ -158,7 +168,9 @@ describe("renderOnDemand", () => {
         const element = await mounted(false);
 
         assert.isFalse(element.renderOnDemand);
-        assert.isAbove(await drawsAcross(element, RESTING_FRAMES), 0, "the still graph is drawn again");
+        // Long enough for the same graph drawing on demand to have come to rest.
+        await drawsAcross(element, SETTLING_FRAMES);
+        assert.isAtLeast(await drawsAcross(element, RESTING_FRAMES), EVERY_FRAME, "the still graph is drawn again");
     });
 
     it("stops drawing a still graph", async () => {
@@ -285,6 +297,6 @@ describe("renderOnDemand", () => {
 
         element.renderOnDemand = false;
 
-        assert.isAbove(await drawsAcross(element, RESTING_FRAMES), 0, "the still graph is drawn again");
+        assert.isAtLeast(await drawsAcross(element, RESTING_FRAMES), EVERY_FRAME, "the still graph is drawn again");
     });
 });

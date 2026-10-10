@@ -25,17 +25,27 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
-                  sparse-checkout: tools/gpu-runner-lost.sh
+                  sparse-checkout: |
+                      tools/gpu-runner-lost.sh
+                      tools/release-status.mjs
                   sparse-checkout-cone-mode: false
             - name: Re-run the failed jobs once when they only lost their runner
               env:
                   GH_TOKEN: ${{ github.token }}
                   RUN: ${{ github.event.workflow_run.id }}
+                  WORKFLOW: ${{ github.event.workflow_run.name }}
+                  RUN_URL: ${{ github.event.workflow_run.html_url }}
+                  HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
               run: |
                   set -euo pipefail
                   if tools/gpu-runner-lost.sh "$RUN" 1; then
                       echo "run $RUN lost its runner; re-running its failed jobs once"
                       gh run rerun "$RUN" --failed --repo "$GITHUB_REPOSITORY"
+                      # a release train retrying tells the owner's phone (tools/release-status.mjs started)
+                      [ "$WORKFLOW" != Release ] || node tools/release-status.mjs started --attempt 2 --sha "$HEAD_SHA" \
+                          --what "Re-run 2 after the T4 runner was lost" --run "$RUN_URL" || true
                   else
                       echo "run $RUN failed on its own; not re-run"
                   fi

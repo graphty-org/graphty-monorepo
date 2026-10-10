@@ -17,10 +17,18 @@
 // Attempts that do nothing (nothing releasable, a release pending, a hold open) are not outcomes and
 // never call this.
 //
+// Each outcome the issue gets (and only when it gets it, so a run-ended or dequeued already reported is not sent
+// twice) is also pushed to the owner's phone through Pushover, as is one notice the issue does not get:
+//   started         a train attempt began testing a releasable candidate; "Release RETRYING" when it is a restart
+//                   after a fix (--restart), or a re-run (--attempt > 1, --what says which and why)
+// Pushover needs PUSHOVER_APP_TOKEN and PUSHOVER_USER_KEY; without them (a fork, a local run) it logs one line and
+// sends nothing. A Pushover failure is logged, never fatal.
+//
 // Usage: node tools/release-status.mjs <outcome> [--sha S] [--run URL] [--attempt N] [--issue N|URL]
-//            [--pr URL] [--what TEXT] [--tags a@1,b@2] [--restart] [--since ISO-TIME]
+//            [--pr URL] [--what TEXT] [--tags a@1,b@2] [--restart] [--fix TEXT] [--since ISO-TIME]
 // Needs GITHUB_TOKEN (issues: write; run-ended also actions: read, dequeued also checks: read) and
-// GITHUB_REPOSITORY; RELEASE_NOTIFY is optional. run-ended reads only the comments made since --since (the attempt's start).
+// GITHUB_REPOSITORY (started needs neither); RELEASE_NOTIFY is optional. run-ended reads only the comments made
+// since --since (the attempt's start).
 import { parseArgs } from "node:util";
 
 export const LABEL = "release-status";
@@ -172,11 +180,122 @@ export async function announce({ request, repo, body, unlessReported }) {
     return number;
 }
 
+export const PUSHOVER_URL = "https://api.pushover.net/1/messages.json";
+
+/**
+ * The phone notification for one release outcome: a lock-screen title that starts with the state word, one or two
+ * short lines, a link, and a priority and sound by kind (failures loud, a release cheerful, progress silent).
+ * @param outcome - started, opened, held, published, publish-failed, run-ended or dequeued
+ * @param f - the same fields as statusComment, plus fix (the subject of the commit a restart tests)
+ * @returns Pushover's title, message, url, url_title, priority and sound
+ */
+export function pushMessage(outcome, f) {
+    const sha = (f.sha ?? "").slice(0, 7);
+    const attempt = Number(f.attempt) || 1;
+    const retry = f.restart
+        ? `Restart after fix ${(f.fix ?? "").match(/#\d+/g)?.join(", ") || "on master"}${/^\d+$/.test(f.issue ?? "") ? ` (held #${f.issue})` : ""}`
+        : attempt > 1
+          ? `Re-run ${attempt}`
+          : "";
+    const tags = list(f.tags);
+    const pr = `PR #${(f.pr ?? "").split("/").pop()}`;
+    const fail = { priority: 1, sound: "siren" };
+    const quiet = { priority: -1, sound: "none" };
+    const kinds = {
+        started: {
+            title: retry ? "Release RETRYING" : "Release STARTED",
+            lines: [`${tags || "Release"} on ${sha}`, f.what || retry || "Full suite, T4, Hosts and audit running"],
+            ...quiet,
+        },
+        opened: {
+            title: "Release PR OPENED",
+            lines: [`${pr}: ${tags || "versioned packages"}`, `Publishes when it merges${retry ? `; ${retry}` : ""}`],
+            link: "pr",
+            ...quiet,
+        },
+        held: {
+            title: "Release HELD",
+            lines: [`${f.what || "Release train"} failed on ${sha}`, retry || `Nothing published; see ${ref(f.issue)}`],
+            ...fail,
+        },
+        published: {
+            title: "Release PUBLISHED",
+            lines: [tags || "Every versioned package", retry],
+            priority: 0,
+            sound: "cashregister",
+        },
+        "publish-failed": {
+            title: "Release PUBLISH FAILED",
+            lines: [
+                `Not all versions on npm (${sha}); see ${ref(f.issue)}`,
+                retry || "Re-run its failed jobs to retry",
+            ],
+            ...fail,
+        },
+        "run-ended": {
+            title: "Release RUN ENDED BADLY",
+            lines: [`Run ${f.what || "failed"} on ${sha} before announcing`, retry],
+            ...fail,
+        },
+        dequeued: {
+            title: "Release DROPPED FROM QUEUE",
+            lines: [
+                `${pr}: ${f.what || "no reason given"}`,
+                f.checks ? `Failing: ${f.checks.replace(/ \([^)]*\)/g, "")}` : "",
+            ],
+            link: "pr",
+            ...fail,
+        },
+    };
+    const k = kinds[outcome];
+    if (!k) {
+        throw new Error(`unknown outcome "${outcome}"`);
+    }
+    return {
+        title: k.title,
+        message: k.lines.filter(Boolean).join("\n").slice(0, 1024),
+        url: k.link === "pr" ? f.pr : f.run,
+        url_title: k.link === "pr" ? "Open PR" : "Open run",
+        priority: String(k.priority),
+        sound: k.sound,
+    };
+}
+
+/**
+ * Send one outcome to the owner's phone. Never throws: a Pushover outage must not fail a release job.
+ * @param outcome - as pushMessage
+ * @param f - as pushMessage
+ * @param env - holds PUSHOVER_APP_TOKEN and PUSHOVER_USER_KEY (absent: logs one line, sends nothing)
+ * @param post - fetch
+ * @param log - console.log
+ * @returns true when Pushover accepted it
+ */
+export async function push(outcome, f, env = process.env, post = fetch, log = console.log) {
+    const { PUSHOVER_APP_TOKEN: token, PUSHOVER_USER_KEY: user } = env;
+    if (!token || !user) {
+        log("Pushover: PUSHOVER_APP_TOKEN or PUSHOVER_USER_KEY not set, no phone notification");
+        return false;
+    }
+    const hide = (text) => String(text).replaceAll(token, "***").replaceAll(user, "***");
+    try {
+        const m = pushMessage(outcome, f);
+        const res = await post(PUSHOVER_URL, { method: "POST", body: new URLSearchParams({ token, user, ...m }) });
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status} ${await res.text()}`);
+        }
+        log(`Pushover: sent "${m.title}"`);
+        return true;
+    } catch (e) {
+        log(`::warning::Pushover notification not sent: ${hide(e?.message ?? e)}`);
+        return false;
+    }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
     const { values, positionals } = parseArgs({
         allowPositionals: true,
         options: Object.fromEntries(
-            ["sha", "run", "attempt", "issue", "pr", "what", "tags", "since"]
+            ["sha", "run", "attempt", "issue", "pr", "what", "tags", "since", "fix"]
                 .map((k) => [k, { type: "string" }])
                 .concat([["restart", { type: "boolean" }]]),
         ),
@@ -197,6 +316,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         return res.json();
     };
     const repo = process.env.GITHUB_REPOSITORY;
+    if (positionals[0] === "started") {
+        // phone only: the issue logs outcomes, not attempts
+        await push("started", values);
+        process.exit(0);
+    }
     let unlessReported;
     if (positionals[0] === "run-ended") {
         if (
@@ -234,4 +358,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const body = statusComment(positionals[0], values, process.env.RELEASE_NOTIFY ?? "");
     const number = await announce({ request, repo, body, unlessReported });
     console.log(number ? `announced on #${number}:\n${body}` : `already reported:\n${body}`);
+    if (number) {
+        await push(positionals[0], values);
+    }
 }

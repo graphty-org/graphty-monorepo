@@ -11,6 +11,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **OPEN, not reproduced: a reopen from Recent projects once drew no "Opened friends"**
+  (r3 pilot `T19A/11.png`). The pilot's route was `--reopen` (a fresh tab), not Back to start.
+  Eleven walks on the frozen build b6d932823 (Back to start, `--reopen`, 30 s gaps, three walks at
+  once, a probed copy) all showed it; the probe puts the notice 15 ms after `project.open`
+  resolves. Ruled out: a stale or partial store write, the toast, the tool's watcher (it reports a
+  notice that times out, in a reopened tab too). The pilot's 11 and 14 differ only in the toast, so
+  the open did its work; the open finishing late (it never went into the DOM, and the next
+  step reported nothing either) is the open suspect, an element question. No code changed: a fix
+  without a mechanism would be a guess. Evidence `tmp/r3-dry1-reopen-shows-opened-notice/`.
+
 - (2026-10-10, condensed) **Fixed: "Selection cleared" goes when a new selection is made**
   (`Notice.endsWithSelection` in `state/store.ts`, dropped in `canvas/CanvasOverlays.tsx`; test in
   `undoWords.real-element.test.tsx`; walk `tmp/r3-dry1-selection-cleared-notice-ends/`).
@@ -22,13 +32,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (`focusValuesNext()` / `takeValuesFocus()` in `inspector/reads.ts`; `tasks.real-element.test.tsx`).
 - (2026-10-10, condensed) **Built: the Overview heads its whole-graph rows with `DataRowHeader`**
   (`inspector/GraphValues.tsx`). Rule: a heading over a run of rows is always `DataRowHeader`.
-- (2026-10-10, condensed) **Fixed: the same status words written twice are spoken twice**
-  (`announced` counter in `state/store.ts`, `<span key={announced}>` in `Frame.tsx`).
 - (2026-10-10, condensed) **Built: words at rest under round 1** on rest, path inspector and
   neighbor list (`tmp/t2r2b-9/bars.log`); the edge inspector is one over (31 of 30). OPEN for the
   studio: which of its two true scope phrases goes.
-- (2026-10-10, condensed) **Fixed: a deleted step came back when its open editor closed**
-  (stale save-on-leave closure in `Filters.tsx`; test `FilterFocus.real-element.test.tsx`).
 - (2026-10-10, condensed) **Built: a selection row made from a rule is named by the rule**
   (`selectionName` in `style/StyleTab.tsx`, from `session.selection.origin`). Open: the walk's
   new edge Color showed 000000, not the highlight band's 0077BB -- check `highlightStyle("edge")`.
@@ -202,6 +208,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the app, a run's Values view from its shape.
 
 ## Tried: worked / did not work
+
+- (2026-10-10) Reproducing a missed notice: did not work by route alone (11 walks, none missed).
+  Worked as a method: copy the frozen build into tmp, `chmod -R u+w`, add `console.error("PROBE
+  ...")` at the store's `set` and around `project.open` in the bundle; real.mjs prints every
+  console error in the step's output, with page times. Read the pilot agent's own commands from
+  `.claudehistory/<session>/subagents/workflows/*/agent-*.jsonl` before trusting a triage row's
+  route: this one said "Back to start" and the pilot used `--reopen`.
 
 - (2026-10-10) In `real.mjs`, a `--hover` right after `--click` on the same button prints
   `tooltip: null` (the pointer never left, so no new mouseenter); hover something else first. A

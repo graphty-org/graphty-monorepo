@@ -1,3 +1,25 @@
+## 0.0.7 (2026-10-10)
+
+### 🚀 Features
+
+- **cytoscape-extensions:** maxNodes for teraHAC, hierarchicalClustering and kamada-kawai ([ed244b6f4](https://github.com/graphty-org/graphty-monorepo/commit/ed244b6f4))
+- **algorithms:** list each undirected link-prediction pair once on request ([#723](https://github.com/graphty-org/graphty-monorepo/issues/723))
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** let the demo's iterations control reach spring-electrical ([#1766](https://github.com/graphty-org/graphty-monorepo/issues/1766))
+- **algorithms:** scale each SynC step by the node's degree so unconnected cliques split ([#1600](https://github.com/graphty-org/graphty-monorepo/issues/1600))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.43
+- Updated algorithms to 3.4.0
+- Updated layout to 2.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.6 (2026-10-09)
 
 ### 🧱 Updated Dependencies

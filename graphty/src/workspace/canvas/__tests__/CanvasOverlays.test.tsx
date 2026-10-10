@@ -336,6 +336,20 @@ describe("the legend card", () => {
         assert.deepEqual(titles, ["Color: My groups", "Color: PageRank"]);
     });
 
+    it("draws a run's node and edge highlight in one color as one line: the chip and the run", () => {
+        const black = [{ label: "#000000", value: "#000000", color: "#000000" }];
+        const highlight = { runId: "run-path", kind: "highlight", swatches: black } as const;
+        const blocks = [
+            block({ ...highlight, layerId: "path-edges", channel: "edge.color" }),
+            block({ ...highlight, layerId: "path-nodes", channel: "node.color" }),
+        ];
+        renderOver(standIn({ blocks, runs: { "run-path": "Shortest path" } }).session);
+        const section = screen.getByRole("group", { name: "Shortest path" });
+        // No title over a row that only repeats it: the run's name is the row.
+        assert.lengthOf(within(section).getAllByText("Shortest path"), 1);
+        assert.isNull(within(section).queryByText(/In the result|On the path/));
+    });
+
     it("draws the Other row and the overflow line in the app's words", () => {
         renderOver(standIn(facts).session);
         const section = screen.getByRole("group", { name: "Color: My groups" });

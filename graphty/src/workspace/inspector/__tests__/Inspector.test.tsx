@@ -86,7 +86,7 @@ describe("the inspector", () => {
         const { session: on } = await renderInspector();
         // No step: no showing rows, no whole-graph note.
         assert.isNull(screen.queryByRole("group", { name: "Nodes showing" }));
-        assert.isNull(screen.queryByText(/whole graph/));
+        assert.isNull(screen.queryByText("Full graph"));
 
         await act(async () => {
             await on.visibility.setSteps([
@@ -101,7 +101,7 @@ describe("the inspector", () => {
             screen.getByRole("group", { name: "Edges showing" }).textContent,
             `${String(visibleEdges)} of 13`,
         );
-        assert.isNotNull(screen.getByText("The counts below are for the whole graph."));
+        assert.isNotNull(screen.getByText("Full graph"));
         assert.include(screen.getByRole("group", { name: "Nodes" }).textContent, "12");
 
         // Off again: back to the plain Overview.
@@ -112,7 +112,7 @@ describe("the inspector", () => {
             assert.isNull(screen.queryByRole("group", { name: "Nodes showing" }));
         });
         assert.isNull(screen.queryByRole("group", { name: "Edges showing" }));
-        assert.isNull(screen.queryByText(/whole graph/));
+        assert.isNull(screen.queryByText("Full graph"));
     });
 
     it("keeps the graph's tab, and always opens a single node on Values", async () => {
@@ -211,8 +211,9 @@ describe("the inspector", () => {
         assert.isNull(screen.queryByRole("region"));
 
         await userEvent.click(within(list).getByRole("radio", { name: "2" }));
-        // Past one hop the heading says how far: only the one-hop count is direct ties.
-        const wider = await screen.findByRole("group", { name: "n0 and 7 connections within 2 hops" });
+        // Past one hop the Hops control says how far; the heading stays the count alone.
+        const wider = await screen.findByRole("group", { name: "n0 and 7 connections" });
+        assert.equal(within(wider).getByRole<HTMLInputElement>("radio", { name: "2" }).checked, true);
         // Two hops list the same way one hop does: by name.
         const names = within(wider)
             .getAllByRole("button")
@@ -269,7 +270,7 @@ describe("the inspector", () => {
         await userEvent.click(
             within(await screen.findByRole("radiogroup", { name: "Hops" })).getByRole("radio", { name: "2" }),
         );
-        await screen.findByRole("group", { name: "n0 and 7 connections within 2 hops" });
+        await screen.findByRole("group", { name: "n0 and 7 connections" });
         await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
         await waitFor(() => {
             assert.deepEqual(reaches(), [[true, 2]]);

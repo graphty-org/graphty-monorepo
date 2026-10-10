@@ -416,6 +416,9 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     const unchanged = step?.on === true && rule !== null && sameRule(rule, step.rule);
 
     if (session === null || (step === undefined && id !== NEW && filled === "")) {
+        // Nothing to save on leaving: the step this editor was open on is gone (deleted), and the
+        // last draw's save would write it back.
+        leave.current = () => undefined;
         return (
             <Text size="xs" c="dimmed" p="md">
                 This step is gone

@@ -11,6 +11,20 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Built: words at rest back under round 1 on three of four tier 2 screens.** On a
+  fresh build (`tmp/t2r2b-9/bars.log`): rest 49 (limit 53), path inspector 61 (66), neighbor list
+  33 (36), **edge inspector 31 (30), one over**. The key names a stale run's scope only when the
+  drawn count differs from the count it ran on: plain, ", full graph" (ran on every node), or "on
+  N nodes"; a run's node+edge highlight is one key line (chip + run name, no "On the path" row;
+  exported images keep both); unset-weight path note `Each edge counts as 1; "weight" has no
+meaning set.`; neighbor heading drops "within N hops" (the status line keeps it); Overview's
+  sentence is the heading "Full graph". OPEN for the studio: the edge screen's last word -- both
+  scope phrases there are true (15 of 32 drawn; PageRank ran on 20, the path on 32).
+- (2026-10-10) **Fixed: a deleted step came back when its open editor closed.** The editor's
+  early return ("This step is gone") kept the last draw's save-on-leave closure, which wrote the
+  old step list back (`Filters.tsx`). Test `FilterFocus.real-element.test.tsx`. `bars.mjs` now
+  plants its failure cases on the empty Notes place, not the step editor (the planted blur saved
+  the step, so "Add step" was gone).
 - (2026-10-10) **Built: a selection's own row made from a rule is named by the rule.**
   `selectionName` in `style/StyleTab.tsx` reads `session.selection.origin`: a text origin that
   starts with "=" names the row by the rest ("minutes >= `10`"), shown in the layer list, the
@@ -26,18 +40,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   linked groups", Louvain marked Start here); after picking Shortest path focus is on the
   dialog, not From, so typing a name types nothing (`tmp/t2r2b-11/fewest/05.png`) -- one more
   step on every path; putting focus in From would bring T18 to 7.
-- (2026-10-10) **Built: the find box gives a way on from a typed condition, and Enter runs it.**
-  Plain text that finds nothing and reads as no rule gets "No match for ... To select by a value,
-  type a rule such as =<example>"; a rule shown under the box (the text as a rule, or the
-  element's backtick rewrite, now with its "=") is the last option and the one Enter picks; a
-  click runs it too. Text-as-rule is judged by the element's new `selection.count` (reads the
-  target as `apply` does), not `scope.count`. Walk: `tmp/t2r2b-4/find/01-07.png`.
-- (2026-10-10) **Built: three keyboard focus faults on tier 2 controls.** A second Esc in an
-  empty find box keeps focus there (the `blur()` is gone); a Hops or Follow change by arrow keys
-  keeps focus on that control (the list remounts on every reselect, so a module flag names the
-  control to refocus); leaving the filter step editor (Tab out, or a click on anything else) saves
-  a whole, changed rule, a half-made one stays a draft, and Esc says "Step not added." or 'Not
-  saved: "..." is as it was.' on the status line. Walk: `tmp/t2r2b-6/find/07,08,13,16,17.png`.
+- (2026-10-10, condensed) **Built: the find box offers a typed condition as a rule** (last
+  option, Enter picks it; judged by the element's `selection.count`). Walk `tmp/t2r2b-4/find/`.
+- (2026-10-10, condensed) **Built: keyboard focus on tier 2 controls** (second Esc keeps the
+  find box; arrow-key Hops/Follow keep focus; leaving the step editor saves a whole changed rule).
 - (2026-10-10) **Unfinished, uncommitted: the round 3 dry run from real routes.** In the worktree,
   not committed: `real.mjs` (Tab after a setup starts at Main menu; `REAL_MISS_FAILS=1` makes a
   scripted walk's miss exit 2; self-test checks for both), `detours.sh` (round 2 detours R2-* and
@@ -46,12 +52,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   FindBox's rule as the option Enter picks is now committed. Still to do: build, `--prove`,
   `detours.sh all`, `rewalk.sh routes:tier2/rounds/round-2`, fix what fails, write the round 3
   preflight's walk table, commit. The "#n among kinds" refusal is already committed with its check.
-- (2026-10-10) **Built: bar 10's scripted counts in `tool/bars.mjs`** (`measure.mjs` `bar10()`):
-  text cut off with no title, accessible name, tooltip (hovered, 1 s delay) or whole copy on
-  screen, and visible error codes / field paths, on every bar 8 screen plus long-names.csv's Data
-  place, inspector and find box, at 1440x900 and 1280x800. Planted clipped name and E_BAD_SELECTOR
-  are caught and printed by screen and element. On 7fe0a48412cc: 0 unreadable cuts (12 cut but
-  readable: find rows by tooltip, a column by name, the inspector title by its id row), 0 codes.
+- (2026-10-10, condensed) **Built: bar 10's scripted counts** in `bars.mjs` (`measure.mjs bar10()`).
 - (2026-10-10, condensed) **Built:** Filter to neighbors is a plain command (adds or turns on
   this center's step; off lives on the step's checkbox); a weighted path's row and announcement
   give its total ("minutes 14") via `pathLengthWords(run)` in `analyze/words.ts`.
@@ -78,6 +79,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-10) **Scope words follow the drawn count, read from the element.** `rowName` compares
+  `stale.ranOn` with `visibility.summary.visibleNodes` (equal: plain) and `totalNodes` (equal:
+  ", full graph"), else "on N nodes". The decision assumed the rest and edge screens would go
+  plain; they do not: team.csv adds 12 nodes, so PageRank ran on 20 of 32, and a filter is on.
+  The two extra cuts that cover it are redundancy only: a merged highlight's title repeated its
+  one row, and the Overview sentence restated what "showing" already set apart. Not cut: "Color:",
+  "Summary", "Edge", "4 hops" (each decided or consistent across inspectors).
 - (2026-10-10) A rule selection's row takes the rule's text without its "=", trimmed, not a
   sentence ("Edges where ..."): the rule is the reader's own words and the key already titles the
   section "Edge color: <row>". Only text origins starting with "=" count; a plain text search or a
@@ -215,6 +223,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-10) Did not work: `npm run build` while another agent's untracked
+  `graphty/src/zz-probe/` test broke `tsc`; worked: `npx vite build --outDir tmp/<task>/dist`
+  and `bars.mjs --dist` on it. Did not work: trusting the decision's word arithmetic -- measure
+  first; the screens' filters and added tables decide which scope words show.
 - (2026-10-10) Worked: proving the rule-name test fails by disabling the branch (`&& false`)
   gave "expected [ '2 edges' ] to deeply equal [ 'minutes >= `10`' ]". Did not work at first: a
   rule typed with backticks gets no option row under the box (only "Rule: press Enter to select

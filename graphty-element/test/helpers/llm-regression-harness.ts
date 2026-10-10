@@ -369,7 +369,7 @@ export class LlmRegressionTestHarness {
      * Delay helper for retry logic.
      */
     private delay(ms: number): Promise<void> {
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+        // eslint-disable-next-line local/no-test-timing -- backoff before calling a remote LLM provider again after a rate limit or transient error; the provider offers no condition to wait on, tracked in #1636
         return new Promise((resolve) => setTimeout(resolve, ms));
     }
 

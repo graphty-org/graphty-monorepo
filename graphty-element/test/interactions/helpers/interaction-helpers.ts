@@ -6,8 +6,10 @@
  */
 
 import { Matrix, Vector3 } from "@babylonjs/core";
+import { vi } from "vitest";
 
 import { Graph } from "../../../src/Graph";
+import { nextFrame } from "../../helpers/real-input";
 import { cleanupTestGraph, createTestGraph, setBehavior } from "../../helpers/testSetup";
 import type { CameraState, DragDelta, NodeData, ScreenPosition, TestGraphOptions, Vector3D } from "../types";
 
@@ -19,28 +21,21 @@ import type { CameraState, DragDelta, NodeData, ScreenPosition, TestGraphOptions
  * @param timeout - Maximum time to wait in milliseconds (default: 5000)
  */
 export async function waitForGraphReady(graph: Graph, timeout = 5000): Promise<void> {
-    const startTime = Date.now();
+    await vi.waitFor(
+        () => {
+            if (!graph.initialized) {
+                throw new Error(`Graph did not initialize within ${timeout}ms`);
+            }
+        },
+        { timeout },
+    );
 
-    while (Date.now() - startTime < timeout) {
-        if (graph.initialized) {
-            // Give a small delay for everything to settle
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 50));
+    // The picture is final: queued work has run, the layout has converged and the camera has
+    // finished framing it, so a test that reads positions or the camera reads where they stay
+    await graph.waitForStableFrame();
 
-            // Trigger a render loop iteration to ensure layout is applied
-            graph.scene.render();
-
-            // Another small delay for positions to be applied
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 50));
-            return;
-        }
-
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-
-    throw new Error(`Graph did not initialize within ${timeout}ms`);
+    // Trigger a render loop iteration to ensure layout is applied
+    graph.scene.render();
 }
 
 /**
@@ -208,9 +203,8 @@ export async function dragNode(graph: Graph, nodeId: string | number, delta: Dra
         } as PointerEvent,
     } as unknown as Parameters<typeof scene.onPointerObservable.notifyObservers>[0]);
 
-    // Small delay to allow event processing
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 16));
+    // Observers run synchronously; let a frame render between the steps, as a real drag would
+    await nextFrame();
 
     // Simulate pointer move
     const steps = 5;
@@ -226,8 +220,7 @@ export async function dragNode(graph: Graph, nodeId: string | number, delta: Dra
             } as PointerEvent,
         } as unknown as Parameters<typeof scene.onPointerObservable.notifyObservers>[0]);
 
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 16));
+        await nextFrame();
     }
 
     // Simulate pointer up
@@ -241,9 +234,9 @@ export async function dragNode(graph: Graph, nodeId: string | number, delta: Dra
         } as PointerEvent,
     } as unknown as Parameters<typeof scene.onPointerObservable.notifyObservers>[0]);
 
-    // Wait for physics to settle
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait for whatever the drag queued to run, and a frame to show it
+    await graph.waitForSettled();
+    await nextFrame();
 }
 
 /**
@@ -401,9 +394,8 @@ export async function clickAtPosition(graph: Graph, position: ScreenPosition): P
         } as PointerEvent,
     } as unknown as Parameters<typeof scene.onPrePointerObservable.notifyObservers>[0]);
 
-    // Small delay for click detection processing
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // The click was handled synchronously; wait for the selection styling it queued to land
+    await graph.waitForSettled();
 }
 
 /**
@@ -430,8 +422,7 @@ export async function clickOnNode(graph: Graph, nodeId: string | number): Promis
     // Trigger a few render frames to ensure everything is synchronized
     for (let i = 0; i < 3; i++) {
         graph.scene.render();
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 16));
+        await nextFrame();
     }
 
     const screenPos = getNodeScreenPosition(graph, nodeId);

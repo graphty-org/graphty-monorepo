@@ -12,37 +12,44 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- 2026-10-09 -- Tier 2 round 1 (55 valid sessions, build 946256efb876): 52 succeeded, 0 false
-  "done", 0 weights read backwards, every session log empty. A dry run DID happen (four builds
-  plus the frozen build) and no participant met a broken control on the routes it walked. Off
-  those routes: one confirmed build defect (Edges color written to Everything, severity 2) and
-  more study-tool faults than build faults.
-- 2026-10-09 -- New rule I hold the studio to: a dry run walks each task's commonest detours (the
-  last round's wrong turns), not only the answer key's route. Round 1's open faults all sat on
-  detours no walk took.
-- 2026-10-09 -- Round 2 fixes, in order: find box "No match" points to the rule form and the
-  column offers "Select where"; Replace visible at rest; the weight's meaning settable on the
-  column people go to next, and "Back to start" undoable; stale run marked on the key; long-name
-  truncation; filter Enter commits and focus after Add/Delete step; Load announcement.
-- 2026-10-09 -- Do NOT change in round 2: Filters' home under Data (7 of 8 at success-path cost),
-  the right-click menu (add a visible route, keep it), the T18 path route, Hops, the selection
-  tint priority, edge width units (script first). Tom's scripted two-attempt exits decided 2 of 3
-  non-successes; label scripted exits so they are not read as the screen's doing.
-- 2026-10-09 -- Weak evidence warning: simulated returning users go first where their histories
-  point, so "first move matched the history" says nothing; failures and script repros are strong.
-- 2026-10-08 -- Returning users are judged by repeat cost and kept habits. Round 1's T18 repeat
-  took about one step over target, from a mechanical cause (From fills from the selection).
-- 2026-10-08 -- The expert walkthrough and screenshot audit now feed bar 10; round 1 fails it on
-  three severity-3 findings (long names cut, drawn names overlapping, stale run).
-- 2026-10-07 -- Top risk still: a picture that looks right and answers wrong (3D perspective
-  inverts size order; overlapping names; a stale key at full contrast).
-- 2026-10-07 -- Words still leak developer and element strings ("Untitled" in the Load
-  announcement while the header names the project; backticks in rules). The element returns
-  codes; the app words them.
-- 2026-10-07 -- Hold, do not change: icon-only toolbar, no names by default, hover tooltips off,
-  raw scores on the key, the Analyze list, the Degree row as the neighbor route.
-- 2026-10-06 -- Grade from what ended on screen, never from self-ratings. Task wording never
-  reuses screen words at the target; every wording fix tested on two domains (owner, 2026-09-29).
+- 2026-10-09 -- Dry run: yes, and it worked where it walked. Every task on both datasets, four
+  builds plus the frozen build; 55 valid sessions, every log empty, no grade decided by a build
+  defect. But it walked only the answer key's routes, by pointer only, and never the study tool.
+- 2026-10-09 -- So participants DID hit implementation faults, off-route: Edges color written to
+  Everything, the selection halo tinting a node's own fill, focus lost after Add/Delete step,
+  Enter not committing a step. And the tool hit them more than the build did (over four browsers
+  alive, load about 158; wrong-row matches; synthetic file drop; missed follow-ups).
+- 2026-10-09 -- Round 2 gate: no session until the tool is fixed, the bar scripts (2, 7, 8, 9)
+  exist, and a written dry run on the new frozen build walks each task's two commonest round-1
+  detours by pointer AND keyboard. I hold the studio to this; a round without it measures the
+  tool, not the user.
+- 2026-10-09 -- Real user findings that survived the skeptics: find answers a condition with a
+  bare "No match" (T22, 4 of 4, sev 3); Replace invisible at rest (T21, 8 of 8, sev 3); plain
+  Open from the start screen skips "Higher means" (T20, 7 of 7, sev 3); names, not ids, and units
+  ("Total distance 14") -- kept, low confidence.
+- 2026-10-09 -- Decided fixes I accept over my own proposals: start-screen Open goes through the
+  Data page (not a column "higher means" -- second home, needs element API); find's refusal words
+  only, "Select where" on a column only if 3+ still look there; "..." menu on the source inspector.
+- 2026-10-09 -- I changed my mind on the selection tint: it is a rendering defect (halo meant as
+  a ring), fixed in graphty-element, not a design priority to keep.
+- 2026-10-09 -- Watch in round 2: do the new find words get people to "=" rules without a new
+  control; does the Data-page detour cost tier 1's open-your-own-file task a step too many; does
+  the ", out of date" key mark get read before a name.
+- 2026-10-09 -- Label scripted persona exits (Tom's two-attempt rule decided 2 of 3 failures);
+  never read a scripted exit as the screen's doing.
+- 2026-10-09 -- Weak evidence: simulated returning users go first where their histories point,
+  and prompts that ask for a rerun induce "noticing" staleness. Failures and script repros count.
+- 2026-10-09 -- Known to keep failing bar 10: drawn names overlapping (element label placement,
+  filed). The app must not hide it with small fonts or a seed.
+- 2026-10-07 -- Top risk still: a picture that looks right and answers wrong (stale key at full
+  contrast, overlapping names, 3D size inversion).
+- 2026-10-07 -- Words: the element returns codes; the app words them. Backticks in rules and
+  "Untitled" in the Load announcement are leaks.
+- 2026-10-07 -- Hold: icon-only toolbar, names off by default, Filters under Data, the Analyze
+  list, right-click menus (add a visible route, keep the habit route).
+- 2026-10-06 -- Grade from what ended on screen, never self-ratings; task wording never reuses the
+  target's screen words; test every wording on two domains.
+- 2026-10-06 -- No tours, hint panels or first-run aids; same screens for everyone.
 
 ## Priorities and values
 
@@ -101,21 +108,16 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
-- 2026-10-09 (me, tier 2 round 1 critique) -- Round 2 changes, smallest first on the returning
-  user's path: (1) find box: "No match for ..." adds one line naming the rule form (start with
-  "="), and a column's menu offers "Select where..." that opens the find box prefilled with the
-  rule (`graph-place/FindBox.tsx:355`, the Data place column menu); 4 of 4 typed a condition in
-  find, the column was the second place 4 of 4 looked. Bare numbers in rules (no backticks) is an
-  element query-language change: owner list, not blocking. (2) "Replace with file..." on the
-  source's inspector, the place a left click opens (`data-place/DataPlace.tsx`); 8 of 8 hunted.
-  (3) The edge column's menu sets what a higher value means (the load-time weight fact), and
-  "Back to start" is undoable; the path's Weight list starts on the loaded weight. 7 of 7 opened
-  with plain Open; 6 of 7 went to the column next. (4) Stale run marked on the canvas key (bar 5
-  fails as written; two experts). (5) Long names: find list ellipsis, count outside the truncated
-  name, edge names cut per end; frame-to-fit counts label extents (element). (6) Filter step
-  Enter commits; focus to the new step after Add, to the next row after Delete. (7) Load
-  announcement names the project and the left-out row. Reason: each is a reproduced problem on a
-  route participants actually took; none adds a novice-only aid or moves a home that worked.
+- 2026-10-09 (Design Director, round 1 close; my position after) -- Round 2 starts only after the
+  study tool is fixed, the bar scripts are built and a detour dry run (pointer and keyboard) is
+  written on the new build. App changes: find refusal words; "..." with Replace on the source
+  inspector; start-screen Open of a data file goes through the Data page; filter focus and Enter;
+  true load words; find-list ellipsis; ", out of date" on the key; no silent Everything for style
+  lines; halo ring without tint (element); Weight list starts on the loaded weight. Reason: one
+  door per confirmed problem so round 2 can credit each change alone. I drop my column-menu
+  "higher means" and undoable "Back to start" (second home; Back already asks when unsaved).
+- 2026-10-09 (me, tier 2 round 1 critique) -- Proposed seven round 2 fixes on routes participants
+  took; superseded by the entry above where they differ (column menus, undoable Back).
 - 2026-10-09 (me) -- A dry run must walk the commonest detours, not only the answer key. Reason:
   round 1's dry run cleared every walked route (0 broken controls met there), and every build
   fault participants did meet was on a detour (styling Edges while a run layer was open, the
@@ -212,6 +214,9 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Tried: worked / did not work
 
+- 2026-10-09 -- DID NOT WORK: a dry run that walks only the answer key, by pointer only, with no
+  tool check. Every open fault sat on a detour or in the tool. Next: walk round 1's detours and
+  keyboard, and dry-run the tool itself.
 - 2026-10-09 -- TIER 2 ROUND 1. WORKED: the dry run on the walked routes (empty session logs, no
   grade decided by a build defect); T17 follow-ups at the key's 4 steps; T23 and T12R at or under
   path; the path run, the Replace page and "Higher means" read right every time once found; 0

@@ -11,6 +11,20 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Built: readers' words find Shortest path in the Analyze list.** Aliases now
+  include "linked", "between", "in between", "fewest", "chain" (search only, never shown;
+  "linked" replaced "link", which it contains). Walk on 3ee5ca8b0e01: Shift+A, "linked",
+  Shortest path, From, pick, To, pick, Find path = 8 steps, Chloe-Ava-Ivan-Kofi-Milo
+  (`tmp/t2r2b-11/linked/02-09.png`). Open: "linked" also lists Louvain and Leiden first ("densely
+  linked groups", Louvain marked Start here); after picking Shortest path focus is on the
+  dialog, not From, so typing a name types nothing (`tmp/t2r2b-11/fewest/05.png`) -- one more
+  step on every path; putting focus in From would bring T18 to 7.
+- (2026-10-10) **Built: the find box gives a way on from a typed condition, and Enter runs it.**
+  Plain text that finds nothing and reads as no rule gets "No match for ... To select by a value,
+  type a rule such as =<example>"; a rule shown under the box (the text as a rule, or the
+  element's backtick rewrite, now with its "=") is the last option and the one Enter picks; a
+  click runs it too. Text-as-rule is judged by the element's new `selection.count` (reads the
+  target as `apply` does), not `scope.count`. Walk: `tmp/t2r2b-4/find/01-07.png`.
 - (2026-10-10) **Built: three keyboard focus faults on tier 2 controls.** A second Esc in an
   empty find box keeps focus there (the `blur()` is gone); a Hops or Follow change by arrow keys
   keeps focus on that control (the list remounts on every reselect, so a module flag names the
@@ -22,8 +36,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   scripted walk's miss exit 2; self-test checks for both), `detours.sh` (round 2 detours R2-* and
   keyboard sweeps KS-*), `rewalk.sh` (replays a session's transcript route, `routes:<round>`),
   README, the owner-decisions entry for `canvas:empty-click` (its code is in bde1e5de0), and
-  FindBox's rule offered as the option Enter picks (with tests). `selection.count` in the element
-  is unused (FindBox uses `scope.count`): drop it rather than commit it. Still to do: build, `--prove`,
+  FindBox's rule as the option Enter picks is now committed. Still to do: build, `--prove`,
   `detours.sh all`, `rewalk.sh routes:tier2/rounds/round-2`, fix what fails, write the round 3
   preflight's walk table, commit. The "#n among kinds" refusal is already committed with its check.
 - (2026-10-10) **Built: bar 10's scripted counts in `tool/bars.mjs`** (`measure.mjs` `bar10()`):
@@ -32,15 +45,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   place, inspector and find box, at 1440x900 and 1280x800. Planted clipped name and E_BAD_SELECTOR
   are caught and printed by screen and element. On 7fe0a48412cc: 0 unreadable cuts (12 cut but
   readable: find rows by tooltip, a column by name, the inspector title by its id row), 0 codes.
-- (2026-10-10) **Built: Filter to neighbors is a plain command.** It adds this center's step at the
-  hops shown, or turns that one step on (moving it to the hops shown); a second press never deletes
-  it, and it is never drawn pressed. Off lives only on the step's checkbox in Filters, and the
-  tooltip says so ("... Its step in Filters turns it off"). Walk: `tmp/t2r2-13/walk/06-11.png`.
-- (2026-10-10) **Built: a weighted path's run row and its "Shortest path added" line give its
-  total, "minutes 14", not "3 hops".** One helper, `pathLengthWords(run)` in
-  `graphty/src/workspace/analyze/words.ts`, feeds both the row (`graph-place/rows.ts`) and the
-  announcement; it reads the element's published `cost` and `caveats.weight` (distance only, the
-  same rule as the inspector's "Total minutes"). Walk: `design/ui/studio/tmp/t2r2-12/walk/11.png`.
+- (2026-10-10, condensed) **Built:** Filter to neighbors is a plain command (adds or turns on
+  this center's step; off lives on the step's checkbox); a weighted path's row and announcement
+  give its total ("minutes 14") via `pathLengthWords(run)` in `analyze/words.ts`.
 - (2026-10-09, condensed) **Built on 10-09:** 24 px xs checkbox target (compact-mantine);
   find-list arrows scroll the row into view; participants run outside the studio's files
   (`--brief`, `--start` refusals, `--leaks`); a selection layer's Color or Width starts at the
@@ -70,6 +77,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-10) **Path search words go in aliases, not in the line a reader sees.** Matching
+  is a substring of name, line, aliases, key; a word in the line would also be shown. The test
+  asserts Shortest path is among the results for each word, not alone: "between" rightly also
+  finds Betweenness, and "linked" the community runs.
+- (2026-10-10) **Keep `selection.count`; the earlier "drop it" was wrong.** `scope.count({ where })`
+  reads a rule as a node scope, so "minutes >= `10`" (an edge column) counted 0 and the box said
+  "No match" with an example instead of offering the rule; a real-element test with real typing
+  caught it, the unit test did not (its bare-number text took the refusal path, which never counts).
+  Asking "what would Enter select" belongs to the element, so FindBox calls `selection.count`.
 - (2026-10-10) **Leaving the step editor saves; a click away no longer only keeps a draft.** A
   whole, changed rule is written when focus leaves the form (`onBlur` with a target outside it) or
   the editor unmounts (a click elsewhere moves the inspector on); one `keep` ref stops a double
@@ -201,33 +217,21 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Columns after "=" omit run results; edge-only `edgePage` selection (owner door); dijkstra over a
   negative undirected weight freezes the page.
 
-- (2026-10-09) **A run row's Style tab offers only the sides the run's own layers cover** (built,
-  see Top of mind). A node-only result has nothing to say about edges (the algorithm-styles rule).
-  Rejected: a run-named edge layer with an empty selector (paints every edge, breaks the rule).
-- (2026-10-09) **Audit findings name the owning package; the canvas label clipping is the
-  element's.** The fit frames spheres only, so any app fix (smaller font, padding) would hide an
-  element defect. The legend card's label overlap waits on the same element fact (label bounds).
-- (2026-10-08, summarized) **Older dry-run calls and element facts:** camera unsaved; a step named
-  by what changed; a reopened load replaces itself; Esc exits only an empty import page; no script
-  focus ring after a pointer action; shared-control defects fixed in compact-mantine; a resolved
-  option is a caveat (`caveats.method`), never written into params; a left-out row names its
-  missing END; label draw order is `onTop`; what a rule tested is `selection.originPaths`, never
-  parsed; find moves the camera only to an off-screen pick; facts are rows, not chips.
-- (2026-10-07, condensed) **Tier 2 element work (owner doors):** edge pick 5a2b3b605; filter steps
-  `setSteps`, counts only in `plan` (8966b0888); stale runs ce34f31f3 (Replace never reruns);
-  every load a source f141b1283; edge-attribute filter 559f5dcb2 (`nodes: "ends"`); coded selector
-  refusals 3d89d43c3. Next: run results typed per field; several node types last.
-- (2026-10-07, condensed) **App-only (no door):** edge click opens the edge inspector (e666ae17d);
-  Export warnings worded by the app (`export/lossWords.ts`); a run's Values view comes from its
-  shape (`viewOf()`). Element English still on screen (estimate reasons, layout descriptions):
-  codes from the element are an owner door.
-- (2026-09-13 to 10-07) Older standing decisions: no default layout seed in the element (the app
-  seeds, `LAYOUT_SEED`); any new site showing a run calls `runName`; test the element before the
-  app; a run paints when it finishes; group-row color fallback in `graph-place/rows.ts` stays until
-  #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
+- (2026-10-09, summarized 2026-10-10) **Older element and app calls, still standing:** a run row's
+  Style tab offers only the sides its own layers cover; audit findings name the owning package
+  (canvas label clipping is the element's); camera unsaved; a reopened load replaces itself; a
+  resolved option is a caveat, never written into params; what a rule tested is
+  `selection.originPaths`, never parsed; tier 2 element doors: edge pick 5a2b3b605, filter steps
+  8966b0888, stale runs ce34f31f3, every load a source f141b1283, edge-attribute filter 559f5dcb2,
+  coded selector refusals 3d89d43c3; app-only: edge inspector e666ae17d, Export warnings worded by
+  the app, a run's Values view from its shape.
 
 ## Tried: worked / did not work
 
+- (2026-10-10) Worked: a real-element test with real typing for every path a unit adds. The
+  backtick-typed condition failed only there (edge column counted as a node scope). Did not work:
+  running vitest while another agent rebuilt the shared dists (graph-io chunks missing, "Failed to
+  import test file"); wait until its `nx run graphty:build` exits, then rerun.
 - (2026-10-10) Resuming after an interrupted session: check `git log` and `tmp/<session>/` before
   redoing a task. Focus after actions (inspector title after a run or find pick, Degree after
   Back, no canvas ring after a pointer click) was already on the branch (c9430b8d7, refined in
@@ -267,24 +271,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `design/ui/studio/tool/`. Pilot walks: rebuild from `repilot.sh` and its shots, run it bare,
   contact sheets with `montage`.
 
-- (2026-10-09, summarized) **Measure before fixing a look.** A Playwright probe under
-  `with-browser.sh` showed a list really overflowed (Mantine keeps a hidden ScrollArea bar mounted:
-  check computed display); log a root's computed `display` when a rule "does nothing" (a `.dp`
-  class collision made a grid flex; grep new root classes). `--expect selected=N` counts selected
-  rows, not nodes. TS drops narrowing inside hoisted nested functions.
-
-- (2026-10-09, condensed) A pilot's exact steps are in `.claudehistory/<session>/subagents/`;
-  `--hover-at` over every control class before choosing a rule; re-walk every dry-run walk whose
-  path uses a changed door (`detours.sh T3 T4 ...`).
-- (2026-10-09) Worked: a local walk script beside the evidence (`r2-dry2-app-import-and-left-out/walk.sh`)
-  when rewalk.sh's fixed steps stop one click short; a real-element test of "does not move" reads
-  the control's `getBoundingClientRect().left` before and after the click.
-
-- (2026-10-09, condensed) **Test and walk lessons.** A second load in a test needs
-  `{ mode: "merge" }`. Prove "nothing follows" by spying the element call, never a sleep; prove
-  every walk check on the broken build (only `--expect` fails a walk). A build from the shared tree
-  holds others' unfinished edits. Hooks: copy `.husky/_/` AND the top-level hooks into the temp
-  dir, else every hook exits 0. Open: a run hidden by an Everything edit shows a blank Style tab.
+- (2026-10-09, summarized 2026-10-10) **Measure before fixing a look; walk lessons.** Probe
+  computed `display` and real overflow under `with-browser.sh` before CSS; `--expect selected=N`
+  counts rows; a pilot's exact steps are in `.claudehistory/<session>/subagents/`; re-walk every
+  walk whose path uses a changed door; a second test load needs `{ mode: "merge" }`; prove
+  "nothing follows" by spying, never a sleep; hooks: copy `.husky/_/` AND top-level hooks.
 
 - (2026-10-09, condensed) Did not work: leaving edits uncommitted while others commit in the same
   files (`17bf87085` swept my hunks); commit as soon as hunks pass. Did not work:

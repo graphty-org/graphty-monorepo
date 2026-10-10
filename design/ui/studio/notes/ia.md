@@ -7,38 +7,37 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-1. (2026-10-09) Round 1 verdict: the homes hold, the doors fail. Path run, Replace page, Filters
-   and load-time "Higher means" were read right every time once reached; every non-success stopped
-   on WHERE a feature lives, on controls that work.
-2. (2026-10-09) The dry run walked only the answer key's routes. Before round 2 it also walks each
-   task's two commonest round 1 detours, by pointer and by keyboard; my job is to name those
-   detours per task (they are IA facts: where people look first and second).
-3. (2026-10-09) Round 2 doors, decided: start-screen Open of a data file goes through the Data page;
-   the source inspector gets a "..." menu (Replace, Edit source, shared verbs with the row menu);
-   find's empty line offers the rule start when the element says the text is a rule; the key says
-   ", out of date". One door per confirmed problem; no feature moves.
-4. (2026-10-09) Rejected for round 2 (my proposal): "Select where..." on the column menu. Reason:
-   it would confound the find-hint test; it comes only if the hint fails with 3+ participants
-   looking in the same place. Watch the column as second place in T22.
-5. (2026-10-09) Watch in round 2: T22 success via the hint; T21 median steps via "..."; T20 under
-   22 steps and whether the Data page step costs tier 1's open-your-own-file task; that nobody
-   hunts Filters from Graph more than once (Filters' home stays under Data).
-6. (2026-10-09) The column is every user's second place (T20 6 of 7, T22 4 of 4). Treat it as a
-   door to existing homes, never a new home.
-7. (2026-10-09) Style lines must go only to the layer the row names: a run's Style tab with no
-   edge layer shows no Edges segment (fixes the silent write to Everything). One home per layer.
-8. (2026-10-09) Do NOT change in round 2: Filters under Data, the rail, Analyze order, Hops, the
-   path popover, Leave-out preselect, note subject. One variable per path.
-9. (2026-10-09) Simulated returning users go first where their history says; a matching first move
-   is weak evidence. Graders now mark scripted persona exits (Tom decided 2 of 3 non-successes).
-10. (2026-10-09) Units are structure too: "Total distance 14" became "Total minutes 14"; a number
-    names its unit and whole.
-11. (2026-10-07) Element-first, still open: label placement and frame-to-fit ignoring label extents
-    (confirmed class, filed on graphty-element, bar 10 will keep failing); bare numbers in rules is
-    an owner question.
-12. (2026-10-07) One popover per job, every door opens it; a working door nobody sees is not a door.
-13. (2026-10-06) A refusal lives next to the control that caused it; same words from every door.
-14. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
+1. (2026-10-09) Round 2: every pass is weak evidence. Participants read the facilitator's
+   tasks.md (avoided words name each route's controls; 13 of 16 knew the follow-up). Credit no
+   new door until a round runs with the briefing as the only readable file. Problems found anyway
+   are robust.
+2. (2026-10-09) Dry runs did happen (four, plus 30 detour walks on the study build); about 30 of
+   355 problems were build faults, none above severity 2, 12 on the one detour nobody walked
+   (styling a selection). Sessions are spent on IA and words, as intended. Keep naming detours.
+3. (2026-10-09) The homes still hold (Filters 8 of 8, Replace 8 of 8, Higher means 7 of 7). The
+   remaining failures are doors that answer "No match" or open the wrong verb.
+4. (2026-10-09) Proposed for round 3: find lists matching columns in plain find (the column is
+   a noun; "chapters" must find shared_chapters); Open of a file whose name matches a loaded
+   source offers Replace beside Add; Edit source titled and buttoned as an edit; selection-made
+   layer named by its rule; Hops list grouped by step; Filter to neighbors toggles the step, never
+   deletes it; path aliases ("linked", "between", "fewest") in Analyze's search.
+5. (2026-10-09) Still rejected: "Select where..." on the attribute menu (4 of 8 looked there, but
+   the hint passed and the column-in-find fix targets the same 6 of 8; one variable per path).
+6. (2026-10-09) Element-first: bare numbers in rules, a "no such column" fact, duplicate-edge
+   count on an add, label placement. The app never parses rules or counts duplicates.
+7. (2026-10-09) The column is every user's second place. Treat it as a door to existing homes,
+   never a new home.
+8. (2026-10-09) Do NOT change in round 3: Filters under Data, Replace's home in the source "...",
+   load-time Higher means, rail, Analyze order, Path popover, P key, Notes place.
+9. (2026-10-09) Note subject waits on a script: does an empty-canvas click clear a selected run?
+   The expert and a session disagree; decide from the script, then fix one thing.
+10. (2026-10-09) Style lines go only to the layer the row names. One home per layer.
+11. (2026-10-09) Simulated returning users go first where their history says; a matching first
+    move is weak evidence. Graders mark scripted persona exits.
+12. (2026-10-09) A number names its unit and whole; a count under a filter names whose numbers.
+13. (2026-10-07) One popover per job, every door opens it; a working door nobody sees is not a door.
+14. (2026-10-06) A refusal lives next to the control that caused it; same words from every door.
+15. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
     in the Summary; a Style-tab pointer to Label; Size pre-bound to the row's result.
 
 ## Priorities and values
@@ -166,6 +165,19 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   (confounds the hint; only if the hint fails with 3+ in one place); visible Replace buttons in the
   inspector body (words at rest). I accept: each reason keeps one variable per path.
 
+- 2026-10-09 (IA proposal for tier 2 round 3, after round 2): seven door and word fixes, no new
+  places, no moves. (1) Plain find lists columns whose name holds the typed word, each opening
+  the rule start; reuses FindBox's `columnOptions`, today gated behind "=". Evidence: 6 of 8 got
+  "No match" for "chapters 10", ">= 10", "minutes" (r2-s12/03.png); 0 of 8 typed "=". (2) Open of a
+  file whose name matches a loaded source offers "Replace <file>" beside "Add to <graph>";
+  the element reports how many added edges duplicate existing ones as a fact. Evidence: r2-s33/05
+  ("makes 20 nodes and 82 edges" with only Add). (3) Edit source page titled "Edit source:" with
+  an edit verb, not "Replace:" (door fidelity). (4) A layer made from a rule is named by the rule,
+  not "13 edges" (7 sessions). (5) Hops list says who is 1 step and who 2 (distance is the
+  element's fact). (6) "Filter to neighbors" again turns the step off, not deletes it; the
+  step's checkbox stays the one home for on/off. (7) Analyze search aliases for the path tool.
+  Reason for all: each is a door or a name for an existing home; none adds or moves one.
+
 ## Tried: worked / did not work
 
 - 2026-09-28 to 10-02 (mock rounds, summarized 2026-10-09) -- tree tests rank where people look
@@ -214,6 +226,12 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 - 2026-10-09 -- Load-time weight meaning: the home works (everyone who reached "Higher means"
   chose right) but the habitual door (Open) skipped it, and "Back to start" dropped the graph.
 
+- 2026-10-09 (tier 2 round 2, weak evidence: facilitator text leaked) -- Open through the Data
+  page: T20 7 of 7 set Higher means at load; the habit carried. The source "..." with Replace:
+  8 of 8 found it, by guessing. Find's rule hint: worked only after the exact column and a
+  condition; the column word alone dead-ends. The detour dry run worked for the walked detours
+  (30 of 30) and missed the unwalked one (styling a selection).
+
 ## Thinking
 
 - **Tier 1 IA questions (2026-10-06)** were answered by rounds 1-3: the intake, names and
@@ -241,6 +259,10 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   picture, export the numbers, save and reopen.
 
 ## Sources
+
+- `tier2/rounds/round-2/insights.md`, `scores.md`, `expert/figma.md`, `expert/engineer.md`;
+  screenshots `r2-s33/05.png`, `r2-s12/03.png`; `graphty/src/workspace/graph-place/FindBox.tsx`
+  (`columnOptions`) (2026-10-09)
 
 - `tier2/rounds/round-1/insights.md`, `decisions.md` (2026-10-09)
 

@@ -14,7 +14,7 @@ import type { Binding, Channel, ChannelValue, LabelStyle, LayerId } from "@graph
 import type { ColumnRef, GraphSession, Layer } from "@graphty/graphty-element/session";
 
 import { runName } from "../runWords";
-import { resultWord } from "./words";
+import { channelWord, resultWord } from "./words";
 
 /** Which side of the Style tab: nodes or edges. */
 export type Target = "node" | "edge";
@@ -258,8 +258,51 @@ export function selectionLayer(session: GraphSession, name: string): NewLayer {
 }
 
 /**
+ * The selector a binding needs on a row that paints everything, when graphty-element refuses it
+ * there: a binding to a run's result is refused on a layer that paints every element
+ * (`E_UNSCOPED_RUN_ENCODING`), and the element's own remedy is a layer scoped to the elements
+ * that carry the result.
+ * @param session - the element's session.
+ * @param target - nodes or edges.
+ * @param channel - the bound channel.
+ * @param binding - the binding.
+ * @returns the scoped selector, or undefined when a layer that paints everything may hold it.
+ */
+function scopeFor(
+    session: GraphSession,
+    target: Target,
+    channel: Channel,
+    binding: DataBinding,
+): Layer["selector"] | undefined {
+    const check = session.styles.validate({
+        name: "check",
+        target,
+        selector: { match: "everything" },
+        encode: { [channel]: binding },
+    });
+    return check.errors.some((error) => error.code === "E_UNSCOPED_RUN_ENCODING")
+        ? { match: "has", path: binding.by }
+        : undefined;
+}
+
+/**
+ * Whether two selectors are the same.
+ * @param a - one selector.
+ * @param b - the other.
+ * @returns true when equal.
+ */
+function sameSelector(a: Layer["selector"], b: Layer["selector"]): boolean {
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
  * Writes one line of a row: a literal value or a binding, into the topmost layer of the row the
  * reader may edit. One undoable step of the element's.
+ *
+ * On a row that paints everything (the Everything row) a binding to a run's result goes on a
+ * layer of the row scoped to the elements the run measured, as graphty-element requires; every
+ * other write goes on the row's layer that paints everything. The row keeps one line per channel:
+ * the channel is taken off the row's other layers in the same step.
  * @param session - the element's session.
  * @param ids - the row's layer ids.
  * @param target - nodes or edges.
@@ -279,34 +322,69 @@ export async function writeLine(
     fresh: NewLayer | undefined,
 ): Promise<LayerId> {
     const layers = rowLayers(session, ids, target);
-    const own = [...layers].reverse().find((layer) => !layer.locked);
+    const everything = fresh?.selector.match === "everything";
+    const scope = everything && "binding" in write ? scopeFor(session, target, channel, write.binding) : undefined;
+    const home = scope ?? fresh?.selector;
+    const own = [...layers]
+        .reverse()
+        .find((layer) => !layer.locked && (!everything || home === undefined || sameSelector(layer.selector, home)));
     const set = "value" in write ? { [channel]: write.value } : undefined;
     const encode = "binding" in write ? { [channel]: write.binding } : undefined;
     // A label line being bound brings the app's label look with it, in the same step.
     const look = encode === undefined ? {} : labelLookFor(channel, own?.set);
-    if (own === undefined) {
-        if (fresh === undefined) {
+    // On the Everything row, the other layers that write this channel, so the new line is its only one.
+    const others = everything
+        ? layers.filter(
+              (layer) =>
+                  !layer.locked &&
+                  layer !== own &&
+                  (layer.set?.[channel] !== undefined || layer.encode?.[channel] !== undefined),
+          )
+        : [];
+    if (own === undefined && fresh === undefined) {
+        throw new Error(`The row has no ${target} layer to write ${channel} to`);
+    }
+    // Taken off after the write, so a layer added above one of them has it to stand on.
+    const strip = async (styles: GraphSession["styles"]): Promise<void> => {
+        for (const layer of others) {
+            const rest = { set: without(layer.set, channel), encode: without(layer.encode, channel) };
+            if (rest.set === undefined && rest.encode === undefined && layer.userData?.[EVERYTHING_KEY] === true) {
+                await styles.remove(layer.id);
+            } else {
+                await styles.update(layer.id, rest);
+            }
+        }
+    };
+    const apply = async (styles: GraphSession["styles"]): Promise<LayerId> => {
+        if (own === undefined && fresh !== undefined) {
+            const base = layers.at(-1) ?? topmostRow(session);
+            const added = await styles.add(
+                {
+                    name: fresh.name,
+                    target,
+                    selector: home ?? fresh.selector,
+                    ...(set === undefined && Object.keys(look).length === 0 ? {} : { set: { ...look, ...set } }),
+                    ...(encode === undefined ? {} : { encode }),
+                    ...(fresh.userData === undefined ? {} : { userData: fresh.userData }),
+                },
+                base === undefined ? undefined : { above: base.id },
+            );
+            await strip(styles);
+            return added.id;
+        }
+        if (own === undefined) {
             throw new Error(`The row has no ${target} layer to write ${channel} to`);
         }
-        const base = layers.at(-1) ?? topmostRow(session);
-        const added = await session.styles.add(
-            {
-                name: fresh.name,
-                target,
-                selector: fresh.selector,
-                ...(set === undefined && Object.keys(look).length === 0 ? {} : { set: { ...look, ...set } }),
-                ...(encode === undefined ? {} : { encode }),
-                ...(fresh.userData === undefined ? {} : { userData: fresh.userData }),
-            },
-            base === undefined ? undefined : { above: base.id },
-        );
-        return added.id;
-    }
-    await session.styles.update(own.id, {
-        set: set === undefined ? without({ ...own.set, ...look }, channel) : { ...own.set, ...set },
-        encode: encode === undefined ? without(own.encode, channel) : { ...own.encode, ...encode },
-    });
-    return own.id;
+        await styles.update(own.id, {
+            set: set === undefined ? without({ ...own.set, ...look }, channel) : { ...own.set, ...set },
+            encode: encode === undefined ? without(own.encode, channel) : { ...own.encode, ...encode },
+        });
+        await strip(styles);
+        return own.id;
+    };
+    return others.length === 0
+        ? apply(session.styles)
+        : session.transaction(`Change ${channelWord(channel)}`, async (tx) => apply(tx.styles));
 }
 
 /**

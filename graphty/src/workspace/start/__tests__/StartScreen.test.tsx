@@ -5,6 +5,7 @@
  */
 import userEvent from "@testing-library/user-event";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { userEvent as realInput } from "vitest/browser";
 
 const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
 vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
@@ -157,6 +158,15 @@ describe("Settings", () => {
 
         await userEvent.keyboard("{Control>},{/Control}");
         dialog = await screen.findByRole("dialog", { name: "Settings" });
+        assert.isNotNull(within(dialog).getByRole("heading", { name: "General" }));
+    });
+
+    it("opens on General from the Settings button in the start screen's header", async () => {
+        renderStart();
+
+        const header = screen.getByRole("banner");
+        await realInput.click(within(header).getByRole("button", { name: "Settings..." }));
+        const dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isNotNull(within(dialog).getByRole("heading", { name: "General" }));
     });
 

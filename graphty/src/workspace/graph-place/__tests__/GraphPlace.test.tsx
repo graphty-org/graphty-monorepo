@@ -285,7 +285,7 @@ describe("the Graph place", () => {
         assert.isNotNull(await screen.findByRole("option", { name: "Select where side is law (3)" }));
     });
 
-    it("clears with Esc, then leaves the box with a second Esc", async () => {
+    it("clears with Esc, and keeps focus in the box on a second Esc", async () => {
         renderPlace(await sessionWithGraph());
         const box = screen.getByRole("combobox", { name: "Find" });
 
@@ -297,7 +297,10 @@ describe("the Graph place", () => {
         assert.equal(document.activeElement, box);
 
         await userEvent.keyboard("{Escape}");
-        assert.notEqual(document.activeElement, box);
+        assert.equal(document.activeElement, box);
+        // Still the box: typing goes on finding.
+        await userEvent.keyboard("jav");
+        assert.equal((box as HTMLInputElement).value, "jav");
     });
 
     it("says No match for what was typed", async () => {

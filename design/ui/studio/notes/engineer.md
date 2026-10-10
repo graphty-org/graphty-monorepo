@@ -11,6 +11,21 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Built: three keyboard focus faults on tier 2 controls.** A second Esc in an
+  empty find box keeps focus there (the `blur()` is gone); a Hops or Follow change by arrow keys
+  keeps focus on that control (the list remounts on every reselect, so a module flag names the
+  control to refocus); leaving the filter step editor (Tab out, or a click on anything else) saves
+  a whole, changed rule, a half-made one stays a draft, and Esc says "Step not added." or 'Not
+  saved: "..." is as it was.' on the status line. Walk: `tmp/t2r2b-6/find/07,08,13,16,17.png`.
+- (2026-10-10) **Unfinished, uncommitted: the round 3 dry run from real routes.** In the worktree,
+  not committed: `real.mjs` (Tab after a setup starts at Main menu; `REAL_MISS_FAILS=1` makes a
+  scripted walk's miss exit 2; self-test checks for both), `detours.sh` (round 2 detours R2-* and
+  keyboard sweeps KS-*), `rewalk.sh` (replays a session's transcript route, `routes:<round>`),
+  README, the owner-decisions entry for `canvas:empty-click` (its code is in bde1e5de0), and
+  FindBox's rule offered as the option Enter picks (with tests). `selection.count` in the element
+  is unused (FindBox uses `scope.count`): drop it rather than commit it. Still to do: build, `--prove`,
+  `detours.sh all`, `rewalk.sh routes:tier2/rounds/round-2`, fix what fails, write the round 3
+  preflight's walk table, commit. The "#n among kinds" refusal is already committed with its check.
 - (2026-10-10) **Built: bar 10's scripted counts in `tool/bars.mjs`** (`measure.mjs` `bar10()`):
   text cut off with no title, accessible name, tooltip (hovered, 1 s delay) or whole copy on
   screen, and visible error codes / field paths, on every bar 8 screen plus long-names.csv's Data
@@ -26,18 +41,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `graphty/src/workspace/analyze/words.ts`, feeds both the row (`graph-place/rows.ts`) and the
   announcement; it reads the element's published `cost` and `caveats.weight` (distance only, the
   same rule as the inspector's "Total minutes"). Walk: `design/ui/studio/tmp/t2r2-12/walk/11.png`.
-- (2026-10-09, condensed) **Built: a 24 px xs checkbox target (compact-mantine) and find-list
-  arrows scroll the row into view**; `scrollable-region-focusable` recorded as a criteria exception.
-- (2026-10-09, condensed) **Built: participants run outside the studio's files** (`--brief`,
-  `--start` refusals, `--leaks` voids a read). Round 2 routes that worked are weak evidence until re-run.
-- (2026-10-09) **Did the dry run work? Mostly.** About 30 of ~355 recorded problems were build
-  faults, none above severity 2, no grade decided by one; the only `session.log` line is r2-s13's
-  900 s idle close. Twelve of the thirty sit on the one detour no dry run walked: styling a
-  selection. The dry run must walk what participants style, not only what the answer key styles.
-- (2026-10-09, condensed) **Built: a Color or Width on a selection's layer starts at the highlight
-  look** (`session.styles.highlightStyle`, additive). Open: width 24 selection band covers the tie.
-- (2026-10-09, condensed) **Built: an Add that repeats loaded ties says so and offers Replace**
-  (element measures the draft with the graph's pairs).
+- (2026-10-09, condensed) **Built on 10-09:** 24 px xs checkbox target (compact-mantine);
+  find-list arrows scroll the row into view; participants run outside the studio's files
+  (`--brief`, `--start` refusals, `--leaks`); a selection layer's Color or Width starts at the
+  highlight look (`styles.highlightStyle`; open: width 24 band covers the tie); an Add that
+  repeats loaded ties says so and offers Replace. Dry run verdict: ~30 of ~355 problems were build
+  faults, 12 on the one detour no dry run walked (styling a selection): walk what participants do.
 - (2026-10-09) **Find box, severity 3:** "chapters 10" says only "No match". Proposed: when plain
   text names part of a column the app already lists after "=", hint "=<column> >= `10`"; for bare
   numbers an opt-in element parse option (`bareNumbers`, default off, additive) instead of changing
@@ -52,15 +61,27 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-09) **Dry run = `tier2/pilot/detours.sh all`** on every new frozen build, plus this
   round's detours: style a selection (width, color, name), click away from an open step editor,
   run a path twice, reopen the Path form, open a newer copy of a loaded file.
-- (2026-10-09) **Script before calling it a defect:** a half-made filter step discarded on another
-  selection (the tool's click caused r2-s17/18), empty-canvas click while a run is selected, edge
-  width units (`EdgeMesh.ts` *20 and /40; "8" drawn as a hairline).
+- (2026-10-09) **Script before calling it a defect:** empty-canvas click while a run is
+  selected, edge width units (`EdgeMesh.ts` *20 and /40; "8" drawn as a hairline). (The half-made
+  step on another selection is settled: a whole rule saves on leaving, 2026-10-10.)
 - (2026-10-09) **The study tool reaches participants more often than the build does.** Every tool
   change gets a planted-failure check; click by name landing on a same-named control (r2-s17, s18,
   s30) needs a refusal like ambiguous names already get.
 
 ## Decisions and reasons
 
+- (2026-10-10) **Leaving the step editor saves; a click away no longer only keeps a draft.** A
+  whole, changed rule is written when focus leaves the form (`onBlur` with a target outside it) or
+  the editor unmounts (a click elsewhere moves the inspector on); one `keep` ref stops a double
+  write and the Esc path. After a Tab-out the editor moves on to the saved step only if the
+  inspector still shows it, so a click that opened something else is never overridden by the
+  async write. An incomplete rule still waits as the "+" draft (the a97eb3b67 behavior, kept for
+  that case only).
+- (2026-10-10) **Hops/Follow focus: the effect's deps were never the cause.** `showNeighborhood`
+  reselects, the selection change closes the inspector row and `store.set` opens it again, so
+  `NeighborList` mounts fresh and its focus-on-open effect sends focus to Hops. Fix: the control's
+  `onChange` sets `refocusControl` to its label id and the effect focuses that group's checked
+  radio (ids hold quotes from `nodeKey`: `CSS.escape`). App only; no element change.
 - (2026-10-10) **Bar 10 counts visually hidden text as off screen, and a copy on screen as
   readable.** The first run reported every Mantine VisuallyHidden status line (1 px box) as cut;
   the same rule `wordsOnScreen` uses now skips them. A node's title cut while its id row shows it
@@ -224,58 +245,27 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   shared put it in both (the unweighted test then failed on "minutes 14"); anchor test edits on a
   line unique to the test. Worked: proving the row test fails without the fix by writing
   `git show HEAD:<file>` over the source, running, and copying the new file back.
-- (2026-10-09) Worked: finding a workflow agent's log by its opening prompt. Workflow subagent logs
-  are `~/.claude/projects/<proj>/<session>/subagents/workflows/wf_*/agent-*.jsonl`; the first user
-  lines can be the harness's relayed request, so read every user line before the first assistant
-  line. Filtering by mtime since the briefing keeps the scan of ~19k logs to a second.
-
-- (2026-10-09) Worked: an axe probe as a throwaway compact-mantine browser test before choosing
-  the CSS (printed `failureSummary`); a pixel diff of the 24 px crop around the box against the
-  frozen build's `bars.mjs` capture (bbox None). `userEvent.click(container, { position })` clicks
-  a page point as long as what is hit is inside the container. Seen, not mine: `bars.mjs` MISSes
-  "a node's Values with its neighbors" on 8f0d5a6f7791 too (Degree click times out), and bar 9 (b)
-  is over round 1's counts on the shared tree.
-
-- (2026-10-09) Worked: a pixel check in an app real-element test from public API only --
-  `element.captureScreenshot`, the midpoint of two `nodeScreenPosition`s scaled by bitmap width
-  over the element's CSS width, the mean of a 9 px square, styled tie against an unstyled one.
-  Without the fix the two differed by 2 (of 765); with it, well over 30. Select ties for a walk
-  with find `=minutes >= \`10\`` on bus-stops.
-
-- (2026-10-09) Worked: a one-off element test printing `JSON.stringify(await draft.report(...))`
-  before writing code -- it showed `repeated.seen: 0` beside `counts.edges: 82`, which placed the
-  defect in the measure, not the type. `session.data.import` takes `{ config: { file } }`, not
-  `{ file }`. The app's real-element project is `--project=real-element` (`browser` excludes
-  them); `?raw` imports of `design/ui/studio/tool/files/*.csv` work from graphty tests.
-
-- (2026-10-09) Worked for a critique: reading `insights.md` section 2 first (it answers "was it
-  the build or the design"), then grepping `startingValue` and `ruleFromText` to place each fix in
-  its package before proposing it; `for f in */session.log; do [ -s $f ] ...` finds the sessions
-  where the tool or build spoke.
+- (2026-10-09, summarized 2026-10-10) **Probes before code.** Workflow subagent logs live in
+  `~/.claude/projects/<proj>/<session>/subagents/workflows/wf_*/agent-*.jsonl` (read every user
+  line before the first assistant line; filter by mtime). An axe probe as a throwaway
+  compact-mantine test before choosing CSS. A pixel check from public API only:
+  `element.captureScreenshot` at a `nodeScreenPosition` midpoint scaled by bitmap over CSS width,
+  9 px mean, styled against unstyled. Print `JSON.stringify(await draft.report(...))` before
+  coding to place a defect. `data.import` takes `{ config: { file } }`; app real-element tests run
+  with `--project=real-element`; `?raw` imports of `tool/files/*.csv` work. For a critique read
+  `insights.md` section 2 first, then grep to place each fix in its package. Seen, not mine:
+  `bars.mjs` misses "a node's Values with its neighbors" (Degree click times out).
 
 - (2026-10-09, condensed) Never edit a script while it runs (bash reads by offset; use a copy);
   `chmod +x` new scripts and read their output, not the exit code; 2x2 `montage` sheets for 900 x
   700 shots. Control names: "Filter: <n> of <m> nodes", "Source actions", "Graph#1".
-- (2026-10-09) Did not work: a left-edge test with `getBoundingClientRect().left` of a padded
-  `Text` -- the box starts before its padding, so the broken build passed. Worked: a Range over
-  the element's contents (`range.selectNodeContents(el).getBoundingClientRect().left`) for where
-  the text is drawn.
-
-- (2026-10-09) Worked: an app real-element test that finds a point on a drawn name with public
-  API only -- walk up from `nodeScreenPosition(id)` past its `radius` and take the first point
-  `elementAt` answers the node (the app lint rule `graphty/no-element-mutation` refuses
-  `element.graph`). Seen, not mine: `tsc` in graphty-element flags `maxNodes` in
-  `test/managers/LayoutManager.test.ts` because `layout/dist` predates the master merge (stale
-  build, not a source error).
-
-- (2026-10-09, summarized) Pilot walks: rebuild a lost walk from `repilot.sh` and its screenshots;
-  run repilot.sh bare (inside `with-browser.sh` it held a slot with no browser); re-pilot fixed
-  screens by script, then contact sheets (`montage *.png -tile 4x -geometry 720x450`).
-
-- (2026-10-09, condensed) Proving a test fails without the change: copy the changed file aside,
-  write `git show HEAD:<file>` (or a one-line python edit) over it, run, copy back -- no stash. For
-  tool files, `node --test` on `git show HEAD:` copies in a scratch folder; prettier, not eslint,
-  checks `design/ui/studio/tool/`. The app hears the element only through `session.on`.
+- (2026-10-09, summarized 2026-10-10) **Geometry and proof in tests.** Where text is drawn:
+  a Range over the element's contents, not a padded box's `left`. A point on a drawn name: walk up
+  from `nodeScreenPosition(id)` past its `radius` to the first point `elementAt` answers. Prove a
+  test fails without the change by writing `git show HEAD:<file>` over the source, running, and
+  copying back (no stash); tool files with `node --test` on HEAD copies; prettier checks
+  `design/ui/studio/tool/`. Pilot walks: rebuild from `repilot.sh` and its shots, run it bare,
+  contact sheets with `montage`.
 
 - (2026-10-09, summarized) **Measure before fixing a look.** A Playwright probe under
   `with-browser.sh` showed a list really overflowed (Mantine keeps a hidden ScrollArea bar mounted:

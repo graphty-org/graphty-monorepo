@@ -440,9 +440,9 @@ export function FindBox(): React.JSX.Element {
                 void runTyped(session, text);
             }
         } else if (event.key === "Escape" && text === "") {
+            // An empty box keeps focus: Esc never moves the reader out of where they are typing.
             event.preventDefault();
             event.stopPropagation();
-            event.currentTarget.blur();
         }
     };
 

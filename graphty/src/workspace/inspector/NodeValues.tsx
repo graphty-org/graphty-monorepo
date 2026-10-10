@@ -36,6 +36,13 @@ const ATTRIBUTES_SHOWN = 6;
 let returnToDegree = false;
 
 /**
+ * Set by a Hops or Follow change to that control's label id. The change reselects, which closes
+ * the list and opens it again; the list that opens puts focus back on that control's choice
+ * instead of on Hops, as a list opened for a new center does.
+ */
+let refocusControl: string | null = null;
+
+/**
  * One element's attributes from the file, the first few shown and the rest behind one link.
  * @param props - Component props
  * @param props.rows - The attributes as name and value
@@ -265,9 +272,12 @@ export function NeighborList({
             return undefined;
         }
         // Focus goes to the checked Hops choice: a control, never a ring around the whole list,
-        // and never a neighbor row, which would read as a pick nobody made.
+        // and never a neighbor row, which would read as a pick nobody made. After a Hops or
+        // Follow change it goes back to the choice in the control that made it.
+        const control = refocusControl === null ? "" : `[aria-labelledby="${CSS.escape(refocusControl)}"] `;
+        refocusControl = null;
         if (!region.contains(document.activeElement)) {
-            region.querySelector<HTMLElement>("input:checked")?.focus();
+            region.querySelector<HTMLElement>(`${control}input:checked`)?.focus();
         }
         const onKeyDown = (event: KeyboardEvent): void => {
             if (event.key === "Escape") {
@@ -368,6 +378,7 @@ export function NeighborList({
                             value={String(reach)}
                             data={["1", "2", "3"]}
                             onChange={(picked) => {
+                                refocusControl = hopsLabel;
                                 void showNeighborhood(session, store, center, Number(picked) as 1 | 2 | 3, follow);
                             }}
                         />
@@ -385,6 +396,7 @@ export function NeighborList({
                                 data={[...FOLLOW]}
                                 onChange={(picked) => {
                                     const next = FOLLOW.find((choice) => choice.value === picked)?.value ?? "all";
+                                    refocusControl = followLabel;
                                     void showNeighborhood(session, store, center, reach, next);
                                 }}
                             />

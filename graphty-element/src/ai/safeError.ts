@@ -1,5 +1,8 @@
 import { redactSecrets } from "../logging/redactSecrets";
 
+/** The name of the error a provider throws when it needs an API key and has none. */
+export const API_KEY_MISSING_ERROR = "ApiKeyMissingError";
+
 /**
  * An error safe to hand to a consumer, a log or an error reporter: the name, the message and the
  * stack of the original with every credential removed, plus its HTTP status when it had one.

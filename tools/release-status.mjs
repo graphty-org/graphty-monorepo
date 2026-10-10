@@ -192,11 +192,14 @@ export const PUSHOVER_URL = "https://api.pushover.net/1/messages.json";
 export function pushMessage(outcome, f) {
     const sha = (f.sha ?? "").slice(0, 7);
     const attempt = Number(f.attempt) || 1;
-    const retry = f.restart
-        ? `Restart after fix ${(f.fix ?? "").match(/#\d+/g)?.join(", ") || "on master"}${/^\d+$/.test(f.issue ?? "") ? ` (held #${f.issue})` : ""}`
-        : attempt > 1
-          ? `Re-run ${attempt}`
-          : "";
+    const fix = (f.fix ?? "").match(/#\d+/g)?.join(", ") || "on master";
+    const heldIssue = /^\d+$/.test(f.issue ?? "") ? " (held #" + f.issue + ")" : "";
+    let retry = "";
+    if (f.restart) {
+        retry = `Restart after fix ${fix}${heldIssue}`;
+    } else if (attempt > 1) {
+        retry = `Re-run ${attempt}`;
+    }
     const tags = list(f.tags);
     const pr = `PR #${(f.pr ?? "").split("/").pop()}`;
     const fail = { priority: 1, sound: "siren" };
@@ -209,7 +212,10 @@ export function pushMessage(outcome, f) {
         },
         opened: {
             title: "Release PR OPENED",
-            lines: [`${pr}: ${tags || "versioned packages"}`, `Publishes when it merges${retry ? `; ${retry}` : ""}`],
+            lines: [
+                `${pr}: ${tags || "versioned packages"}`,
+                ["Publishes when it merges", retry].filter(Boolean).join("; "),
+            ],
             link: "pr",
             ...quiet,
         },
@@ -241,7 +247,7 @@ export function pushMessage(outcome, f) {
             title: "Release DROPPED FROM QUEUE",
             lines: [
                 `${pr}: ${f.what || "no reason given"}`,
-                f.checks ? `Failing: ${f.checks.replace(/ \([^)]*\)/g, "")}` : "",
+                f.checks ? `Failing: ${f.checks.replaceAll(/ \([^)]*\)/g, "")}` : "",
             ],
             link: "pr",
             ...fail,

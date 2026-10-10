@@ -10,6 +10,12 @@ made and evidence comes in.
 
 ## Top of mind
 
+- 2026-10-09 -- Round 2 critique: five changes, all app-side or study-side, no element API.
+  (1) briefing-only start; (2) find box: a standing "Start with =" line with `exampleRule` on any
+  "No match", and Enter runs the element's own backtick suggestion; (3) Replace offered on the Add
+  page when the file's name matches a loaded source; (4) a line added to a selection's layer starts
+  visibly different from the default; (5) a selection layer named by its rule. Do not touch label
+  placement, filtering, the path tool, Notes.
 - 2026-10-09 -- Round 2 INSIGHTS written (`tier2/rounds/round-2/insights.md`). Bars unchanged by
   skeptics. Confirmed sev 3: find box "No match" on the reader's words, backticks, drawn names
   overlapping, "Open project or file..." on a newer copy doubling ties (82 from 41). Nothing sev 4.
@@ -33,7 +39,6 @@ made and evidence comes in.
 - 2026-10-09 -- Click by name lands on same-named controls (r2-s17, s18, s30); confirm any fault a
   misclick started with a script before blaming the app.
 - 2026-10-09 -- Ease is flat (41 of 55 rated 6): report it, never lean on it.
-- 2026-10-09 -- Drawn-name overlap stays open (element label placement); report the class.
 - 2026-10-09 -- Persona scripts and histories steer first moves; the SECOND place looked is the
   real signal. Read the persona FILE before blaming the screen.
 - 2026-10-07 -- One skeptic's weakening stands unless the other answers its reason with evidence;
@@ -80,6 +85,19 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-09 (researcher, tier 2 round 2 critique) -- Proposed the five changes above. Reasons:
+  each fixes a confirmed sev 3 or the sev 2 that cost most steps, reusing what exists: the find
+  box already has `exampleRule` and `ruleFromText`; the element already returns the bare-number
+  suggestion (`E_BAD_SELECTOR`, `number-needs-backticks`), so running it on Enter consumes a
+  neutral fact, not a workaround; `startingValue` in `graphty/src/workspace/style/row.ts` starts
+  every "+" line at the element's default, which by definition draws nothing new -- a starting
+  value is the consumer's choice, so the fix is the app's. Checked `r2-s12/03.png` ("No match for
+  chapters 10", no way on) and `r2-s15/06.png` (backtick correction, plain text). Rejected this
+  round: element bare-number parsing (changes what an existing call accepts; unsure = breaking,
+  so owner list if wanted), label placement (element, deferred), moving the path tool (find box
+  led 8 of 8 to a right answer). Answer to the owner's "did we dry run" stands: yes, about 30 of
+  355 problems were build faults, none above sev 2, 12 on the unwalked selection-styling detour;
+  the bigger fault was the study's leaked task file.
 - 2026-10-09 (researcher, round 2 skeptic verdicts) -- Wrote `rounds/round-2/insights.md`.
   Applied: both drop = dropped (insight 6, routes carried habits); one drop or weaken = weakened
   (T24 halo, the "All 13 rows" caption, insights 1 to 5) unless the other answered with evidence.

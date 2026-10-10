@@ -4,6 +4,23 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-10 -- Decided by the owner: every breaking row of #1727 ships as a minor
+
+**What.** The owner judged every open row of #1727's breaking-changes table a minor change and a
+two-way door, so the studio branch ships as a minor release, with no `!`. Two rows changed shape:
+
+- **The export's group labels (row 5).** The old default stays: an export writes a partition's
+  group as the algorithm's group id. A new export option, `groupRanks` (every format, off by
+  default), writes it as its rank by size instead, 1 for the largest, in the group column and the
+  sizes table. The graphty app turns it on, so its exported tables join the legend's "Group 2".
+  This replaces the 2026-10-06 entry below, which changed the default.
+- **A distance reader handed a strength (row 1).** It counts hops; it never converts the
+  strength. The run reports that as the neutral code `caveats.weightSkipped`
+  (`weight.meaning-mismatch`, with the column, its meaning and the meaning the algorithm reads),
+  and the app shows it as "Each edge counts as 1". The branch already did exactly this.
+
+**Why.** The owner's call (2026-10-10): none of these changes justifies a major release.
+
 ## 2026-10-10 -- Segmented control: Figma's face, not the inverse fill
 
 Segmented control: the owner chose Figma's white or dark face with a 1px edge over the inverse

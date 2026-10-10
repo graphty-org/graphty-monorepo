@@ -61,6 +61,7 @@ import type { Offering } from "./offers";
 import { pathKind } from "./path";
 import {
     defaultName,
+    edgeMemberKey,
     holdsEdgeMember,
     isPrebuilt,
     listedEdgesOf,
@@ -71,7 +72,6 @@ import {
     prepareRemove,
     prepareRename,
 } from "./prepare";
-import { edgeMemberKey } from "./resolve";
 import { statusOf, type StatusRun, type StatusSources } from "./status";
 import { SetsStore } from "./store";
 import type { ElementSet, Memberships, SetMemberDelta, SetOffer, SetsApi, SetStatus, SetUser } from "./types";

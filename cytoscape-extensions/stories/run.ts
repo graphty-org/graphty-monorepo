@@ -13,6 +13,14 @@ import { colorByValue, NO_GPU, type Outcome, PALETTE } from "./demo.js";
 type GpuMode = "auto" | "off" | "require";
 
 /**
+ * The node bound the demo passes to the layouts and algorithms that hold n x n tables, so a large network is refused
+ * with E_TOO_LARGE and a reason instead of failing to allocate: about 270 MB of f64 at 5,800 nodes. Hierarchical
+ * clustering keeps five such tables and merges in roughly cubic time, so it gets a lower bound.
+ */
+const DENSE_MAX_NODES = 5_800;
+const HIERARCHICAL_MAX_NODES = 2_000;
+
+/**
  * Runs one "graphty-<name>" layout and waits for layoutstop.
  * @param cy - the core
  * @param options - the layout options
@@ -42,6 +50,8 @@ function layoutInputs(cy: Core, layout: string): Record<string, unknown> {
         case "bfs":
         case "radial":
             return { root: nodes[0] };
+        case "kamada-kawai":
+            return { maxNodes: DENSE_MAX_NODES };
         default:
             return {};
     }
@@ -69,9 +79,6 @@ interface LayoutRun {
  */
 export async function runLayout(cy: Core, layout: string, run: LayoutRun): Promise<Outcome> {
     const simulation = (SIMULATION_LAYOUTS as readonly string[]).includes(layout);
-    if (layout === "kamada-kawai" && cy.nodes().length > 2_000) {
-        throw new Error("kamada-kawai needs memory in the square of the node count; pick 2,000 nodes or fewer");
-    }
     const options: Record<string, unknown> = { name: `graphty-${layout}`, seed: run.seed, ...layoutInputs(cy, layout) };
     if (simulation) {
         Object.assign(options, { gpu: run.gpuMode, animate: run.animate, ...budget(layout, run.iterations, cy) });
@@ -261,13 +268,13 @@ function algorithmInputs(cy: Core, algorithm: string): { options: Record<string,
         case "teraHAC":
             // teraHAC merges everything into one cluster unless told when to stop; with numClusters it splits its
             // tree again from the top (docs/reference/algorithms.md), which joins two communities here
-            return { options: { distanceThreshold: 2.5 } };
+            return { options: { distanceThreshold: 2.5, maxNodes: DENSE_MAX_NODES } };
         case "markovClustering":
             // the default inflation of 2 splits a sparse graph's communities into many small clusters
             return { options: { inflation: 1.5 } };
         case "hierarchicalClustering":
             // single linkage (the default) chains clusters together; average linkage keeps communities apart
-            return { options: { linkage: "average" } };
+            return { options: { linkage: "average", maxNodes: HIERARCHICAL_MAX_NODES } };
         case "modularity":
             return {
                 options: { clusters: hasCommunities(cy) ? "community" : cy.elements().graphtyLouvain() },

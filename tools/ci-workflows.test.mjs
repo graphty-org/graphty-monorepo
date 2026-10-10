@@ -330,7 +330,7 @@ describe("the pre-push gate matches CI", () => {
         const prepush = code(tool("prepush.sh"));
         assert.match(
             prepush,
-            /setsid timeout --kill-after=30s "\$\{PREPUSH_SCREENSHOTS_TIMEOUT:-45m\}" \.\/tools\/visual-preview.sh --head "\$PUSH_HEAD" /,
+            /setsid env VISUAL_PREVIEW_TIMEOUT="\$\{PREPUSH_SCREENSHOTS_TIMEOUT:-45m\}" \.\/tools\/visual-preview.sh --head "\$PUSH_HEAD" /,
         );
         assert.match(prepush, /if wait "\$SCREENSHOTS_PGID"; then[\s\S]*?else[\s\S]*?FAILED=1\n/);
         assert.match(
@@ -349,11 +349,17 @@ describe("the pre-push gate matches CI", () => {
             writeFileSync(join(dir, "tools/visual-preview.sh"), `#!/bin/sh\necho "$@" > ${dir}/called\n`, {
                 mode: 0o755,
             });
-            const script = `cd ${dir}\nSONAR_PGID=""\nPUSH_HEAD=abc\n${fn}\ntrap cleanup EXIT\nsetsid sleep 300 &\nSCREENSHOTS_PGID=$!\nuntil [ "$(ps -o pgid= -p $SCREENSHOTS_PGID | tr -d " ")" = $SCREENSHOTS_PGID ]; do sleep 0.05; done\nSCREENSHOTS_STAGED=1\necho $SCREENSHOTS_PGID > ${dir}/pid\nexit 1\n`;
+            const script = `cd ${dir}\nPUSH_HEAD=abc\n${fn}\ntrap cleanup EXIT\nsetsid bash -c 'timeout 300 sleep 300 & echo $! > ${dir}/inner; wait' &\nSCREENSHOTS_PGID=$!\nuntil [ "$(ps -o pgid= -p $SCREENSHOTS_PGID | tr -d " ")" = $SCREENSHOTS_PGID ] && [ -s ${dir}/inner ]; do sleep 0.05; done\nSCREENSHOTS_STAGED=1\necho $SCREENSHOTS_PGID > ${dir}/pid\nexit 1\n`;
             const r = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 20_000 });
             assert.equal(r.status, 1);
             const pid = Number(readFileSync(join(dir, "pid"), "utf8"));
             assert.throws(() => process.kill(pid, 0), "the capture's process group was killed");
+            // timeout runs its command in a process group of its own; the session kill reaches it.
+            const inner = readFileSync(join(dir, "inner"), "utf8").trim();
+            const gone = spawnSync("bash", ["-c", `while kill -0 ${inner} 2>/dev/null; do sleep 0.05; done`], {
+                timeout: 20_000,
+            });
+            assert.equal(gone.status, 0, "the capture's time-limited step was killed too");
             assert.equal(readFileSync(join(dir, "called"), "utf8"), "--discard abc\n");
         } finally {
             rmSync(dir, { recursive: true, force: true });
@@ -370,6 +376,7 @@ describe("the pre-push gate matches CI", () => {
             pnpm: '#!/bin/sh\ncase "$*" in *"show projects"*) echo \'["p"]\';; esac\n',
             node: `#!/bin/bash
 if [ "$2" = capture ]; then
+    [ -n "$STUB_HANG" ] && exec sleep 300
     while [ $# -gt 0 ]; do [ "$1" = --out ] && out="$2"; shift; done
     mkdir -p "$out"
     printf '{"complete":true,"items":[{"file":"s.png","status":"%s","reason":"r"}]}' "$STUB_STATUS" > "$out/results.json"
@@ -449,7 +456,7 @@ exec ${realGit} "$@"
                     origin,
                     `${git("commit-tree", "master^{tree}", "-p", "master", "-m", "m2")}:refs/heads/master`,
                 );
-                fn({ run, head, origin, local: join(main, "tmp/visual-review/local") });
+                fn({ run, head, origin, main, local: join(main, "tmp/visual-review/local") });
             } finally {
                 rmSync(t, { recursive: true, force: true });
             }
@@ -469,6 +476,36 @@ exec ${realGit} "$@"
                 assert.equal(run({}, "--discard", head).status, 0);
                 assert.ok(!existsSync(join(local, `.pending-${head}`)));
                 assert.ok(existsSync(join(local, "branch-feat/p/results.json")), "the promoted preview is kept");
+            });
+        });
+
+        it("does not count the wait for a browser slot against its limit, but times out a stuck capture", () => {
+            sandbox(({ run, head, main, local }) => {
+                // The browser cap, held by someone else for longer than the whole limit (#1820).
+                mkdirSync(join(main, "tmp"), { recursive: true });
+                writeFileSync(join(main, "tmp/with-browser.sh"), '#!/bin/sh\nsleep "$STUB_SLOT_WAIT"\nexec "$@"\n', {
+                    mode: 0o755,
+                });
+                const waited = run(
+                    { STUB_STATUS: "changed", VISUAL_PREVIEW_TIMEOUT: "10s", STUB_SLOT_WAIT: "11" },
+                    "--head",
+                    head,
+                );
+                assert.equal(waited.status, 0, waited.stdout + waited.stderr);
+                assert.match(waited.stdout, /p: waiting for a browser slot \(not counted against 10s\)/);
+                assert.match(waited.stdout, /p: capturing \(\d+s left\)/);
+
+                // A capture that holds its slot and never finishes still fails, once its limit is spent.
+                const stuck = run(
+                    { STUB_HANG: "1", VISUAL_PREVIEW_TIMEOUT: "2s", STUB_SLOT_WAIT: "0" },
+                    "--head",
+                    head,
+                );
+                assert.equal(stuck.status, 1, stuck.stdout + stuck.stderr);
+                assert.match(stuck.stdout, /p: timed out: the capture ran past what was left of 2s/);
+                assert.match(stuck.stderr, /capture failed: p/);
+                const status = JSON.parse(readFileSync(join(local, `.pending-${head}/status.json`), "utf8"));
+                assert.equal(status.state, "failed");
             });
         });
 
@@ -1617,6 +1654,31 @@ describe(".mergify.yml and the T4", () => {
     });
 });
 
+describe("the webgpu-graph-algorithms node suite on every lane", () => {
+    // Issue #1884: the files that hold the GPU for seconds per submission are the node-gpu-alone project, which runs
+    // after the node project and alone. A lane that names only `--project=node` silently drops them.
+    it("selects node-gpu-alone wherever it selects the node project, except a run of one named file", () => {
+        const pkg = JSON.parse(
+            readFileSync(new URL("../webgpu-graph-algorithms/package.json", import.meta.url), "utf8"),
+        );
+        const lines = [
+            ...SHARDS.map((s) => s["test-command"]),
+            ...Object.values(pkg.scripts),
+            ...workflow("hosts.yml").split("\n"),
+            ...workflow("gpu.yml").split("\n"),
+        ].filter(
+            (line) =>
+                /run-node-shard\.js|vitest run/.test(line) &&
+                /--project[= ]node(?![\w-])/.test(line) &&
+                !/\.test\.ts\b/.test(line),
+        );
+        assert.ok(lines.length >= 9, `found only ${lines.length} node-suite invocations`);
+        for (const line of lines) {
+            assert.match(line, /--project[= ]node-gpu-alone\b/, line);
+        }
+    });
+});
+
 describe("hosts.yml", () => {
     it("runs nightly, and a pull request's Windows leg on the short scope", () => {
         const hosts = workflow("hosts.yml");
@@ -2538,6 +2600,29 @@ describe("release.yml", () => {
         assert.match(watch, /tools\/gpu-runner-lost.sh "\$RUN_ID" 1/);
     });
 
+    it("announces a release pull request that left the merge queue without merging", () => {
+        const dq = workflow("release-dequeued.yml");
+        // master's copy, no merge commit needed (a conflicting release pull request still fires); Mergify's app adds
+        // the label, and a label a GitHub App adds starts workflows
+        assert.match(dq, /\non:\n {4}pull_request_target:\n {8}types: \[labeled\]\n\npermissions:/);
+        assert.match(dq, /github.event.label.name == 'dequeued'/);
+        assert.match(dq, /startsWith\(github.event.pull_request.head.ref, 'release\/train-'\)/);
+        assert.match(dq, /github.event.pull_request.user.login == 'github-actions\[bot\]'/);
+        // the same branch and author .mergify.yml's release train priority rule names
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        assert.match(mergify, /- head~=\^release\/train-\n\s+- author=github-actions\[bot\]/);
+        // it runs nothing from the pull request
+        assert.match(dq, /- uses: actions\/checkout@v4\n\s+with:\n\s+ref: master\n/);
+        assert.doesNotMatch(dq, /secrets\./, "GITHUB_TOKEN only");
+        assert.deepEqual(dq.match(/\w+: write/g), ["issues: write"], "it writes only the comment");
+        assert.match(dq, /checks: read/, "it reads the Mergify Merge Queue check run");
+        assert.match(dq, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
+        assert.match(
+            dq,
+            /node tools\/release-status.mjs dequeued --pr "\$PR_URL" --sha "\$HEAD_SHA" --run "\$RUN_URL"/,
+        );
+    });
+
     // The failed-publish report, run in a scratch directory with stubs: the publish step's output (run
     // 37691314850's shape, colors and all), `pnpm exec nx show project` answering each project's root, and
     // tools/release-held.sh recording the issue it would open.
@@ -2945,9 +3030,12 @@ describe("the commit and push hooks", () => {
         assert.ok(at("PROJECTS=$(") < build);
         assert.ok(at('source "$SCRIPT_DIR/prepush-source-checks.sh"') < at("PROJECTS=$("), "before the affected list");
         const checks = repoFile("tools/prepush-source-checks.sh");
-        for (const step of ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"]) {
+        const steps = ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"];
+        for (const step of [...steps, "SonarQube (changed lines)"]) {
             assert.match(checks, new RegExp(`run_step "${step.replace(/[()]/g, "\\$&")}"`), step);
         }
+        // SonarQube runs only there, so a push it fails never reaches the queue or the build.
+        assert.doesNotMatch(prepush, /sonar-gate\.mjs/);
         const runStep = checks.slice(
             checks.indexOf("run_step() {"),
             checks.indexOf("\n}\n", checks.indexOf("run_step() {")) + 3,
@@ -3231,6 +3319,10 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(join(dir, "tools/check-links.sh"), `#!/bin/sh\necho links >> ${dir}/calls\n`, {
                 mode: 0o755,
             });
+            writeFileSync(
+                join(dir, "tools/sonar-gate.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "sonar\\n");\n`,
+            );
             writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
             writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n");
             writeFileSync(join(dir, ".gitignore"), "node_modules/\ncalls\n");
@@ -3255,6 +3347,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             const first = run();
             assert.match(first.calls, /run format:check/);
             assert.match(first.calls, /links/);
+            assert.match(first.calls, /sonar/);
             const second = run();
             assert.equal(second.calls, "", "nothing changed: no check runs");
             assert.match(second.out, /\[SKIP\] Source-only checks/);

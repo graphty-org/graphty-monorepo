@@ -1,3 +1,24 @@
+## 0.2.21 (2026-10-10)
+
+### 🩹 Fixes
+
+- **visual-review:** document the review handler as returning a promise ([#1896](https://github.com/graphty-org/graphty-monorepo/issues/1896))
+- **visual-review:** let tests wait for the tiles the server makes in advance ([#1896](https://github.com/graphty-org/graphty-monorepo/issues/1896))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.20 (2026-10-10)
+
+### 🩹 Fixes
+
+- **visual-review:** start fewer processes in the journey, gate and commitlint tests ([#1719](https://github.com/graphty-org/graphty-monorepo/issues/1719), [#1720](https://github.com/graphty-org/graphty-monorepo/issues/1720), [#1744](https://github.com/graphty-org/graphty-monorepo/issues/1744), [#1745](https://github.com/graphty-org/graphty-monorepo/issues/1745))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.2.19 (2026-10-09)
 
 ### 🩹 Fixes

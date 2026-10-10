@@ -11,13 +11,16 @@
 //   publish-failed  the publish job failed (a re-run of it reports again, success or failure)
 //   run-ended       a backstop (release-watch.yml): a release run ended badly (--what is its conclusion) and no
 //                   failure comment here names that run and attempt -- it never reached its own announce step
+//   dequeued        the release pull request (--pr URL, head --sha) left the merge queue without merging
+//                   (release-dequeued.yml): the reason, the failing checks and the queue run come from the
+//                   "Mergify Merge Queue" check run on its head, once per dequeue
 // Attempts that do nothing (nothing releasable, a release pending, a hold open) are not outcomes and
 // never call this.
 //
 // Usage: node tools/release-status.mjs <outcome> [--sha S] [--run URL] [--attempt N] [--issue N|URL]
 //            [--pr URL] [--what TEXT] [--tags a@1,b@2] [--restart] [--since ISO-TIME]
-// Needs GITHUB_TOKEN (issues: write; run-ended also actions: read) and GITHUB_REPOSITORY; RELEASE_NOTIFY is
-// optional. run-ended reads only the comments made since --since (the attempt's start).
+// Needs GITHUB_TOKEN (issues: write; run-ended also actions: read, dequeued also checks: read) and
+// GITHUB_REPOSITORY; RELEASE_NOTIFY is optional. run-ended reads only the comments made since --since (the attempt's start).
 import { parseArgs } from "node:util";
 
 export const LABEL = "release-status";
@@ -54,8 +57,13 @@ export function statusComment(outcome, f, notify = "") {
         case "run-ended":
             text = `**Release run ended ${f.what || "badly"}**${rerun} on ${sha}, and no comment here reported a failure for it: it stopped before announcing its outcome. Read the run; re-running its failed jobs retries it.`;
             break;
+        case "dequeued":
+            text = `**Release pull request dequeued**: ${dequeueKey(f.pr, f.left)} without merging (${f.what || "no reason given"}), on ${sha}. Nothing was published. Failing checks: ${f.checks || "none named"}. Queue run: ${f.queue || "see the pull request's Mergify Merge Queue check"}. The next train attempt closes it and cuts a new one from master's newest commit.`;
+            break;
         default:
-            throw new Error(`unknown outcome "${outcome}" (opened, held, published, publish-failed, run-ended)`);
+            throw new Error(
+                `unknown outcome "${outcome}" (opened, held, published, publish-failed, run-ended, dequeued)`,
+            );
     }
     const mention = notify.trim() ? notify.trim() + " " : "";
     return `${mention}${text}\n\nRun: ${f.run}`;
@@ -76,6 +84,37 @@ export function reportsFailure(body, run, attempt) {
         n === String(attempt || 1) &&
         /\*\*(Release held|Publish failed|Release run ended)\b/.test(body)
     );
+}
+
+/**
+ * The words that identify one dequeue of one pull request in its comment, so a re-run never posts it twice.
+ * @param pr - the pull request's URL
+ * @param left - when it left the queue (the check run's completed_at)
+ * @returns the key
+ */
+export const dequeueKey = (pr, left) => `${pr} left the merge queue at ${left || "an unknown time"}`;
+
+/**
+ * The facts of a dequeue, from the "Mergify Merge Queue" check run on the pull request's head. Its title is the
+ * reason ("Dequeued -- checks failed"); its summary lists the failing checks (`- X [`Name`](url)`) and the draft
+ * the queue checked the batch on ("on draft #1841"). Mergify posts no pull request comments here.
+ * @param run - the check run (REST shape: title or output.title, output.summary, completed_at, details_url)
+ * @param repo - owner/name
+ * @returns what (the reason), checks, queue (a link) and left (a time)
+ */
+export function dequeueFacts(run, repo) {
+    const summary = run?.output?.summary ?? "";
+    const failing = summary.split(/\nFailing checks:\n/)[1] ?? "";
+    const checks = [...failing.matchAll(/^- \S+ \[`([^`]+)`\]\(([^)]+)\)/gm)].map(
+        ([, name, url]) => `${name} (${url})`,
+    );
+    const draft = /on draft #(\d+)/.exec(summary)?.[1];
+    return {
+        what: (run?.output?.title ?? "").replaceAll("\u2014", "--"),
+        checks: checks.join(", "),
+        queue: draft ? `https://github.com/${repo}/pull/${draft}` : (run?.details_url ?? ""),
+        left: run?.completed_at ?? "",
+    };
 }
 
 /**
@@ -105,18 +144,18 @@ export async function replacedWhilePending({ request, repo, run, attempt, conclu
  * @param opts.request - (method, path, body) => parsed JSON; throws on an HTTP error
  * @param opts.repo - owner/name
  * @param opts.body - the comment
- * @param opts.unlessReported - { run, attempt, since }: post nothing when a comment since `since` already
- *   reports a failure of that run attempt (reportsFailure)
+ * @param opts.unlessReported - { since, reported(body) }: post nothing when a comment since `since` is one
+ *   `reported` says already tells this news
  * @returns the issue number, or null when nothing was posted
  */
 export async function announce({ request, repo, body, unlessReported }) {
     const [found] = await request("GET", `/repos/${repo}/issues?labels=${LABEL}&state=open&per_page=1`);
     let number = found?.number;
     if (number && unlessReported) {
-        const { run, attempt, since } = unlessReported;
+        const { since, reported } = unlessReported;
         const query = since ? `since=${encodeURIComponent(since)}&per_page=100` : "per_page=100";
         const comments = await request("GET", `/repos/${repo}/issues/${number}/comments?${query}`);
-        if (comments.some((c) => reportsFailure(c.body ?? "", run, attempt))) {
+        if (comments.some((c) => reported(c.body ?? ""))) {
             return null;
         }
     }
@@ -142,7 +181,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
                 .concat([["restart", { type: "boolean" }]]),
         ),
     });
-    const body = statusComment(positionals[0], values, process.env.RELEASE_NOTIFY ?? "");
     const request = async (method, path, data) => {
         const res = await fetch(`https://api.github.com${path}`, {
             method,
@@ -173,10 +211,27 @@ if (import.meta.url === `file://${process.argv[1]}`) {
             console.log(`${values.run} was cancelled before any job started (replaced in the concurrency queue)`);
             process.exit(0);
         }
-        unlessReported = { run: values.run, attempt: values.attempt, since: values.since };
+        unlessReported = {
+            since: values.since,
+            reported: (b) => reportsFailure(b, values.run, values.attempt),
+        };
     }
+    if (positionals[0] === "dequeued") {
+        // Mergify labels the pull request as it finishes the check run; wait up to 2 minutes for the final state
+        const path = `/repos/${repo}/commits/${values.sha}/check-runs?check_name=${encodeURIComponent("Mergify Merge Queue")}&filter=latest`;
+        let run;
+        for (let i = 0; i < 12; i++) {
+            [run] = (await request("GET", path)).check_runs;
+            if (run?.status === "completed" && /^Dequeued/.test(run.output?.title ?? "")) {
+                break;
+            }
+            await new Promise((r) => setTimeout(r, 10_000));
+        }
+        Object.assign(values, dequeueFacts(run, repo));
+        const key = dequeueKey(values.pr, values.left);
+        unlessReported = { since: run?.started_at, reported: (b) => b.includes(key) };
+    }
+    const body = statusComment(positionals[0], values, process.env.RELEASE_NOTIFY ?? "");
     const number = await announce({ request, repo, body, unlessReported });
-    console.log(
-        number ? `announced on #${number}:\n${body}` : `already reported: ${values.run} attempt ${values.attempt}`,
-    );
+    console.log(number ? `announced on #${number}:\n${body}` : `already reported:\n${body}`);
 }

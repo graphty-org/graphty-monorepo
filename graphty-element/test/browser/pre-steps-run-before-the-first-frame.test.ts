@@ -37,7 +37,7 @@
 
 import "../../src/graphty-element";
 
-import { afterAll, afterEach, assert, describe, test } from "vitest";
+import { afterAll, afterEach, assert, describe, test, vi } from "vitest";
 
 import {
     type AuthoredLayoutDescriptor,
@@ -49,7 +49,6 @@ import {
     type Position,
 } from "../../extend";
 import type { Graphty } from "../../index.js";
-import { operationQueueOf } from "../../src/Graph";
 
 /**
  * How many pre-steps the graphs below ask for.
@@ -60,14 +59,8 @@ import { operationQueueOf } from "../../src/Graph";
  */
 const PRE_STEPS = 500;
 
-/** How long the element needs to connect, drain its queue and draw. */
-const SETTLE_MS = 1000;
-
 /** How long any wait below is allowed to take before it is called a failure. */
 const PATIENCE_MS = 5000;
-
-/** Roughly one animation frame, which is what the waits below poll at. */
-const FRAME_MS = 16;
 
 /** Four nodes, which is enough for "the graph has something to arrange". */
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
@@ -221,33 +214,17 @@ function mountEmpty(): Graphty {
 }
 
 /**
- * Wait for the element to finish everything it has been asked to do.
+ * Wait for the element to finish `Graph.init()` and everything it has been asked to do.
  * @param element - the mounted element
  */
 async function settle(element: Graphty): Promise<void> {
-    await operationQueueOf(element.graph).waitForCompletion();
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
-}
-
-/**
- * Wait until something is true, or give up.
- * @param condition - what is being waited for
- * @returns true if it came true in time
- */
-async function until(condition: () => boolean): Promise<boolean> {
-    const deadline = Date.now() + PATIENCE_MS;
-
-    while (Date.now() < deadline) {
-        if (condition()) {
-            return true;
-        }
-
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, FRAME_MS));
-    }
-
-    return condition();
+    await vi.waitFor(
+        () => {
+            assert.isTrue(element.graph.initialized, "the element finished initialising");
+        },
+        { timeout: PATIENCE_MS },
+    );
+    await element.waitForSettled();
 }
 
 afterEach(() => {
@@ -287,9 +264,12 @@ describe("the pre-steps a layout is configured with", () => {
         element.nodeData = NODES;
         element.edgeData = EDGES;
 
-        const drew = await until(() => stepsAtFirstFrameWithANode !== null);
-
-        assert.isTrue(drew, "the graph never drew a frame with a node in it");
+        await vi.waitFor(
+            () => {
+                assert.isNotNull(stepsAtFirstFrameWithANode, "the graph never drew a frame with a node in it");
+            },
+            { timeout: PATIENCE_MS },
+        );
         assert.isAtLeast(
             stepsAtFirstFrameWithANode ?? 0,
             PRE_STEPS,

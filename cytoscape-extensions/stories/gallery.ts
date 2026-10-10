@@ -9,6 +9,7 @@ import type { Core } from "cytoscape";
 
 import {
     fadeManyEdges,
+    failureWords,
     fitToContainer,
     markDone,
     newCore,
@@ -108,7 +109,7 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
                 status.textContent = [out.note, statusLine(out)].filter(Boolean).join("\n");
                 status.style.color = "#14532d";
             } catch (e) {
-                status.textContent = `failed: ${(e as Error).message}`;
+                status.textContent = `failed: ${failureWords(e)}`;
                 status.style.color = "#b00020";
                 reportFailure(t.title, e);
             }

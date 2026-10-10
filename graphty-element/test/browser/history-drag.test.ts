@@ -13,9 +13,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import { Graph } from "../../src/Graph";
 import type { Node } from "../../src/Node";
 import type { NodeDragHandler } from "../../src/NodeBehavior";
-
-/** Per test: each builds a real Babylon scene and runs a simulation. */
-const TEST_TIMEOUT_MS = 60_000;
+import { nextFrame } from "../helpers/real-input";
 
 /** How far the pointer moves the dragged node. */
 const DELTA = new Vector3(40, 30, 0);
@@ -34,9 +32,8 @@ afterEach(() => {
  * @param what - What is waited for, for the failure message.
  */
 async function until(condition: () => boolean, what: string): Promise<void> {
-    for (let wait = 0; wait < 1000 && !condition(); wait++) {
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 10));
+    for (let wait = 0; wait < 600 && !condition(); wait++) {
+        await nextFrame();
     }
 
     assert.isTrue(condition(), what);
@@ -144,114 +141,95 @@ async function drop(graph: Graph, node: Node): Promise<void> {
 }
 
 describe("a node drag under undo", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "with the layout running at drag start, undo puts every node back where it was at drag start",
-        async () => {
-            const graph = await springGraph(false);
-            const session = graph.getSession();
-            graph.getUpdateManager().stepFrames(3);
-            assert.isTrue(graph.getLayoutManager().running, "the layout is running when the drag starts");
-            const start = lane(graph);
+    it("with the layout running at drag start, undo puts every node back where it was at drag start", async () => {
+        const graph = await springGraph(false);
+        const session = graph.getSession();
+        graph.getUpdateManager().stepFrames(3);
+        assert.isTrue(graph.getLayoutManager().running, "the layout is running when the drag starts");
+        const start = lane(graph);
 
-            const node = dragStart(graph);
-            graph.getUpdateManager().stepFrames(10);
-            await drop(graph, node);
-            assert.isTrue(node.isPinned(), "the drop pinned the node");
-            const step = session.history.steps.at(-1);
-            assert.deepEqual(step?.ops, ["positions.set", "positions.pin"], "the drop placed and pinned it");
-            graph.getUpdateManager().stepFrames(10);
+        const node = dragStart(graph);
+        graph.getUpdateManager().stepFrames(10);
+        await drop(graph, node);
+        assert.isTrue(node.isPinned(), "the drop pinned the node");
+        const step = session.history.steps.at(-1);
+        assert.deepEqual(step?.ops, ["positions.set", "positions.pin"], "the drop placed and pinned it");
+        graph.getUpdateManager().stepFrames(10);
 
-            const outcome = await session.undo();
-            assert.strictEqual(outcome.kind, "undone");
-            assert.deepEqual(lane(graph), start, "every node is back where it was at drag start");
-            assert.isFalse(node.isPinned(), "and the pin is undone with it");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        const outcome = await session.undo();
+        assert.strictEqual(outcome.kind, "undone");
+        assert.deepEqual(lane(graph), start, "every node is back where it was at drag start");
+        assert.isFalse(node.isPinned(), "and the pin is undone with it");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "an undo during the drag ends it: the lane is the drag-start capture, no step, and the drop does nothing",
-        async () => {
-            const graph = await springGraph(true);
-            const session = graph.getSession();
-            const start = lane(graph);
-            const steps = session.history.steps.length;
+    it("an undo during the drag ends it: the lane is the drag-start capture, no step, and the drop does nothing", async () => {
+        const graph = await springGraph(true);
+        const session = graph.getSession();
+        const start = lane(graph);
+        const steps = session.history.steps.length;
 
-            const node = dragStart(graph);
-            graph.getUpdateManager().stepFrames(5);
-            assert.notDeepEqual(lane(graph), start, "the drag moved the lane");
-            assert.strictEqual(session.history.nextUndo?.kind, "cancel", "the open drag is what undo acts on");
+        const node = dragStart(graph);
+        graph.getUpdateManager().stepFrames(5);
+        assert.notDeepEqual(lane(graph), start, "the drag moved the lane");
+        assert.strictEqual(session.history.nextUndo?.kind, "cancel", "the open drag is what undo acts on");
 
-            const outcome = await session.undo();
-            assert.strictEqual(outcome.kind, "cancelled");
-            assert.deepEqual(lane(graph), start, "the lane is where it was at drag start");
-            assert.isFalse(graph.getLayoutManager().running, "the layout is stopped");
+        const outcome = await session.undo();
+        assert.strictEqual(outcome.kind, "cancelled");
+        assert.deepEqual(lane(graph), start, "the lane is where it was at drag start");
+        assert.isFalse(graph.getLayoutManager().running, "the layout is stopped");
 
-            const held = node.mesh.position.clone();
-            handler(node).onDragUpdate(held.add(DELTA));
-            assert.isTrue(node.mesh.position.equals(held), "the rest of the gesture moves nothing");
-            handler(node).onDragEnd();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 100));
-            assert.lengthOf(session.history.steps, steps, "no step was recorded");
-            assert.isFalse(node.isPinned(), "the drop did not pin");
-            assert.deepEqual(lane(graph), start, "and nothing moved");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        const held = node.mesh.position.clone();
+        handler(node).onDragUpdate(held.add(DELTA));
+        assert.isTrue(node.mesh.position.equals(held), "the rest of the gesture moves nothing");
+        handler(node).onDragEnd();
+        // Once the drop is processed and a frame drawn, nothing may have been recorded.
+        await graph.waitForSettled();
+        await nextFrame();
+        assert.lengthOf(session.history.steps, steps, "no step was recorded");
+        assert.isFalse(node.isPinned(), "the drop did not pin");
+        assert.deepEqual(lane(graph), start, "and nothing moved");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "a drag held until the layout settles is sealed into the drag, never into the step below",
-        async () => {
-            const graph = await springGraph(true);
-            const session = graph.getSession();
-            const start = lane(graph);
-            const below = session.history.steps.at(-1);
-            assert.isDefined(below);
+    it("a drag held until the layout settles is sealed into the drag, never into the step below", async () => {
+        const graph = await springGraph(true);
+        const session = graph.getSession();
+        const start = lane(graph);
+        const below = session.history.steps.at(-1);
+        assert.isDefined(below);
 
-            const node = dragStart(graph);
-            graph.getLayoutManager().running = true;
-            await atRest(graph);
-            assert.strictEqual(
-                session.history.steps.find((step) => step.id === below.id)?.bytes,
-                below.bytes,
-                "the rest point while the drag was held went to the drag",
-            );
+        const node = dragStart(graph);
+        graph.getLayoutManager().running = true;
+        await atRest(graph);
+        assert.strictEqual(
+            session.history.steps.find((step) => step.id === below.id)?.bytes,
+            below.bytes,
+            "the rest point while the drag was held went to the drag",
+        );
 
-            await drop(graph, node);
-            await atRest(graph);
-            await session.undo();
-            assert.deepEqual(lane(graph), start, "undo puts every node back where it was at drag start");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        await drop(graph, node);
+        await atRest(graph);
+        await session.undo();
+        assert.deepEqual(lane(graph), start, "undo puts every node back where it was at drag start");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "a reheat after undo starts from the restored coordinates",
-        async () => {
-            const graph = await springGraph(true);
-            const session = graph.getSession();
-            const start = lane(graph);
+    it("a reheat after undo starts from the restored coordinates", async () => {
+        const graph = await springGraph(true);
+        const session = graph.getSession();
+        const start = lane(graph);
 
-            const node = dragStart(graph);
-            const dropped = node.mesh.position.asArray();
-            await drop(graph, node);
-            await atRest(graph);
-            await session.undo();
-            assert.deepEqual(lane(graph), start);
+        const node = dragStart(graph);
+        const dropped = node.mesh.position.asArray();
+        await drop(graph, node);
+        await atRest(graph);
+        await session.undo();
+        assert.deepEqual(lane(graph), start);
 
-            graph.getLayoutManager().running = true;
-            graph.getUpdateManager().stepFrames(1);
-            const [x, y, z] = lane(graph).n3;
-            const [sx, sy, sz] = start.n3;
-            const fromStart = Math.hypot(x - sx, y - sy, z - sz);
-            const fromDrop = Math.hypot(x - dropped[0], y - dropped[1], z - dropped[2]);
-            assert.isBelow(fromStart, fromDrop, "the layout resumed from where undo put the node");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        graph.getLayoutManager().running = true;
+        graph.getUpdateManager().stepFrames(1);
+        const [x, y, z] = lane(graph).n3;
+        const [sx, sy, sz] = start.n3;
+        const fromStart = Math.hypot(x - sx, y - sy, z - sz);
+        const fromDrop = Math.hypot(x - dropped[0], y - dropped[1], z - dropped[2]);
+        assert.isBelow(fromStart, fromDrop, "the layout resumed from where undo put the node");
+    });
 });

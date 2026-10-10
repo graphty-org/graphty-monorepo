@@ -71,7 +71,7 @@ describe("the K2 degree tiers inside the layout (P4-T6, PD-7)", () => {
     for (const graph of TIER_GRAPHS) {
         for (const weighted of [false, true]) {
             const label = `${graph}${weighted ? "-w" : ""}`;
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 51 s on the T4 lane, 43 s on the dev box's RTX 4070 SUPER under load, 19 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
             it(
                 `${label}: every stage bitwise twice, K2 within deg_i x 2^-22 of the f64 oracle, the tier pipelines the degrees populate`,
                 async (t) => {
@@ -120,59 +120,49 @@ describe("the K2 degree tiers inside the layout (P4-T6, PD-7)", () => {
         }
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "karate: no row of degree >= 32, so perm stays the dummy and only TIER 0 with USE_PERM false is compiled",
-        async (t) => {
-            const ctx = await fresh(t, "tiers-inspect/karate");
-            const s = paritySnapshot("karate", 1, false);
-            try {
-                expect(s.degreeOrder().segmentOffsets[2]).toBe(0);
-                const start = startPositions(s, BASE_OPTIONS, false);
-                const a = await captureAllStages(ctx, s, start, BASE_OPTIONS, PAPER, null);
-                for (const key of STAGE_KEYS) {
-                    assertCheckPasses(stageReport(a, key));
-                }
-                expect(k2KeysOf(ctx)).toEqual([{ tier: 0, usePerm: false }]);
-            } finally {
-                ctx.release(s);
-                ctx.dispose();
+    it("karate: no row of degree >= 32, so perm stays the dummy and only TIER 0 with USE_PERM false is compiled", async (t) => {
+        const ctx = await fresh(t, "tiers-inspect/karate");
+        const s = paritySnapshot("karate", 1, false);
+        try {
+            expect(s.degreeOrder().segmentOffsets[2]).toBe(0);
+            const start = startPositions(s, BASE_OPTIONS, false);
+            const a = await captureAllStages(ctx, s, start, BASE_OPTIONS, PAPER, null);
+            for (const key of STAGE_KEYS) {
+                assertCheckPasses(stageReport(a, key));
             }
-        },
-        CASE_TIMEOUT,
-    );
+            expect(k2KeysOf(ctx)).toEqual([{ tier: 0, usePerm: false }]);
+        } finally {
+            ctx.release(s);
+            ctx.dispose();
+        }
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "the Fruchterman-Reingold and spring-electrical simulations on rmat14 reach the same three tier pipelines",
-        async (t) => {
-            const ctx = await fresh(t, "tiers-inspect/fr-se");
-            const s = paritySnapshot("rmat14", gpuScale(), false);
-            try {
-                await withFrSim(ctx, FR_BASE_OPTIONS, FR_TUNING, async (sim) => {
-                    sim.load(s, startPositions(s, FR_BASE_OPTIONS, false));
-                    await sim.step(1);
-                });
-                const frKeys = k2KeysOf(ctx);
-                expect(frKeys.map((k) => k.tier)).toEqual([0, 1, 2]);
-                expect(frKeys.every((k) => k.usePerm)).toBe(true);
-                await withSeSim(ctx, SE_BASE_OPTIONS, SE_TUNING, async (sim) => {
-                    sim.load(s, startPositions(s, SE_BASE_OPTIONS, false));
-                    await sim.step(1);
-                });
-                // the spring model's own LAW 2 keys join the FR model's LAW 1 keys: three tiers of each
-                const seKeys = k2KeysOf(ctx);
-                expect(seKeys.map((k) => k.tier)).toEqual([0, 0, 1, 1, 2, 2]);
-                expect(seKeys.every((k) => k.usePerm)).toBe(true);
-            } finally {
-                ctx.release(s);
-                ctx.dispose();
-            }
-        },
-        CASE_TIMEOUT,
-    );
+    it("the Fruchterman-Reingold and spring-electrical simulations on rmat14 reach the same three tier pipelines", async (t) => {
+        const ctx = await fresh(t, "tiers-inspect/fr-se");
+        const s = paritySnapshot("rmat14", gpuScale(), false);
+        try {
+            await withFrSim(ctx, FR_BASE_OPTIONS, FR_TUNING, async (sim) => {
+                sim.load(s, startPositions(s, FR_BASE_OPTIONS, false));
+                await sim.step(1);
+            });
+            const frKeys = k2KeysOf(ctx);
+            expect(frKeys.map((k) => k.tier)).toEqual([0, 1, 2]);
+            expect(frKeys.every((k) => k.usePerm)).toBe(true);
+            await withSeSim(ctx, SE_BASE_OPTIONS, SE_TUNING, async (sim) => {
+                sim.load(s, startPositions(s, SE_BASE_OPTIONS, false));
+                await sim.step(1);
+            });
+            // the spring model's own LAW 2 keys join the FR model's LAW 1 keys: three tiers of each
+            const seKeys = k2KeysOf(ctx);
+            expect(seKeys.map((k) => k.tier)).toEqual([0, 0, 1, 1, 2, 2]);
+            expect(seKeys.every((k) => k.usePerm)).toBe(true);
+        } finally {
+            ctx.release(s);
+            ctx.dispose();
+        }
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 14 s on the dev box's RTX 4070 SUPER under load, 12 s on the T4 lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "hub10k with the hub pinned: its attraction is computed through its tier, the free count excludes it, K5 leaves it in place",
         async (t) => {
@@ -223,32 +213,27 @@ describe("the K2 degree tiers inside the layout (P4-T6, PD-7)", () => {
         CASE_TIMEOUT,
     );
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "writes this adapter's K2 output of the UNSCALED hub10k and the f64 reference as the hub10k-K2-tiers noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            const ctx = await fresh(t, "tiers-inspect/noise");
-            const s = paritySnapshot("hub10k", 1, false);
-            try {
-                // K2 alone on both sides: captureAllStages would also run the f64 oracle's all-pairs K3, 10^8
-                // synchronous pair terms on the unscaled hub10k that nothing here reads, and under coverage on a
-                // CI runner that one call outlasted vitest's 60 s worker RPC timeout (issue #413)
-                const start = startPositions(s, BASE_OPTIONS, false);
-                const values = await attractionStage(ctx, s, start, BASE_OPTIONS, PAPER, null);
-                const expected = attractionOracle(s, start, BASE_OPTIONS, PAPER, null);
-                const cls = adapterClass(ctx.caps);
-                writeNoiseFixture("fa2-attraction", "hub10k-K2-tiers", cls, values, "f32");
-                writeNoiseFixture("fa2-attraction", "hub10k-K2-tiers", ORACLE_F64_CLASS, expected, "f32");
-                const report = attractionReport(values, expected, attractionBounds(s), "noise/hub10k/attraction");
-                console.warn(
-                    `[tiers-inspect] noise/hub10k/attraction: error ${stageError(true, values, expected).rel.toExponential(3)}, ratio over the analytic bound ${report.worst.toExponential(3)}`,
-                );
-                assertCheckPasses(report);
-            } finally {
-                ctx.release(s);
-                ctx.dispose();
-            }
-        },
-        CASE_TIMEOUT,
-    );
+    it("writes this adapter's K2 output of the UNSCALED hub10k and the f64 reference as the hub10k-K2-tiers noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        const ctx = await fresh(t, "tiers-inspect/noise");
+        const s = paritySnapshot("hub10k", 1, false);
+        try {
+            // K2 alone on both sides: captureAllStages would also run the f64 oracle's all-pairs K3, 10^8
+            // synchronous pair terms on the unscaled hub10k that nothing here reads, and under coverage on a
+            // CI runner that one call outlasted vitest's 60 s worker RPC timeout (issue #413)
+            const start = startPositions(s, BASE_OPTIONS, false);
+            const values = await attractionStage(ctx, s, start, BASE_OPTIONS, PAPER, null);
+            const expected = attractionOracle(s, start, BASE_OPTIONS, PAPER, null);
+            const cls = adapterClass(ctx.caps);
+            writeNoiseFixture("fa2-attraction", "hub10k-K2-tiers", cls, values, "f32");
+            writeNoiseFixture("fa2-attraction", "hub10k-K2-tiers", ORACLE_F64_CLASS, expected, "f32");
+            const report = attractionReport(values, expected, attractionBounds(s), "noise/hub10k/attraction");
+            console.warn(
+                `[tiers-inspect] noise/hub10k/attraction: error ${stageError(true, values, expected).rel.toExponential(3)}, ratio over the analytic bound ${report.worst.toExponential(3)}`,
+            );
+            assertCheckPasses(report);
+        } finally {
+            ctx.release(s);
+            ctx.dispose();
+        }
+    });
 });

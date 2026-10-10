@@ -1760,6 +1760,47 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether a frame is drawn only when the picture can have changed.
+     * @remarks
+     * Off (the default), the graph is drawn on every animation frame, still or not. On, it stops
+     * drawing once the layout has settled, the styles are painted and the camera is at rest, and
+     * draws again as soon as anything changes the picture: data, styles, the layout, the camera,
+     * the selection, an animation, or the reader's pointer, wheel or keys on the canvas. A still
+     * graph then costs the page nothing per frame -- on a software GPU (a virtual machine, a CI
+     * runner, a headless browser) that is tens to hundreds of milliseconds of every frame, and
+     * the page's own controls answer that much faster.
+     *
+     * If your code changes the Babylon.js scene directly (through `graph.scene`), adding or
+     * removing a mesh, material, texture, light or camera is drawn, but changing a property of
+     * something already there (a material's color, a mesh's position) is not drawn until something
+     * else asks for a frame. Leave it off in that case.
+     *
+     * A preference of this view, not part of the project: switching it records no undo step and
+     * is not saved in a project file. The same switch as `layoutBehavior.rendering.onDemand`.
+     * @since 3.22.0
+     * @example
+     * ```html
+     * <graphty-element render-on-demand></graphty-element>
+     * ```
+     * ```typescript
+     * element.renderOnDemand = true;
+     * ```
+     * @returns True when frames are drawn only when the picture can have changed
+     */
+    @property({ attribute: "render-on-demand", type: Boolean })
+    get renderOnDemand(): boolean {
+        return this.#graph.getLayoutBehavior()?.rendering?.onDemand === true;
+    }
+    /**
+     * Switches drawing on demand on or off.
+     */
+    set renderOnDemand(value: boolean) {
+        const oldValue = this.renderOnDemand;
+        this.#graph.setLayoutBehavior({ rendering: { onDemand: value } });
+        this.requestUpdate("renderOnDemand", oldValue);
+    }
+
+    /**
      * What a selected node looks like: the halo's colour, how far it stands out past the node,
      * and how solid it is.
      * @remarks
@@ -3872,8 +3913,13 @@ export class Graphty extends LitElement {
 
     /**
      * Enable AI control for the graph.
+     *
+     * `provider: "webllm"` runs a model in the browser: install the optional package
+     * `@mlc-ai/web-llm`; the model downloads on the first command.
      * @param config - AI manager configuration
      * @returns Promise that resolves when AI is enabled
+     * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when `provider` is `"webllm"` and
+     * `@mlc-ai/web-llm` is not installed.
      * @since 1.5.0
      * @example
      * ```typescript

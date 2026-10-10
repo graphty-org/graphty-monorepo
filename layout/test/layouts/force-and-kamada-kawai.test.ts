@@ -1,5 +1,5 @@
 import { fromEdgeArrays, GraphBuilder, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import * as layout from "../../src";
 import { idealDistances } from "../../src/indexed/kamada-kawai";
@@ -407,5 +407,68 @@ describe("arf", () => {
             }
         }
         assert.ok(across > 1.5 * inside, `inside ${inside}, across ${across}`);
+    });
+});
+
+describe("kamadaKawai size guard", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    /** The error a call throws. */
+    function thrown(f: () => unknown): RangeError & { code?: string; params?: unknown } {
+        try {
+            f();
+        } catch (e) {
+            return e as RangeError & { code?: string; params?: unknown };
+        }
+        throw new Error("did not throw");
+    }
+
+    it("refuses a graph above maxNodes before allocating, with E_TOO_LARGE and its params", () => {
+        const s = grid(3, 3);
+        vi.stubGlobal(
+            "Float64Array",
+            class extends Float64Array {
+                constructor(...args: unknown[]) {
+                    if (typeof args[0] === "number") {
+                        throw new Error("allocated before refusing");
+                    }
+                    super(...(args as []));
+                }
+            },
+        );
+        const err = thrown(() => layout.kamadaKawai(s, { maxNodes: 8 }));
+        vi.unstubAllGlobals();
+        assert.instanceOf(err, RangeError);
+        assert.equal(err.code, "E_TOO_LARGE");
+        assert.deepEqual(err.params, { nodeCount: 9, maxNodes: 8, bytes: 24 * 81 });
+    });
+
+    it("turns an n x n allocation the runtime refuses into E_TOO_LARGE", () => {
+        const s = grid(3, 3);
+        vi.stubGlobal(
+            "Float64Array",
+            class extends Float64Array {
+                constructor(...args: unknown[]) {
+                    if (args[0] === 81) {
+                        throw new RangeError("Array buffer allocation failed");
+                    }
+                    super(...(args as []));
+                }
+            },
+        );
+        const err = thrown(() => layout.kamadaKawai(s));
+        vi.unstubAllGlobals();
+        assert.equal(err.code, "E_TOO_LARGE");
+        assert.deepEqual(err.params, { nodeCount: 9, maxNodes: null, bytes: 24 * 81 });
+    });
+
+    it("lays out as before with no maxNodes or one at the node count", () => {
+        const s = grid(3, 3);
+        assert.deepEqual(
+            Array.from(layout.kamadaKawai(s, { maxNodes: 9 }).positions),
+            Array.from(layout.kamadaKawai(s).positions),
+        );
     });
 });

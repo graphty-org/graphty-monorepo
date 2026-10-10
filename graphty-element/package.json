@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graphty-element",
-    "version": "3.21.0",
+    "version": "3.23.0",
     "description": "A Web Component library for 3D/2D graph visualization built with Lit and Babylon.js",
     "type": "module",
     "customElements": "./dist/custom-elements.json",
@@ -148,7 +148,7 @@
         "coverage:shard:storybook:4": "COVERAGE_DIR=.coverage-parts/storybook-4 vitest run --project=storybook --shard=4/4 --coverage",
         "coverage:fast": "vitest run --project=default --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
-        "lint": "eslint && tsc --noEmit && npm run typecheck:strict-consumer",
+        "lint": "eslint && node eslint-rules/node-position-funnel.test.mjs && tsc --noEmit && npm run typecheck:strict-consumer",
         "benchmark": "tsx benchmarks/run.ts",
         "typecheck:strict-consumer": "tsc -p tsconfig.strict-consumer.json && tsc -p tsconfig.no-jsx-opt-in.json",
         "lint:fix": "eslint --fix",

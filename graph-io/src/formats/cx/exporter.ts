@@ -542,7 +542,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     if (renamedName !== null) {
         note(
             LOSS.COLUMN_NAME_CHANGED,
-            `node column "name" is written as the attribute "name#2": the label column "${label?.meta.name ?? ""}" is written as n, which reads back as "name"`,
+            `node column "name" is written as the attribute "name#2" and reads back as "name#2", because the label column "${label?.meta.name ?? ""}" is written as n and takes the name "name"`,
             "name",
             renamedName.length - renamedName.nullCount,
         );

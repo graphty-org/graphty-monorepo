@@ -1,6 +1,7 @@
 import { afterEach, assert, test } from "vitest";
 
 import { type Graph, operationQueueOf } from "../../../src/Graph";
+import { nextFrame } from "../../helpers/real-input";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
@@ -69,30 +70,37 @@ test("concurrent screenshot and operations complete successfully", async () => {
 test("screenshots wait for queued operations when waitForOperations is true", async () => {
     graph = await createTestGraphWithData();
 
-    let operationCompleted = false;
+    const order: string[] = [];
 
-    // Queue a long operation first (use style-apply to avoid triggering layout-update)
+    // Queue an operation first that stays pending until the test releases it (use style-apply
+    // to avoid triggering layout-update)
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+    });
     const operationPromise = operationQueueOf(graph).queueOperationAsync("style-apply", async () => {
-        await new Promise((resolve) => {
-            setTimeout(resolve, 200);
-        });
-        operationCompleted = true;
+        await gate;
+        order.push("operation");
     });
 
     // Now queue a screenshot that should wait
-    const screenshotPromise = graph.captureScreenshot({
-        timing: { waitForSettle: false, waitForOperations: true },
-    });
+    const screenshotPromise = graph
+        .captureScreenshot({
+            timing: { waitForSettle: false, waitForOperations: true },
+        })
+        .then(() => order.push("screenshot"));
 
-    // Screenshot should wait for operation
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.equal(operationCompleted, false, "Operation should not be complete yet");
+    // Screenshot should wait for the operation, however many frames are drawn
+    for (let frame = 0; frame < 5; frame++) {
+        await nextFrame();
+    }
+    assert.deepEqual(order, [], "Neither should be complete while the operation is held");
 
-    // Wait for both to complete
+    // Release the operation and wait for both to complete
+    release();
     await Promise.all([operationPromise, screenshotPromise]);
 
-    assert.equal(operationCompleted, true, "Operation should complete before screenshot");
+    assert.deepEqual(order, ["operation", "screenshot"], "Operation should complete before screenshot");
 });
 
 test("screenshots can proceed immediately when waitForOperations is false", async () => {

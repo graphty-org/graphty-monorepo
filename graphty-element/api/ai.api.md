@@ -244,7 +244,9 @@ export const describeProperty: GraphCommand;
 
 // @public
 export interface ExecutionResult extends CommandResult {
+    code?: AiResultCode;
     llmText?: string;
+    params?: AiResultParams;
 }
 
 // @public
@@ -590,6 +592,11 @@ export interface WebLlmModelInfo {
     name: string;
     size: string;
     supportsTools?: boolean;
+}
+
+// @public
+export interface WebLlmProviderOptions {
+    initializeOnFirstUse?: boolean;
 }
 
 // @public

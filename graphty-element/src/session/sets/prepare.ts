@@ -29,6 +29,7 @@ import {
 import { loadSetDefinition, parseSetDefinition } from "../../catalog/sets/parse";
 import type { EdgeMember, NodeId, SetCreatedFrom, SetDefinition, SetId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { retainedChanged } from "../project/retained";
 import type { ElementSet } from "./types";
 
 /**
@@ -174,6 +175,8 @@ export function defaultName(records: RecordView): string {
  */
 class Interner {
     readonly values: (string | number)[] = [];
+    /** Whether a kept record's columns read through this table, so a new id changes its size. */
+    held = false;
     private readonly index = new Map<string | number, number>();
 
     /**
@@ -188,6 +191,9 @@ class Interner {
             slot = this.values.length;
             this.values.push(value);
             this.index.set(value, slot);
+            if (this.held) {
+                retainedChanged();
+            }
         }
 
         return slot;
@@ -367,9 +373,12 @@ class EdgeColumns implements EdgeMemberList {
      * @returns The members.
      */
     members(): readonly EdgeMember[] {
-        this.materialised ??= Object.freeze(
-            Array.from({ length: this.length }, (_, row) => Object.freeze(this.member(row))),
-        );
+        if (this.materialised === undefined) {
+            this.materialised = Object.freeze(
+                Array.from({ length: this.length }, (_, row) => Object.freeze(this.member(row))),
+            );
+            retainedChanged();
+        }
 
         return this.materialised;
     }
@@ -613,6 +622,7 @@ function fixedDefinition(
     definition.reading = reading;
     const frozen = Object.freeze(definition) as unknown as SetDefinition;
     columnsOf.set(frozen, columns);
+    columns.interner.held = true;
     opacityOf.set(frozen, null);
     if (summary !== undefined) {
         summariesOf.set(frozen, summary);
@@ -1110,9 +1120,29 @@ export function recordBytes(record: ElementSet): number {
     return 64 + 2 * record.name.length + body;
 }
 
+/** The edge members a column-less definition holds, as keys; built once per frozen definition. */
+const memberKeysOf = new WeakMap<SetDefinition, ReadonlySet<string>>();
+
+/**
+ * The key a seed is filed under: the member's fields, types kept, so `1` and `"1"` differ.
+ * @param member - The member.
+ * @returns The key.
+ */
+export function edgeMemberKey(member: EdgeMember): string {
+    return JSON.stringify([
+        member.source,
+        member.target,
+        member.id ?? null,
+        member.key ?? null,
+        member.ordinal ?? null,
+        member.among ?? null,
+    ]);
+}
+
 /**
  * Whether a definition holds an edge member: a binary search over a fixed set's edge columns, a
- * scan of anything else's edges (a path's steps, a restored fixed set).
+ * lookup in the keys of anything else's edges (a path's steps, a restored fixed set), built on
+ * first use so a write that asks about every member of a path does not scan the path per member.
  * @param definition - The definition.
  * @param member - A canonical member.
  * @returns True when some edge member equals it.
@@ -1127,15 +1157,20 @@ export function holdsEdgeMember(definition: SetDefinition, member: EdgeMember): 
         return false;
     }
 
-    const same = (other: EdgeMember): boolean =>
-        other.source === member.source &&
-        other.target === member.target &&
-        other.id === member.id &&
-        other.key === member.key &&
-        other.ordinal === member.ordinal &&
-        other.among === member.among;
+    let keys = memberKeysOf.get(definition);
+    if (keys === undefined) {
+        const built = new Set<string>();
+        for (const step of definition.edges ?? []) {
+            for (const each of Array.isArray(step) ? (step as readonly EdgeMember[]) : [step as EdgeMember | null]) {
+                if (each !== null) {
+                    built.add(edgeMemberKey(each));
+                }
+            }
+        }
 
-    return (definition.edges ?? []).some((step) =>
-        Array.isArray(step) ? (step as readonly EdgeMember[]).some(same) : step !== null && same(step as EdgeMember),
-    );
+        keys = built;
+        memberKeysOf.set(definition, keys);
+    }
+
+    return keys.has(edgeMemberKey(member));
 }

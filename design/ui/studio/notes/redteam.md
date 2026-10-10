@@ -16,36 +16,35 @@ served at `/?next`.
 
 ## Top of mind
 
-1. (2026-10-09) A dry run walks the answer key AND each task's commonest detours, and the
-   preflight scripts a bar needs exist before launch. Tier 2 round 1 walked only success paths
-   and left bars 2, 7, 8, 9 unscoreable; participants then found off-route defects a script walk
-   would have found (Edges color to Everything, halo tint, focus drops). Fix those before round 2.
-2. (2026-10-09) T20's cause is one branch: Open from the start screen loads a data file straight
-   (`openProjectFile` -> `openInSession` with `fresh`, project/actions.ts), skipping the Data page
-   that asks "Higher means". Route it through the Data page. No column "Higher means", no "New
-   from data...", no "Set meaning" verb: each is a second home for a load-time fact.
-3. (2026-10-09) T22: hint words first, as pre-registered. The app must not sniff `<>=`; show the
-   corrected rule only when "=" + text passes the element's own rule check. "Select where..." on
-   the column waits until the hint fails (pre-registered rule).
-4. (2026-10-09) Edges color to Everything: cause is writeLine's default `fresh = EVERYTHING_LAYER`
-   (style/row.ts), reached from StyleTab and SetLine.tsx:112. Fix the shared default, not one
-   caller; hide a side the row has no layer for.
-5. (2026-10-09) Selection halo tint is an element rendering defect with a traced mechanism
-   (Node.ts createOverlaySource: 40% sphere, backFaceCulling false). Fix in the element, not
-   "possibly by design".
-6. (2026-10-09) One mark per state: stale run = ", out of date" on the key title, same words as
-   the run list. Not warning color + dim Top 10 + colored clock + dimmed range.
-7. (2026-10-08) Tier 2 setups are bare files; setups must carry the history's work (bar 2).
-8. (2026-10-08) Push a second, shorter instance of the same job inside core-four sessions.
-9. (2026-10-08) Screenshot-audit findings need a bar, or they ride as "watch items".
-10. Rounds are one model playing every participant: a failure is strong, a pass weak, a scripted
-    repro or code cause solid. Never blame load: name the mechanism (the 4-browser cap is per
-    command, not per session).
-11. (2026-10-06) Fix by removing, not adding. One door per job; reuse the app's own pattern
-    (the "..." header menu every other inspector has) before adding buttons.
-12. (2026-10-06) Overfitting guard: task words never echo a fix's screen words.
-13. (2026-10-06) Graph logic in the element, words in the app; check existing element API first.
-14. (2026-10-07) Element English keeps leaking; codes from the element, words in the app.
+1. (2026-10-09) Dry run answers "will participants meet build faults?" only for the routes it
+   walked. Tier 2 round 1: answer-key routes, pointer only, study tool never dry-run. Round 2
+   launches only after: the tool fixed (4 sessions max, exact matches, real file drop, every
+   follow-up), the scripts for bars 2, 7, 8, 9 built, and a dry run of each task's commonest
+   detours by pointer AND keyboard on the new frozen build, with a written report.
+2. (2026-10-09) The study tool reached participants more than the build did (load ~158, wrong-row
+   matches, a dead synthetic drop, void and unsent sessions, facilitator files read). Attack the
+   tool as hard as the app; a bar with no script "does not hold", never "passes".
+3. (2026-10-09) Round 2 watch: each change adds at most one door and only two things rise at rest
+   (source "..." menu, ", out of date" on the key). Any proposal adding more words at rest is out.
+4. (2026-10-09) T20 root cause: start-screen Open skips the Data page (project/actions.ts). Fix =
+   route through it. Watch round 2: the extra Load step must not break tier 1's open-file bar.
+5. (2026-10-09) T22: hint words gated on the element's own rule check, no `<>=` sniffing in the
+   app. "Select where..." only if the hint fails with 3+ looking in the same place (pre-registered).
+6. (2026-10-09) Edges color to Everything: remove writeLine's EVERYTHING_LAYER default (style/
+   row.ts), the shared cause. Halo tint: element fix (Node.ts createOverlaySource), not the app.
+7. (2026-10-09) Drawn-name overlap is an element issue, deliberately left failing bar 10 in round
+   2 as evidence. Reject any app font-shrink or seeding that hides it.
+8. (2026-10-09) Scripted persona exits (Tom's two-attempt rule) decided 2 of 3 non-successes;
+   graders label them. Do not build fixes on a scripted give-up.
+9. (2026-10-09) Expert findings confirm only by a script or a second specialist on the capture,
+   as the criteria say; "one expert plus a session" was a scorer deviation.
+10. (2026-10-08) Tier 2 setups must carry the history's work (bar 2); push a second, shorter
+    instance of the same job inside core-four sessions.
+11. Rounds are one model playing every participant: a failure is strong, a pass weak, a scripted
+    repro or code cause solid. Never blame load: name the mechanism.
+12. (2026-10-06) Fix by removing, not adding. One door per job; reuse the "..." header menu.
+13. (2026-10-06) Overfitting guard: task words never echo a fix's screen words.
+14. (2026-10-06) Graph logic and codes in the element, words in the app; check existing API first.
 15. (2026-10-08) Budget words where tier 2 grows: inspector, Data place, neighbor list.
 
 ## Priorities and values
@@ -178,6 +177,12 @@ served at `/?next`.
   missing preflight scripts exist, the detours are scripted, and the browser overrun mechanism is
   named. Reason: the owner wants studies to learn what users need, not find UX defects.
 
+- 2026-10-09 -- Tier 2 round 1 closed (decisions.md). Adopted my positions on T20, T22, writeLine,
+  halo, one stale mark, "..." menu. Also decided: study-tool fixes and missing bar scripts rated
+  severity 4 and ranked first; drawn-name overlap and compact-mantine Toast/segment defects left
+  for later rounds to keep round 2 attributable; nothing new for the owner. Reason: fix the
+  measurement first, then reproduced defects, then one door per confirmed problem.
+
 ## Tried: worked / did not work
 
 - 2026-10-06 -- Round 1 close-out: holding the Degree cue and my Summary-names idea back in favor of
@@ -235,6 +240,11 @@ served at `/?next`.
 - 2026-10-09 -- Tier 2 round 1 dry run on success paths only: did not work as a gate. No session
   met a broken control on the walked routes, but participants met off-route defects and four bars
   had no script. Taught: a dry run must walk detours and prove every bar's script runs.
+
+- 2026-10-09 -- Round 1 results after skeptics: 52 of 55 valid sessions succeeded, 0 false done,
+  0 silent commits, every session.log empty. Bars 2, 7, 8, 9 unscored; 1, 5, 10, 11 fail. Worked:
+  the four-build success-path dry run (no broken control on walked routes). Did not work: no
+  detour or keyboard walk, no tool dry run. Taught: the dry run must cover the harness too.
 
 ## Thinking
 

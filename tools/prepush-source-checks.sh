@@ -1,7 +1,7 @@
 #!/bin/bash
-# The pre-push gate's source-only checks: formatting, the offline link check, the CI workflow tests and
-# the config and tool checks. They read only the source -- no build, no affected list -- and take about
-# a minute together, so they run before anything slow:
+# The pre-push gate's source-only checks: formatting, the offline link check, the CI workflow tests,
+# the config and tool checks and the SonarQube changed-lines scan. They read only the source -- no
+# build, no affected list -- and take about two minutes together, so they run before anything slow:
 #  - tools/prepush.sh runs them first (it sources this file, which also gives it run_step), and
 #  - tmp/push-queue.sh runs them before a push waits for a gate slot, so a slip fails in about a minute
 #    instead of after the queue.
@@ -49,6 +49,10 @@ run_step() {
         exit 1
     fi
 }
+
+# The SonarQube step's output, which tools/prepush.sh reads again under its summary.
+SONAR_LOG="$(git rev-parse --path-format=absolute --git-common-dir)/sonar/prepush-$(basename "$ROOT_DIR").log"
+mkdir -p "$(dirname "$SONAR_LOG")"
 
 SOURCE_CHECKS_RECORD="$(git rev-parse --path-format=absolute --git-dir)/prepush-source-checks"
 SOURCE_FINGERPRINT="$(node tools/prepush-inputs.mjs fingerprint 2>/dev/null)"
@@ -108,6 +112,19 @@ else
     # bypass trailer, token leaks) against a throwaway repository, a fake server and a fake scanner.
     # Needs no server. A few seconds.
     run_step "SonarQube gate script tests" "pnpm run test:sonar-gate"
+
+    # SonarQube (changed lines): tools/sonar-gate.mjs scans the files this push changes on the owner's
+    # SonarQube server and fails the push on a NEW issue or security hotspot on a line the push adds or
+    # changes; issues master already has never block. It passes with a boxed warning when the server
+    # cannot be reached (off the owner's network), and blocks on any other setup problem (no token, an
+    # admin token, no Java), saying how to fix it. It never runs in CI: the server is not reachable from
+    # GitHub Actions. It needs no build: it scans the changed files by name, with no coverage report.
+    # Last here, as the slowest of these checks (45-60 s, one scan per machine at a time), but before
+    # the gate queue: it is the step that fails pushes most often. To push past a false positive:
+    # `// NOSONAR(<rule>): <reason>` on the line, a reasoned path entry in sonar-project.properties, or
+    # -- emergencies only -- a `Sonar-Bypass: <reason>` trailer on the HEAD commit. See
+    # design/sonarqube/design.md.
+    run_step "SonarQube (changed lines)" "(set -o pipefail; node tools/sonar-gate.mjs 2>&1 | tee \"\$SONAR_LOG\")"
 
     # Recorded only when nothing changed while the checks ran.
     if [ -n "$SOURCE_FINGERPRINT" ] && [ "$(node tools/prepush-inputs.mjs fingerprint 2>/dev/null)" = "$SOURCE_FINGERPRINT" ]; then

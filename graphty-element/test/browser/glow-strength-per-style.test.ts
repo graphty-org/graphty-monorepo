@@ -13,11 +13,9 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
-import { nextFrame } from "../helpers/real-input";
 
 const WIDTH = 480;
 const HEIGHT = 360;
-const FRAMES = 8;
 /**
  * The strong-to-faint glow ratio with placement cancelled out. Drawn at one strength it is exactly
  * 1. Each at its own strength it measured 2.1, not 10: the strong glow's centre saturates the 8-bit
@@ -51,12 +49,9 @@ describe("glow strength per style", () => {
     });
 
     async function frame(): Promise<Uint8Array> {
-        await operationQueueOf(graph).waitForCompletion();
-
-        for (let at = 0; at < FRAMES; at++) {
-            graph.scene.render();
-            await nextFrame();
-        }
+        // Not a fixed number of frames: the glow layer fetches its shaders the first time a node
+        // glows, and until they arrive it composes nothing. The stable frame waits for them.
+        await graph.waitForStableFrame();
 
         const { engine } = graph;
 

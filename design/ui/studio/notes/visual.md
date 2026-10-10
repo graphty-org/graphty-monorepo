@@ -5,41 +5,37 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-09 (tier 2 round 2 expert walkthrough on build 8f0d5a6f7791).
+Last updated: 2026-10-09 (tier 2 round 2 critique after the sessions and skeptics).
 
 ## Top of mind
 
-1. (2026-10-09, round 2 walk) 27 confirmed visual findings (round 1: 30); one severity 3 open,
-   drawn-name overlap (graphty-element, deferred). Report: `tier2/rounds/round-2/expert/visual.md`.
-2. (2026-10-09) Selection halo: own color now kept, but the halo is a see-through disc that tints
-   the node BEHIND it (Farah reads mustard behind Chloe's halo, `round-2/expert/visual/path/07.png`)
-   and big discs cover edges and labels when many are selected. Next fix: an opaque ring (or a
-   ring drawn only outside the node's silhouette), not a translucent sphere. graphty-element.
-3. (2026-10-09) Selection has two looks: yellow halo on nodes, blue double rails on edges. One idea,
-   one look -- propose one selection color for both (graphty-element default style).
-4. (2026-10-09) Out-of-date mark: the key words ", out of date" exist but in the key's smallest
-   type, same color; the inspector strip now has a blue Rerun, so severity 2. Filter-stale says
-   "on 20 nodes" -- a second phrasing. Watch whether sessions see either before acting.
-5. (2026-10-09) The two-table source's inspector lacks the "..." menu the single-file one has
-   (`twotables/11.png` vs `replace/05.png`). Check it before the next round: a T4-then-T21 reader
-   cannot reach Replace from the header there.
-6. (2026-10-09) Long names: the find list is fixed; the inspector's selected-edges list still cuts
-   names so rows read identical and its "Edge" header collapses to one stroke. Same rule, new place.
-7. (2026-10-09) Verified fixed: segmented chosen state, import footer jump, left-out icon,
-   histogram width, Overview note alignment, find hint in monospace, source "..." menu.
-8. (2026-10-09) Still parked polish: three left edges in the right panel (1217/1225/1233), ragged
-   Top 10 digits, header colors, label-vs-value emphasis rule. Bundle them as one consistency pass
-   when the round rule allows polish.
-9. (2026-10-09) Canvas key does not avoid what is drawn under it; which name it covers depends on
-   the unseeded layout -- never cite a specific collision as a count.
-10. (2026-10-09) Edge width reading thinner than its number is NOT a defect until a script measures
-    it (`EdgeMesh.ts` scales by *20 and /40).
-11. (2026-10-09) A pass in a simulated study is weak evidence. Judge visual findings by
-    screenshots, not by session counts.
-12. (2026-10-09) Device scale 1 screenshots break letter spacing; confirm at scale 2 before filing
-    a font fault.
-13. (2026-10-09) Walk detours, not only answer-key routes: the halo-behind and the missing source
-    menu were both off the main path (many selected; a two-table source).
+1. (2026-10-09, round 2 critique) Yes, a dry run happened; about 30 of ~355 recorded problems were
+   build faults, none above severity 2, and 12 of the 30 sit on the one detour no dry run walked:
+   styling a selection. Every next dry run walks a selection styled (width, color, layer name).
+2. (2026-10-09) Top visual fix: "+" on a layer's Line starts at the element default (gray A9A9A9,
+   width 8), which is exactly what every tie already draws, so adding it changes nothing.
+   `graphty/src/workspace/style/row.ts` `startingValue`. App choice, not an element default change.
+3. (2026-10-09) A selection layer is named by its count ("13 edges"); the key then says nothing.
+   Name it by the rule the find box accepted. `StyleTab.tsx` `selectionName`.
+4. (2026-10-09) The doubling door: "makes 20 nodes and 82 edges" is footer small print under a blue
+   Load. Needs an element fact (edges that repeat an existing tie) and an app warning line.
+5. (2026-10-09) Participants read the facilitator's task file this round: a route that worked is
+   weak evidence; a problem found anyway is robust. Weigh my findings that way.
+6. (2026-10-09) Do NOT touch now: out-of-date mark (0 of 8 misread), halo and the two selection
+   looks (element, deferred), label overlap (element, too big), polish bundle.
+7. (2026-10-09, round 2 walk) Selection halo is a translucent disc that tints the node behind it;
+   next element fix is an opaque ring outside the silhouette (`round-2/expert/visual/path/07.png`).
+8. (2026-10-09) Selection has two looks: yellow halo on nodes, blue rails on edges.
+9. (2026-10-09) The two-table source's inspector lacks the "..." menu (`twotables/11.png`).
+10. (2026-10-09) Inspector's selected-edges list cuts long names so rows read identical.
+11. (2026-10-09) Parked polish: three left edges in the right panel, ragged Top 10 digits, header
+    colors, label-vs-value emphasis rule. One consistency pass later.
+12. (2026-10-09) Canvas key does not avoid what is drawn under it; the layout is unseeded, never
+    cite a specific collision as a count.
+13. (2026-10-09) Edge width reading thinner than its number: sessions now show the reader's cost
+    (`r2-s14/15.png`); the starting value, not the renderer, is the fix.
+14. (2026-10-09) Device scale 1 screenshots break letter spacing; confirm at scale 2.
+15. (2026-10-09) Walk detours, not only answer-key routes.
 
 ## Priorities and values
 
@@ -97,7 +93,24 @@ Last updated: 2026-10-09 (tier 2 round 2 expert walkthrough on build 8f0d5a6f779
   highlight taking priority may look intended); the fix still lands because the schema documents
   it as a ring.
 
+- 2026-10-09 (round 2 critique): Proposed four changes only: a visible starting value for an
+  added Line color and width (app, `row.ts`); a selection layer named by its rule (app,
+  `StyleTab.tsx`); a warning line above Load when an Add repeats existing ties (element fact plus
+  app words); the find box's "No match" line leading to the rule hint (with content and interaction).
+  Reason: each is on a confirmed severity 2-3 problem that participants met despite the facilitator
+  text leak, and each is one function. Evidence: `r2-s14/15.png`, `r2-s12/03.png`, `r2-s33/05.png`.
+- 2026-10-09 (round 2 critique): Held back the out-of-date mark, halo, selection color and label
+  overlap: no session misread a stale value, and the rest are element changes too large between
+  rounds that would move what a returning user remembers.
+
 ## Tried: worked / did not work
+
+- 2026-10-09 did not work (again): the dry run walked styling a run, not styling a selection, and
+  participants went the unwalked route; the first dry run had even ruled width 8 "works as designed".
+  A triage ruling made without a reader's eyes is provisional.
+- 2026-10-09 worked: reading `startingValue` before proposing the fix showed the gray and the 8 come
+  from the app taking the element's default verbatim, so the fix is the app's choice, not a breaking
+  element default change.
 
 - 2026-10-09 worked (round 2): re-walking round 1's eight walks on the new build and checking each
   round 1 finding off one by one gave a clean fixed / persists list; plus two detours (many nodes

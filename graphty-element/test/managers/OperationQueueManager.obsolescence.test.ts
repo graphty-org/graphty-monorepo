@@ -54,9 +54,8 @@ describe("Obsolescence Rules", () => {
             { description: "Update layout positions" },
         );
 
-        // After a short delay, queue a data-add which should obsolete the layout
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 20));
+        // Once the layout is running, queue a data-add which should obsolete it
+        await eventManager.waitFor("operation-start");
 
         queueManager.queueOperation(
             "data-add",
@@ -100,9 +99,8 @@ describe("Obsolescence Rules", () => {
             { description: "Run graph algorithm" },
         );
 
-        // Queue data changes that should obsolete the algorithm
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 20));
+        // Once the algorithm is running, queue data changes that should obsolete it
+        await eventManager.waitFor("operation-start");
 
         queueManager.queueOperation(
             "data-update",
@@ -185,8 +183,7 @@ describe("Obsolescence Rules", () => {
         );
 
         // Wait for it to start
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        await eventManager.waitFor("operation-start");
 
         // Queue more operations while first is running
         queueManager.queueOperation(

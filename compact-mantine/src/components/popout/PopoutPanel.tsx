@@ -1,7 +1,7 @@
 import { Box } from "@mantine/core";
 import { useIsomorphicEffect } from "@mantine/hooks";
 import { type ReactPortal, type SyntheticEvent, useCallback, useEffect, useId, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 
 import { POPOUT_NESTED_GAP } from "../../constants/popout";
 import type { PopoutPanelProps, PopoutPosition } from "../../types/popout";
@@ -300,15 +300,20 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             return undefined;
         }
 
-        // Coalesce every source into one measurement per frame.
+        // Coalesce every source into one measurement per frame. While one is queued the panel
+        // carries data-cm-repositioning, so a test or a screenshot can tell "has not moved yet"
+        // from "will not move": its box stays the same until the frame runs. flushSync applies
+        // the new place in that same frame, so the attribute goes when the panel has moved.
         let frame = 0;
         const schedule = (): void => {
             if (frame !== 0) {
                 return;
             }
+            panelRef.current?.setAttribute("data-cm-repositioning", "");
             frame = requestAnimationFrame(() => {
                 frame = 0;
-                updatePosition();
+                flushSync(updatePosition);
+                panelRef.current?.removeAttribute("data-cm-repositioning");
             });
         };
 
@@ -350,6 +355,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             if (frame !== 0) {
                 cancelAnimationFrame(frame);
             }
+            panelRef.current?.removeAttribute("data-cm-repositioning");
             resizeObserver.disconnect();
             moveObserver.disconnect();
             window.removeEventListener("resize", handleViewportChange);

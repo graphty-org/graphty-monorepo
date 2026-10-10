@@ -34,8 +34,7 @@ describe("Input Sequences", () => {
         await graph.addNodes(TEST_NODES);
         await graph.addEdges(TEST_EDGES);
         await operationQueueOf(graph).waitForCompletion();
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await graph.waitForStableFrame();
     });
 
     afterEach(() => {
@@ -175,8 +174,7 @@ describe("Input Sequences", () => {
             // Change view mode mid-drag
             await graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await graph.waitForSettled();
 
             // Graph should be in valid 2D state
             assert.equal(graph.getViewMode(), "2d", "Should be in 2D mode");

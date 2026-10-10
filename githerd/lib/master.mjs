@@ -27,8 +27,11 @@ const RED = new Set(["failure", "timed_out", "startup_failure"]);
  *   pendingRed: {runId: number, attempt: number, conclusion: string, sha: string, seenAt: string} | null,
  *   inFlight: Record<string, {sha: string, firstSeenAt: string, reportedAt?: string}>,
  *   shas: Record<string, Outcome>,
- *   scheduled?: {runId: number, createdAt: string, conclusion: string | null, outcome: Outcome}}} LaneRecord
- *   `scheduled` is the newest run a schedule or a dispatch started (the release train)
+ *   scheduled?: {runId: number, createdAt: string, conclusion: string | null, outcome: Outcome},
+ *   redRun?: {runId: number, attempt: number, sha: string, conclusion: string | null,
+ *   failedJobs?: string[] | null}}} LaneRecord
+ *   `scheduled` is the newest run a schedule or a dispatch started (the release train); `redRun`
+ *   the newest failed run while the lane is red (`failedJobs` its failed jobs, once the daemon read them)
  * @typedef {{lane: string, runId: number, sha: string, firstSeenAt: string, minutes: number}} StuckRun
  * @typedef {{event: string, lane: string, runId: number, attempt?: number, sha: string,
  *   conclusion?: string, firstSeenAt?: string, minutes?: number}} LaneEvent
@@ -86,14 +89,36 @@ export function updateLane(name, saved, runs, config, now) {
     recordScheduled(lane, prev, sorted, at);
     const events = trackInFlight(lane, prev, sorted, name, config.lanes[name], now);
 
-    const done = sorted.find((r) => r.status === "completed");
+    // The newest run with a verdict: a skipped or cancelled run (a push the release workflow skips,
+    // a superseded restart) is none, and an older run that finishes after it still counts.
+    const done = sorted.find((r) => r.status === "completed" && classify(r.conclusion) !== "neutral");
+    // A record an older githerd left on a neutral run is no bound.
     const backwards =
         done &&
         prev.runId !== null &&
+        classify(prev.conclusion) !== "neutral" &&
         (done.id < prev.runId || (done.id === prev.runId && done.run_attempt < prev.attempt));
     if (!done || backwards) return { lane, events };
     applyDone(lane, prev, done, name, at, events);
+    noteRedRun(lane, sorted);
     return { lane, events };
+}
+
+/**
+ * Keeps the newest failed run of a red lane in `redRun`: a cancelled or skipped run after it moves
+ * `runId` but is no verdict, so `runId` alone would name a run that never failed. Gone once green.
+ * @param {LaneRecord} lane the record being built
+ * @param {WorkflowRun[]} sorted the runs, newest first
+ */
+function noteRedRun(lane, sorted) {
+    if (lane.verdict !== "red") {
+        delete lane.redRun;
+        return;
+    }
+    const r = sorted.find((x) => x.status === "completed" && RED.has(x.conclusion ?? ""));
+    const was = lane.redRun;
+    if (!r || (was && (was.runId > r.id || (was.runId === r.id && was.attempt >= r.run_attempt)))) return;
+    lane.redRun = { runId: r.id, attempt: r.run_attempt, sha: r.head_sha, conclusion: r.conclusion };
 }
 
 /**

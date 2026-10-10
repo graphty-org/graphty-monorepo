@@ -217,19 +217,7 @@ function incidentJobs(state, add, cancel) {
         const spec = masterKeyJob(state, open, key, /** @type {any} */ (rec));
         if (spec) live.add(add(spec).id);
     }
-    for (const esc of Object.values(state.escalations ?? {})) {
-        const e = /** @type {any} */ (esc);
-        if (!RELEASE_KINDS.has(e.kind) || e.resolvedAt) continue;
-        const job = add({
-            id: `incident-${e.key}`,
-            kind: "incident",
-            target: e.key,
-            priority: "urgent",
-            reason: e.summary,
-            facts: { scope: "release", since: e.raisedAt },
-        });
-        live.add(job.id);
-    }
+    releaseJobs(state, add, live);
     // The pre-push gate fails on the green commit itself: a shared local failure (design 4.9).
     const gate = state.reference?.gate;
     if (gate?.verdict === "fail" && gate.sha === state.master?.greenSha && gate.steps?.length) {
@@ -285,6 +273,36 @@ function releaseQueueSpecs(state) {
         });
     }
     return out;
+}
+
+/**
+ * One job per open release escalation, except one whose fix a pull request carries (done.mjs):
+ * githerd watches that release itself and offers the job again only once a later run fails too.
+ * A link whose escalation ended is dropped.
+ * @param {any} state the daemon state
+ * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
+ * @param {Set<string>} live the incident jobs still called for, added to
+ */
+function releaseJobs(state, add, live) {
+    for (const esc of Object.values(state.escalations ?? {})) {
+        const e = /** @type {any} */ (esc);
+        if (!RELEASE_KINDS.has(e.kind) || e.resolvedAt) continue;
+        if (state.releaseFixes?.[e.key] && state.releaseFixes[e.key].runId === (e.runId ?? null)) continue;
+        const job = add({
+            id: `incident-${e.key}`,
+            kind: "incident",
+            target: e.key,
+            priority: "urgent",
+            reason: e.summary,
+            facts: { scope: "release", since: e.raisedAt },
+        });
+        // The run it is about changes while the escalation stays open (a restart fails again).
+        job.facts.failure = e.summary;
+        live.add(job.id);
+    }
+    for (const key of Object.keys(state.releaseFixes ?? {})) {
+        if (!state.escalations?.[key] || state.escalations[key].resolvedAt) delete state.releaseFixes[key];
+    }
 }
 
 /**

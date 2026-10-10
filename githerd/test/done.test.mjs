@@ -1352,3 +1352,46 @@ describe("doneIo", () => {
         expect(io.releaseOpen()).toEqual(["k"]);
     });
 });
+
+describe("a release incident whose fix another session's pull request carries (#1819 for #1799)", () => {
+    const key = "release-failed:37999277658";
+    const queued = {
+        state: "open",
+        merged: false,
+        base: { ref: "master", repo: { full_name: "o/r" } },
+        head: { sha: OTHER, repo: { full_name: "o/r" } },
+    };
+    const reader = () =>
+        fakeIo({
+            releaseOpen: () => [key],
+            pull: async () => queued,
+            pullContains: async (/** @type {string} */ c) => c === FIX,
+        });
+
+    it("ends the job on done with the pull request and its fix commits, and records the link for githerd", async () => {
+        const s = state({ escalations: { [key]: { key, kind: "release-failed", runId: 37999277658 } } });
+        const job = (s.jobs["incident-release-failed-37999277658"] = working("incident", key, { scope: "release" }));
+        const { ctx } = setup(s, reader());
+        const r = await githerdDone(ctx, job, report({ pr: 1819, commits: [FIX] }), "w1");
+        expect(r.isError).toBeUndefined();
+        expect(job.state).toBe("done");
+        expect(s.releaseFixes[key]).toEqual({
+            pr: 1819,
+            commits: [FIX],
+            job: job.id,
+            runId: 37999277658,
+            at: NOW.toISOString(),
+        });
+    });
+
+    it("refuses done without the pull request, and says how to name one", async () => {
+        const s = state();
+        const job = working("incident", key, { scope: "release" });
+        const answer = await verifyClaim(job, report(), view(s, reader()));
+        expect(answer).toEqual({ missing: [expect.stringContaining("report done with pr and commits")] });
+        expect(await verifyClaim(job, report({ pr: 1819, commits: [HEAD] }), view(s, reader()))).toMatchObject({
+            missing: [expect.stringContaining(`does not contain ${HEAD.slice(0, 9)}`)],
+            fixable: true,
+        });
+    });
+});

@@ -1788,6 +1788,184 @@ describe("the poll loop", () => {
         expect(gh.writes()).toEqual([]);
     });
 
+    describe("a failed release (the 2026-10-09 run sequence of hold issue #1799)", () => {
+        const HOLD = "Release held: LLM regression failed on 136e887";
+        const hold = {
+            number: 1799,
+            title: HOLD,
+            body: "The release train failed",
+            state: "open",
+            user: { login: "github-actions[bot]" },
+            labels: [],
+            created_at: "2026-10-02T11:00:00Z",
+            updated_at: "2026-10-02T11:00:00Z",
+        };
+        /**
+         * A release run of the 2026-10-09 sequence.
+         * @param {number} id the run
+         * @param {string} sha its commit
+         * @param {string | null} conclusion its conclusion, null while it runs
+         * @param {string} event what started it
+         * @param {number} minute the minute after 12:00 it was last updated
+         * @returns {any} the run
+         */
+        const rel = (id, sha, conclusion, event, minute) => ({
+            ...run(id, sha, conclusion),
+            event,
+            updated_at: `2026-10-02T12:${String(minute).padStart(2, "0")}:00Z`,
+        });
+        // Newest last; githerd reads the newest 10, newest first.
+        const SEQUENCE = [
+            rel(37975889377, A, "success", "schedule", 0),
+            rel(37999277658, B, "failure", "workflow_run", 1),
+            rel(38000478693, C, "skipped", "push", 5),
+            rel(38001190420, C, "cancelled", "workflow_run", 8),
+            rel(38001267850, C, "cancelled", "workflow_run", 11),
+            rel(38001923267, D, "skipped", "push", 14),
+            rel(38001930188, D, "skipped", "push", 17),
+            rel(38002708223, D, "cancelled", "workflow_run", 20),
+            rel(38002738423, D, null, "workflow_run", 23),
+            rel(38003216412, A, "skipped", "push", 26),
+            rel(38004006492, A, null, "workflow_run", 29),
+            rel(38004006999, A, "skipped", "push", 32),
+        ];
+        const SKIPPED_OR_CANCELLED = SEQUENCE.filter((r) => ["skipped", "cancelled"].includes(r.conclusion));
+
+        beforeEach(() => {
+            writeConfig({
+                lanes: {
+                    ci: { workflow: "ci.yml", gating: "required" },
+                    release: { workflow: "release.yml", gating: "watch" },
+                },
+            });
+            scene.issues = [hold];
+            scene.jobs = { 37999277658: [{ id: 9, run_attempt: 1, name: "LLM regression", conclusion: "failure" }] };
+        });
+
+        it("keeps one incident, keyed on the hold issue, that never names a skipped or cancelled run", async () => {
+            const daemon = await start();
+            const seen = new Set();
+            for (let i = 1; i <= SEQUENCE.length; i++) {
+                scene.release = SEQUENCE.slice(0, i).reverse().slice(0, 10);
+                // Two polls per step: a red run counts once seen twice.
+                for (const minutes of [3, 6]) {
+                    clock = new Date(Date.parse("2026-10-02T12:00:00Z") + (i * 6 + minutes) * 60_000);
+                    await poll(daemon);
+                }
+                for (const e of Object.values(daemon.state.escalations)) seen.add(e.key);
+                const summaries = Object.values(daemon.state.escalations)
+                    .map((e) => e.summary)
+                    .join(" ");
+                for (const r of SKIPPED_OR_CANCELLED) expect(summaries).not.toContain(String(r.id));
+            }
+            expect([...seen]).toEqual(["release-failed:issue-1799"]);
+            expect(daemon.state.escalations["release-failed:issue-1799"]).toMatchObject({
+                summary: `#1799 ${HOLD}; release run 37999277658 on ${B.slice(0, 9)} failed: LLM regression failed`,
+                runId: 37999277658,
+                resolvedAt: null,
+            });
+            const jobs = Object.values(daemon.state.jobs).filter((j) => j.kind === "incident");
+            expect(jobs.map((j) => [j.id, j.state])).toEqual([["incident-release-failed-issue-1799", "queued"]]);
+        });
+
+        /**
+         * Runs the failed sequence, then puts an older githerd's leftovers in place: the incident
+         * keyed on skipped run 38001930188, the lane's record on a skipped run, no failed run kept.
+         * @returns {Promise<any>} the daemon
+         */
+        async function failedAsLeft() {
+            scene.release = SEQUENCE.slice(0, 2).reverse();
+            const daemon = await start();
+            await poll(daemon);
+            clock = new Date("2026-10-02T12:03:00Z");
+            await poll(daemon);
+            const esc = daemon.state.escalations["release-failed:issue-1799"];
+            delete daemon.state.escalations["release-failed:issue-1799"];
+            const key = "release-failed:38001930188";
+            daemon.state.escalations[key] = { ...esc, key, summary: "release run 38001930188 failed" };
+            daemon.state.jobs = {};
+            Object.assign(daemon.state.master.lanes.release, { runId: 38003216412, conclusion: "skipped" });
+            delete daemon.state.master.lanes.release.redRun;
+            return daemon;
+        }
+
+        // After the fix merged: the restart passed, then the scheduled train passed and closed #1799.
+        const RECOVERY = [
+            rel(37999277658, B, "failure", "workflow_run", 1),
+            rel(38001930188, D, "skipped", "push", 17),
+            rel(38002708223, D, "cancelled", "workflow_run", 20),
+            rel(38002738423, D, "success", "workflow_run", 40),
+            rel(38003216412, A, "skipped", "push", 26),
+            rel(38004006492, A, "cancelled", "workflow_run", 30),
+            rel(38007185586, A, "success", "workflow_dispatch", 50),
+            rel(38007334616, C, "skipped", "push", 52),
+        ];
+
+        it("resolves the incident and ends its queued job once a passing run hides behind a skipped one", async () => {
+            const daemon = await failedAsLeft();
+            clock = new Date("2026-10-02T12:40:00Z");
+            await poll(daemon);
+            expect(daemon.state.jobs["incident-release-failed-38001930188"].state).toBe("queued");
+            scene.release = [...RECOVERY].reverse();
+            clock = new Date("2026-10-02T12:55:00Z");
+            await poll(daemon);
+            // The jobs follow the escalations a poll later.
+            clock = new Date("2026-10-02T12:58:00Z");
+            await poll(daemon);
+            expect(daemon.state.master.lanes.release).toMatchObject({ verdict: "green", runId: 38007185586 });
+            expect(daemon.state.escalations["release-failed:38001930188"].resolvedAt).not.toBeNull();
+            expect(daemon.state.jobs["incident-release-failed-38001930188"]).toMatchObject({
+                state: "cancelled",
+                reason: "the release recovered",
+            });
+        });
+
+        it("resolves the incident once release.yml closed its hold issue, before githerd sees the passing run", async () => {
+            const daemon = await failedAsLeft();
+            clock = new Date("2026-10-02T12:40:00Z");
+            await poll(daemon);
+            expect(daemon.state.escalations["release-failed:38001930188"]).toMatchObject({
+                holdIssue: 1799,
+                resolvedAt: null,
+            });
+            scene.issues = [{ ...hold, state: "closed", updated_at: "2026-10-02T12:50:00Z" }];
+            // Issues are read after the release is judged, and the jobs follow a poll later.
+            for (const at of ["12:55", "12:58", "13:01"]) {
+                clock = new Date(`2026-10-02T${at}:00Z`);
+                await poll(daemon);
+            }
+            expect(daemon.state.master.lanes.release.verdict).toBe("red");
+            expect(daemon.state.escalations["release-failed:38001930188"].resolvedAt).not.toBeNull();
+            expect(daemon.state.jobs["incident-release-failed-38001930188"].state).toBe("cancelled");
+        });
+
+        it("corrects in place an incident an older githerd keyed on a skipped run, naming the hold issue", async () => {
+            scene.release = SEQUENCE.slice(0, 2).reverse();
+            const daemon = await start();
+            await poll(daemon);
+            clock = new Date("2026-10-02T12:03:00Z");
+            await poll(daemon);
+            // As the older githerd left it: keyed on skipped run 38001930188, the failed run off the page.
+            const esc = daemon.state.escalations["release-failed:issue-1799"];
+            delete daemon.state.escalations["release-failed:issue-1799"];
+            daemon.state.escalations["release-failed:38001930188"] = {
+                ...esc,
+                key: "release-failed:38001930188",
+                summary: "release run 38001930188 failed",
+            };
+            delete daemon.state.master.lanes.release.redRun;
+            daemon.state.jobs = {};
+            scene.release = SEQUENCE.slice(2).reverse().slice(0, 10);
+            clock = new Date("2026-10-02T12:40:00Z");
+            await poll(daemon);
+            const open = Object.values(daemon.state.escalations).filter((e) => !e.resolvedAt);
+            expect(open.map((e) => [e.key, e.summary, e.runId])).toEqual([
+                ["release-failed:38001930188", `#1799 ${HOLD}`, null],
+            ]);
+            expect(daemon.state.jobs["incident-release-failed-38001930188"].facts.failure).toBe(`#1799 ${HOLD}`);
+        });
+    });
+
     it("re-runs the CI run whose expired artifacts made a release skip, once, as a would-do in dry-run", async () => {
         writeConfig({
             lanes: {

@@ -122,6 +122,7 @@ import { balanceRefusal, classify, isNoLog, refusedOnly } from "./classify.mjs";
 import { flakePoll, gitBlobs, masterFlakeStep, noteMasterLog, readWorkspace } from "./flakes.mjs";
 import { markShared } from "./shared.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
+import { releaseFailedSummary, releaseHold } from "./release.mjs";
 import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer, servedProtocols } from "./mcp.mjs";
 import { accumulateMerged, backfillRefs, commitRefs, landStacked, searchMerged } from "./merged.mjs";
@@ -1885,7 +1886,7 @@ export async function startDaemon({
         await run("incidents", async () => {
             linkFixes(nodes);
             await incidentSteps();
-            if (config.lanes.release || config.release) checkRelease(m, ms, derived);
+            if (config.lanes.release || config.release) await checkRelease(m, ms, derived);
         });
         if (pace.level === "normal") {
             await run("prs", () => pollPrs(gh, nodes, branch, t));
@@ -2709,31 +2710,78 @@ export async function startDaemon({
     }
 
     /**
-     * Release truth: records the last release and raises a failed or stalled release.
+     * Release truth: records the last release and raises a failed or stalled release. A failed
+     * release is one incident per red stretch of the release lane, keyed on the open "Release
+     * held" issue the release workflow files (or, before githerd has read it, on when the lane went
+     * red), never on a run: a skipped push run or a cancelled restart is no verdict, so it never
+     * makes, re-keys or names the incident. Its summary names the hold issue and the newest failed
+     * run githerd saw with its failed jobs. An open release-failed escalation keeps its key, so its
+     * job is never cancelled and made again; only its summary and run are brought up to date.
      * @param {any} m the master record
      * @param {number} ms the poll's time
      * @param {(args: any) => void} derived raises an escalation that clears when it stops holding
      */
-    function checkRelease(m, ms, derived) {
+    async function checkRelease(m, ms, derived) {
         const rs = releaseState(m, m.lanes, config, commits, ms);
         m.lastRelease = rs.lastRelease;
         m.releaseEligibleSince = rs.releaseEligibleSince;
-        if (rs.failed) {
-            derived({
-                key: `release-failed:${m.lanes.release.runId}`,
-                kind: "release-failed",
-                summary: `release run ${m.lanes.release.runId} failed`,
-                clearWhen: "release-green",
-            });
-        }
+        const lane = m.lanes.release;
+        if (rs.failed) await releaseFailed(lane, derived);
         if (rs.stalled) {
-            derived({
+            raiseRelease(derived, {
                 key: `release-stalled:${rs.lastRelease?.sha ?? "none"}`,
                 kind: "release-stalled",
-                summary: `release train run ${m.lanes.release?.scheduled?.runId} ended ${m.lanes.release?.scheduled?.conclusion} with a release due since ${rs.releaseEligibleSince?.slice(0, 16)} UTC`,
+                summary: `release train run ${lane?.scheduled?.runId} ended ${lane?.scheduled?.conclusion} with a release due since ${rs.releaseEligibleSince?.slice(0, 16)} UTC`,
                 clearWhen: "released",
+                runId: lane?.scheduled?.runId ?? null,
             });
         }
+    }
+
+    /**
+     * Raises the failed release, unless the hold issue it named was closed since and no other is
+     * open: release.yml closes its hold when a train passes, so that is the release recovered
+     * even before githerd sees the passing run.
+     * @param {any} lane the release lane, red
+     * @param {(args: any) => void} derived raises an escalation that clears when it stops holding
+     */
+    async function releaseFailed(lane, derived) {
+        const hold = releaseHold(state.issues?.byNumber);
+        const open = /** @type {any} */ (
+            Object.values(state.escalations ?? {}).find(
+                (/** @type {any} */ e) => e.kind === "release-failed" && !e.resolvedAt,
+            )
+        );
+        if (!hold && open?.holdIssue && state.issues?.byNumber?.[open.holdIssue]?.state === "closed") return;
+        const red = lane.redRun ?? null;
+        if (red && red.failedJobs === undefined) {
+            // ponytail: one failed read leaves the jobs unnamed until the lane's failed run changes.
+            red.failedJobs = await failingJobs(red.runId).then(
+                (jobs) => jobs.map((/** @type {any} */ j) => j.name),
+                () => null,
+            );
+        }
+        const anchor = hold ? "issue-" + hold.number : "since-" + (lane.redSince ?? "unknown");
+        const key = open?.key ?? `release-failed:${anchor}`;
+        raiseRelease(derived, {
+            key,
+            kind: "release-failed",
+            summary: releaseFailedSummary(hold, red),
+            clearWhen: "release-green",
+            runId: red?.runId ?? null,
+        });
+        state.escalations[key].holdIssue = hold?.number ?? open?.holdIssue ?? null;
+    }
+
+    /**
+     * Raises a release escalation, or brings an open one's summary and run up to date.
+     * @param {(args: any) => void} derived raises an escalation that clears when it stops holding
+     * @param {{key: string, kind: string, summary: string, clearWhen: string, runId: number | null}} args
+     *   the escalation, and the run it is about now
+     */
+    function raiseRelease(derived, { runId, ...args }) {
+        derived(args);
+        Object.assign(state.escalations[args.key], { summary: args.summary, runId });
     }
 
     /**

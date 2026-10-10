@@ -164,10 +164,45 @@ describe("updateLane", () => {
 
     it("keeps the verdict when the newest gpu run was cancelled", () => {
         const green = polls("gpu", [[run(10, "a", "success")], [run(11, "b", "cancelled"), run(10, "a", "success")]]);
-        expect(green.lane).toMatchObject({ runId: 11, conclusion: "cancelled", verdict: "green" });
+        expect(green.lane).toMatchObject({ runId: 10, conclusion: "success", verdict: "green" });
         const red = polls("gpu", [[run(10, "a", "failure")], [run(10, "a", "failure")], [run(11, "b", "cancelled")]]);
         expect(red.lane.verdict).toBe("red");
         expect(red.events[2]).toEqual([]);
+    });
+
+    it("keeps the failed run of a red lane when a skipped run follows it, and drops it once green", () => {
+        const red = polls("release", [[run(10, "a", "failure")], [run(10, "a", "failure")]]);
+        const skipped = polls("release", [
+            [run(10, "a", "failure")],
+            [run(10, "a", "failure")],
+            [run(11, "b", "skipped"), run(10, "a", "failure")],
+        ]);
+        expect(skipped.lane).toMatchObject({ runId: 10, verdict: "red", redRun: { runId: 10, sha: "a" } });
+        expect(red.lane.redRun).toEqual({ runId: 10, attempt: 1, sha: "a", conclusion: "failure" });
+        const again = updateLane(
+            "release",
+            skipped.lane,
+            [run(12, "c", "failure"), run(11, "b", "skipped")],
+            CONFIG,
+            T0,
+        );
+        expect(again.lane.redRun?.runId).toBe(12);
+        expect(updateLane("release", again.lane, [run(13, "d", "success")], CONFIG, T0).lane.redRun).toBeUndefined();
+    });
+
+    it("turns green on a success that a skipped run newer than it hides, and on an old record left on a skipped run", () => {
+        const red = polls("release", [[run(10, "a", "failure")], [run(10, "a", "failure")]]).lane;
+        // Restart 12 finished after push run 13 was skipped; the poll sees both at once.
+        const page = [
+            run(13, "c", "skipped"),
+            run(12, "b", "success"),
+            run(11, "b", "cancelled"),
+            run(10, "a", "failure"),
+        ];
+        expect(updateLane("release", red, page, CONFIG, T0).lane).toMatchObject({ verdict: "green", runId: 12 });
+        // As an older githerd left it: the newest run recorded was a skipped one, newer than the success.
+        const old = { ...red, runId: 14, attempt: 1, conclusion: "skipped" };
+        expect(updateLane("release", old, page, CONFIG, T0).lane.verdict).toBe("green");
     });
 
     it("reports a run queued past maxMinutes once", () => {

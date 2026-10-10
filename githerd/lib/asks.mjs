@@ -41,6 +41,16 @@ const MINUTE = 60 * 1000;
 const DEFAULT_CLI = "githerd";
 
 /**
+ * How a session says pull request `n` is its, in both spellings from one place: the MCP tool call
+ * and the shell command (cli.mjs `mine`).
+ * @param {string | number} n the pull request
+ * @param {string} cli the githerd command line
+ * @returns {string} the words
+ */
+export const mineAnswer = (n, cli) =>
+    `call the githerd_mine tool with pr ${n}, or without githerd's tools run \`${cli} mine ${n}\` from your shell`;
+
+/**
  * Records that a session is working on pull request `n` (`githerd_mine`, or `githerd mine <pr>` run
  * from inside that session): the answer to githerd's question, and the durable owner record. It
  * ends a disown by the same session.
@@ -148,8 +158,8 @@ function askText(n, rec, failing, job, cli) {
     const what = checks.length ? `CI failed on ${at}: ${checks.join(", ")}.` : `${at} ${failing.join(", ")}.`;
     return (
         `githerd: ${what} ` +
-        `If you are working on it, call the githerd_mine tool with pr ${n} (or claim job ${job} with githerd_claim); ` +
-        `a session without githerd's tools runs \`${cli} mine ${n}\` instead. Otherwise ignore this.`
+        `If you are working on it, ${mineAnswer(n, cli)} (or claim job ${job} with githerd_claim). ` +
+        "Otherwise ignore this."
     );
 }
 
@@ -890,8 +900,8 @@ function activity(state, n, rec, owner, ask) {
 }
 
 /**
- * The question to the owner of a broken pull request: the status question once it claimed it. An
- * owner without githerd's tools is told the command lines that answer it from its shell.
+ * The question to the owner of a broken pull request: the status question once it claimed it, naming
+ * both spellings of the answer (`mineAnswer`).
  * @param {{n: string, why: string, noTools?: boolean, claimed?: boolean}} pr the pull request, why it
  *   is broken, whether its owner has no githerd tools, and whether it claimed it
  * @param {string} cli the githerd command line
@@ -900,10 +910,9 @@ function activity(state, n, rec, owner, ask) {
  */
 function brokenText({ n, why, noTools, claimed }, cli, minutes) {
     if (!claimed) return brokenQuestion({ n, why, noTools }, cli);
-    const answer = noTools ? `by running \`${cli} mine ${n}\` from your shell` : `with githerd_mine pr ${n}`;
     return (
         `githerd: status check on #${n} (stuck: ${why}), which this session claimed. Still working on it? ` +
-        `Answer ${answer}; \`${cli} disown ${n}\` releases it. Still unanswered when githerd asks again in ` +
+        `To answer, ${mineAnswer(n, cli)}; \`${cli} disown ${n}\` releases it. Still unanswered when githerd asks again in ` +
         `${minutes} minutes, it goes to other sessions.`
     );
 }
@@ -920,7 +929,7 @@ const brokenQuestion = ({ n, why, noTools }, cli) =>
     (noTools
         ? `This session has no githerd tools, so answer from your shell: run \`${cli} mine ${n}\` to keep it, ` +
           `or \`${cli} disown ${n}\` to release it to other sessions now. No answer releases it too.`
-        : `Claim it with githerd_mine pr ${n} (or githerd_claim pr-${n}) to keep it; any other answer, or none, ` +
+        : `To keep it, ${mineAnswer(n, cli)} (or githerd_claim pr-${n}); any other answer, or none, ` +
           `releases it to other sessions (\`${cli} disown ${n}\` releases it now).`);
 
 /** The states in which a holder works on its job; a `verifying` job is githerd's to settle. */

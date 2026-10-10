@@ -112,8 +112,8 @@ describe("asking the live sessions whose a failed pull request is", () => {
         const lines = await askStep(state, f.opts());
         const text =
             "githerd: CI failed on #710 (feat/cytoscape-adapter) at aaaaaaa: All Checks Pass. If you are working on " +
-            "it, call the githerd_mine tool with pr 710 (or claim job pr-710 with githerd_claim); a session without " +
-            "githerd's tools runs `githerd mine 710` instead. Otherwise ignore this.";
+            "it, call the githerd_mine tool with pr 710, or without githerd's tools run `githerd mine 710` from " +
+            "your shell (or claim job pr-710 with githerd_claim). Otherwise ignore this.";
         expect(f.sent).toEqual([
             ["/s1.sock", text],
             ["/s2.sock", text],
@@ -177,8 +177,8 @@ describe("asking the live sessions whose a failed pull request is", () => {
         await askStep(state, f.opts());
         expect(f.sent[0][1]).toBe(
             "githerd: #710 (feat/cytoscape-adapter) at aaaaaaa conflicts with master. If you are working on it, call " +
-                "the githerd_mine tool with pr 710 (or claim job pr-710 with githerd_claim); a session without " +
-                "githerd's tools runs `githerd mine 710` instead. Otherwise ignore this.",
+                "the githerd_mine tool with pr 710, or without githerd's tools run `githerd mine 710` from your " +
+                "shell (or claim job pr-710 with githerd_claim). Otherwise ignore this.",
         );
         expect(prInUse(state, 710, { now: NOW })).toBe(
             "aaaaaaa conflicts with master; asked 2 sessions at 12:04 UTC; no owner yet",
@@ -993,7 +993,8 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
     const at = (/** @type {string} */ hm) => new Date(`2026-10-05T${hm}:00Z`);
     const QUESTION =
         "githerd: #710 is stuck: required check failing: All Checks Pass. Are you fixing it? " +
-        "Claim it with githerd_mine pr 710 (or githerd_claim pr-710) to keep it; any other answer, or none, " +
+        "To keep it, call the githerd_mine tool with pr 710, or without githerd's tools run `githerd mine 710` " +
+        "from your shell (or githerd_claim pr-710); any other answer, or none, " +
         "releases it to other sessions (`githerd disown 710` releases it now).";
     /**
      * #710 failing, inferred to be graphty-14's (it last pushed), with its pr job queued.
@@ -1099,7 +1100,8 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
             QUESTION,
             ...Array(3).fill(
                 "githerd: status check on #710 (stuck: required check failing: All Checks Pass), which this session " +
-                    "claimed. Still working on it? Answer with githerd_mine pr 710; `githerd disown 710` releases it. " +
+                    "claimed. Still working on it? To answer, call the githerd_mine tool with pr 710, or without " +
+                    "githerd's tools run `githerd mine 710` from your shell; `githerd disown 710` releases it. " +
                     "Still unanswered when githerd asks again in 15 minutes, it goes to other sessions.",
             ),
         ]);
@@ -1336,9 +1338,10 @@ describe("a stuck pull request an old push holds", () => {
         expect(f.sent).toEqual([
             [
                 "/2d.sock",
-                "githerd: #1167 is stuck: conflicting with master. Are you fixing it? Claim it with githerd_mine pr " +
-                    "1167 (or githerd_claim pr-1167) to keep it; any other answer, or none, releases it to other " +
-                    "sessions (`githerd disown 1167` releases it now).",
+                "githerd: #1167 is stuck: conflicting with master. Are you fixing it? To keep it, call the " +
+                    "githerd_mine tool with pr 1167, or without githerd's tools run `githerd mine 1167` from your " +
+                    "shell (or githerd_claim pr-1167); any other answer, or none, releases it to other sessions " +
+                    "(`githerd disown 1167` releases it now).",
             ],
         ]);
         // Held while the question is open.

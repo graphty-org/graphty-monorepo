@@ -485,6 +485,20 @@ async function cmdOwner(c) {
 }
 
 /**
+ * A pull request number as githerd's own messages spell it: `1727`, `#1727`, `pr:1727` or `pr-1727`.
+ * @param {string | undefined} s the word
+ * @returns {string | undefined} the number
+ */
+const pr = (s) => s?.replace(/^(#|pr[:-]?)/i, "");
+
+/**
+ * The words after `mine` or `disown`, with a leading `pr` kind word (`mine pr 1727`) dropped.
+ * @param {string[]} positional the words
+ * @returns {string[]} the pull request and session name words
+ */
+const prWords = (positional) => (/^pr$/i.test(positional[0] ?? "") ? positional.slice(1) : positional);
+
+/**
  * `mine <pr> <session-name>`, `mine --list` and `mine --drop <pr>`: who owns a pull request,
  * recorded through the daemon, which resolves the name in Claude Code's session registry. `mine
  * <pr>` and `disown <pr>` act for the Claude session this command runs under, found up its process
@@ -493,12 +507,12 @@ async function cmdOwner(c) {
  * @returns {Promise<number>} the exit code
  */
 async function cmdMine(c) {
-    const pr = (/** @type {string | undefined} */ s) => s?.replace(/^#/, "");
     const drop = typeof c.flags.drop === "string" ? c.flags.drop : null;
-    const [n, name] = c.positional;
+    const words = prWords(c.positional);
+    const [n, name] = words;
     let cmd = null;
     if (c.name === "disown" || (c.name === "mine" && n && !name && !c.flags.list && !drop)) {
-        if (!n || c.positional.length > 1) {
+        if (!n || words.length > 1) {
             c.err("usage: githerd disown <pr>, from inside a Claude session");
             return 2;
         }

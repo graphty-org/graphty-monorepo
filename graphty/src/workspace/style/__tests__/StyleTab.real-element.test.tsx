@@ -232,7 +232,8 @@ describe("the Style tab on the real element", () => {
                 "the dot does not touch the word",
             );
             await realInput.hover(label ?? nodes);
-            assert.isNotNull(await screen.findByText("This row sets node properties"));
+            // The theme opens a tooltip after its open delay; wait for it, not for a fixed time.
+            assert.isNotNull(await screen.findByText("This row sets node properties", {}, { timeout: TIMEOUT_MS }));
         },
         TIMEOUT_MS * 2,
     );

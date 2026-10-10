@@ -556,6 +556,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ run: "no-such-run" }],
         [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }],
     ),
+    highlightStyle: READ,
     legend: READ,
     proposeEncoding: READ,
     settled: READ,

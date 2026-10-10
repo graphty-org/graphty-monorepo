@@ -39,6 +39,15 @@ export function fullInsets(insets: ViewInsets | undefined): Required<ViewInsets>
 }
 
 /**
+ * Whether a value is a number above zero; false for NaN and for no value.
+ * @param value - The value.
+ * @returns true when it is positive.
+ */
+function isPositive(value: number): boolean {
+    return value > 0;
+}
+
+/**
  * The part of a viewport the insets leave free.
  * @param insets - Margins in the same units as `width` and `height`.
  * @param width - The viewport's width; 0 (unmeasured) leaves everything free.
@@ -48,7 +57,8 @@ export function fullInsets(insets: ViewInsets | undefined): Required<ViewInsets>
 export function freeArea(insets: ViewInsets | undefined, width: number, height: number): FreeArea {
     const { top, right, bottom, left } = fullInsets(insets);
     const across = (start: number, end: number, size: number): { share: number; center: number } => {
-        if (Number.isNaN(size) || size <= 0) {
+        // Not `size <= 0`: an unmeasured size (NaN, or none at all) must also leave everything free.
+        if (!isPositive(size)) {
             return { share: 1, center: 0 };
         }
 

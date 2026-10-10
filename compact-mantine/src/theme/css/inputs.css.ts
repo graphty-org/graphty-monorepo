@@ -185,21 +185,37 @@ const css = `
    also receives the Popover's theme classes (the light popover), which must not win here. */
 .cm-listbox.cm-menu-surface {
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
     min-width: 0;
     max-width: calc(100vw - 12px);
-    /* The list scrolls itself (no ScrollArea), clamped to the viewport less 6px each side; the
-       menus' chevron rows (cm-menu) cover 24px at a scrollable end, so keyboard scrolling keeps
-       the highlight clear of them. */
+    /* Clamped to the viewport less 6px each side; the listbox inside it scrolls. */
     max-height: calc(100vh - 12px);
-    overflow-y: auto;
-    scrollbar-width: none;
-    scroll-padding-block: 24px;
-    padding: 8px 0;
+    overflow: hidden;
     border: 0;
     border-radius: 13px;
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
     box-shadow: var(--cm-elevation-400);
+}
+/* The dropdown has no padding of its own: the listbox inside carries the 8px, so its rows scroll
+   to the surface's edge. Restated at three classes to beat the popover surface's padding. */
+.cm-listbox.cm-menu-surface,
+.cm-listbox.cm-menu-surface.cm-popover-surface {
+    padding: 0;
+}
+/* The role="listbox" scrolls itself (no ScrollArea), so the combobox's popup is the scroller.
+   The menus' chevron rows (cm-menu) cover 24px at a scrollable end, so keyboard scrolling keeps
+   the highlight clear of them. */
+.cm-listbox .cm-listbox-options {
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 0;
+    flex: 0 1 auto;
+    overflow-y: auto;
+    scrollbar-width: none;
+    scroll-padding-block: 24px;
+    padding: 8px 0;
 }
 .cm-listbox .cm-listbox-option {
     gap: 4px;

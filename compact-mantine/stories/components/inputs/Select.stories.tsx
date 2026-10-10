@@ -189,7 +189,9 @@ export const OpenList: Story = {
             <Select aria-label="Stroke align" data={ALIGN} defaultValue="Inside" w={76} defaultDropdownOpened />
         </div>
     ),
-    play: ({ canvasElement }) => expectStatesApply(canvasElement),
+    // The open trigger (aria-expanded) is drawn like rest on purpose: the list opens over it, its
+    // selected option exactly on top, so the trigger itself is never seen while open.
+    play: ({ canvasElement }) => expectStatesApply(canvasElement, { unchanged: ['input[aria-expanded="true"]'] }),
 };
 
 /**

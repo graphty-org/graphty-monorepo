@@ -39,6 +39,13 @@ patchedDependencies:
     # own sheet plus compact-mantine's) each lookup misses and recompiles, and getComputedStyle
     # slows about tenfold. A larger limit keeps every selector cached.
     "nwsapi@2.2.28": patches/nwsapi@2.2.28.patch
+    # Mantine 8.3.18's useCombobox keeps the list's id in a ref that Combobox.Options fills in an
+    # effect, and nothing re-renders the target afterwards. A list open when it mounts
+    # (defaultDropdownOpened, or dropdownOpened true from the start) leaves its combobox with
+    # aria-expanded="false" and no aria-controls until the next re-render, so a screen reader is
+    # told the list is closed. The patch re-renders the combobox once when the id is set
+    # (issue #1913).
+    "@mantine/core@8.3.18": patches/@mantine__core@8.3.18.patch
 
 # Security floors for transitive packages that a parent in pnpm-lock.yaml pins to a vulnerable
 # version. Each line names the parent that holds it back; delete an entry once that parent moves

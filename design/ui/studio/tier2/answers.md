@@ -882,7 +882,12 @@ friends-v2.csv`; `--click "Replace"`; `--click "PageRank"` (after a replacement 
   team.csv) under "gone" in sources. That is the replacement the task asks for, not `work-lost`:
   the run and all three layers are kept (`rounds/r2/pilot/T21A/work.json`, `T21B/work.json`).
 
-## T22. Make the ones that meet a condition stand out
+## T22. Point out the ones that meet a condition
+
+From round 3 the prompt asks to "point out on the drawing" the ties that meet the condition,
+where rounds 1 and 2 asked to make them "stand out from the rest" (`tasks.md`, T22). The grading
+below is unchanged: a selection or a color that marks exactly those ties, everything still drawn,
+and the count. Round 3 is compared with round 2 on the grade and the count only, not on steps.
 
 - **A (bus stops): 3 links take 10 minutes or more -- School to Harbor 12, Station to Harbor 14,
   Depot to Station 15.** Screen: the line under the find box reads "3 edges selected"; inspector
@@ -1037,6 +1042,13 @@ so a pointer left on the Selection row then rests on the PageRank row (`T22B/17.
   narrowed to the wrong set (one step), `false-done`.
 
 ## T24. One tie on the drawing
+
+From round 3 the prompt's second half asks to "point out" the two ends "on the drawing", where
+rounds 1 and 2 asked to make them "the ones that stand out on the drawing" (`tasks.md`, T24). The
+grading below is unchanged and credits only the two ends selected: a participant who instead
+colors or sizes the two is graded by the F rule, with the route recorded (no round 2 session
+ended that way: all four selected the ends, then added a color). Round 3
+is compared with round 2 on the grade and the number only, not on steps.
 
 - **A (running club): Gus and Ivan ran together once (1).** Screen: a click on the line opens the
   edge inspector titled "Gus -> Ivan" (subtitle "Edge", Values tab) with From Gus, To Ivan, weight

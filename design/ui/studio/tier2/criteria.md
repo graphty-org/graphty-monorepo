@@ -175,6 +175,23 @@ step editor. `tool/bars.mjs` measures tier 1's screens only; it is extended to t
   anything the app did) is a tool fault: it is voided and run again from a new, empty folder with
   the same persona and prompt. Every `session.json` records the model that ran the participant;
   the round report lists every retry and its reason.
+- **Round 3 re-runs** (decided 2026-10-09, after round 2). Round 2 credited three new routes and
+  the second-time measure while participants could read `tasks.md`, so none of them is credited
+  until a round with that leak closed measures it again. Round 3's session list (its `plan.md`)
+  must hold, beyond the sizes above:
+    - **r2-s05 run again:** T20 A (bus stops), Nadia, empty start, the same prompt, on the round 3
+      build. It was voided for reading the avoided-word list and never re-run. It counts in round
+      3; round 2's T20 A is reported at 3 graded sessions with the void named.
+    - **T20, weight's meaning set at load:** both halves at full size (core four), each session's
+      route recorded, so the load-time route is credited on round 3 only.
+    - **T21, Replace:** both halves at full size (core four), route recorded likewise.
+    - **T22, the find box's rule hint:** both halves at full size (8), with the reworded prompt.
+    - **T17 and T18 follow-ups:** every session that finishes the first prompt gets the follow-up
+      from the tool (`tool/README.md`), with participants unable to read `tasks.md`; the
+      second-time measure is reported on round 3 only.
+  Before the build is frozen, each reworded prompt (T22 A, T22 B, T24 A, T24 B) is piloted in two
+  throwaway sessions on the round 3 candidate build, with the leak closed, and the routes they take
+  are walked in the dry run.
 - **Frozen build:** each round serves one copy of `graphty/dist` (`REAL_DIST`), made after the
   preflight passes, so no rebuild changes the app under a session.
 
@@ -688,3 +705,18 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   undoing Size on PageRank (T22), the eye icon on the PageRank row (T23 A), and B's key range and
   find headings (T24); this build's citations for T17 and T19 and the start screen's entries
   still present (T19). T12R is not in bar 11, so no bar, floor, step limit or prompt changed.
+
+- **2026-10-09, before round 3: T22 and T24 prompts reworded, and the round 3 re-runs.** Rounds 1
+  and 2 asked participants to make the matching ties (T22) or a tie's two ends (T24) "stand out".
+  That invited a lasting style: in round 2, 5 of 8 T22 and 4 of 4 T24 participants styled a
+  selection, a detour neither task measures, and it produced the "a selection does not last"
+  finding the skeptics weakened. Each prompt's sentence now asks to "point out on the drawing"
+  which ones, with no word for how (not "show", a View menu word). T22's sentence before it also
+  said "where" (avoided: the find list's "Select where ..."), and now says "how ... lie across".
+  Checked: `real.mjs --brief` writes each half's briefing with no facilitator words, and a script
+  finds none of the task's avoided words, "stand out" or "show" in any of the four prompts (it
+  catches a planted "stand out" and "where"). The answer key is unchanged: T22 credits a selection
+  or a color that marks exactly the matching ties, T24 only the two ends selected. T22 and T24 are
+  compared with round 2 on the grade and the count only, not on steps. The re-run list is under
+  "Round plan". Still to do before the freeze: two pilot sessions per reworded half on the round 3
+  candidate build, which is not built yet. No bar, floor or step limit changed.

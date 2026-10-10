@@ -10,41 +10,36 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-09 -- Round 2 critique: five changes, all app-side or study-side, no element API.
-  (1) briefing-only start; (2) find box: a standing "Start with =" line with `exampleRule` on any
-  "No match", and Enter runs the element's own backtick suggestion; (3) Replace offered on the Add
-  page when the file's name matches a loaded source; (4) a line added to a selection's layer starts
-  visibly different from the default; (5) a selection layer named by its rule. Do not touch label
-  placement, filtering, the path tool, Notes.
-- 2026-10-09 -- Round 2 INSIGHTS written (`tier2/rounds/round-2/insights.md`). Bars unchanged by
-  skeptics. Confirmed sev 3: find box "No match" on the reader's words, backticks, drawn names
-  overlapping, "Open project or file..." on a newer copy doubling ties (82 from 41). Nothing sev 4.
-- 2026-10-09 -- BIGGEST FINDING IS THE STUDY'S: participants read `tasks.md` (avoided words,
-  follow-ups, detour list, T22's design note). Bias is one-way: problems robust, passes weak; the
-  round 2 route credits (T20, T21, T22) are unproven. Next round: `--start` refuses a folder without
-  its own `briefing.md`, participants run from the session folder; re-run those routes and r2-s05.
+- 2026-10-09 -- T22 and T24 now say "point out on the drawing", not "stand out" (and not "show", a
+  View menu word); T22's "see where" became "how ... lie across" ("where" is avoided). Key
+  unchanged: T22 credits a selection or a color, T24 only the two ends selected. Compare with
+  round 2 on grade and count only.
+- 2026-10-09 -- STILL OWED before round 3 freezes: two throwaway pilots per reworded half (T22 A/B,
+  T24 A/B) on the round 3 candidate build, which does not exist yet. Round 3's plan.md must carry
+  the re-run list in criteria.md "Round plan" (r2-s05 again; T20, T21, T22 routes; T17/T18
+  follow-ups with the leak closed).
+- 2026-10-09 -- Dana's persona file says "Facilitator notes" in its intro paragraph, so
+  `real.mjs --brief` REFUSES every Dana briefing. Fix the persona file (or the tool's
+  team-only filter) before round 3, or every Dana session fails to start.
+- 2026-10-09 -- Briefing check: `tmp/researcher/t2r3/avoided-in-briefings.py <dir>` reads each
+  `<dir>/<T22A>/briefing.md` prompt against that task's avoided words plus "stand out" and "show";
+  it caught a planted "stand out" and "where". Run it on every round's briefings.
 - 2026-10-09 -- Answer to "did we dry run?": yes; about 30 implementation faults of 355 problems,
-  none above sev 2 after skeptics; 12 on the unwalked detour (styling a selection: width 8 hairline,
-  gray A9A9A9 start). Two "app" faults (discarded filter step) were the tool's click by name.
-- 2026-10-09 -- Prompt words make findings: "stand out" invites a style (T22, T24); "who was first
-  before" makes the before/after need; "make sure both will still be there" makes the saved-state
-  need. Do not read a prompt-made behavior as user need; rewrite prompts that invite a detour.
-- 2026-10-09 -- Hold opinion-only problems one level down at SCORING time; round 2 scores did not,
-  and the skeptics lowered about 15 items.
-- 2026-10-09 -- Apply one rule the same way everywhere (skeptic caught T18 vs T22 broken habit).
-  T18 stays sev 2: its find box led all 8 to a right answer; T22's answered only "No match".
-- 2026-10-09 -- Run `tool/bars.mjs` on every frozen build in PREFLIGHT; bar 10's scripted counts are
-  still not built.
-- 2026-10-09 -- Voids are still not re-run (r2-s05, as r1-s04). Make the runner do it, not hope.
-- 2026-10-09 -- Click by name lands on same-named controls (r2-s17, s18, s30); confirm any fault a
-  misclick started with a script before blaming the app.
+  none above sev 2; 12 on the unwalked detour (styling a selection). The bigger fault was the
+  study's: participants read `tasks.md`, so round 2's route credits (T20, T21, T22) are unproven.
+- 2026-10-09 -- Prompt words make findings: "stand out" invited a style; "who was first before"
+  makes the before/after need; "make sure both will still be there" makes the saved-state need.
+  Never read a prompt-made behavior as user need; check every insight against the prompt first.
+- 2026-10-09 -- A leak voids passes, not problems. Score with that asymmetry.
+- 2026-10-09 -- Hold opinion-only problems one level down at SCORING time.
+- 2026-10-09 -- Apply one rule the same way everywhere (T18 vs T22 find box).
+- 2026-10-09 -- Run `tool/bars.mjs` on every frozen build in PREFLIGHT; grep the tool for each
+  check a bar names before trusting "built".
+- 2026-10-09 -- Voids must be re-run by the runner, not by hope (r2-s05, r1-s04).
+- 2026-10-09 -- Click by name lands on same-named controls; confirm misclick-started faults by script.
 - 2026-10-09 -- Ease is flat (41 of 55 rated 6): report it, never lean on it.
-- 2026-10-09 -- Persona scripts and histories steer first moves; the SECOND place looked is the
-  real signal. Read the persona FILE before blaming the screen.
-- 2026-10-07 -- One skeptic's weakening stands unless the other answers its reason with evidence;
-  never override a grader without new evidence.
-- 2026-10-06 -- All participants are one model: failure strong, pass weak. Solid = scripted repro
-  or a cause in code.
+- 2026-10-09 -- Histories steer first moves; the SECOND place looked is the real signal.
+- 2026-10-06 -- All participants are one model: failure strong, pass weak.
 
 ## Priorities and values
 
@@ -85,6 +80,20 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-09 (researcher, round 3 prompts and re-runs) -- Reworded the second half of T22 and
+  T24 to "point out on the drawing" (T24: "point out Gus and Ivan, and nobody else, on the
+  drawing"). Reasons: "stand out" asked for a style that neither task measures (5 of 8 T22, 4 of
+  4 T24 styled in round 2); "point out" asks for a visible mark with no word for how; "show" is the
+  View menu's own word, so not used. The briefing check also found "where" (an avoided word, the
+  find list's "Select where ...") in T22's unchanged first sentence since round 1; reworded it to
+  "how the slow links lie across the whole map" because the acceptance asks for no avoided word in
+  the briefing. Kept T24's key as written (two ends selected only), although the decision text
+  said "a selection or a style, as now": T22's key accepts a color, T24's never did; changing it
+  would change a grade rule, so it is reported, not done. Put the re-run list in criteria.md
+  "Round plan" because round 3 has no plan.md yet. Pilots not run: the round 3 candidate build is
+  not built (HEAD holds only the decision), and piloting on the round 2 build would measure the
+  wrong screens.
+
 - 2026-10-09 (researcher, tier 2 round 2 critique) -- Proposed the five changes above. Reasons:
   each fixes a confirmed sev 3 or the sev 2 that cost most steps, reusing what exists: the find
   box already has `exampleRule` and `ruleFromText`; the element already returns the bare-number
@@ -110,32 +119,12 @@ reasons, in short:
   Rejected: reopening bar statuses (no skeptic changed one); calling the discarded filter step an
   app user problem (both cases started by the tool's misclick).
 
-- 2026-10-09 (researcher, tier 2 round 2 scoring) -- Scored 56 grades (55 valid) with
-  `tmp/researcher/t2r2/score.py` (asserts 56/55), `followup.py` (follow-up time vs last screenshot:
-  13 of 16 early), `concurrency.py` (max 4 alive), and a fresh `bars.mjs` run on 8f0d5a6f7791
-  (bar 7 (a) 290 runs 0 wrong; bar 8 axe 3 serious: step checkbox 12 px target-size x2, find
-  results scroll area; bar 9 (b) all four counts rose). Choices: (1) did not void the 13 early
-  follow-ups (no disclosure; criteria void only tool/run faults; round 1 kept r1-s03 the same way)
-  but put the contamination first and called every pass weak; (2) bar 2 holds on the lists,
-  round 1's wording reading written beside it; (3) bar 4 holds: a replaced chain and a discarded
-  editor are not silent commits by the bar's definition (graders said otherwise in 3); (4) bar 5
-  holds with three readings for skeptics (old Top 10, "Components 1", "4 hops" on a weighted path,
-  the last labeled hops so wording); (5) bar 10 fails on 2 confirmed sev 3 (drawn names, backticks);
-  (6) bar 11 T18 fails at path 4, holds at 5, two cheapest sessions never used the tool; (7) the
-  "All 13 rows" caption is true (the pane scrolls, `r2-s07/06.png`), so wording, not a fault.
-  Rejected: re-scoring bar 1 without the primed sessions (the follow-up leak shows the task file
-  was read, not that every main prompt was primed; said so instead).
-
-- 2026-10-09 (researcher, round 2 plan) -- 56 sessions, the studio's cap. Every task was touched
-  by a change, so "touched at 4 or more" plus full size for the core four and T22 needs 60; as in
-  tier 1 rounds 2 and 3 the cap held and the off-path-touched tasks (T19 notes keys, T23 find list)
-  run at 3 with all-must-pass. T22 raised 4 -> 8 because it alone missed bar 1. Core four and T22
-  swap round 1's halves (each persona meets the other dataset; keeps round 1's checked balance);
-  Dana keeps T4 (two-sheet history), Ruth and Jordan keep T12R and swap halves; still no Ruth on
-  T19. Setup starts only: frozen `tasks.md` forbids saved-project starts, though the workflow asked
-  for them. Run order puts T20 and T22 first so the new routes surface early. Rejected: going to
-  60 (breaks the per-round cap with no new reason); dropping T12R (its route changed and it holds
-  a false-answer trap).
+- 2026-10-09 (round 1 critique, round 2 key, plan and scoring, folded) -- Round 2: 56 sessions
+  at the cap, core four and T22 at full size with halves swapped; route credits graded like the
+  success path with bar 11 kept on old counts; scored with asserted scripts (`tmp/researcher/t2r2/`),
+  the 13 early follow-ups kept but every pass called weak; bar 10 failed on drawn names and
+  backticks. Round 1 critique: smallest change per sev 3, reusing a working route (find hint,
+  Replace in "...", meaning at the column).
 
 - 2026-10-09 (researcher, round 1 closed) -- Read `rounds/round-1/insights.md` and
   `decisions.md`. Taught: a dry run removes faults only where it walks; the commonest detours and
@@ -148,28 +137,6 @@ reasons, in short:
 - 2026-10-09 (key matched to builds 8f0d5a6f7791 and four before, folded) -- Each time a build
   section plus scoped edits; delete notes for screens no longer drawn (they prime graders);
   re-point citations a newer pilot overwrote; read the build's own change list first.
-
-- 2026-10-09 (researcher, round 2 key and grading wording) -- Added "Round 2 route" entries to T20
-  (start-screen Open through the Data page, 10), T21 (source inspector "...", 7), T22 (find hint to
-  a rule, 4), graded like the success path; kept bar 11 on the old success-path counts so no limit
-  moved (a shorter T20 route would otherwise lower T20's limit from 22 to 20). Counts are NOT
-  measurements: none of changes 4-6 was built (HEAD bb7560c18, no graphty edits), and the workflow
-  runs this unit before implementation. Recorded the T18 B walk from `rounds/r1d4/pilot/T18B/`
-  (agrees with every value; tie through an orange node still at 713,604). "Scripted exit" defined
-  in criteria "Grades" as a label beside G with the rule quoted; no count changes. Flagged: T22 B's
-  hint example "> `16`" copied verbatim gives a wrong count -- graders record it.
-
-- 2026-10-09 (researcher, tier 2 round 1 critique) -- Proposed the smallest round 2 changes for
-  the verified sev 3 problems, each reusing a working route so the change is words or a menu
-  entry, not a new screen: (1) T22 -- "No match" on plain text adds the element-checked example
-  rule (pre-decided order: words before any dialog); (2) T21 -- Edit source / Replace in the
-  source inspector's "..." (left click shows that inspector; 8 of 8 hunted, `r1-s29/08.png` shows
-  no "..."); (3) T20 -- the column was the second place 6 of 7 went, so put the meaning there via
-  the existing Edit source page instead of a new element API for setting meaning after load;
-  (4) stale key mark (bar 5, experts only); (5) find-result ellipsis (three experts). Rejected:
-  moving filtering (median = success path), asking before Back to start as the T20 fix (it guards
-  the detour, not the missing route), element bare-number rules this round (additive, but the
-  hint fixes the blocker first; revisit if refusals recur).
 
 - 2026-10-09 (researcher, tier 2 round 1 skeptic verdicts) -- Wrote `rounds/round-1/insights.md`.
   Applied: two weakens = weakened; one drop + one weaken = weakened; a split resolved by checking
@@ -212,6 +179,14 @@ reasons, in short:
   the app; personas validate, never generate features.
 
 ## Tried: worked / did not work
+
+- 2026-10-09 (round 3 prompts) -- Worked: writing each half's real briefing with `real.mjs
+  --brief <scratch dir> --task T22A --persona <name>` and checking the prompt text the participant
+  gets, not `tasks.md`; it found the old "where" and Dana's refused briefing. Worked: dropping the
+  "kept on purpose" words (data words like minutes, tie) from the avoided list by sentence. Did
+  not work: assuming the unchanged sentences were clean because round 1 wrote them.
+- 2026-10-09 (round 3 prompts) -- Another agent was mid-merge in the shared worktree; a commit
+  then would have taken its whole merge. Waited for MERGE_HEAD to clear before committing.
 
 - 2026-10-09 (round 2 verdicts) -- Worked: a verdict table per item from both skeptics, then
   grepping transcripts for the one sentence that settles a split (r2-s12 "chapters 10", r2-s33 "82

@@ -206,18 +206,18 @@ changes:
 - **Words avoided:** "replace", "rerun", "update" (as a verb on a control), "out of date", "data",
   "source". "updated list" is the sender's own phrase and names no control.
 
-### T22. Make the ones that meet a condition stand out (two datasets)
+### T22. Point out the ones that meet a condition (two datasets)
 
 - **Prompt A (bus stops):** "You have used this program a few times. A colleague's list of bus
   links, bus-stops.csv, is already open: each row is a link between two stops and the minutes it
-  takes. Your colleague wants to see where the slow links sit on the whole map. Without taking
-  any stop or link off the drawing, make every link that takes 10 minutes or more stand out from
-  the rest, and tell us how many there are."
+  takes. Your colleague wants to see how the slow links lie across the whole map. Without taking
+  any stop or link off the drawing, point out on the drawing every link that takes 10 minutes or
+  more, and tell us how many there are."
 - **Prompt B (Les Miserables):** "You have used this program a few times. The ready-made network
   of characters from Les Miserables is already open; each tie counts the chapters two characters
-  share. You want to see where the closest pairs sit in the whole cast. Without taking any
-  character or tie off the drawing, make every tie of 10 or more shared chapters stand out from
-  the rest, and tell us how many there are."
+  share. You want to see how the closest pairs lie across the whole cast. Without taking any
+  character or tie off the drawing, point out on the drawing every tie of 10 or more shared
+  chapters, and tell us how many there are."
 - **Start:** setup `bus-stops-ranked.txt` (A), `lesmis-ranked.txt` (B). **Files:** none to open.
 - **Suits:** analysts and reporters (Alex, Dana, Jordan; Ruth and Nadia returning).
 - **Why this task:** the design gives "select where" one home, a rule typed into the find box
@@ -228,6 +228,15 @@ changes:
 - **Words avoided:** "select", "selection", "find", "rule", "where", "filter", "highlight" (the
   selection's own style heading), "pick" ("Pick From on the canvas"), "values", "match". "minutes"
   and "chapters" are the data's own words.
+- **Words changed before round 3 (2026-10-09):** rounds 1 and 2 asked to make the ties "stand out
+  from the rest". That invited a lasting style, and round 2's participants spent the task styling
+  a selection, which T22 does not measure. The prompt now asks to "point out on the drawing" which
+  ties meet the condition: a visible mark, with no word for how. "show" is not used either: it is
+  a word of the View menu ("Show" section, "Show in table"). The sentence before it said "see
+  where the slow links sit" (B "where the closest pairs sit"), and "where" is avoided (the find
+  list's "Select where ..."), so it now says "how the slow links lie across the whole map" (B "how
+  the closest pairs lie across the whole cast"). Round 3 is compared with round 2 on
+  the outcome only (graded end state and count), not on the steps.
 
 ### T23. Who is a step or two away (two datasets)
 
@@ -250,12 +259,12 @@ changes:
 
 - **Prompt A (running club):** "You have used this program a few times. Your running club's list,
   friends.csv, is already open, with everyone's name on the drawing. On the drawing you notice the
-  tie between Gus and Ivan. How many runs did they do together? Then make Gus and Ivan, and nobody
-  else, the ones that stand out on the drawing."
+  tie between Gus and Ivan. How many runs did they do together? Then point out Gus and Ivan, and
+  nobody else, on the drawing."
 - **Prompt B (bus stops):** "You have used this program a few times. A colleague's list of bus
   links, bus-stops.csv, is already open, with every stop's name on the drawing. On the drawing you
-  notice the link between Station and Stadium. How many minutes does that link take? Then make
-  Station and Stadium, and no other stop, the ones that stand out on the drawing."
+  notice the link between Station and Stadium. How many minutes does that link take? Then point
+  out Station and Stadium, and no other stop, on the drawing."
 - **Start:** setup `friends-ranked-names.txt` (A), `bus-stops-ranked-names.txt` (B). **Files:**
   none to open.
 - **Suits:** everyone (Tom, Dev, Dana, Alex).
@@ -265,6 +274,11 @@ changes:
   to tell which line is meant; the task is reading a line seen on the drawing, so names are drawn.
 - **Words avoided:** "edge", "line" (the Style tab's "Add label line"), "select", "endpoints",
   "click", "weight", "value". "tie" and "link" are T17's and T22's words for the same thing.
+- **Words changed before round 3 (2026-10-09):** rounds 1 and 2 asked to make the two ends "the
+  ones that stand out on the drawing". That invited a lasting style instead of the two ends
+  selected, which is what T24 measures. The prompt now asks to "point out" the two "on the
+  drawing", with no word for how, and not "show" (a View menu word). Round 3 is compared with
+  round 2 on the outcome only, not on the steps.
 
 ### T12R. One person and who they are tied to, for a returning user (two datasets)
 

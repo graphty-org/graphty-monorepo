@@ -132,6 +132,52 @@ export function installTestHooks(d: HookDeps): void {
             src.quaternion.set(q.x, q.y, q.z, q.w);
         },
         /**
+         * Aim at a target with seeded tremor for `frames` frames: a per-frame angular offset that
+         * follows a smoothed random walk whose spread is about `sdDeg` (the noisy-hands check).
+         * @param hand - which hand
+         * @param what - as for aim
+         * @param sdDeg - spread of the offset, degrees
+         * @param frames - rendered frames to keep it up
+         * @param seed - the noise seed
+         * @returns when done
+         */
+        noisyAim(hand: Hand, what: string, sdDeg: number, frames: number, seed = 1): Promise<void> {
+            let s = seed >>> 0;
+            const rnd = (): number => {
+                s = (s + 0x6d2b79f5) >>> 0;
+                let t = Math.imul(s ^ (s >>> 15), 1 | s);
+                t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+            const gauss = (): number => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+            // AR(1) with a = 0.8: a step of 0.6 sd keeps the stationary spread at sd.
+            const off = [0, 0];
+            let n = 0;
+            return new Promise((resolve) => {
+                const obs = scene.onAfterRenderObservable.add(() => {
+                    const src = input(hand);
+                    if (!src) {
+                        return;
+                    }
+                    off[0] = 0.8 * off[0] + 0.6 * gauss() * sdDeg;
+                    off[1] = 0.8 * off[1] + 0.6 * gauss() * sdDeg;
+                    const from = fromXR(src.position);
+                    const dir = targetOf(what).subtract(from);
+                    const right = Vector3.Cross(dir, Vector3.Up()).normalize();
+                    const up = Vector3.Cross(right, dir).normalize();
+                    const len = dir.length();
+                    dir.addInPlace(right.scale(len * Math.tan((off[0] * Math.PI) / 180)));
+                    dir.addInPlace(up.scale(len * Math.tan((off[1] * Math.PI) / 180)));
+                    const q = lookRotation(toXR(dir));
+                    src.quaternion.set(q.x, q.y, q.z, q.w);
+                    if (++n >= frames) {
+                        scene.onAfterRenderObservable.remove(obs);
+                        resolve();
+                    }
+                });
+            });
+        },
+        /**
          * Put a hand or controller at a position (meters, Babylon world).
          * @param hand - which hand
          * @param x - meters

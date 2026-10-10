@@ -4,6 +4,37 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-09 -- Decided by the team: what a highlight looks like, readable (`styles.highlightStyle`)
+
+**What.** To build for tier 2 round 3. `session.styles.highlightStyle(target: "node" | "edge")`
+returns the static style `styles.highlight()` paints for that half when it names no style of its
+own: the session's highlight color, and for an edge three times the default width. Additive: a new
+read; nothing that exists changes.
+
+**Why.** A Color or Width a reader adds to a selection's style layer started at the channel's
+default, which is how every tie already draws, so adding it changed nothing (five study sessions).
+The element already decides what "chosen" looks like (`DEFAULT_HIGHLIGHT`, `setHighlightColor`)
+but exposes it to no reader, so the app could only copy the constant or invent a value, both of
+which the architecture forbids. The app starts a selection's new line from this read.
+
+**Alternatives.** The app doubles the width and picks a palette color (invents a graph value and
+hides the open width-units question below); the "+" opens the value picker with no starting
+change (held for a later round so one change is measured at a time).
+
+## 2026-10-09 -- Decided by the team: a prepared load says how many edges repeat loaded ones
+
+**What.** To build for tier 2 round 3. The result of `session.data.prepare()` gains a count of the
+incoming edges that repeat an edge already loaded (same ends, same direction). Additive: a new
+field; the load itself is unchanged.
+
+**Why.** Opening a newer copy of a loaded file offers "Add", which turns 41 ties into 82 with only
+a total to warn the reader (severity 3 in the study, one slip from a silent wrong answer). Only
+the element knows which incoming rows match existing edges; the app matching file names would
+guess. The app shows a line and a Replace button only when the count is above 0.
+
+**Alternatives.** File-name matching in the app (a guess, wrong for a renamed copy); an automatic
+replace (a choice the reader makes, not the element).
+
 ## 2026-10-09 -- Decided by the team: a click on a node's label can pick the node (`LabelStyle.pickable`)
 
 **What.** graphty-element's label style (`node.labelStyle`, the `LabelStyle` type) gains

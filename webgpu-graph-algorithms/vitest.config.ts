@@ -109,7 +109,8 @@ function selectedProjects(): string[] {
     return names;
 }
 
-// Thresholds apply when the selected project set is EXACTLY `node` and no merge run is in progress (spec 11.8).
+// Thresholds apply when the selected project set is `node`, alone or with `node-gpu-alone` (the main suite, which the
+// lanes select as that pair), and no merge run is in progress (spec 11.8).
 const projects = selectedProjects();
 /** Whether this run collects coverage, which roughly doubles a worker's processor and memory cost. */
 const coverageRun = process.argv.includes("--coverage") || process.env.COVERAGE_DIR !== undefined;
@@ -120,7 +121,21 @@ if (coverageRun) {
 }
 /** A coverage run on a runner, where the report is an upload rather than something a person opens. */
 const coverageOnRunner = coverageRun && process.env.CI === "true";
-const thresholdsActive = projects.length === 1 && projects[0] === "node" && process.env.COVERAGE_DIR === undefined;
+const thresholdsActive =
+    projects.includes("node") &&
+    projects.every((name) => name === "node" || name === "node-gpu-alone") &&
+    process.env.COVERAGE_DIR === undefined;
+
+/**
+ * The test files that keep the GPU busy for many seconds in one go: exact-tier work at hardware sizes, where a
+ * single submission runs for seconds on a slow device. They are the `node-gpu-alone` project below, which runs
+ * AFTER the `node` project has finished (its groupOrder) and one file at a time, so no other test file shares the
+ * device with them. Run beside another fork, they starve it: on the macOS Metal host lane (issue #1884, release
+ * #1872), fr-layout-oracle's karate case, 0.6 s on its own, waited 30 s behind grid-exact's "(4, 5)" cases for the
+ * shared GPU queue and timed out. The `node` project excludes these files, so the lanes select both projects:
+ * `--project=node --project=node-gpu-alone`.
+ */
+const GPU_ALONE_TESTS: readonly string[] = ["test/layouts/grid-exact.test.ts"];
 
 /**
  * The test files that put a device into an error state on purpose: an uncaptured validation error, an error scope
@@ -305,7 +320,25 @@ export default defineConfig({
                         "test/{device,node,memory,kernel,primitives,algorithms,layouts,oracle,sabotage,types}/**/*.test.ts",
                     ],
                     // The device-error files run as their own project below, never here: nothing runs twice.
-                    exclude: ["test/limits/**", "test/browser/**", ...DEVICE_ERROR_TESTS],
+                    exclude: ["test/limits/**", "test/browser/**", ...DEVICE_ERROR_TESTS, ...GPU_ALONE_TESTS],
+                    setupFiles: ["test/setup/gpu.ts"],
+                    globalSetup: ["test/setup/global.ts"],
+                },
+            },
+            {
+                test: {
+                    // The files that hold the GPU for seconds per submission (GPU_ALONE_TESTS above): after every
+                    // `node` file has finished (a higher groupOrder runs later), then one file at a time. Vitest 4
+                    // honours fileParallelism per project, so this does not serialise the `node` project.
+                    name: "node-gpu-alone",
+                    globals: true,
+                    environment: "node",
+                    pool: "forks",
+                    testTimeout: nodeTestTimeout,
+                    hookTimeout: 60_000,
+                    include: [...GPU_ALONE_TESTS],
+                    fileParallelism: false,
+                    sequence: { groupOrder: 1 },
                     setupFiles: ["test/setup/gpu.ts"],
                     globalSetup: ["test/setup/global.ts"],
                 },

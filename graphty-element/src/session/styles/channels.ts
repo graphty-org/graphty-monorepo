@@ -372,9 +372,8 @@ export const DEFAULT_OUTLINE_COLOR = "#FFFF00";
 
 /**
  * The colour a glow is drawn in when a style switches one on without naming a colour.
- * Cyan rather than white: the glow is added onto what is behind it, so on the element's light
- * (#F5F5F5) canvas and over a white node a white glow saturates to white and nothing is seen.
- * A saturated cyan tints the node and leaves a visible halo on the light background.
+ * Cyan rather than white: the glow is drawn around the node over the element's light (#F5F5F5)
+ * canvas, where a white glow would not be seen. A saturated cyan leaves a visible halo there.
  */
 export const DEFAULT_GLOW_COLOR = "#00B4FF";
 

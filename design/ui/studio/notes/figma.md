@@ -5,44 +5,50 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-09 (tier 2 round 2 critique).
+Last updated: 2026-10-10 (tier 2 round 2 closed; decisions read).
 
 ## Top of mind
 
-0. (2026-10-09) Round 2 is weak evidence for passes: participants read the facilitator's task
-   file (avoided words, follow-ups). Do not credit the three new routes until re-run under a
-   briefing-only start. Failures found anyway are robust. The dry run happened (30 of 30 detour
-   walks) and build faults were ~9% of problems, but 12 of 30 sat on the unwalked detour
-   (styling a selection): seed every dry run with the last round's detours.
-1. (2026-10-09) Round 2 walkthrough on 8f0d5a6f7791: 42 findings (round 1: 35), 1 at severity 3
-   (backtick numbers in rules, element). The count rose on new ground: detours round 1 never
-   walked. Bar 10 counts findings, so a deeper walk can fail it; say so in every report.
-2. (2026-10-09) Worst open path faults: a typed condition is recognized but Enter does nothing
-   (retype with "=" and backticks); Tab does not commit a step edit and Escape then drops it
-   silently; a selected run cannot be deselected, so notes file under the run; selecting a
-   source opens the table drawer; a filter step cuts a path result with no sign.
-3. (2026-10-09) Fixed and verified: Enter commits a step edit, Escape closes the editor (focus
-   inside), Replace button named Replace, long edge names readable on hover, key says "out of
-   date". Verify a decided change in the build by pressing its keys, not by reading the diff.
-4. (2026-10-09) "Filter to neighbors" became a toggle whose second press deletes the step: one
-   job, two controls that act differently. Propose: a command stays a command; the step's own
-   checkbox is the only on/off.
-5. (2026-10-09) Still my divergences, deferred: step editor is a Save form, not a live
-   inspector; checkbox vs eye; two row grammars (stacked vs inline); add-first for "+".
-6. (2026-10-09) Walk method that finds the most: on every field press Enter, Tab, Escape and
-   Tab-then-Escape; after every command type at once (finds focus drops); try to deselect by
-   Escape and by an empty-canvas click; run at 1280 x 800 too.
-7. (2026-10-09) Tool trap: a backgrounded `--start` that waits for a browser slot keeps waiting
-   after its shell returns and later serves into the folder; run starts in the foreground.
-8. (2026-10-07) 3D perspective makes nearer dots look bigger; size encodings must survive the
-   camera. Undecided.
-9. (2026-10-07) The element's fit has no inset; the toolbar and key cover nodes. Needs a public
-   option (additive).
-10. (2026-10-06, owner) Figma's authority covers CONTROLS AND GESTURES ONLY; structure from
-    graphty's ontology.
-11. (2026-10-06) Every control must visibly change canvas, legend or popover.
-12. (2026-09-26, owner) No wizards, coach marks, first-run UI or suggestion cards.
-13. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
+1. (2026-10-10) Round 3 does not start until the study is fixed: participant folders outside the
+   studio tree, a transcript check that voids any session that read a facilitator file, a dry run
+   seeded from two throwaway pilots per task, and every bar script proven on a planted fault.
+   Until a clean run, no round 2 route (weight meaning at load, Replace in "...", the rule hint)
+   is credited, reworded or moved.
+2. (2026-10-10) Find box (severity 3): a miss shows the example rule; the element's suggestion
+   shows with its "="; a shown rule is Enter's option and runs on click. My lenient element parse
+   was not taken: bare numbers change an existing call, so they stay on the owner's list. Watch:
+   does 3+ of 8 still stall? Only then "Select where..." on the column menu.
+3. (2026-10-10) Lesson kept: a decided change must name its key behavior ("Enter runs it"), or the
+   build ships the words without the act. Round 2's rule hint was exactly that failure.
+4. (2026-10-10) Selection styling: "+" Color/Width on a selection's layer starts at the element's
+   highlight look via a new additive `session.styles.highlightStyle(target)`, not an app value.
+   Width 8 as a hairline is an element units question already with the owner; the app must not
+   scale widths. Layer from a rule is named by its rule. Watch the styling detour in the dry run.
+5. (2026-10-10) Add over a loaded file: element reports repeated edges from `data.prepare()`;
+   the Add page shows the count and "Replace <source>" beside Load (same command as the "..." menu).
+6. (2026-10-10) Decided as I proposed: "Filter to neighbors" is a plain command, the step's own
+   checkbox is the only on/off; Tab and click-away commit a step edit, Escape cancels and says so;
+   24 px hit area on compact-mantine's extra-small checkbox, drawn box unchanged.
+7. (2026-10-10) Also decided: second Escape no longer blurs the find box; Follow arrows no longer
+   jump into Hops; repeated status messages announced again; Shortest path found by "linked",
+   "between", "fewest", "chain"; weighted path row reads "minutes 14", not "4 hops".
+8. (2026-10-10) Bar 9 (b) failed (words at rest rose on all four tier 2 screens). Words go down,
+   never up: the key names a run's scope only when drawing and run differ. Count before I propose.
+9. (2026-10-10) Severity 3 left to the owner: drawn names covering each other and ties (element
+   label placement, unseeded layout). No app font, seed or offset hacks.
+10. (2026-10-10) Round 3 watch list for my walk: Enter/Tab/Escape/Tab-then-Escape on every field;
+    click empty canvas while a run is selected (decides a note's subject); half-made step lost on
+    another selection; run a path twice; reopen the Path form; newer copy of a loaded file.
+11. (2026-10-09) Still my deferred divergences: step editor is a Save form, not a live inspector;
+    checkbox vs eye; two row grammars; add-first for "+". Bring only with clean-run evidence.
+12. (2026-10-09) Tool trap: run `--start` in the foreground; a backgrounded one keeps waiting for a
+    browser slot and later serves into the folder. Click by name must match one control only.
+13. (2026-10-07) Open element asks: fit inset (toolbar and key cover nodes); size encodings vs 3D
+    perspective; neighbor distance per node (to group "1 step"/"2 steps").
+14. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes
+    from graphty's ontology. Every control must visibly change canvas, key or popover.
+15. (2026-10-07) One model plays every persona: a failure is strong, a pass weak; a leaked
+    facilitator file makes passes weaker still, failures found anyway robust.
 
 ## Priorities and values
 
@@ -108,6 +114,18 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- 2026-10-10 (Director, round 2 closed) Fifteen round 3 changes in
+  `tier2/rounds/round-2/decisions.md`, study tool first (leak, pilot-seeded dry run, bar scripts
+  proven on planted faults, all rated 4), then one change per confirmed problem in its owning
+  package. Versus my proposal: find box kept in the app (shows the element's rule, Enter runs it)
+  and the bare-number parse stays an owner question (it changes what an existing call accepts;
+  an opt-in flag was rejected as a capability, not a choice); selection styling defaults come from
+  a new element `highlightStyle()` instead of app defaults; "Filter to..." caret in Value not
+  listed. Accepted as proposed: duplicate-edge count with Replace, 24 px checkbox target, Tab
+  commits a step, "Filter to neighbors" a command, rule-named layers. Also decided: T22/T24
+  prompts drop "stand out"; re-run r2-s05, the three round 2 routes and the follow-ups. Reason:
+  one change per failure so round 3 can attribute it; no new door where one is measured; words
+  at rest only down.
 - 2026-10-09 (me, round 2 critique) Round 3 changes, smallest per verified problem: (1) the
   find box runs what it recognizes -- one Enter-able row "Select where <rule> (n)" for a typed
   condition, a column word or a bare number, fed by a lenient parse in graphty-element (additive:
@@ -125,34 +143,12 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   the exact line to retype, so it slows but does not mislead. Tab-then-Escape losing an edit is
   2: the row name shows the truth. The key's text-only out-of-date mark drops to 1. Reason: rate
   by whether a reader can be misled or stopped, not by how un-Figma it is.
-- 2026-10-09 (Director, round 1 closed) Final round 2 list in `tier2/rounds/round-1/decisions.md`:
-  measurement first (tool, scripts, detour dry run), then reproduced defects, then one door per
-  confirmed problem. Differences from my proposal: column-menu "Select where..." deferred (only if
-  change 4's words fail with 3+ looking there); weight meaning reached by sending start-screen
-  Open through the Data page instead of a control on the column inspector; "Back to start" prompt
-  not in the list. Reason: each change adds at most one way in, so round 2 can credit it alone.
-  Shared-control fixes (Toast role, segmented choice) wait so the build stays attributable.
-- 2026-10-09 (me, round 1 critique) Round 2 changes, smallest per verified failure: (a) T22 --
-  a typed condition gets one live row "Select where <rule> (n)" instead of bare "No match", and
-  the column's menu gets "Select where..." opening the find box with the column filled (4 of 4
-  went to the column second; one home, a second door with the same words); numbers without
-  backticks is an element ask, additive if it only accepts input refused today. (b) T21 --
-  "Replace with file..." in the inspector's "..." menu when a source is selected (selection
-  drives the inspector; 8 of 8 hunted, nothing visible at rest). (c) T20 -- the "Higher means"
-  control on the weight column's inspector, same element setting as the import page (6 of 7 went
-  to the column next); "Back to start" with open work goes through the existing Discard prompt.
-  (d) The key dims an out-of-date block and shows the row's clock glyph (bar 5). (e) Step editor:
-  Enter commits, Escape closes (my finding; trivial, on T17's follow-up). (f) After Add step the
-  new step is selected and focused (fixes my finding 10 and the a11y focus loss in one change).
-  (g) Path Weight preselects the loaded meaning (4 sessions). Not now: live step inspector,
-  checkbox-to-eye, segmented fill, selection marks, label placement, a filter door on the
-  toolbar, units, a second path replacing the first. Reason: each is either large, owner-visible,
-  element-only, or not a verified failure; one change per failure keeps round 2 attributable.
-- 2026-10-09 (me, tier 2 round 1 walkthrough) Severity 3 for: Enter not committing in the step
-  editor (bar 4, silent non-commit), backtick numbers in rules (raw code string on a success path,
-  bar 10 rule), edge names cut in the string (truncation hiding the word needed to act), the key
-  without an out-of-date mark (bar 5). Owners: app, element, app, app. Everything else 2 or 1.
-  Reason: the bar 10 rules name exactly these classes; the rest slows a reader but does not mislead.
+- 2026-10-09 (summarized 2026-10-10) Tier 2 round 1: severity 3 went to Enter not committing in
+  the step editor, backtick numbers, cut edge names and the key with no out-of-date mark. Round 2
+  list (Director): measurement first, then reproduced defects, one door per confirmed problem;
+  Replace in the source "...", weight meaning reached at load, find-box rule line, Enter/Escape in
+  the step editor, new step selected and focused. Column-menu "Select where..." deferred. Reason:
+  each change adds at most one way in, so a round can credit it alone.
 - 2026-10-07 (summarized 2026-10-09) Tier 2 gap proposal and tier 1 round 2 close: refined B
   built where decided (Filters with Apply checkbox and header chip, Path popover with pick
   fields, Notes with N, Neighborhood list, Replace on the source menu); twelve round 3 changes
@@ -205,6 +201,12 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- 2026-10-10 Round 2 closed. Did not work: the study itself (participants read the facilitator
+  file; 13 of 16 follow-ups answered early), a dry run one round behind (12 of 30 build faults on
+  the unwalked selection-styling detour), and a keyboard fault the dry run found but handed on
+  (second Escape blurs the find box). Worked: no grade decided by a build fault, 0 errors ending a
+  session. Lesson: a dry run must walk where pilots actually go and fix what it finds before
+  freeze; bar scripts the preflight names must exist (bar 10's counts did not).
 - 2026-10-09 Round 2 walkthrough. Worked: "Path between..." fills From and focuses To; canvas
   pick with a hint and no selection change; Replace on the source inspector "..."; Rerun banner;
   Delete then Control+Z with focus kept. Did not: the typed-condition change shipped as a
@@ -241,12 +243,6 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   read as "play"); controls that changed state with no visible result ("Show labels",
   Neighborhood naming no one); app workarounds for compact-mantine limits. Lessons: review by
   clicking, not reading; fix the shared component first; a result must show.
-
-- 2026-10-09 Tier 2 round 1 walkthrough on build 946256efb876. Worked: one home for filtering
-  (Filter to neighbors lands as a step), the header chip and its tooltip, matching edge menus,
-  Escape from the Path popover. Did not: the step editor's form-and-Save model, two selection
-  marks, the Path popover covering the canvas and its own next field. Lesson: press Enter, Tab
-  and Escape in every new field during a walk; that found the worst fault in one try.
 
 ## Thinking
 

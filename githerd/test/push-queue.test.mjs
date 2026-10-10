@@ -11,6 +11,7 @@ import { identify } from "../lib/proc.mjs";
 import { codeEnv } from "../lib/worker-settings.mjs";
 import { changedFiles } from "../lib/worktrees.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
+import { groupsUsing, reapGroupsUsing } from "./helpers/leftovers.mjs";
 
 /**
  * The fake pre-push gate, installed as the repository's pre-push hook. It reads what to do from
@@ -101,11 +102,12 @@ afterEach(async () => {
     queue.stop();
     await queue.drain();
     for (const pid of spawned) kill(pid);
-    const gatePid = existsSync(join(repo.tmp, "gate-pid"))
-        ? Number(readFileSync(join(repo.tmp, "gate-pid"), "utf8"))
-        : 0;
+    // Whatever still runs in the test's directory once the queue stopped is a leak, found in /proc
+    // whether or not anything recorded its pid: killed, then reported.
+    const left = await reapGroupsUsing(repo.tmp);
+    await until(() => spawned.every((pid) => !alive(pid)));
     rmSync(repo.tmp, { recursive: true, force: true });
-    for (const pid of [...spawned, gatePid].filter(Boolean)) expect(alive(pid)).toBe(false);
+    expect(left, "process groups left running in the test's directory").toEqual([]);
 });
 
 /**
@@ -744,6 +746,43 @@ describe("a worker's death", () => {
 });
 
 describe("stop", () => {
+    it("spawns no push for an entry still in its checks, so a test ending early leaves none behind", async () => {
+        gate("wait");
+        const a = workingJob("a");
+        await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+        // The entry runs its checks (git subprocesses) before it spawns the push: stop lands first.
+        queue.stop();
+        await queue.drain();
+        expect(groupsUsing(repo.tmp)).toEqual([]);
+        expect(existsSync(join(repo.tmp, "gate-log"))).toBe(false);
+        expect(remoteHead("githerd/a")).toBeNull();
+        expect(a.job.news.at(-1).text).toMatch(/^push failed.*githerd stopped before the push started/);
+    });
+
+    it("kills a push blocked in the gate and starts none of those queued behind it", async () => {
+        gate("wait");
+        const a = workingJob("a");
+        const b = workingJob("b");
+        await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+        await queue.request({ job: "b", branch: "githerd/b", expectHead: b.head }, "s-b");
+        await until(() => existsSync(join(repo.tmp, "gate-pid")));
+        queue.stop();
+        await queue.drain();
+        expect(groupsUsing(repo.tmp)).toEqual([]);
+        expect(readFileSync(join(repo.tmp, "gate-log"), "utf8")).toBe("refs/heads/githerd/a\n");
+        expect(state.pushQueue.entries).toMatchObject([{ job: "b", status: "queued", pid: null }]);
+    });
+
+    it("the after-each check finds a process group in the test's directory that nothing recorded", async () => {
+        const stray = spawn("sh", ["-c", `while [ ! -e "${repo.tmp}/never" ]; do sleep 0.05; done`], {
+            detached: true,
+            stdio: "ignore",
+        });
+        await until(() => groupsUsing(repo.tmp).includes(/** @type {number} */ (stray.pid)));
+        expect(await reapGroupsUsing(repo.tmp)).toEqual([stray.pid]);
+        expect(groupsUsing(repo.tmp)).toEqual([]);
+    });
+
     it("kills a running push's process group", async () => {
         gate("hang");
         const a = workingJob("a");

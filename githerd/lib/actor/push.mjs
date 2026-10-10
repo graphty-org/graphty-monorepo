@@ -220,7 +220,8 @@ const rank = (state, job) => {
  *   drain: () => Promise<void>,
  *   stop: () => void,
  * }} `request` is `githerd_push`; `depth` counts pushes waiting to run; `drain` resolves when the
- *   queue is empty; `stop` kills a running push's process group
+ *   queue is empty or stopped; `stop` kills a running push's process group and starts no push
+ *   after it, so a push still in its checks never spawns and the queued ones wait for the next start
  */
 export function createPushQueue({
     root,
@@ -247,6 +248,7 @@ export function createPushQueue({
     q.gateRuns ??= [];
     /** @type {Promise<unknown> | null} */
     let running = null;
+    let stopped = false;
 
     const gateMs = () => Math.max(defaultGateMs, ...q.gateRuns);
     /**
@@ -320,7 +322,7 @@ export function createPushQueue({
 
     /** Starts the next push when none runs. */
     function pump() {
-        if (running !== null) return;
+        if (running !== null || stopped) return;
         const next = ordered().find((e) => e.status === "queued");
         if (!next) return;
         running = runEntry(next)
@@ -499,6 +501,8 @@ export function createPushQueue({
      * @returns {Promise<{code: number, out: string, timedOut: boolean}>} the exit code and output
      */
     function pushChild(e) {
+        if (stopped)
+            return Promise.resolve({ code: 1, out: "githerd stopped before the push started", timedOut: false });
         return new Promise((resolve) => {
             let out = "";
             let timedOut = false;
@@ -636,6 +640,7 @@ export function createPushQueue({
         depth: () => q.entries.filter((/** @type {PushEntry} */ e) => e.status === "queued").length,
         drain,
         stop() {
+            stopped = true;
             for (const e of q.entries) if (livePush(e)) kill(e.pid);
         },
     };

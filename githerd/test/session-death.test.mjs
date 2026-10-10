@@ -10,6 +10,7 @@ import { codeEnv } from "../lib/worker-settings.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { recoverDeath, sweepWorktree, worktreeProcesses } from "../lib/session-death.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
+import { reapGroupsUsing } from "./helpers/leftovers.mjs";
 
 /**
  * The fake pre-push gate: waits until `<tmp>/go` exists, writing its pid to `<tmp>/gate-pid` first.
@@ -81,7 +82,11 @@ afterEach(async () => {
         ? Number(readFileSync(join(repo.tmp, "gate-pid"), "utf8"))
         : 0;
     await until(() => [...spawned, gatePid].filter(Boolean).every((p) => !alive(p)));
+    // Whatever still runs in the test's directory is a leak, found in /proc whether or not anything
+    // recorded its pid: killed, then reported.
+    const left = await reapGroupsUsing(repo.tmp);
     rmSync(repo.tmp, { recursive: true, force: true });
+    expect(left, "process groups left running in the test's directory").toEqual([]);
 });
 
 /**

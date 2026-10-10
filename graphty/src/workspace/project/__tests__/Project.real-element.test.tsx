@@ -136,13 +136,14 @@ async function buildProject(store: WorkspaceStore): Promise<{ session: GraphSess
 
 /**
  * Save as through the keys: the dialog opens with the project's name selected; typing replaces it.
- * Returns once the dialog has gone, which is when Save as is done: the element clears `dirty`
- * before the app has recorded the file in Recent projects and closed the dialog, and while the
- * dialog is open it keeps the keys (F2 does nothing).
+ * Returns once the dialog has gone and handed focus back, which is when Save as is done: the
+ * element clears `dirty` before the app has recorded the file in Recent projects and closed the
+ * dialog, and while the dialog is open it keeps the keys (F2 does nothing).
  * @param name - the name to save under.
  * @param current - the project's name before.
  */
 async function saveAs(name: string, current = "Florentine families"): Promise<void> {
+    const opener = document.activeElement;
     await userEvent.keyboard("{Control>}s{/Control}");
     const dialog = await screen.findByRole("dialog", { name: `Save ${current} as` });
     const field = within(dialog).getByRole<HTMLInputElement>("textbox", { name: "Name" });
@@ -157,6 +158,11 @@ async function saveAs(name: string, current = "Florentine families"): Promise<vo
         },
         { timeout: TIMEOUT_MS },
     );
+    // The closed dialog hands focus back to its opener a moment later (Mantine's focus return). A
+    // rename field opened before that would lose focus to it, and a field that loses focus closes.
+    await waitFor(() => {
+        assert.strictEqual(document.activeElement, opener, "focus is back where Save as was pressed");
+    });
 }
 
 /**

@@ -33,16 +33,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   The transparent margin around a chip is part of the plane, so a click just outside the white
   chip also picks the node.
 
-- (2026-10-09) **`real.mjs` reports a click by what happened, not by Playwright's timeout.** A
-  click whose call log says "click action done" but whose wait afterwards ran out the limit prints
-  `slow click (landed): "..."` and is not a miss; setup clicks get 20 s (`SETUP_CLICK_MS`, a
-  participant's 3 s is `CLICK_MS`), and a setup click that never performs still fails the start;
-  `tipNow` skips a tooltip hidden by opacity or visibility and one with no text, so it prints
-  `tooltip: null`. Self-tests (planted): a click that asks for a navigation answered 204 after
-  4.5 s (`plant-dom` `slow`, through `context.route`), a setup `--click Redo` on Zachary's karate
-  club, a dismissed and an empty `role=tooltip` (`plant-dom` `hidden-tip`). On the frozen
-  eaea2a75d build both lesmis-ranked setups started clean (Size "1 to 3") and the T17A untick
-  hover reads `tooltip: null`; evidence `tmp/r2-dry3-study-tool-click-report/frozen/`.
+- (2026-10-09, condensed) **`real.mjs` reports a click by what happened:** a landed click whose
+  wait ran out prints `slow click (landed)`; setup clicks get 20 s (`SETUP_CLICK_MS`); a hidden or
+  empty tooltip prints `tooltip: null`. Evidence `tmp/r2-dry3-study-tool-click-report/frozen/`.
 
 - (2026-10-09) **The neighbor list opens at the reach of the filter that is on, and its heading
   wraps.** `selection.neighborhood` (Degree link and `g`, `toolbar/commands.ts`) reads an on

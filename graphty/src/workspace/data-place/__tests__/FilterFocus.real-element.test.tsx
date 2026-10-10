@@ -148,6 +148,28 @@ describe("Filters focus and keys on the real element", () => {
         assert.equal(session.visibility.steps[0]?.rule.kind === "range" && session.visibility.steps[0].rule.min, 9);
     });
 
+    it("a step deleted while its editor is open stays deleted when the editor closes", async () => {
+        const { session, store } = await openWithGraph();
+        await session.visibility.setSteps([
+            { id: "a", on: false, rule: { kind: "range", attribute: "data.value", min: 2, nodes: "ends" } },
+        ]);
+        // An off step's editor would save it on leaving ("Save and turn on" does something).
+        await userEvent.click(await within(filters()).findByRole("treeitem", { name: "value is at least 2" }));
+        await screen.findByRole("textbox", { name: "Value" });
+        within(filters()).getByRole("treeitem", { name: "value is at least 2" }).focus();
+        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.steps, 0);
+        });
+        // Something else selected closes the editor: the deleted step is not written back.
+        await userEvent.click(screen.getByRole("treeitem", { name: "value, edge attribute" }));
+        await waitFor(() => {
+            assert.equal(store.get().inspected?.kind, "attribute");
+        });
+        assert.lengthOf(session.visibility.steps, 0);
+    });
+
     it("deleting a step moves focus to the next row, the one above for the last, then +", async () => {
         const { session } = await openWithGraph();
         await session.visibility.setSteps([

@@ -211,11 +211,15 @@ interface KeyNames {
     readonly entry: (block: LegendBlock) => string;
 }
 
-/** One section of the key: its title, the block it draws, and a fixed-value row's entry. */
+/**
+ * One section of the key: its title, the block it draws, a fixed-value row's entry, and whether it
+ * stands for a run's node and edge highlights in one color (`keySections`).
+ */
 interface KeySection {
     readonly title: string;
     readonly block: LegendBlock;
     readonly entry: string;
+    readonly merged: boolean;
 }
 
 /**
@@ -232,8 +236,9 @@ function highlightColor(block: LegendBlock): string | undefined {
 
 /**
  * The key's sections, top first. A run's node and edge highlights in one color are one section,
- * titled by the run alone ("Shortest path") with one entry ("On the path"): two sections with the
- * same chip told a reader nothing the one does not.
+ * titled by the run alone ("Shortest path") with one entry ("On the path"), and marked `merged`:
+ * two sections with the same chip told a reader nothing the one does not. The card draws a merged
+ * section as one line, the chip and the run's name; an exported image keeps the title and entry.
  * @param blocks - the blocks worth a key (`keyBlocks`), bottom layer first.
  * @param names - how to name a block's row and its entry.
  * @returns the sections.
@@ -257,7 +262,8 @@ export function keySections(blocks: readonly LegendBlock[], names: KeyNames): Ke
         );
         twins.forEach((twin) => merged.add(twin));
         const row = names.row(block);
-        sections.push({ title: twins.length > 0 ? row : sectionTitle(block, row), block, entry: names.entry(block) });
+        const one = twins.length > 0;
+        sections.push({ title: one ? row : sectionTitle(block, row), block, entry: names.entry(block), merged: one });
     }
     return sections;
 }
@@ -301,9 +307,11 @@ export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): Sc
 /**
  * The name of the row that paints a block: its run's name, else its layer's. A run whose data
  * changed since it ran is named as the run list names it, "PageRank, out of date", so the key never
- * passes off a stale result as current. A run that only no longer matches what is shown (a filter
- * step since) is still right about the nodes it ran on, so the key names them instead: "PageRank on
- * 20 nodes".
+ * passes off a stale result as current. A run that only no longer matches its scope (a filter step
+ * since) is still right about the nodes it ran on, and the key names them only when the drawing
+ * shows another count: "PageRank, full graph" when it ran on every node and a filter hides some,
+ * "PageRank on 12 nodes" for a narrower run, and plain "PageRank" when as many are drawn as it ran
+ * on.
  * @param session - the session.
  * @param block - the block.
  * @returns the name.
@@ -317,9 +325,15 @@ function rowName(session: GraphSession, block: LegendBlock): string {
     if (run.status !== "succeeded" || run.stale === null) {
         return name;
     }
-    return run.stale.reason === "data-changed"
-        ? `${name}, out of date`
-        : `${name} on ${count(run.stale.ranOn, "node")}`;
+    if (run.stale.reason === "data-changed") {
+        return `${name}, out of date`;
+    }
+    const { ranOn } = run.stale;
+    const { visibleNodes, totalNodes } = session.visibility.summary;
+    if (ranOn === visibleNodes) {
+        return name;
+    }
+    return ranOn === totalNodes ? `${name}, full graph` : `${name} on ${count(ranOn, "node")}`;
 }
 
 /**

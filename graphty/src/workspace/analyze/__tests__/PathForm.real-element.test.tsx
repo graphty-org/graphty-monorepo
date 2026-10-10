@@ -337,7 +337,7 @@ describe("the Path popover, on the real element", () => {
         "the Weight box shows None before the run when a loaded weight with no meaning is not read, and Made with agrees",
         async () => {
             const { store, session, element } = await openFriends(null);
-            const why = 'Each edge counts as 1. A path needs a distance, and "weight" has no meaning set.';
+            const why = 'Each edge counts as 1; "weight" has no meaning set.';
             element.focus();
             await userEvent.keyboard("p");
             const form = await pathForm();

@@ -371,8 +371,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
             });
             const grown = session.selection.nodes.length - 1;
-            const words = `${session.data.name(node) ?? String(node)} and ${String(grown)} connections within 2 hops`;
-            await screen.findByRole("group", { name: words });
+            const heading = `${session.data.name(node) ?? String(node)} and ${String(grown)} connections`;
+            const words = `${heading} within 2 hops`;
+            await screen.findByRole("group", { name: heading });
             await waitFor(() => {
                 assert.include(
                     screen.getAllByRole("status").map((status) => status.textContent),
@@ -425,7 +426,11 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             await degree();
             const hops = await screen.findByRole("radiogroup", { name: "Hops" });
             await userEvent.click(within(hops).getByRole("radio", { name: "2" }));
-            await screen.findByRole("group", { name: /within 2 hops$/ });
+            await waitFor(() => {
+                assert.isTrue(
+                    screen.getAllByRole("status").some((status) => /within 2 hops$/.test(status.textContent ?? "")),
+                );
+            });
             const command = screen.getByRole("button", { name: "Filter to neighbors" });
             // A plain command: never drawn as pressed.
             assert.isNull(command.getAttribute("aria-pressed"));
@@ -447,7 +452,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             // Back to the node, then its Degree row again: the list opens at the filter's two hops.
             await userEvent.click(screen.getByRole("button", { name: `Back to ${name}` }));
             await degree();
-            const words = `${name} and ${String(grown)} connections within 2 hops`;
+            const words = `${name} and ${String(grown)} connections`;
             await screen.findByRole("group", { name: words });
             const reopened = await screen.findByRole("radiogroup", { name: "Hops" });
             assert.isTrue(within(reopened).getByRole<HTMLInputElement>("radio", { name: "2" }).checked);

@@ -355,7 +355,9 @@ const WALKS = [
         name: "returning",
         setup: "friends-pagerank.txt",
         moves: [
-            { do: steps("--click Data", ...ADD_STEP, "--expect Add step"), screen: "the step editor", plant: true },
+            // the planted cases are measured on the empty Notes place: the planted blur, on the step
+            // editor, leaves the editor, which saves the step, so "Add step" would be gone
+            { do: steps("--click Data", ...ADD_STEP, "--expect Add step"), screen: "the step editor" },
             {
                 do: steps("--click Add step", "--expect 19 of 20 nodes"),
                 focus: "adding a filter step",
@@ -376,7 +378,7 @@ const WALKS = [
                 focus: "deleting a filter step",
             },
             { do: steps(...ADD_STEP, "--click Add step", "--expect 19 of 20 nodes") },
-            { do: steps("--click Notes", "--expect No notes"), screen: "the Notes place, empty" },
+            { do: steps("--click Notes", "--expect No notes"), screen: "the Notes place, empty", plant: true },
             { do: steps("--key n", "--type Call the club", "--key Control+Enter"), focus: "saving a note" },
             {
                 do: steps("--key Escape", "--key Escape", "--key n", "--type Book the hall", "--key Control+Enter"),

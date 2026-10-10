@@ -307,7 +307,9 @@ export function NeighborList({
             .filter((node) => node !== center)
             .map((node) => ({ node, name: session.data.name(node) ?? String(node) }))
             .sort((a, b) => BY_NAME.compare(a.name, b.name));
-        words = neighborhoodWords(centerName, around.length, reach);
+        // The Hops control under the heading shows the reach, so the heading leaves it out; the
+        // status line after a change still says it.
+        words = neighborhoodWords(centerName, around.length);
         rows = around.map(({ node, name }) => (
             <DataRow
                 key={nodeKey(node)}

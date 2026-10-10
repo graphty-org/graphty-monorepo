@@ -2575,6 +2575,29 @@ describe("release.yml", () => {
         assert.match(watch, /tools\/gpu-runner-lost.sh "\$RUN_ID" 1/);
     });
 
+    it("announces a release pull request that left the merge queue without merging", () => {
+        const dq = workflow("release-dequeued.yml");
+        // master's copy, no merge commit needed (a conflicting release pull request still fires); Mergify's app adds
+        // the label, and a label a GitHub App adds starts workflows
+        assert.match(dq, /\non:\n {4}pull_request_target:\n {8}types: \[labeled\]\n\npermissions:/);
+        assert.match(dq, /github.event.label.name == 'dequeued'/);
+        assert.match(dq, /startsWith\(github.event.pull_request.head.ref, 'release\/train-'\)/);
+        assert.match(dq, /github.event.pull_request.user.login == 'github-actions\[bot\]'/);
+        // the same branch and author .mergify.yml's release train priority rule names
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        assert.match(mergify, /- head~=\^release\/train-\n\s+- author=github-actions\[bot\]/);
+        // it runs nothing from the pull request
+        assert.match(dq, /- uses: actions\/checkout@v4\n\s+with:\n\s+ref: master\n/);
+        assert.doesNotMatch(dq, /secrets\./, "GITHUB_TOKEN only");
+        assert.deepEqual(dq.match(/\w+: write/g), ["issues: write"], "it writes only the comment");
+        assert.match(dq, /checks: read/, "it reads the Mergify Merge Queue check run");
+        assert.match(dq, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
+        assert.match(
+            dq,
+            /node tools\/release-status.mjs dequeued --pr "\$PR_URL" --sha "\$HEAD_SHA" --run "\$RUN_URL"/,
+        );
+    });
+
     // The failed-publish report, run in a scratch directory with stubs: the publish step's output (run
     // 37691314850's shape, colors and all), `pnpm exec nx show project` answering each project's root, and
     // tools/release-held.sh recording the issue it would open.

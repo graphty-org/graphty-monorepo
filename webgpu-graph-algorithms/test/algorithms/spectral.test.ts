@@ -208,25 +208,41 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
         }
     }
 
-    it("converged is identical to the oracle's and iterations within +-1 on every fixture, for all three", async (t) => {
-        const ctx = await context(t);
+    // One case per entry point and fixture: run as one case the 3 x fixtures runs to convergence took 7.6 s on CI's
+    // lavapipe (issue #1809).
+    const CONVERGENCE = [
+        {
+            label: "hits",
+            run: async (ctx: GpuContext, s: GraphSnapshot) => hits(ctx, s),
+            oracle: (s: GraphSnapshot) => hitsOracle(s, OPTS),
+        },
+        {
+            label: "eigenvector",
+            run: async (ctx: GpuContext, s: GraphSnapshot) => eigenvectorCentrality(ctx, s),
+            oracle: (s: GraphSnapshot) => eigenvectorOracle(s, OPTS),
+        },
+        {
+            label: "katz",
+            run: async (ctx: GpuContext, s: GraphSnapshot) => katzCentrality(ctx, s),
+            oracle: (s: GraphSnapshot) => katzOracle(s, { ...OPTS, ...KATZ }),
+        },
+    ] as const;
+    for (const { label, run, oracle } of CONVERGENCE) {
         for (const name of FIXTURE_NAMES) {
-            const { snapshot } = fixture(name, gpuScale());
-            const runs = [
-                [await hits(ctx, snapshot), hitsOracle(snapshot, OPTS), "hits"],
-                [await eigenvectorCentrality(ctx, snapshot), eigenvectorOracle(snapshot, OPTS), "eigenvector"],
-                [await katzCentrality(ctx, snapshot), katzOracle(snapshot, { ...OPTS, ...KATZ }), "katz"],
-            ] as const;
-            for (const [result, expected, label] of runs) {
+            it(`${label}: converged is identical to the oracle's and iterations within +-1 on ${name}`, async (t) => {
+                const ctx = await context(t);
+                const { snapshot } = fixture(name, gpuScale());
+                const result = await run(ctx, snapshot);
+                const expected = oracle(snapshot);
                 expect(result.converged, `${label}/${name}: converged`).toBe(expected.converged);
                 expect(
                     Math.abs(result.iterations - expected.iterations),
                     `${label}/${name}: iterations`,
                 ).toBeLessThanOrEqual(1);
-            }
-            ctx.release(snapshot);
+                ctx.release(snapshot);
+            });
         }
-    });
+    }
 
     it("converging on the last allowed iteration reports converged: a cap at the first converged iteration is converged, one lower is not, for all three", async (t) => {
         const ctx = await context(t);

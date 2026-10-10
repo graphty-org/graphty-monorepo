@@ -7,34 +7,37 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- 2026-10-09 Round 2 (tier 2): participants read the facilitator's tasks.md, so every route
-  that WORKED is weak; a problem found anyway is robust. Never reword on a round 2 pass.
-- 2026-10-09 Round 2 proposals (below, "Decisions"): example rule on every find "No match";
-  "=" back in the backtick correction; selection layer named by its rule or names, not "13
-  edges"; path row shows the weighted total; key "full graph" for "on N nodes"; shorter
-  unweighted note. Net words at rest go DOWN -- bar 9 (b) failed because my round 2 fixes added
-  words and removed none. Every word fix from now on names what it deletes.
-- 2026-10-09 Bare numbers in rules: element change (owner list; it changes what a refused
-  selector does). Until then the app's words carry the backtick; "backtick" is not a reader word.
-- 2026-10-09 Dry run answer: yes, it happened, and no session hit a broken control on a walked
-  route; the faults sat on the one unwalked detour (styling a selection: width 8, gray A9A9A9,
-  layer named by count). Word faults hide on detours -- add "style a selection, read the key"
-  and a scripted words-at-rest count to every preflight.
-- 2026-10-09 Find hint: the ELEMENT decides if the text is a rule (`scope.count({ where })`);
-  the app reads no syntax. 0 of 8 typed "=" first; 6 of 8 hit bare "No match".
-- 2026-10-09 Kept as worked (round 1 evidence, round 2 did not contradict): "Higher means",
-  "Total <weight column>", Replace page words, "N rows left out", ", out of date".
-- 2026-10-09 Deferred, mine to re-raise only on evidence: Hops, Select endpoints, Capacity,
-  Leave out preselected; Toast role=alert is a compact-mantine fix later.
-- 2026-10-09 Live-region words: wording a status is not done until it is announced once
-  ("RunningCancel", role=alert per keystroke were word bugs too).
-- 2026-10-07 Unset meaning never read as distance (element); bare numbers in rules is on the
-  owner list; element English leaks are element defects (code + params).
-- 2026-10-07 CSV export headers `results.louvain.group` may be a format contract -- one-way door.
-- 2026-10-06 Words cannot fix a missing route; refusals next to the failed control; a word
-  never promises what the screen does not do; task wording never echoes a fix.
-- 2026-10-06 Budgets: at rest <= 50 words, inspector ~30 (max 40).
-- 2026-10-06 Simulated evidence: a fail is strong, a pass weak.
+- 2026-10-10 Round 2 closed. Adopted from my proposals: find "No match" plus the example rule
+  (change 4a), "=" back in the suggestion (4b), a rule-made layer named by its rule (8), path
+  row "<column> <total>" (12), key scope only when drawing and run differ (9), shorter unweighted
+  note (9). NOT adopted: naming 2 to 3 picked nodes by their names -- only rule selections change.
+- 2026-10-10 Round 3 words budget is mine: bar 9 (b) must fall to round 1's counts on four
+  screens (rest 55 -> <=53, path inspector 70 -> <=66, neighbor list 38 -> <=36, edge inspector
+  34 -> <=30). Every word fix names what it deletes; "no new word anywhere".
+- 2026-10-10 Key scope wording to write: no filter + whole graph = "PageRank"; under a filter
+  "PageRank, full graph"; narrower run keeps "on N nodes". Unweighted note: `Each edge counts as
+  1; "weight" has no meaning set.` Neighbor list: cut two words at rest.
+- 2026-10-10 Round 2 credits nothing it measured as "worked": participants read the facilitator
+  tasks.md. A problem found anyway is robust; a route that worked is weak. Re-run before crediting
+  Higher means at load, Replace in "...", the find rule hint.
+- 2026-10-10 Prompts are words too: "stand out", "who was first before", "make sure" each produced
+  behavior read as user need. T22/T24 lose "stand out". Grade against the prompt's own words.
+- 2026-10-10 Watch in round 3: does "No match" + example rule get 3+ of 8 to a rule (else "Select
+  where..." comes next)? Does "minutes 14" end the weight doubt? Does the rule-named layer make the
+  key readable? Does "PageRank" without scope cause anyone to misread a filtered drawing?
+- 2026-10-10 Owner list, unchanged: bare numbers in rules (element), what edge width measures.
+  Until then "backtick" stays out of reader words; the "=" form carries it.
+- 2026-10-10 Escape in the step editor will say "cancelled" in the status line (change 6) and a
+  repeated status is re-announced (change 14) -- word those lines short, subject first.
+- 2026-10-09 Find hint: the ELEMENT decides if text is a rule; the app reads no syntax.
+- 2026-10-09 Word faults hide on detours: every preflight styles a selection and reads the key.
+- 2026-10-09 Deferred, mine to re-raise only on evidence: Hops, Select endpoints, Capacity, Leave
+  out preselected, "Edit source..." vs "Replace: team.csv" (sev 1), "Components 1" under a filter.
+- 2026-10-07 Element English leaks are element defects (code + params); CSV export headers may be
+  a format contract -- one-way door.
+- 2026-10-06 Words cannot fix a missing route; a word never promises what the screen does not do;
+  task wording never echoes a fix.
+- 2026-10-06 Budgets: at rest <= 50 words, inspector ~30 (max 40). Simulated: fail strong, pass weak.
 
 ## Priorities and values
 
@@ -160,7 +163,24 @@ I read this file at the start of every session and update it as I decide and lea
   else keep "on N nodes" (sev 2, eight sessions; glossary state word). Reason: each fixes a
   confirmed finding and the set lowers words at rest.
 
+- 2026-10-10 Round 2 closed (tier2/rounds/round-2/decisions.md, Design Director). Adopted:
+  changes 4 (a: example rule after a non-rule "No match", once, never at rest; b: suggestion
+  with "="; c: Enter or click runs the shown rule), 8 (layer named by its rule without "="), 9
+  (scope words, shorter note, two neighbor-list words out), 11 (search aliases linked, between,
+  fewest, chain, in between -- never shown), 12 ("<column> <total>"), 15 (no "stand out").
+  Rejected: names for a 2-to-3-node selection (only rule origin changes, so 8 is measured alone).
+  Reason: one change per confirmed finding, words at rest must go down. Studio, reversible.
+- 2026-10-10 Change 5's Add-page line (repeated ties) and Replace button are new words but only
+  off-rest, above the buttons, count against incoming edges; mine to word with the fewest words,
+  e.g. "41 of 41 edges are already loaded" + "Replace friends". Studio, reversible.
+
 ## Tried: worked / did not work
+
+- 2026-10-10 LEARNED (round 2 close): my proposal set was meant to lower words at rest, but the
+  Director wrote the deletions as a separate change (9) with a count acceptance. Lesson: a word
+  proposal ships with its bars.mjs count before and after, per screen.
+- 2026-10-10 LEARNED: the study's own words (prompt and task file) moved behavior more than any
+  screen word this round. Read the prompt before blaming a label.
 
 - 2026-10-09 DID NOT WORK (tier 2 round 2): bare "No match" for a condition in the reader's
   words (6 of 8, r2-s12 six wrong turns); "Put numbers in backticks:" without "=" (r2-s15 "I
@@ -201,31 +221,13 @@ I read this file at the start of every session and update it as I decide and lea
   accessible name, `style/words.ts` bindLabel) and "Size from data" (popover title,
   `style/SetLine.tsx`); a participant read the chain icon as "links to her file".
 
-- 2026-09-28 to 10-02 WORKED: the broken-file refusal naming faults with line numbers (8 of 8 would
-  forward it); "never uploaded" / "Local only"; "Covered by PageRank for Color"; "Note on:
-  <thing>" before typing; the Privacy page's "Where your data goes" (5 of 6 would forward it);
-  the communities run's Data tab reading.
-- 2026-09-29 DID NOT WORK: weight wording, seven turns ("bigger amount means", "Default for new
-  runs", "Change...", the Weight role). The Loaded line's "not used yet. Change..." drew 27 wrong
-  clicks. Lesson: words cannot rescue an unsettled model; the owner settled weight at load
-  (2026-09-30).
-- 2026-09-29 DID NOT WORK: a fixed near-tie percentage ("within 1%") read as rounding. Replaced by
-  a fact with the method's real bound, or "=" for an exact tie. Lesson: a bare number without its
-  basis is misread.
-- 2026-09-29 DID NOT WORK: "Money in / Money out" -- ease jumped 2.00 to 5.00 partly because tasks
-  echoed the new words. Lesson: the overfitting and echo rules.
-- 2026-10-02 DID NOT WORK: "Show labels" as the Label "+" first item (12 of 21 picked it; 10 thought
-  names were on). Lesson: when the task's words match a control's words, people pick it -- so that
-  control must do the task or not exist.
-- 2026-10-02 DID NOT WORK: "Neighborhood of Javert: Covers Javert and 17 neighbors" -- a count with
-  no names behind it (0 of 12). Lesson: a count must open to its members, by name.
-- 2026-10-02 DID NOT WORK: a sample arriving pre-explained ("Color: PageRank 0.00330 to 0.0754";
-  "1 row not listed still paints", rejected 6 of 6). Lesson: samples open with nothing run; the
-  legend needs one plain sentence on what a higher value means.
-- 2026-10-02 DID NOT WORK: the binding popover's nine terms (Clamp, Below 0, Percentiles, Typed,
-  Smallest mark, Detach ...) and three ideas of size. Lesson: rare options fold away; one size
-  vocabulary.
-- 2026-10-02 DID NOT WORK: the usage-data card as written (see Top of mind).
+- **Tier 1 lessons (summarized 2026-10-10).** WORKED: refusals naming faults with line numbers;
+  "never uploaded" / "Local only"; "Note on: <thing>"; Privacy "Where your data goes"; one
+  wording pass + lint fixed six concept splits. DID NOT WORK: seven weight wordings (words
+  cannot rescue an unsettled model); a bare "within 1%" (a number needs its basis); "Money
+  in/out" (one-domain + task echo); "Show labels" first item (a control matching the task's
+  words must do the task); a count with no names behind it; samples arriving pre-explained;
+  nine-term binding popover (fold rare options).
 - 2026-10-06 WORKED (round 1, real app): "N labels, M hidden to avoid overlap" -- no false "done"
   on names in 29 sessions; participants read it and kept looking. The broken-file refusal again
   forwarded as is (ease 7).
@@ -282,6 +284,9 @@ I read this file at the start of every session and update it as I decide and lea
   1000 ms is compact-mantine's.
 
 ## Sources
+
+- `design/ui/studio/tier2/rounds/round-2/decisions.md` changes 4, 5, 8, 9, 11, 12, 15 and
+  "Not changed" (2026-10-10)
 
 - `design/ui/studio/tier2/rounds/round-2/insights.md`, `scores.md`, `preflight.md`, `expert/`
   (figma 1, 2, 16, 23; engineer 5); screenshots `sessions/r2-s12/03.png`, `r2-s15/06.png`,

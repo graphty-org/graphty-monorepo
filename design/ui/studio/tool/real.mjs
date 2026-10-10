@@ -1048,8 +1048,18 @@ async function opStart(s, setup) {
         // and anything that does not work fails the start loudly
         const said = [];
         const r = await run(s, setup, said, SETUP_CLICK_MS);
-        // a reopened project has nothing focused: the last setup step's control must not wear a focus ring
+        // a reopened project has nothing focused: the last setup step's control must not wear a focus ring,
+        // and Tab starts at the top of the page. A blur alone keeps Chromium's starting point for Tab
+        // on the last control the setup clicked (round 2's keyboard sessions began in the inspector),
+        // so focus a mark at the start of the page and take it away.
         await s.page.evaluate(`${FOCUSED}?.blur()`);
+        await s.page.evaluate(() => {
+            const mark = document.createElement("span");
+            mark.tabIndex = -1;
+            document.body.prepend(mark);
+            mark.focus();
+            mark.remove();
+        });
         // nor a hover: the setup's last click left the pointer on a control (a row stays lit in 01.png)
         await s.page.mouse.move(-1, -1);
         await writeFile(join(s.dir, "setup.log"), said.join("\n") + "\n");
@@ -1272,7 +1282,10 @@ async function opStep(s, steps) {
     const out = [];
     const r = await run(s, steps, out);
     out.push(await shot(s));
-    return { out, code: r.code };
+    // A participant's miss is part of the session, so it exits 0. A scripted walk (a dry run, a
+    // re-walk) starts its session with REAL_MISS_FAILS=1, so a step that found nothing to act on
+    // fails the walk: a walk that only "passes" because its click missed checks nothing.
+    return { out, code: r.code || (r.missed && process.env.REAL_MISS_FAILS === "1" ? 2 : 0) };
 }
 
 // The screenshot is always saved for graders; a screen-reader participant is not told where
@@ -2349,7 +2362,8 @@ async function prove() {
     const srSetup = join(base, "setup-sr.txt");
     await writeFile(
         srSetup,
-        "--click No thanks\n--click Open project or file\n--upload florentine.gml\n--click Load\n",
+        // the last click is on a control that stays, so Tab would start after it if the setup left it there
+        "--click No thanks\n--click Open project or file\n--upload florentine.gml\n--click Load\n--click role=button:Graph\n",
     );
     r = node(["--start", D, `setup:${srSetup}`, "--sr"]);
     check(
@@ -2365,10 +2379,16 @@ async function prove() {
             x.code === 2 && /refused in screen-reader mode/.test(x.out) && pngs(D).length === before,
             x.out,
         );
+        x = step(D, "--key", "Tab");
+        check(
+            "Tab after a setup starts at the top of the page, not after the setup's last click",
+            /^focus: button "Main menu"/m.test(x.out),
+            x.out,
+        );
         x = step(D, "--key", "Tab", "--key", "Tab", "--key", "Tab");
         check(
             "every step prints a focus line, and no screenshot path",
-            (x.out.match(/^focus: /gm) || []).length === 3 && !/\.png$/m.test(x.out) && pngs(D).length === before + 1,
+            (x.out.match(/^focus: /gm) || []).length === 3 && !/\.png$/m.test(x.out) && pngs(D).length === before + 2,
             x.out,
         );
         x = step(D, "--key", "Escape", "--key", "/");
@@ -2450,6 +2470,8 @@ async function prove() {
         x = step(H, "--click", "role=option:weight", "--expect", "New filter step");
         check("the same control named by kind is clicked", x.code === 0, x.out);
         x = step(H, "--key", "Escape", "--key", "Escape");
+        x = step(H, "--click", "Nothing is called this");
+        check("a participant's miss exits 0", x.code === 0 && /nothing on screen is called/.test(x.out), x.out);
         x = step(H, "--drop", "friends-v2.csv");
         check(
             "a drop where nothing takes it says it was not delivered",
@@ -2458,6 +2480,17 @@ async function prove() {
         );
     }
     node(["--end", H]);
+    // a scripted walk's session fails a step that misses
+    const M = join(base, "session-m");
+    r = spawnSync(process.execPath, [self, "--start", M, "empty"], {
+        encoding: "utf8",
+        env: { ...process.env, REAL_MISS_FAILS: "1" },
+    });
+    if (check("a walk's session starts", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) {
+        const x = step(M, "--click", "Nothing is called this");
+        check("with REAL_MISS_FAILS=1 a planted miss exits 2", x.code === 2, `exit ${x.code} ${x.out}`);
+    }
+    node(["--end", M]);
     const I = join(base, "session-i");
     r = node(["--start", I, "empty", "--task", "T17A"]);
     if (check("a start with a task", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) {

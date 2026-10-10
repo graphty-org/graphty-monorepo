@@ -44,6 +44,24 @@ selects anything is the element's question to answer, the same way for every con
 question); teach the app which columns are edge columns and pick `scope.count`'s edge form (the app
 would parse the rule, which the architecture forbids).
 
+## 2026-10-10 -- Decided by the team: a click on empty canvas has its own event (`canvas:empty-click`)
+
+**What.** Built on the studio branch. A session publishes `canvas:empty-click` with `{ x, y }`
+(where, in CSS pixels from the drawing's top left corner, as `elementAt` takes a point) for every
+click that lands on no node and no edge: after the click cleared the selection, and also when
+nothing was selected. `selection:changed` is unchanged. Additive: a new key in `SessionEventMap`.
+
+**Why.** With a run selected in the graphty app (a row, not a node), a click on empty canvas did
+nothing: the run stayed in the inspector and a note written next was filed "About PageRank"
+(scripted on the round 3 candidate build; round 2 sessions disagreed because a selected node does
+clear). The element already decides what a click is (the press, the release, the distance and the
+time between them) and that it landed on nothing, but told no one when the selection was already
+empty. The app now closes the inspector's row on the event, as it does on a selection change.
+
+**Alternatives.** Fire `selection:changed` with an empty delta (breaks its "only a real movement
+arrives" promise); listen for DOM clicks in the app and ask `elementAt` (copies the element's
+click-versus-drag rule into the app, a workaround the architecture forbids).
+
 ## 2026-10-09 -- Decided by the team: what a highlight looks like, readable (`styles.highlightStyle`)
 
 **What.** Built on the studio branch. `session.styles.highlightStyle(target: "node" | "edge")`

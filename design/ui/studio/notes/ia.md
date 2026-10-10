@@ -7,36 +7,42 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-1. (2026-10-09) Round 2: every pass is weak evidence. Participants read the facilitator's
-   tasks.md (avoided words name each route's controls; 13 of 16 knew the follow-up). Credit no
-   new door until a round runs with the briefing as the only readable file. Problems found anyway
-   are robust.
-2. (2026-10-09) Dry runs did happen (four, plus 30 detour walks on the study build); about 30 of
-   355 problems were build faults, none above severity 2, 12 on the one detour nobody walked
-   (styling a selection). Sessions are spent on IA and words, as intended. Keep naming detours.
-3. (2026-10-09) The homes still hold (Filters 8 of 8, Replace 8 of 8, Higher means 7 of 7). The
-   remaining failures are doors that answer "No match" or open the wrong verb.
-4. (2026-10-09) Proposed for round 3: find lists matching columns in plain find (the column is
-   a noun; "chapters" must find shared_chapters); Open of a file whose name matches a loaded
-   source offers Replace beside Add; Edit source titled and buttoned as an edit; selection-made
-   layer named by its rule; Hops list grouped by step; Filter to neighbors toggles the step, never
-   deletes it; path aliases ("linked", "between", "fewest") in Analyze's search.
-5. (2026-10-09) Still rejected: "Select where..." on the attribute menu (4 of 8 looked there, but
-   the hint passed and the column-in-find fix targets the same 6 of 8; one variable per path).
-6. (2026-10-09) Element-first: bare numbers in rules, a "no such column" fact, duplicate-edge
-   count on an add, label placement. The app never parses rules or counts duplicates.
-7. (2026-10-09) The column is every user's second place. Treat it as a door to existing homes,
+1. (2026-10-10) Round 3 starts only after the study is fixed: participant folders outside the
+   studio tree, a transcript leak check that voids a session, pilot-route dry runs. Round 2's
+   three new routes (load-time Higher means, Replace in the source "...", find's rule hint) are
+   NOT credited; they are re-run. Problems found anyway in round 2 stand.
+2. (2026-10-10) Decided for round 3, IA-relevant: find's miss shows the example rule and Enter
+   runs a shown rule (one path, credited together); Add over repeated edges shows the element's
+   repeat count and "Replace <source>" beside Load; rule-made layer named by its rule; path
+   aliases in Analyze; weighted path row shows its total; Filter to neighbors is a plain command,
+   the step's checkbox the one on/off home.
+3. (2026-10-10) Rejected for round 3 from my proposal: column rows in plain find (second door into
+   the same rule while the hint is measured); matching file names (the element reports the fact);
+   Hops grouped by step and Edit-source retitle not taken. Re-propose columns or "Select where..."
+   on a column only if 3+ of 8 still stall after the hint fix.
+4. (2026-10-10) Watch in round 3: do people who type "chapters 10" reach and run the example
+   rule; does anyone pick "Replace <source>" from the Add page vs the source "..."; does "linked"
+   reach Shortest path (paths cost <= 8); does the rule-named layer read right in the key.
+5. (2026-10-10) Rule of the round: no feature moves, no second door where one is measured, words
+   at rest go down (bar 9 b failed: 4 screens rose). Every IA fix I propose must cut or replace
+   words, never add.
+6. (2026-10-10) Credited routes are frozen until a clean run re-measures them: do not reword or
+   move them.
+7. (2026-10-09) The homes still hold (Filters 8 of 8, Replace 8 of 8, Higher means 7 of 7). The
+   failures are doors that answer "No match" or open the wrong verb.
+8. (2026-10-09) Element-first: repeat-edge count (now decided), highlight look for a selection
+   layer (decided), bare numbers in rules (owner's list, breaking). The app never parses rules,
+   counts duplicates or matches names.
+9. (2026-10-09) The column is every user's second place. Treat it as a door to existing homes,
    never a new home.
-8. (2026-10-09) Do NOT change in round 3: Filters under Data, Replace's home in the source "...",
-   load-time Higher means, rail, Analyze order, Path popover, P key, Notes place.
-9. (2026-10-09) Note subject waits on a script: does an empty-canvas click clear a selected run?
-   The expert and a session disagree; decide from the script, then fix one thing.
-10. (2026-10-09) Style lines go only to the layer the row names. One home per layer.
-11. (2026-10-09) Simulated returning users go first where their history says; a matching first
-    move is weak evidence. Graders mark scripted persona exits.
-12. (2026-10-09) A number names its unit and whole; a count under a filter names whose numbers.
-13. (2026-10-07) One popover per job, every door opens it; a working door nobody sees is not a door.
-14. (2026-10-06) A refusal lives next to the control that caused it; same words from every door.
+10. (2026-10-09) Do NOT change: Filters under Data, Replace's home in the source "...", load-time
+    Higher means, rail, Analyze order, Path popover, P key, Notes place.
+11. (2026-10-10) Note subject waits on the dry run's script of an empty-canvas click while a run
+    is selected (now a required preflight result). Decide from it, then fix one thing.
+12. (2026-10-09) Style lines go only to the layer the row names. One home per layer.
+13. (2026-10-09) A number names its unit and whole; a count under a filter names whose numbers
+    (key says "full graph" only when drawing and run differ).
+14. (2026-10-07) One popover per job, every door opens it; a working door nobody sees is not a door.
 15. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
     in the Summary; a Style-tab pointer to Label; Size pre-bound to the row's result.
 
@@ -178,6 +184,15 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   step's checkbox stays the one home for on/off. (7) Analyze search aliases for the path tool.
   Reason for all: each is a door or a name for an existing home; none adds or moves one.
 
+- 2026-10-10 (Design Director, tier 2 round 2 decisions, on my proposal): adopted -- path
+  aliases ("linked", "between", "fewest", "chain", "in between"); rule-made layer named by its
+  rule; Filter to neighbors as a plain command; the element's repeat-edge count on prepare()
+  with "Replace <source>" beside Load. Replaced -- column rows in plain find by the example-rule
+  line after a miss plus Enter running a shown rule (no second door while the hint is measured).
+  Rejected -- file-name matching (guess vs element fact). Not taken this round -- Edit source
+  retitle, Hops grouped by step. I accept: each keeps one variable per path and puts facts in
+  the element.
+
 ## Tried: worked / did not work
 
 - 2026-09-28 to 10-02 (mock rounds, summarized 2026-10-09) -- tree tests rank where people look
@@ -232,6 +247,12 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   condition; the column word alone dead-ends. The detour dry run worked for the walked detours
   (30 of 30) and missed the unwalked one (styling a selection).
 
+- 2026-10-10 (round 2 close) -- Study isolation by a clean briefing alone: did not work; a
+  participant can read upward from a folder inside the studio tree. Fix is location plus a
+  transcript check, not a prompt rule.
+- 2026-10-10 -- Adding words to fix doors: did not work for bar 9 (b); every tier 2 screen's
+  count rose. Fixes must replace words.
+
 ## Thinking
 
 - **Tier 1 IA questions (2026-10-06)** were answered by rounds 1-3: the intake, names and
@@ -259,6 +280,8 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   picture, export the numbers, save and reopen.
 
 ## Sources
+
+- `tier2/rounds/round-2/decisions.md` (changes 1-15, "Not changed") (2026-10-10)
 
 - `tier2/rounds/round-2/insights.md`, `scores.md`, `expert/figma.md`, `expert/engineer.md`;
   screenshots `r2-s33/05.png`, `r2-s12/03.png`; `graphty/src/workspace/graph-place/FindBox.tsx`

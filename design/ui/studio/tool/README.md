@@ -40,7 +40,8 @@ person watching would have read it.
   that time still fails the start. When the
   setup ends, nothing has focus and the pointer is off the page, as when a saved project is
   reopened: the participant does not arrive to a focus ring or a hover on the control the setup
-  used last.
+  used last, and the first Tab goes to the top of the page (Main menu), not to the control after
+  the setup's last click.
 - `--start <folder> empty --sr` (or `setup:<file> --sr`) starts a session in screen-reader mode;
   see below.
 - The folder gets `01.png`, `02.png`, ..., `session.json`, `session.log` (the session process's
@@ -77,7 +78,7 @@ Several steps may follow one `--step`; they run in order, and one screenshot is 
 
 | Step                                                                                | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--click "<name>"`                                                                  | Clicks the control with that name: what it says, its accessible name or its label; a text box with none of those matching, by its placeholder (`--click "Find nodes, edges, values"`). Exact names before partial ones. `"<name>#2"` takes the second of that name; `"role=tab:Style"` only that role. A name several controls share is refused: the step does nothing and prints `ambiguous`, with each candidate as `"<name>#n"` and what it is. |
+| `--click "<name>"`                                                                  | Clicks the control with that name: what it says, its accessible name or its label; a text box with none of those matching, by its placeholder (`--click "Find nodes, edges, values"`). Exact names before partial ones. `"<name>#2"` takes the second of that name; `"role=tab:Style"` only that role. A name several controls share is refused: the step does nothing and prints `ambiguous`, with each candidate as `"<name>#n"` and what it is. `#n` picks by position, which a person never sees, so among different kinds of control (a panel row and an open list's option) it is refused too: name the one meant by its kind, `"role=option:weight"`. |
 | `--rclick`, `--dblclick`, `--shift-click`, `--ctrl-click`, `--alt-click`, `--hover` | The same, with that button or key held. A hover prints the tooltip.                                                                                                                                                                                                                                                                                                                                                                                |
 | `--click "<node name>"`                                                             | With no control of that name, clicks a node whose label is drawn on the canvas and is on screen, at its center, and says where. A node with no label drawn cannot be named, as for a person.                                                                                                                                                                                                                                                       |
 | `--click-at x,y` (`--rclick-at`, `--dblclick-at`, `--hover-at`)                     | A point on the last screenshot. Prints what is there: a node (by its label), empty canvas, or the control. `--hover-at` also prints the pointer's shape there (`cursor: pointer`), which a screenshot never shows.                                                                                                                                                                                                                                 |
@@ -153,7 +154,12 @@ stable`, `<div ...> intercepts pointer events` when something covers it).
   done but Playwright's wait afterwards (for any navigation the click started) ran out the limit,
   as it does on a loaded machine. The click worked: it is not a miss, and it never fails a setup.
 - `ambiguous: "Enjolras" matches 5 controls, so the step did nothing; name one: "Enjolras#1" row ..., ...` when a name
-  is shared. Pick one with `#n` or `role=<role>:<name>`.
+  is shared. Pick one with `#n` or `role=<role>:<name>`. A candidate in an open list or menu says
+  `in the open list`.
+- `ambiguous: "weight#1" picks by position among different kinds of control, ...; name it by kind:
+  "role=option:weight", "role=treeitem:weight"` when `#n` would choose between controls of
+  different kinds. In round 2 `weight#2` took the Data panel's row instead of the open list's
+  option the participant meant, and threw away a half-made filter step.
 - `at x,y: node "Medici"` (or `empty canvas`, or the control there) for every point step.
 - `a file chooser is open` when a click opened one.
 - `a file was saved: florentine_current-view.png, 1806 x 1720 (path)` for every download.
@@ -305,6 +311,15 @@ could not answer a click's hit test within the tool's 3 seconds (r1-s14, r1-s16,
 sessions" in the grades counted session folders whose times overlapped, not browsers. One pool
 closes that path.
 
+## Scripted walks
+
+A dry-run walk (`tier2/pilot/detours.sh`) or a re-walk of the pilots' paths (`tier2/pilot/rewalk.sh`)
+starts its sessions with `REAL_MISS_FAILS=1`: then a step that finds nothing to act on (a name that
+matches nothing, or several things, or typing with no box focused) exits 2, so the walk fails
+instead of passing a check it never reached. A participant's session leaves it unset: a miss is
+part of what they did, and exits 0. A replayed participant route (`rewalk.sh` with a session
+folder) also leaves it unset, since the participant's own misses are replayed as they happened.
+
 ## Checking the tool
 
 ```bash
@@ -322,7 +337,9 @@ planted spin (a camera key held on the canvas) that must be reported, typing int
 whose box keeps repainting over a still drawing, which must not be, setup starts (one that works,
 one whose step names nothing, one whose click never becomes clickable), a screen-reader session (nothing focused after its setup, a focus line after every step, a live region's new
 text, the highlighted option of the find box, a planted region that arrives filled marked
-unconfirmed, `--read` in the Export dialog), an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json`). It prints `ok` or `FAIL` per check and exits 1 on any failure.
+unconfirmed, `--read` in the Export dialog, the first Tab after a setup landing on Main menu), a
+planted position pick between the open Attribute list's option "weight" and the Data panel's row
+"weight" that must be refused, an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json`). It prints `ok` or `FAIL` per check and exits 1 on any failure.
 Its sessions are written under `design/ui/studio/tmp/prove/`, which it clears first; set
 `REAL_PROVE_DIR=<folder>` to run it beside another self-test.
 

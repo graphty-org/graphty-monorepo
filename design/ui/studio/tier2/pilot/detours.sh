@@ -9,6 +9,8 @@
 # REAL_DIST=<frozen build> serves that build (design/ui/studio/tool/README.md).
 # LANES=<n> runs that many walks at once (default 2; each takes one of the machine's 4 browsers).
 set -u
+# a step that finds nothing to act on fails the walk (tool/README.md, "Scripted walks")
+export REAL_MISS_FAILS=1
 ST=$(cd "$(dirname "$0")/../.." && pwd)
 HERE=${HERE:-$ST/tmp/detours}
 SET=$ST/rounds/tier-2/setups
@@ -28,6 +30,39 @@ walk() {
     done
     R --end "$dir" >>"$log" 2>&1
     if grep -qE '^exit [12]$' "$log"; then echo "$name: FAIL ($log)"; else echo "$name: ok"; fi
+}
+
+# A keyboard sweep: from a screen reached by keys, press every control on it once -- Tab to the
+# next stop, Enter, then Escape twice -- until Tab comes back to the first stop (at most SWEEP_MAX,
+# default 60). A screen-reader session, so each stop's focus line is in the log. A stop where
+# Escape leaves focus on nothing is a fault (focus dropped to the page, WCAG 2.4.3), as is any
+# error the page reports (exit 1).
+sweep() {
+    local name=$1 start=$2; shift 2
+    local dir=$HERE/$name log=$HERE/$name.log first="" now n
+    rm -rf "$dir"; : >"$log"
+    echo "== $name start $start" >>"$log"
+    # shellcheck disable=SC2086 # $start carries "--sr"
+    R --start "$dir" $start >>"$log" 2>&1; echo "exit $?" >>"$log"
+    for s in "$@"; do
+        echo "== $name step: $s" >>"$log"
+        eval "R --step \"$dir\" $s" >>"$log" 2>&1; echo "exit $?" >>"$log"
+    done
+    for ((n = 1; n <= ${SWEEP_MAX:-60}; n++)); do
+        now=$(R --step "$dir" --key Tab 2>&1 | grep -m1 '^focus:')
+        [ -n "$first" ] && [ "$now" = "$first" ] && break
+        [ -n "$first" ] || first=$now
+        echo "== $name stop $n: $now" >>"$log"
+        R --step "$dir" --key Enter >>"$log" 2>&1; echo "exit $?" >>"$log"
+        R --step "$dir" --key Escape --key Escape >"$dir.esc" 2>&1; echo "exit $?" >>"$dir.esc"
+        cat "$dir.esc" >>"$log"
+        if tail -n 3 "$dir.esc" | grep -q '^focus: nothing (the page itself)'; then
+            echo "FAULT stop $n: Escape after pressing $now left focus on nothing" >>"$log"
+        fi
+    done
+    rm -f "$dir.esc"
+    R --end "$dir" >>"$log" 2>&1
+    if grep -qE '^exit [12]$|^FAULT' "$log"; then echo "$name: FAIL ($log)"; else echo "$name: ok ($((n - 1)) stops)"; fi
 }
 
 K=--sr
@@ -70,7 +105,7 @@ T17-D1) walk T17-D1 setup:$SET/lesmis-ranked.txt '--click Analyze' '--type chapt
     '--expect-not role=dialog:Layout' ;;
 # Wrong turn: the Filters "+" door, with Enter, Tab and Escape in the step editor.
 T17-D2) walk T17-D2 setup:$SET/friends-ranked.txt '--click "Data"' '--click "Add filter step"' '--key Tab' \
-    '--key Escape' '--click "Add filter step"' '--click "Attribute"' '--click "weight#1"' \
+    '--key Escape' '--click "Add filter step"' '--click "Attribute"' '--click "role=option:weight"' \
     '--click "Value" --type 4' '--key Enter' '--click "Add step"' '--expect "weight is at least 4"' ;;
 # ---- T18: the shortest chain ----------------------------------------------------------------
 T18-P) walk T18-P setup:$SET/friends-ranked.txt '--click Analyze' '--type chain' '--click "Shortest path"' \
@@ -140,11 +175,47 @@ T24-K) walk T24-K "setup:$SET/bus-stops-ranked-names.txt $K" '--key /' '--type "
 T12R-P) walk T12R-P setup:$SET/lesmis-ranked.txt '--click "Find nodes, edges, values" --type Javert' \
     '--key Enter' '--click "Degree"' '--expect "Javert"' ;;
 T12R-K) walk T12R-K "setup:$SET/florentine-ranked.txt $K" '--key / --type Medici --key Enter' '--key g' '--key Escape' ;;
+# ---- Round 2's detours: what participants did that no earlier walk did ------------------------
+# Style a selection: a width, a color, and the key names the layer once the selection is let go.
+R2-SEL-P) walk R2-SEL-P setup:$SET/friends-ranked.txt '--click "Find nodes, edges, values" --type "=weight >= \`4\`" --key Enter' \
+    '--expect "12 edges selected"' '--click "role=tab:Style"' '--click "Add to Line"' '--click "role=menuitem:Width"' \
+    '--expect "Width"' '--click "Add to Line"' '--click "role=menuitem:Color"' '--expect "Edge color: 12 edges"' \
+    '--click-at 1150,820' '--expect "Edge color: 12 edges"' '--expect "Overview"' ;;
+# A half-made filter step, then another item selected: "+" brings the step back as it was left.
+# (Round 2: the step was thrown away without a word.)
+R2-STEP-D1) walk R2-STEP-D1 setup:$SET/friends-ranked.txt '--click "Data"' '--click "Add filter step"' \
+    '--click "Attribute"' '--click "role=option:weight"' '--click "Value" --type 4' '--click "role=treeitem:weight"' \
+    '--expect "Range"' '--click "Add filter step"' '--expect "Keeps edges that pass"' '--click "Add step"' \
+    '--expect "weight is at least 4"' ;;
+# Tab out of an open step editor, and Escape: Tab keeps it open, Escape closes it.
+R2-STEP-D2) walk R2-STEP-D2 setup:$SET/friends-ranked.txt '--click "Data"' '--click "Add filter step"' \
+    '--click "Attribute"' '--click "role=option:weight"' '--click "Value" --type 4' \
+    '--key Tab --key Tab --key Tab --key Tab' '--expect "New filter step"' '--click "Value"' '--key Escape' \
+    '--expect-not "New filter step"' ;;
+# A path run twice, then the Path form reopened from Analyze's Recent list.
+R2-PATH-P) walk R2-PATH-P setup:$SET/friends-ranked.txt "$PATH_FORM" '--key Enter' '--expect "Milo"' \
+    '--key p --type Ava --key Enter --type Kofi --key Enter --key Enter' '--expect-not "No node named"' \
+    '--expect "2 hops"' \
+    '--click Analyze' '--click "role=option:Shortest path#1"' '--expect "role=button:Find path"' '--key Escape' ;;
+# A newer copy of a loaded file opened as an addition: the page says the ties repeat and offers Replace.
+R2-NEWER-P) walk R2-NEWER-P setup:$SET/friends-ranked.txt '--click "Main menu"' \
+    '--click "Open project or file..." --upload friends-v2.csv' '--expect "Add to friends"' '--expect "already in"' \
+    '--click "Replace friends.csv"' '--expect "Replace"' '--key Escape' ;;
+# A click on empty canvas while a run is selected lets go of the run; a note then is about the graph.
+R2-EMPTY-P) walk R2-EMPTY-P setup:$SET/friends-ranked.txt '--click "role=treeitem:PageRank"' '--expect "Measure"' \
+    '--click-at 1150,820' '--expect-not "Measure"' '--expect "Overview"' '--key n' '--expect "About"' '--key Escape' ;;
+# ---- Keyboard sweeps: every control on each screen a keyboard participant reaches -------------
+KS-GRAPH) sweep KS-GRAPH "setup:$SET/friends-ranked.txt $K" ;;
+KS-FLOR) sweep KS-FLOR "setup:$SET/florentine-ranked.txt $K" '--key / --type Medici --key Enter' ;;
+KS-RUN) sweep KS-RUN "setup:$SET/bus-stops-ranked.txt $K" '--key / --type Depot --key Enter' ;;
+KS-PATH) sweep KS-PATH "setup:$SET/florentine-ranked.txt $K" '--key p' ;;
+KS-START) sweep KS-START "empty $K" ;;
 *) echo "unknown walk $1" ;;
 esac; }
 
 ALL="T3-P T4-P T4-K T4-D1 T17-P T17-K T17-D1 T17-D2 T18-P T18-K T18-D1 T18-D2 T19-P T19-K T20-P T20-K T20-D1 T20-D2
-T21-P T21-D1 T22-P T22-K T22-D1 T22-D2 T23-P T23-K T24-P T24-K T12R-P T12R-K"
+T21-P T21-D1 T22-P T22-K T22-D1 T22-D2 T23-P T23-K T24-P T24-K T12R-P T12R-K
+R2-SEL-P R2-STEP-D1 R2-STEP-D2 R2-PATH-P R2-NEWER-P R2-EMPTY-P KS-START KS-GRAPH KS-FLOR KS-RUN KS-PATH"
 todo=()
 for a in "$@"; do
     if [ "$a" = all ]; then todo+=($ALL); continue; fi

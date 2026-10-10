@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # Re-walks the tier 2 pilot success paths (every task, both datasets) with tool/real.mjs.
-# Usage: rewalk.sh <session> [<session> ...]   (sessions: T4A T4B T17A T17B ... T24A T24B, or "all")
+# Usage: rewalk.sh <session> [<session> ...]   (sessions: T4A T4B T17A T17B ... T24A T24B, or "all";
+#        a recorded session folder, or "routes:<round folder>": see route() below)
 # FINAL=1 writes each session to tier2/pilot/<task>-final/<A|B>/ with its steps in steps.log.
 set -u
+# a step that finds nothing to act on fails the walk (tool/README.md, "Scripted walks")
+export REAL_MISS_FAILS=1
 ST=$(cd "$(dirname "$0")/../.." && pwd)
 HERE=${HERE:-$ST/tmp/rewalk}
+mkdir -p "$HERE"
 SET=$ST/rounds/tier-2/setups
 # REAL_DIST (optional): a frozen copy of graphty/dist to serve instead of graphty/dist itself
 R() { node $ST/tool/real.mjs "$@"; }
@@ -18,7 +22,8 @@ walk() {
     fi
     rm -rf "$dir"; : >"$log"
     echo "== $name start $1" >>"$log"
-    R --start "$dir" "$1" >>"$log" 2>&1; echo "exit $?" >>"$log"
+    # shellcheck disable=SC2086 # $1 may carry "--sr" after the start
+    R --start "$dir" $1 >>"$log" 2>&1; echo "exit $?" >>"$log"
     shift
     for s in "$@"; do
         echo "== $name step: $s" >>"$log"
@@ -27,8 +32,38 @@ walk() {
     R --end "$dir" >>"$log" 2>&1
 }
 
+# A pilot's or participant's own route, replayed: the steps its transcript ran, in order, from the
+# start its round's sessions.json gives it (screen-reader mode as its session.json says). A route is
+# named by its session folder (rounds/round-2/sessions/r2-s17); "routes:<round folder>" replays every
+# session of that round. Each route prints "route <name>: ok" or "route <name>: FAIL"; in its log a
+# failed step ends "exit 1" or "exit 2" under the tool's reason: an error the page reported, a name
+# that matches nothing or several things, or typing with no box focused. A miss on a replay can be
+# the new build drawing a control elsewhere, so compare that step's screenshot with the participant's.
+route() {
+    local src=${1%/} round sid start sr name
+    sid=$(basename "$src"); round=$(cd "$src/../.." && pwd); name=route-$sid
+    start=$(node -e 'const [f, id] = process.argv.slice(1); const s = JSON.parse(require("fs").readFileSync(f, "utf8")).find((x) => x.id === id); console.log(s ? s.start : "")' "$round/sessions.json" "$sid")
+    [ -n "$start" ] || { echo "route $name: no start for $sid in $round/sessions.json"; return; }
+    sr=$(grep -q '"screenReaderMode": true' "$src/session.json" 2>/dev/null && echo --sr)
+    # the steps as the transcript ran them: the rest of each "--step <dir>" line, without the
+    # closing backtick and the note after it ("` -> 03.png", "` (prints: ...)")
+    # (the folder may be left out: "--step --click ...")
+    mapfile -t steps < <(grep -E -- '--step( +[^ -][^ ]*)? +--' "$src/transcript.md" |
+        sed -E "s/^.*--step( +[^ -][^ ]*)? +--/--/; s/\`+[[:space:]]*->.*\$//; s/\`+[[:space:]]*\\(.*\$//; s/\`+[^\`\"']*\$//")
+    [ "${#steps[@]}" -gt 0 ] || { echo "route $name: the transcript records no steps"; return; }
+    # a participant's own misses are replayed as they happened, so they do not fail the route
+    REAL_MISS_FAILS=0 walk "$name" "$start${sr:+ $sr}" "${steps[@]}"
+    if grep -qE '^exit [12]$' "$HERE/$name.log"; then echo "route $name: FAIL ($HERE/$name.log)"; else echo "route $name: ok"; fi
+}
+
 [ "${1:-}" = all ] && set -- T4A T4B T17A T17B T18A T18B T19A T19B T20A T20B T21A T21B T22A T22B T23A T23B T24A T24B
 for t in "$@"; do case $t in
+routes:*) for s in "${t#routes:}"/sessions/*/; do
+        [ -f "$s/transcript.md" ] || continue
+        while [ "$(jobs -rp | wc -l)" -ge "${LANES:-2}" ]; do wait -n; done
+        route "$s" &
+    done; wait ;;
+*/sessions/*) route "$t" ;;
 T4A) walk T4A empty '--click "No thanks"' '--click "New from data..."' \
     '--click "choose a file..." --upload people.csv' '--click "Add a table"' \
     '--click "File..." --upload messages.csv' '--click "Show the 1 unmatched row"' \

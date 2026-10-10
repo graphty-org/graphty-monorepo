@@ -12,37 +12,34 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- 2026-10-09 -- Dry run: yes, and it worked where it walked. Every task on both datasets, four
-  builds plus the frozen build; 55 valid sessions, every log empty, no grade decided by a build
-  defect. But it walked only the answer key's routes, by pointer only, and never the study tool.
-- 2026-10-09 -- So participants DID hit implementation faults, off-route: Edges color written to
-  Everything, the selection halo tinting a node's own fill, focus lost after Add/Delete step,
-  Enter not committing a step. And the tool hit them more than the build did (over four browsers
-  alive, load about 158; wrong-row matches; synthetic file drop; missed follow-ups).
-- 2026-10-09 -- Round 2 gate: no session until the tool is fixed, the bar scripts (2, 7, 8, 9)
-  exist, and a written dry run on the new frozen build walks each task's two commonest round-1
-  detours by pointer AND keyboard. I hold the studio to this; a round without it measures the
-  tool, not the user.
-- 2026-10-09 -- Real user findings that survived the skeptics: find answers a condition with a
-  bare "No match" (T22, 4 of 4, sev 3); Replace invisible at rest (T21, 8 of 8, sev 3); plain
-  Open from the start screen skips "Higher means" (T20, 7 of 7, sev 3); names, not ids, and units
-  ("Total distance 14") -- kept, low confidence.
-- 2026-10-09 -- Decided fixes I accept over my own proposals: start-screen Open goes through the
-  Data page (not a column "higher means" -- second home, needs element API); find's refusal words
-  only, "Select where" on a column only if 3+ still look there; "..." menu on the source inspector.
-- 2026-10-09 -- I changed my mind on the selection tint: it is a rendering defect (halo meant as
-  a ring), fixed in graphty-element, not a design priority to keep.
-- 2026-10-09 -- Watch in round 2: do the new find words get people to "=" rules without a new
-  control; does the Data-page detour cost tier 1's open-your-own-file task a step too many; does
-  the ", out of date" key mark get read before a name.
-- 2026-10-09 -- Label scripted persona exits (Tom's two-attempt rule decided 2 of 3 failures);
-  never read a scripted exit as the screen's doing.
-- 2026-10-09 -- Weak evidence: simulated returning users go first where their histories point,
-  and prompts that ask for a rerun induce "noticing" staleness. Failures and script repros count.
-- 2026-10-09 -- Known to keep failing bar 10: drawn names overlapping (element label placement,
-  filed). The app must not hide it with small fonts or a seed.
+- 2026-10-09 -- Round 2 dry run: yes, and wider than round 1's (success paths and 30 detours by
+  pointer and keyboard, every task half piloted on the frozen build, tool self-check 5 of 5). It
+  worked: about 30 of 355 problems were build faults, none above severity 2 after the skeptics,
+  none decided a grade. Participants spent the round on design questions, as intended.
+- 2026-10-09 -- The faults left sit on the one detour nobody walked: styling a SELECTION (Width
+  starts at 8 and draws a hairline, Color starts at the gray every tie has). Each round finds the
+  route nobody walked. Next dry run walks this round's detours too, not just round 1's.
+- 2026-10-09 -- The round's biggest defect was the study's, not the build's: participants read the
+  facilitator's tasks.md (avoided words, follow-ups). Passes on the three new routes are not
+  credited; problems found anyway are robust. Fix: the tool refuses a session without its own
+  briefing, participants run from the session folder; re-run T20, T21, T22, T17/T18 follow-ups.
+- 2026-10-09 -- Confirmed sev 3 for a returning user: find box answers the reader's own words
+  ("chapters 10", ">= 10") with bare "No match"; numbers in rules need backticks; drawn names cover
+  each other and ties (element, deferred); opening a newer copy offers only "Add", doubling ties.
+- 2026-10-09 -- My round 3 asks (smallest first): starting Width and Color that show; element
+  accepts bare numbers and returns a neutral "no such column" / "looks like a condition" fact;
+  a duplicate-edges fact before Load with Replace offered on that page; a selection layer named by
+  its rule, not "13 edges". Do not touch the routes that worked (T20 load-time weight, Filters,
+  Replace page, find hint once shown).
+- 2026-10-09 -- Prompts with "stand out" invite styling; they measured the prompt, not need.
+  Rewrite them unless the task measures styling.
+- 2026-10-09 -- Label scripted persona exits; never read a scripted exit as the screen's doing.
+- 2026-10-09 -- Weak evidence: simulated returning users go first where their histories point;
+  prompts that ask for a rerun induce "noticing" staleness. Failures and script repros count.
+- 2026-10-09 -- Known to keep failing bar 10: drawn names overlapping (element label placement).
+  The app must not hide it with small fonts or a seed.
 - 2026-10-07 -- Top risk still: a picture that looks right and answers wrong (stale key at full
-  contrast, overlapping names, 3D size inversion).
+  contrast, overlapping names, 3D size inversion, a Load that doubles ties).
 - 2026-10-07 -- Words: the element returns codes; the app words them. Backticks in rules and
   "Untitled" in the Load announcement are leaks.
 - 2026-10-07 -- Hold: icon-only toolbar, names off by default, Filters under Data, the Analyze
@@ -108,6 +105,18 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- 2026-10-09 (me, tier 2 round 2 critique) -- Round 3 changes, smallest first: (1) the app's
+  starting Width and Color for a new line row must draw visibly different from an unstyled tie
+  (an app choice, not an element default; r2-s14/15.png, 4 of 8 T22 spent steps); (2) the
+  element's rule parser accepts a bare number and returns neutral facts for an unknown column and
+  for text that parses as a condition, so the app can word "Did you mean =shared_chapters >= 10?"
+  (r2-s12/03.png, 6 of 8; additive); (3) the element reports how many incoming rows duplicate
+  existing edges, and the Add page words it and offers Replace there (r2-s33/05.png: "adds 0
+  nodes, 41 edges ... 82 edges" with Load as the primary button; additive); (4) a layer made from
+  a find rule is named by the rule, not its count. Not changed: Filters, the load-time weight,
+  the Replace page, the source "..." menu, Shortest path's place. Reason: each fix targets a
+  confirmed failure on a route participants took; the routes that worked stay so round 3 can
+  credit them once the briefing is enforced.
 - 2026-10-09 (Design Director, round 1 close; my position after) -- Round 2 starts only after the
   study tool is fixed, the bar scripts are built and a detour dry run (pointer and keyboard) is
   written on the new build. App changes: find refusal words; "..." with Replace on the source
@@ -224,60 +233,22 @@ something, or change my mind. Summarize when it passes about 25 KB.
   on right-click; plain Open skipping the weight question; "Back to start" dropping the graph;
   stale run quiet; long names cut; the study tool (over 4 browsers, wrong-row matches, synthetic
   file drop, missing preflight scripts).
-- 2026-10-07 -- RE-PILOT after round 2 fixes (T6, T7, T9-T13, T15, T16, both datasets). WORKED:
-  every end state, no console errors; Show all labels (77 labels, 7 hidden -> 77 labels); group
-  layouts enabled with "Group by: Communities" preselected; Columns by group separates clusters;
-  PageRank "Start here" picked unprompted on friends.csv and read right. DID NOT: Spectral and
-  Circle (3D sphere) do not help; 3D perspective inverts size order; exported names soft at 2x;
-  Overview direction row overflows with raw file syntax; Sources rows truncated ("Node t...").
-
-- 2026-10-07 -- ROUND 2 (real app, 56 sessions). WORKED: G/Degree row neighbor list (T12 1 of 3
-  -> 8 of 8, 0.9x path), "No crossings" refusal, broken-file refusal (ease 6), save and reopen,
-  sample one click from start, PageRank "Start here" (5 of 9 picked it unaided). DID NOT: removing
-  the empty Size "Open list" (18 of 18 still named the Size chain); the chevron drawn outside the
-  Degree row's button (4 of 6 missed first click); layouts (T11 ease 3.33, 5.2x).
-
-- 2026-10-06 -- PILOT (rebuilt app, every tier 1 task by the answer key's path): all end states
-  reached on both datasets, no console errors. WORKED: G on one node opens the neighbor list;
-  "No crossings" refusal shown under Method; keyboard-only ranking (Enter runs PageRank); Export
-  kinds as tabs. NOT YET: run names still "Influence"; "Force, flat" looks unlaid; reopened run
-  shows no count; project renamed on save but outline keeps the old name.
-- 2026-10-06 -- WORKED (round 1, real app): opening a sample or a CSV, the broken-file refusal
-  (ease 7), ranking and groups (ease 5.3, 6), save and reopen, every run repainting drawing and
-  legend at once, the honest "N hidden to avoid overlap" count (no false "done"), the legend in
-  the exported picture. DID NOT: the Neighborhood command (selects, lists no one), the Degree row
-  as the only route to names, Size found only by tooltip, the empty Size list, wheel zoom.
-
-- 2026-10-02 -- WORKED (round 8, mock): picking a sample (100%), loading a file with the match
-  report (100%), reading the overview (100%), the broken-file refusal naming faults (8 of 8 would
-  forward it), communities run and its data tab (45% -> 100%), the layout method list (ease 2.50 ->
-  4.80), file actions in the main menu (tree 19% -> 90%), "Files are read on this computer" /
-  "Local only", "Note on: <thing>" before typing. Keep these; do not redesign what works.
-- 2026-10-02 -- DID NOT WORK: "Show labels" beside "Label line" (the trap); the word "Label" that is
-  not a control and a "+" with no tooltip of its own; "Neighborhood of Javert: Javert and 17
-  neighbors" naming no one; a node opening on Style when people wanted its data; "Data" naming both
-  a rail place and an inspector tab (clicking it dropped the selection 12 of 12); a search box that
-  could not find a node and answered only after Enter; the layout icon read as "play" (62% first
-  click); "Measure the graph" as an Analyze heading (betweenness 29% direct).
-- 2026-10-02 -- DID NOT WORK: a pre-run sample. 21 of 21 could not tell its work from their own.
-- 2026-10-01 -- DID NOT WORK: a fixed "64 labels hidden to avoid overlap" read as the program
-  deliberately hiding names; a "1 row not listed still paints" line rejected 6 of 6.
-- 2026-09-30 -- DID NOT WORK: "hidden" for a row removed from the list but still painting (4 of 5
-  read it as a bug); renamed "Remove from list view".
-- 2026-09-29 -- DID NOT WORK: money words for currency columns. Ease jumped 2.00 -> 5.00 partly
-  because task words matched the fix's words on screen. Taught: wording-echo inflates success.
-- 2026-09-28 to 10-02 -- DID NOT WORK as a method: static mocks and then a clickable skeleton.
-  Participants "clicked" in their heads (rounds 1-6); skeleton defects decided tasks (rounds 7-8);
-  round 5 re-measured round 4 because decisions were not drawn. Taught: test the real thing.
-- 2026-09-28 -- DID NOT WORK: self-ratings and summaries. They drift up by about a point. Grade from
-  the last screenshot and the transcript.
-- 2026-09-27 -- WORKED (novice walkthrough on object-first mocks): loading a sample (5 of 5),
-  export a picture (4). DID NOT: unlabeled icons with a 1 s tooltip delay (the steepest moment, where
-  she might quit), first click on a color doing nothing, a result's reading hidden behind "Made by",
-  no labels or hover labels on a fresh load. Several still apply to the real app.
-- 2026-09-04 to 09-22 -- DID NOT WORK: v1's novice text, "Try it" boxes, suggestion strip and
-  wizard-like onboarding. The owner: it "cluttered the UX with novice features and verbose text".
-  Taught: newcomers need fewer words that are true, not more words that help.
+- 2026-10-09 -- TIER 2 ROUND 2. WORKED: the widened dry run (30 detours, keyboard, tool check);
+  T20 load-time "Farther" 7 of 7; T22 8 of 8 once the hint showed; Filters found 8 of 8; T21 0 of 8
+  read old numbers as current; the selection ring and Escape fixes held. DID NOT: the detour
+  nobody walked (styling a selection); keeping participants to their briefing (tasks.md was read);
+  the click-by-name tool landing on same-named rows (r2-s17, s18, s30); bar 10's scripts claimed
+  built but absent.
+- 2026-10-02 to 2026-10-07, folded 2026-10-09 -- TIER 1 (mocks, then the real app). WORKED and
+  kept: sample one click from start, match report and broken-file refusal, save and reopen, every
+  run repainting drawing and legend together, the G/Degree neighbor list, "No crossings" refusal,
+  PageRank "Start here", the legend in the exported picture, "Note on: <thing>". DID NOT: "Show
+  labels" beside "Label line", a pre-run sample (21 of 21 confused), "Neighborhood" naming no one,
+  "Data" naming two places, layouts (T11 5.2x), 3D size inversion, truncated source rows.
+- 2026-09-04 to 2026-10-01, folded -- DID NOT WORK and taught: static mocks and skeletons (people
+  click in their heads; skeleton defects decide tasks), self-ratings (drift up a point), wording
+  echo (task words matching the fix inflate success), money words for one domain, v1 novice text
+  and wizards ("cluttered the UX"), fixed "N hidden" counts read as deliberate hiding.
 
 ## Thinking
 

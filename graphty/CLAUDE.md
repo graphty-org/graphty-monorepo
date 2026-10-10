@@ -19,7 +19,7 @@ graphty is a React application that wraps `<graphty-element>` with a full-featur
 ```
 graphty/
 ├── src/
-│   ├── App.tsx               # Main application component (routes ?demo; otherwise the shell)
+│   ├── App.tsx               # Main application component (routes ?demo and ?classic; otherwise the workspace)
 │   ├── main.tsx              # Entry point
 │   ├── theme.ts              # Mantine theme configuration
 │   ├── components/

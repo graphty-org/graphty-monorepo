@@ -2273,7 +2273,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
     /* ---------------------------------------------------------------------- */
     /* `?test`: the built-in sample, so a developer can reach a populated shell */
-    /* without going through the dialog. The fixture is defined once, in        */
+    /* without going through the dialog (`?classic&test` since the workspace   */
+    /* became the default surface). The fixture is defined once, in             */
     /* src/data/sampleGraphs.ts, which is also what FIXTURES.md measures.       */
     /* ---------------------------------------------------------------------- */
 

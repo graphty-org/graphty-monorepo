@@ -192,12 +192,17 @@ const css = `
     /* Clamped to the viewport less 6px each side; the listbox inside it scrolls. */
     max-height: calc(100vh - 12px);
     overflow: hidden;
-    padding: 0;
     border: 0;
     border-radius: 13px;
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
     box-shadow: var(--cm-elevation-400);
+}
+/* The dropdown has no padding of its own: the listbox inside carries the 8px, so its rows scroll
+   to the surface's edge. Restated at three classes to beat the popover surface's padding. */
+.cm-listbox.cm-menu-surface,
+.cm-listbox.cm-menu-surface.cm-popover-surface {
+    padding: 0;
 }
 /* The role="listbox" scrolls itself (no ScrollArea), so the combobox's popup is the scroller.
    The menus' chevron rows (cm-menu) cover 24px at a scrollable end, so keyboard scrolling keeps

@@ -465,9 +465,7 @@ export class GraphBuilder implements GraphBuilderContract {
                 }
             }
         }
-        for (let i = 0; i < count; i++) {
-            staging.pushNode(null);
-        }
+        staging.pushAnonymousNodes(count);
         if (count > 0) {
             this.mutated();
         }

@@ -1,5 +1,5 @@
-The study runs on build 8f0d5a6f7791 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d4-8f0d5a6f7/`
-(graphty@0.8.61, commit 8f0d5a6f7), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build b6d932823642 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r3-b6d932823/`
+(graphty@0.8.61, commit b6d932823), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -742,3 +742,18 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   longer fails bar 8; `bars.mjs` still prints it, and the round report counts it as this
   exception. Any other element with the rule still fails. No other bar, floor or step limit
   changed.
+
+- **2026-10-10, before round 3: the round 3 candidate build.** The study build moved from
+  8f0d5a6f7791 (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d4-8f0d5a6f7/`) to
+  b6d932823642 (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r3-b6d932823/`,
+  write-protected), a fresh build of graphty-element, compact-mantine and the graphty app with the
+  Sentry variables unset. It holds the fixes made after round 2: the find box offers a typed
+  condition as a rule that Enter runs and names a selection made from a rule by the rule, focus
+  stays in the find box and on Follow, Shortest path is found in the Analyze list by its plain
+  words, a half-made filter step survives another selection and Filter to neighbors is a plain
+  command, a weighted path's run row gives its total, an Add that repeats loaded edges offers
+  Replace, a deleted step stays deleted, fewer words at rest on the key, the path note, the
+  neighbor list and the Overview, the extra-small checkbox's 24 px target and find rows scrolled
+  into view; and the element changes since (a click on empty canvas published and letting go of a
+  selected run, every AI command result given a code and params), with master's merged in. No bar,
+  floor, step limit or prompt changed.

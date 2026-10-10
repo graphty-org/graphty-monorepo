@@ -322,6 +322,23 @@ describe("the render mode", () => {
         await untilIdle(element, "the screenshot");
     });
 
+    it("draws every frame of a video recording of a graph at rest on demand, and rests after it", async () => {
+        const element = await mount("on-demand");
+        await untilIdle(element, "the load");
+
+        const scene = element.graph.getScene();
+        let drawn = 0;
+        const observer = scene.onAfterRenderObservable.add(() => {
+            drawn++;
+        });
+        const result = await element.graph.captureAnimation({ duration: 500, fps: 30, cameraMode: "stationary" });
+        scene.onAfterRenderObservable.remove(observer);
+
+        assert.isAbove(result.blob.size, 0, "the recording holds video");
+        assert.isAbove(drawn, 5, "the still graph was drawn while it was recorded");
+        await untilIdle(element, "the recording");
+    });
+
     it("can be switched at any time: back to continuous draws every frame again", async () => {
         const element = await mount("on-demand");
 

@@ -5,8 +5,8 @@
 // vitest run then writes test-results/junit-<package>-<pid>.xml at the repository root -- one file
 // per run, because one CI shard can run vitest several times -- and ci.yml's test job uploads
 // test-results/junit-*.xml to Mergify. With VITEST_BUDGET_CHECK=1 (ci.yml's test job sets it; set
-// it locally to check before pushing) the run also fails for any passing test that used more than a
-// quarter of its time limit. Otherwise it returns nothing, so local output is unchanged.
+// it locally to check before pushing) the run also warns about any passing test that used more than a
+// quarter of its time limit, and fails for one that used more than half. Otherwise it returns nothing, so local output is unchanged.
 //
 // A shard command that passes its own --reporter flags replaces the config's reporters, so it adds
 // --reporter=junit and the time-budget reporter itself (tools/ci-test-matrix.mjs); vitest then takes

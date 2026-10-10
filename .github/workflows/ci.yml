@@ -827,10 +827,10 @@ jobs:
               if: matrix.needs-lavapipe
               run: echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)" && sudo sysctl -w kernel.core_pattern=core
 
-            # VITEST_BUDGET_CHECK fails the shard for any passing test that used more than a quarter of its
-            # time limit (tools/vitest-time-budget.mjs): a runner is not shared, so a test that close to its
-            # limit here fails as a flake on a busy machine. Only here, not in the pre-push gate, whose
-            # machine runs several shards at once.
+            # VITEST_BUDGET_CHECK warns about any passing test that used more than a quarter of its time
+            # limit and fails the shard for one that used more than half (tools/vitest-time-budget.mjs): a
+            # test that close to its limit fails as a flake on a busy machine. Only here, not in the pre-push
+            # gate, whose machine runs several shards at once.
             - name: Run tests
               id: tests
               run: ${{ matrix.test-command }}

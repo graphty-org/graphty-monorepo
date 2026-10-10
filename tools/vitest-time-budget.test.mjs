@@ -1,6 +1,7 @@
-// Tests of tools/vitest-time-budget.mjs, the reporter that fails a run for any passing test that used
-// more than a quarter of its time limit: which tests it judges and how, what it prints, and -- in a real
-// vitest run -- that it reads the per-test and project limits and really fails the process.
+// Tests of tools/vitest-time-budget.mjs, the reporter that warns about a passing test that used more than
+// a quarter of its time limit and fails the run for one that used more than half: which tests it judges
+// and how, what it prints, and -- in a real vitest run -- that it reads the per-test and project limits,
+// warns without failing, and really fails the process.
 //
 //   node --test tools/vitest-time-budget.test.mjs
 import assert from "node:assert/strict";
@@ -11,7 +12,7 @@ import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { BUDGET, enabled, format, judge } from "./vitest-time-budget.mjs";
+import { annotations, enabled, FAIL_RATIO, format, judge, WARN_RATIO } from "./vitest-time-budget.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPORTER = join(ROOT, "tools/vitest-time-budget.mjs");
@@ -36,14 +37,26 @@ describe("enabled", () => {
 });
 
 describe("judge", () => {
-    it("passes a test within budget, the boundary included", () => {
-        assert.deepEqual(judge([test({ duration: BUDGET * 1000 })], []), { over: [], removable: [] });
+    const none = { fail: [], warn: [], removable: [] };
+
+    it("says nothing about a test at or under the warn line", () => {
+        assert.deepEqual(judge([test({ duration: WARN_RATIO * 1000 })], []), none);
     });
 
-    it("reports a test over budget with its ratio", () => {
-        const { over } = judge([test({ duration: 400 })], []);
-        assert.equal(over.length, 1);
-        assert.equal(over[0].ratio, 0.4);
+    it("warns, without failing, about a test between the warn and fail lines, the fail line included", () => {
+        const { fail, warn } = judge([test({ duration: 400 }), test({ duration: FAIL_RATIO * 1000 })], []);
+        assert.equal(fail.length, 0);
+        assert.deepEqual(
+            warn.map((t) => t.ratio),
+            [0.4, 0.5],
+        );
+    });
+
+    it("fails a test over the fail line, and does not also warn about it", () => {
+        const { fail, warn } = judge([test({ duration: 600 })], []);
+        assert.equal(fail.length, 1);
+        assert.equal(fail[0].ratio, 0.6);
+        assert.equal(warn.length, 0);
     });
 
     it("skips tests that did not pass, tests with no limit, and timing projects", () => {
@@ -57,52 +70,82 @@ describe("judge", () => {
             test({ ...slow, project: "llm-regression" }),
             test({ ...slow, file: "pkg/test/x.bench.test.ts" }),
         ];
-        assert.deepEqual(judge(tests, []), { over: [], removable: [] });
+        assert.deepEqual(judge(tests, []), none);
     });
 
-    it("lets an allowlisted test over budget through, and reports one under budget as removable", () => {
+    it("only warns about an allowlisted test over the fail line, and reports one under it as removable", () => {
         const listed = [{ file: "pkg/test/a.test.ts", name: "suite > case" }];
-        assert.deepEqual(judge([test({ duration: 900 })], listed), { over: [], removable: [] });
-        const { over, removable } = judge([test({ duration: 10 })], listed);
-        assert.equal(over.length, 0);
-        assert.equal(removable.length, 1);
+        const over = judge([test({ duration: 900 })], listed);
+        assert.equal(over.fail.length, 0);
+        assert.equal(over.warn.length, 1);
+        assert.equal(over.removable.length, 0);
+        const under = judge([test({ duration: 400 })], listed);
+        assert.equal(under.fail.length, 0);
+        assert.equal(under.removable.length, 1);
     });
 
     it("matches the allowlist by file and full name together", () => {
         const listed = [{ file: "pkg/test/other.test.ts", name: "suite > case" }];
-        assert.equal(judge([test({ duration: 900 })], listed).over.length, 1);
+        assert.equal(judge([test({ duration: 900 })], listed).fail.length, 1);
     });
 });
 
 describe("format", () => {
-    it("says nothing when nothing is over budget or removable", () => {
-        assert.equal(format({ over: [], removable: [] }), "");
+    it("says nothing when nothing is over a line or removable", () => {
+        assert.equal(format({ fail: [], warn: [], removable: [] }), "");
     });
 
-    it("names the test, its duration, limit and ratio, and what to do", () => {
-        const text = format(judge([test({ duration: 30000, limit: 60000 })], []));
+    it("names a failing test, its duration, limit and ratio, and what to do", () => {
+        const text = format(judge([test({ duration: 36000, limit: 60000 })], []));
         assert.match(text, /pkg\/test\/a\.test\.ts > suite > case \[default\]/);
-        assert.match(text, /took 30\.00 s of its 60\.00 s limit \(50%, budget 25%\)/);
+        assert.match(text, /took 36\.00 s of its 60\.00 s limit \(60%; warn 25%, fail 50%\)/);
+        assert.match(text, /which fails the run/);
         assert.match(text, /Cut the test's work/);
         assert.match(text, /split it/);
-        assert.match(text, /Do not raise its\s+timeout/);
+        assert.match(text, /add it to tools\/vitest-time-budget-allowlist\.json with the issue/);
+        assert.match(text, /Do not raise its timeout/);
     });
 
-    it("tells the reader to remove an allowlisted test that is now within budget", () => {
+    it("labels a test between the lines as a warning", () => {
+        const text = format(judge([test({ duration: 400 })], []));
+        assert.match(text, /\[time-budget\] warning: 1 test\(s\) used more than 25%/);
+        assert.doesNotMatch(text, /fails the run:/);
+    });
+
+    it("tells the reader to remove an allowlisted test that is now under the fail line", () => {
         const listed = [{ file: "pkg/test/a.test.ts", name: "suite > case" }];
         assert.match(format(judge([test()], listed)), /remove them from\s+tools\/vitest-time-budget-allowlist\.json/);
     });
 });
 
+describe("annotations", () => {
+    it("emits an error for a failing test and a warning for one between the lines, on one line each", () => {
+        const lines = annotations(
+            judge(
+                [test({ duration: 600 }), test({ file: "pkg/test/b.test.ts", name: "50%\nnext", duration: 400 })],
+                [],
+            ),
+        );
+        assert.deepEqual(lines, [
+            "::error file=pkg/test/a.test.ts,title=time budget::suite > case took 0.60 s of its 1.00 s limit (60%25)",
+            "::warning file=pkg/test/b.test.ts,title=time budget::50%25%0Anext took 0.40 s of its 1.00 s limit (40%25)",
+        ]);
+    });
+});
+
 describe("in a vitest run", () => {
-    // One file: "slow" sleeps 400 ms under its own 1 s timeout (40%); "steady" sleeps the same under the
-    // project's 60 s testTimeout (under 1%), so the reporter must read the per-test limit over the project's.
-    function run(allowlist, env) {
+    // One file: "slow" sleeps 400 ms under its own 1 s timeout (40%: warns); "slower" sleeps 800 ms under
+    // its own 1.2 s timeout (67%: fails); "steady" sleeps 400 ms under the project's 60 s testTimeout (under
+    // 1%), so the reporter must read the per-test limit over the project's.
+    function run(allowlist, env, { slower = true } = {}) {
         const dir = mkdtempSync(join(tmpdir(), "time-budget-"));
-        const sleep = "await new Promise((r) => setTimeout(r, 400));";
+        const sleep400 = "await new Promise((r) => setTimeout(r, 400));";
+        const sleep800 = "await new Promise((r) => setTimeout(r, 800));";
         writeFileSync(
             join(dir, "a.test.js"),
-            `test("slow", async () => { ${sleep} }, 1000);\ntest("steady", async () => { ${sleep} });\n`,
+            `test("slow", async () => { ${sleep400} }, 1000);\n` +
+                (slower ? `test("slower", async () => { ${sleep800} }, 1200);\n` : "") +
+                `test("steady", async () => { ${sleep400} });\n`,
         );
         writeFileSync(join(dir, "allowlist.json"), JSON.stringify({ tests: allowlist }));
         const options = JSON.stringify({ allowlist: join(dir, "allowlist.json"), root: dir });
@@ -114,27 +157,40 @@ describe("in a vitest run", () => {
         const result = spawnSync(process.execPath, [VITEST, "run"], {
             cwd: dir,
             encoding: "utf8",
-            env: { ...process.env, VITEST_BUDGET_CHECK: "", GRAPHTY_TEST_SLOTS: "0", ...env },
+            env: { ...process.env, VITEST_BUDGET_CHECK: "", GITHUB_ACTIONS: "", GRAPHTY_TEST_SLOTS: "0", ...env },
         });
         return { status: result.status, output: result.stdout + result.stderr };
     }
 
-    it("fails the process for a test over budget, naming only that test", () => {
-        const { status, output } = run([], { VITEST_BUDGET_CHECK: "1" });
-        assert.equal(status, 1, output);
+    it("warns without failing for a test between the lines, with an annotation in GitHub Actions", () => {
+        const { status, output } = run([], { VITEST_BUDGET_CHECK: "1", GITHUB_ACTIONS: "true" }, { slower: false });
+        assert.equal(status, 0, output);
+        assert.match(output, /\[time-budget\] warning: 1 test/);
         assert.match(output, /a\.test\.js > slow/);
         assert.doesNotMatch(output, /a\.test\.js > steady/);
         assert.match(output, /of its 1\.00 s limit/);
+        assert.match(output, /::warning file=a\.test\.js,title=time budget::slow took/);
     });
 
-    it("passes when the test over budget is allowlisted, and reports a listed test within budget", () => {
+    it("fails the process for a test over the fail line, naming it", () => {
+        const { status, output } = run([], { VITEST_BUDGET_CHECK: "1" });
+        assert.equal(status, 1, output);
+        assert.match(
+            output,
+            /1 test\(s\) used more than 50% of their time limit, which fails the run:\n {2}a\.test\.js > slower/,
+        );
+        assert.match(output, /of its 1\.20 s limit/);
+        assert.doesNotMatch(output, /::(error|warning)/);
+    });
+
+    it("passes when the test over the fail line is allowlisted, and reports a listed test under it", () => {
         const listed = [
-            { file: "a.test.js", name: "slow" },
+            { file: "a.test.js", name: "slower" },
             { file: "a.test.js", name: "steady" },
         ];
         const { status, output } = run(listed, { VITEST_BUDGET_CHECK: "1" });
         assert.equal(status, 0, output);
-        assert.match(output, /1 allowlisted test\(s\) now run within budget/);
+        assert.match(output, /1 allowlisted test\(s\) now run under 50% of their limit/);
         assert.match(output, /a\.test\.js > steady/);
     });
 

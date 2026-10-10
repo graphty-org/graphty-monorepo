@@ -81,7 +81,8 @@ export function arf(g: GraphSnapshot, options: ArfOptions = {}): LayoutResult {
                 const dist = Math.sqrt(squares) || 0.01;
                 const spring = neighbour[j] === i + 1 ? a : 1;
                 for (let k = 0; k < dim; k++) {
-                    change[dim * i + k] += spring * diff[k] - (rho / dist) * diff[k];
+                    // diff points from j to i: the spring pulls i toward j, the repulsion pushes it away
+                    change[dim * i + k] += (rho / dist) * diff[k] - spring * diff[k];
                 }
             }
         }

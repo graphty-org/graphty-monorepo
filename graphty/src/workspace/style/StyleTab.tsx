@@ -336,7 +336,16 @@ function Section({
             // The pick can remove "+" itself, so focus goes to the new line rather than back to it.
             focusLineNext(entry.adds.channel);
         }
-        writeLine(session, row, target, entry.adds.channel, { value: startingValue(from) }, fresh).catch(() => {
+        // The layer the line lands on: the row's own topmost, else the one its first edit adds.
+        const selector = ([...layers].reverse().find((layer) => !layer.locked) ?? fresh)?.selector;
+        writeLine(
+            session,
+            row,
+            target,
+            entry.adds.channel,
+            { value: startingValue(from, session, selector) },
+            fresh,
+        ).catch(() => {
             openListNext(null);
             focusLineNext(null);
             store.set({ notice: { message: `${entry.name} could not be added` } });

@@ -299,7 +299,7 @@ function BoundValue({
     }
     const detach = (): void => {
         setOpen(false);
-        write({ value: startingValue(descriptor) });
+        write({ value: startingValue(descriptor, session, layer.selector) });
     };
 
     return (

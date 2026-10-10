@@ -3605,6 +3605,7 @@ export interface StylesApi {
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
+    highlightStyle(target: SelectorTarget): StaticStyle;
     legend(): readonly LegendBlock[];
     legendOf(id: LayerId): readonly LegendBlock[];
     list(): readonly Layer[];

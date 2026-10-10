@@ -1162,7 +1162,103 @@ describe("the selection's own row on the real element", () => {
         },
         TIMEOUT_MS * 2,
     );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "a Color and a Width added to two selected ties start at the highlight look, drawn once the selection clears",
+        async () => {
+            const { session, element } = await openWithGraph();
+            const tie = (source: string, target: string): string => {
+                const found = session.data.edges().find((e) => e.source === source && e.target === target);
+                if (found === undefined) {
+                    throw new Error(`no tie ${source}-${target}`);
+                }
+                return found.id;
+            };
+            await act(async () => {
+                await session.selection.apply({ edges: [tie("1", "2"), tie("2", "3")] });
+            });
+            await pickStyleTab();
+            await addEdgeLine("Color");
+            await waitFor(() => {
+                assert.equal(idLayers(session).length, 1);
+            });
+            await addEdgeLine("Width");
+            const look = session.styles.highlightStyle("edge");
+            await waitFor(() => {
+                const [layer] = idLayers(session);
+                assert.equal(layer.set?.["edge.color"], look["edge.color"]);
+                assert.equal(layer.set?.["edge.width"], look["edge.width"]);
+            });
+
+            await act(async () => {
+                session.selection.clear();
+                await element.waitForStableFrame();
+            });
+            const styled = await drawnAtTie(element, "1", "2");
+            const plain = await drawnAtTie(element, "3", "4");
+            const apart = styled.reduce((d, v, i) => d + Math.abs(v - plain[i]), 0);
+            assert.isAbove(apart, 30, `styled ${styled.join(",")} against plain ${plain.join(",")}`);
+        },
+        TIMEOUT_MS * 2,
+    );
 });
+
+/**
+ * Adds a line to the Edges side's Line section of the Style tab, by its "+" or its menu.
+ * @param name - the line's name, as "Color" or "Width".
+ */
+async function addEdgeLine(name: string): Promise<void> {
+    const line = await within(styleTab()).findByRole("group", { name: "Line" }, { timeout: TIMEOUT_MS });
+    const one = within(line).queryByRole("button", { name: `Add ${name}` });
+    if (one === null) {
+        await userEvent.click(within(line).getByRole("button", { name: "Add to Line" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name }));
+    } else {
+        await userEvent.click(one);
+    }
+}
+
+/**
+ * The mean color the element draws in a small square around the middle of a tie, from its own
+ * screenshot.
+ * @param element - the element.
+ * @param source - one end's id.
+ * @param target - the other end's id.
+ * @returns the mean red, green and blue, 0 to 255.
+ */
+async function drawnAtTie(
+    element: HTMLElementTagNameMap["graphty-element"],
+    source: string,
+    target: string,
+): Promise<[number, number, number]> {
+    const a = element.nodeScreenPosition(source);
+    const b = element.nodeScreenPosition(target);
+    if (a === undefined || b === undefined) {
+        throw new Error(`no position for ${source} or ${target}`);
+    }
+    const shot = await element.captureScreenshot({ format: "png" });
+    const bitmap = await createImageBitmap(shot.blob);
+    const scale = bitmap.width / element.getBoundingClientRect().width;
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext("2d");
+    if (context === null) {
+        throw new Error("no 2d context to read the screenshot back");
+    }
+    context.drawImage(bitmap, 0, 0);
+    const half = Math.round(4 * scale);
+    const x = Math.round(((a.x + b.x) / 2) * scale) - half;
+    const y = Math.round(((a.y + b.y) / 2) * scale) - half;
+    const { data } = context.getImageData(x, y, half * 2 + 1, half * 2 + 1);
+    const sum = [0, 0, 0];
+    for (let i = 0; i < data.length; i += 4) {
+        sum[0] += data[i];
+        sum[1] += data[i + 1];
+        sum[2] += data[i + 2];
+    }
+    const count = data.length / 4;
+    return [sum[0] / count, sum[1] / count, sum[2] / count];
+}
 
 describe("one look for names and headings on the real element", () => {
     beforeAll(async () => {

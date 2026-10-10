@@ -6,7 +6,7 @@ before it lands on master. Newest first.
 
 ## 2026-10-09 -- Decided by the team: what a highlight looks like, readable (`styles.highlightStyle`)
 
-**What.** To build for tier 2 round 3. `session.styles.highlightStyle(target: "node" | "edge")`
+**What.** Built on the studio branch. `session.styles.highlightStyle(target: "node" | "edge")`
 returns the static style `styles.highlight()` paints for that half when it names no style of its
 own: the session's highlight color, and for an edge three times the default width. Additive: a new
 read; nothing that exists changes.

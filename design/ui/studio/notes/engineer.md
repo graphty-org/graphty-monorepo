@@ -20,10 +20,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   faults, none above severity 2, no grade decided by one; the only `session.log` line is r2-s13's
   900 s idle close. Twelve of the thirty sit on the one detour no dry run walked: styling a
   selection. The dry run must walk what participants style, not only what the answer key styles.
-- (2026-10-09) **A new style line starts on the element's default, which is what is already drawn**
-  (`startingValue` in `style/row.ts` reads `descriptor.default`): edge Width 8 and Color A9A9A9
-  change nothing. Proposed: the app starts a line on a layer that does not target Everything one
-  visible step away (color from the app palette, width double the default). App choice, no door.
+- (2026-10-09) **Built: a Color or Width added to a selection's layer starts at the highlight
+  look.** `session.styles.highlightStyle(target)` (element, additive) states what `highlight()`
+  paints with no set; `startingValue(descriptor, session, selector)` reads it when the layer the
+  line lands on names ids. Everything and run rows keep the descriptor default. Open, not the
+  app's: at width 24 the element's selection band grows with the line and covers the tie while
+  selected (`tmp/t2r2-7/walk/09.png`); width units stay an owner question.
 - (2026-10-09) **Built: an Add that repeats loaded ties says so and offers Replace.** The element
   already had the count (`LoadReport.repeated.seen`); only the draft's merge report read 0, since it
   measures in a scratch session without the graph's edges. Fixed in the element (pairs handed to
@@ -54,6 +56,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   each change's test; this file keeps only the lesson.
 
 ## Decisions and reasons
+
+- (2026-10-09) **The line lands on the row's own topmost layer, so read its selector, not
+  `fresh`.** After a selection's first edit the inspector moves to the new layer's row, where
+  `fresh` is undefined; reading `fresh?.selector` gave Color the highlight and Width the default.
+  The real-element test caught it (width 8, not 24). Rejected: a scaled width in the app (copies
+  an element constant and hides the units question).
 
 - (2026-10-09) **Read the report type before adding a field.** The task asked for a new count; the
   report already promised it (`repeated.seen`) and the load already counted it, so the defect was
@@ -199,6 +207,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Worked: a pixel check in an app real-element test from public API only --
+  `element.captureScreenshot`, the midpoint of two `nodeScreenPosition`s scaled by bitmap width
+  over the element's CSS width, the mean of a 9 px square, styled tie against an unstyled one.
+  Without the fix the two differed by 2 (of 765); with it, well over 30. Select ties for a walk
+  with find `=minutes >= \`10\`` on bus-stops.
+
 - (2026-10-09) Worked: a one-off element test printing `JSON.stringify(await draft.report(...))`
   before writing code -- it showed `repeated.seen: 0` beside `counts.edges: 82`, which placed the
   defect in the measure, not the type. `session.data.import` takes `{ config: { file } }`, not
@@ -225,17 +239,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `test/managers/LayoutManager.test.ts` because `layout/dist` predates the master merge (stale
   build, not a source error).
 
-- (2026-10-09, condensed) Worked for a slow-click test: the click sets `location.href` to a path
-  `context.route` answers with 204 after 4.5 s (blocking the main thread did not work).
-
-- (2026-10-09, condensed) `.cm-section-header` sets `height: 40px`, so growing it needs a CSS rule
-  (`[data-wrap-label]` sets `height: auto`), not an inline `minHeight`.
 - (2026-10-09) Worked: when a pilot's log is gone, rebuild its walk from `repilot.sh` and the
   screenshots (T23B 14 to 17: Data page, then Find Medici and `g` under the 2-hop filter).
-- (2026-10-09) Worked: re-piloting only the halves a fix touches with
-  `REAL_DIST=graphty/dist OUT=<my tmp> LANES=3 tier2/pilot/repilot.sh T20A T20B T21A`, then one
-  hand session for a hover the script does not take (`--hover "Add a table"` prints the tooltip).
-
 - (2026-10-09) Did not work: wrapping `tier2/pilot/repilot.sh` in `tool/with-browser.sh` -- the
   wrapper held a browser slot with no browser while each `real.mjs --start` took its own; run
   repilot.sh bare. Did not work: dropping the enabled-row early return outright (broke type-ahead
@@ -286,10 +291,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (the shim runs `$(dirname $(dirname $0))/<hook>`, else every hook exits 0); commit scope `tools`,
   not `studio`. Open: a run hidden by an Everything edit shows a blank Style tab
   (`defaultRow` null on empty bindings; `tmp/t2r1-11/a/06.png`).
-
-- (2026-10-09, condensed) The first-save fault: one cause is gone with the picker save; the other
-  (ECONNREFUSED, session process gone) is unproven. Two `--prove` runs on the default `tmp/prove`
-  end each other's sessions: always set `REAL_PROVE_DIR`.
 
 - (2026-10-09, condensed) Did not work: leaving edits uncommitted while others commit in the same
   files (`17bf87085` swept my hunks); commit as soon as hunks pass. Did not work:

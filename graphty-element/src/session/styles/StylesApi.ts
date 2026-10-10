@@ -422,6 +422,21 @@ export interface StylesApi {
      */
     setHighlightColor(color: string | undefined): void;
     /**
+     * The static style `highlight()` paints on one half of the graph when it is called without
+     * `set`: the session's highlight colour (see {@link StylesApi.setHighlightColor}), and for an
+     * edge three times the default width as well.
+     *
+     * A consumer that lets a reader style chosen elements by hand can start them on the same look
+     * a highlight would give them.
+     *
+     * ```ts
+     * session.styles.highlightStyle("edge"); // { "edge.color": "#332288", "edge.width": 24 }
+     * ```
+     * @param target - Nodes or edges.
+     * @returns A fresh object; changing it changes nothing in the session.
+     */
+    highlightStyle(target: SelectorTarget): StaticStyle;
+    /**
      * What the picture is telling a reader, derived from the encoding model and never from the
      * canvas.
      *
@@ -2456,6 +2471,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             highlightColor = color;
+        },
+
+        highlightStyle(target: SelectorTarget): StaticStyle {
+            return halfOfStyle(undefined, target, highlightColor) ?? {};
         },
 
         highlight(spec: HighlightSpec, options: RunOptions = {}): Run<readonly Layer[]> {

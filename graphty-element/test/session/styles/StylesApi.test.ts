@@ -1163,6 +1163,28 @@ describe("highlight(), which is exclusive", () => {
         assert.strictEqual(nodes?.set?.["node.color"], DEFAULT_HIGHLIGHT.color);
     });
 
+    it("states the style a highlight with no set paints, and follows the highlight colour", async () => {
+        const { styles } = makeStyles();
+        const painted = async (): Promise<[unknown, unknown]> => {
+            const layers = await styles.highlight({ run: "route" });
+            return [
+                layers.find((layer) => layer.target === "node")?.set,
+                layers.find((layer) => layer.target === "edge")?.set,
+            ];
+        };
+
+        assert.deepStrictEqual([styles.highlightStyle("node"), styles.highlightStyle("edge")], await painted());
+        assert.deepStrictEqual(styles.highlightStyle("edge"), {
+            "edge.color": DEFAULT_HIGHLIGHT.color,
+            "edge.width": EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 3,
+        });
+
+        styles.setHighlightColor("#000000");
+
+        assert.deepStrictEqual([styles.highlightStyle("node"), styles.highlightStyle("edge")], await painted());
+        assert.strictEqual(styles.highlightStyle("edge")["edge.color"], "#000000");
+    });
+
     it("refuses a highlight colour a layer would not accept", () => {
         const { styles } = makeStyles();
 

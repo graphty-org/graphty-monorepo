@@ -327,14 +327,27 @@ export async function removeLine(session: GraphSession, layer: Layer, ...channel
 }
 
 /**
- * The value a line starts with when "+" adds it: the element's own default for the channel, else
- * the least or first value the element says it accepts, else no value for a text. The app never
- * invents a graph value: a channel the element states none of these for is an element defect.
+ * The value a line starts with when "+" adds it: on a selection's layer (a selector that names
+ * ids), what the element's highlight paints for the channel, so the chosen things change at once;
+ * otherwise the element's own default for the channel, else the least or first value the element
+ * says it accepts, else no value for a text. The app never invents a graph value: a channel the
+ * element states none of these for is an element defect.
  * @param descriptor - the channel.
+ * @param session - the element's session, when the layer may be a selection's.
+ * @param selector - the selector of the layer the line goes on, when known.
  * @returns the value.
  */
-export function startingValue(descriptor: ChannelDescriptor): ChannelValue {
+export function startingValue(
+    descriptor: ChannelDescriptor,
+    session?: GraphSession,
+    selector?: Layer["selector"],
+): ChannelValue {
+    const highlight =
+        session !== undefined && selector?.match === "ids"
+            ? session.styles.highlightStyle(descriptor.target)[descriptor.channel]
+            : undefined;
     const value =
+        highlight ??
         descriptor.default ??
         (descriptor.accepts === "number" ? descriptor.min : undefined) ??
         (descriptor.accepts === "enum" ? descriptor.values?.[0] : undefined) ??

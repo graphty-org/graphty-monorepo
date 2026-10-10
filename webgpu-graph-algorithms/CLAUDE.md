@@ -35,7 +35,7 @@ webgpu-graph-algorithms/
 +-- tsconfig.build.json           # emit: src/ only, rootDir ".", outDir dist (-> dist/src/), stripInternal
 +-- tsconfig.strict-consumer.json # test/types/*.test-d.ts against dist/*.d.ts under noUncheckedIndexedAccess + exactOptionalPropertyTypes
 +-- eslint.config.js              # the root flat config + the layer zones, the entry isolation, the no-navigator / no-process rules, the CPU-package ban
-+-- vitest.config.ts              # projects node / node-limits / browser; thresholds 80/80/75/80 when the project set is exactly `node`; BROWSER_FLAGS; the browser commands bridge
++-- vitest.config.ts              # projects node / node-gpu-alone / node-device-errors / node-limits / browser; thresholds 80/80/75/80 when the project set is `node`, alone or with `node-gpu-alone`; BROWSER_FLAGS; the browser commands bridge
 +-- scripts/entries.js            # the three bundle entries (shared by build-bundle.js and bundle-types.js)
 +-- scripts/build-bundle.js       # one multi-entry vite lib build -> dist/webgpu-graph-algorithms.js, dist/browser.js, dist/node.js, dist/chunks/*
 +-- scripts/bundle-types.js       # dist/<entry>.d.ts, one-line re-exports of dist/src/**
@@ -96,7 +96,7 @@ globals only after `Object.assign(globalThis, dawn.globals)`).
 ```bash
 pnpm run build:all          # tsc -p tsconfig.build.json, then the multi-entry vite bundle and the d.ts shims
 pnpm run lint               # eslint + tsc --noEmit + tsc -p tsconfig.strict-consumer.json (build first)
-pnpm run test:node          # vitest run --project=node (the whole node suite; the default adapter)
+pnpm run test:node          # the whole node suite (node, node-gpu-alone, node-device-errors), one file at a time; the default adapter
 pnpm run coverage           # the node suite with the 80/80/75/80 thresholds
 pnpm run test:browser:ci    # node scripts/run-browser-project.js (SwiftShader unless GRAPHTY_BROWSER_GPU=nvidia)
 pnpm run test:limits        # vitest run --project=node-limits (GPU lane only)
@@ -392,9 +392,9 @@ Running the suites locally:
 
 ```bash
 # node project on the NVIDIA GPU (the setup prints [gpu] adapter vendor=nvidia ...)
-GRAPHTY_GPU_REQUIRE=hardware pnpm exec vitest run --project=node
+GRAPHTY_GPU_REQUIRE=hardware pnpm exec vitest run --project=node --project=node-gpu-alone
 # node project as the default lane runs it (lavapipe)
-GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json XDG_RUNTIME_DIR=/tmp pnpm exec vitest run --project=node --coverage
+GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json XDG_RUNTIME_DIR=/tmp pnpm exec vitest run --project=node --project=node-gpu-alone --coverage
 # browser project on SwiftShader (the default lane) and on the NVIDIA GPU
 GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js
 GRAPHTY_BROWSER_GPU=nvidia GRAPHTY_GPU_REQUIRE=nvidia node scripts/run-browser-project.js

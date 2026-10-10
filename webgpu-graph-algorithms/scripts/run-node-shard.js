@@ -9,7 +9,8 @@
  * reporter announced output for, minus the files it printed a result for. That difference is this wrapper's FIRST
  * line on any non-zero exit, under the fixed marker [missing-files].
  *
- * The wrapper spawns vitest, forwarding every argument (and adding --project=node when the caller named no project),
+ * The wrapper spawns vitest, forwarding every argument (and adding --project=node --project=node-gpu-alone, the main
+ * suite, when the caller named no project),
  * and watches its output. It takes a snapshot -- the process table of every node process with its kernel wait channel
  * and state, plus a Node diagnostic report from the runner and each of its children, which carries the JavaScript
  * stack and every libuv handle still holding the loop open -- after SILENCE_MS with nothing written, at most
@@ -242,10 +243,11 @@ async function snapshot(pid, index, reason) {
 async function main(argv) {
     const dir = resolve(packageRoot, REPORT_DIR, "1");
     mkdirSync(dir, { recursive: true });
-    // No project named means the node project: every caller of this wrapper runs a node project, and letting vitest
-    // default to all of them would silently pull in the browser project.
+    // No project named means the main suite, the node project and the files it hands to node-gpu-alone: every caller
+    // of this wrapper runs a node project, and letting vitest default to all of them would silently pull in the
+    // browser project.
     const named = argv.some((arg) => arg === "--project" || arg.startsWith("--project="));
-    const extra = named ? [...argv] : ["--project=node", ...argv];
+    const extra = named ? [...argv] : ["--project=node", "--project=node-gpu-alone", ...argv];
     const env = { ...process.env };
     if (CAN_SIGNAL) {
         env.NODE_OPTIONS =

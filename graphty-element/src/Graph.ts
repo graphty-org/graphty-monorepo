@@ -754,6 +754,12 @@ export class Graph implements GraphContext {
                 ),
         };
 
+        // Every project change -- data, a style, a setting, an undo -- reaches the picture through
+        // a pass of the lane, so the end of each pass asks an on-demand render loop for a frame.
+        dispatcherOf(this.session).lane.onPassEnd(() => {
+            this.renderManager.requestRender();
+        });
+
         // Live sets re-resolve after a freeze a frame at a time, on the render loop's frames
         // (design/sets 6.2): a held frame holds that work too.
         setsNotifierOfSession(this.session).useFrames((callback) => {

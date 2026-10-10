@@ -14,7 +14,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { drag, nextFrame } from "../helpers/real-input";
+import { click, drag, nextFrame, type Point } from "../helpers/real-input";
 
 /** Animation frames with no render that count as the graph being at rest. */
 const IDLE_TICKS = 30;
@@ -60,6 +60,18 @@ async function mount(mode?: string): Promise<Graphty> {
     await element.graph.waitForStableFrame();
 
     return element;
+}
+
+/**
+ * Where a node is drawn on the canvas.
+ * @param element - The element.
+ * @param id - The node.
+ * @returns Its center, in canvas pixels.
+ */
+function at(element: Graphty, id: string): Point {
+    const position = element.nodeScreenPosition(id);
+    assert.isDefined(position, `node ${id} has a screen position`);
+    return { x: position.x, y: position.y };
 }
 
 /**
@@ -217,6 +229,13 @@ describe("the render mode", () => {
             },
         },
         {
+            name: "a click that selects a node",
+            make: async (element) => {
+                await click(element.graph.canvas, at(element, "b"));
+                assert.strictEqual(element.getSelectedNode()?.id, "b", "the click selected the node");
+            },
+        },
+        {
             name: "requestRender()",
             make: (element) => {
                 element.requestRender();
@@ -234,6 +253,18 @@ describe("the render mode", () => {
             await untilIdle(element, change.name);
         });
     }
+
+    it("draws again on demand after a selection style is set while a node is selected", async () => {
+        const element = await mount("on-demand");
+        assert.isTrue(element.selectNode("b"), "node b is selected");
+        await untilIdle(element, "the selection");
+
+        await drawsAfter(element, "a selection style", () => {
+            element.selectionStyle = { color: "#7CB342", scale: 2 };
+            return Promise.resolve();
+        });
+        await untilIdle(element, "a selection style");
+    });
 
     it("keeps drawing on demand while an edge animates, and rests once it stops", async () => {
         const element = await mount("on-demand");

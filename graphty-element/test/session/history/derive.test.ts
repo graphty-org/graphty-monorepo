@@ -222,4 +222,29 @@ describe("derivation lane", () => {
 
         assert.deepEqual(ran, []);
     });
+
+    it("tells a pass-end listener once per pass, after its hooks, and survives one that throws", async () => {
+        const errors: unknown[] = [];
+        const lane = new DerivationLane(createProjectState(), { onError: (error) => errors.push(error) });
+        const order: string[] = [];
+        lane.register("styles", () => {
+            order.push("hook");
+        });
+        lane.onPassEnd(() => {
+            throw new Error("listener failed");
+        });
+        const stop = lane.onPassEnd(() => {
+            order.push("end");
+        });
+
+        lane.touch("styles", "");
+        lane.touch("config", "a");
+        await lane.settled();
+        stop();
+        lane.touch("styles", "");
+        await lane.settled();
+
+        assert.deepEqual(order, ["hook", "end", "hook"], "one call per pass, after the hooks, none once removed");
+        assert.lengthOf(errors, 2, "each throw is reported and the pass still ends");
+    });
 });

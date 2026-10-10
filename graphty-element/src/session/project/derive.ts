@@ -111,6 +111,8 @@ export class DerivationLane {
      * with live state; what it throws goes where hook errors go. Null outside strict state.
      */
     afterPass: ((target: ProjectState) => void) | null = null;
+    /** Told at the end of every pass, whatever it derived; see {@link onPassEnd}. */
+    private readonly passEndListeners = new Set<() => void>();
     /** What the running pass, or the last one, catches up with. */
     private passCauseValue: "command" | "undo" | "redo" | "restore" | "rollback" = "command";
 
@@ -164,6 +166,20 @@ export class DerivationLane {
             if (index !== -1) {
                 list.splice(index, 1);
             }
+        };
+    }
+
+    /**
+     * Be told at the end of every pass, after every hook it ran. A renderer that draws only on
+     * change listens here: every project change reaches the picture through a pass, so no hook
+     * has to remember to ask for a frame. What a listener throws goes where hook errors go.
+     * @param listener - Called once per pass.
+     * @returns A function that removes it.
+     */
+    onPassEnd(listener: () => void): () => void {
+        this.passEndListeners.add(listener);
+        return () => {
+            this.passEndListeners.delete(listener);
         };
     }
 
@@ -300,6 +316,14 @@ export class DerivationLane {
             if (this.afterPass !== null && this.next === null) {
                 try {
                     this.afterPass(this.state);
+                } catch (error) {
+                    this.onError(error);
+                }
+            }
+
+            for (const listener of this.passEndListeners) {
+                try {
+                    listener();
                 } catch (error) {
                     this.onError(error);
                 }

@@ -17,6 +17,8 @@
  * its hooks on the session's lane.
  */
 
+import type { NodeId } from "../../catalog/types";
+import { nodeOfKey } from "./graphOps";
 import type { ProjectState } from "./state";
 import { reportCaught } from "./strict";
 
@@ -59,17 +61,19 @@ interface Pass {
     readonly resolve: () => void;
 }
 
+/** The keyed slices: the maps and the set a pass copies key by key. */
+type KeyedSlice = "pins" | "config" | "runs" | "sets" | "views" | "notes" | "attributes";
+
+/** A copy of every keyed slice, owned by the lane and written by nothing else. */
+type Copies = { [S in KeyedSlice]: Map<unknown, unknown> | Set<unknown> };
+
 /**
- * A copy of a state whose maps and sets later writes cannot reach. The values are shared: every
- * value in state is replaced on write, never changed in place.
+ * Copy every keyed slice of a state in full.
  * @param state - The state.
- * @returns The copy.
+ * @returns The copies.
  */
-function snapshot(state: ProjectState): ProjectState {
-    // ponytail: copies the keyed maps once per pass; fine while they hold settings, runs, sets
-    // and views. The graph op-lists will be folded, not copied, when the graph slice lands.
-    return Object.freeze({
-        ...state,
+function copyAll(state: ProjectState): Copies {
+    return {
         pins: new Set(state.pins),
         config: new Map(state.config),
         runs: new Map(state.runs),
@@ -77,7 +81,55 @@ function snapshot(state: ProjectState): ProjectState {
         views: new Map(state.views),
         notes: new Map(state.notes),
         attributes: new Map(state.attributes),
-    });
+    };
+}
+
+/**
+ * Bring copies up to live state on the keys named, and on nothing else.
+ * @param copies - Copies that differ from live state only on those keys.
+ * @param state - Live state.
+ * @param keys - Keys per slice; a `pins` key is a node key, and any other copies the whole set.
+ */
+function catchUp(copies: Copies, state: ProjectState, keys: ReadonlyMap<DerivedSlice, ReadonlySet<string>>): void {
+    for (const [slice, changed] of keys) {
+        if (slice === "pins") {
+            const pins = copies.pins as Set<NodeId>;
+            if (![...changed].every((key) => key.startsWith("n:"))) {
+                // Not a node key: the whole slice may have moved.
+                copies.pins = new Set(state.pins);
+                continue;
+            }
+
+            for (const key of changed) {
+                const id = nodeOfKey(key);
+                if (state.pins.has(id)) {
+                    pins.add(id);
+                } else {
+                    pins.delete(id);
+                }
+            }
+        } else if (slice in copies) {
+            const live = state[slice] as ReadonlyMap<string, unknown>;
+            const copy = copies[slice as KeyedSlice] as Map<string, unknown>;
+            for (const key of changed) {
+                if (live.has(key)) {
+                    copy.set(key, live.get(key));
+                } else {
+                    copy.delete(key);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A frozen state over live state's whole values and the lane's copies of its keyed slices.
+ * @param state - Live state.
+ * @param copies - The copies.
+ * @returns The state.
+ */
+function frozenOver(state: ProjectState, copies: Copies): ProjectState {
+    return Object.freeze({ ...state, ...copies } as ProjectState);
 }
 
 /**
@@ -98,6 +150,15 @@ export class DerivationLane {
     /** How many writes each slice has had, whoever wrote it. */
     private readonly counts = new Map<DerivedSlice, number>();
     private shown: ProjectState;
+    /**
+     * Two sets of copies of the keyed slices, taken in turn: the one `shown` reads, and a spare a
+     * pass brings up to live state for its target. Copying only the keys written since the spare
+     * was last current is what makes a pass cost what it changed, not what the session holds.
+     */
+    private shownCopies: Copies;
+    private spare: Copies;
+    /** The keys the spare is behind `shown` on: those the pass that made `shown` derived. */
+    private spareBehind: ReadonlyMap<DerivedSlice, ReadonlySet<string>> = new Map();
     /** The pass that will take the changes made since the running one started. */
     private next: Pass | null = null;
     private current: Pass | null = null;
@@ -121,7 +182,9 @@ export class DerivationLane {
      */
     constructor(state: ProjectState, options: LaneOptions = {}) {
         this.state = state;
-        this.shown = snapshot(state);
+        this.shownCopies = copyAll(state);
+        this.spare = copyAll(state);
+        this.shown = frozenOver(state, this.shownCopies);
         this.onError =
             options.onError ??
             ((error) => {
@@ -133,7 +196,8 @@ export class DerivationLane {
     }
 
     /**
-     * The state the picture shows: the target of the last finished pass.
+     * The state the picture shows: the target of the last finished pass. Its keyed maps are the
+     * lane's own, reused by the pass after next, so hold the state no longer than a pass.
      * @returns A frozen copy.
      */
     get rendered(): ProjectState {
@@ -196,7 +260,10 @@ export class DerivationLane {
      */
     adoptBaseline(): void {
         this.dirty.clear();
-        this.shown = snapshot(this.state);
+        this.shownCopies = copyAll(this.state);
+        this.spare = copyAll(this.state);
+        this.spareBehind = new Map();
+        this.shown = frozenOver(this.state, this.shownCopies);
     }
 
     /**
@@ -278,7 +345,13 @@ export class DerivationLane {
             this.dirty = new Map();
             const { restores } = this;
             this.passCauseValue = this.cause;
-            const target = snapshot(this.state);
+            // The spare last matched the state `shown` replaced: catch it up on what that pass
+            // derived and on what this one derives. The other copies are what `shown` reads.
+            const copies = this.spare;
+            const before = this.shownCopies;
+            catchUp(copies, this.state, this.spareBehind);
+            catchUp(copies, this.state, dirty);
+            const target = frozenOver(this.state, copies);
 
             for (const slice of HOOK_ORDER) {
                 const keys = dirty.get(slice);
@@ -294,7 +367,13 @@ export class DerivationLane {
                 }
             }
 
-            this.shown = target;
+            // A baseline adopted while the pass ran already shows live state, and owns both copies.
+            if (this.shownCopies === before) {
+                this.spare = before;
+                this.spareBehind = dirty;
+                this.shownCopies = copies;
+                this.shown = target;
+            }
             // Checked once the picture has caught up with live state: a pass that another will
             // follow draws a target that writes made since have already moved past.
             if (this.afterPass !== null && this.next === null) {

@@ -455,58 +455,8 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 
 ## Testing Infrastructure
 
-### Test Projects by Package
-
-**algorithms:**
-- `default` - Node.js environment
-- `browser` - Playwright browser tests
-
-**layout:**
-- Single test project (Node.js)
-
-**graph-format:**
-- Single test project (Node.js); `test/types/*.test-d.ts` are compile-only (`npm run typecheck:strict-consumer` after a build)
-
-**graph-io:**
-- Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
-
-**graph-samples:**
-- Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
-
-**cytoscape-extensions:**
-- Single test project (Node.js, headless Cytoscape); resolves the graphty packages through their dist, so build them first. `test/gpu-device.test.ts` needs a real GPU and follows the `GRAPHTY_GPU_REQUIRE` rule of webgpu-graph-algorithms
-- Storybook demo (`npm run storybook`, `stories/`): the extensions in a real Cytoscape instance. The Demo stories run any layout, algorithm, generator, bundled dataset or file format on a seeded graph-samples network (100 to 50,000 nodes), backend auto, CPU or GPU, with the backend that ran, why, and the time on screen. The Gallery stories run every one of them at once on small seeded graphs, one tile each; `test/demo-catalog.test.ts` fails when the extension registers something `stories/catalog.ts` does not list. The stories import `src/`, so edits show up live (reload the page after an algorithm change: Cytoscape cannot re-register a method)
-- Visual review captures every story (project `cytoscape-extensions`; it waits on each story root's `whenDone()` and fails a story whose console says "graphty demo failed"). Captures hide run times. The capture browser has no WebGPU (visual-review removes `navigator.gpu`), so in CI every story runs the CPU path and shows "this runtime has no WebGPU" as the reason, and the GPU-only spring-electrical tile shows that it did not run and why. The GPU path is covered by the package's GPU tests, not by images
-
-**webgpu-graph-algorithms:**
-- `node` - Node.js on Dawn (`GRAPHTY_GPU_REQUIRE` unset skips without an adapter; CI sets `any` on lavapipe)
-- `node-limits` - the GPU lane only (real device limits)
-- `browser` - Playwright Chromium with the `GRAPHTY_BROWSER_GPU` flag set (swiftshader in CI) through `scripts/run-browser-project.js`
-
-**graphty:**
-- `browser` - Browser-based tests (Playwright)
-- `real-element` - `*.real-element.test.tsx`: the app with the real graphty-element, unmocked
-- `storybook` - every story's play function as a test (its own CI shard, `graphty-storybook`)
-- `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
-
-**graphty-element:**
-- `default` - Node.js tests
-- `browser` - Playwright tests (5 CI shards)
-- `storybook` - Component tests (4 CI shards)
-- `interactions` - Interaction tests
-- `xr` - WebXR: real VR and AR sessions on an emulated headset (IWER) and the XR UI; runs in pre-push and in the CI browser shards
-- `llm-regression` - LLM regression tests: real, paid calls to the provider `VITE_LLM_REGRESSION_PROVIDER` names (`google` by default, model `gemini-3.8-flash`; `openai`, `anthropic`), with its key in `VITE_GOOGLE_API_KEY` (or `VITE_OPENAI_API_KEY`, `VITE_ANTHROPIC_API_KEY`). Runs in the release train (release.yml) on Google with the `GOOGLE_API_KEY` repository secret, never on a pull request or in the merge queue
-
-### Running Specific Test Projects
-
-```bash
-# In graphty-element:
-npm test -- --project=browser
-npm test -- --project=storybook
-
-# In algorithms:
-npm test -- --project=browser
-```
+Each package's CLAUDE.md lists its test projects and how to run one of them
+(`npm test -- --project=<name>` in the package). `./tools/run-tests.sh --list` names the CI shards.
 
 ### Coverage Thresholds
 
@@ -715,59 +665,6 @@ shard list and the filter live in `tools/ci-test-matrix.mjs`. A change to a file
 `sharedGlobals` (root configs, `.github/workflows/`) affects every package, so it still runs
 everything.
 
-## Architecture & Key Patterns
-
-### Algorithm Implementation Pattern
-
-```typescript
-// Algorithms in @graphty/algorithms take a frozen @graphty/graph-format snapshot:
-export function algorithmName(snapshot: GraphSnapshot, options?: AlgorithmOptions): AlgorithmResult {
-    // Work over node indices (0..nodeCount-1) and the snapshot's CSR arrays;
-    // return typed arrays indexed by node (or edge) index, plus scalars.
-}
-```
-
-A required per-call input, such as a source node index, sits between the snapshot and the options
-(`dijkstra(snapshot, source, options?)`). Ids appear only at the boundary: `snapshot.ids.requireIndex(id)`
-on the way in, `snapshot.ids.idOf(i)` or `snapshot.ids.toMap(vector)` on the way out.
-
-### Layout Function Interface
-
-```typescript
-// Layouts in @graphty/layout take a snapshot and return a flat position array:
-type Layout = (snapshot: GraphSnapshot, options?: CommonLayoutOptions) => LayoutResult;
-// LayoutResult = { positions: Float32Array; dim: 2 | 3; n: number }, row i = node index i
-```
-
-### Web Component Architecture (graphty-element)
-
-- **Graph.ts** - Core orchestrator class
-- **Manager pattern** - Side effects handled by dedicated managers
-- **Registry pattern** - Extensible layouts, algorithms, data sources
-- **Babylon.js** - 3D rendering with mesh instancing
-- **Lit** - Web Component framework
-
-### Plugin System
-
-Every extension point is exported from `@graphty/graphty-element/extend`:
-
-```typescript
-import {
-    Algorithm,
-    DataSource,
-    LayoutEngine,
-    registerFormatWriter,
-    registerSnapshotLayout,
-} from "@graphty/graphty-element/extend";
-
-Algorithm.register(MyAlgorithm);                  // a DeclaredAlgorithm subclass
-registerSnapshotLayout({ descriptor, compute });  // a static layout over the snapshot
-LayoutEngine.register(MyIterativeEngine);         // an iterative (step-by-step) layout engine
-DataSource.register(MyDataSource);                // a reader that parses a file itself
-DataSource.register(DataSource.fromImporter(myGraphIoImporter, formatDescriptor)); // a graph-io importer as a reader
-registerFormatWriter({ descriptor, exporter });   // a graph-io exporter as a file writer
-```
-
 ## Key Files to Understand
 
 ### Core Implementation Files
@@ -793,17 +690,26 @@ registerFormatWriter({ descriptor, exporter });   // a graph-io exporter as a fi
 | `vite.shared.config.ts` | Vite build configuration factory |
 | `vitest.shared.config.ts` | Vitest test configuration factory |
 
-### Package CLAUDE.md Files
+### Package and folder CLAUDE.md files
 
-Each package has its own CLAUDE.md with package-specific guidance:
+Claude Code reads a folder's CLAUDE.md only when a session works on files in that folder, so the
+rules below live beside the code they govern. Read the package's file before changing that package.
+
 - `graph-format/CLAUDE.md` - Snapshot invariants, freeze pipeline, adding a view / a dtype
 - `graph-io/CLAUDE.md` - Importer / exporter contract, adding a format
 - `graph-samples/CLAUDE.md` - The determinism contract, adding a generator or a dataset
 - `webgpu-graph-algorithms/CLAUDE.md` - The GPU context and adapter policy, the kernel layers, the lanes and their environment variables, verified platform facts
-- `algorithms/CLAUDE.md` - The package layout, the recorded 2.x results the algorithms are tested against, adding an algorithm
-- `layout/CLAUDE.md` - Layout testing patterns
-- `graphty-element/CLAUDE.md` - Web component patterns, visual testing
-- `graphty/CLAUDE.md` - React app specifics
+- `algorithms/CLAUDE.md` - The package layout, the algorithm signature (snapshot in, typed arrays out), the recorded 2.x results the algorithms are tested against, adding an algorithm
+- `layout/CLAUDE.md` - The layout signature (snapshot in, flat position array out), layout testing patterns
+- `cytoscape-extensions/CLAUDE.md` - Its test project, the Storybook demo and how visual review captures it
+- `graphty-element/CLAUDE.md` - Web component patterns, the extension points and how to register one, graph styling through style layers, the rules for an algorithm's suggested style layers, WebGPU ownership, visual testing
+- `graphty/CLAUDE.md` - React app specifics, its UI component rules, styling the graph only through style layers
+- `compact-mantine/CLAUDE.md` - The shared component rules: use the default components, fix a wrong one here
+- `remote-logger/CLAUDE.md` - The log client, server and UI
+
+`.claude/rules/*.md` hold short rules for particular paths (tests, graphty-element's events and
+result builders). `tools/claude-area-rules.mjs`, a hook in `.claude/settings.json`, adds a rule to
+the session's context the first time the session edits a file its `paths:` match.
 
 ## Important Development Notes
 
@@ -811,7 +717,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 
 - Never create fallbacks if WebGPU isn't supported. The GPU package throws (`E_NO_WEBGPU`, `E_NO_ADAPTER`, `E_TOO_LARGE`, ...) and never runs a CPU path; the CPU packages' dispatchers choose the CPU only when no accelerator was injected (`design/webgpu/webgpu-acceleration-plan.md` section 2.4).
 - **graphty-element owns WebGPU detection, construction and lifecycle**, per the Architectural Principles above. `@graphty/webgpu-graph-algorithms` is an OPTIONAL peer dependency of graphty-element: present, the element uses it; absent, the element runs the CPU path and says so. A consumer never writes probe, construct, inject or device-loss code, and the graphty app gets no special privileges here -- whatever the app can do, a third-party consumer can do the same way.
-- This OVERRULES design 9.1 (`design/webgpu/webgpu-acceleration-plan.md:2870-2899`), whose dependency diagram ends at the app and makes the app the only importer of the GPU package. That section is superseded, not deleted; the decision record is `design/decisions/`.
+- How graphty-element implements this, and which part of the WebGPU design it overrules: `graphty-element/CLAUDE.md`, "Acceleration" (also `webgpu-graph-algorithms/CLAUDE.md`, "Rules that never bend").
 - "Never create fallbacks" is about SILENT DEGRADATION, not about capability detection. Detecting that WebGPU is unavailable and running the CPU implementation is correct and required. Catching a GPU error mid-run and quietly finishing on the CPU is not: that hides a real failure and makes a benchmark meaningless.
 
 ### TypeScript
@@ -825,51 +731,16 @@ Each package has its own CLAUDE.md with package-specific guidance:
   - Dependent packages declare `references` array pointing to dependencies
   - Build order enforced by TypeScript: `graph-format` -> `graph-io` -> `webgpu-graph-algorithms` -> `graph-samples` -> `algorithms` -> `layout` -> `graphty-element` -> `graphty`
 
-### UI Components
+### UI components, graph styling and algorithm styles
 
-- Use the default components. Never write a bespoke control to work around one
-- If a shared component is wrong, fix the shared component, so every caller gets the fix
-- Example (2026-09-13): the app shell's lock button grew a custom contrast ring because
-  Mantine's `light` active state measured 1.21:1 against the panel header where WCAG 1.4.11
-  asks 3:1. The ring left one control in the app behaving unlike every other toggle. The fix
-  belonged in `compact-mantine`'s ActionIcon theme, and once it was there the local ring was
-  deleted
+These rules live with the code they govern:
 
-### Graph Styling
-
-- Node and edge appearance MUST be applied through a style layer, as a layer handed to
-  graphty-element through the StyleManager
-- It MUST NOT be applied manually under any circumstance -- never by mutating a mesh, a
-  material, or a node or edge object
-- The failure mode: styling applied outside the layer system is invisible to the layer list,
-  cannot be reordered, removed or persisted, and is silently lost at a dataset boundary
-
-### Algorithm Styles
-
-- An algorithm's suggested style layers MUST write ONLY to the nodes and edges that are part of
-  that algorithm's own result. Dijkstra styles the nodes and edges ON the path; every other node
-  and edge MUST be left exactly as the layers beneath it painted them, UNMODIFIED
-- "Part of the result" means the element carries a value this algorithm produced. Degree colours
-  every node because every node HAS a degree; Dijkstra colours the path because only path
-  elements have `isInPath == true`. An element the algorithm has nothing to say about is not
-  the algorithm's to paint -- not even to a default, a muted grey, or a full opacity
-- Two ways a layer breaks this, both silent:
-  - an empty `selector: ""` matches EVERY node or edge, so the layer's `calculatedStyle` runs
-    on the whole graph. Calculated values are last-writer-wins, so the write lands whatever the
-    value is -- including the value the expression returns for "not in my result"
-  - a helper with an un-highlighted branch (`blueHighlight(false)` returns `#CCCCCC`) turns
-    "this element is not part of my result" into a paint instruction. So does an input that is
-    `undefined` before the algorithm has even run
-  Scope the layer with a selector that matches only the elements carrying a result
-  (``algorithmResults.graphty.dijkstra.isInPath == `true` ``), so a non-result element is never
-  visited at all
-- Dimming, fading, greying or hiding what an algorithm did NOT select is a READER's choice, not
-  the algorithm's. It belongs to the caller -- a story, the app, a user-added layer -- and MUST
-  NOT ship in `suggestedStyles`
-- Why: layers stack bottom to top, and `applySuggestedStyles(["a", "b"])` appends a's layers and
-  then b's, so the last algorithm applied wins every property it writes. One algorithm that
-  writes to everything erases every algorithm under it -- and stacking algorithms is the entire
-  point of style layers
+- Use the default components and fix a shared one rather than working around it:
+  `graphty/CLAUDE.md` and `compact-mantine/CLAUDE.md`, "UI Components".
+- Node and edge appearance only through a style layer: `graphty-element/CLAUDE.md` and
+  `graphty/CLAUDE.md`, "Graph Styling".
+- An algorithm's suggested style layers write only to the elements in its own result:
+  `graphty-element/CLAUDE.md`, "Algorithm Styles".
 
 ### Testing
 
@@ -890,9 +761,8 @@ Each package has its own CLAUDE.md with package-specific guidance:
     `*.real-element.test.tsx`. A story that exists to show an interaction reaches its state by
     that interaction in its play function (pointer events on the canvas, clicks on the controls),
     and graphty's play functions run as tests in the `storybook` project.
-- Use `assert` instead of `expect` in layout tests
-- Tests wait on conditions and assert on counted work; the `local/no-test-timing` lint rule enforces it.
-- Visual tests run sequentially (`--workers=1`) to avoid resource contention
+- Tests wait on conditions and assert on counted work; the `local/no-test-timing` lint rule
+  (`tools/eslint-rules/no-test-timing.mjs`) enforces it.
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
 - Every `vitest run` on this machine, gate shard or ad hoc, waits for one of the machine-wide test slots
   (`tools/test-slots.mjs`; `GRAPHTY_TEST_SLOTS`, default one per 8 cores) and prints one line naming
@@ -1082,12 +952,8 @@ and commit the report with the change. An agent whose pull request changes the r
 the pull request description: which entry points, what was added, changed or removed, and whether
 it is breaking.
 
-The same check fails when the report adds a property typed plain `string` to a result type -- a type
-whose name ends in `Result`, `Summary`, `Estimate`, `Recommendation` or `Explanation`, or one a
-`GraphSession` method returns -- compared with the merge base with origin/master. Use an exported
-string-literal union of codes or a `CodedFact` `{ code, params }` instead. Identifiers, names of the
-consumer's data and catalog names are allowed by `PLAIN_STRING_ALLOWLIST` in `tools/api-report.mjs`,
-and a descriptor's `description` is catalog data. Fields that already exist never fail.
+The same check fails when the report adds a property typed plain `string` to a result type; its
+message says what to use instead (`plainStringAdditions` in `tools/api-report.mjs`).
 
 ### Module System
 

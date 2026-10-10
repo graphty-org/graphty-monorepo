@@ -1,4 +1,4 @@
-import { CompactColorInput, ControlSection, DataRow, DataRowHeader } from "@graphty/compact-mantine";
+import { CompactColorInput, ControlSection, DataRow } from "@graphty/compact-mantine";
 import type { ScopeInput } from "@graphty/graphty-element/session";
 import { Stack, Text, Tooltip } from "@mantine/core";
 import type React from "react";
@@ -21,8 +21,9 @@ function ofWords(part: number, whole: number): string {
 /**
  * The graph's Values tab, the Overview (tier1-design.md section 2.7, task T6): every count the
  * element publishes about the graph's shape, each that can be selected a link that selects it.
- * While a filter step is on, it leads with the element's visible counts and heads the rest "Full
- * graph", the key's word for the same scope, so a reader does not take them for what is showing.
+ * While a filter step is on, the Overview holds only the element's visible counts, and the rest go
+ * in a section of their own, "Full graph" (the key's word for the same scope), so a reader does
+ * not take them for what is showing.
  * @returns The Overview
  */
 export function Overview(): React.JSX.Element | null {
@@ -47,16 +48,8 @@ export function Overview(): React.JSX.Element | null {
     const filtered = session.visibility.steps.some((step) => step.on);
     const showing = session.visibility.summary;
 
-    return (
-        <ControlSection label="Overview" defaultOpened>
-            {filtered && (
-                <>
-                    <DataRow stat name="Nodes showing" value={ofWords(showing.visibleNodes, showing.totalNodes)} />
-                    <DataRow stat name="Edges showing" value={ofWords(showing.visibleEdges, showing.totalEdges)} />
-                    {/* A heading over the rows below, not a row with a missing value. */}
-                    <DataRowHeader label="Full graph" />
-                </>
-            )}
+    const whole = (
+        <>
             <DataRow stat name="Nodes" value={statistics.nodeCount} />
             <DataRow stat name="Edges" value={statistics.edgeCount} />
             <DataRow stat name="Direction" value={directionWords(statistics)} />
@@ -89,7 +82,26 @@ export function Overview(): React.JSX.Element | null {
             {statistics.repeatedEdgeCount > 0 && (
                 <DataRow name={count(statistics.repeatedEdgeCount, "repeated edge")} />
             )}
-        </ControlSection>
+        </>
+    );
+
+    if (!filtered) {
+        return (
+            <ControlSection label="Overview" defaultOpened>
+                {whole}
+            </ControlSection>
+        );
+    }
+    return (
+        <>
+            <ControlSection label="Overview" defaultOpened>
+                <DataRow stat name="Nodes showing" value={ofWords(showing.visibleNodes, showing.totalNodes)} />
+                <DataRow stat name="Edges showing" value={ofWords(showing.visibleEdges, showing.totalEdges)} />
+            </ControlSection>
+            <ControlSection label="Full graph" defaultOpened>
+                {whole}
+            </ControlSection>
+        </>
     );
 }
 

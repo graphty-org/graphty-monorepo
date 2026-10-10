@@ -101,9 +101,15 @@ describe("the inspector", () => {
             screen.getByRole("group", { name: "Edges showing" }).textContent,
             `${String(visibleEdges)} of 13`,
         );
-        // "Full graph" heads the whole-graph rows in the shared row-run heading, not as a row of its own.
-        assert.equal(screen.getByText("Full graph").getAttribute("data-testid"), "data-row-header-label");
-        assert.include(screen.getByRole("group", { name: "Nodes" }).textContent, "12");
+        // The showing rows sit in the Overview; the whole graph's rows in a section of their own,
+        // "Full graph", with its own heading -- not a row-shaped caption inside the Overview.
+        const overviewSection = screen.getByRole("group", { name: "Overview" });
+        assert.isNotNull(within(overviewSection).getByRole("group", { name: "Nodes showing" }));
+        assert.isNull(within(overviewSection).queryByRole("group", { name: "Nodes" }));
+        const fullGraph = screen.getByRole("group", { name: "Full graph" });
+        assert.equal(fullGraph.getAttribute("data-testid"), "control-section");
+        assert.isNotNull(within(fullGraph).getByRole("button", { name: /Full graph/ }));
+        assert.include(within(fullGraph).getByRole("group", { name: "Nodes" }).textContent, "12");
 
         // Off again: back to the plain Overview.
         await act(async () => {

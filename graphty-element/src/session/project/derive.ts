@@ -312,7 +312,11 @@ export class DerivationLane {
             }
 
             this.current = null;
-            this.passEnded?.();
+            try {
+                this.passEnded?.();
+            } catch (error) {
+                this.onError(error);
+            }
             pass.resolve();
         }
     }

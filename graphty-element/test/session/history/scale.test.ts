@@ -43,16 +43,17 @@ const TIMEOUT_MS = 120_000;
 const CAPTURE_PER_ROW = 20;
 
 /**
- * A session holding `NODES` nodes and `EDGES` edges as its baseline, with a fake layout.
+ * A session holding `nodeCount` nodes and twice as many edges as its baseline, with a fake layout.
+ * @param nodeCount - How many nodes; the largest graph a session holds when absent.
  * @returns The harness.
  */
-async function bigGraph(): Promise<Harness> {
+async function bigGraph(nodeCount = NODES): Promise<Harness> {
     const harness = blankHarness({ baselineWindow: true });
     const session = harness.session as ElementSession;
-    const nodes = Array.from({ length: NODES }, (_, at) => ({ id: `v${String(at)}` }));
-    const edges = Array.from({ length: EDGES }, (_, at) => ({
-        src: `v${String(at % NODES)}`,
-        dst: `v${String(((at % NODES) + 1 + Math.floor(at / NODES) * 7919) % NODES)}`,
+    const nodes = Array.from({ length: nodeCount }, (_, at) => ({ id: `v${String(at)}` }));
+    const edges = Array.from({ length: 2 * nodeCount }, (_, at) => ({
+        src: `v${String(at % nodeCount)}`,
+        dst: `v${String(((at % nodeCount) + 1 + Math.floor(at / nodeCount) * 7919) % nodeCount)}`,
     }));
     await dispatcherOf(session).dispatch({
         op: "batch",
@@ -216,18 +217,6 @@ describe("what each kind of step retains, at the largest graph a session holds",
         assert.isAtMost(topBytes(session), 320 * taken);
     });
 
-    it("thirty removals from the middle of the rows, undone without awaiting, cost one rebuild, at the next read", async () => {
-        for (let at = 0; at < 30; at++) {
-            await session.data.removeNodes([`v${String(20_000 + at * 101)}`]);
-        }
-
-        const rebuilds = harness.store.rebuildCount;
-        await Promise.all(Array.from({ length: 30 }, () => session.undo()));
-        assert.strictEqual(harness.store.rebuildCount, rebuilds, "no rebuild before anything read the graph");
-        session.snapshot();
-        assert.strictEqual(harness.store.rebuildCount, rebuilds + 1, "one rebuild for all thirty");
-    });
-
     it("a replacing import: the graph it replaced, kept as the latest step though it is over the budget, and evicted after", async () => {
         const replaced = session.snapshot();
         const { history } = session;
@@ -290,6 +279,27 @@ describe("what each kind of step retains, at the largest graph a session holds",
         }
 
         assert.isAtLeast(history.steps.length, 2, "the latest steps are kept");
+    });
+});
+
+describe("a run of removals undone without awaiting", () => {
+    // The rebuild count does not depend on the graph's size, and building the largest graph and
+    // rebuilding it once are seconds of work, so this runs on a graph of a thousand nodes.
+    const nodeCount = 1000;
+
+    it("thirty removals from the middle of the rows, undone without awaiting, cost one rebuild, at the next read", async () => {
+        const harness = await bigGraph(nodeCount);
+        const session = harness.session as ElementSession;
+        assert.strictEqual(session.snapshot().nodeCount, nodeCount);
+        for (let at = 0; at < 30; at++) {
+            await session.data.removeNodes([`v${String(300 + at * 13)}`]);
+        }
+
+        const rebuilds = harness.store.rebuildCount;
+        await Promise.all(Array.from({ length: 30 }, () => session.undo()));
+        assert.strictEqual(harness.store.rebuildCount, rebuilds, "no rebuild before anything read the graph");
+        session.snapshot();
+        assert.strictEqual(harness.store.rebuildCount, rebuilds + 1, "one rebuild for all thirty");
     });
 });
 

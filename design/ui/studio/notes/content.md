@@ -16,7 +16,7 @@ I read this file at the start of every session and update it as I decide and lea
   34 -> <=30). Every word fix names what it deletes; "no new word anywhere".
 - 2026-10-10 Key scope wording to write: no filter + whole graph = "PageRank"; under a filter
   "PageRank, full graph"; narrower run keeps "on N nodes". Unweighted note: `Each edge counts as
-  1; "weight" has no meaning set.` Neighbor list: cut two words at rest.
+1; "weight" has no meaning set.` Neighbor list: cut two words at rest.
 - 2026-10-10 Round 2 credits nothing it measured as "worked": participants read the facilitator
   tasks.md. A problem found anyway is robust; a route that worked is weak. Re-run before crediting
   Higher means at load, Replace in "...", the find rule hint.

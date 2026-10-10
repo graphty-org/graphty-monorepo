@@ -205,16 +205,21 @@ function runOpen(r) {
 }
 
 /**
- * The workflow runs on a head that still have a pending check, by workflow name.
- * @param {any[]} contexts CheckRun and StatusContext nodes
+ * The workflow runs on a head still in flight, by workflow name: a check suite not completed, which
+ * exists from the moment the run is queued, before any job has made a check run (#1881), or a
+ * pending check run.
+ * @param {any} commit the GraphQL head commit
+ * @param {any[]} contexts its CheckRun and StatusContext nodes
  * @returns {Map<string, Set<number>>} run ids by workflow name
  */
-function inFlightRuns(contexts) {
+function inFlightRuns(commit, contexts) {
     /** @type {Map<string, Set<number>>} */
     const out = new Map();
-    for (const c of contexts) {
-        const wr = c.checkSuite?.workflowRun;
-        if (!wr?.databaseId || contextState(c) !== "PENDING") continue;
+    const suites = (commit?.checkSuites?.nodes ?? []).filter((/** @type {any} */ s) => s.status !== "COMPLETED");
+    const pending = contexts.filter((c) => contextState(c) === "PENDING").map((c) => c.checkSuite);
+    for (const suite of [...suites, ...pending]) {
+        const wr = suite?.workflowRun;
+        if (!wr?.databaseId) continue;
         const name = wr.workflow?.name ?? "";
         out.set(name, (out.get(name) ?? new Set()).add(wr.databaseId));
     }
@@ -222,16 +227,18 @@ function inFlightRuns(contexts) {
 }
 
 /**
- * Whether a check run belongs to a run made at or before the pull request was marked ready while
- * another run of the same workflow on the head is still in flight: the draft run, replaced.
+ * Whether a check run belongs to a finished run while another run of the same workflow on the head
+ * is still in flight: the draft run once the pull request is ready. Neither creation time nor run
+ * id tells the draft run from the ready run, either can come first, even after the ready event
+ * (#1107, #1814, #1881); a run still in flight is the verdict to wait for.
+ * ponytail: a draft run still in flight beside a finished ready run reads pending for its seconds.
  * @param {any} c the context
- * @param {string} readyAt the last ready-for-review time
  * @param {Map<string, Set<number>>} inFlight {@link inFlightRuns}
  * @returns {boolean} true when it says nothing about the ready pull request
  */
-function replacedDraftRun(c, readyAt, inFlight) {
+function replacedRun(c, inFlight) {
     const wr = c.checkSuite?.workflowRun;
-    if (!wr?.createdAt || wr.createdAt > readyAt) return false;
+    if (!wr?.databaseId) return false;
     return [...(inFlight.get(wr.workflow?.name ?? "") ?? [])].some((id) => id !== wr.databaseId);
 }
 
@@ -260,16 +267,15 @@ function readChecks(node, requiredChecks, queueChecks) {
     // A check run that started before the PR was last marked ready ran on the draft: it says nothing
     // about the ready PR, even while the ready run is queued and has reported no check (#1080). A
     // StatusContext has no start time and is kept.
-    // A run made at or before that time, while another run of its workflow on this head is still in
-    // flight, is the draft run too, however late its jobs started: a draft run whose summary check
-    // starts seconds after the ready event would otherwise read as the verdict while the ready run's
-    // summary check does not exist yet (#1814). Once the ready run finishes, its later check runs win.
+    // A run of a workflow while another run of it on this head is still in flight is the draft run
+    // too, however late its jobs started: its failed summary check would otherwise read as the
+    // verdict while the ready run has made no check run yet (#1814, #1881). Once the ready run
+    // finishes, its later check runs win.
     const readyAt = node.timelineItems?.nodes?.[0]?.createdAt;
-    const inFlight = inFlightRuns(allContexts);
+    const inFlight = inFlightRuns(commit, allContexts);
     const contexts = readyAt
         ? allContexts.filter(
-              (/** @type {any} */ c) =>
-                  !(c.startedAt && c.startedAt < readyAt) && !replacedDraftRun(c, readyAt, inFlight),
+              (/** @type {any} */ c) => !(c.startedAt && c.startedAt < readyAt) && !replacedRun(c, inFlight),
           )
         : allContexts;
     /** @type {Map<number, RunNote>} */

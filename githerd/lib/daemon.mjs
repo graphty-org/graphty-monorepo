@@ -312,6 +312,7 @@ const PRS_QUERY = `query($owner: String!, $name: String!) {
         commits(last: 1) { nodes { commit {
           committedDate
           committer { email }
+          checkSuites(first: 30) { nodes { status workflowRun { databaseId workflow { name } } } }
           statusCheckRollup { contexts(first: 100) { nodes {
             __typename
             ... on CheckRun { name status conclusion startedAt completedAt databaseId

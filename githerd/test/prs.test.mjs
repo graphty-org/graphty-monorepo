@@ -314,6 +314,33 @@ describe("checks", () => {
         expect(polls([alone])["704"].required["All Checks Pass"]).toBe("FAILURE");
     });
 
+    it("a queued ready run with no check run yet replaces the draft run, seen by its check suite", () => {
+        // #1881: the draft run was made a second AFTER the ready event, and the ready run, made two
+        // seconds later, had a check suite in progress but no check run at all.
+        const wr = (/** @type {number} */ id) => ({ databaseId: id, workflow: { name: "CI" } });
+        const n = withChecks(node({ timelineItems: { nodes: [{ createdAt: "2026-10-10T07:38:35Z" }] } }), [
+            run("All Checks Pass", "FAILURE", {
+                databaseId: 1,
+                startedAt: "2026-10-10T07:38:40Z",
+                checkSuite: { workflowRun: wr(38035124828) },
+            }),
+            run("Lint PR Title", "SUCCESS", { databaseId: 2, checkSuite: { workflowRun: wr(38035124892) } }),
+        ]);
+        const commit = n.commits.nodes[0].commit;
+        commit.checkSuites = {
+            nodes: [
+                { status: "COMPLETED", workflowRun: wr(38035124828) },
+                { status: "IN_PROGRESS", workflowRun: wr(38035126891) },
+            ],
+        };
+        const rec = polls([n])["704"];
+        expect(rec.required["All Checks Pass"]).toBe("MISSING");
+        expect(rec.failingChecks).toEqual([]);
+        // The ready run's suite completed without a summary check: the draft failure stands again.
+        commit.checkSuites.nodes[1].status = "COMPLETED";
+        expect(polls([n])["704"].required["All Checks Pass"]).toBe("FAILURE");
+    });
+
     it("a cancelled required check is no failure: no ask, no pr job, its run listed for a re-run", () => {
         const suite = (/** @type {number} */ id) => ({
             checkSuite: { workflowRun: { databaseId: id, workflow: { name: "CI" } } },

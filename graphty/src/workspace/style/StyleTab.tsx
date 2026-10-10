@@ -328,9 +328,10 @@ function Section({
     const unset = entries.filter((e) => !isSet(e));
     const add = (entry: Entry): void => {
         const from = channels.find((d) => d.channel === entry.compound?.startsFrom) ?? entry.adds;
-        if (entry.adds.channel === "node.size") {
-            // A fixed size changes nothing visible, so a new Size line asks at once what the sizes
-            // follow, "Fixed size" first; the list takes focus.
+        if (entry.adds.channel === "node.size" || entry.adds.channel === "node.tooltip") {
+            // A fixed size changes nothing visible, and an empty tooltip says nothing, so a new
+            // Size or Tooltip line asks at once what it follows, the fixed choice first; the list
+            // takes focus.
             openListNext(entry.adds.channel);
         } else {
             // The pick can remove "+" itself, so focus goes to the new line rather than back to it.

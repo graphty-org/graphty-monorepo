@@ -56,6 +56,9 @@ interface SetLineProps {
 /** Figma's paint field beside a row's bind icon and "-": 156 px, so the hex and opacity fit whole. */
 export const PAINT_FIELD_WIDTH = 156;
 
+/** The first choice of a bind list that keeps the line's own value, for lines that open the list when added. */
+const FIXED_LABELS: Partial<Record<string, string>> = { "node.size": "Fixed size", "node.tooltip": "Fixed text" };
+
 /** The width of a line's pop-out (a compound line, the bind list, the Binding and Shape lists), as wide as the panel's own rows. */
 const POPOUT_WIDTH = 248;
 
@@ -163,7 +166,7 @@ export function SetLine({
                     <FromDataList
                         target={target}
                         channel={channel}
-                        fixedLabel={channel === "node.size" ? "Fixed size" : undefined}
+                        fixedLabel={FIXED_LABELS[channel]}
                         onFixed={() => {
                             openBinding(false);
                             // The line keeps its value; focus goes to it to change the number.
@@ -278,8 +281,12 @@ function BoundValue({
     const source = sourceName(session, binding) ?? binding.by;
     const palette =
         binding.palette === undefined ? undefined : session.catalog.palettes().find((p) => p.id === binding.palette);
-    // Never empty, so two lines reading one source never share an accessible name.
-    let detail = palette === undefined ? name : paletteWord(palette.id);
+    // Never empty, so two lines reading one source never share an accessible name -- except a
+    // text line (Tooltip), whose words are the source's own values: it shows the source.
+    let detail: string | undefined = palette === undefined ? name : paletteWord(palette.id);
+    if (descriptor.accepts === "text") {
+        detail = undefined;
+    }
     if (unresolved) {
         detail = "reads nothing";
     } else if (binding.range !== undefined) {

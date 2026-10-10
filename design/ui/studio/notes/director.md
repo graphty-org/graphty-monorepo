@@ -5,37 +5,41 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-09 (fourth round 2 dry run, every task half piloted on 2dcea6dd5bba).
+Last updated: 2026-10-09 (tier 2 round 1 closed; lessons and round 2 watch list recorded).
 
 ## Top of mind
 
-- 2026-10-09: FOURTH ROUND 2 DRY RUN on 2dcea6dd5bba (`tier2/dry-run-r2-4.md`): 118 items, 7 fix
-  in four small units (source inspector glyph, run inspector alignment, find box rule font and
-  Enter target, click on a drawn name), 52 design, 52 no change. No walk hit a broken control or
-  an error. The dry runs have converged: fix, refreeze, re-pilot the touched halves, then start.
-- 2026-10-09: A pattern fixed in one place is a defect wherever it is missing. The path form
-  marked its Enter target in the first dry run; the find box never did. Grep for siblings.
-- 2026-10-09: The study tool is the biggest remaining risk to a session, not the app. Its 3000 ms
-  click limit counts Playwright's wait after the click, so on a loaded machine (load 90 to 115) a
-  landed click reads as "could not click" and a missed one can pass setup. In a session that
-  tells the participant a click failed when it worked. Check the instrument on a loaded machine.
-- 2026-10-09: A shared rule tested on one shape only is not a rule. "A pointer-opened menu
-  highlights nothing" held only for menus whose first row is disabled (the test used one). Every
-  shared-behavior test needs the common case, not just the case that was reported.
-- 2026-10-09: Pilots repeat known items. Name a recurring reason once in the triage (3D overlap,
-  names by default, focus on a heading, covers until closed, tooltip after a click); never re-argue.
-- 2026-10-09: The study tool hid every native scrollbar (`--hide-scrollbars`); fixed. Check other
-  headless defaults the same way.
-- 2026-10-09: Check every pilot claim in source or screenshot before classing; the second dry run
-  found five that did not hold.
-- 2026-10-09: TIER 2 ROUND 1 DECIDED (`tier2/rounds/round-1/decisions.md`): 15 changes;
-  measurement first, then one door per problem so round 2 can credit each change.
-- 2026-10-09: Dry run rule: each task's success path plus its two commonest wrong turns, Enter,
-  Tab and Escape in every field, by pointer and by keyboard; the tool runs the same detours.
-- 2026-10-09: Expect bar 10 to fail in round 2 on drawn names overlapping (element label
-  placement, too large between rounds). Bring the owner that evidence.
-- 2026-10-09: "Select where..." on a column waits for the find hint to fail (3+ looking in one
-  place). Bare numbers in rules stay an owner question.
+- 2026-10-09: TIER 2 ROUND 1 CLOSED. Yes, there was a dry run (four builds plus the frozen one),
+  and on the routes it walked no participant met a broken control (all logs empty, 52 of 55
+  succeeded, no grade decided by a defect). But it walked only the answer key's routes: detours
+  (styling, the selection display) met four build defects, and the study tool reached participants
+  more often than the build did. Every round 2 dry run since walks the commonest detours too.
+- 2026-10-09: Round 1's real findings are discovery, not breakage: find answers a condition with
+  only "No match" (T22, 4 of 4, the only task under its floor); Replace not visible at rest (8 of
+  8 hunted); a plain open never asks what a weight means (T20, cost 23 vs 22); filtering lives
+  only under Data (T17). That is what a study should surface; keep it that way.
+- 2026-10-09: Round 1 decided 15 changes (`tier2/rounds/round-1/decisions.md`), measurement first,
+  one door per problem so round 2 can credit each: tool limits and scripts, find's rule hint,
+  "..." menu with Replace on the source, data files through the Data page, ", out of date" on the
+  key, no silent Everything, halo without tint (element), weight list on the loaded weight.
+- 2026-10-09: WATCH IN ROUND 2: (1) T22 passes its floor with the hint alone, or the column's
+  "Select where..." comes next; (2) T21 finds Replace from the inspector "..." without a
+  right-click; (3) T20 under 22 steps with no session setting weight per run; (4) bars 2, 7, 8, 9
+  actually scored -- "not scored" fails; (5) zero tool-caused steps; (6) bar 10 likely fails on
+  drawn-name overlap (element label placement): take that evidence to the owner, do not patch.
+- 2026-10-09: Persona scripts decide outcomes. Tom's scripted two-attempt exit made two of three
+  non-successes. Graders label a give-up that follows a persona rule; it is not the screen's.
+- 2026-10-09: A simulated returning user goes first where its history points; a first move that
+  matches the history is weak evidence. Credit the second place they look.
+- 2026-10-09: The study tool is the biggest remaining risk to a session. Four sessions alive at
+  most; its click limit counted Playwright's wait (load 90 to 158 read landed clicks as failed).
+  Check the instrument on a loaded machine before every round.
+- 2026-10-09: Round 2 dry runs converged on 2dcea6dd5bba (`tier2/dry-run-r2-4.md`): 0 broken
+  controls; fix the last 7, refreeze, re-pilot the touched halves, then start.
+- 2026-10-09: A pattern fixed in one place is a defect wherever it is missing (Enter target on the
+  path form, never on find). Grep for siblings. A shared rule needs the common case tested.
+- 2026-10-09: Check every pilot and skeptic claim in source or screenshot before classing; the
+  hover "..." in round 1's scores was never drawn.
 - 2026-10-08: TIER 2 CRITERIA FROZEN (`tier2/criteria.md`). 11 bars; "not scored" never holds; no
   round cap; stall = no progress (< 3 more core-four successes of 32, no core sev 3-4 closed, no
   failing bar newly held).
@@ -214,27 +218,12 @@ Last updated: 2026-10-09 (fourth round 2 dry run, every task half piloted on 2dc
   every task on both datasets and triaging by "could a participant hit it" against "is it the
   question the study asks".
 
-- 2026-10-08 (second dry run) -- Worked: a second pilot pass on the fixed build found 65 new
-  defects, many made by the first fixes (focus moved onto value rows; a row description passed
-  but hidden by the shared row; the path color moved out of the ramp and onto the default blue).
-  Lesson: a fix batch is not done until a re-pilot on the built result shows it. Did not work:
-  checking the path color's distance against flat swatches only; shaded spheres at small size
-  read differently, so check on a screenshot of both a ranked and an unranked start.
-
-- 2026-10-08 (third dry run) -- Worked: reading the code behind each pilot finding before
-  classing it. Three "new features" were already there (`descriptionVisible` for the Sources
-  counts, the element's selection `edgeColor` for the Style tab, `onTop` for labels), and two
-  defects shared one root cause (a path run's kind differs between tree and inspector: wrong icon
-  and unmarked row). Did not work: the second run's "end the find list on a whole row" fix; it
-  hid the cut instead of showing it. A fix for a cut must show that more exists, not hide the cut.
-
-- 2026-10-08 (fourth dry run) -- Worked: checking each "known on this build" item in source
-  before keeping it. The path direction note led to an unbuilt decision (no Follow, and the
-  element's search ignores direction); the "Edit source" trap turned out to be a mislabeled
-  command (an "add" request) rather than a design question; "row (no name)" was the tool printing
-  a table row's name, not the app. Did not work: the third run's fixes for a disabled first menu
-  row and a boxed title focus each made the next defect. Lesson: a focus or highlight fix needs
-  both a keyboard and a pointer walk on the exact screen before it is called done.
+- 2026-10-08 (dry runs two to four, summarized; full text in git history of this file) --
+  Worked: re-piloting each fix batch on the built result (the second pass found 65 new defects,
+  many made by the first fixes); reading the code behind each finding (three "new features" were
+  already there; "Edit source" was a mislabeled add; "row (no name)" was the tool). Did not work:
+  checking colors on flat swatches instead of shaded spheres; hiding a cut instead of showing more
+  exists; focus or highlight fixes without both a keyboard and a pointer walk on the exact screen.
 
 - 2026-10-09 (tier 2 round 1) -- Worked: four dry runs left 0 broken controls on walked routes
   (all logs empty, no grade decided by a defect). Did not work: walking only the answer key's
@@ -270,6 +259,13 @@ Last updated: 2026-10-09 (fourth round 2 dry run, every task half piloted on 2dc
 
 ## Thinking
 
+- **2026-10-09, what round 1 taught about the study itself:** a dry run that clears only the key's
+  routes leaves participants to find detour defects; the cheapest check is the previous round's
+  wrong turns walked by pointer and keyboard. Prompts can induce the behavior they measure (every
+  T21 session caught the stale run because the prompt said a rerun was due); judge staleness from
+  experts and a script, not from those sessions. Task wording leans routes ("bring it in so every
+  calculation" invites an import step): credit what users do next, not the first door.
+
 - **What tier 2 needs before its first round:** tasks and answers for filter, shortest chain,
   notes, two tables (old T4), weight at load used by every run, rerun on new data (needs a
   `friends-v2.csv` with the same nodes and changed weights); returning-user personas; the same
@@ -285,6 +281,8 @@ Last updated: 2026-10-09 (fourth round 2 dry run, every task half piloted on 2dc
   suppressing it. Owner item.
 
 ## Sources
+
+- Tier 2 round 1 (2026-10-09): `tier2/rounds/round-1/{plan,scores,insights,decisions}.md`, sessions in `tier2/rounds/round-1/sessions/`.
 
 - Tier 2 round 2 dry runs (2026-10-09): `tier2/dry-run-r2-{1,2,3,4}.md`, pilots in `tier2/rounds/r2d{1,2,3}/pilot/`.
 - Tier 2 (2026-10-08): `tier2/dry-run-r1-4.md` (pilots in `tier2/rounds/r1d3/pilot/`), `tier2/dry-run-r1-1.md`, `tier2/dry-run-r1-2.md` (pilots in `tier2/rounds/r1d1/pilot/`), `tier2/dry-run-r1-3.md` (pilots in `tier2/rounds/r1d2/pilot/`), `tier2/criteria.md` (frozen), `tier2/tasks.md`, `tier2/roster.md` ("Where each

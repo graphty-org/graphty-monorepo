@@ -5,21 +5,25 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-10 (round 3 second dry run triaged: 1 fix, the Overview's "Full graph" heading).
+Last updated: 2026-10-10 (round 3 third dry run triaged: 0 fixes; build 26f3bb968 is the round 3 build).
 
 ## Top of mind
 
-- 2026-10-10: ROUND 3 SECOND DRY RUN (`tier2/dry-run-r3-2.md`, build 897d9aed9ffe): 95 rows, 1
-  fix. Five of the first dry run's six fixes held; the Overview's "Full graph" did not (a column
-  caption at the rows' inset still reads as a row with no value). Fix: a `ControlSection` of its
-  own. Refreeze, re-pilot T17 A and B, then start r3. Over 90 of 95 were repeats the key holds.
+- 2026-10-10: ROUND 3 THIRD DRY RUN (`tier2/dry-run-r3-3.md`, build 26f3bb968e43): 88 rows, 0
+  fixes. The "Full graph" section heading held (T17B/07). Five new items, each the build working
+  as decided, checked in source. NO REFREEZE: 26f3bb968e43 is the round 3 build; start r3.
+- 2026-10-10: Dry runs have converged: 6 fixes, then 1, then 0, with over 90% repeats the key
+  holds. A fourth dry run on this build would buy nothing; spend the browsers on sessions.
+- 2026-10-10: Open for after the study: graphty-element's `data.attributes()` declares
+  `origin: "result"` and never sets it, while the app already sorts run results first. If the
+  sessions say results belong in Attributes, that is a change to what an existing method returns
+  (owner), not an app patch.
 - 2026-10-10: Verify a fix by its acceptance screenshot, not by its commit. A fix that uses the
   right package but the wrong component (column caption for a group heading) passes review and
   fails the reader.
-- 2026-10-10: A "fewer words" cut can turn a sentence into a fake row ("Full graph" in row
-  styling). When text becomes a heading, use the shared heading component, never a dimmed line.
-- 2026-10-10: A plain command whose press would change nothing is disabled with its reason (as
-  Undo is). That is not a toggle; it keeps the round 2 "plain command" decision.
+- 2026-10-10: When text becomes a heading, use the shared heading component (`ControlSection`),
+  never a column caption or a dimmed line; a plain command that would change nothing is disabled
+  with its reason, as Undo is.
 - 2026-10-09: TIER 2 ROUND 2 DECIDED (`tier2/rounds/round-2/decisions.md`): 15 changes, study
   first. Yes, there was a dry run, and it worked on what it walked (about 30 of 355 problems were
   build faults, none above severity 2, none decided a grade). Twelve of the 30 sat on the one
@@ -46,7 +50,7 @@ Last updated: 2026-10-10 (round 3 second dry run triaged: 1 fix, the Overview's 
   never an app patch.
 - 2026-10-09: A pattern fixed in one place is a defect wherever it is missing. Grep for siblings.
 - 2026-10-07: Words: glossary wins. Severity 4 needs a wrong conclusion a reader would act on.
-- Before a new element API, grow an existing method. Remove before adding; words at rest never rise.
+  Before a new element API, grow an existing method. Remove before adding; words at rest never rise.
 
 ## Priorities and values
 
@@ -163,28 +167,23 @@ Last updated: 2026-10-10 (round 3 second dry run triaged: 1 fix, the Overview's 
   to neighbors a plain command; repeated status re-announced; T22/T24 lose "stand out". Held:
   label overlap (element), neighbor depth groups, "Edit source" title, "Components 1".
 
-- 2026-10-10 -- Round 3 first dry run triage (me, `tier2/dry-run-r3-1.md`). Fixed: the
-  Overview's "Full graph" (drawn as a row label, it read as a missing value and invited the
-  misreading the key grades; compact-mantine `DataRowHeader` already exists); the import pane's
-  header moving 15 px with its scrollbar (reversed the third round 2 dry run's "polish, leave":
-  a misalignment met on every two-table load, one CSS line); "Selection cleared" outliving the
-  selection that replaced it; "Filter to neighbors" doing nothing on a second press (disabled with
-  its reason); a tie pick leaving focus in the emptied find box (node picks already move it); the
-  first reopen of a saved project drawing no "Opened" notice (cause untraced; unit reproduces it
-  first). Kept: tie From/To in list-row style (they open their node, like Degree), "km 7.5" (the
-  Summary's own order), the 180 px tooltip wrap (shared rule), "11:0 3" (capture font: same gap
-  in "sh eet"), the Hops 2 heading without its reach (deliberate; the key records misreadings).
+- 2026-10-10 -- Round 3 dry runs one and two (summarized; full text in `tier2/dry-run-r3-{1,2}.md`
+  and git history of this file). Fixed: the Overview's whole-graph rows under a filter step (first a
+  `DataRowHeader` column caption, which still read as a row with no value, then their own
+  `ControlSection` "Full graph"); the import pane's header shifting with its scrollbar; a stale
+  "Selection cleared"; "Filter to neighbors" disabled with its reason on a second press; a tie pick
+  moving focus like a node pick; the first reopen's "Opened" notice. Kept, each checked: focus
+  after Save (dialog returns it to the note card; `:focus-visible` hides it after a click), the
+  T22 hint, the tooltip naming Filters, the path form's open lists, tie From/To rows, "km 7.5".
 
-- 2026-10-10 -- Round 3 second dry run triage (me, `tier2/dry-run-r3-2.md`). Fixed: the
-  Overview's whole-graph rows under a filter step go into their own `ControlSection` "Full graph"
-  (the first dry run's `DataRowHeader` is a column caption: same inset and size as the row labels,
-  nothing at the trailing edge, so T17B/07 still read it as a row with a missing value). Kept, each
-  checked: no focus ring after Save (walked on the build: the dialog returns focus to the note
-  card; a pointer click on Save draws no ring by `:focus-visible`, Control+S then Enter does); the
-  T22 hint saying "press Enter" for a different rule that names the already-selected set (comparing
-  match sets per keystroke is graph work); the "Filter to neighbors" tooltip naming Filters, which
-  lives on the Data place (naming the place would answer T17 and T23 before the sessions); the
-  path form's open lists covering the next field (covers until closed, key gains it).
+- 2026-10-10 -- Round 3 third dry run triage (me, `tier2/dry-run-r3-3.md`): 0 fixes, no refreeze.
+  New items kept, each checked in source: the header chip's fill after a click is the subtle
+  Button's hover under the resting pointer (`FilterChip`); a one-table edge file wears the edge
+  glyph by rule (`words.ts`, "a source that brought one kind of record is that table"); the import
+  preview shows parsed numbers ("3.0" as 3), as a spreadsheet does; 4 Tabs to Degree follow the
+  screen's order and "g" is the one-key route; a tie pick's focus is on the inspector title
+  (focus on a heading). Reason for no refreeze: nothing a participant could hit is left that is
+  not the question a session asks, and a new build would need a fourth full pilot.
 
 ## Tried: worked / did not work
 
@@ -255,17 +254,15 @@ Last updated: 2026-10-10 (round 3 second dry run triaged: 1 fix, the Overview's 
   `owner-decisions.md` before ruling on a "units bug" -- the width question was already measured
   and on the owner's list, which settled the red team's objection in one read.
 
-- 2026-10-10 (round 3 first dry run) -- Worked: checking each "new" item against the key and the
-  four round 2 triages first; most of 92 were repeats, so time went to the eight that were not.
-  Worked: reading the screenshot before the claim (the tie values' gray was a clickable-row rule;
-  the timestamp gap appears inside words too). Did not work: a pilot claim with no traced cause
-  ("first open showed no notice") cannot be fixed by reading; it goes out as a reproduce-first unit.
-
-- 2026-10-10 (round 3 second dry run) -- Worked: checking whether each earlier fix held on its
-  acceptance screenshot before reading the new items; it found the one fix that had not. Worked:
-  a five-step walk on the frozen build (Control+S, click Save, `--read`, then Control+S, Enter)
-  settled a focus claim the screenshots could not. Did not work: the first dry run's unit named
-  a component (`DataRowHeader`) without checking it draws as a heading; name the look, not the part.
+- 2026-10-10 (round 3 dry runs one to three) -- Worked: checking each "new" item against the key
+  and every earlier triage first, so time went to the few that were new; checking that each
+  earlier fix held on its acceptance screenshot before reading new items (found the one that had
+  not); a five-step walk on the frozen build to settle a focus claim screenshots could not; reading
+  the component behind a "stuck highlight" (a subtle Button has only a hover fill). Did not work:
+  a unit that named a component (`DataRowHeader`) without checking it draws as a heading -- name
+  the look, not the part; a pilot claim with no traced cause cannot be fixed by reading (send it
+  out as reproduce-first). Did not work: four triages repeating "the list holds the file's
+  columns" for Attributes without reading `attributeRows`; the app already expects run results.
 
 ## Thinking
 
@@ -292,7 +289,7 @@ Last updated: 2026-10-10 (round 3 second dry run triaged: 1 fix, the Overview's 
 
 ## Sources
 
-- Round 3 dry runs (2026-10-10): `tier2/dry-run-r3-1.md` (pilots in `tier2/rounds/r3/pilot/`), `tier2/dry-run-r3-2.md` (pilots in `tier2/rounds/r3d1/pilot/`).
+- Round 3 dry runs (2026-10-10): `tier2/dry-run-r3-1.md` (pilots in `tier2/rounds/r3/pilot/`), `tier2/dry-run-r3-2.md` (pilots in `tier2/rounds/r3d1/pilot/`), `tier2/dry-run-r3-3.md` (pilots in `tier2/rounds/r3d2/pilot/`, build 26f3bb968e43).
 - Tier 2 round 2 (2026-10-09): `tier2/rounds/round-2/{plan,preflight,scores,insights,decisions}.md`; proposals in `notes/{user,researcher,ia,content,interaction,figma,visual,a11y,engineer,redteam}.md`.
 - Tier 2 round 1 (2026-10-09): `tier2/rounds/round-1/{plan,scores,insights,decisions}.md`, sessions in `tier2/rounds/round-1/sessions/`.
 

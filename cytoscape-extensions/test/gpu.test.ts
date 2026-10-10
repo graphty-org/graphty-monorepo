@@ -358,7 +358,8 @@ describe("the device lifecycle (a fake provider)", () => {
         const r = await mainGraph().graphtyPageRankAsync({ initialRanks: () => 1 });
         expect(r.backend.ran).toBe("cpu");
         expect(r.backend.device).toBe("fake device");
-        expect(r.backend.reason).toMatch(/options or the graph need the CPU/);
+        // the reason the guide's table lists, and nothing more: no remark about the dispatcher
+        expect(r.backend.reason).toBe("the options or the graph need the CPU implementation");
     });
 
     it("an algorithm the fake does not implement runs on the CPU and says so", async () => {

@@ -5,15 +5,17 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-10 (round 3 first dry run triaged: 8 fixes in six units before the r3 sessions).
+Last updated: 2026-10-10 (round 3 second dry run triaged: 1 fix, the Overview's "Full graph" heading).
 
 ## Top of mind
 
-- 2026-10-10: ROUND 3 FIRST DRY RUN (`tier2/dry-run-r3-1.md`): 100 rows, 8 fixes in six app units
-  (Overview "Full graph" as a `DataRowHeader`, import pane `scrollbar-gutter`, stale "Selection
-  cleared" toast, "Filter to neighbors" disabled when it has nothing to do, tie pick moves focus,
-  missing "Opened <name>" on the first reopen). Refreeze and re-pilot T4, T17, T19, T21, T22, T23,
-  T12R before any r3 session. Over 80% of items were repeats the key already holds.
+- 2026-10-10: ROUND 3 SECOND DRY RUN (`tier2/dry-run-r3-2.md`, build 897d9aed9ffe): 95 rows, 1
+  fix. Five of the first dry run's six fixes held; the Overview's "Full graph" did not (a column
+  caption at the rows' inset still reads as a row with no value). Fix: a `ControlSection` of its
+  own. Refreeze, re-pilot T17 A and B, then start r3. Over 90 of 95 were repeats the key holds.
+- 2026-10-10: Verify a fix by its acceptance screenshot, not by its commit. A fix that uses the
+  right package but the wrong component (column caption for a group heading) passes review and
+  fails the reader.
 - 2026-10-10: A "fewer words" cut can turn a sentence into a fake row ("Full graph" in row
   styling). When text becomes a heading, use the shared heading component, never a dimmed line.
 - 2026-10-10: A plain command whose press would change nothing is disabled with its reason (as
@@ -30,8 +32,6 @@ Last updated: 2026-10-10 (round 3 first dry run triaged: 8 fixes in six units be
 - 2026-10-09: A walk list copied from last round is always one round behind. Seed every dry run
   from throwaway pilots on the candidate build; press every control by keyboard; fix before the
   freeze, never hand a found fault on.
-- 2026-10-09: A preflight that names a script must run it on a planted failure (bar 10's counts
-  were claimed and never built). A withdrawn finding is removed everywhere it is cited.
 - 2026-10-09: Not yet credited (re-run clean): weight meaning at load (T20), Replace in the source
   "..." (T21), find's rule hint (T22), the T17/T18 second-time measure; r2-s05 void.
 - 2026-10-09: WATCH IN ROUND 3: (1) T22 under its floor with miss-hint-Enter, else column "Select
@@ -175,6 +175,17 @@ Last updated: 2026-10-10 (round 3 first dry run triaged: 8 fixes in six units be
   Summary's own order), the 180 px tooltip wrap (shared rule), "11:0 3" (capture font: same gap
   in "sh eet"), the Hops 2 heading without its reach (deliberate; the key records misreadings).
 
+- 2026-10-10 -- Round 3 second dry run triage (me, `tier2/dry-run-r3-2.md`). Fixed: the
+  Overview's whole-graph rows under a filter step go into their own `ControlSection` "Full graph"
+  (the first dry run's `DataRowHeader` is a column caption: same inset and size as the row labels,
+  nothing at the trailing edge, so T17B/07 still read it as a row with a missing value). Kept, each
+  checked: no focus ring after Save (walked on the build: the dialog returns focus to the note
+  card; a pointer click on Save draws no ring by `:focus-visible`, Control+S then Enter does); the
+  T22 hint saying "press Enter" for a different rule that names the already-selected set (comparing
+  match sets per keystroke is graph work); the "Filter to neighbors" tooltip naming Filters, which
+  lives on the Data place (naming the place would answer T17 and T23 before the sessions); the
+  path form's open lists covering the next field (covers until closed, key gains it).
+
 ## Tried: worked / did not work
 
 - 2026-09-27..10-03 (summarized) -- Eight rounds on mocks: places right, behavior after the click
@@ -250,6 +261,12 @@ Last updated: 2026-10-10 (round 3 first dry run triaged: 8 fixes in six units be
   the timestamp gap appears inside words too). Did not work: a pilot claim with no traced cause
   ("first open showed no notice") cannot be fixed by reading; it goes out as a reproduce-first unit.
 
+- 2026-10-10 (round 3 second dry run) -- Worked: checking whether each earlier fix held on its
+  acceptance screenshot before reading the new items; it found the one fix that had not. Worked:
+  a five-step walk on the frozen build (Control+S, click Save, `--read`, then Control+S, Enter)
+  settled a focus claim the screenshots could not. Did not work: the first dry run's unit named
+  a component (`DataRowHeader`) without checking it draws as a heading; name the look, not the part.
+
 ## Thinking
 
 - **2026-10-09, what round 1 taught about the study itself:** a dry run that clears only the key's
@@ -275,7 +292,7 @@ Last updated: 2026-10-10 (round 3 first dry run triaged: 8 fixes in six units be
 
 ## Sources
 
-- Round 3 first dry run (2026-10-10): `tier2/dry-run-r3-1.md`, pilots in `tier2/rounds/r3/pilot/`.
+- Round 3 dry runs (2026-10-10): `tier2/dry-run-r3-1.md` (pilots in `tier2/rounds/r3/pilot/`), `tier2/dry-run-r3-2.md` (pilots in `tier2/rounds/r3d1/pilot/`).
 - Tier 2 round 2 (2026-10-09): `tier2/rounds/round-2/{plan,preflight,scores,insights,decisions}.md`; proposals in `notes/{user,researcher,ia,content,interaction,figma,visual,a11y,engineer,redteam}.md`.
 - Tier 2 round 1 (2026-10-09): `tier2/rounds/round-1/{plan,scores,insights,decisions}.md`, sessions in `tier2/rounds/round-1/sessions/`.
 

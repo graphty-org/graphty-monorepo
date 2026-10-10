@@ -1,3 +1,33 @@
+## 3.22.0 (2026-10-10)
+
+### 🚀 Features
+
+- **graphty-element:** publish the AI provider catalog from ./catalog ([#1722](https://github.com/graphty-org/graphty-monorepo/issues/1722))
+- **graphty-element:** publish maxIter on the spring-electrical layout ([#1766](https://github.com/graphty-org/graphty-monorepo/issues/1766))
+- **algorithms:** list each undirected link-prediction pair once on request ([#723](https://github.com/graphty-org/graphty-monorepo/issues/723))
+
+### 🩹 Fixes
+
+- **graphty-element:** time a click by its events, not by when the page handles them ([#1771](https://github.com/graphty-org/graphty-monorepo/issues/1771))
+- **graphty-element:** keep a layout's coded E_TOO_LARGE and a sibling error's params ([b00fb3a20](https://github.com/graphty-org/graphty-monorepo/commit/b00fb3a20))
+- **graphty-element:** release a disposed graph's WebGL context once the GPU is idle ([#1738](https://github.com/graphty-org/graphty-monorepo/issues/1738))
+- **graphty-element:** log facts only on the AI path ([#1763](https://github.com/graphty-org/graphty-monorepo/issues/1763))
+- **graphty-element:** release the WebGL context when a graph is disposed ([#1738](https://github.com/graphty-org/graphty-monorepo/issues/1738))
+- **graphty-element:** take either spelling of an integer id in every node and edge lookup ([#1690](https://github.com/graphty-org/graphty-monorepo/issues/1690))
+- **graphty-element:** keep request, response and key out of AI errors ([a9bcc383c](https://github.com/graphty-org/graphty-monorepo/commit/a9bcc383c))
+- **graphty-element:** run each assistant tool batch in its own short transaction ([#1721](https://github.com/graphty-org/graphty-monorepo/issues/1721))
+- **graphty-element:** recover from headset-ended XR sessions; honor the reference space ([#1731](https://github.com/graphty-org/graphty-monorepo/issues/1731), [#1732](https://github.com/graphty-org/graphty-monorepo/issues/1732))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.43
+- Updated algorithms to 3.4.0
+- Updated layout to 2.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.21.0 (2026-10-09)
 
 ### 🚀 Features

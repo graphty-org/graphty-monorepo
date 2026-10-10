@@ -14,6 +14,9 @@ export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[];
 export const AI_PROVIDER_IDS: readonly ["openai", "anthropic", "google", "webllm", "mock"];
 
 // @public
+export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELLED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED"];
+
+// @public
 export const AI_STAGES: readonly ["processing", "generating", "executing"];
 
 // @public
@@ -77,6 +80,12 @@ export function aiProviderDescriptor(id: AiProviderId): AiProviderDescriptor;
 
 // @public
 export type AiProviderId = (typeof AI_PROVIDER_IDS)[number];
+
+// @public
+export type AiResultCode = (typeof AI_RESULT_CODES)[number];
+
+// @public
+export type AiResultParams = Readonly<Record<string, string | number>>;
 
 // @public
 export function algorithmByKey(key: string): BuiltInAlgorithmDescriptor | undefined;

@@ -12,41 +12,37 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- 2026-10-09 -- Round 2 dry run: yes, and wider than round 1's (success paths and 30 detours by
-  pointer and keyboard, every task half piloted on the frozen build, tool self-check 5 of 5). It
-  worked: about 30 of 355 problems were build faults, none above severity 2 after the skeptics,
-  none decided a grade. Participants spent the round on design questions, as intended.
-- 2026-10-09 -- The faults left sit on the one detour nobody walked: styling a SELECTION (Width
-  starts at 8 and draws a hairline, Color starts at the gray every tie has). Each round finds the
-  route nobody walked. Next dry run walks this round's detours too, not just round 1's.
-- 2026-10-09 -- The round's biggest defect was the study's, not the build's: participants read the
-  facilitator's tasks.md (avoided words, follow-ups). Passes on the three new routes are not
-  credited; problems found anyway are robust. Fix: the tool refuses a session without its own
-  briefing, participants run from the session folder; re-run T20, T21, T22, T17/T18 follow-ups.
-- 2026-10-09 -- Confirmed sev 3 for a returning user: find box answers the reader's own words
-  ("chapters 10", ">= 10") with bare "No match"; numbers in rules need backticks; drawn names cover
-  each other and ties (element, deferred); opening a newer copy offers only "Add", doubling ties.
-- 2026-10-09 -- My round 3 asks (smallest first): starting Width and Color that show; element
-  accepts bare numbers and returns a neutral "no such column" / "looks like a condition" fact;
-  a duplicate-edges fact before Load with Replace offered on that page; a selection layer named by
-  its rule, not "13 edges". Do not touch the routes that worked (T20 load-time weight, Filters,
-  Replace page, find hint once shown).
-- 2026-10-09 -- Prompts with "stand out" invite styling; they measured the prompt, not need.
-  Rewrite them unless the task measures styling.
-- 2026-10-09 -- Label scripted persona exits; never read a scripted exit as the screen's doing.
-- 2026-10-09 -- Weak evidence: simulated returning users go first where their histories point;
-  prompts that ask for a rerun induce "noticing" staleness. Failures and script repros count.
+- 2026-10-10 -- Round 3 does not start until the study is fixed: participant folders outside the
+  studio tree, a transcript leak check that voids sessions, pilot-derived dry-run routes, and every
+  bar script proven on a planted fault. A study that leaks credits routes it never measured.
+- 2026-10-10 -- Re-run before crediting: r2-s05, T20 load-time weight, T21 Replace, T22 rule hint,
+  T17/T18 follow-ups (second-time measure). Until then those routes are "held, weak", not "worked".
+- 2026-10-10 -- Watch in round 3 (find box): does "No match" plus the example line, a runnable hint
+  with its "=", and Enter on the hint get 3+ of 8 past the dead end? If 3+ still stall, "Select
+  where..." on a column is next. Bare numbers stay owner-side (breaking).
+- 2026-10-10 -- Watch (newer file): does the repeat-edge count with "Replace <source>" beside Load
+  stop the 82-edge doubling for everyone, including a reader who does not read numbers?
+- 2026-10-10 -- Watch (styling a selection): new Color/Width start at the element's highlight look
+  (black, 3x width), so adding one shows on the drawing. Pixel check after the selection clears.
+  Width units stay owner-side; the app must not scale widths.
+- 2026-10-10 -- Watch: a rule layer named by its rule ("minutes >= `10`") -- do readers read the key
+  as a meaning, or stop on the backticks? Backticks are still a leak.
+- 2026-10-10 -- Watch: Shortest path found by readers' words (paths bar 11 at or under 8 steps);
+  weighted run row "minutes 14" removes the "4 hops" doubt; words at rest back under round 1.
+- 2026-10-10 -- Keyboard faults found in a dry run are fixed before freeze, never handed on.
+  Round 3: find-box double Escape, Follow arrows jumping to Hops, Tab out of a step editor.
+- 2026-10-10 -- Prompts for T22 and T24 lose "stand out"; compare them with round 2 on outcome
+  only. Discount behavior a prompt asks for ("who was first before", "make sure").
+- 2026-10-09 -- Each round finds the route nobody walked. The fix is pilots' real routes, not last
+  round's list.
+- 2026-10-09 -- Simulated passes are weak; failures and script repros count. A problem found
+  despite a leak is robust.
 - 2026-10-09 -- Known to keep failing bar 10: drawn names overlapping (element label placement).
   The app must not hide it with small fonts or a seed.
-- 2026-10-07 -- Top risk still: a picture that looks right and answers wrong (stale key at full
-  contrast, overlapping names, 3D size inversion, a Load that doubles ties).
-- 2026-10-07 -- Words: the element returns codes; the app words them. Backticks in rules and
-  "Untitled" in the Load announcement are leaks.
-- 2026-10-07 -- Hold: icon-only toolbar, names off by default, Filters under Data, the Analyze
-  list, right-click menus (add a visible route, keep the habit route).
-- 2026-10-06 -- Grade from what ended on screen, never self-ratings; task wording never reuses the
-  target's screen words; test every wording on two domains.
-- 2026-10-06 -- No tours, hint panels or first-run aids; same screens for everyone.
+- 2026-10-07 -- Top risk still: a picture that looks right and answers wrong (stale key, overlapping
+  names, a Load that doubles ties).
+- 2026-10-06 -- No tours, hint panels or first-run aids; same screens for everyone. Grade from what
+  ended on screen; task wording never reuses the target's screen words.
 
 ## Priorities and values
 
@@ -105,6 +101,19 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- 2026-10-10 (Design Director, round 2 close; my position after) -- Fifteen changes, study first
+  (sev 4: leak closed, pilot-route dry run with keyboard faults fixed, bar scripts proven), then
+  one per confirmed problem in its owning package: find-box miss shows the example, hint runnable
+  by Enter (app); repeat-edge count from `data.prepare()` with Replace beside Load (element,
+  additive; app); three focus faults (app); selection-layer Color/Width start at
+  `styles.highlightStyle()` (element, additive; app); rule layers named by the rule; words at rest
+  cut; 24 px checkbox hit area (compact-mantine); path aliases; weighted run row total; "Filter to
+  neighbors" not a toggle; repeated status re-announced; T22/T24 reworded. Not changed: label
+  overlap (element, owner), bare numbers and width units (breaking, owner), routes that held on
+  weak evidence, "Components 1" under a filter. My view: matches my four asks, and better on two:
+  the starting look comes from the element's own highlight (no app-invented value), and my opt-in
+  bare-number idea is rightly dropped (a capability, not a choice). I accept holding "Select
+  where..." until round 3 shows 3+ of 8 still stall.
 - 2026-10-09 (me, tier 2 round 2 critique) -- Round 3 changes, smallest first: (1) the app's
   starting Width and Color for a new line row must draw visibly different from an unstyled tie
   (an app choice, not an element default; r2-s14/15.png, 4 of 8 T22 spent steps); (2) the
@@ -223,6 +232,9 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Tried: worked / did not work
 
+- 2026-10-10 -- DID NOT WORK: refusing a session folder without a briefing as the leak fix --
+  a participant can still read upward. Moving folders out of the tree plus a transcript check is
+  the fix. Also: a preflight that claims scripts exist without running them on a planted fault.
 - 2026-10-09 -- DID NOT WORK: a dry run that walks only the answer key, by pointer only, with no
   tool check. Every open fault sat on a detour or in the tool. Next: walk round 1's detours and
   keyboard, and dry-run the tool itself.

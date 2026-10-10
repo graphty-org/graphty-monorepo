@@ -2,6 +2,8 @@
 
 Status: design sketches, 2026-10-09. Nothing here has been built or tried in a headset.
 
+The design studio's evaluation of these and the later prototypes, and which are worth a headset mock, is in [the XR prototype studio report](xr-prototype-studio.md).
+
 graphty is a graph (network) visualization and analysis product: the graphty app, a React web UI,
 around graphty-element, a web component that draws 2D and 3D node-link graphs with Babylon.js and
 already opens WebXR sessions. This document collects 23 XR control prototypes: different ways a

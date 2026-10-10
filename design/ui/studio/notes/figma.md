@@ -5,43 +5,43 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-09 (tier 2 round 1 critique).
+Last updated: 2026-10-09 (tier 2 round 1 closed).
 
 ## Top of mind
 
-1. (2026-10-09) Round 1 critique: the dry run happened (four builds plus a walk of the frozen
-   build) and cleared the success paths -- every session.log empty, no grade decided by a build
-   defect. Participants met faults only on detours no dry run walked (Edges color written to
-   Everything, the selection tint over a new fill). Round 2's dry run walks each task's two
-   commonest round 1 wrong turns and presses Enter, Tab and Escape in every field it opens.
-2. (2026-10-09) Round 2 proposal, eight changes, one per verified problem: find box offers
-   "Select where" for a typed condition and the column menu gets the same door; Replace in the
-   selected source's inspector menu; "Higher means" on the weight column's inspector; "Back to
-   start" asks before dropping work; the key marks an out-of-date block; step editor Enter/Escape;
-   the new step selected after Add; path Weight starts on the loaded meaning. Plus the Edges-color
-   defect.
-3. (2026-10-09) Biggest Figma divergence in tier 2: the step editor is a form with Save, not a
-   live inspector; its one button both saves and turns the step on. Push for live commit plus the
-   row's own toggle.
-4. (2026-10-09) Show/hide is a checkbox on filter rows and an eye on paint rows: one job, two
-   controls. Ask for the eye on both.
-5. (2026-10-09) Selection on canvas has two marks (yellow halo nodes, blue edges) and halos swamp
-   colors at Hops 2; edges give no hover feedback. Element items, owner-visible.
-6. (2026-10-09) Segmented controls mark the choice only with an outline that reads as focus
-   (compact-mantine). One fix there helps five screens.
-7. (2026-10-07) In the 3D view perspective makes a nearer dot look bigger, so "biggest dot" can
-   name the wrong node. Size encodings must survive the camera. Element or app-opens-2D: undecided.
-8. (2026-10-07) The element's fit has no inset, so the key can cover a node. Needs a public option.
-9. (2026-10-07) The element still writes English refusals the app shows; the fix is an element
-   code plus app words, never an app rewrite.
-10. (2026-10-07) Before a round: check every decided change in the served build (preflight).
-11. (2026-10-06, owner) Figma's authority covers CONTROLS AND GESTURES ONLY; structure comes from
+1. (2026-10-09) Round 1 closed. Dry run happened (four builds, then the frozen build) and cleared
+   the answer key's routes: every session.log empty, no grade decided by a build defect. It missed
+   detour defects (Edges color written to Everything, halo tint, focus after Add/Delete step,
+   Enter not committing) and the study tool itself, which hit participants more than the build.
+2. (2026-10-09) Round 2 gate: tool fixed (4 sessions max, exact matches, real file drop, every
+   follow-up sent), missing bar scripts built, and a dry run that walks each task's two commonest
+   round 1 wrong turns by pointer AND keyboard (Enter, Tab, Escape in every field). No round
+   until that report has no open item on a task path.
+3. (2026-10-09) Round 2 app changes, one door each: find answers a typed condition with the rule;
+   "..." menu with Replace on the source's inspector; start-screen file Open goes through the Data
+   page; step editor/find focus and keys; key says ", out of date"; style lines only to a named
+   layer (no silent Everything); path Weight starts on the loaded weight; four word fixes.
+4. (2026-10-09) Accepted against my proposal: column menu "Select where..." deferred until three
+   participants look there; "Higher means" on the column inspector replaced by routing Open
+   through the Data page. Watch T20 and T22 in round 2 to see if the narrower doors hold.
+5. (2026-10-09) Halo fix is element-side: draw back faces only, so the ring no longer tints the
+   node. Owner sees it in visual review only.
+6. (2026-10-09) Watch in round 2: bar 10 (drawn names overlap/run off canvas) is expected to keep
+   failing -- element label placement, filed, not hidden in the app.
+7. (2026-10-09) Still my divergences, deferred: step editor is a Save form, not a live inspector;
+   checkbox vs eye for show/hide; segmented controls mark choice with a focus-like outline
+   (compact-mantine, later round).
+8. (2026-10-07) 3D perspective makes nearer dots look bigger; size encodings must survive the
+   camera. Undecided.
+9. (2026-10-07) The element's fit has no inset; the key can cover a node. Needs a public option.
+10. (2026-10-07) Element English refusals: fix as element code plus app words.
+11. (2026-10-06, owner) Figma's authority covers CONTROLS AND GESTURES ONLY; structure from
     graphty's ontology.
 12. (2026-10-06) Every control must visibly change canvas, legend or popover.
 13. (2026-09-26, owner) No wizards, coach marks, first-run UI or suggestion cards.
-14. (2026-10-07) Study reading: one model plays every persona; a failure is strong, a pass weak.
+14. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
 15. (2026-10-06) Ledger debt: `figma-crosswalk.md` section 4 lacks rows for undo notices, the
-    Discard prompt and Save/Save as; tier 2 adds the deselect toast and the step editor's Save.
+    Discard prompt, Save/Save as, the deselect toast and the step editor's Save.
 
 ## Priorities and values
 
@@ -107,6 +107,13 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- 2026-10-09 (Director, round 1 closed) Final round 2 list in `tier2/rounds/round-1/decisions.md`:
+  measurement first (tool, scripts, detour dry run), then reproduced defects, then one door per
+  confirmed problem. Differences from my proposal: column-menu "Select where..." deferred (only if
+  change 4's words fail with 3+ looking there); weight meaning reached by sending start-screen
+  Open through the Data page instead of a control on the column inspector; "Back to start" prompt
+  not in the list. Reason: each change adds at most one way in, so round 2 can credit it alone.
+  Shared-control fixes (Toast role, segmented choice) wait so the build stays attributable.
 - 2026-10-09 (me, round 1 critique) Round 2 changes, smallest per verified failure: (a) T22 --
   a typed condition gets one live row "Select where <rule> (n)" instead of bare "No match", and
   the column's menu gets "Select where..." opening the find box with the column filled (4 of 4

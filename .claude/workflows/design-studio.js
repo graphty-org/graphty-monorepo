@@ -390,7 +390,7 @@ const TOOL_CHECK = (
 2. The matcher: a click on a name that matches more than one control is refused with the candidate list, never resolved to the first match.
 3. File drop: a file dropped on the start screen opens in the app (a real file chooser or setInputFiles, not synthetic events); where the tool cannot deliver it, it prints that the drop was not delivered.
 4. The tool walks each task's commonest detours (the dry-run reports under ${T}/rounds/*/pilot/) without a tool error.
-5. Every participant briefing folder under ${RD}/briefings/ holds only that participant's persona and task text: no answer key, facilitator notes, follow-up prompt, avoided-words list or criteria.
+5. Participants cannot reach facilitator files: \`node ${SD}/tool/real.mjs --brief ${RD}/sessions/<id>\` for one planned session prints a briefing outside the studio's files (under ${ST}/tmp/studio-sessions/) holding only that participant's persona, history, prompt and start command: no answer key, facilitator notes, follow-up prompt, avoided-words list or criteria; \`--start ${RD}/sessions/<id>\` is refused; and the --prove checks "a participant transcript that opens tasks.md voids the session, by name" and "an end copies the session into the round's folder" pass.
 6. Every bar in ${T}/criteria.md that is scored by a script (or a check, count or lister) names a script that EXISTS, FAILS on a planted failure of its own, and runs on the frozen build. A script that reads zero items fails.`;
 async function toolDryRun(tag, RD, phaseName) {
     for (let k = 1; k <= 2; k++) {
@@ -494,7 +494,7 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
               ` (${T}/rounds/round-${r - 1}/scores.md) and tasks whose path changed, while covering every task. A task that re-tests a fix must not use any word the fix put on screen.`
             : "";
     const plan = await agent(
-        `${RULES}\n${asRole("researcher")}\nPlan ${NAME} round ${r} per ${T}/criteria.md (frozen) and ${T}/roster.md, on the frozen build at the top of criteria.md.${reweight} Each session names its start (setup or saved project${USERS === "returning" ? " reflecting the returning user's history" : ""}) and, where tasks.md gives the task a follow-up question, that question as "followup" (the workflow asks it after the participant stops; the participant never sees it before). At most ${MAX_SESSIONS} sessions. Session ids r${r}-s01... Write ${RD}/plan.md. Then write each participant's BRIEFING folder ${RD}/briefings/<id>/ holding only persona.md (the persona${USERS === "returning" ? " and their history with the app" : ""}) and task.md (only the words the participant is told for this task and dataset): never the answer key, facilitator notes, follow-up, avoided-words list, criteria or other tasks. Return the sessions and "dist", the frozen build directory named on the first line of criteria.md.`,
+        `${RULES}\n${asRole("researcher")}\nPlan ${NAME} round ${r} per ${T}/criteria.md (frozen) and ${T}/roster.md, on the frozen build at the top of criteria.md.${reweight} Each session names its start (setup or saved project${USERS === "returning" ? " reflecting the returning user's history" : ""}) and, where tasks.md gives the task a follow-up question, that question as "followup" (the workflow asks it after the participant stops; the participant never sees it before). At most ${MAX_SESSIONS} sessions. Session ids r${r}-s01... Write ${RD}/plan.md with one table row per session, \`| <id> | <task> | <A or B>: <dataset> | <persona> | \`<start>\` |\`: real.mjs --brief reads each session's task, half, persona and start from that row. Check it: run node ${SD}/tool/real.mjs --brief ${RD}/sessions/<the first id> and fix the plan or the roster until it prints a briefing.md path. Never write a participant briefing yourself: participants read only what --brief writes. Return the sessions and "dist", the frozen build directory named on the first line of criteria.md.`,
         { label: `${P}: plan`, phase: "Round", schema: PLAN, effort: "high" },
     );
     const sessions = (plan?.sessions || []).slice(0, MAX_SESSIONS);
@@ -508,40 +508,55 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
         break;
     }
     log(`${P}: ${sessions.length} sessions on ${build?.url || "the frozen build"}`);
+    // A participant's session runs in a folder outside the studio's files (real.mjs --brief prints
+    // it); in round 2 a participant whose folder sat in the studio tree read tasks.md (r2-s05).
+    const own = (s) => `${ST}/tmp/studio-sessions/${RD.slice(SD.length + 1)}/sessions/${s.id}`;
+    // the second --end ends a T17 or T18 session whose first --end handed over the follow-up; --end
+    // copies the folder to ${RD}/sessions/<id>/ with leaks.json, what the participant opened
     const endSession = (s) =>
         agent(
-            `Run exactly this command and return its output, nothing else: node ${SD}/tool/real.mjs --end ${RD}/sessions/${s.id}`,
+            `Run exactly this command and return its output, nothing else: node ${SD}/tool/real.mjs --end ${own(s)}; node ${SD}/tool/real.mjs --end ${own(s)}`,
             { label: `${P}: ${s.id} end`, phase: "Round", effort: "low" },
+        );
+    const briefSession = (s) =>
+        agent(
+            `Run exactly this command and return its output, nothing else: rm -rf ${own(s)} && node ${SD}/tool/real.mjs --brief ${RD}/sessions/${s.id}`,
+            { label: `${P}: ${s.id} brief`, phase: "Round", effort: "low" },
         );
     // Participants get only their briefing folder and the frozen build directory, never a studio
     // path: in round 1 a participant told to read criteria.md also read the facilitator notes.
-    const PRULES = `RULES: Plain ASCII only. Never run git. Read nothing except the two files in your briefing folder and your own session folder; never open, list or search any other file or folder (the app's source, other sessions, anything else on this machine). Use the app only through the commands below.`;
+    const PRULES = (s) =>
+        `RULES: Plain ASCII only. Never run git. Your session folder is ${own(s)}: read nothing outside it. Never open, list or search any other file or folder (no study notes, tasks, answers, personas, the app's source, other sessions, anything else on this machine), and never use a path with "..". Every tool call is checked afterwards, and a session that opened anything else is thrown away. Use the app only through the commands below.`;
     const participate = async (s) => {
-        const brief = `${RD}/briefings/${s.brief || s.id}`;
+        const brief = `${own(s)}/briefing.md`;
         const who =
             USERS === "returning"
-                ? `a RETURNING user of this app. Become this person: read ${brief}/persona.md, including your history with the app`
-                : `a FIRST-TIME user: you have never seen this app. Become this person: read ${brief}/persona.md`;
-        const prompt = `${PRULES}\nYOU ARE A STUDY PARTICIPANT, ${who}. Your task is in ${brief}/task.md.\nUse the app only through node ${SD}/tool/real.mjs with REAL_DIST=${DIST}: --start ${RD}/sessions/${s.id} ${s.start || "<the start named in task.md>"}, then --step one action at a time, LOOKING at each new screenshot before deciding the next action (you may point at a spot on the last screenshot with --click-at). Before each step, say in one or two sentences, in character, what you see and what you will try next. Stop when you are done, would give up, or keep repeating without progress (no step limit). Do NOT --end: the facilitator ends the session.\nWrite ${RD}/sessions/${s.id}/transcript.md as you go (append after every step, so nothing is lost if the session stops): your per-step notes, every command, and at the end in character: did you finish, how easy or difficult it was from 1 (very difficult) to 7 (very easy), what confused you. Return the transcript path.`;
+                ? `a RETURNING user of this app. Become the person ${brief} describes, including your history with the app`
+                : `a FIRST-TIME user: you have never seen this app. Become the person ${brief} describes`;
+        const prompt = `${PRULES(s)}\nYOU ARE A STUDY PARTICIPANT, ${who}. Your task and your start command are in that same file.\nUse the app only through the --start command it gives (REAL_DIST=${DIST}, folder ${own(s)}), then --step one action at a time, LOOKING at each new screenshot before deciding the next action (you may point at a spot on the last screenshot with --click-at). Before each step, say in one or two sentences, in character, what you see and what you will try next. Stop when you are done, would give up, or keep repeating without progress (no step limit). Do NOT --end: the facilitator ends the session.\nWrite ${own(s)}/transcript.md as you go (append after every step, so nothing is lost if the session stops): your per-step notes, every command, and at the end in character: did you finish, how easy or difficult it was from 1 (very difficult) to 7 (very easy), what confused you. Return the transcript path.`;
         const attempts = [
             [prompt, { label: `${P}: ${s.id} ${s.task} ${s.persona}`.slice(0, 80), phase: "Round" }],
             [
-                prompt +
-                    `\n\n(A previous attempt ended early. Start a fresh session folder ${RD}/sessions/${s.id}/ -- delete what is there first.)`,
+                prompt + `\n\n(A previous attempt ended early. Your session folder has been cleared; start again.)`,
                 { label: `${P}: ${s.id} retry`, phase: "Round" },
             ],
             [
                 prompt +
-                    `\n\n(Two previous attempts ended early. Start a fresh folder ${RD}/sessions/${s.id}/ -- delete what is there first -- and write "Participant model: sonnet" at the top of the transcript.)`,
+                    `\n\n(Two previous attempts ended early. Your session folder has been cleared; start again, and write "Participant model: sonnet" at the top of the transcript.)`,
                 { label: `${P}: ${s.id} sonnet`, phase: "Round", model: "sonnet" },
             ],
         ];
         for (const [p, o] of attempts) {
+            const b = await briefSession(s);
+            if (!String(b ?? "").includes(brief)) {
+                log(`${P}: ${s.id} has no briefing (${String(b ?? "").slice(0, 200)})`);
+                return null;
+            }
             const t = await agent(p, o);
             // Every follow-up is sent: in round 1 two sessions never got theirs.
             if (t && s.followup)
                 await agent(
-                    `${PRULES}\nYou are the study participant whose session is ${RD}/sessions/${s.id}/ (persona in ${brief}/persona.md; read your transcript.md there to remember what you did). The facilitator now asks you: "${s.followup}"\nAnswer in character. You may look at the screen again with node ${SD}/tool/real.mjs --step on that session (REAL_DIST=${DIST}); do NOT --end. Append the question and your answer to the transcript under "Follow-up". Return the answer.`,
+                    `${PRULES(s)}\nYou are the study participant whose session is ${own(s)}/ (who you are is in ${brief}; read your transcript.md there to remember what you did). The facilitator now asks you: "${s.followup}"\nAnswer in character. You may look at the screen again with node ${SD}/tool/real.mjs --step ${own(s)} (REAL_DIST=${DIST}); do NOT --end. Append the question and your answer to the transcript under "Follow-up". Return the answer.`,
                     { label: `${P}: ${s.id} follow-up`, phase: "Round" },
                 );
             await endSession(s); // a stopped agent must never keep its browser
@@ -559,7 +574,7 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
         t
             ? slot(() =>
                   agent(
-                      `${RULES}\nGrade ${NAME} session ${s.id} (task ${s.task}, persona ${s.persona}) strictly by ${T}/criteria.md and the task's success definition in ${T}/answers.md, from the LAST screenshot and any saved files in ${RD}/sessions/${s.id}/ (downloads/ included), never from the participant's own rating. Record the participant model (sonnet if the transcript says so). VOID only if the tool or the run failed, or the participant opened any file outside ${RD}/briefings/${s.brief || s.id}/ and its own session folder (say why).${followupCheck(s)} Count steps and wrong turns against the success path; record a false "done" whenever the participant claims done while the screen shows otherwise (truth_on_screen if the screen itself said so). List each problem with severity 0-4, kind and evidence (step and screenshot). A build defect you can reproduce with a scripted real.mjs path (under ${RD}/repro/${s.id}/, through the browser gate) is marked build-defect with the repro. Write ${RD}/sessions/${s.id}/grade.md.`,
+                      `${RULES}\nGrade ${NAME} session ${s.id} (task ${s.task}, persona ${s.persona}) strictly by ${T}/criteria.md and the task's success definition in ${T}/answers.md, from the LAST screenshot and any saved files in ${RD}/sessions/${s.id}/ (downloads/ included), never from the participant's own rating. Record the participant model (sonnet if the transcript says so). VOID only if the tool or the run failed, or the participant opened a file outside its own folder: ${RD}/sessions/${s.id}/leaks.json (written at --end from the participant's tool calls) lists any leak (name each); if it is missing or found no transcript, run node ${SD}/tool/real.mjs --leaks ${RD}/sessions/${s.id} and decide from its output (say why).${followupCheck(s)} Count steps and wrong turns against the success path; record a false "done" whenever the participant claims done while the screen shows otherwise (truth_on_screen if the screen itself said so). List each problem with severity 0-4, kind and evidence (step and screenshot). A build defect you can reproduce with a scripted real.mjs path (under ${RD}/repro/${s.id}/, through the browser gate) is marked build-defect with the repro. Write ${RD}/sessions/${s.id}/grade.md.`,
                       { label: `${P}: grade ${s.id}`, phase: "Round", schema: GRADE },
                   ),
               )

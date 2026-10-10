@@ -17,11 +17,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   target-size 0 on both filter-step screens. The find list did NOT scroll to the arrows' row on
   8f0d5a6f7791 (`tmp/t2r2-10/find/04.png`); `FindBox` now scrolls it (and its group heading)
   into view; `scrollable-region-focusable` on `.ws-find-viewport` recorded as a criteria exception.
-- (2026-10-09) **Round 2 critique: the next round's first fix is the study tool, not the app.**
-  Participants read the facilitator's `tasks.md` (13 of 16 follow-ups answered early; r2-s05
-  voided), so every route that worked is weak evidence. `real.mjs --start` must refuse a session
-  folder without the briefing it wrote, and participants run from that folder. Re-run the three new
-  routes (weight meaning at load, Replace in "...", find's rule hint) before crediting them.
+- (2026-10-09) **Built: participants run outside the studio's files, and a read voids them.**
+  `--brief <round>/sessions/<id>` writes the participant's folder under `<worktree>/tmp/studio-sessions/`
+  (same path below it); `--start` refuses a round `sessions/<id>` folder or a briefed folder inside
+  `design/ui/studio`, and a scratch folder without its own briefing; `--end` copies back with
+  `leaks.json`; `--leaks` reads the participant's Claude Code logs (opening prompt names the folder
+  and "study participant"). The workflow briefs, prompts, ends (twice) and grades on that. Round 2
+  routes that worked are weak evidence until re-run (weight meaning, Replace, find's rule hint).
 - (2026-10-09) **Did the dry run work? Mostly.** About 30 of ~355 recorded problems were build
   faults, none above severity 2, no grade decided by one; the only `session.log` line is r2-s13's
   900 s idle close. Twelve of the thirty sit on the one detour no dry run walked: styling a
@@ -57,11 +59,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-09) **The study tool reaches participants more often than the build does.** Every tool
   change gets a planted-failure check; click by name landing on a same-named control (r2-s17, s18,
   s30) needs a refusal like ambiguous names already get.
-- (2026-10-09) **Bars 2, 7, 8, 9 are scored by `tool/bars.mjs`**, each with one planted failure.
-- (2026-10-09) **Per-change details for the round 2 fixes** are in this file's git history and in
-  each change's test; this file keeps only the lesson.
+- (2026-10-09) **Bars 2, 7, 8, 9 are scored by `tool/bars.mjs`**; per-change details live in git
+  history and each change's test.
 
 ## Decisions and reasons
+
+- (2026-10-09) **Only participant folders are refused in the studio, not every folder.** Pilots,
+  experts, graders' repros and `--prove` start under `design/ui/studio` by design; a literal "refuse
+  anything under the studio tree" would break them. A participant folder is recognized by place
+  (`rounds/*/sessions/*`, the old layout) or by holding `briefing.md`. Scratch mirrors the studio
+  path so `--end` and the plan lookup need no record file. The leak check is the backstop, since
+  `tmp/studio-sessions/` is still in the same repository: it flags facilitator names anywhere, any
+  `personas/` path, any studio path but its own copy, `real.mjs` and `tool/files/`, any `..`, and a
+  Grep/Glob with no folder. Checked on r2-s05's real log: it names `tasks.md` and the persona read.
 
 - (2026-10-09) **A bigger target is the input itself, not a pseudo-element hit area.** axe measures
   the focusable element's box, so a `::after` hit area clicks but still fails target-size (it did,
@@ -199,6 +209,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Worked: finding a workflow agent's log by its opening prompt. Workflow subagent logs
+  are `~/.claude/projects/<proj>/<session>/subagents/workflows/wf_*/agent-*.jsonl`; the first user
+  lines can be the harness's relayed request, so read every user line before the first assistant
+  line. Filtering by mtime since the briefing keeps the scan of ~19k logs to a second.
+
 - (2026-10-09) Worked: an axe probe as a throwaway compact-mantine browser test before choosing
   the CSS (printed `failureSummary`); a pixel diff of the 24 px crop around the box against the
   frozen build's `bars.mjs` capture (bbox None). `userEvent.click(container, { position })` clicks
@@ -238,15 +253,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `test/managers/LayoutManager.test.ts` because `layout/dist` predates the master merge (stale
   build, not a source error).
 
-- (2026-10-09) Worked: when a pilot's log is gone, rebuild its walk from `repilot.sh` and the
-  screenshots (T23B 14 to 17: Data page, then Find Medici and `g` under the 2-hop filter).
-- (2026-10-09) Did not work: wrapping `tier2/pilot/repilot.sh` in `tool/with-browser.sh` -- the
-  wrapper held a browser slot with no browser while each `real.mjs --start` took its own; run
-  repilot.sh bare. Did not work: dropping the enabled-row early return outright (broke type-ahead
-  from the menu itself, see decisions).
-
-- (2026-10-09, condensed) Worked: a scripted re-pilot of the fixed screens, then contact sheets
-  (`montage *.png -tile 4x -geometry 720x450`) and full-size reads of each fixed item.
+- (2026-10-09, summarized) Pilot walks: rebuild a lost walk from `repilot.sh` and its screenshots;
+  run repilot.sh bare (inside `with-browser.sh` it held a slot with no browser); re-pilot fixed
+  screens by script, then contact sheets (`montage *.png -tile 4x -geometry 720x450`).
 
 - (2026-10-09, condensed) Proving a test fails without the change: copy the changed file aside,
   write `git show HEAD:<file>` (or a one-line python edit) over it, run, copy back -- no stash. For

@@ -57,10 +57,11 @@ process.env.FC_FONTATIONS = "1"; // headless Chromium crashes on startup on this
 
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, openSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from "node:fs";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { connect, createServer as netServer } from "node:net";
+import { homedir } from "node:os";
 import { basename, dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -102,6 +103,30 @@ const sockOf = (dir) =>
     join("/tmp", `graphty-real-${createHash("sha1").update(resolve(dir)).digest("hex").slice(0, 12)}.sock`);
 const fileArg = (f) => (existsSync(resolve(f)) ? resolve(f) : join(files, f));
 
+// ---------- where a participant's session lives ----------
+// The studio's own files (tasks.md, answers.md, criteria.md, roster.md, plans, grades) live under
+// STUDIO. A participant whose session folder sat inside it read tasks.md three folders up (r2-s05),
+// so a participant's session runs in a folder of its own under SCRATCH, mirroring the studio path
+// the facilitator names it by, and --end copies it back there for the graders.
+const STUDIO = resolve(here, "..");
+const SCRATCH = join(repo, "tmp/studio-sessions");
+const under = (p, root) => p === root || p.startsWith(root + "/");
+const ROUND_SESSION = /\/rounds\/[^/]+\/sessions\/[^/]+$/;
+const scratchOf = (dir) => (under(dir, STUDIO) && dir !== STUDIO ? join(SCRATCH, dir.slice(STUDIO.length + 1)) : dir);
+const studioOf = (dir) => (under(dir, SCRATCH) && dir !== SCRATCH ? join(STUDIO, dir.slice(SCRATCH.length + 1)) : null);
+const briefed = (dir) => {
+    const f = join(dir, "briefing.md");
+    return existsSync(f) && readFileSync(f, "utf8").includes(`--start ${dir} `);
+};
+// why --start must not open this folder for a participant, or null
+function participantRefusal(dir) {
+    if (under(dir, STUDIO) && (ROUND_SESSION.test(dir) || existsSync(join(dir, "briefing.md"))))
+        return `${dir} is a participant's session inside the studio's files, a few folders below tasks.md and the answers; brief it (real.mjs --brief ${dir}) and start the folder that prints, ${scratchOf(dir)}`;
+    if (under(dir, SCRATCH) && !briefed(dir))
+        return `${dir} holds no briefing.md written for it by --brief; run real.mjs --brief ${studioOf(dir)} first`;
+    return null;
+}
+
 // ---------- the participant's side of the study: briefing, follow-up, clean folder ----------
 // A session folder rounds/round-N/sessions/<id>/ has its task, half, persona and start in the
 // round's plan.md table ("| r1-s04 | T20 | B: hiking trails ... | Jordan (analyst) | `empty` |").
@@ -109,13 +134,16 @@ const fileArg = (f) => (existsSync(resolve(f)) ? resolve(f) : join(files, f));
 function sessionTask(dir, task, persona) {
     let start = null;
     if (!task) {
-        const plan = join(dirname(dirname(resolve(dir))), "plan.md");
-        const row =
+        const home = studioOf(resolve(dir)) ?? resolve(dir);
+        const plan = join(dirname(dirname(home)), "plan.md");
+        const rows =
             existsSync(plan) &&
             readFileSync(plan, "utf8")
                 .split("\n")
-                .map((l) => l.split("|").map((c) => c.trim()))
-                .find((c) => c[1] === basename(resolve(dir)));
+                .map((l) => l.split("|").map((c) => c.trim()));
+        // a void session's re-run (r2-s05b) takes its first run's row
+        const id = basename(home);
+        const row = rows && (rows.find((c) => c[1] === id) ?? rows.find((c) => c[1] === id.replace(/b$/, "")));
         if (!row) return null;
         task = row[2] + (row[3].match(/^([AB]):/)?.[1] ?? "");
         persona ??= row[4];
@@ -172,7 +200,10 @@ function personaText(text) {
 // start command and the tool's participant instructions. Never the follow-up, the avoided words,
 // the success path or another persona.
 async function brief(dir, task, persona) {
+    dir = resolve(dir);
     const t = sessionTask(dir, task, persona);
+    // the participant's own folder: outside the studio's files, whatever folder the facilitator named
+    const own = scratchOf(dir);
     if (!t)
         return `--brief: no task for ${dir} (no row for it in the round's plan.md; pass --task T17A --persona <name>)`;
     const words = taskWords(t);
@@ -216,7 +247,7 @@ async function brief(dir, task, persona) {
         "Start with this command, then take one step at a time and look at each new screenshot before the next:",
         "",
         "```bash",
-        `REAL_DIST=${distLine ?? "<the study build>"} node ${join(here, "real.mjs")} --start ${resolve(dir)} ${start}`,
+        `REAL_DIST=${distLine ?? "<the study build>"} node ${join(here, "real.mjs")} --start ${own} ${start}`,
         "```",
         "",
         `Every later command takes the same REAL_DIST. When you are done, or would give up, run \`--end\`.`,
@@ -228,12 +259,128 @@ async function brief(dir, task, persona) {
         part("Names, dialogs and lists").replace(/^## /m, "### "),
         ``,
     ].join("\n");
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, "briefing.md"), doc);
-    const bad = facilitatorFiles(dir);
+    await mkdir(own, { recursive: true });
+    await writeFile(join(own, "briefing.md"), doc);
+    const bad = facilitatorFiles(own);
     return bad.length
         ? `--brief: the briefing still holds facilitator words (${bad.join(", ")}); fix the persona or task files`
         : null;
+}
+
+// ---------- after a session: the copy for the graders, and what the participant opened ----------
+// A participant may read its own folder and nothing else of the study. The check reads every tool
+// call in the participant's transcripts (the Claude Code session logs whose first prompt names the
+// folder and a study participant) and lists each one that opened a facilitator file, a persona
+// file, anything else under the studio's files, or a path up out of its folder. Any one voids it.
+const FACILITATOR_FILE =
+    /(?:^|[\s/"'`=(])((?:answers|tasks|criteria|roster|plan|scores|insights|decisions|grade)\.md)\b/;
+const PARTICIPANT_PROMPT = /study participant/i;
+function jsonLines(text) {
+    return text
+        .split("\n")
+        .map((l) => {
+            try {
+                return JSON.parse(l);
+            } catch {
+                return null;
+            }
+        })
+        .filter(Boolean);
+}
+// the prompt an agent's log opens with: its user messages before its first answer
+function promptOf(lines) {
+    const out = [];
+    for (const l of lines) {
+        if (l.type === "assistant") break;
+        const c = l.type === "user" && l.message?.content;
+        out.push(typeof c === "string" ? c : Array.isArray(c) ? c.map((x) => x.text ?? "").join("\n") : "");
+    }
+    return out.join("\n");
+}
+function headOf(f, bytes = 256 * 1024) {
+    const fd = openSync(f, "r");
+    try {
+        const b = Buffer.alloc(bytes);
+        return b.subarray(0, readSync(fd, b, 0, bytes, 0)).toString("utf8");
+    } finally {
+        closeSync(fd);
+    }
+}
+// the logs of agents prompted as the participant of this folder, written to since its briefing
+function transcriptsFor(own) {
+    const root = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "projects");
+    const b = join(own, "briefing.md");
+    if (!existsSync(root) || !existsSync(b)) return [];
+    const since = statSync(b).mtimeMs;
+    return readdirSync(root, { recursive: true })
+        .map(String)
+        .filter((f) => f.endsWith(".jsonl"))
+        .map((f) => join(root, f))
+        .filter((f) => statSync(f).mtimeMs >= since)
+        .filter((f) => {
+            const p = promptOf(jsonLines(headOf(f)));
+            return p.includes(own) && PARTICIPANT_PROMPT.test(p);
+        });
+}
+const stringsIn = (v) =>
+    typeof v === "string" ? [v] : v && typeof v === "object" ? Object.values(v).flatMap(stringsIn) : [];
+// why one string a tool call was given opens something the participant may not
+function leaksIn(s, allowed) {
+    const out = [];
+    for (const p of s.match(/\/[^\s"'`;|&<>()$*]+/g) ?? []) {
+        const q = normalize(p).replace(/\/+$/, "");
+        if (/\/personas\//.test(q)) out.push(["a persona file", q]);
+        else if (under(q, STUDIO) && !allowed.some((a) => under(q, a))) out.push(["a studio file", q]);
+    }
+    const f = s.match(FACILITATOR_FILE);
+    if (f) out.push(["a facilitator file", f[1]]);
+    if (/(?:^|[\s"'`=/])\.\.(?:\/|\s|$)/.test(s)) out.push(["a path up out of its folder", ".."]);
+    return out;
+}
+// own: the participant's folder; given: transcripts to read instead of looking them up
+function leakCheck(own, given = []) {
+    const home = studioOf(own);
+    const allowed = [own, home, join(here, "real.mjs"), files].filter(Boolean);
+    const transcripts = given.length ? given : transcriptsFor(own);
+    const leaks = [];
+    let calls = 0;
+    for (const t of transcripts)
+        for (const l of jsonLines(readFileSync(t, "utf8")))
+            for (const b of (l.type === "assistant" && l.message?.content) || []) {
+                if (b?.type !== "tool_use") continue;
+                calls++;
+                const found = stringsIn(b.input).flatMap((s) => leaksIn(s, allowed));
+                // a search with no folder searches wherever the agent runs, the repository included
+                if (/^(Grep|Glob)$/.test(b.name) && !b.input?.path)
+                    found.push(["a search outside its folder", b.input?.pattern ?? ""]);
+                for (const [why, what] of found) leaks.push({ transcript: t, tool: b.name, why, what });
+            }
+    return { checked: new Date().toISOString(), transcripts, calls, leaks };
+}
+function leakLines(l, own) {
+    if (!l.transcripts.length) return [`leak check: no participant transcript names ${own}`];
+    if (!l.leaks.length)
+        return [
+            `leak check: ${l.calls} tool calls in ${l.transcripts.length} participant transcripts; none opened a file outside the session folder`,
+        ];
+    return l.leaks.map(
+        (k) => `VOID: the participant opened ${k.why}, ${k.what} (${k.tool}, ${basename(k.transcript)})`,
+    );
+}
+// --end of a participant's session: its folder, copied where the round's graders read it, with
+// leaks.json beside it. A copy already graded is left alone.
+async function copyBack(own, home) {
+    if (!existsSync(own) || !readdirSync(own).some((f) => /^\d+\.png$/.test(f))) return;
+    if (existsSync(join(home, "grade.md"))) {
+        console.log(`not copied: ${home} is already graded`);
+        return;
+    }
+    await rm(home, { recursive: true, force: true });
+    await cp(own, home, { recursive: true });
+    const l = leakCheck(own);
+    await writeFile(join(home, "leaks.json"), JSON.stringify(l, null, 1) + "\n");
+    console.log(`copied to ${home}`);
+    for (const line of leakLines(l, own)) console.log(line);
 }
 
 // ---------- steps: what each takes, checked before anything opens ----------
@@ -364,6 +511,11 @@ const say = (r) => {
 
 async function start(dir, how, sr, task) {
     dir = resolve(dir);
+    const refused = participantRefusal(dir);
+    if (refused) {
+        console.error(refused);
+        return 2;
+    }
     if (existsSync(sockOf(dir))) {
         const alive = await ask(dir, { op: "ping" }).catch(() => null);
         if (alive) {
@@ -1253,7 +1405,7 @@ async function find(page, raw, out) {
                     )
                 ).filter(Boolean);
             for (const el of handles) {
-                const [key, desc, control] = await el.evaluate(
+                const [key, desc, control, kind] = await el.evaluate(
                     (e, [tip, chars]) => {
                         // a tooltip bubble, hidden text and the graph's canvas are not controls
                         if (e.closest(`${tip}, [aria-hidden=true], graphty-element, canvas`)) return [null];
@@ -1273,16 +1425,21 @@ async function find(page, raw, out) {
                             .trim()
                             .replace(/\s+/g, " ")
                             .slice(0, chars);
-                        return [
-                            c.dataset.tryKey,
-                            `${c.getAttribute("role") || c.tagName.toLowerCase()} "${said}"`,
-                            found !== null,
-                        ];
+                        const input = { checkbox: "checkbox", radio: "radio", range: "slider" }[c.type] || "textbox";
+                        const kind =
+                            c.getAttribute("role") ||
+                            { TR: "row", A: "link", SELECT: "combobox", TEXTAREA: "textbox", INPUT: input }[
+                                c.tagName
+                            ] ||
+                            c.tagName.toLowerCase();
+                        // where a person sees it: an open list or menu sits over the panel behind it
+                        const where = c.closest("[role=listbox],[role=menu]") ? " in the open list" : "";
+                        return [c.dataset.tryKey, `${kind} "${said}"${where}`, found !== null, kind];
                     },
                     [TIP, NAME_CHARS],
                 );
                 if (key === "behind") behind++;
-                else if (key && !seen.has(key)) seen.set(key, { el, desc, control });
+                else if (key && !seen.has(key)) seen.set(key, { el, desc, control, kind });
             }
         }
         let all = [...seen.values()];
@@ -1301,6 +1458,14 @@ async function find(page, raw, out) {
         if (!nth && all.length > 1)
             return {
                 miss: `ambiguous: "${name}" matches ${all.length} controls, so the step did nothing; name one: ${all.map((x, i) => `"${name}#${i + 1}" ${x.desc}`).join(", ")}`,
+            };
+        // "#n" picks by position, which a person never sees; among different kinds of control (a
+        // panel row and the open list's option) it is refused: in round 2 "weight#2" took the panel
+        // row, not the option the participant meant, and threw away a half-made filter step
+        const kinds = [...new Set(all.map((x) => x.kind).filter(Boolean))];
+        if (nth && !role && kinds.length > 1)
+            return {
+                miss: `ambiguous: "${raw}" picks by position among different kinds of control, so the step did nothing; name it by kind: ${kinds.map((k) => `"role=${k}:${name}"`).join(", ")} (${all.map((x) => x.desc).join(", ")})`,
             };
         return all[Math.max(nth, 1) - 1];
     }
@@ -1738,8 +1903,10 @@ async function prove() {
     // the participant's side: a briefing with the prompt only, and no facilitator file in the folder
     {
         const P = join(base, "brief");
+        await rm(scratchOf(P), { recursive: true, force: true });
         const b = node(["--brief", P, "--task", "T18B", "--persona", "Ruth"]);
-        const text = existsSync(join(P, "briefing.md")) ? readFileSync(join(P, "briefing.md"), "utf8") : "";
+        const bf = join(scratchOf(P), "briefing.md");
+        const text = existsSync(bf) ? readFileSync(bf, "utf8") : "";
         check(
             "a briefing holds the prompt word for word, the start and the history, and nothing for facilitators",
             b.status === 0 &&
@@ -1757,6 +1924,91 @@ async function prove() {
             "a start refuses a folder that holds a facilitator file",
             q.status === 2 && /facilitator files .*notes\.md/.test(q.stderr) && !existsSync(sockOf(Q)),
             `exit ${q.status} ${q.stderr}`,
+        );
+    }
+
+    // a participant's session runs outside the studio's files, from its own briefing; one whose
+    // transcript opened a facilitator file is void, by name
+    {
+        const R = join(under(base, STUDIO) ? base : join(STUDIO, "tmp", basename(base)), "rounds/round-9");
+        await rm(R, { recursive: true, force: true });
+        await rm(scratchOf(R), { recursive: true, force: true });
+        const S1 = join(R, "sessions/r9-s01");
+        const own = scratchOf(S1);
+        let r = node(["--start", S1, "empty"]);
+        check(
+            "a start refuses a participant's session folder inside the studio's files",
+            r.status === 2 && /inside the studio's files/.test(r.stderr) && !existsSync(sockOf(S1)),
+            `exit ${r.status} ${r.stderr}`,
+        );
+        const S0 = scratchOf(join(R, "sessions/r9-s00"));
+        await mkdir(S0, { recursive: true });
+        r = node(["--start", S0, "empty"]);
+        check(
+            "a start refuses a participant's folder with no briefing written by --brief",
+            r.status === 2 && /no briefing\.md written for it by --brief/.test(r.stderr) && !existsSync(sockOf(S0)),
+            `exit ${r.status} ${r.stderr}`,
+        );
+        r = node(["--brief", S1, "--task", "T20A", "--persona", "Grace"]);
+        const bf = join(own, "briefing.md");
+        check(
+            "a briefing for a studio session folder is written outside the studio's files, starting that folder",
+            r.status === 0 &&
+                r.stdout.trim() === bf &&
+                !under(own, STUDIO) &&
+                existsSync(bf) &&
+                readFileSync(bf, "utf8").includes(`--start ${own} `),
+            `exit ${r.status} ${r.stdout}${r.stderr}`,
+        );
+        // planted logs: the participant's (reads tasks.md), a clean one, and another agent's
+        const C = join(base, "claude");
+        const plantLog = (name, prompt, calls) =>
+            writeFile(
+                join(C, "projects/p", name),
+                [
+                    { type: "user", message: { content: prompt } },
+                    ...calls.map(([n, input]) => ({
+                        type: "assistant",
+                        message: { content: [{ type: "tool_use", name: n, input }] },
+                    })),
+                ]
+                    .map((x) => JSON.stringify(x))
+                    .join("\n") + "\n",
+            );
+        await mkdir(join(C, "projects/p"), { recursive: true });
+        const you = `YOU ARE A STUDY PARTICIPANT. Read only ${own}/briefing.md.`;
+        const click = ["Bash", { command: `node ${join(here, "real.mjs")} --step ${own} --click "No thanks"` }];
+        await plantLog("leak.jsonl", you, [click, ["Bash", { command: `sed -n 1,40p ${join(tier2, "tasks.md")}` }]]);
+        await plantLog("clean.jsonl", you, [click, ["Read", { file_path: join(own, "01.png") }]]);
+        await plantLog("grader.jsonl", `Grade session ${own}`, [["Read", { file_path: join(tier2, "answers.md") }]]);
+        const env = { ...process.env, CLAUDE_CONFIG_DIR: C };
+        r = spawnSync(process.execPath, [self, "--leaks", own], { encoding: "utf8", env });
+        check(
+            "a participant transcript that opens tasks.md voids the session, by name",
+            r.status === 1 &&
+                /VOID: .*tasks\.md.*leak\.jsonl/.test(r.stdout) &&
+                !/clean\.jsonl|grader\.jsonl|answers\.md/.test(r.stdout),
+            `exit ${r.status} ${r.stdout}${r.stderr}`,
+        );
+        r = node(["--leaks", own, join(C, "projects/p/clean.jsonl")]);
+        check(
+            "a transcript that reads only its own folder is not void",
+            r.status === 0 && /none opened a file outside the session folder/.test(r.stdout),
+            `exit ${r.status} ${r.stdout}${r.stderr}`,
+        );
+        // --end copies the participant's folder to the studio one, with what the check found
+        await writeFile(join(own, "01.png"), "");
+        r = spawnSync(process.execPath, [self, "--end", own], { encoding: "utf8", env });
+        const lj = join(S1, "leaks.json");
+        const found = existsSync(lj) ? JSON.parse(readFileSync(lj, "utf8")).leaks : [];
+        check(
+            "an end copies the session into the round's folder with the leak check beside it",
+            r.status === 0 &&
+                existsSync(join(S1, "01.png")) &&
+                existsSync(join(S1, "briefing.md")) &&
+                found.some((k) => k.what.endsWith("tasks.md")) &&
+                /VOID: /.test(r.stdout),
+            `exit ${r.status} ${r.stdout}${r.stderr}`,
         );
     }
 
@@ -2136,6 +2388,21 @@ async function prove() {
             ) && pngs(H).length === 2,
             x.out,
         );
+        // a planted two-kind name: the open Attribute list's option "weight" and the Data panel's
+        // row "weight". "#n" picks by position, which a person never sees, so it is refused
+        x = step(H, "--click", "Data", "--click", "Add filter step", "--click", "Attribute");
+        const before = pngs(H).length;
+        x = step(H, "--click", "weight#1");
+        check(
+            "a position pick among different kinds of control is refused, naming each kind",
+            /ambiguous: "weight#1" picks by position among different kinds of control, so the step did nothing; name it by kind: .*"role=option:weight"/.test(
+                x.out,
+            ) && pngs(H).length === before + 1,
+            x.out,
+        );
+        x = step(H, "--click", "role=option:weight", "--expect", "New filter step");
+        check("the same control named by kind is clicked", x.code === 0, x.out);
+        x = step(H, "--key", "Escape", "--key", "Escape");
         x = step(H, "--drop", "friends-v2.csv");
         check(
             "a drop where nothing takes it says it was not delivered",
@@ -2201,7 +2468,7 @@ if (mode === "--serve") {
     if (why) {
         console.error(why);
         code = 2;
-    } else console.log(join(resolve(dir), "briefing.md"));
+    } else console.log(join(scratchOf(resolve(dir)), "briefing.md"));
 } else if (mode === "--step") {
     const p = parseSteps(args.slice(2));
     if (!args[1] || p.refused) {
@@ -2212,6 +2479,7 @@ if (mode === "--serve") {
         code = 2;
     } else code = say(await ask(args[1], { op: "step", steps: p.steps }));
 } else if (mode === "--end") {
+    let ended = true;
     if (!existsSync(sockOf(args[1] || ""))) {
         console.log(`no live session in ${resolve(args[1] || ".")}`);
     } else {
@@ -2224,13 +2492,30 @@ if (mode === "--serve") {
             for (let i = 0; existsSync(sockOf(args[1])) && i < 50; i++) await new Promise((ok) => setTimeout(ok, 100));
             await rm(sockOf(args[1]), { force: true });
         }
+        ended = !!r.end;
         code = say(r);
+    }
+    const home = args[1] && studioOf(resolve(args[1]));
+    if (ended && home) await copyBack(resolve(args[1]), home);
+} else if (mode === "--leaks") {
+    const [dir, ...given] = args.slice(1);
+    if (!dir) {
+        console.error("usage: real.mjs --leaks <session dir> [transcript.jsonl ...]");
+        code = 2;
+    } else {
+        const own = under(resolve(dir), STUDIO) ? scratchOf(resolve(dir)) : resolve(dir);
+        const l = leakCheck(
+            own,
+            given.map((g) => resolve(g)),
+        );
+        for (const line of leakLines(l, own)) console.log(line);
+        code = l.leaks.length ? 1 : l.transcripts.length ? 0 : 2;
     }
 } else if (mode === "--prove") {
     code = await prove();
 } else {
     console.error(
-        "usage: real.mjs --brief <dir> | --start <dir> [empty|setup:<file>] [--sr] [--task T17A] | --step <dir> <steps...> | --end <dir> | --prove",
+        "usage: real.mjs --brief <dir> | --start <dir> [empty|setup:<file>] [--sr] [--task T17A] | --step <dir> <steps...> | --end <dir> | --leaks <dir> [transcript.jsonl ...] | --prove",
     );
     code = 2;
 }

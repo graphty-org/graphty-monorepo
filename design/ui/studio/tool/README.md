@@ -206,23 +206,40 @@ live: status (polite): "No match for \"zzzz\""
 ## Briefing a participant, and the follow-up
 
 ```bash
-node $T/real.mjs --brief rounds/round-2/sessions/r2-s05      # writes r2-s05/briefing.md
+node $T/real.mjs --brief $S/tier2/rounds/round-3/sessions/r3-s05
+# prints <worktree>/tmp/studio-sessions/tier2/rounds/round-3/sessions/r3-s05/briefing.md
 ```
 
-`--brief <session folder>` writes `briefing.md` into the folder: everything a participant gets and
-nothing else. That is their persona files with the sections written for the study team left out
-(facilitator notes, the team's hypotheses, open questions for the study), the history under their
-name in `tier2/roster.md`, the prompt of their task's half word for word, the exact `--start`
-command with the build, and this file's "A session", "Steps" and "Names, dialogs and lists". The
-task, half, persona and start come from the session's row in the round's `plan.md` (the folder's
-name is the session id); `--task T17A --persona Grace` names them for a folder with no plan. A
-participant reads only `briefing.md`: never `tasks.md` (it holds the avoided words and the
-follow-ups), `answers.md`, `roster.md` or a persona file directly.
+A participant's session never runs inside the studio's own files (`design/ui/studio/`), where
+`tasks.md`, the answers and the personas are a few folders up. The facilitator names a session by
+its folder in the round (`rounds/round-N/sessions/<id>`), and `--brief` writes the participant's
+own folder outside the studio, under `tmp/studio-sessions/` of the worktree, at the same path
+below it, and prints its `briefing.md`. The participant starts, steps and is ended in that folder;
+`--end` copies it back to the round's folder for the graders (see "After a participant's
+session").
 
-`--start` refuses a folder that holds a facilitator file: one named like a study document
-(`tasks.md`, `answers.md`, `criteria.md`, `roster.md`, `plan.md`, `grade.md`, ...) or any text file
-that carries avoided words, facilitator notes or a success path. `--brief` checks its own output
-the same way.
+`briefing.md` is everything a participant gets and nothing else: their persona files with the
+sections written for the study team left out (facilitator notes, the team's hypotheses, open
+questions for the study), the history under their name in `tier2/roster.md`, the prompt of their
+task's half word for word, the exact `--start` command with the build and their own folder, and
+this file's "A session", "Steps" and "Names, dialogs and lists". The task, half, persona and start
+come from the session's row in the round's `plan.md` (the folder's name is the session id; a
+re-run `r3-s05b` takes `r3-s05`'s row); `--task T17A --persona Grace` names them for a folder with
+no plan. A participant reads only its own folder: never `tasks.md` (it holds the avoided words and
+the follow-ups), `answers.md`, `roster.md` or a persona file directly.
+
+`--start` refuses, starting nothing:
+
+- a participant's folder inside the studio's files: any `rounds/<round>/sessions/<id>` folder
+  there, or one holding a `briefing.md`. The refusal names the folder to brief and start instead.
+- a folder under `tmp/studio-sessions/` with no `briefing.md` that `--brief` wrote for that folder.
+- a folder that holds a facilitator file: one named like a study document (`tasks.md`,
+  `answers.md`, `criteria.md`, `roster.md`, `plan.md`, `grade.md`, ...) or any text file that
+  carries avoided words, facilitator notes or a success path. `--brief` checks its own output the
+  same way.
+
+Pilots, expert walkthroughs, graders' reproductions and screenshot audits are not participants:
+they start in folders of the studio as before (`pilot/`, `expert/`, `repro/`, `tmp/`).
 
 **The follow-up.** T17 and T18 each have a follow-up prompt for every session that finished the
 first. The tool gives it, so it never depends on anyone remembering: a session started on a T17
@@ -230,6 +247,36 @@ or T18 half (from its `plan.md` row, or `--start ... --task T18B`) answers its f
 exit 3 and the follow-up word for word, and stays open. The participant carries on in the same
 session and runs `--end` again; one who gave up runs `--end` again at once. `session.json`
 records `"followUp": "given <time>"` (never the words).
+
+## After a participant's session
+
+`--end` on a participant's folder (one under `tmp/studio-sessions/`) copies the whole folder,
+screenshots, `transcript.md`, `saved/` and `downloads/` included, to the round's session folder it
+was briefed from, replacing an earlier attempt's copy (never one that already holds a `grade.md`),
+and writes `leaks.json` beside it: what the participant opened outside its own folder. It prints
+`copied to <folder>` and the check's result. A first `--end` that hands over a follow-up copies
+nothing; the second does. An `--end` after the session closed itself still copies.
+
+```bash
+node $T/real.mjs --leaks <session folder> [transcript.jsonl ...]
+```
+
+The check reads every tool call of the participant's Claude Code transcripts. Without transcript
+paths it finds them itself: the session logs under `~/.claude/projects/` (or
+`$CLAUDE_CONFIG_DIR/projects/`) written since the briefing whose opening prompt names the folder
+and a study participant, so the follow-up's agent counts and the facilitator's own agents do not.
+A session is void, and is re-run rather than graded, if any call opened:
+
+- a facilitator file, by name, anywhere: `tasks.md`, `answers.md`, `criteria.md`, `roster.md`,
+  `plan.md`, `scores.md`, `insights.md`, `decisions.md`, `grade.md`
+- a persona file (any path through a `personas/` folder)
+- anything else under the studio's files, except its own copied folder, `tool/real.mjs` (run, not
+  read) and the data files in `tool/files/`
+- a path with `..`, or a Grep or Glob with no folder (it searches wherever the agent runs)
+
+It prints one `VOID: the participant opened <what>, <path> (<tool>, <transcript>)` line per call
+and exits 1; with none, one `leak check:` line with the counts and exit 0; with no transcript
+found, exit 2, which is no verdict: run it again with the transcript's path.
 
 ## Browsers
 
@@ -275,7 +322,7 @@ planted spin (a camera key held on the canvas) that must be reported, typing int
 whose box keeps repainting over a still drawing, which must not be, setup starts (one that works,
 one whose step names nothing, one whose click never becomes clickable), a screen-reader session (nothing focused after its setup, a focus line after every step, a live region's new
 text, the highlighted option of the find box, a planted region that arrives filled marked
-unconfirmed, `--read` in the Export dialog) and an end. It prints `ok` or `FAIL` per check and exits 1 on any failure.
+unconfirmed, `--read` in the Export dialog), an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json`). It prints `ok` or `FAIL` per check and exits 1 on any failure.
 Its sessions are written under `design/ui/studio/tmp/prove/`, which it clears first; set
 `REAL_PROVE_DIR=<folder>` to run it beside another self-test.
 

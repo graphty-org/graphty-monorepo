@@ -4243,6 +4243,7 @@ export interface ScreenshotOptions {
     timing?: {
         waitForSettle?: boolean;
         waitForOperations?: boolean;
+        settleTimeoutMs?: number;
     };
     // (undocumented)
     transparentBackground?: boolean;

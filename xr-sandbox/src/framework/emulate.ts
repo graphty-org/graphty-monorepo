@@ -7,6 +7,7 @@
 // Gap: IWER's hands always report the oculus-hand profile, not Galaxy XR's generic-hand-select.
 
 import { GamepadMappingType, metaQuest3, XRDevice, type XRDeviceConfig } from "iwer";
+import { type HandPose, oculusHandConfig } from "iwer/lib/device/XRHandInput.js";
 
 /** The profile names `emulate=` accepts. */
 const PROFILES = [
@@ -53,6 +54,36 @@ const galaxyControllers: XRDeviceConfig["controllerConfig"] = (() => {
 })();
 
 /**
+ * Add a "fist" hand pose (IWER ships default, pinch and point) for the pose layer's fist, the hands'
+ * squeeze: the point pose with the index finger curled like the middle finger, moved to the index
+ * metacarpal. Its fingertips average 4.6 cm from their metacarpals (the fist begins under 5 cm) and
+ * the thumb tip is 7.8 cm from the index tip (no pinch).
+ */
+function addFistPose(): void {
+    const poses = oculusHandConfig.poses as Record<string, HandPose>;
+    const { point } = poses;
+    if (poses.fist || !point) {
+        return;
+    }
+    type Joint = { offsetMatrix: ArrayLike<number>; radius: number };
+    const joints = point.jointTransforms as Record<string, Joint>;
+    const fist: Record<string, Joint> = {};
+    for (const [name, j] of Object.entries(joints)) {
+        fist[name] = { radius: j.radius, offsetMatrix: Float32Array.from(j.offsetMatrix) };
+    }
+    const index = joints["index-finger-metacarpal"].offsetMatrix;
+    const middle = joints["middle-finger-metacarpal"].offsetMatrix;
+    for (const part of ["phalanx-proximal", "phalanx-intermediate", "phalanx-distal", "tip"]) {
+        const m = Float32Array.from(joints[`middle-finger-${part}`].offsetMatrix);
+        for (let k = 12; k < 15; k++) {
+            m[k] += index[k] - middle[k];
+        }
+        fist[`index-finger-${part}`].offsetMatrix = m;
+    }
+    poses.fist = { ...point, jointTransforms: fist as unknown as HandPose["jointTransforms"] };
+}
+
+/**
  * Install IWER with a device profile.
  * @param profile - one of PROFILES
  * @returns the emulated device, to move the head, hands and controllers
@@ -77,6 +108,7 @@ export function installEmulation(profile: string): XRDevice {
             (f) => profile !== "galaxyxr-no-hands" || f !== "hand-tracking",
         ),
     };
+    addFistPose();
     const device = new XRDevice(config);
     device.installRuntime({ forceInstall: true });
     device.primaryInputMode = profile.endsWith("hands") && profile !== "galaxyxr-no-hands" ? "hand" : "controller";

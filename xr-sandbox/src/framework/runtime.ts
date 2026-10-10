@@ -15,7 +15,7 @@ import { handTracking } from "../scene/xr";
 import { createInput, type Edge, type InputLayer } from "./input";
 import type { Logger } from "./logging";
 import type { Settings } from "./settings";
-import type { HoverInfo, PressSession, Technique, TechniqueContext } from "./technique";
+import type { HoverInfo, PressSession, TargetProvider, Technique, TechniqueContext } from "./technique";
 import { createTextSeam } from "./text-seam";
 
 /** Framework actions, filled in by the panels that implement them. */
@@ -99,6 +99,7 @@ export function createFramework(
     };
     anchors["graph-top"].parent = graph.root;
     anchors["graph-top"].position.set(0, 0.32, 0);
+    const providers: Record<Hand, TargetProvider | null> = { left: null, right: null };
     const textSeam = createTextSeam(scene, (m, d) => {
         log.log(m, d);
     });
@@ -246,6 +247,11 @@ export function createFramework(
                 log.log(`${t.id}.${message}`, { technique: t.id, ...data });
             },
             onFrame: (fn) => list.push(fn),
+            target: {
+                provide: (hand, p) => {
+                    providers[hand] = p;
+                },
+            },
             framework: {
                 toggleGear: () => {
                     fw.actions.toggleGear();
@@ -448,7 +454,7 @@ export function createFramework(
         },
         attachXR(x) {
             xr = x;
-            input = createInput(x, graph);
+            input = createInput(x, graph, providers);
             x.input.onControllerAddedObservable.add((c) => {
                 const s = c.inputSource;
                 log.log("input", {

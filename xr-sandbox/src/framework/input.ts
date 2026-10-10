@@ -8,7 +8,7 @@ import { Ray, Vector3, type WebXRDefaultExperience, type WebXRInputSource } from
 
 import type { Channel, Hand } from "../core/arbiter";
 import type { GraphView } from "../scene/graph-view";
-import type { HoverInfo } from "./technique";
+import type { HoverInfo, TargetProvider } from "./technique";
 
 /** A press edge. */
 export interface Edge {
@@ -79,9 +79,14 @@ const MICRO: [number, string][] = [
  * Create the input layer.
  * @param xr - the XR experience
  * @param graph - the graph view, for picking
+ * @param providers - per hand, a technique's target provider (the held copy, the slab), or null
  * @returns the layer
  */
-export function createInput(xr: WebXRDefaultExperience, graph: GraphView): InputLayer {
+export function createInput(
+    xr: WebXRDefaultExperience,
+    graph: GraphView,
+    providers: Record<Hand, TargetProvider | null> = { left: null, right: null },
+): InputLayer {
     const blank = (hand: Hand): HandState => ({
         hand,
         source: null,
@@ -165,7 +170,8 @@ export function createInput(xr: WebXRDefaultExperience, graph: GraphView): Input
         if (ui) {
             h.context = "ui";
         } else {
-            const best = graph.pick(h.origin, h.dir, minAngle);
+            // A technique's target provider (design section 5.2) first; the plain ray when it hits nothing.
+            const best = providers[h.hand]?.(h.origin, h.dir, minAngle) ?? graph.pick(h.origin, h.dir, minAngle);
             let node = best?.index ?? -1;
             // Hysteresis (rule 7): keep the current node unless the new one is clearly closer to the ray.
             if (h.node >= 0 && node !== h.node) {

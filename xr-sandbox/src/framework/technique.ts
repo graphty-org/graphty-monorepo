@@ -3,12 +3,12 @@
 // only through the arbiter (claims and onPress), hand poses only through the pose layer, and every
 // mesh, panel and hook it creates is built hidden at prepare and only shown at activate.
 
-import type { Scene, TransformNode, WebXRDefaultExperience } from "@babylonjs/core";
+import type { Scene, TransformNode, Vector3, WebXRDefaultExperience } from "@babylonjs/core";
 
 import type { Claim, Gesture, Hand, PressStart } from "../core/arbiter";
 import type { CommandCode, CommandParams, CommandRecord, HistoryEntry, Preview } from "../core/commands";
 import type { GraphState } from "../core/state";
-import type { GraphView } from "../scene/graph-view";
+import type { GraphView, NodePick } from "../scene/graph-view";
 import type { HandPoses } from "../scene/poses";
 import type { Chip, Panel } from "../scene/ui";
 import type { FrameworkActions } from "./runtime";
@@ -95,6 +95,11 @@ export interface TechniqueContext {
     log(message: string, data?: Record<string, unknown>): void;
     /** A per-frame hook, run only while the technique is on, timed for the frame budget. */
     onFrame(fn: (dtMs: number) => void): void;
+    /**
+     * Become a hand's target provider (design section 5.2; the held copy, the slab), or stop with
+     * null. The provider is asked first each frame; when it returns null the plain ray is used.
+     */
+    target: { provide(hand: Hand, p: TargetProvider | null): void };
     /** The framework's own actions (plan section 1.3), always present: gear panel, steps, recenter, flag, save. */
     framework: Pick<FrameworkActions, "toggleGear" | "toggleSteps" | "recenter" | "flag" | "save">;
     /**
@@ -120,6 +125,9 @@ export interface TextRequest {
 
 /** Answers a text request: the text, or null when dismissed. */
 export type TextProvider = (r: TextRequest) => Promise<string | null>;
+
+/** Picks a node of the full graph along a hand's ray (world space), or returns null. */
+export type TargetProvider = (origin: Vector3, dir: Vector3, minAngleRad: number) => NodePick | null;
 
 /** A technique module. */
 export interface Technique {

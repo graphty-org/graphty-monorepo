@@ -53,7 +53,13 @@ export function installTestHooks(d: HookDeps): void {
     ):
         | {
               position: { set(x: number, y: number, z: number): unknown; x: number; y: number; z: number };
-              quaternion: { set(x: number, y: number, z: number, w: number): unknown };
+              quaternion: {
+                  set(x: number, y: number, z: number, w: number): unknown;
+                  x: number;
+                  y: number;
+                  z: number;
+                  w: number;
+              };
           }
         | undefined => (device.primaryInputMode === "hand" ? device.hands[hand] : device.controllers[hand]);
 
@@ -219,19 +225,45 @@ export function installTestHooks(d: HookDeps): void {
             input(hand)?.position.set(p.x, p.y, p.z);
         },
         /**
+         * Turn a hand or controller about an axis through itself, on top of its orientation now
+         * (XR space: +y up, +z toward the viewer). Rolling the off hand palm up needs this; aim never rolls.
+         * @param hand - which hand
+         * @param axis - the axis, XR space
+         * @param deg - degrees, right-handed about the axis
+         */
+        turn(hand: Hand, axis: [number, number, number], deg: number) {
+            const q = input(hand)?.quaternion;
+            if (!q) {
+                return;
+            }
+            const l = Math.hypot(...axis) || 1;
+            const s = Math.sin((deg * Math.PI) / 360) / l;
+            const [ax, ay, az, aw] = [axis[0] * s, axis[1] * s, axis[2] * s, Math.cos((deg * Math.PI) / 360)];
+            // r * q (Hamilton product): the turn is applied in world (XR) axes.
+            q.set(
+                aw * q.x + ax * q.w + ay * q.z - az * q.y,
+                aw * q.y - ax * q.z + ay * q.w + az * q.x,
+                aw * q.z + ax * q.y - ay * q.x + az * q.w,
+                aw * q.w - ax * q.x - ay * q.y - az * q.z,
+            );
+        },
+        /**
          * Press or release: trigger, squeeze, pinch, or a button (a, b, x, y, stick).
          * @param hand - which hand
-         * @param kind - trigger, squeeze, pinch, a, b, x, y or stick
+         * @param kind - trigger, squeeze, pinch, fist, a, b, x, y or stick
          * @param down - press or release
          */
         press(hand: Hand, kind: string, down: boolean) {
-            if (kind === "pinch") {
+            if (kind === "pinch" || kind === "fist") {
                 const h = device.hands[hand];
                 if (!h) {
                     throw new Error(`no hand ${hand}`);
                 }
-                h.poseId = down ? "pinch" : "default";
-                h.updatePinchValue(down ? 1 : 0);
+                // The fist pose is added by emulate.ts; the pose layer turns it into the hand's squeeze.
+                h.poseId = down ? kind : "default";
+                if (kind === "pinch") {
+                    h.updatePinchValue(down ? 1 : 0);
+                }
                 return;
             }
             const c = device.controllers[hand];

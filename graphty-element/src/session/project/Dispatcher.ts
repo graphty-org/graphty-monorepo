@@ -293,6 +293,11 @@ type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 interface ProjectChange {
     readonly slices: readonly string[];
     readonly cause: HistoryCause;
+    /**
+     * The note ids a command wrote, so the `note:changed` publisher compares those alone. Absent
+     * when the change does not say (an undo, a redo, a restore, a rollback): compare the slice.
+     */
+    readonly notes?: readonly string[];
 }
 
 /** Why the history, or what the next undo will do, changed. */
@@ -679,6 +684,16 @@ function slicesOf(patch: Patch): readonly Slice[] {
             ...(patch.rows === null ? [] : ["arrangement" as const]),
         ]),
     ];
+}
+
+/**
+ * The note ids a patch wrote, each once, for a change; nothing when it wrote no note.
+ * @param patch - The patch.
+ * @returns The change's `notes`, or an empty object.
+ */
+function notesOf(patch: Patch): Pick<ProjectChange, "notes"> {
+    const notes = [...new Set(patch.entries.filter((entry) => entry.slice === "notes").map((entry) => entry.key))];
+    return notes.length === 0 ? {} : { notes };
 }
 
 /**
@@ -2119,7 +2134,7 @@ export class Dispatcher {
         }
 
         if (baseline) {
-            const change = { slices: slicesOf(patch), cause: "command" as const };
+            const change = { slices: slicesOf(patch), cause: "command" as const, ...notesOf(patch) };
             this.emit(change, [change]);
             this.release(group, true);
             this.startDeferred(group, null);
@@ -2178,7 +2193,7 @@ export class Dispatcher {
             // else is a pin no step records.
             this.arrangement.checkPins();
 
-            const change = { slices, cause: "command" as const };
+            const change = { slices, cause: "command" as const, ...notesOf(patch) };
             this.emit(change, [change]);
         }
 

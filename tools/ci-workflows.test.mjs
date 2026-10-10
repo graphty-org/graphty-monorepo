@@ -349,7 +349,7 @@ describe("the pre-push gate matches CI", () => {
             writeFileSync(join(dir, "tools/visual-preview.sh"), `#!/bin/sh\necho "$@" > ${dir}/called\n`, {
                 mode: 0o755,
             });
-            const script = `cd ${dir}\nSONAR_PGID=""\nPUSH_HEAD=abc\n${fn}\ntrap cleanup EXIT\nsetsid bash -c 'timeout 300 sleep 300 & echo $! > ${dir}/inner; wait' &\nSCREENSHOTS_PGID=$!\nuntil [ "$(ps -o pgid= -p $SCREENSHOTS_PGID | tr -d " ")" = $SCREENSHOTS_PGID ] && [ -s ${dir}/inner ]; do sleep 0.05; done\nSCREENSHOTS_STAGED=1\necho $SCREENSHOTS_PGID > ${dir}/pid\nexit 1\n`;
+            const script = `cd ${dir}\nPUSH_HEAD=abc\n${fn}\ntrap cleanup EXIT\nsetsid bash -c 'timeout 300 sleep 300 & echo $! > ${dir}/inner; wait' &\nSCREENSHOTS_PGID=$!\nuntil [ "$(ps -o pgid= -p $SCREENSHOTS_PGID | tr -d " ")" = $SCREENSHOTS_PGID ] && [ -s ${dir}/inner ]; do sleep 0.05; done\nSCREENSHOTS_STAGED=1\necho $SCREENSHOTS_PGID > ${dir}/pid\nexit 1\n`;
             const r = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 20_000 });
             assert.equal(r.status, 1);
             const pid = Number(readFileSync(join(dir, "pid"), "utf8"));
@@ -1651,6 +1651,31 @@ describe(".mergify.yml and the T4", () => {
     it("makes no pull request wait on a T4 result", () => {
         const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
         assert.doesNotMatch(mergify, /T4|GPU|gpu/);
+    });
+});
+
+describe("the webgpu-graph-algorithms node suite on every lane", () => {
+    // Issue #1884: the files that hold the GPU for seconds per submission are the node-gpu-alone project, which runs
+    // after the node project and alone. A lane that names only `--project=node` silently drops them.
+    it("selects node-gpu-alone wherever it selects the node project, except a run of one named file", () => {
+        const pkg = JSON.parse(
+            readFileSync(new URL("../webgpu-graph-algorithms/package.json", import.meta.url), "utf8"),
+        );
+        const lines = [
+            ...SHARDS.map((s) => s["test-command"]),
+            ...Object.values(pkg.scripts),
+            ...workflow("hosts.yml").split("\n"),
+            ...workflow("gpu.yml").split("\n"),
+        ].filter(
+            (line) =>
+                /run-node-shard\.js|vitest run/.test(line) &&
+                /--project[= ]node(?![\w-])/.test(line) &&
+                !/\.test\.ts\b/.test(line),
+        );
+        assert.ok(lines.length >= 9, `found only ${lines.length} node-suite invocations`);
+        for (const line of lines) {
+            assert.match(line, /--project[= ]node-gpu-alone\b/, line);
+        }
     });
 });
 
@@ -3005,9 +3030,12 @@ describe("the commit and push hooks", () => {
         assert.ok(at("PROJECTS=$(") < build);
         assert.ok(at('source "$SCRIPT_DIR/prepush-source-checks.sh"') < at("PROJECTS=$("), "before the affected list");
         const checks = repoFile("tools/prepush-source-checks.sh");
-        for (const step of ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"]) {
+        const steps = ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"];
+        for (const step of [...steps, "SonarQube (changed lines)"]) {
             assert.match(checks, new RegExp(`run_step "${step.replace(/[()]/g, "\\$&")}"`), step);
         }
+        // SonarQube runs only there, so a push it fails never reaches the queue or the build.
+        assert.doesNotMatch(prepush, /sonar-gate\.mjs/);
         const runStep = checks.slice(
             checks.indexOf("run_step() {"),
             checks.indexOf("\n}\n", checks.indexOf("run_step() {")) + 3,
@@ -3291,6 +3319,10 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(join(dir, "tools/check-links.sh"), `#!/bin/sh\necho links >> ${dir}/calls\n`, {
                 mode: 0o755,
             });
+            writeFileSync(
+                join(dir, "tools/sonar-gate.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "sonar\\n");\n`,
+            );
             writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
             writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n");
             writeFileSync(join(dir, ".gitignore"), "node_modules/\ncalls\n");
@@ -3315,6 +3347,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             const first = run();
             assert.match(first.calls, /run format:check/);
             assert.match(first.calls, /links/);
+            assert.match(first.calls, /sonar/);
             const second = run();
             assert.equal(second.calls, "", "nothing changed: no check runs");
             assert.match(second.out, /\[SKIP\] Source-only checks/);

@@ -1,5 +1,5 @@
-The study runs on build 2dcea6dd5bba served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d3-2dcea6dd5/`
-(graphty@0.8.61, commit 2dcea6dd5), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build 8f0d5a6f7791 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d4-8f0d5a6f7/`
+(graphty@0.8.61, commit 8f0d5a6f7), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -658,3 +658,15 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   (T23 B); and the Edge actions menu opening with no item filled, a click on a drawn name doing
   nothing, the find box's title result without the minutes, and a visible click point on B's line
   (T24). No bar, floor, step limit or prompt changed.
+
+- **2026-10-09, before round 2: the fourth round 2 dry run build.** The study build moved from
+  2dcea6dd5bba (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d3-2dcea6dd5/`) to
+  8f0d5a6f7791 (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r2d4-8f0d5a6f7/`,
+  write-protected), a fresh build of graphty-element, compact-mantine and the graphty app with the
+  Sentry variables unset. It holds the fixes found in the fourth dry run (the source inspector
+  headed with its Sources row's own icon, the run inspector's Advanced toggle and histogram
+  summary lined up, the find option that Enter picks marked, quoted rules set in monospace) and the
+  element changes since, with master's merged in (an element option letting a click on a node's
+  label pick it, the run scope's data digest renamed dataDigest, size refusals with E_TOO_LARGE for
+  n x n layouts and algorithms, the WebLLM provider built inside enableAiControl, a click timed by
+  its events). No bar, floor, step limit or prompt changed.

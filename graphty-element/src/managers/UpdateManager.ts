@@ -1444,8 +1444,7 @@ export class UpdateManager implements Manager {
         const depthOf = (p: Vector3): number => (view ? p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14] : 0);
         this.depthScaled = true;
         const reference = depthOf(pivot.getAbsolutePosition());
-        if (!(reference > 0)) {
-            // NOSONAR(S1940): also true for NaN, which <= 0 is not
+        if (Number.isNaN(reference) || reference <= 0) {
             return false;
         }
 

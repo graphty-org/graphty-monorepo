@@ -48,8 +48,7 @@ export function fullInsets(insets: ViewInsets | undefined): Required<ViewInsets>
 export function freeArea(insets: ViewInsets | undefined, width: number, height: number): FreeArea {
     const { top, right, bottom, left } = fullInsets(insets);
     const across = (start: number, end: number, size: number): { share: number; center: number } => {
-        if (!(size > 0)) {
-            // NOSONAR(S1940): also true for NaN, which <= 0 is not
+        if (Number.isNaN(size) || size <= 0) {
             return { share: 1, center: 0 };
         }
 

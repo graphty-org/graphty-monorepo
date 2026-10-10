@@ -55,7 +55,7 @@ export function EllipsizedName({
     testId,
     self = false,
     detail,
-}: EllipsizedNameProps): React.JSX.Element {
+}: Readonly<EllipsizedNameProps>): React.JSX.Element {
     const ref = useRef<HTMLSpanElement>(null);
     const [row, setRow] = useState<HTMLElement | null>(null);
     const [cut, setCut] = useState(false);

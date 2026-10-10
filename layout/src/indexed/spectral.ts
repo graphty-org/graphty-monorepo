@@ -179,11 +179,7 @@ function orthonormalise(block: F64[], random: () => number): void {
         for (let attempt = 0; ; attempt++) {
             projectOut(block, j);
             projectOut(block, j);
-            const length = Math.sqrt(dot(v, v));
-            if (length > 1e-10 || attempt === 3) {
-                for (let r = 0; r < v.length; r++) {
-                    v[r] = length > 0 ? v[r] / length : 0;
-                }
+            if (normalise(v, attempt === 3)) {
                 break;
             }
             for (let r = 0; r < v.length; r++) {
@@ -191,6 +187,23 @@ function orthonormalise(block: F64[], random: () => number): void {
             }
         }
     }
+}
+
+/**
+ * Scale a vector to unit length, in place, unless it has collapsed (and this is not the last try).
+ * @param v - the vector
+ * @param last - true on the last try, when a collapsed vector is kept as it is (zero, if it is)
+ * @returns true when the vector was scaled, false when it collapsed and should be replaced
+ */
+function normalise(v: F64, last: boolean): boolean {
+    const length = Math.sqrt(dot(v, v));
+    if ((Number.isNaN(length) || length <= 1e-10) && !last) {
+        return false;
+    }
+    for (let r = 0; r < v.length; r++) {
+        v[r] = length > 0 ? v[r] / length : 0;
+    }
+    return true;
 }
 
 /**

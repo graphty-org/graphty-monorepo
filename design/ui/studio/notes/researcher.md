@@ -10,30 +10,32 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-09 -- Round 2 SCORED (`tier2/rounds/round-2/scores.md`): 55 of 55 valid succeed; bars 1
-  to 7 hold, 8, 9 (b), 10 and 11 (T18 8.5 vs 8) fail. Progress by the stall rule (core four 29 to
-  31, sev 3s lowered, bar 1 T22 and bar 11 T20 now hold).
-- 2026-10-09 -- BIGGEST FINDING IS THE STUDY'S: no session ran `--brief`; participants worked from
-  `tier2/`, 13 of 16 T17/T18 did the follow-up before the tool gave it, r2-s05 read the avoided
-  words. Every pass is weak; the follow-up measure is unusable. Fix: `--start` refuses a folder
-  with no briefing it wrote; re-run T20, T21, T22 (and T17, T18) before crediting the routes.
-- 2026-10-09 -- Answer to "did we dry run?": yes, four dry runs plus detours on the study build;
-  participants met about 30 implementation faults (about 9% of problems), 12 on ONE unwalked detour
-  (styling a selection: width 8 hairline, gray default color, layer moves the drawing). The dry run
-  had ruled the width "works as designed"; sessions overturned it.
-- 2026-10-09 -- Run `tool/bars.mjs` on every frozen build in PREFLIGHT; it had not run on round 2's
-  build until scoring (I ran it). Bar 10's scripted counts were never built though preflight said so.
+- 2026-10-09 -- Round 2 INSIGHTS written (`tier2/rounds/round-2/insights.md`). Bars unchanged by
+  skeptics. Confirmed sev 3: find box "No match" on the reader's words, backticks, drawn names
+  overlapping, "Open project or file..." on a newer copy doubling ties (82 from 41). Nothing sev 4.
+- 2026-10-09 -- BIGGEST FINDING IS THE STUDY'S: participants read `tasks.md` (avoided words,
+  follow-ups, detour list, T22's design note). Bias is one-way: problems robust, passes weak; the
+  round 2 route credits (T20, T21, T22) are unproven. Next round: `--start` refuses a folder without
+  its own `briefing.md`, participants run from the session folder; re-run those routes and r2-s05.
+- 2026-10-09 -- Answer to "did we dry run?": yes; about 30 implementation faults of 355 problems,
+  none above sev 2 after skeptics; 12 on the unwalked detour (styling a selection: width 8 hairline,
+  gray A9A9A9 start). Two "app" faults (discarded filter step) were the tool's click by name.
+- 2026-10-09 -- Prompt words make findings: "stand out" invites a style (T22, T24); "who was first
+  before" makes the before/after need; "make sure both will still be there" makes the saved-state
+  need. Do not read a prompt-made behavior as user need; rewrite prompts that invite a detour.
+- 2026-10-09 -- Hold opinion-only problems one level down at SCORING time; round 2 scores did not,
+  and the skeptics lowered about 15 items.
+- 2026-10-09 -- Apply one rule the same way everywhere (skeptic caught T18 vs T22 broken habit).
+  T18 stays sev 2: its find box led all 8 to a right answer; T22's answered only "No match".
+- 2026-10-09 -- Run `tool/bars.mjs` on every frozen build in PREFLIGHT; bar 10's scripted counts are
+  still not built.
 - 2026-10-09 -- Voids are still not re-run (r2-s05, as r1-s04). Make the runner do it, not hope.
-- 2026-10-09 -- Bar 2 with lists: a second path run is invisible to start/end lists; scored holds,
-  stated round 1's reading beside it (fails in 7). Skeptics decide.
-- 2026-10-09 -- Click by name lands on same-named controls (r2-s17, s18, s30); `bars.mjs` finds no
-  shared accessible names, so it is the tool matching visible text, not the app.
+- 2026-10-09 -- Click by name lands on same-named controls (r2-s17, s18, s30); confirm any fault a
+  misclick started with a script before blaming the app.
 - 2026-10-09 -- Ease is flat (41 of 55 rated 6): report it, never lean on it.
-- 2026-10-09 -- Expected to keep failing: bar 10 on drawn names overlapping (element label
-  placement). Report the class, never per instance (layout unseeded).
-- 2026-10-09 -- Persona scripts decided 2 of 3 round 1 non-successes. Read the persona FILE before
-  blaming the screen; "scripted exit" is a label beside G.
-- 2026-10-09 -- Histories steer first moves; the SECOND place looked is the real signal.
+- 2026-10-09 -- Drawn-name overlap stays open (element label placement); report the class.
+- 2026-10-09 -- Persona scripts and histories steer first moves; the SECOND place looked is the
+  real signal. Read the persona FILE before blaming the screen.
 - 2026-10-07 -- One skeptic's weakening stands unless the other answers its reason with evidence;
   never override a grader without new evidence.
 - 2026-10-06 -- All participants are one model: failure strong, pass weak. Solid = scripted repro
@@ -77,6 +79,18 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-09 (researcher, round 2 skeptic verdicts) -- Wrote `rounds/round-2/insights.md`.
+  Applied: both drop = dropped (insight 6, routes carried habits); one drop or weaken = weakened
+  (T24 halo, the "All 13 rows" caption, insights 1 to 5) unless the other answered with evidence.
+  Resolved the skeptic's T18-vs-T22 consistency question: T18 find box stays sev 2 (the rule counts
+  a place offering no way on; T18's led all 8 to a right answer, 2 by hand), T22's is sev 3 ("No
+  match" only). Rated the "Open project or file..." doubling sev 3, not 4: both who met it caught
+  the 82. Checked myself: `r2-s14/15.png` (width 8 red ties barely visible), `r2-s33/05.png` ("Add
+  to friends", 82 edges, only Cancel/Load), `r2-s52/02.png` ("Stadium" label over the tie), r2-s12
+  "chapters 10" on the Les Mis half (answers half of skeptic 1's priming objection to insight 2).
+  Rejected: reopening bar statuses (no skeptic changed one); calling the discarded filter step an
+  app user problem (both cases started by the tool's misclick).
 
 - 2026-10-09 (researcher, tier 2 round 2 scoring) -- Scored 56 grades (55 valid) with
   `tmp/researcher/t2r2/score.py` (asserts 56/55), `followup.py` (follow-up time vs last screenshot:
@@ -181,6 +195,12 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-09 (round 2 verdicts) -- Worked: a verdict table per item from both skeptics, then
+  grepping transcripts for the one sentence that settles a split (r2-s12 "chapters 10", r2-s33 "82
+  is double"); viewing the three screenshots I cite before citing them. Did not work: my scoring
+  listing prompt-made behavior (styling after "stand out", writing down "who was first before") as
+  user need -- check each candidate insight against the prompt's own words first.
+
 - 2026-10-09 (round 2 scoring) -- Worked: one Measures dump of all grades (103 KB, two reads);
   timestamp check of follow-ups against screenshot mtimes (found the leak no grader tallied);
   `ls` for `briefing.md` in every folder (none); running `bars.mjs` in the background while
@@ -251,6 +271,9 @@ reasons, in short:
   once; editing a script while it runs; a harness that exits 0 printing nothing; mocks.
 
 ## Thinking
+
+- 2026-10-09 -- A leaked facilitator file biases one way: it can only make routes look easier. So
+  a leak does not void problems, it voids passes. Score with that asymmetry instead of voiding all.
 
 - 2026-10-09 -- Participants choose the route nobody walked, and they style what they select:
   seed every dry run with the last round's detours AND with "make it last" (style a selection,

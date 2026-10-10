@@ -69,6 +69,8 @@ export const OBOGRAPHS_LOSS = Object.freeze({
     ID_CHANGED: "W_OBOGRAPHS_ID_CHANGED",
     /** A `property_value` with an xsd datatype: basicPropertyValues have no datatype, so it reads back without one. */
     DATATYPE_DROPPED: "W_OBOGRAPHS_DATATYPE_DROPPED",
+    /** A graph without a node `type` column is written with CLASS nodes and reads back with a `type` column holding Term. */
+    TYPE_GAINED: "W_OBOGRAPHS_TYPE_GAINED",
 });
 
 /**
@@ -668,6 +670,14 @@ class ObographsExport {
         const type = this.placed.get("type");
         const typedefs =
             type === undefined ? 0 : rows.filter((i) => type.isSet(i) && type.value(i) === "Typedef").length;
+        if (rows.length > 0 && snapshot.nodes.get("type") === null) {
+            note(
+                OBOGRAPHS_LOSS.TYPE_GAINED,
+                `${rows.length} node${plural(rows.length)} ${agree(rows.length, "is", "are")} written with the type CLASS and ${agree(rows.length, "reads", "read")} back with the type Term in a new node column "type"`,
+                null,
+                rows.length,
+            );
+        }
         if (typedefs > 0) {
             note(
                 TYPEDEF_NODES_CODE,

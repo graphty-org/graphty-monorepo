@@ -503,6 +503,9 @@ export const TOOLS = [
             "commits to the fix commit(s) it contains; its description need not name the issue. A release incident job " +
             "whose fix is in a pull request (yours or another session's) reports done the same way, with pr and commits: " +
             "the job ends and githerd watches the release, offering the job again if a later release run fails. " +
+            "An issue job on a bug reports done with siblings: what it searched (the pattern and the paths) and each other " +
+            "place breaking the same rule, as fixed in this pull request, existing (left to an open issue) or filed, with " +
+            "the issue number for the last two; found [] when there are none. " +
             "githerd verifies the claim against GitHub before accepting it and says what is missing.",
         inputSchema: object(
             {
@@ -522,6 +525,23 @@ export const TOOLS = [
                     ),
                 },
                 children: { type: "array", items: NUMBER },
+                siblings: object(
+                    {
+                        searched: { type: "string", minLength: 1 },
+                        found: {
+                            type: "array",
+                            items: object(
+                                {
+                                    where: { type: "string", minLength: 1 },
+                                    action: { type: "string", enum: ["fixed", "existing", "filed"] },
+                                    issue: NUMBER,
+                                },
+                                ["where", "action"],
+                            ),
+                        },
+                    },
+                    ["searched", "found"],
+                ),
                 evidence: { type: "string" },
                 result: { anyOf: [{ type: "array", items: TRIAGE_ITEM }, REVIEW_RESULT] },
             },

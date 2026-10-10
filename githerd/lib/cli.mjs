@@ -87,7 +87,7 @@ const USAGE = `usage: githerd <command>
                                            githerd_expect: answer githerd's status question on a job
   done <job> --outcome done|split|not-needed|deferred|failed [--pr <n>] [--commits <sha,...>]
        [--reason "<why>"] [--evidence "<proof>"] [--theory "<why it broke>"] [--pushed-head <sha>]
-       [--children <n,...>] [--defect "<summary>" | --defect '{"summary":"..","issue":12}' ...]
+       [--children <n,...>] [--siblings '<json>'] [--defect "<summary>" | --defect '{"summary":"..","issue":12}' ...]
        [--findings "<text>"] [--result '<json>'] [--report-file <report.json>] "<summary>"
                                            githerd_done: report the end of an attempt; the summary
                                            is the findings (and the reason, unless --reason);

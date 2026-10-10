@@ -233,7 +233,7 @@ export const RULES = Object.freeze([
     "Decide reversible questions yourself and record why in your findings. Ask the owner only through githerd_ask_owner, and only for what only the owner can do: a one-way door, a visual approval, money, a credential, a login, a change to the machine, a new permission rule.",
     "Never write ACTION NEEDED. Skills that ask the user a question are answered by you.",
     "When someone asks you a question, answer it without acting on it. A message about another job gets: this is the worker for <your job>.",
-    'Judge overlap when you claim, against the githerd_next snapshot: independent; join (your target becomes part of the other job); or wait. Claim wait when your job cannot go on until another job or issue lands first (you need its change, or it rewrites what you would change): githerd_claim overlap {decision: "wait", with: "#736", reason} names the issue (or with: a job id). githerd blocks your job until that one ends, makes the issue\'s job if none exists, and rings you then. Do not claim independent and sit idle, and do not do the other issue\'s work inside yours.',
+    'Judge overlap when you claim, against the githerd_next snapshot: independent; join (your target becomes part of the other job); or wait. Claim wait when your job cannot go on until another job or issue lands first (you need its change, or it rewrites what you would change): githerd_claim overlap {decision: "wait", with: "#736", reason} names the issue (or with: a job id). githerd blocks your job until that one ends, makes the issue\'s job if none exists, and rings you then. Do not claim independent and sit idle, and do not do the work of an issue someone else already owns (an open job or claim) inside yours.',
     "Push only through githerd_push. Wait for checks, a lane, a release, another job or a background task only through githerd_wait, then end your turn; githerd rings you when it changes.",
     "Do the job's work in a background subagent or workflow, and keep the main conversation free to answer githerd's messages. A session that claimed this job itself is asked for its status every few minutes: answer with githerd_expect, or the job goes back to the queue when the next question is due.",
     "Before a step that runs longer than 20 minutes with no output, call githerd_expect with minutes set to its length.",
@@ -285,7 +285,7 @@ const TYPE_REFRESH =
 /**
  * The lines a job's facts add for its worker: a refresh's merges and issues, the label kinds a new
  * triage batch lacks, where a verdict job's failure is, that a held pull request stays held, and an
- * issue job's bundle.
+ * issue job's bundle and, on a bug, its sibling search.
  * @param {any} job the job
  * @param {{refresh: boolean, verdict: boolean}} kind whether it is a refresh triage or a verdict job
  * @returns {string[]} the lines
@@ -295,7 +295,9 @@ function factLines(job, { refresh, verdict }) {
     if (verdict) return verdictLines({ key: job.target, ...job.facts });
     if (job.kind === "incident" && job.facts?.failure) return [`FAILURE: ${job.facts.failure}`];
     if (job.kind === "pr") return job.facts?.held ? [HELD] : [];
-    if (job.kind === "issue" && job.facts?.batch?.length > 1) return [bundleLine(job)];
+    if (job.kind === "issue") {
+        return [...(job.facts?.batch?.length > 1 ? [bundleLine(job)] : []), ...(job.facts?.bug ? [SIBLINGS] : [])];
+    }
     if (job.kind !== "triage") return [];
     if (job.facts?.scope === "types") return [TRIAGE_TYPES, TYPE_REFRESH];
     if (!job.facts?.missing) return [TRIAGE_TYPES];
@@ -327,6 +329,17 @@ function bundleLine(job) {
         `${anchor} must be in the pull request; if it is the one to leave out, report this job deferred or split as usual, and githerd offers the others again.`
     );
 }
+
+/**
+ * The line for an issue job on a bug (issue #1595): one defect used to take two or three issue and
+ * pull request cycles because its siblings were filed instead of fixed. githerd_done checks the report.
+ */
+const SIBLINGS =
+    "SIBLINGS: this is a bug. Before you finish, search the package for other places that break the same rule. " +
+    "Fix the small mechanical ones in this pull request. Leave one that an open issue or another session's claim already covers to that owner. " +
+    "File the rest (one that needs a visual review, a breaking change or an owner decision, or lives in another package). " +
+    "githerd_done with outcome done refuses this job without siblings: what you searched (the pattern and the paths) and each find, " +
+    'as fixed, existing (with the issue number) or filed (with the issue number); found none is {"searched": "...", "found": []}.';
 
 /** The line for a job whose pushes are a red master's fix (master-fix.mjs isMasterFix). */
 const MASTER_FIX =

@@ -1,0 +1,1397 @@
+import { rmSync } from "node:fs";
+import { join } from "node:path";
+
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
+import { claimJob, move, newJob } from "../lib/board.mjs";
+import { doneIo, githerdDone, pollVerifying, recheckRefused, verifyClaim } from "../lib/done.mjs";
+import { accumulateMerged } from "../lib/merged.mjs";
+import { masterRefs, readyIssues } from "../lib/queue.mjs";
+import { statusData, statusText } from "../lib/tools.mjs";
+import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
+
+const NOW = new Date("2026-10-04T12:00:00Z");
+const HEAD = "a".repeat(40);
+const OTHER = "b".repeat(40);
+const FIX = "c".repeat(40);
+const GREEN = "d".repeat(40);
+const LABELS = {
+    types: ["bug", "feature"],
+    priorities: ["priority:high", "priority:low"],
+    efforts: ["effort:low", "effort:high"],
+};
+
+/**
+ * A pull request record as the poll leaves it: merge-ready on HEAD.
+ * @param {object} [over] fields to change
+ * @returns {any} the record
+ */
+function pr(over = {}) {
+    return {
+        headSha: HEAD,
+        headRef: "fix/x",
+        baseRef: "master",
+        draft: false,
+        references: [5],
+        required: { "All Checks Pass": "SUCCESS" },
+        ownerGate: false,
+        ownerRejected: false,
+        mergeStatus: { state: "success", description: "githerd: safe to merge", line: null },
+        ...over,
+    };
+}
+
+/**
+ * A fake reader. Issues 5 and 9 exist (9 by the owner); commit FIX exists on GitHub.
+ * @param {object} [over] methods to change
+ * @returns {any} the reader
+ */
+function fakeIo(over = {}) {
+    const issues = /** @type {Record<number, any>} */ ({
+        5: {
+            number: 5,
+            state: "open",
+            user: { login: "owner" },
+            labels: [{ name: "bug" }, "priority:high", "effort:low"],
+        },
+        9: { number: 9, state: "open", user: { login: "owner" }, labels: [] },
+        10: { number: 10, state: "open", user: { login: "bot" }, labels: [] },
+        11: { number: 11, state: "open", user: { login: "owner" }, pull_request: {} },
+    });
+    return {
+        remoteHead: async () => HEAD,
+        headContains: async () => false,
+        contains: async (/** @type {string} */ a, /** @type {string} */ b) => a === FIX && b === GREEN,
+        issue: async (/** @type {number} */ n) => issues[n] ?? null,
+        commitExists: async (/** @type {string} */ sha) => sha === FIX,
+        checkRun: async () => "SUCCESS",
+        pull: async () => ({ merged: true, state: "closed", base: { ref: "master" } }),
+        npmLatest: async () => "3.0.0",
+        releaseOpen: () => [],
+        localGate: () => ({ sha: GREEN, passed: true }),
+        ...over,
+    };
+}
+
+/**
+ * A working job held by session w1.
+ * @param {string} kind the kind
+ * @param {string} target the target
+ * @param {object} [facts] the job's facts
+ * @returns {any} the job
+ */
+function working(kind, target, facts = {}) {
+    const job = newJob({ kind, target, facts }, NOW);
+    move(job, "starting", NOW, { holder: { session: "w1", nonce: "n1" } });
+    move(job, "working", NOW);
+    return job;
+}
+
+/**
+ * A state with the given pull requests and lanes.
+ * @param {object} [over] fields to change
+ * @returns {any} the state
+ */
+function state(over = {}) {
+    return {
+        jobs: {},
+        prs: { 7: pr() },
+        master: { branch: "master", greenSha: GREEN, lanes: { CI: { verdict: "green", sha: GREEN, inFlight: {} } } },
+        trust: { login: "owner" },
+        ...over,
+    };
+}
+
+const view = (/** @type {any} */ s, /** @type {any} */ io = fakeIo()) => ({ state: s, config: { labels: LABELS }, io });
+const report = (/** @type {object} */ over = {}) => ({
+    outcome: "done",
+    findings: "f",
+    defects: [],
+    pushedHead: HEAD,
+    ...over,
+});
+
+/**
+ * False claims, one per row: each must be refused with a gap naming the problem.
+ * [what, kind, target, facts, report, state changes, reader changes, a word the gap carries]
+ * @type {[string, string, string, object, object, object, object, string][]}
+ */
+const FALSE_CLAIMS = [
+    [
+        "defect naming no issue",
+        "pr",
+        "7",
+        {},
+        { defects: [{ summary: "x", issue: 404 }] },
+        {},
+        {},
+        "#404 does not exist",
+    ],
+    ["defect naming no commit", "pr", "7", {}, { defects: [{ summary: "x", commit: OTHER }] }, {}, {}, "not on GitHub"],
+    [
+        "pr closed unmerged",
+        "pr",
+        "8",
+        {},
+        {},
+        {},
+        { pull: async () => ({ state: "closed", merged: false, base: { ref: "master" } }) },
+        "not an open pull request",
+    ],
+    ["pr that does not exist", "pr", "8", {}, {}, {}, { pull: async () => null }, "not an open pull request"],
+    [
+        "open pr from another repository",
+        "pr",
+        "8",
+        {},
+        {},
+        {},
+        {
+            pull: async () => ({
+                state: "open",
+                merged: false,
+                base: { ref: "master", repo: { full_name: "o/r" } },
+                head: { sha: HEAD, repo: { full_name: "fork/r" } },
+            }),
+        },
+        "not an open pull request",
+    ],
+    [
+        "merged pr not naming the issue",
+        "issue",
+        "6",
+        {},
+        { pr: 8 },
+        {},
+        { pull: async () => ({ merged: true, base: { ref: "master" }, body: "Refs #60" }) },
+        "does not name #6",
+    ],
+    ["pr based on a branch", "pr", "7", {}, {}, { prs: { 7: pr({ baseRef: "feat/base" }) } }, {}, "based on feat/base"],
+    ["pr draft", "pr", "7", {}, {}, { prs: { 7: pr({ draft: true }) } }, {}, "draft"],
+    ["no pushed head", "pr", "7", {}, { pushedHead: undefined }, {}, {}, "pushedHead"],
+    [
+        "head does not contain the pushed commit",
+        "pr",
+        "7",
+        {},
+        { pushedHead: OTHER },
+        {},
+        {},
+        "does not contain the pushed",
+    ],
+    ["branch deleted", "pr", "7", {}, {}, {}, { remoteHead: async () => "" }, "gone"],
+    [
+        "check failing",
+        "pr",
+        "7",
+        {},
+        {},
+        { prs: { 7: pr({ required: { "All Checks Pass": "FAILURE" } }) } },
+        {},
+        "failing",
+    ],
+    ["owner rejected", "pr", "7", {}, {}, { prs: { 7: pr({ ownerRejected: true, ownerGate: true }) } }, {}, "rejected"],
+    [
+        "githerd/merge fails a worker line",
+        "pr",
+        "7",
+        {},
+        {},
+        {
+            prs: {
+                7: pr({
+                    mergeStatus: {
+                        state: "failure",
+                        description: "held: a commit is breaking but the title has no !",
+                        line: 3,
+                    },
+                }),
+            },
+        },
+        {},
+        "githerd/merge",
+    ],
+    ["issue without pr", "issue", "5", {}, {}, {}, {}, "pr:"],
+    ["issue pr not referencing", "issue", "6", {}, { pr: 7 }, {}, {}, "does not reference #6"],
+    ["split of a pr job", "pr", "7", {}, { outcome: "split", children: [9] }, {}, {}, "cannot be split"],
+    ["split without children", "issue", "5", {}, { outcome: "split" }, {}, {}, "children"],
+    [
+        "split child by another account",
+        "issue",
+        "5",
+        {},
+        { outcome: "split", children: [10] },
+        {},
+        {},
+        "not filed by the owner",
+    ],
+    ["split child is a pr", "issue", "5", {}, { outcome: "split", children: [11] }, {}, {}, "not an issue"],
+    ["split child is the parent", "issue", "5", {}, { outcome: "split", children: [5] }, {}, {}, "the parent itself"],
+    [
+        "not-needed pr still open without a proposal",
+        "pr",
+        "7",
+        {},
+        { outcome: "not-needed" },
+        {},
+        { pull: async () => ({ state: "open" }) },
+        "no open proposal",
+    ],
+    ["not-needed issue without proposal", "issue", "9", {}, { outcome: "not-needed" }, {}, {}, "no open proposal"],
+    ["not-needed review", "review", "7", {}, { outcome: "not-needed" }, {}, {}, "is for issue and pr jobs"],
+    [
+        "incident without fix",
+        "incident",
+        "CI / Build / x",
+        { scope: "master", lane: "CI" },
+        { pushedHead: undefined },
+        {},
+        {},
+        "fix commit",
+    ],
+    [
+        "incident lane still red",
+        "incident",
+        "CI / Build / x",
+        { scope: "master", lane: "CI" },
+        { pushedHead: FIX },
+        { master: { branch: "master", lanes: { CI: { verdict: "red", sha: OTHER, inFlight: {} } } } },
+        {},
+        "not green",
+    ],
+    [
+        "incident unknown lane",
+        "incident",
+        "Nope / x / y",
+        { scope: "master" },
+        { pushedHead: FIX },
+        {},
+        {},
+        "no lane Nope",
+    ],
+    [
+        "shared incident no canary",
+        "incident",
+        "CI / Test / y",
+        { scope: "shared", lane: "CI", prs: [7] },
+        { pushedHead: FIX },
+        {},
+        {},
+        "update one from master (gh api -X PUT repos/{owner}/{repo}/pulls/7/update-branch)",
+    ],
+    [
+        "release still half",
+        "incident",
+        "release:abc",
+        { scope: "release" },
+        {},
+        {},
+        { releaseOpen: () => ["release:abc"] },
+        "the release run still fails",
+    ],
+    [
+        "release still stalled",
+        "incident",
+        "release-stalled:abc",
+        { scope: "release" },
+        {},
+        {},
+        { releaseOpen: () => ["release-stalled:abc"] },
+        "no release has landed",
+    ],
+    [
+        "local gate failing",
+        "incident",
+        "local:x",
+        { scope: "local" },
+        {},
+        {},
+        { localGate: () => ({ sha: GREEN, passed: false }) },
+        "still fails",
+    ],
+    ["triage missing an issue", "triage", "new", { batch: [5, 9] }, { result: [] }, {}, {}, "#5 has no verdict"],
+    [
+        "triage labels not on GitHub",
+        "triage",
+        "new",
+        { batch: [9] },
+        {
+            result: [
+                { issue: 9, verdict: "keep", labels: { type: "bug", priority: "priority:low", effort: "effort:low" } },
+            ],
+        },
+        {},
+        {},
+        "type labels",
+    ],
+    [
+        "triage label of another value, without its prefix",
+        "triage",
+        "new",
+        { batch: [5] },
+        { result: [{ issue: 5, verdict: "keep", labels: { type: "bug", priority: "medium", effort: "low" } }] },
+        {},
+        {},
+        "#5 has priority labels [priority:high] on GitHub, not exactly medium",
+    ],
+    [
+        "triage unknown verdict and issue",
+        "triage",
+        "new",
+        {},
+        { result: [{ issue: 404, verdict: "maybe", labels: {} }] },
+        {},
+        {},
+        "unknown verdict",
+    ],
+    [
+        "refresh verdict on an issue it did not list",
+        "triage",
+        "refresh",
+        { scope: "refresh", batch: [], open: [{ number: 5, title: "t" }] },
+        { result: [{ issue: 9, verdict: "keep", labels: {} }] },
+        {},
+        {},
+        "#9 is not one of the open issues this refresh listed",
+    ],
+    [
+        "refresh missing a mentioned issue",
+        "triage",
+        "refresh",
+        { scope: "refresh", batch: [5], open: [{ number: 5, title: "t" }] },
+        { result: [] },
+        {},
+        {},
+        "#5 has no verdict",
+    ],
+    [
+        "review without verdict",
+        "review",
+        "7",
+        { patchId: "p1" },
+        { result: { verdict: "nice" } },
+        {},
+        {},
+        "review verdict",
+    ],
+    [
+        "review of a job that names no patch",
+        "review",
+        "7",
+        {},
+        { result: { verdict: "pass", patchId: "p1" } },
+        {},
+        {},
+        "names no patch id",
+    ],
+    [
+        "review of another patch",
+        "review",
+        "7",
+        { patchId: "p1" },
+        { result: { verdict: "pass", patchId: "p0" } },
+        {},
+        {},
+        "not the job's p1",
+    ],
+    ["title still failing", "title", "7", {}, {}, {}, { checkRun: async () => "FAILURE" }, "Lint PR Title fails"],
+    ["title on unknown pr", "title", "8", {}, {}, {}, {}, "not an open pull request"],
+    ["major without pr", "major", "graphty-element", { package: "x", major: 4 }, {}, {}, {}, "pr:"],
+    [
+        "major pr not merged",
+        "major",
+        "graphty-element",
+        { package: "x", major: 4 },
+        { pr: 7 },
+        {},
+        { pull: async () => ({ merged: false }) },
+        "not merged",
+    ],
+    ["major not on npm", "major", "graphty-element", { package: "x", major: 4 }, { pr: 7 }, {}, {}, "not major 4"],
+];
+
+describe("verifyClaim", () => {
+    it.each(FALSE_CLAIMS)("refuses: %s", async (_what, kind, target, facts, rep, over, io, word) => {
+        const job = working(kind, target, facts);
+        const answer = await verifyClaim(job, report(rep), view(state(over), fakeIo(io)));
+        expect(answer).toHaveProperty("missing");
+        expect(/** @type {any} */ (answer).missing.join(" | ")).toContain(word);
+    });
+
+    it("accepts a true claim of each kind", async () => {
+        const s = state({ proposals: { "issue:9": { status: "unconfirmed" } } });
+        const io = fakeIo();
+        const cases = [
+            [working("pr", "7"), report()],
+            [
+                working("issue", "5"),
+                report({
+                    pr: 7,
+                    defects: [
+                        { summary: "d", issue: 5 },
+                        { summary: "e", commit: FIX },
+                    ],
+                }),
+            ],
+            [working("issue", "5"), report({ outcome: "split", children: [9] })],
+            [working("issue", "9"), report({ outcome: "not-needed" })],
+            [working("pr", "7"), report({ outcome: "not-needed" })],
+            [working("pr", "7"), report({ outcome: "failed" })],
+            [working("incident", "CI / Build / x", { scope: "master", lane: "CI" }), report({ pushedHead: FIX })],
+            [working("incident", "release:abc", { scope: "release" }), report()],
+            [working("incident", "local:x", { scope: "local" }), report()],
+            [
+                working("triage", "new", { batch: [5] }),
+                report({
+                    result: [
+                        {
+                            issue: 5,
+                            verdict: "keep",
+                            labels: { type: "bug", priority: "priority:high", effort: "effort:low" },
+                        },
+                    ],
+                }),
+            ],
+            // The same labels named without their kind's prefix, as a worker writes them.
+            [
+                working("triage", "new", { batch: [5] }),
+                report({
+                    result: [{ issue: 5, verdict: "keep", labels: { type: "bug", priority: "high", effort: "low" } }],
+                }),
+            ],
+            // A refresh whose session judged that the merges affect no listed issue.
+            [
+                working("triage", "refresh", { scope: "refresh", batch: [], open: [{ number: 5, title: "t" }] }),
+                report({ result: [] }),
+            ],
+            [
+                working("review", "7", { patchId: "p1" }),
+                report({ result: { verdict: "pass", patchId: "p1", notes: "" } }),
+            ],
+            [working("title", "7"), report()],
+            [working("major", "graphty-element", { package: "@graphty/graphty-element", major: 3 }), report({ pr: 7 })],
+        ];
+        for (const [job, rep] of cases) expect(await verifyClaim(job, rep, view(s, io))).toEqual({ holds: true });
+    });
+
+    it("accepts a head that contains the pushed commit: a merge or another session's commit on top (the ancestor rule)", async () => {
+        const io = fakeIo({
+            remoteHead: async () => OTHER,
+            headContains: async (/** @type {string} */ p) => p === HEAD,
+        });
+        expect(
+            await verifyClaim(working("pr", "7"), report(), view(state({ prs: { 7: pr({ headSha: OTHER }) } }), io)),
+        ).toEqual({
+            holds: true,
+        });
+    });
+
+    it("points an issue job refused on the head at the commits field and its CLI fallback", async () => {
+        const io = fakeIo({ pull: async () => ({ state: "open", body: "Fixes #6" }) });
+        const r = await verifyClaim(working("issue", "6"), report({ pr: 7, pushedHead: OTHER }), view(state(), io));
+        expect(r).toMatchObject({ fixable: true });
+        expect(r?.missing?.[0]).toContain("does not contain the pushed");
+        expect(r?.missing?.[0]).toContain("githerd done <job> --outcome done --pr <n> --commits");
+    });
+
+    it("accepts an issue job's pull request that names the issue in its description, leaving it open", async () => {
+        const io = (/** @type {string} */ body) => fakeIo({ pull: async () => ({ state: "open", body }) });
+        const job = working("issue", "6");
+        expect(await verifyClaim(job, report({ pr: 7 }), view(state(), io("Refs #6: the disabled button")))).toEqual({
+            holds: true,
+        });
+        expect(await verifyClaim(job, report({ pr: 7 }), view(state(), io("Refs #60")))).toMatchObject({
+            missing: [expect.stringContaining("does not reference #6")],
+        });
+    });
+
+    it("accepts an issue job's pull request that merged before githerd polled it open", async () => {
+        const io = fakeIo({ pull: async () => ({ merged: true, base: { ref: "master" }, body: "Refs #186" }) });
+        expect(await verifyClaim(working("issue", "186"), report({ pr: 1060 }), view(state(), io))).toEqual({
+            holds: true,
+        });
+    });
+
+    it("leaves a claim undecided while the poll is behind GitHub's head", async () => {
+        const io = fakeIo({ remoteHead: async () => OTHER });
+        expect(await verifyClaim(working("pr", "7"), report(), view(state(), io))).toBeNull();
+    });
+
+    it("accepts a pull request that waits only on the owner's visual review", async () => {
+        const s = state({ prs: { 7: pr({ ownerGate: true, required: { "All Checks Pass": "FAILURE" } }) } });
+        expect(await verifyClaim(working("pr", "7"), report(), view(s))).toEqual({ holds: true });
+    });
+
+    it("accepts a pull request held only for a reason the worker cannot fix", async () => {
+        const held = { state: "failure", description: "held: waiting on the owner", line: 5 };
+        expect(
+            await verifyClaim(working("pr", "7"), report(), view(state({ prs: { 7: pr({ mergeStatus: held }) } }))),
+        ).toEqual({
+            holds: true,
+        });
+    });
+
+    it("answers CI pending while required checks run", async () => {
+        const s = state({ prs: { 7: pr({ required: { "All Checks Pass": "PENDING" } }) } });
+        expect(await verifyClaim(working("pr", "7"), report(), view(s))).toEqual({ ciPending: HEAD });
+        expect(
+            await verifyClaim(
+                working("title", "7"),
+                report(),
+                view(state(), fakeIo({ checkRun: async () => "PENDING" })),
+            ),
+        ).toEqual({
+            ciPending: HEAD,
+        });
+    });
+
+    it("answers CI pending while a required check is cancelled, and missing beside a real failure", async () => {
+        const s = state({
+            prs: { 7: pr({ required: { "All Checks Pass": "CANCELLED", "Lint PR Title": "SUCCESS" } }) },
+        });
+        expect(await verifyClaim(working("pr", "7"), report(), view(s))).toEqual({ ciPending: HEAD });
+        const title = view(state(), fakeIo({ checkRun: async () => "CANCELLED" }));
+        expect(await verifyClaim(working("title", "7"), report(), title)).toEqual({ ciPending: HEAD });
+        // Opened since the last poll: GitHub says it is open, so its checks are pending.
+        const unpolled = view(
+            state({ prs: {} }),
+            fakeIo({ pull: async () => ({ state: "open", head: { sha: HEAD } }) }),
+        );
+        expect(await verifyClaim(working("title", "8"), report(), unpolled)).toEqual({ ciPending: HEAD });
+        const mixed = state({
+            prs: { 7: pr({ required: { "All Checks Pass": "CANCELLED", "Lint PR Title": "FAILURE" } }) },
+        });
+        expect(await verifyClaim(working("pr", "7"), report(), view(mixed))).toEqual({
+            missing: ["required checks failing: Lint PR Title"],
+        });
+    });
+
+    it("waits for an incident's fix to merge, then for a master run containing it", async () => {
+        const job = working("incident", "CI / Build / x", { scope: "master", lane: "CI" });
+        expect(await verifyClaim(job, report({ pushedHead: HEAD, pr: 7 }), view(state()))).toEqual({ ciPending: HEAD });
+        const failing = state({ prs: { 7: pr({ required: { "All Checks Pass": "FAILURE" } }) } });
+        expect(await verifyClaim(job, report({ pushedHead: HEAD, pr: 7 }), view(failing))).toHaveProperty("missing");
+        const running = state({
+            master: {
+                branch: "master",
+                lanes: { CI: { verdict: "red", sha: OTHER, inFlight: { 1: { sha: GREEN } } } },
+            },
+        });
+        expect(await verifyClaim(job, report({ pushedHead: FIX }), view(running))).toEqual({ ciPending: GREEN });
+    });
+
+    it("needs a green canary for a shared key, and waits on one still running", async () => {
+        const job = working("incident", "CI / Test / y", { scope: "shared", lane: "CI", prs: [7, 8] });
+        const io = fakeIo({
+            contains: async (/** @type {string} */ a, /** @type {string} */ b) =>
+                a === FIX && [GREEN, OTHER].includes(b),
+        });
+        const prs = { 7: pr({ headSha: OTHER, required: { "All Checks Pass": "PENDING" } }) };
+        expect(await verifyClaim(job, report({ pushedHead: FIX }), view(state({ prs }), io))).toEqual({
+            ciPending: OTHER,
+        });
+        const green = { 7: pr({ headSha: OTHER }) };
+        expect(await verifyClaim(job, report({ pushedHead: FIX }), view(state({ prs: green }), io))).toEqual({
+            holds: true,
+        });
+    });
+
+    it("accepts a verdict job once its key has a verdict, or once its lane is no longer red", async () => {
+        const KEY = "CI / Build / x";
+        const job = working("incident", KEY, { scope: "verdict", lane: "CI" });
+        const io = fakeIo();
+        const red = (/** @type {any} */ verdicts) => state({ master: { lanes: { CI: { verdict: "red", verdicts } } } });
+        expect(await verifyClaim(job, report(), view(red({}), io))).toEqual({
+            missing: [`no verdict for ${KEY}: call githerd_verdict with code or environment`],
+        });
+        const judged = red({ [KEY]: { verdict: "environment" } });
+        expect(await verifyClaim(job, report(), view(judged, io))).toEqual({ holds: true });
+        const green = state({ master: { lanes: { CI: { verdict: "green" } } } });
+        expect(await verifyClaim(job, report(), view(green, io))).toEqual({ holds: true });
+    });
+
+    it("leaves release, local gate and npm checks undecided without their facts", async () => {
+        const io = fakeIo({ releaseOpen: () => null, localGate: () => null, npmLatest: async () => null });
+        expect(
+            await verifyClaim(working("incident", "release:x", { scope: "release" }), report(), view(state(), io)),
+        ).toBeNull();
+        expect(
+            await verifyClaim(working("incident", "local:x", { scope: "local" }), report(), view(state(), io)),
+        ).toBeNull();
+        const major = working("major", "p", { major: 3 });
+        expect(await verifyClaim(major, report({ pr: 7 }), view(state(), io))).toBeNull();
+    });
+});
+
+/**
+ * A request context over a state.
+ * @param {any} s the state
+ * @param {any} [io] the reader
+ * @returns {{ctx: any, commits: any[]}} the context and its ledger
+ */
+function setup(s, io = fakeIo()) {
+    /** @type {any[]} */
+    const commits = [];
+    return {
+        ctx: {
+            state: s,
+            config: { labels: LABELS },
+            now: NOW,
+            io,
+            commit: async (/** @type {any} */ e) => commits.push(e),
+        },
+        commits,
+    };
+}
+
+describe("githerdDone", () => {
+    it("accepts a true claim and ends the job done", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { ctx, commits } = setup(s);
+        const accepted = await githerdDone(ctx, job, report(), "w1");
+        expect(accepted.isError).toBeUndefined();
+        expect(JSON.parse(accepted.text)).toEqual({
+            verified: true,
+            attempts: "accepted: pr-7 is done; there is nothing to retry",
+        });
+        expect(job.state).toBe("done");
+        expect(commits).toEqual([expect.objectContaining({ kind: "done-report", outcome: "done", next: "done" })]);
+    });
+
+    it("refuses a false claim with what is missing, and ends the attempt on the third", async () => {
+        const s = state({ prs: { 7: pr({ draft: true }) } });
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { ctx } = setup(s);
+        for (const [n, left] of [
+            [1, "2 more refused claims"],
+            [2, "1 more refused claim"],
+        ]) {
+            const r = await githerdDone(ctx, job, report(), "w1");
+            expect(r.isError).toBe(true);
+            expect(JSON.parse(r.text)).toEqual({
+                verified: false,
+                missing: ["#7 is a draft"],
+                attempts:
+                    "refused, and you may retry: fix what is missing and call githerd_done again. " +
+                    `${left} end this attempt, after which 2 of 3 attempts remain for pr-7`,
+            });
+            expect([job.state, job.verifyFailures]).toEqual(["working", n]);
+        }
+        const third = JSON.parse((await githerdDone(ctx, job, report(), "w1")).text);
+        expect(third.ended).toBe(true);
+        expect(third.attempts).toBe(
+            "this attempt has ended: stop working on pr-7. It goes back to the queue for a fresh session " +
+                "with your findings; 2 of 3 attempts remain for pr-7",
+        );
+        expect(job.state).toBe("queued");
+        expect(job.attempts).toHaveLength(1);
+    });
+
+    it("waits, without a refusal, on an open pull request opened since githerd last polled (#1421)", async () => {
+        const s = state();
+        const job = (s.jobs["issue-416"] = working("issue", "416"));
+        const open = {
+            state: "open",
+            merged: false,
+            body: "Fixes #416",
+            base: { ref: "master", repo: { full_name: "o/r" } },
+            head: { sha: HEAD, repo: { full_name: "o/r" } },
+        };
+        const { ctx } = setup(s, fakeIo({ pull: async () => open }));
+        const r = JSON.parse((await githerdDone(ctx, job, report({ pr: 1421 }), "w1")).text);
+        expect(r.missing[0]).toContain("checks still running");
+        expect(r.attempts).toContain("this is not a refusal");
+        expect([job.state, job.verifyFailures]).toEqual(["waiting", 0]);
+        // The next poll has it, and decides the claim from the polled record.
+        s.prs[1421] = pr({ references: [416] });
+        expect(await pollVerifying(s, ctx)).toEqual([{ job: job.id, action: "done" }]);
+    });
+
+    it("refuses a job that is not working", async () => {
+        const job = working("pr", "7");
+        move(job, "waiting", NOW, { waitingFor: { checks: HEAD } });
+        await expect(githerdDone(setup(state()).ctx, job, report(), "w1")).rejects.toThrow("waiting");
+    });
+
+    it("moves a claim whose checks still run to waiting, and the poll finishes it", async () => {
+        const s = state({ prs: { 7: pr({ required: { "All Checks Pass": "PENDING" } }) } });
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { ctx } = setup(s);
+        const pending = JSON.parse((await githerdDone(ctx, job, report(), "w1")).text).missing[0];
+        expect(pending).toContain("checks still running");
+        // A fix on master reaches the pull request by an update of its branch, not a re-run.
+        expect(pending).toContain("gh api -X PUT repos/{owner}/{repo}/pulls/<n>/update-branch");
+        expect(job.state).toBe("waiting");
+        expect(job.waitingFor).toMatchObject({ checks: HEAD, verify: true });
+        expect(await pollVerifying(s, ctx)).toEqual([]);
+        s.prs[7].required["All Checks Pass"] = "SUCCESS";
+        expect(await pollVerifying(s, ctx)).toEqual([{ job: job.id, action: "done" }]);
+        expect(job.state).toBe("done");
+    });
+
+    it("sends a waiting claim back to work with news when the checks fail", async () => {
+        const s = state({ prs: { 7: pr({ required: { "All Checks Pass": "PENDING" } }) } });
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { ctx } = setup(s);
+        await githerdDone(ctx, job, report(), "w1");
+        s.prs[7].required["All Checks Pass"] = "FAILURE";
+        expect(await pollVerifying(s, ctx)).toEqual([{ job: job.id, action: "working" }]);
+        expect(job.news.at(-1).text).toContain("required checks failing");
+    });
+
+    it("keeps an undecided claim verifying, then returns it to work after two polls", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { ctx } = setup(
+            s,
+            fakeIo({
+                remoteHead: async () => {
+                    throw new Error("network down");
+                },
+            }),
+        );
+        const r = JSON.parse((await githerdDone(ctx, job, report(), "w1")).text);
+        expect(r.missing[0]).toContain("network down");
+        expect(job.state).toBe("verifying");
+        expect(await pollVerifying(s, ctx)).toEqual([{ job: job.id, action: "working" }]);
+    });
+
+    it("decides a verifying claim on the next poll", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        let up = false;
+        const { ctx } = setup(s, fakeIo({ remoteHead: async () => (up ? HEAD : OTHER) }));
+        await githerdDone(ctx, job, report(), "w1");
+        expect(job.state).toBe("verifying");
+        up = true;
+        expect(await pollVerifying(s, ctx)).toEqual([{ job: job.id, action: "done" }]);
+    });
+
+    it("ends the attempt on failed, but only once every defect it names is on GitHub", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { ctx, commits } = setup(s);
+        const refused = await githerdDone(
+            ctx,
+            job,
+            report({ outcome: "failed", defects: [{ summary: "x", issue: 404 }] }),
+            "w1",
+        );
+        expect(refused.isError).toBe(true);
+        expect(job.state).toBe("working");
+        const ok = await githerdDone(ctx, job, report({ outcome: "failed", theory: "t" }), "w1");
+        expect(JSON.parse(ok.text)).toMatchObject({ verified: true });
+        expect(job.attempts[0]).toMatchObject({ outcome: "failed", findings: "f", theory: "t" });
+        expect(commits.at(-1)).toMatchObject({ outcome: "failed", next: "requeue" });
+    });
+
+    it("takes a defect with no issue or commit to the owner instead of refusing the report", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { ctx, commits } = setup(s);
+        const defects = [
+            { summary: "githerd_done compares priority medium with priority:medium" },
+            { summary: "filed", issue: 9 },
+        ];
+        const ok = await githerdDone(ctx, job, report({ outcome: "failed", defects }), "w1");
+        expect(JSON.parse(ok.text)).toMatchObject({ verified: true });
+        expect(s.ownerItems["defects:pr-7"]).toMatchObject({
+            kind: "defects",
+            question:
+                "worker reported defects (pr-7), with no issue yet: githerd_done compares priority medium with priority:medium",
+        });
+        expect(commits).toContainEqual({
+            kind: "defects-reported",
+            job: "pr-7",
+            defects: ["githerd_done compares priority medium with priority:medium"],
+        });
+    });
+
+    it("records not-needed as an issue proposal, refusing one without evidence", async () => {
+        const s = state();
+        const job = (s.jobs["issue-9"] = working("issue", "9"));
+        const { ctx } = setup(s);
+        const refused = JSON.parse((await githerdDone(ctx, job, report({ outcome: "not-needed" }), "w1")).text);
+        expect(refused.missing[0]).toContain("needs evidence");
+        const ok = await githerdDone(ctx, job, report({ outcome: "not-needed", evidence: "done in #12" }), "w1");
+        expect(JSON.parse(ok.text)).toMatchObject({ verified: true });
+        expect(s.proposals["issue:9"]).toMatchObject({ kind: "not-needed", status: "unconfirmed", proposedBy: "w1" });
+    });
+
+    it("ends an issue job deferred with its reason, closing nothing, and remembers the issue's revision", async () => {
+        const s = state({ issues: { byNumber: { 9: { state: "open", updatedAt: "2026-10-03T00:00:00Z" } } } });
+        const job = (s.jobs["issue-9"] = working("issue", "9"));
+        const { ctx, commits } = setup(s);
+        const reason = "the owner declined the proposal; kept open as a record";
+        const ok = await githerdDone(ctx, job, report({ outcome: "deferred", reason }), "w1");
+        expect(ok.isError).toBeUndefined();
+        expect(JSON.parse(ok.text)).toEqual({
+            verified: true,
+            attempts: "accepted: issue-9 is deferred; #9 is not offered again until it changes",
+        });
+        expect(job).toMatchObject({ state: "cancelled", reason: `deferred: ${reason}`, holder: null });
+        expect(s.deferred).toEqual({
+            9: { reason, revision: "2026-10-03T00:00:00Z", job: "issue-9", session: "w1", at: NOW.toISOString() },
+        });
+        expect(s.proposals).toBeUndefined();
+        expect(commits).toEqual([{ kind: "done-report", job: "issue-9", outcome: "deferred", next: "cancelled" }]);
+        const board = statusText(statusData(s, { now: NOW, startedAt: NOW, config: {} }), NOW);
+        expect(board).toContain(`DEFERRED UNTIL THEY CHANGE (1): #9 ${reason}`);
+    });
+
+    it("marks a deferred verify job's references weighed, so the issue comes back as its own work", async () => {
+        const s = state({ issues: { byNumber: { 9: { state: "open", updatedAt: "2026-10-03T00:00:00Z" } } } });
+        const job = (s.jobs["issue-9"] = working("issue", "9", { references: ["#347"] }));
+        const { ctx } = setup(s);
+        const reason = "#347 did only the first half; the rest is not built";
+        await githerdDone(ctx, job, report({ outcome: "deferred", reason }), "w1");
+        expect(job.state).toBe("cancelled");
+        expect(s.issues.byNumber[9].judgedRefs).toEqual(["#347"]);
+    });
+
+    it("accepts a bundle's pull request, and remembers each bundled issue it does not close as left out", async () => {
+        const s = state({ issues: { byNumber: { 12: { state: "open", updatedAt: "2026-10-03T00:00:00Z" } } } });
+        s.prs[7] = pr({ references: [5, 9] });
+        const job = (s.jobs["issue-5"] = working("issue", "#5", { batch: [5, 9, 12] }));
+        const { ctx } = setup(s);
+        const ok = await githerdDone(ctx, job, report({ pr: 7 }), "w1");
+        expect(JSON.parse(ok.text)).toMatchObject({ verified: true });
+        expect(job.state).toBe("done");
+        expect(s.unbundled).toEqual({ 12: "2026-10-03T00:00:00Z" });
+    });
+
+    it("refuses deferred for a job that is not an issue's, and without a reason", async () => {
+        const s = state();
+        const pr7 = (s.jobs["pr-7"] = working("pr", "7"));
+        const issue9 = (s.jobs["issue-9"] = working("issue", "9"));
+        const { ctx } = setup(s);
+        const notIssue = await githerdDone(ctx, pr7, report({ outcome: "deferred", reason: "later" }), "w1");
+        expect(notIssue.isError).toBe(true);
+        expect(JSON.parse(notIssue.text).missing).toEqual([
+            "deferred is for issue jobs; report a pr job done or failed",
+        ]);
+        const noReason = await githerdDone(ctx, issue9, report({ outcome: "deferred", reason: " " }), "w1");
+        expect(noReason.isError).toBe(true);
+        expect(JSON.parse(noReason.text).missing).toEqual(["reason: why the issue cannot be acted on now"]);
+        expect([pr7.state, issue9.state]).toEqual(["working", "working"]);
+        expect(s.deferred).toBeUndefined();
+    });
+
+    it("records a pull request's not-needed as a proposal, which holds it while the pull request is open", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { ctx } = setup(s, fakeIo({ pull: async () => ({ state: "open" }) }));
+        const ok = await githerdDone(ctx, job, report({ outcome: "not-needed", evidence: "landed in #12" }), "w1");
+        expect(JSON.parse(ok.text)).toMatchObject({ verified: true });
+        expect(job.state).toBe("done");
+        expect(s.proposals["pr:7"]).toMatchObject({ kind: "not-needed-pr", status: "unconfirmed", proposedBy: "w1" });
+    });
+
+    it("records the references on master a triage keep weighed, so they ask for no verify", async () => {
+        const s = state({
+            issues: { byNumber: { 5: { state: "open" } } },
+            merged: { commitRefs: { 5: ["b702301a5"] }, refs: { 5: ["#947"] } },
+        });
+        const triage = (s.jobs["triage-refresh"] = working("triage", "refresh", { batch: [5] }));
+        const { ctx } = setup(s);
+        const result = [
+            {
+                issue: 5,
+                verdict: "keep",
+                evidence: "partly done: the element question is still open",
+                labels: { type: "bug", priority: "priority:high", effort: "effort:low" },
+            },
+        ];
+        expect(JSON.parse((await githerdDone(ctx, triage, report({ result }), "w1")).text)).toMatchObject({
+            verified: true,
+        });
+        expect(s.issues.byNumber[5].judgedRefs).toEqual(["b702301a5", "#947"]);
+    });
+
+    it("records a verified triage batch's verdicts and a split's children", async () => {
+        const s = state();
+        const triage = (s.jobs["triage-new"] = working("triage", "new", { batch: [5] }));
+        const { ctx } = setup(s);
+        const result = [
+            {
+                issue: 5,
+                verdict: "obsolete",
+                evidence: "gone",
+                labels: { type: "bug", priority: "priority:high", effort: "effort:low" },
+            },
+        ];
+        expect(JSON.parse((await githerdDone(ctx, triage, report({ result }), "w1")).text)).toMatchObject({
+            verified: true,
+        });
+        expect(s.proposals["issue:5"]).toMatchObject({ kind: "obsolete" });
+        const parent = (s.jobs["issue-5"] = working("issue", "5"));
+        await githerdDone(ctx, parent, report({ outcome: "split", children: [9] }), "w1");
+        expect([parent.state, parent.children]).toEqual(["done", [9]]);
+    });
+});
+
+describe("an issue fix carried by a pull request the session did not push (#1570 in #739)", () => {
+    /** #739, the feature branch the session's fix branch merged into: open, naming no issue. */
+    const carrier = pr({ headSha: OTHER, headRef: "feat/githerd", references: [] });
+    const open = (/** @type {string} */ head) => ({
+        state: "open",
+        merged: false,
+        body: "githerd",
+        base: { ref: "master", repo: { full_name: "o/r" } },
+        head: { sha: head, repo: { full_name: "o/r" } },
+    });
+    /**
+     * A reader whose #739 is open at `head`, and contains FIX only at OTHER.
+     * @param {string} head #739's head
+     * @returns {any} the reader
+     */
+    const io = (head) =>
+        fakeIo({
+            pull: async () => open(head),
+            pullContains: async (/** @type {string} */ c, /** @type {number} */ n, /** @type {string} */ sha) =>
+                c.startsWith(FIX.slice(0, 9)) && n === 739 && sha === OTHER,
+        });
+
+    it("answers a pull request that does not name the issue with what to add, without ending the attempt", async () => {
+        const s = state({ prs: { 739: carrier } });
+        const job = (s.jobs["issue-1570"] = working("issue", "1570"));
+        const { ctx } = setup(s, Object.assign(io(OTHER), { remoteHead: async () => OTHER }));
+        for (let i = 0; i < 4; i++) {
+            const r = JSON.parse((await githerdDone(ctx, job, report({ pr: 739, pushedHead: FIX }), "w1")).text);
+            expect(r.missing.join(" ")).toContain("does not reference #1570");
+            expect(r.missing.join(" ")).toContain("commits set to the fix commit");
+            expect(r.ended).toBeUndefined();
+            expect(r.attempts).toContain("does not count against the attempt");
+        }
+        expect([job.state, job.verifyFailures, job.attempts]).toEqual(["working", 0, []]);
+    });
+
+    it("accepts the pull request and the fix commits it contains, and records the link", async () => {
+        const s = state({ prs: { 739: carrier } });
+        const job = (s.jobs["issue-1570"] = working("issue", "1570"));
+        const { ctx } = setup(s, io(OTHER));
+        const r = await githerdDone(ctx, job, report({ pr: 739, commits: [FIX.slice(0, 9)] }), "w1");
+        expect(r.isError).toBeUndefined();
+        expect(job.state).toBe("done");
+        expect(s.merged.carried["1570"]).toEqual({
+            pr: 739,
+            commits: [FIX.slice(0, 9)],
+            job: "issue-1570",
+            at: NOW.toISOString(),
+        });
+        // While #739 is open it works on #1570; its merge makes #1570 a reference on master to verify.
+        s.issues = {
+            byNumber: { 1570: { state: "open", author: "owner", labels: ["bug", "priority:high", "effort:low"] } },
+        };
+        const ranked = () => readyIssues(s, { labels: LABELS }, NOW).ranked.map((i) => i.number);
+        expect(ranked()).toEqual([]);
+        s.merged = accumulateMerged(s.merged, [
+            {
+                number: 739,
+                title: "githerd",
+                headRef: "feat/githerd",
+                base: "master",
+                mergedAt: "2026-10-05T00:00:00Z",
+                mergeSha: GREEN,
+                closes: [],
+                mentions: [],
+                paths: [],
+                truncated: false,
+            },
+        ]);
+        expect(masterRefs(s, 1570)).toEqual(["#739"]);
+        delete s.prs[739];
+        expect(ranked()).toEqual([1570]);
+        expect(s.merged.carried).toEqual({});
+    });
+
+    it("keeps the job with the session while the pull request lacks a commit, and accepts once it has it", async () => {
+        const s = state({ prs: { 739: pr({ headSha: HEAD, headRef: "feat/githerd", references: [] }) } });
+        const job = (s.jobs["issue-1570"] = working("issue", "1570"));
+        const reader = io(HEAD);
+        const { ctx } = setup(s, reader);
+        const r = JSON.parse((await githerdDone(ctx, job, report({ pr: 739, commits: [FIX] }), "w1")).text);
+        expect(r.missing).toEqual([expect.stringContaining(`does not contain ${FIX.slice(0, 9)}: push it`)]);
+        expect([job.state, job.verifyFailures]).toEqual(["working", 0]);
+        // The fix is merged into #739's branch: the kept report is accepted without a new claim.
+        s.prs[739] = carrier;
+        reader.pull = async () => open(OTHER);
+        expect(await recheckRefused(s, ctx)).toEqual([expect.objectContaining({ job: "issue-1570" })]);
+        expect(s.merged.carried["1570"].pr).toBe(739);
+    });
+
+    it("makes a carrier that already merged a reference at once, and refuses one closed unmerged", async () => {
+        const s = state();
+        const merged = { ...open(OTHER), state: "closed", merged: true };
+        const job = (s.jobs["issue-1570"] = working("issue", "1570"));
+        const reader = Object.assign(io(OTHER), { pull: async () => merged });
+        expect(await verifyClaim(job, report({ pr: 739, commits: [FIX] }), view(s, reader))).toEqual({
+            holds: true,
+            merged: true,
+        });
+        const { ctx } = setup(s, reader);
+        await githerdDone(ctx, job, report({ pr: 739, commits: [FIX] }), "w1");
+        expect(s.merged.refs["1570"]).toEqual(["#739"]);
+        const closed = fakeIo({ pull: async () => ({ ...merged, merged: false }), pullContains: async () => true });
+        expect(
+            await verifyClaim(working("issue", "1570"), report({ pr: 739, commits: [FIX] }), view(s, closed)),
+        ).toEqual({
+            missing: [expect.stringContaining("not an open pull request")],
+        });
+    });
+});
+
+describe("recheckRefused", () => {
+    /**
+     * A reader that counts its pull request reads.
+     * @param {object} [over] methods to change
+     * @returns {any} the reader, with `reads`
+     */
+    const counting = (over = {}) => {
+        const io = fakeIo(over);
+        io.reads = 0;
+        const remoteHead = io.remoteHead;
+        io.remoteHead = async (/** @type {string} */ ref) => {
+            io.reads++;
+            return remoteHead(ref);
+        };
+        return io;
+    };
+
+    it("accepts a refused report once the facts it was refused on change, and tells the holder", async () => {
+        const s = state({ prs: { 7: pr({ draft: true }) } });
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const io = counting();
+        const { ctx } = setup(s, io);
+        expect(JSON.parse((await githerdDone(ctx, job, report(), "w1")).text).missing).toEqual(["#7 is a draft"]);
+        io.reads = 0;
+        expect(job.refused).toEqual(
+            expect.objectContaining({ missing: ["#7 is a draft"], session: "w1", report: expect.anything() }),
+        );
+        // Nothing changed: not checked again.
+        expect(await recheckRefused(s, ctx)).toEqual([]);
+        expect(io.reads).toBe(0);
+        s.prs[7] = pr();
+        expect(await recheckRefused(s, ctx)).toEqual([
+            { job: "pr-7", session: "w1", startedBy: null, reportedAt: NOW.toISOString() },
+        ]);
+        expect([job.state, job.refused, job.verifyFailures]).toEqual(["done", null, 0]);
+        expect(job.news.at(-1).text).toContain("checked your refused githerd_done report");
+    });
+
+    it("checks a refused report again once after a restart, even when no fact changed", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        // A defect naming #404 is refused; the daemon that refused it was wrong about #404.
+        const io = fakeIo();
+        const { ctx } = setup(s, io);
+        await githerdDone(ctx, job, report({ defects: [{ summary: "x", issue: 404 }] }), "w1");
+        expect(job.refused.missing[0]).toContain("#404 does not exist");
+        io.issue = async (/** @type {number} */ n) => ({ number: n, state: "open", user: { login: "owner" } });
+        expect(await recheckRefused(s, ctx)).toEqual([]);
+        expect(job.state).toBe("working");
+        vi.resetModules();
+        const restarted = await import("../lib/done.mjs");
+        expect(await restarted.recheckRefused(s, ctx)).toEqual([expect.objectContaining({ job: "pr-7" })]);
+        expect(job.state).toBe("done");
+    });
+
+    it("keeps a report that still fails, and drops one a new report, a claim or the job's end replaced", async () => {
+        const s = state({ prs: { 7: pr({ draft: true }) } });
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { ctx } = setup(s);
+        await githerdDone(ctx, job, report(), "w1");
+        s.prs[7] = pr({ draft: true, required: { "All Checks Pass": "FAILURE" } });
+        expect(await recheckRefused(s, ctx)).toEqual([]);
+        expect(job.refused).not.toBeNull();
+        // A new report replaces it.
+        await githerdDone(ctx, job, report({ findings: "second" }), "w1");
+        expect(job.refused.report.findings).toBe("second");
+        // A new claim (a session takes the job again) drops it.
+        job.state = "starting";
+        const claim = { job: "pr-7", snapshotVersion: 0, overlap: { decision: "independent", reason: "r" }, plan: "p" };
+        expect(claimJob(s, claim, { session: "w1" }, { version: 0 }, NOW).ok).toBe(true);
+        expect(job.refused).toBeNull();
+        // A job no longer worked on by the reporting session drops it.
+        job.verifyFailures = 0;
+        await githerdDone(ctx, job, report(), "w1");
+        move(job, "waiting", NOW, { waitingFor: { checks: HEAD } });
+        s.prs[7] = pr();
+        expect(await recheckRefused(s, ctx)).toEqual([]);
+        expect(job.refused).toBeNull();
+    });
+});
+
+describe("githerdDone and pollVerifying while a job moves", () => {
+    it("answers a second claim for the same job while the first is checked, without counting it", async () => {
+        const s = state({ prs: { 7: pr({ draft: true }) } });
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { promise: gate, resolve: release } = Promise.withResolvers();
+        const { ctx } = setup(s, fakeIo({ remoteHead: () => gate }));
+        const first = githerdDone(ctx, job, report(), "w1");
+        const second = JSON.parse((await githerdDone(ctx, job, report(), "w1")).text);
+        expect(second).toEqual({
+            verified: false,
+            missing: ["a done check for this job is already running; wait for its answer"],
+        });
+        release(HEAD);
+        expect(JSON.parse((await first).text).missing).toEqual(["#7 is a draft"]);
+        expect(job.verifyFailures).toBe(1);
+        // The check is over: the next claim is checked again.
+        expect(JSON.parse((await githerdDone(ctx, job, report(), "w1")).text).missing).toEqual(["#7 is a draft"]);
+    });
+
+    it("applies nothing when the job moved while GitHub was read", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        const { ctx, commits } = setup(
+            s,
+            fakeIo({
+                remoteHead: async () => {
+                    move(job, "queued", NOW, { reason: "recycled" });
+                    return HEAD;
+                },
+            }),
+        );
+        const r = await githerdDone(ctx, job, report(), "w1");
+        expect(r.isError).toBe(true);
+        expect(JSON.parse(r.text).missing[0]).toContain("became queued while this claim was checked");
+        expect([job.state, job.report, commits]).toEqual(["queued", undefined, []]);
+    });
+
+    it("skips a verifying job that moved during its check, and goes on to the next", async () => {
+        const s = state({ prs: { 7: pr(), 8: pr() } });
+        const a = (s.jobs["pr-7"] = working("pr", "7"));
+        const b = (s.jobs["pr-8"] = working("pr", "8"));
+        let behind = true;
+        const { ctx } = setup(
+            s,
+            fakeIo({
+                remoteHead: async () => {
+                    if (behind) return OTHER;
+                    if (a.state === "verifying") move(a, "working", NOW);
+                    return HEAD;
+                },
+            }),
+        );
+        await githerdDone(ctx, a, report(), "w1");
+        await githerdDone(ctx, b, report(), "w1");
+        expect([a.state, b.state]).toEqual(["verifying", "verifying"]);
+        behind = false;
+        expect(await pollVerifying(s, ctx)).toEqual([{ job: "pr-8", action: "done" }]);
+        expect(a.state).toBe("working");
+    });
+
+    it("puts the session of a job that ended done, or back in the queue, on the retiring list", async () => {
+        const s = state();
+        const job = (s.jobs["pr-7"] = working("pr", "7"));
+        job.holder.pane = "%3";
+        const { ctx } = setup(s);
+        await githerdDone(ctx, job, report(), "w1");
+        expect(job.holder).toBeNull();
+        expect(s.retiring).toEqual([
+            {
+                job: "pr-7",
+                holder: expect.objectContaining({ session: "w1", pane: "%3" }),
+                reason: "job done",
+                at: NOW.toISOString(),
+            },
+        ]);
+        // An owner's session (no pane githerd started) is not githerd's to end.
+        const owned = (s.jobs["pr-8"] = working("pr", "8"));
+        s.prs[8] = pr();
+        await githerdDone(ctx, owned, report(), "w1");
+        expect(s.retiring).toHaveLength(1);
+    });
+
+    it("raises one owner item when an urgent incident spends its last attempt", async () => {
+        const s = state();
+        const job = (s.jobs.inc = working("incident", "CI / Build / x", { scope: "master", lane: "CI" }));
+        const { ctx } = setup(s);
+        for (const n of [1, 2, 3]) {
+            if (n > 1) {
+                move(job, "starting", NOW, { holder: { session: `w${n}` } });
+                move(job, "working", NOW);
+            }
+            const r = await githerdDone(ctx, job, report({ outcome: "failed", findings: `finding ${n}` }), `w${n}`);
+            expect(JSON.parse(r.text)).toMatchObject({
+                verified: true,
+                attempts:
+                    n < 3
+                        ? `this attempt has ended: stop working on ${job.id}. It goes back to the queue for a fresh session with your findings; ${3 - n} of 3 attempts remain for ${job.id}`
+                        : `this attempt has ended and it was the last: ${job.id} failed, no attempts remain, and the owner is told when it is urgent`,
+            });
+        }
+        expect(job.state).toBe("failed");
+        const items = Object.values(s.ownerItems ?? {});
+        expect(items).toHaveLength(1);
+        expect(items[0]).toMatchObject({ id: `failed-urgent:${job.id}`, kind: "failed-urgent", target: null });
+        expect(items[0].question).toContain("1. failed: finding 1 2. failed: finding 2 3. failed: finding 3");
+        // A low-priority incident's or another kind's failure raises none.
+        const low = (s.jobs.low = working("incident", "CI / Lint / y", { scope: "low", lane: "CI" }));
+        low.budget.attempts = 1;
+        await githerdDone(ctx, low, report({ outcome: "failed" }), "w1");
+        expect(Object.keys(s.ownerItems)).toHaveLength(1);
+    });
+});
+
+describe("doneIo", () => {
+    /** @type {{tmp: string, root: string, remote: string}} */
+    let repo;
+    /** @type {Record<string, string>} */
+    const sha = {};
+
+    beforeAll(() => {
+        isolateGit();
+        repo = makeRepo();
+        const { root } = repo;
+        sha.base = git(root, "rev-parse", "HEAD");
+        git(root, "checkout", "-q", "-b", "fix/x");
+        put(join(root, "a.txt"), "fix\n");
+        sha.pushed = commitAll(root, "fix: a", { sign: false });
+        git(root, "push", "-q", "origin", "fix/x");
+        git(root, "checkout", "-q", "master");
+        put(join(root, "m.txt"), "master\n");
+        sha.master = commitAll(root, "chore: m", { sign: false });
+        git(root, "push", "-q", "origin", "master");
+        git(root, "checkout", "-q", "fix/x");
+        git(root, "merge", "-q", "--no-edit", "master");
+        sha.merged = git(root, "rev-parse", "HEAD");
+        put(join(root, "b.txt"), "more\n");
+        sha.extra = commitAll(root, "fix: b", { sign: false });
+        git(root, "checkout", "-q", "-b", "rewritten", sha.base);
+        put(join(root, "a.txt"), "rewritten fix\n");
+        sha.rewritten = commitAll(root, "fix: a, rewritten", { sign: false });
+        git(root, "checkout", "-q", "master");
+    });
+
+    afterAll(() => rmSync(repo.tmp, { recursive: true, force: true }));
+
+    it("applies the ancestor rule with git", async () => {
+        const io = doneIo({ root: repo.root, repo: "o/r", github: {} });
+        expect(await io.remoteHead("fix/x")).toBe(sha.pushed);
+        expect(await io.remoteHead("nope")).toBe("");
+        expect(await io.headContains(sha.pushed, sha.pushed, "fix/x")).toBe(true); // exact head
+        expect(await io.headContains(sha.pushed, sha.merged, "fix/x")).toBe(true); // a merge from master on top
+        expect(await io.headContains(sha.pushed, sha.extra, "fix/x")).toBe(true); // another session's commit on top
+        expect(await io.headContains(sha.merged, sha.pushed, "fix/x")).toBe(false); // pushed commit not contained
+        expect(await io.headContains(sha.pushed, sha.rewritten, "fix/x")).toBe(false); // branch rewritten
+        expect(await io.headContains("e".repeat(40), sha.merged, "fix/x")).toBe(false);
+        expect(await io.contains(sha.base, sha.master)).toBe(true);
+        expect(await io.contains(sha.pushed, sha.master)).toBe(false);
+        expect(await io.contains("e".repeat(40), sha.master)).toBe(false);
+        expect(io.releaseOpen()).toBeNull();
+        expect(io.localGate()).toBeNull();
+    });
+
+    it("fetches a pull request's head to tell whether it contains a commit", async () => {
+        git(repo.root, "push", "-q", "origin", `${sha.extra}:refs/pull/9/head`);
+        const clone = join(repo.tmp, "clone");
+        git(repo.tmp, "clone", "-q", repo.remote, clone);
+        const io = doneIo({ root: clone, repo: "o/r", github: {} });
+        expect(await io.pullContains(sha.pushed.slice(0, 9), 9, sha.extra)).toBe(true);
+        expect(await io.pullContains("e".repeat(40), 9, sha.extra)).toBe(false);
+        expect(await io.pullContains(sha.extra, 9, sha.master)).toBe(false);
+    });
+
+    it("reads GitHub, with a 404 as absent and any other failure thrown", async () => {
+        const answers = /** @type {Record<string, any>} */ ({
+            "repos/o/r/issues/5": { number: 5 },
+            [`repos/o/r/commits/${FIX}`]: { sha: FIX },
+            "repos/o/r/pulls/7": { merged: true },
+            [`repos/o/r/commits/${HEAD}/check-runs`]: {
+                check_runs: [
+                    { id: 1, status: "completed", conclusion: "failure" },
+                    { id: 2, status: "completed", conclusion: "success" },
+                ],
+            },
+            [`repos/o/r/commits/${OTHER}/check-runs`]: { check_runs: [{ id: 3, status: "in_progress" }] },
+            [`repos/o/r/commits/${GREEN}/check-runs`]: {
+                check_runs: [{ id: 4, status: "completed", conclusion: "failure" }],
+            },
+            [`repos/o/r/commits/${FIX}/check-runs`]: { check_runs: [] },
+        });
+        const github = {
+            get: async (/** @type {string} */ path) => {
+                if (path === "repos/o/r/issues/500") throw Object.assign(new Error("boom"), { status: 500 });
+                const key = Object.keys(answers).find((k) => path === k || path.startsWith(`${k}?`));
+                if (!key) throw Object.assign(new Error("not found"), { status: 404 });
+                return { body: answers[key] };
+            },
+        };
+        /**
+         * A fake fetch of npm's registry: "missing" is not found, anything else is at 3.1.0.
+         * @param {string} url the address
+         * @returns {Promise<any>} the response
+         */
+        const fetchFn = async (url) =>
+            url.includes("missing")
+                ? { ok: false }
+                : { ok: true, json: async () => ({ "dist-tags": { latest: "3.1.0" } }) };
+        /** A fetch that fails. @type {any} */
+        const broken = async () => {
+            throw new Error("x");
+        };
+        const io = doneIo({ root: repo.root, repo: "o/r", github, fetchFn, releaseOpen: () => ["k"] });
+        expect(await io.issue(5)).toEqual({ number: 5 });
+        expect(await io.issue(6)).toBeNull();
+        await expect(io.issue(500)).rejects.toThrow("boom");
+        expect(await io.commitExists(FIX)).toBe(true);
+        expect(await io.commitExists(OTHER)).toBe(false);
+        expect(await io.pull(7)).toEqual({ merged: true });
+        expect(await io.checkRun(HEAD, "Lint PR Title")).toBe("SUCCESS");
+        expect(await io.checkRun(OTHER, "Lint PR Title")).toBe("PENDING");
+        expect(await io.checkRun(GREEN, "Lint PR Title")).toBe("FAILURE");
+        expect(await io.checkRun(FIX, "Lint PR Title")).toBe("MISSING");
+        expect(await io.npmLatest("@graphty/x")).toBe("3.1.0");
+        expect(await io.npmLatest("missing")).toBeNull();
+        const throwing = doneIo({ root: repo.root, repo: "o/r", github, fetchFn: broken });
+        expect(await throwing.npmLatest("x")).toBeNull();
+        expect(io.releaseOpen()).toEqual(["k"]);
+    });
+});
+
+describe("a release incident whose fix another session's pull request carries (#1819 for #1799)", () => {
+    const key = "release-failed:37999277658";
+    const queued = {
+        state: "open",
+        merged: false,
+        base: { ref: "master", repo: { full_name: "o/r" } },
+        head: { sha: OTHER, repo: { full_name: "o/r" } },
+    };
+    const reader = () =>
+        fakeIo({
+            releaseOpen: () => [key],
+            pull: async () => queued,
+            pullContains: async (/** @type {string} */ c) => c === FIX,
+        });
+
+    it("ends the job on done with the pull request and its fix commits, and records the link for githerd", async () => {
+        const s = state({ escalations: { [key]: { key, kind: "release-failed", runId: 37999277658 } } });
+        const job = (s.jobs["incident-release-failed-37999277658"] = working("incident", key, { scope: "release" }));
+        const { ctx } = setup(s, reader());
+        const r = await githerdDone(ctx, job, report({ pr: 1819, commits: [FIX] }), "w1");
+        expect(r.isError).toBeUndefined();
+        expect(job.state).toBe("done");
+        expect(s.releaseFixes[key]).toEqual({
+            pr: 1819,
+            commits: [FIX],
+            job: job.id,
+            runId: 37999277658,
+            at: NOW.toISOString(),
+        });
+    });
+
+    it("refuses done without the pull request, and says how to name one", async () => {
+        const s = state();
+        const job = working("incident", key, { scope: "release" });
+        const answer = await verifyClaim(job, report(), view(s, reader()));
+        expect(answer).toEqual({ missing: [expect.stringContaining("report done with pr and commits")] });
+        expect(await verifyClaim(job, report({ pr: 1819, commits: [HEAD] }), view(s, reader()))).toMatchObject({
+            missing: [expect.stringContaining(`does not contain ${HEAD.slice(0, 9)}`)],
+            fixable: true,
+        });
+    });
+});

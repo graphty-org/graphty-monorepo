@@ -1,0 +1,532 @@
+/**
+ * Whose is a pull request, inferred with nobody asked (the owner's rule of 2026-10-05: githerd
+ * keeps running with no command from the owner). Every session commits as the same author, so
+ * commits name no session; two other facts do:
+ *
+ * 1. The push log: `tools/push-queue.sh`, which every push on this machine goes through, appends
+ *    one JSON line per push to the main checkout's `tmp/push-log.jsonl`, naming the Claude Code
+ *    session that launched it (the first ancestor process with a registry entry).
+ * 2. Claude Code's transcripts: a live session's Bash tool calls that ran `git push` (directly or
+ *    through the queue script) or `gh pr create --head`, naming a branch. The push log began on
+ *    2026-10-05; the transcripts cover a session's pushes from before it. Only branch names and
+ *    times are extracted, read incrementally (`scanTranscripts`).
+ * 3. Worktree presence: a live session, or any process under it, whose cwd is inside the worktree
+ *    that has a pull request's branch checked out.
+ *
+ * A pull request is owned by the session that last pushed its branch while that session is live,
+ * else by the live session whose transcript last pushed it (no earlier than the push log's last
+ * push of it), else by a live session present in its worktree. The result, `state.prInferred[<pr>]`, is
+ * recomputed every poll, so ownership lapses the poll after the session exits. `prInUse` reads it
+ * after the explicit records of `githerd_mine` and `githerd mine` (`state.prOwners`), which win.
+ * Inference never holds a stuck pull request on its own: its owner is asked, and keeps it only by
+ * claiming it or pushing (asks.mjs brokenOwned).
+ * A session that disowned a pull request (`githerd disown`, `state.prDisowned`) is never inferred
+ * its owner again from a push made before it disowned it, nor from its worktree.
+ */
+
+import { readdirSync, readFileSync, readlinkSync } from "node:fs";
+import { open, readdir, stat } from "node:fs/promises";
+import { join, relative, sep } from "node:path";
+
+/**
+ * `noTools`: the session's claude process runs no githerd MCP server, so githerd's questions tell it
+ * to answer with the githerd command line instead (asks.mjs brokenText).
+ * @typedef {{session: string, name: string, evidence: string, noTools?: boolean}} InferredOwner
+ */
+/**
+ * @typedef {{at?: string, branch?: string | null, sha?: string | null, exit?: number,
+ *   sessionId?: string | null, name?: string | null}} PushLine
+ */
+/** @typedef {{pid: number, ppid: number, cwd: string | null, cmd?: string}} Proc */
+/** @typedef {{pid: number, sessionId: string, name: string, cwd?: string}} Registered */
+/** @typedef {Record<string, {session: string, at: string}>} Disowned the disowning session, by pull request */
+/**
+ * What the transcripts of one session have shown so far: the bytes read of each file (by path
+ * relative to the session's transcript, `""` for the transcript itself) and the latest push time of
+ * each branch.
+ * @typedef {{files: Record<string, number>, pushes: Record<string, string>}} TranscriptScan
+ */
+
+/** Bytes of transcript read per poll, across every session. */
+const TRANSCRIPT_BUDGET = 256 * 1024 * 1024;
+const CHUNK = 8 * 1024 * 1024;
+/** A line longer than this (a giant tool result) is skipped unread. */
+const MAX_LINE = 64 * 1024 * 1024;
+
+/**
+ * The branches a shell command pushes: the destination of each refspec after `git push <remote>`,
+ * and `gh pr create --head <branch>`. A deletion, a bare HEAD and a flag's value are not branches.
+ * @param {string} cmd the command
+ * @returns {string[]} the branches
+ */
+export function pushedBranches(cmd) {
+    const out = new Set();
+    for (const m of cmd.matchAll(/\bgit\s+(?:-[Cc]\s+\S+\s+)*push\b([^;&|\n<>]*)/g)) {
+        const words = m[1].trim().split(/\s+/);
+        if (words.includes("--delete") || words.includes("-d")) continue;
+        const args = words.filter((a) => a && !a.startsWith("-")).map((a) => a.replaceAll(/(?:^["'])|(?:["']$)/g, ""));
+        for (const ref of args.slice(1)) {
+            if (ref.startsWith(":")) continue;
+            const dst = /** @type {string} */ (ref.replace(/^\+/, "").split(":").pop()).replace(/^refs\/heads\//, "");
+            if (dst !== "HEAD" && /[A-Za-z]/.test(dst) && /^[\w./-]+$/.test(dst)) out.add(dst);
+        }
+    }
+    for (const m of cmd.matchAll(/\bgh\s+pr\s+create\b[^;&|\n]*?--head[=\s]+["']?([\w./-]+)/g)) out.add(m[1]);
+    return [...out];
+}
+
+/**
+ * Records the pushes in complete transcript lines: Bash tool calls of assistant messages. Only
+ * lines that mention a push are parsed.
+ * @param {Buffer} buf whole lines
+ * @param {Record<string, string>} pushes the latest push time by branch, updated
+ */
+function pushesIn(buf, pushes) {
+    const seen = new Set();
+    for (const needle of ["git push", "gh pr create"]) {
+        for (let i = buf.indexOf(needle); i !== -1; i = buf.indexOf(needle, i + 1)) {
+            const start = buf.lastIndexOf(10, i) + 1;
+            if (seen.has(start)) continue;
+            seen.add(start);
+            recordPushes(parseLine(buf, start, i), pushes);
+        }
+    }
+}
+
+/**
+ * The JSON value of the line that starts at `start` and contains `i`, or null when it is torn.
+ * @param {Buffer} buf whole lines
+ * @param {number} start where the line starts
+ * @param {number} i a position in it
+ * @returns {any} the value
+ */
+function parseLine(buf, start, i) {
+    const end = buf.indexOf(10, i);
+    try {
+        return JSON.parse(buf.toString("utf8", start, end === -1 ? buf.length : end));
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Records the branches one transcript entry's Bash tool calls pushed, when it is an assistant
+ * message.
+ * @param {any} e the transcript entry
+ * @param {Record<string, string>} pushes the latest push time by branch, updated
+ */
+function recordPushes(e, pushes) {
+    if (e?.type !== "assistant" || typeof e.timestamp !== "string") return;
+    for (const c of Array.isArray(e.message?.content) ? e.message.content : []) {
+        if (c?.type !== "tool_use" || c.name !== "Bash" || typeof c.input?.command !== "string") continue;
+        for (const b of pushedBranches(c.input.command)) {
+            if (!pushes[b] || Date.parse(pushes[b]) < Date.parse(e.timestamp)) pushes[b] = e.timestamp;
+        }
+    }
+}
+
+/**
+ * Every transcript file of a session: `<sessionId>.jsonl` and its subagents' under `<sessionId>/subagents`.
+ * @param {string} base the transcript without `.jsonl`
+ * @returns {Promise<string[]>} the paths relative to `base`, `""` for the transcript itself
+ */
+async function transcriptFiles(base) {
+    /** @type {string[]} */
+    let subs = [];
+    try {
+        const names = await readdir(join(base, "subagents"), { recursive: true });
+        subs = names.filter((n) => n.endsWith(".jsonl")).map((n) => join("subagents", n));
+    } catch {
+        // No subagents.
+    }
+    return ["", ...subs];
+}
+
+/**
+ * Reads what was appended to the transcripts of each live session since the last poll, at most
+ * `budget` bytes in all, the most recently changed files first, and records the branches each
+ * session pushed. A session no longer live is forgotten. githerd's own workers are not scanned.
+ * Claude Code keeps a session's transcript at `<projectsDir>/<cwd with every character other than
+ * a letter or digit as "-">/<sessionId>.jsonl`.
+ * ponytail: one offset per file in state; a 10k-file session is ~1 MB of state.json.
+ * @param {Record<string, TranscriptScan>} scans the scans by session, updated in place
+ * @param {Registered[]} sessions the live sessions
+ * @param {{root: string, projectsDir: string, budget?: number}} opts the main checkout, Claude
+ *   Code's projects directory and the byte budget
+ */
+export async function scanTranscripts(scans, sessions, { root, projectsDir, budget = TRANSCRIPT_BUDGET }) {
+    const workers = join(root, ".worktrees", "githerd-");
+    const live = sessions.filter((s) => s.cwd && !s.cwd.startsWith(workers));
+    const ids = new Set(live.map((s) => s.sessionId));
+    for (const id of Object.keys(scans)) if (!ids.has(id)) delete scans[id];
+    const todo = await grownTranscripts(scans, live, projectsDir);
+    todo.sort((a, b) => b.mtime - a.mtime);
+    for (const file of todo) {
+        if (budget <= 0) break;
+        budget = await readTranscript(file, budget);
+    }
+}
+
+/** @typedef {{scan: TranscriptScan, rel: string, path: string, size: number, mtime: number}} GrownFile */
+
+/**
+ * The transcript files of the live sessions that grew since they were last read. A file that
+ * shrank is read again from the start.
+ * @param {Record<string, TranscriptScan>} scans the scans by session, updated in place
+ * @param {Registered[]} live the live sessions to scan
+ * @param {string} projectsDir Claude Code's projects directory
+ * @returns {Promise<GrownFile[]>} the files
+ */
+async function grownTranscripts(scans, live, projectsDir) {
+    /** @type {GrownFile[]} */
+    const todo = [];
+    for (const s of live) {
+        scans[s.sessionId] ??= { files: {}, pushes: {} };
+        const scan = scans[s.sessionId];
+        const base = join(projectsDir, /** @type {string} */ (s.cwd).replaceAll(/[^A-Za-z0-9]/g, "-"), s.sessionId);
+        for (const rel of await transcriptFiles(base)) {
+            const path = rel ? join(base, rel) : `${base}.jsonl`;
+            const st = await stat(path).catch(() => null);
+            if (!st) continue;
+            if (st.size < (scan.files[rel] ?? 0)) scan.files[rel] = 0;
+            if (st.size > (scan.files[rel] ?? 0)) todo.push({ scan, rel, path, size: st.size, mtime: st.mtimeMs });
+        }
+    }
+    return todo;
+}
+
+/**
+ * Reads what was appended to one transcript file, at most `budget` bytes, records its pushes, and
+ * moves its offset past the last whole line read (or past a line longer than `MAX_LINE`).
+ * @param {GrownFile} file the file
+ * @param {number} budget the bytes left to read this poll
+ * @returns {Promise<number>} the bytes left after it
+ */
+async function readTranscript({ scan, rel, path, size }, budget) {
+    const fh = await open(path, "r").catch(() => null);
+    if (!fh) return budget;
+    try {
+        let offset = scan.files[rel] ?? 0;
+        let carry = Buffer.alloc(0);
+        while (offset + carry.length < size && budget > 0) {
+            const want = Math.min(CHUNK, size - offset - carry.length, budget);
+            const chunk = Buffer.alloc(want);
+            const { bytesRead } = await fh.read(chunk, 0, want, offset + carry.length);
+            if (!bytesRead) break;
+            budget -= bytesRead;
+            const buf = Buffer.concat([carry, chunk.subarray(0, bytesRead)]);
+            const cut = buf.lastIndexOf(10) + 1;
+            pushesIn(buf.subarray(0, cut), scan.pushes);
+            offset += cut;
+            carry = buf.subarray(cut);
+            if (carry.length > MAX_LINE) {
+                offset += carry.length;
+                carry = Buffer.alloc(0);
+            }
+        }
+        scan.files[rel] = offset;
+    } finally {
+        await fh.close();
+    }
+    return budget;
+}
+
+/**
+ * The push log's lines, oldest first; a torn line is skipped.
+ * ponytail: read whole every poll; rotate the file if it ever grows past a few MB.
+ * @param {string} file the log
+ * @returns {PushLine[]} the pushes
+ */
+export function readPushLog(file) {
+    let text;
+    try {
+        text = readFileSync(file, "utf8");
+    } catch {
+        return [];
+    }
+    const out = [];
+    for (const line of text.split("\n")) {
+        try {
+            if (line.trim()) out.push(JSON.parse(line));
+        } catch {
+            // A torn line is no push.
+        }
+    }
+    return out;
+}
+
+/**
+ * Every process with its parent, cwd (null when unreadable) and command line.
+ * @param {string} [procDir] the proc file system
+ * @returns {Proc[]} the processes
+ */
+export function processTable(procDir = "/proc") {
+    /** @type {Proc[]} */
+    const out = [];
+    for (const name of readdirSync(procDir)) {
+        if (!/^\d+$/.test(name)) continue;
+        try {
+            const stat = readFileSync(join(procDir, name, "stat"), "utf8");
+            const ppid = Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[1]);
+            let cwd = null;
+            try {
+                cwd = readlinkSync(join(procDir, name, "cwd"));
+            } catch {
+                // Another user's process, or gone.
+            }
+            let cmd = "";
+            try {
+                cmd = readFileSync(join(procDir, name, "cmdline"), "utf8")
+                    .replaceAll("\0", " ")
+                    .trim();
+            } catch {
+                // Gone.
+            }
+            out.push({ pid: Number(name), ppid, cwd, cmd });
+        } catch {
+            // Exited while read.
+        }
+    }
+    return out;
+}
+
+/**
+ * The sessions working in this repository: their cwd is one of its worktrees (the main checkout
+ * among them, from `git worktree list --porcelain`) or inside one. Another repository's session
+ * that pushed a branch of the same name pushed nothing of this one's.
+ * @param {Registered[]} sessions the live sessions
+ * @param {string} porcelain git's output
+ * @returns {Registered[]} those in this repository
+ */
+export function inRepository(sessions, porcelain) {
+    const dirs = [...porcelain.matchAll(/^worktree (.+)$/gm)].map((m) => m[1]);
+    return sessions.filter((s) => s.cwd && dirs.some((d) => s.cwd === d || s.cwd.startsWith(d + sep)));
+}
+
+/**
+ * The worktrees with a branch checked out, from `git worktree list --porcelain`.
+ * @param {string} porcelain git's output
+ * @returns {{dir: string, branch: string}[]} the worktrees
+ */
+export function parseWorktrees(porcelain) {
+    return porcelain
+        .split("\n\n")
+        .map((block) => block.split("\n"))
+        .map((lines) => ({
+            dir: (lines.find((l) => l.startsWith("worktree ")) ?? "").slice("worktree ".length),
+            branch: (lines.find((l) => l.startsWith("branch refs/heads/")) ?? "").slice("branch refs/heads/".length),
+        }))
+        .filter((w) => w.dir && w.branch);
+}
+
+/**
+ * The inferred owner of each open pull request that has one.
+ * @param {Record<string, {headRef?: string}>} prs the open pull requests
+ * @param {{root: string, pushLog: PushLine[], sessions: Registered[], procs: Proc[],
+ *   worktrees: {dir: string, branch: string}[], transcripts?: Record<string, TranscriptScan>,
+ *   disowned?: Disowned}} facts the main checkout, the push log, the live registered Claude Code
+ *   sessions, the process table, the worktrees, what their transcripts showed (`scanTranscripts`)
+ *   and who disowned what (`state.prDisowned`)
+ * @returns {Record<string, InferredOwner>} the owners, by pull request
+ */
+export function inferOwners(prs, { root, pushLog, sessions, procs, worktrees, transcripts = {}, disowned = {} }) {
+    const live = new Map(sessions.map((s) => [s.sessionId, s]));
+    /** @type {Map<string, PushLine>} */
+    const lastPush = new Map();
+    for (const p of pushLog) if (p.branch) lastPush.set(p.branch, p);
+    const cwds = cwdsUnder(procs);
+    const tools = githerdTools(procs);
+    // The main checkout is everyone's, and githerd's own workers have their jobs.
+    const ownWorktrees = worktrees.filter(
+        (w) => w.dir !== root && !w.dir.startsWith(join(root, ".worktrees", "githerd-")),
+    );
+    const byPid = [...sessions].sort((a, b) => a.pid - b.pid);
+    /** @type {Record<string, InferredOwner>} */
+    const out = {};
+    for (const [n, rec] of Object.entries(prs ?? {})) {
+        if (!rec?.headRef) continue;
+        const push = lastPush.get(rec.headRef);
+        const d = disowned[n];
+        // A session that disowned it owns it again only by a push made after it disowned it.
+        /**
+         * Whether a session may own it by a push at a time.
+         * @type {(session: string, at?: string) => boolean}
+         */
+        const may = (session, at) => d?.session !== session || (at !== undefined && Date.parse(at) > Date.parse(d.at));
+        const owner =
+            pushLogOwner(push, live, may) ??
+            transcriptOwner(rec.headRef, push, transcripts, live, may) ??
+            worktreeOwner(rec.headRef, { root, ownWorktrees, byPid, cwds, may });
+        if (!owner) continue;
+        const pid = live.get(owner.session)?.pid;
+        out[n] = pid !== undefined && tools(pid) === false ? { ...owner, noTools: true } : owner;
+    }
+    return out;
+}
+
+/**
+ * Whether a session has githerd's tools: a live process under its claude process runs githerd's MCP
+ * server (`bin/githerd-mcp.mjs`). Null when the process table does not show the claude process.
+ * @param {Proc[]} procs the process table
+ * @returns {(pid: number) => boolean | null} whether the process's tree runs it
+ */
+function githerdTools(procs) {
+    const children = new Map();
+    for (const p of procs) children.set(p.ppid, [...(children.get(p.ppid) ?? []), p]);
+    const known = new Set(procs.map((p) => p.pid));
+    return (pid) => {
+        if (!known.has(pid)) return null;
+        for (const stack = [pid]; stack.length;) {
+            for (const c of children.get(stack.pop()) ?? []) {
+                if (c.cmd?.includes("githerd-mcp.mjs")) return true;
+                stack.push(c.pid);
+            }
+        }
+        return false;
+    };
+}
+
+/**
+ * What each live session is doing on each open pull request's branch right now, for the question
+ * "are you fixing it?" (asks.mjs brokenOwned): the worktree of the branch it has a process in (any
+ * process under its claude process), and the time of its last push of the branch (the push log).
+ * @typedef {{present: Record<string, string>, pushed: Record<string, string>}} PrActivity
+ * @param {Record<string, {headRef?: string}>} prs the open pull requests
+ * @param {Parameters<typeof inferOwners>[1]} facts the facts `inferOwners` reads
+ * @returns {Record<string, PrActivity>} the activity by pull request, present dirs relative to root
+ */
+export function prActivity(prs, { root, pushLog, sessions, procs, worktrees }) {
+    const cwds = cwdsUnder(procs);
+    const inside = (/** @type {Registered} */ s, /** @type {string} */ dir) =>
+        cwds(s.pid).some((c) => c === dir || c.startsWith(dir + sep));
+    /** @type {Map<string, Record<string, string>>} */
+    const pushes = new Map();
+    for (const p of pushLog) {
+        if (p.branch && p.sessionId && p.at) pushes.set(p.branch, { ...pushes.get(p.branch), [p.sessionId]: p.at });
+    }
+    /** @type {Record<string, PrActivity>} */
+    const out = {};
+    for (const [n, rec] of Object.entries(prs ?? {})) {
+        if (!rec?.headRef) continue;
+        const dirs = worktrees.filter((w) => w.branch === rec.headRef && w.dir !== root).map((w) => w.dir);
+        const present = sessions.flatMap((s) =>
+            dirs.filter((d) => inside(s, d)).map((d) => [s.sessionId, relative(root, d)]),
+        );
+        out[n] = { present: Object.fromEntries(present), pushed: pushes.get(rec.headRef) ?? {} };
+    }
+    return out;
+}
+
+/**
+ * The cwds of a process and every process under it, from the process table.
+ * @param {Proc[]} procs the process table
+ * @returns {(pid: number) => string[]} the cwds of a process's tree
+ */
+function cwdsUnder(procs) {
+    const children = new Map();
+    for (const p of procs) children.set(p.ppid, [...(children.get(p.ppid) ?? []), p]);
+    const cwdOf = new Map(procs.map((p) => [p.pid, p.cwd]));
+    return (pid) => {
+        const out = [cwdOf.get(pid)];
+        for (const stack = [pid]; stack.length;) {
+            for (const c of children.get(stack.pop()) ?? []) {
+                out.push(c.cwd);
+                stack.push(c.pid);
+            }
+        }
+        return /** @type {string[]} */ (out.filter(Boolean));
+    };
+}
+
+/**
+ * The owner by the push log: the live session that last pushed the branch.
+ * @param {PushLine | undefined} push the branch's last push
+ * @param {Map<string, Registered>} live the live sessions by id
+ * @param {(session: string, at?: string) => boolean} may whether a session may own it by a push at a time
+ * @returns {InferredOwner | null} the owner
+ */
+function pushLogOwner(push, live, may) {
+    const pusher = push?.sessionId ? live.get(push.sessionId) : undefined;
+    if (!pusher || !push || !may(pusher.sessionId, push.at)) return null;
+    const sha = push.sha ? ` ${push.sha.slice(0, 7)}` : "";
+    const verb = push.exit === 0 ? "pushed" : "tried to push";
+    const at = push.at ? ` at ${push.at.slice(11, 16)} UTC` : "";
+    return { session: pusher.sessionId, name: pusher.name, evidence: `${verb}${sha}${at}` };
+}
+
+/**
+ * The owner by the transcripts: the live session whose transcript last pushed the branch, no
+ * earlier than the push log's last push of it.
+ * @param {string} branch the branch
+ * @param {PushLine | undefined} push the branch's last push in the push log
+ * @param {Record<string, TranscriptScan>} transcripts what the transcripts showed, by session
+ * @param {Map<string, Registered>} live the live sessions by id
+ * @param {(session: string, at?: string) => boolean} may whether a session may own it by a push at a time
+ * @returns {InferredOwner | null} the owner
+ */
+function transcriptOwner(branch, push, transcripts, live, may) {
+    const since = push?.at ? Date.parse(push.at) : -Infinity;
+    /** @type {{s: Registered, at: string} | undefined} */
+    let best;
+    for (const [id, scan] of Object.entries(transcripts)) {
+        const at = scan.pushes[branch];
+        const s = live.get(id);
+        if (!s || !at || Date.parse(at) < since || !may(id, at)) continue;
+        if (!best || Date.parse(at) > Date.parse(best.at)) best = { s, at };
+    }
+    if (!best) return null;
+    const at = `${best.at.slice(0, 10)} ${best.at.slice(11, 16)} UTC`;
+    return { session: best.s.sessionId, name: best.s.name, evidence: `pushed ${branch} (transcript, ${at})` };
+}
+
+/**
+ * The owner by worktree presence: the live session (lowest pid first) with a process in a worktree
+ * that has the branch checked out.
+ * @param {string} branch the branch
+ * @param {{root: string, ownWorktrees: {dir: string, branch: string}[], byPid: Registered[],
+ *   cwds: (pid: number) => string[], may: (session: string) => boolean}} where the main checkout,
+ *   the worktrees sessions may own, the live sessions by pid, the cwds of a process's tree and
+ *   whether a session may own it (not one that disowned it)
+ * @returns {InferredOwner | null} the owner
+ */
+function worktreeOwner(branch, { root, ownWorktrees, byPid, cwds, may }) {
+    for (const w of ownWorktrees.filter((x) => x.branch === branch)) {
+        const s = byPid.find(
+            (x) => may(x.sessionId) && cwds(x.pid).some((c) => c === w.dir || c.startsWith(w.dir + sep)),
+        );
+        if (s) return { session: s.sessionId, name: s.name, evidence: `working in ${relative(root, w.dir)}` };
+    }
+    return null;
+}
+
+/**
+ * The Claude Code session a process runs under: the first process up its parent chain (itself
+ * included) with an entry `<pid>.json` in Claude Code's session registry whose `procStart` is that
+ * process's start time (field 22 of its stat), so a reused pid is not mistaken for it. The lookup
+ * `tools/push-queue.sh` makes for the push log.
+ * @param {{pid: number, procDir?: string, sessionsDir: string}} opts the process, the proc file
+ *   system and the registry directory
+ * @returns {{sessionId: string, name: string, pid: number} | null} the session and its claude
+ *   process, or null outside one
+ */
+export function callingSession({ pid, procDir = "/proc", sessionsDir }) {
+    for (let p = pid, hops = 0; p > 1 && hops < 64; hops++) {
+        let fields;
+        try {
+            const stat = readFileSync(join(procDir, String(p), "stat"), "utf8");
+            fields = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+        } catch {
+            return null;
+        }
+        try {
+            const e = JSON.parse(readFileSync(join(sessionsDir, `${p}.json`), "utf8"));
+            if (typeof e.sessionId === "string" && String(e.procStart ?? fields[19]) === fields[19]) {
+                return { sessionId: e.sessionId, name: typeof e.name === "string" ? e.name : `pid ${p}`, pid: p };
+            }
+        } catch {
+            // No entry for this process.
+        }
+        p = Number(fields[1]);
+    }
+    return null;
+}

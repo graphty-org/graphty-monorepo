@@ -1,0 +1,11 @@
+- build-layout (ID: 10316872379, Size: 221030, Expected Digest: sha256:95c54837f93fb12733dbe78d2f4030cd36661ae695f82cd725951c2ce77d67c9)
+SHA256 digest of downloaded artifact is 95c54837f93fb12733dbe78d2f4030cd36661ae695f82cd725951c2ce77d67c9
+[isolated-plugin] spawned worker for "@nx/vite/plugin" (pid: 2885, socket: /tmp/.nx/1001/sockets/f9623c65/p2575-d-bd40949b.sock)
+> nx run graphty-element:nx-release-publish
+Skipped package "@graphty/graphty-element" from project "graphty-element" because v1.9.4 already exists in https://registry.npmjs.org/ with tag "latest"
+> nx run compact-mantine:nx-release-publish
+pnpm publish error:
+403 Forbidden - PUT https://registry.npmjs.org/@graphty%2fcompact-mantine - You cannot publish over the previously published versions: 0.7.0.
+ NX   Running target nx-release-publish for 5 projects failed
+- compact-mantine:nx-release-publish
+##[error]Process completed with exit code 1.

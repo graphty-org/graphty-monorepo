@@ -1,0 +1,18 @@
+env
+-i
+HOME=/home/owner
+PATH=/p
+GITHERD_JOB=issue-12
+claude
+--model
+claude-opus-5-5
+-n
+githerd-issue-12
+--permission-mode
+default
+--settings
+/home/owner/.githerd/graphty-monorepo/jobs/issue-12/settings.json
+--mcp-config
+/home/owner/.githerd/graphty-monorepo/jobs/issue-12/mcp.json
+--
+You are a githerd worker.

@@ -1,0 +1,149 @@
+{
+    "permissions": {
+        "allow": [
+            "mcp__githerd__*",
+            "Bash(gh pr create:*)",
+            "Bash(gh pr edit:*)",
+            "WebFetch(domain:registry.npmjs.org)"
+        ],
+        "deny": [
+            "AskUserQuestion",
+            "Workflow",
+            "Edit(visual-baselines/**)",
+            "Edit(githerd/**)",
+            "Edit(.claude/**)",
+            "Edit(.github/workflows/**)",
+            "Edit(.husky/**)",
+            "Edit(tools/prepush.sh)",
+            "Edit(~/.githerd/**)"
+        ]
+    },
+    "env": {
+        "CLAUDE_CODE_SUBAGENT_MODEL": "claude-opus-5-5",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-opus-5-5",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-opus-5-5",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-5-5",
+        "ANTHROPIC_SMALL_FAST_MODEL": "claude-opus-5-5"
+    },
+    "enabledPlugins": {
+        "discord@claude-plugins-official": false,
+        "superpowers@claude-plugins-official": false
+    },
+    "promptSuggestionEnabled": false,
+    "disabledMcpjsonServers": [
+        "githerd"
+    ],
+    "hooks": {
+        "SessionStart": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "f='/home/owner/.githerd/graphty-monorepo/current/bin/githerd-hook.mjs'; [ -f \"$f\" ] || exit 0; exec node \"$f\" SessionStart",
+                        "timeout": 10
+                    }
+                ]
+            }
+        ],
+        "UserPromptSubmit": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "f='/home/owner/.githerd/graphty-monorepo/current/bin/githerd-hook.mjs'; [ -f \"$f\" ] || exit 0; exec node \"$f\" UserPromptSubmit",
+                        "timeout": 10
+                    }
+                ]
+            }
+        ],
+        "Stop": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "f='/home/owner/.githerd/graphty-monorepo/current/bin/githerd-hook.mjs'; [ -f \"$f\" ] || exit 0; exec node \"$f\" Stop",
+                        "timeout": 10
+                    }
+                ]
+            }
+        ],
+        "StopFailure": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "f='/home/owner/.githerd/graphty-monorepo/current/bin/githerd-hook.mjs'; [ -f \"$f\" ] || exit 0; exec node \"$f\" StopFailure",
+                        "timeout": 10
+                    }
+                ]
+            }
+        ],
+        "Notification": [
+            {
+                "matcher": "permission_prompt",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "f='/home/owner/.githerd/graphty-monorepo/current/bin/githerd-hook.mjs'; [ -f \"$f\" ] || exit 0; exec node \"$f\" Notification",
+                        "timeout": 10
+                    }
+                ]
+            }
+        ],
+        "PreToolUse": [
+            {
+                "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Agent",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "f='/home/owner/.githerd/graphty-monorepo/current/bin/githerd-guard.mjs'; [ -f \"$f\" ] || { echo 'githerd guard is not installed' >&2; exit 2; }; exec node \"$f\" '<tmp>/jobs/issue-12'",
+                        "timeout": 10
+                    }
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "f='/home/owner/.githerd/graphty-monorepo/current/bin/githerd-hook.mjs'; [ -f \"$f\" ] || exit 0; exec node \"$f\" PostToolUse",
+                        "timeout": 10
+                    }
+                ]
+            },
+            {
+                "matcher": "Agent",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "f='/home/owner/.githerd/graphty-monorepo/current/bin/githerd-guard.mjs'; [ -f \"$f\" ] || exit 0; exec node \"$f\" '<tmp>/jobs/issue-12'",
+                        "timeout": 10
+                    }
+                ]
+            }
+        ],
+        "SubagentStart": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "f='/home/owner/.githerd/graphty-monorepo/current/bin/githerd-guard.mjs'; [ -f \"$f\" ] || exit 0; exec node \"$f\" '<tmp>/jobs/issue-12'",
+                        "timeout": 10
+                    }
+                ]
+            }
+        ],
+        "SubagentStop": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "f='/home/owner/.githerd/graphty-monorepo/current/bin/githerd-guard.mjs'; [ -f \"$f\" ] || exit 0; exec node \"$f\" '<tmp>/jobs/issue-12'",
+                        "timeout": 10
+                    }
+                ]
+            }
+        ]
+    }
+}

@@ -219,6 +219,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/remote-logger` | `remote-logger/` | 1.3.11 | Remote logging client and server for browser debugging |
 | `@graphty/compact-mantine` | `compact-mantine/` | 0.8.11 | Compact size variants for Mantine UI components, for dense UIs |
 | `@graphty/visual-review` | `visual-review/` | 0.0.1 | Visual review of any Storybook: capture in GitHub Actions, baselines in git (Git LFS), accept or reject in a local page, a pull request gate; a CLI, configured per repository by `visual-review.config.json` |
+| `@graphty/githerd` | `githerd/` | 0.1.0 | Repository pipeline daemon (private): watches master, pull requests and issues, turns them into jobs for interactive Claude worker sessions it starts in tmux, coordinates every session through MCP tools, posts `githerd/merge` for Mergify, pages the owner only for what only he can do; configured by `githerd.config.json` |
 
 ## Monorepo Structure
 
@@ -236,6 +237,7 @@ graphty-monorepo/
 |-- compact-mantine/      # @graphty/compact-mantine: the shared Mantine theme and components
 |-- remote-logger/        # @graphty/remote-logger: browser console logs to a server and MCP
 |-- visual-review/        # @graphty/visual-review: Storybook capture and baseline review
+|-- githerd/              # @graphty/githerd: pipeline daemon, session coordination MCP tools, CLI
 |-- tools/                # Build scripts
 |   |-- merge-coverage.sh # Coverage report merging
 |   |-- run-tests.sh      # Runs one CI test shard locally, with CI's command
@@ -342,6 +344,7 @@ The `tools/` directory contains build scripts:
 | `test-slots.mjs` | The machine-wide limit on concurrent test runs: every package's vitest config takes a slot through it, and `node tools/test-slots.mjs <command>` holds one for a whole command (each pre-push shard). Off on GitHub Actions and with `GRAPHTY_TEST_SLOTS=0` |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast`. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
+| `push-queue.sh` | Runs a command (normally `git push`) in the machine's push queue: three at once, first come first served, `PUSH_QUEUE_PRIORITY=critical` first; tickets in the main checkout's `tmp/push-queue/`. githerd's pushes use it too |
 | `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks, the SonarQube changed-lines scan), about two minutes. `tmp/push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
 | `prepush-inputs.mjs` | Content hashes for the gate: the checkout's fingerprint, and each test shard's input key (its package and the packages it depends on or reads by relative path, their build outputs, the root files, the Node version). `prepush-tests.mjs` skips a shard that already passed on this branch with the same key and prints `[SKIP]` with when and where; `PREPUSH_RERUN_ALL=1` runs every shard |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
@@ -687,11 +690,11 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 26 test shards on a merge-queue run, a manual dispatch or the release train (a push
+The CI runs 27 test shards on a merge-queue run, a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 16 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
-layout, algorithms-default) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
+layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
 graphty, graphty-storybook, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
@@ -706,6 +709,7 @@ shard. The shards:
 - `graphty`, `graphty-storybook`
 - `remote-logger`
 - `visual-review`
+- `githerd`
 - `compact-mantine`
 - `graphty-element-default`
 - `graphty-element-browser-1` through `graphty-element-browser-5`
@@ -1177,6 +1181,47 @@ two sessions. Until the limit resets, every `gh` call fails with HTTP 403 and me
   which `rate_limit` does not show: when calls fail while it reports requests left, retry every
   10 minutes.
 - A prompt that starts an agent which talks to GitHub carries these rules.
+
+**githerd.** Before any merge, call `githerd_status`: if master is red, do not merge anything
+except the fix for master (pushing to a pull request's branch is fine). To pick up githerd's work, call `githerd_next`: it lists the
+queued jobs you could take, with a snapshot of all work in flight. If you take one, claim it with
+`githerd_claim`, giving your overlap judgment against that snapshot, before any edit for it. Do a
+claimed job's work in a background subagent or workflow, and keep the main conversation free to
+answer githerd's status questions. Still end your reply with ACTION NEEDED as usual when the owner
+must act.
+
+### githerd
+
+githerd is the repository's pipeline daemon: it watches master, pull requests and issues, turns
+them into jobs it hands to interactive worker sessions in its own tmux server, pages the owner only
+for what only he can do, and gives every Claude session the thirteen `githerd_*` MCP tools of
+section 6 of `design/githerd/githerd-design.md` (`githerd_status`, `githerd_next`, `githerd_claim`,
+`githerd_wait`, `githerd_expect`, `githerd_push`, `githerd_rerun`, `githerd_read`, `githerd_done`,
+`githerd_ask_owner`, `githerd_record`, `githerd_mine`, `githerd_verdict`) through the server in
+`.mcp.json`. A master failure githerd cannot classify waits for a Claude session to judge it code
+or environment with `githerd_verdict` before anything is reverted. When a job waits with no free
+worker, githerd messages each session with room once per job ("githerd has work queued ..."): if
+you are free, call `githerd_next` and claim a job; otherwise ignore it. A session has room while it
+is idle, or while the `capacity` it last gave in `githerd_expect` is above the jobs it claimed since.
+When a pull request's CI fails on a head another session pushed, githerd sends each live session in
+this repository a message asking whose it is. If it is yours, call `githerd_mine` with its number
+(or claim its job); otherwise ignore the message. With no answer in 10 minutes githerd offers it as
+a job.
+githerd also infers each pull request's owner from pushes and worktrees, and asks the owner of a
+broken one "are you fixing it?": keep it with `githerd_mine`, give it up with `githerd disown`, or
+it is released to other sessions. A session without the githerd tools answers the same questions
+from its shell, with the command line the message prints (`node <githerd>/bin/githerd.mjs mine
+<pr>` or `... disown <pr>`); the command acts only for the session it runs under.
+While your session holds a job, githerd asks it where the job stands every 15 minutes
+("githerd: status check on <job> ..."). Answer with `githerd_expect`: the job, one line of status as
+`reason`. The question also says whether the shared resources (the push queue, CI runners, the
+test slots) have room: while they do, take as many jobs as you can work in parallel, each in a
+background subagent, and set `capacity` to how many more you can take now (saying in `reason` what
+stops you, if something does); while one is saturated, take none until githerd invites you again.
+A question still unanswered when the next
+one is due puts the job back in the queue, and so does your session ending. So do the job's work in
+a background subagent or workflow, and keep the main conversation free to answer.
+Commands, the MCP server and the owner's one-time prerequisites are in `githerd/README.md`.
 
 ## Claude Session History
 

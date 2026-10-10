@@ -1,0 +1,439 @@
+{
+    "data": {
+        "rateLimit": {
+            "cost": 2,
+            "remaining": 4969
+        },
+        "search": {
+            "issueCount": 3,
+            "nodes": [
+                {
+                    "number": 718,
+                    "title": "perf(graphty-element): tear a whole graph down in linear time",
+                    "mergedAt": "2026-10-02T16:14:33Z",
+                    "mergeCommit": {
+                        "oid": "3e38b709e9452081eb1ee20d6441da676dfd500b"
+                    },
+                    "headRefName": "fix/element-linear-graph-teardown",
+                    "labels": {
+                        "nodes": []
+                    },
+                    "closingIssuesReferences": {
+                        "nodes": [
+                            {
+                                "number": 543
+                            }
+                        ]
+                    },
+                    "files": {
+                        "totalCount": 5,
+                        "nodes": [
+                            {
+                                "path": "graphty-element/src/NodeBehavior.ts"
+                            },
+                            {
+                                "path": "graphty-element/src/managers/DataManager.ts"
+                            },
+                            {
+                                "path": "graphty-element/src/session/commands/doors.ts"
+                            },
+                            {
+                                "path": "graphty-element/test/browser/bulk-teardown.test.ts"
+                            },
+                            {
+                                "path": "graphty-element/test/browser/history-scale.bench.test.ts"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 717,
+                    "title": "fix(graphty): keep notes in graphty-element's session notes",
+                    "mergedAt": "2026-10-02T15:57:55Z",
+                    "mergeCommit": {
+                        "oid": "766a39143de180aab22af06f0cc8dba8b0b27a9c"
+                    },
+                    "headRefName": "fix/app-notes-from-element-session",
+                    "labels": {
+                        "nodes": []
+                    },
+                    "closingIssuesReferences": {
+                        "nodes": [
+                            {
+                                "number": 188
+                            }
+                        ]
+                    },
+                    "files": {
+                        "totalCount": 11,
+                        "nodes": [
+                            {
+                                "path": "graphty/src/components/shell/AppShell.tsx"
+                            },
+                            {
+                                "path": "graphty/src/components/shell/__tests__/AppShell.test.tsx"
+                            },
+                            {
+                                "path": "graphty/src/components/shell/bindings.ts"
+                            },
+                            {
+                                "path": "graphty/src/components/shell/inspector/EdgeInspector.tsx"
+                            },
+                            {
+                                "path": "graphty/src/components/shell/inspector/GraphSummary.tsx"
+                            },
+                            {
+                                "path": "graphty/src/components/shell/inspector/InspectorNotes.tsx"
+                            },
+                            {
+                                "path": "graphty/src/components/shell/inspector/MultiSelectionInspector.tsx"
+                            },
+                            {
+                                "path": "graphty/src/components/shell/inspector/NodeInspector.tsx"
+                            },
+                            {
+                                "path": "graphty/src/components/shell/inspector/__tests__/GraphSummary.test.tsx"
+                            },
+                            {
+                                "path": "graphty/src/components/shell/inspector/__tests__/NodeInspector.test.tsx"
+                            },
+                            {
+                                "path": "graphty/src/test/fakeSession.ts"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "number": 365,
+                    "title": "fix(compact-mantine): accent text contrast, labelled segmented controls, one colour callback",
+                    "mergedAt": "2026-10-02T15:19:50Z",
+                    "mergeCommit": {
+                        "oid": "dc12f9ad4140e01add72dc068137aefcc3604d99"
+                    },
+                    "headRefName": "fix/compact-accent-contrast-segmented-labels-color-callbacks",
+                    "labels": {
+                        "nodes": []
+                    },
+                    "closingIssuesReferences": {
+                        "nodes": [
+                            {
+                                "number": 135
+                            },
+                            {
+                                "number": 136
+                            },
+                            {
+                                "number": 141
+                            }
+                        ]
+                    },
+                    "files": {
+                        "totalCount": 389,
+                        "nodes": [
+                            {
+                                "path": "compact-mantine/README.md"
+                            },
+                            {
+                                "path": "compact-mantine/src/components/CompactColorInput.tsx"
+                            },
+                            {
+                                "path": "compact-mantine/src/components/SegmentedControl.tsx"
+                            },
+                            {
+                                "path": "compact-mantine/src/components/rows/ChartRow.tsx"
+                            },
+                            {
+                                "path": "compact-mantine/src/constants/panel.ts"
+                            },
+                            {
+                                "path": "compact-mantine/src/index.ts"
+                            },
+                            {
+                                "path": "compact-mantine/src/theme/components/controls.ts"
+                            },
+                            {
+                                "path": "compact-mantine/src/theme/components/display.ts"
+                            },
+                            {
+                                "path": "compact-mantine/src/theme/components/navigation.ts"
+                            },
+                            {
+                                "path": "compact-mantine/src/theme/contrast.ts"
+                            },
+                            {
+                                "path": "compact-mantine/src/theme/index.ts"
+                            },
+                            {
+                                "path": "compact-mantine/src/theme/styles/buttons.ts"
+                            },
+                            {
+                                "path": "compact-mantine/src/theme/styles/inputs.ts"
+                            },
+                            {
+                                "path": "compact-mantine/tests/components/CompactColorInput.test.tsx"
+                            },
+                            {
+                                "path": "compact-mantine/tests/components/SegmentedControl.test.tsx"
+                            },
+                            {
+                                "path": "compact-mantine/tests/constants/panel.test.ts"
+                            },
+                            {
+                                "path": "compact-mantine/tests/exports.test.ts"
+                            },
+                            {
+                                "path": "compact-mantine/tests/theme/accent-contrast.browser.test.tsx"
+                            },
+                            {
+                                "path": "compact-mantine/tests/theme/buttons-integration.test.tsx"
+                            },
+                            {
+                                "path": "design/ui/mockups/system/CONTRAST-DIVERGENCE.md"
+                            },
+                            {
+                                "path": "graphty/src/components/shell/panel/SettingsOverlay.tsx"
+                            },
+                            {
+                                "path": "graphty/src/components/shell/panel/__tests__/SettingsOverlay.test.tsx"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlgroup--bleed.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlgroup--bleed.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlgroup--default.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlgroup--default.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlgroup--long-label.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlgroup--long-label.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlgroup--stacked.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlgroup--stacked.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlgroup--with-actions.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlgroup--with-actions.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--a-panel-of-sections.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--a-panel-of-sections.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--right-to-left.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--right-to-left.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--translated.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--translated.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--with-configured-values.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--with-configured-values.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlsubgroup--inside-a-section.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlsubgroup--inside-a-section.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlsubgroup--opened.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-controlsubgroup--opened.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-trailingslot--right-to-left.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-trailingslot--right-to-left.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-trailingslot--what-goes-in-it.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/building-a-panel-trailingslot--what-goes-in-it.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-actionicon--colors.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-actionicon--colors.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-actionicon--default.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-actionicon--default.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-actionicon--loading.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-actionicon--loading.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-actionicon--variants.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-actionicon--variants.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-anchor--default.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-avatar--default.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-avatar--default.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-badge--default.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-badge--default.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-badge--dot.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-badge--dot.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-badge--filled-colors.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-badge--filled-colors.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-badge--filled.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-badge--filled.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-badge--light-colors.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-badge--light-colors.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-badge--light.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-badge--light.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-badge--outline.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-badge--outline.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--colors.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--colors.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--default.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--default.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--filled.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--filled.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--light.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--light.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--loading.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--loading.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--outline.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--outline.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--subtle.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--subtle.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--transparent.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--transparent.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--with-icon.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--with-icon.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-checkbox--checked.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-checkbox--checked.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-checkbox--indeterminate.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-checkbox--indeterminate.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-colorinput--default.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-colorinput--default.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-colorinput--sizes.dark.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-colorinput--sizes.light.png"
+                            },
+                            {
+                                "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-indicator--default.dark.png"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+}

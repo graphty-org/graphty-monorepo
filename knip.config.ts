@@ -42,6 +42,9 @@ const config: KnipConfig = {
                 // Semantic release plugins (used by nx release and child packages)
                 "@semantic-release/changelog",
                 "@semantic-release/git",
+                // The githerd CLI, linked at the root so `pnpm exec githerd` works from any
+                // checkout; nothing imports it
+                "@graphty/githerd",
                 // SonarQube scanner (run as node_modules/.bin/sonar-scanner-npm by tools/sonar/api.mjs)
                 "@sonar/scan",
             ],
@@ -286,6 +289,12 @@ const config: KnipConfig = {
         "visual-review": {
             entry: ["test/**/*.test.mjs"],
             project: ["trusted/**/*.mjs!", "capture/**/*.mjs!", "test/**/*.mjs"],
+        },
+
+        // githerd daemon, launcher and CLI (plain .mjs, no build)
+        githerd: {
+            entry: ["test/**/*.test.mjs"],
+            project: ["bin/**/*.mjs!", "lib/**/*.mjs!", "test/**/*.mjs"],
         },
 
         // compact-mantine package

@@ -96,13 +96,17 @@ async function load(graph: Graph, nodeCount: number, edgeCount: number): Promise
 }
 
 /**
- * Render one frame and read what it cost.
+ * Read what the last frame drawn cost.
+ *
+ * It reads the frame the render loop drew, rather than drawing one more: every caller has waited
+ * for a stable frame, so that frame is the finished picture, and on a software GPU one more frame of
+ * the 10,000-node graph is seconds of rasterising still queued when the test ends, which the next
+ * test's first frame waits behind.
  * @param graph - The graph to measure.
  * @returns The counts, and the frame time for the log.
  */
 function measure(graph: Graph): Counts & { frameMs: number } {
     const { scene } = graph;
-    scene.render();
     const snapshot = graph.getStatsManager().getSnapshot().scene;
     assert.isDefined(snapshot, "the element's stats have scene instrumentation");
 

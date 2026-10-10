@@ -5,7 +5,7 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-10 (round 3 third dry run triaged: 0 fixes; build 26f3bb968 is the round 3 build).
+Last updated: 2026-10-10 (round 2 lessons re-read for round 3 grading; build 26f3bb968 is the round 3 build).
 
 ## Top of mind
 
@@ -265,6 +265,13 @@ Last updated: 2026-10-10 (round 3 third dry run triaged: 0 fixes; build 26f3bb96
   columns" for Attributes without reading `attributeRows`; the app already expects run results.
 
 ## Thinking
+
+- **2026-10-10, round 2 re-read before round 3 sessions:** the notes already held every round 2
+  decision; nothing to change. Three lessons to apply when grading round 3: (1) prompt words make
+  behavior ("stand out", "who was first before", "make sure"), so discount what the prompt asks
+  for; (2) hold opinion-only problems one severity level down, as the criteria ask (round 2 forgot);
+  (3) a route that worked under a leak is not credited until a clean run, but a problem found under
+  a leak stands.
 
 - **2026-10-09, what round 1 taught about the study itself:** a dry run that clears only the key's
   routes leaves participants to find detour defects; the cheapest check is the previous round's

@@ -5,37 +5,39 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-09 (tier 2 round 2 critique after the sessions and skeptics).
+Last updated: 2026-10-10 (tier 2 round 2 closed: insights and decisions read).
 
 ## Top of mind
 
-1. (2026-10-09, round 2 critique) Yes, a dry run happened; about 30 of ~355 recorded problems were
-   build faults, none above severity 2, and 12 of the 30 sit on the one detour no dry run walked:
-   styling a selection. Every next dry run walks a selection styled (width, color, layer name).
-2. (2026-10-09) Top visual fix: "+" on a layer's Line starts at the element default (gray A9A9A9,
-   width 8), which is exactly what every tie already draws, so adding it changes nothing.
-   `graphty/src/workspace/style/row.ts` `startingValue`. App choice, not an element default change.
-3. (2026-10-09) A selection layer is named by its count ("13 edges"); the key then says nothing.
-   Name it by the rule the find box accepted. `StyleTab.tsx` `selectionName`.
-4. (2026-10-09) The doubling door: "makes 20 nodes and 82 edges" is footer small print under a blue
-   Load. Needs an element fact (edges that repeat an existing tie) and an app warning line.
-5. (2026-10-09) Participants read the facilitator's task file this round: a route that worked is
-   weak evidence; a problem found anyway is robust. Weigh my findings that way.
-6. (2026-10-09) Do NOT touch now: out-of-date mark (0 of 8 misread), halo and the two selection
-   looks (element, deferred), label overlap (element, too big), polish bundle.
-7. (2026-10-09, round 2 walk) Selection halo is a translucent disc that tints the node behind it;
-   next element fix is an opaque ring outside the silhouette (`round-2/expert/visual/path/07.png`).
-8. (2026-10-09) Selection has two looks: yellow halo on nodes, blue rails on edges.
-9. (2026-10-09) The two-table source's inspector lacks the "..." menu (`twotables/11.png`).
-10. (2026-10-09) Inspector's selected-edges list cuts long names so rows read identical.
-11. (2026-10-09) Parked polish: three left edges in the right panel, ragged Top 10 digits, header
-    colors, label-vs-value emphasis rule. One consistency pass later.
-12. (2026-10-09) Canvas key does not avoid what is drawn under it; the layout is unseeded, never
-    cite a specific collision as a count.
-13. (2026-10-09) Edge width reading thinner than its number: sessions now show the reader's cost
-    (`r2-s14/15.png`); the starting value, not the renderer, is the fix.
-14. (2026-10-09) Device scale 1 screenshots break letter spacing; confirm at scale 2.
-15. (2026-10-09) Walk detours, not only answer-key routes.
+1. (2026-10-10) Round 3 watch: does a "+" Color or Width on a selection's layer now start at the
+   highlight look (`session.styles.highlightStyle`, app black, 3x width) and stay visible after the
+   selection clears? Pixel-check it myself on the frozen build; this was my top round 2 fix.
+2. (2026-10-10) Round 3 watch: a rule selection's layer is named by its rule ("minutes >= `10`");
+   check the key ellipsizes it and shows it whole on hover, and that backticks do not read as noise.
+3. (2026-10-10) Round 3 watch: the doubling warning line sits above Load in body text with Replace
+   beside it -- check it is not the smallest text on the page and Load is not still the only blue.
+4. (2026-10-10) Round 3 watch: the find box's "No match" plus example line, and the rule as Enter's
+   option -- the marked option must look like every other Enter option (one idea, one look).
+5. (2026-10-10) Round 3 watch: extra-small checkbox's invisible 24 px hit area must not change the
+   drawn box or steal the next 20 px row's click.
+6. (2026-10-10) Words at rest must go down (bar 9 b failed: every tier 2 screen rose). Any visual
+   proposal I make adds no word at rest; prefer weight and position over a new label.
+7. (2026-10-10) Round 2 evidence: routes that worked are weak (participants read the facilitator
+   file); problems found anyway are robust. Only cite round 2 problems, never round 2 successes.
+8. (2026-10-10) Edge width is not a renderer bug: W draws as 10 x W / d px. It is on the owner's
+   breaking list; the app must never scale widths to hide it.
+9. (2026-10-10) Still severity 3 and not fixed: drawn names covering names and ties
+   (`r2-s52/02.png`, "Stadium" over its tie). graphty-element, reported as a class, unseeded layout.
+10. (2026-10-10) Held, re-measure clean before touching: out-of-date mark, Replace's place,
+    "Higher means" at load, "Components 1" under a filter, halo, selection two-looks.
+11. (2026-10-10) Dry runs now start from pilot routes, not last round's detours; when I walk,
+    walk where pilots went plus every control on the screen, and fix before freeze.
+12. (2026-10-10) "Stand out" removed from T22/T24 prompts: expect fewer styling detours, so the
+    styling fix may be met only by the dry run -- make sure it walks it.
+13. Parked polish: three left edges in the right panel, ragged Top 10 digits, header colors,
+    label-vs-value rule, two-table inspector missing "...", inspector edge list cutting names.
+14. Device scale 1 screenshots break letter spacing; confirm at scale 2.
+15. Walk detours, not only answer-key routes.
 
 ## Priorities and values
 
@@ -58,6 +60,20 @@ Last updated: 2026-10-09 (tier 2 round 2 critique after the sessions and skeptic
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- 2026-10-10 (round 2 closed): My "+" starting-value fix was adopted in a better form: not an app
+  choice of color, but the element's own highlight look exposed additively
+  (`highlightStyle(target)`), so the app invents no graph value. Accept: it keeps "one idea, one
+  look" (a styled selection looks like the selection did).
+- 2026-10-10: Rule-named selection layer adopted as I proposed (`selectionName`, rule without "=").
+- 2026-10-10: Doubling warning adopted as element fact (repeat-edge count from `data.prepare()`)
+  plus one app line and a Replace button beside Load. App file-name matching rejected; agreed.
+- 2026-10-10: Find-box fix ships as one path (example line after "No match", suggestion with "=",
+  shown rule becomes Enter's option); "Select where..." on a column held unless 3+ of 8 still stall.
+- 2026-10-10: Label overlap, bare numbers and edge-width units stay on the owner's list; no app
+  font, seed or offset workaround. Agreed: an app fix would hide an element defect.
+- 2026-10-10: Polish bundle, halo and out-of-date mark still held so round 3 measures one change
+  per problem.
 
 - 2026-10-09 (round 2 walk): Out-of-date mark lowered from 3 to 2: the inspector strip now holds a
   blue primary Rerun, the panel's most saturated element, so the state is no longer the quietest
@@ -105,6 +121,12 @@ Last updated: 2026-10-09 (tier 2 round 2 critique after the sessions and skeptic
 
 ## Tried: worked / did not work
 
+- 2026-10-10 worked: proposing one function-sized change per confirmed problem; all three of my
+  round 2 proposals were adopted. Reading the element first turned up a better owner (the element
+  already had a neutral highlight look nobody could read).
+- 2026-10-10 did not work: the round 2 study leaked the task file; my reading of which routes
+  "worked" must be discounted, and my severity was not held one level down for opinion-only items.
+
 - 2026-10-09 did not work (again): the dry run walked styling a run, not styling a selection, and
   participants went the unwalked route; the first dry run had even ruled width 8 "works as designed".
   A triage ruling made without a reader's eyes is provisional.
@@ -146,6 +168,8 @@ Last updated: 2026-10-09 (tier 2 round 2 critique after the sessions and skeptic
   designers too.
 
 ## Sources
+
+- `design/ui/studio/tier2/rounds/round-2/insights.md`, `decisions.md` (round 3 change list)
 
 - `design/ui/studio/tier2/criteria.md` (bar 8 screens, bar 10 scoring)
 - `design/ui/studio/tier2/answers.md` (success paths)

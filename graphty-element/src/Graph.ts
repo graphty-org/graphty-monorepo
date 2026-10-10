@@ -125,7 +125,7 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node } from "./Node";
-import { pickNodeId } from "./NodeBehavior";
+import { pickNodeId, pointerEventTime } from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -3463,14 +3463,16 @@ export class Graph implements GraphContext {
             }
 
             if (pointerInfo.type === PointerEventTypes.POINTERDOWN) {
-                clickStartTime = Date.now();
+                clickStartTime = pointerEventTime(pointerInfo.event);
                 clickStartPos = {
                     x: this.scene.pointerX,
                     y: this.scene.pointerY,
                 };
             } else if (pointerInfo.type === PointerEventTypes.POINTERUP) {
                 // Check if this was a click (short duration, minimal movement)
-                const duration = Date.now() - clickStartTime;
+                // From the events' own stamps: a quick click whose pointerup waited behind a busy
+                // frame is still a click (see pointerEventTime).
+                const duration = pointerEventTime(pointerInfo.event) - clickStartTime;
                 const dx = this.scene.pointerX - clickStartPos.x;
                 const dy = this.scene.pointerY - clickStartPos.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
@@ -6154,8 +6156,13 @@ export class Graph implements GraphContext {
 
     /**
      * Enable AI-powered natural language control of the graph.
+     *
+     * `provider: "webllm"` runs a model in the browser: install the optional package
+     * `@mlc-ai/web-llm`; the model downloads on the first command.
      * @param config - AI configuration including provider and optional API key
      * @returns Promise resolving when AI is ready
+     * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when `provider` is `"webllm"` and
+     * `@mlc-ai/web-llm` is not installed.
      * @example
      * ```typescript
      * // Enable with mock provider (for testing)
@@ -6175,10 +6182,18 @@ export class Graph implements GraphContext {
         // Dynamically import to avoid loading AI code when not needed
         const { AiManager } = await import("./ai/AiManager");
 
+        // The in-browser provider loads asynchronously, and only when it is picked. Built before
+        // the old assistant goes, so a missing package leaves the current one in place.
+        let { providerInstance } = config;
+        if (!providerInstance && config.provider === "webllm") {
+            const { loadWebLlmProvider } = await import("./ai/providers");
+            providerInstance = await loadWebLlmProvider(config.model);
+        }
+
         // Enabling again replaces the assistant: the previous one is disposed, not leaked.
         this.aiManager?.dispose();
         this.aiManager = new AiManager();
-        this.aiManager.init(this, config);
+        this.aiManager.init(this, { ...config, providerInstance });
     }
 
     /**

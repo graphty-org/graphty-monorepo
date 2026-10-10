@@ -16,36 +16,39 @@ served at `/?next`.
 
 ## Top of mind
 
-1. (2026-10-09) A scripted dry run only proves the routes someone thought of. Rounds 1 and 2 both
-   lost most build faults to the one detour nobody listed (round 2: styling a selection, 12 of
-   ~30 faults). Before round 3: two or three throwaway pilot sessions on the frozen build, then
-   script whatever routes they actually took, plus every control on each task screen by keyboard.
-2. (2026-10-09) The study tool is still the largest fault: 13 of 16 sessions read tasks.md. Round
-   3 does not launch until real.mjs refuses a folder without its own briefing and a planted-leak
-   test proves it. Round 2 passes for new routes are not credited.
-3. (2026-10-09) A preflight that claims a script exists must run it (bar 10's clipped-text and
-   raw-string scripts were claimed and absent). Same rule as round 6: a check that checks nothing
-   fails.
-4. (2026-10-09) "Width 8 draws a hairline" is an element units question first: EdgeMesh says
-   edge.width is screen pixels, yet 8 draws thin. Script it before any app starting-value change;
-   an app that doubles a width to make it visible is a workaround.
-5. (2026-10-09) Find box: one change per round or the result cannot be attributed. Round 3 gets:
-   the "=" bug in the backtick correction, Enter runs the element's own correction, and the
-   existing example line after a miss. Not column rows in plain mode, not "Select where".
-6. (2026-10-09) Bare numbers in rules: refused-to-accepted changes what an existing call does --
-   owner list. Not an opt-in `bareNumbers` flag: a flag for a capability every consumer wants is a
-   choice nobody would set differently.
-7. (2026-10-09) Duplicate-tie Add: element reports the duplicate count (additive); the app shows
-   one line and a Replace door only when the count is above 0. No file-name matching in the app.
-8. Round 2 watch, still held: each change adds at most one door; words at rest only fall.
-9. (2026-10-09) Drawn-name overlap is an element issue left failing on purpose; no app font-shrink
-   or seed.
-10. (2026-10-09) Expert findings confirm only by a script or a second specialist on the capture;
-    a withdrawn finding must be withdrawn everywhere it is cited (scores.md bars 8 and 10).
-11. Rounds are one model playing every participant: a failure is strong, a pass weak, a scripted
-    repro or code cause solid. Never blame load: name the mechanism.
-12. (2026-10-06) Fix by removing, not adding. One door per job; reuse the "..." header menu.
-13. (2026-10-06) Overfitting guard: task words never echo a fix's screen words ("stand out").
+1. (2026-10-10) Round 3 does not start until the study is fixed and proven by a planted failure:
+   session folders outside the studio tree, --start refuses a folder without its own briefing,
+   transcripts scanned for facilitator reads (void, re-run). Round 2 leaked tasks.md (13 of 16
+   follow-ups answered early), so a route that worked proves little; a problem found anyway holds.
+2. (2026-10-10) Uncredited until a clean re-run: weight meaning at load, Replace in the source's
+   "..." menu, the find box's rule hint, plus T17/T18 follow-ups and r2-s05. Do not move or reword
+   them before that re-run.
+3. (2026-10-10) Dry run = pilots' real routes, every control on each screen by keyboard, and the
+   freeze waits for the fix. Watch the round 3 preflight list pilot routes, round 2 detours and the
+   two disputed behaviors (half-made step on reselect, empty-canvas click with a run selected)
+   with script results, not claims.
+4. (2026-10-10) A preflight claim needs its script run against a planted fault (bars.mjs had no bar
+   10 counts). Same rule as round 6: a check that checks nothing fails.
+5. (2026-10-10) Selection styling starts at highlightStyle() from the element (additive), not an
+   app palette or a scaled width. Watch: the app must not double or scale widths; edge width units
+   stay on the owner's list. Pixel check after clearing the selection is the acceptance.
+6. (2026-10-10) Find box ships three parts as one path (example after a miss, "=" in the
+   suggestion, Enter runs the shown rule) and is credited as one. "Select where..." only if 3+ of 8
+   still stall. Column rows in plain mode stay rejected.
+7. (2026-10-10) Duplicate Add: element reports the repeat count; app shows one line and Replace
+   beside Load only when the count is above 0. Watch that nothing appears at rest.
+8. (2026-10-10) Bar 9 (b) failed from round 2's own word fixes: words at rest only fall. Every
+   change in round 3 adds at most one door and no word at rest.
+9. (2026-10-10) Prompts must not invite the fix they test ("stand out" made the styling detour and
+   the "selection does not last" finding). T22/T24 reworded; compare them on outcome only.
+10. Bare numbers in rules and edge width units: breaking, owner list. No opt-in flag for a
+    capability no consumer would turn off.
+11. Drawn-name overlap is the element's label placement: left failing on purpose; no app font,
+    seed or offset.
+12. Rounds are one model playing every participant: a failure is strong, a pass weak, a scripted
+    repro or code cause solid. Never blame load: name the mechanism. Tool click-by-name ambiguity
+    caused r2-s17/s18 faults: refuse two-match clicks.
+13. (2026-10-06) Fix by removing, not adding. One door per job; reuse the "..." header menu.
 14. (2026-10-06) Graph logic and codes in the element, words in the app; check existing API first.
 15. (2026-10-08) Budget words where tier 2 grows: inspector, Data place, neighbor list.
 
@@ -176,6 +179,19 @@ served at `/?next`.
   changes); file-name matching for Replace; opt-in bareNumbers flag; Hops grouping before the
   element has a depth fact. Reason: one attributable change per problem, element first.
 
+- 2026-10-10 -- Tier 2 round 2 closed (decisions.md). Adopted my positions: briefing-only tool fix
+  first and rated severity 4; pilot-routed dry run with fix-before-freeze; find-box three-part path;
+  duplicate count from the element with one Replace door; layer named by its rule; focus fixes;
+  checkbox hit area in compact-mantine; aliases for Shortest path; re-announce; no palette or 2x
+  width in the app; no column rows; no bareNumbers flag; no Hops grouping before a depth fact.
+  Went further than me: the leak fix moves session folders out of the studio tree and scans
+  transcripts (a briefing check alone would not have stopped r2-s05 reading upward -- right, I
+  under-scoped it). Width resolved without the units change: highlightStyle() exposes the look
+  highlight() already paints (black, 3x width). Units test showed width W draws 10W/d px, so 8 is
+  under 2 px on a framed graph -- my "element units question first" held. Also decided: weighted
+  path row shows "<column> <total>"; "Filter to neighbors" is a plain command, off only on the
+  step checkbox; "PageRank, full graph" only under a filter; "Components 1" held for attribution.
+
 ## Tried: worked / did not work
 
 - 2026-10-06 -- Round 1 close-out: holding the Degree cue and my Summary-names idea back in favor of
@@ -187,34 +203,12 @@ served at `/?next`.
   Degree cue": worked. T12 failed in round 1, passed 8 of 8 in round 2 (0.9x path), through the
   Degree row that runs the same command. Taught: one command with one visible door beat adding a
   list. The remaining cost is a hit-area bug (chevron outside the button), not the design.
-- 2026-09-06 -- v1's suggestion strip, "Try it" boxes, auto-generated summaries and novice text:
-  did not work. The owner called it text-heavy and cluttered; later the "muddled mess of v1".
-  Taught: help-for-beginners text is the clutter.
-- 2026-09-28 -- Copying Figma literally (top-right Export, avatar): did not work. Owner: follow our
-  own ontology where Figma does not fit. Taught: divergence needs a graph fact, but so does
-  convergence when Figma's placement serves a different object model.
-- 2026-09-29 -- Round 5 ran on mocks where round 4's decisions were not drawn: wasted round,
-  re-measured the old design. Taught: decisions must be drawn before a round runs (preflight).
-- 2026-09-29 -- Round 6 ran with a failed gate and a check that inspected 0 pages and passed:
-  inflated ease (+0.65), contaminated undo comparison (Esc bug reset four sessions). Taught: a check
-  that checks nothing must fail; report the weakest-passing bar with its caveat or not at all.
-- 2026-09-29 -- Removing the Weight role and "Change..." from the load: the clearest round 6 result
-  (it took 27 wrong clicks, 15 of 16 on one prompt). Worked as a removal -- but the owner later
-  reversed the substance (weight is defined at load, 2026-09-30). Taught: a removal that wins a
-  study can still lose to the owner's model; record both.
-- 2026-10-02 -- Round 8: one File list from the main menu and the project-name menu restored after
-  the tree task fell to 19% without it; then 90% direct. Worked. Taught: deleting a conventional
-  door is not always simplification.
-- 2026-10-02 -- Round 8 label "+" with "Show labels" first: did not work (12 picked it, it changed
-  nothing, 10 stopped there believing names were on). Taught: a control whose words match the task
-  but whose effect is invisible is a severity-4 trap.
-- 2026-10-02 -- Neighborhood that reported "Javert and 17 neighbors" without names: 0 of 12.
-  Taught: a count with no names behind it does not answer "who".
-- 2026-10-02 -- Round 8 pattern: first clicks 87%, tree correctness 99.7%, yet tasks failed one step
-  later. Taught: the places are mostly right; failures are in what the control does next, so test
-  end states, not first clicks.
-- 2026-10-02 -- Tiering the tasks (60% of sessions on tier 1, first-time personas first): worked as
-  focus; showed tier 2 at 96% while tier 1 was 75%. Taught: report successes too (owner asked).
+- 2026-09-06 to 2026-10-02 (summarized 2026-10-10) -- Did not work: v1 help text and suggestion
+  strip (clutter); copying Figma literally (follow our ontology); rounds on undrawn decisions or a
+  check that inspected 0 pages (wasted, inflated); "Show labels" that changed nothing (severity-4
+  trap); counts with no names (0 of 12). Worked: removing Weight/"Change..." at load (but the owner
+  later reversed the substance); restoring a conventional File list; tiering tasks. Taught: test
+  end states, not first clicks; a removal that wins a study can still lose to the owner's model.
 
 - 2026-10-06 -- Round 1 on the real app: first real-build study. Worked: no false "done" (0 of
   29), loading, ranking, groups, save/reopen, legend in exported picture. Did not work: the study
@@ -244,6 +238,11 @@ served at `/?next`.
   unlisted detour (selection styling) or for participant isolation (tasks.md read). The keyboard
   walk found the Escape fault and handed it on instead of fixing it. Taught: a dry run finds,
   the freeze must wait for the fix.
+
+- 2026-10-10 -- Round 2 close: my "units question first" on width worked (a units test settled it
+  before any app value change; the app reuses the element's highlight look instead). My leak fix
+  was too narrow (briefing refusal only); the director's out-of-tree folders plus transcript scan
+  is the real fix. Taught: a leak fix must block the read path, not just supply the right file.
 
 ## Thinking
 
@@ -287,7 +286,14 @@ served at `/?next`.
   trails by one round. Pilots from fresh participants find the next round's detours cheaply; the
   scripted list should be their output, not the designers' guess.
 
+- (2026-10-10) Round 3 risk: three find-box parts credited together cannot tell which helped; that
+  is accepted because they are one path, but if T22 still stalls, do not add "Select where" and
+  more find hints at once. Second risk: the reworded T22/T24 prompts change the task, so any step
+  comparison with round 2 is invalid; watch the scores for one.
+
 ## Sources
+
+- `design/ui/studio/tier2/rounds/round-2/decisions.md`, `insights.md` (2026-10-10)
 
 - `design/ui/studio/tier2/rounds/round-2/insights.md`, `scores.md`, `preflight.md`, the eight
   role proposals (2026-10-09)

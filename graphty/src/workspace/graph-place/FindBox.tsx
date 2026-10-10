@@ -530,7 +530,10 @@ export function FindBox(): React.JSX.Element {
     }
 
     const showLine =
-        found !== null && (options.length === 0 || isRule || ruleOption !== null) && refusal === null && emptyLine !== null;
+        found !== null &&
+        (options.length === 0 || isRule || ruleOption !== null) &&
+        refusal === null &&
+        emptyLine !== null;
 
     return (
         <div className="ws-find">

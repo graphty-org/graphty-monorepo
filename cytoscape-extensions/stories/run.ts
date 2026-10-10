@@ -4,7 +4,6 @@
  * stories and the galleries.
  */
 
-import { DATASETS } from "@graphty/graph-samples";
 import type { Collection, Core, LayoutOptions, Layouts, NodeCollection, NodeSingular } from "cytoscape";
 
 import { ASYNC_ALGORITHM_NAMES, type Backend, type ExportFormat } from "../src/index.js";
@@ -432,11 +431,6 @@ export async function runAlgorithm(cy: Core, algorithm: string, run: AlgorithmRu
 
 // ---------------------------------------------------------------------------------------------------------------
 // Graphs in and out
-
-/** The bundled datasets, smallest first; the hosted ones are downloads and stay out of the snapshots. */
-export const BUNDLED_DATASETS = DATASETS.filter((d) => d.hosting !== "remote")
-    .sort((a, b) => a.nodes - b.nodes)
-    .map((d) => d.name);
 
 export const CPU_LAYOUT: Pick<Outcome, "ran" | "detail"> = {
     ran: "cpu",

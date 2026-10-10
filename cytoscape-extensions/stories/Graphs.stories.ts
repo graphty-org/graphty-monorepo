@@ -10,9 +10,9 @@ import { DATASETS } from "@graphty/graph-samples";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
 import type { ExportFormat, GeneratorName } from "../src/index.js";
-import { FORMATS, GENERATOR_PRESETS, presetWithSeed } from "./catalog.js";
+import { BUNDLED_DATASETS, FORMATS, GENERATOR_PRESETS, presetWithSeed } from "./catalog.js";
 import { networkArgs, renderDemo, type RunArgs } from "./demo.js";
-import { BUNDLED_DATASETS, colorBy, counts, CPU_LAYOUT, placeForAlgorithm, roundTrip } from "./run.js";
+import { colorBy, counts, CPU_LAYOUT, placeForAlgorithm, roundTrip } from "./run.js";
 
 /** Hides the network controls the frame defines but these stories do not use. */
 const HIDDEN = Object.fromEntries(

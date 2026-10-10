@@ -113,7 +113,7 @@ The algorithms that have a GPU implementation also have an `...Async` twin, such
 ## Try it
 
 - [Force simulations demo](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-layouts--force-simulations): run ForceAtlas2 and the other simulations on graphs from 100 to 50,000 nodes.
-- [Layout gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery--layouts): every layout side by side on small graphs.
+- [Layout gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-layouts--overview): every layout side by side on small graphs.
 
 ## Next
 

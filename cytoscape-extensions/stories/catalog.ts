@@ -1,7 +1,9 @@
 /**
- * What the demo offers: every layout, every algorithm (grouped as the stories group them), and a preset for every
- * generator. Data only, so test/demo-catalog.test.ts can check that nothing the extension registers is missing.
+ * What the demo offers: every layout, every algorithm (grouped as the stories group them), a preset for every
+ * generator, the bundled datasets and the formats, and the gallery pages built from them. Data only, so test/demo-catalog.test.ts can check that nothing the extension registers is missing.
  */
+
+import { DATASETS } from "@graphty/graph-samples";
 
 import { GENERATOR_OPTION_NAMES } from "../src/algorithm-options.js";
 import type { ExportFormat, GeneratorName, GeneratorOptions } from "../src/index.js";
@@ -254,3 +256,71 @@ export const FORMATS = Object.keys({
     xgmml: 0,
     cx2: 0,
 } satisfies Record<ExportFormat, 0>) as ExportFormat[];
+
+/** The bundled datasets, smallest first; the hosted ones are downloads and stay out of the snapshots. */
+export const BUNDLED_DATASETS = DATASETS.filter((d) => d.hosting !== "remote")
+    .sort((a, b) => a.nodes - b.nodes)
+    .map((d) => d.name);
+
+/**
+ * One gallery page per algorithm group.
+ * @returns the algorithms of each group
+ */
+function algorithmPages(): Record<AlgorithmGroupName, readonly string[]> {
+    const pages = {} as Record<AlgorithmGroupName, readonly string[]>;
+    for (const [group, g] of Object.entries(ALGORITHM_GROUPS)) {
+        pages[group as AlgorithmGroupName] = g.algorithms;
+    }
+    return pages;
+}
+
+/**
+ * The gallery pages in sidebar order, each with its tiles. Every page is a Storybook folder, Gallery/<page>, holding
+ * an Overview story with every tile and one story per tile; test/demo-catalog.test.ts writes those story files from
+ * this list.
+ */
+export const GALLERY_PAGES = {
+    Layouts: [...SIMULATION_LAYOUTS, ...STATIC_LAYOUTS],
+    ...algorithmPages(),
+    Generators: Object.keys(GENERATOR_PRESETS) as GeneratorName[],
+    Datasets: BUNDLED_DATASETS,
+    Formats: FORMATS,
+} satisfies Record<string, readonly string[]>;
+export type GalleryPage = keyof typeof GALLERY_PAGES;
+
+/** Story names that the spelling rules below would get wrong. */
+const TILE_NAMES: Partial<Record<string, string>> = {
+    forceatlas2: "ForceAtlas2",
+    bfs: "BFS",
+    arf: "ARF",
+    hits: "HITS",
+};
+
+const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * The Storybook folder of a gallery page: "PathsAndTrees" is "Gallery/Paths And Trees".
+ * @param page - the page
+ * @returns the story title
+ */
+export function galleryTitle(page: GalleryPage): string {
+    return `Gallery/${page.replace(/([a-z])([A-Z])/g, "$1 $2")}`;
+}
+
+/**
+ * The story name of one tile: a layout as a word ("Kamada-Kawai"), an algorithm as its name ("PageRank"), and a
+ * generator, dataset or format as the name the extension takes ("erdos-renyi", "karate", "graphml").
+ * @param page - the page
+ * @param key - the tile: a layout, algorithm, generator, dataset or format name
+ * @returns the name
+ */
+export function tileName(page: GalleryPage, key: string): string {
+    const name = TILE_NAMES[key];
+    if (name !== undefined) {
+        return name;
+    }
+    if (page === "Layouts") {
+        return key.split("-").map(capitalize).join("-");
+    }
+    return page in ALGORITHM_GROUPS ? capitalize(key) : key;
+}

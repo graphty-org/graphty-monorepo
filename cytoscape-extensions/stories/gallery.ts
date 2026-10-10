@@ -22,9 +22,10 @@ export interface Tile {
  * Renders the tiles in a grid and runs them in order.
  * @param intro - one line above the grid saying what the gallery shows
  * @param tiles - the tiles
+ * @param full - one tile filling the window instead of a grid of small ones
  * @returns the story root
  */
-export function renderGallery(intro: string, tiles: Tile[]): HTMLElement {
+export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLElement {
     retireAll();
     const root = document.createElement("div");
     root.style.cssText = "padding:12px;font:12px system-ui,sans-serif;color:#333;";
@@ -32,7 +33,7 @@ export function renderGallery(intro: string, tiles: Tile[]): HTMLElement {
     head.style.cssText = "margin-bottom:8px;";
     head.textContent = intro;
     const grid = document.createElement("div");
-    grid.style.cssText = "display:grid;grid-template-columns:repeat(4,1fr);gap:8px;";
+    grid.style.cssText = `display:grid;grid-template-columns:repeat(${full ? 1 : 4},1fr);gap:8px;`;
     root.append(head, grid);
 
     const cells = tiles.map((t) => {
@@ -43,7 +44,8 @@ export function renderGallery(intro: string, tiles: Tile[]): HTMLElement {
             "padding:4px 6px;font:600 11px ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
         title.textContent = t.title;
         const canvas = document.createElement("div");
-        canvas.style.cssText = "height:170px;";
+        // a full tile leaves room for the line above it, its heading and its status line
+        canvas.style.cssText = full ? "height:calc(100vh - 140px);" : "height:170px;";
         const status = document.createElement("div");
         status.dataset.testid = "status";
         // a fixed height, so a long line never moves the tiles below it

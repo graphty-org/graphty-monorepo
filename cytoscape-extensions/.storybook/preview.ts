@@ -7,8 +7,24 @@ const preview: Preview = {
             expanded: true,
         },
         options: {
+            // the gallery first; within a page, the Overview and then its tiles in catalog order (the export order)
             storySort: {
-                method: "alphabetical",
+                order: [
+                    "Gallery",
+                    [
+                        "Layouts",
+                        "Centrality",
+                        "Communities",
+                        "Paths And Trees",
+                        "Structure",
+                        "Flows And Cuts",
+                        "Link Prediction",
+                        "Generators",
+                        "Datasets",
+                        "Formats",
+                    ],
+                    "Demo",
+                ],
             },
         },
     },

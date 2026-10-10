@@ -119,17 +119,17 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
         async (input: string): Promise<AiCommandOutcome> => {
             if (!enabled) {
                 const error = new Error("AI Manager not initialized");
-                return { success: false, message: error.message, error };
+                return { success: false, message: error.message, code: "AI_NOT_ENABLED", params: {}, error };
             }
 
             setError(null);
 
             try {
-                const { success, message, llmText } = await enabled.aiCommand(input);
-                return { success, message, llmText };
+                const { success, message, llmText, code, params } = await enabled.aiCommand(input);
+                return { success, message, llmText, code, params };
             } catch (err) {
                 const error = err instanceof Error ? err : new Error(String(err));
-                return { success: false, message: error.message, error };
+                return { success: false, message: error.message, code: "AI_FAILED", params: {}, error };
             }
         },
         [enabled],

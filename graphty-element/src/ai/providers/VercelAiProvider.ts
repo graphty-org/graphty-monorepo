@@ -4,7 +4,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, type LanguageModel, type ModelMessage, streamText, type Tool } from "ai";
 
 import { aiProviderDescriptor, type AiProviderId } from "../../catalog/ai";
-import { toSafeError } from "../safeError";
+import { API_KEY_MISSING_ERROR, toSafeError } from "../safeError";
 import type {
     LlmProvider,
     LlmResponse,
@@ -72,7 +72,9 @@ export class VercelAiProvider implements LlmProvider {
      */
     private getModel(): LanguageModel {
         if (!this.apiKey) {
-            throw new Error(`API key not configured for ${this.name}`);
+            const error = new Error(`API key not configured for ${this.name}`);
+            error.name = API_KEY_MISSING_ERROR;
+            throw error;
         }
 
         switch (this.providerType) {

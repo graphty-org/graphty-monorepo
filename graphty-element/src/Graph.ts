@@ -6233,6 +6233,8 @@ export class Graph implements GraphContext {
             return {
                 success: false,
                 message: "AI control is not enabled. Call enableAiControl() first.",
+                code: "AI_NOT_ENABLED",
+                params: {},
             };
         }
 

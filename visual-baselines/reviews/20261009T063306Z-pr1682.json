@@ -1,0 +1,83 @@
+{
+  "version": 2,
+  "pr": 1682,
+  "subject": {
+    "builtMerge": "2124431d61ece2445f007b555aacd4b5e23565d5",
+    "head": "fe771dca30f779a45f4ab67c70b0ffb60f981576",
+    "runId": 37880926936,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 9V45 96-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "2124431d61ece2445f007b555aacd4b5e23565d5"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-algorithms--paths-and-trees-2000-nodes.png",
+      "from": null,
+      "to": "6a0396404de2441cface51d1602f5bd2d42046fcc61d72bcdc82d1db9ce574c2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-graphs--dataset-football.png",
+      "from": null,
+      "to": "4f3563fb0a4e83c7d9ddb82fbfdcd1e19519e78c43b6ba2666f1b16ee66970ab",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-graphs--export-and-import-gexf.png",
+      "from": null,
+      "to": "e99fbfba2ad7d4efbe0c6ea1088852553d111bc060dbc2aee55ff7ebf9b88506",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-graphs--export-and-import.png",
+      "from": "93fa21c90daab8c70047115843f0e170d6042306ca092f1d17f6b5c2d01c65b1",
+      "to": "ea31f33cb24766ef7d9d8b2abff251ccc97bf7f716edbe9f28e1618ac169af3f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-layouts--circular-watts-strogatz-2000-nodes.png",
+      "from": null,
+      "to": "410162ff96335743b04bec1443480cd67e6848bcbc8ed149f6e2d82ed4848c28",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-layouts--force-atlas-2-at-2000-nodes.png",
+      "from": null,
+      "to": "9ba5885596847231eedba4ebc0a9cd780ba029f39ab77b0db4218f8aa35cb7ed",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-layouts--fruchterman-reingold.png",
+      "from": null,
+      "to": "04f3ef68c3995c1337ada3e830bd92862144e9b4a3ca14a3c07d5a0639c2edd0",
+      "reason": null
+    }
+  ],
+  "rejects": [
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-algorithms--centrality-2000-nodes.png",
+      "capture": "fa384b8877e439e858ef5ac8a161904b6694c70c103a4ecd1ca9b5f04b378cc3",
+      "reason": "the graph is still a hairball, which is what this PR was supposed to fix"
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/demo-algorithms--communities-2000-nodes.png",
+      "capture": "cacd13e96fcb62b9b457dd299049c815cb241fda14a794856bbe9438368c8c57",
+      "reason": "nodes overlap so heavily that they are just blobs of color"
+    }
+  ],
+  "reviewedAt": "2026-10-09T06:33:06.404Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoib0I5RDJ0MllmRlJ0MTgxSTgtc3A5R2J0RkJKWms1Mlp6NDJaRXIwbVg2QSIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEQCIBwYvh5b9xi37Mris61aeZSQmBQPmhM76P4Cl5XUyQB7AiAZJrNUjiDdwDR3GAVzvElM1i1I7WC7n59Jh4Aienvhlw"
+  }
+}

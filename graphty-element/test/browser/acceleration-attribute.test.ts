@@ -31,12 +31,6 @@ import {
 /** The event the element publishes every time the acceleration status changes. */
 type CapabilitiesEvent = CustomEvent<{ capabilities: AccelerationCapabilities }>;
 
-/** How long the element needs to connect, finish its first update and settle its probe. */
-const ELEMENT_READY_MS = 300;
-
-/** How long to wait before concluding that something which must not happen did not happen. */
-const NEVER_HAPPENS_MS = 250;
-
 /** The name the fake accelerator is registered under. */
 const FAKE_NAME = "fake-test-accelerator";
 
@@ -71,13 +65,11 @@ function registerFake(): void {
 }
 
 /**
- * Waits for a number of milliseconds.
- * @param ms - How long to wait.
- * @returns A promise that settles after the wait.
+ * One turn of the event loop, so every promise chained before it has run to the end.
+ * @returns A promise that settles on the next macrotask.
  */
-function wait(ms: number): Promise<void> {
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    return new Promise((resolve) => setTimeout(resolve, ms));
+function yieldToEventLoop(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 /**
@@ -86,16 +78,12 @@ function wait(ms: number): Promise<void> {
  * @param what - Named in the failure message when it never becomes true.
  */
 async function until(predicate: () => boolean, what: string): Promise<void> {
-    for (let attempt = 0; attempt < 300; attempt += 1) {
-        if (predicate()) {
-            return;
-        }
-
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await wait(10);
-    }
-
-    throw new Error(`timed out waiting for ${what}`);
+    await vi.waitFor(
+        () => {
+            assert.isTrue(predicate(), `waiting for ${what}`);
+        },
+        { timeout: 3000 },
+    );
 }
 
 /**
@@ -178,7 +166,7 @@ async function mount(attributes: Record<string, string> = {}): Promise<Mounted> 
     container.appendChild(element);
 
     await element.updateComplete;
-    await wait(ELEMENT_READY_MS);
+    await until(() => element.graph.initialized, "the element to connect and initialise its graph");
 
     return { element, container, events, bubbled };
 }
@@ -188,7 +176,7 @@ afterEach(async () => {
         containers.pop()?.remove();
     }
 
-    await wait(0);
+    await yieldToEventLoop();
     acceleratorRegistry.clear();
     fake.built = 0;
     fake.disposed = 0;
@@ -229,7 +217,8 @@ describe("the acceleration attribute: the policy", () => {
 
         assert.equal(element.acceleration, "off");
 
-        await wait(NEVER_HAPPENS_MS);
+        // The probe settles on "off" without looking.
+        await element.graph.acceleration.start();
         assert.equal(fake.built, 0, "a switched-off element must not build an accelerator");
         // "off" is where a switched-off element starts, so there is no transition to publish.
         assert.equal(events.length, 0);
@@ -288,7 +277,7 @@ describe("the acceleration attribute: the policy", () => {
 
         element.acceleration = "required";
         await element.updateComplete;
-        await wait(NEVER_HAPPENS_MS);
+        await element.graph.acceleration.start();
 
         assert.equal(element.acceleration, "required");
         assert.equal(fake.disposed, 0, "tightening the policy must not drop a healthy accelerator");
@@ -354,7 +343,7 @@ describe("the acceleration attribute: an unrecognised value", () => {
 
         element.setAttribute("acceleration", "yes");
         await element.updateComplete;
-        await wait(NEVER_HAPPENS_MS);
+        await element.graph.acceleration.start();
 
         assert.equal(element.acceleration, "auto", "an unrecognised value leaves the previous policy in force");
         assert.equal(fake.disposed, 0, "an unrecognised value must not release the accelerator");
@@ -381,7 +370,7 @@ describe("the acceleration attribute: an unrecognised value", () => {
 
         const element = container.firstElementChild as Graphty;
 
-        await wait(ELEMENT_READY_MS);
+        await element.updateComplete;
 
         // A throw from the setter during an upgrade would mark the element "failed": no
         // accessor, no connectedCallback, no probe, no graph.
@@ -459,7 +448,8 @@ describe("the acceleration attribute: connection lifecycle", () => {
         // share. So re-attaching must throw nothing and must probe nothing.
         assert.doesNotThrow(() => container.appendChild(element));
 
-        await wait(NEVER_HAPPENS_MS);
+        await element.updateComplete;
+        await yieldToEventLoop();
 
         assert.equal(fake.built, 1, "no second accelerator was built");
         assert.equal(events.length, seenBeforeRemoval, "and nothing was published from a dead controller");
@@ -472,10 +462,11 @@ describe("the acceleration attribute: connection lifecycle", () => {
         assert.equal(fake.built, 0, "off never looks");
 
         element.remove();
-        await wait(0);
+        await yieldToEventLoop();
 
         element.setAttribute("acceleration", "required");
-        await wait(NEVER_HAPPENS_MS);
+        await element.updateComplete;
+        await yieldToEventLoop();
 
         assert.equal(fake.built, 0, "a disposed controller must not request a device it can never use");
     });
@@ -488,13 +479,13 @@ describe("the acceleration attribute: connection lifecycle", () => {
         await until(() => events.length >= 1, "the first capabilities event");
 
         element.remove();
-        await wait(0);
+        await yieldToEventLoop();
 
         const seenAfterRemoval = events.length;
 
         acceleratorRegistry.clear();
         registerFake();
-        await wait(NEVER_HAPPENS_MS);
+        await yieldToEventLoop();
 
         assert.equal(events.length, seenAfterRemoval, "a disposed controller must not keep publishing");
     });

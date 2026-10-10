@@ -13,52 +13,41 @@ import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { assertCheckPasses, SABOTAGE_P4_TIERS, withSabotage } from "../helpers/sabotage.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 120_000;
 const ARCS_PER_WINDOW = 64;
 
 describe("fa2-attraction over arc windows (P4-T6: the kernel-level window proof)", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "karate in 64-arc windows: bitwise the one-dispatch result on unsplit rows, within the analytic bound on split rows, twice bitwise",
-        async (t) => {
-            requireGpu(t);
-            const ctx = await acquire({ label: "attraction-windowed" });
-            const s = paritySnapshot("karate", 1, false);
-            try {
-                const start = startPositions(s, BASE_OPTIONS, false);
-                const first = await attractionWindowedRun(ctx, s, start, ARCS_PER_WINDOW, "windowed/karate");
-                const second = await attractionWindowedRun(ctx, s, start, ARCS_PER_WINDOW, "windowed/karate/2");
-                expectBitwiseEqual(first.windowed, second.windowed, "windowed twice");
-                expectBitwiseEqual(first.direct, second.direct, "direct twice");
-                // 156 arcs in three windows: the rows at 63 / 64 and 127 / 128 exercise the accumulate path
-                expect(first.splitRows).toBeGreaterThanOrEqual(1);
-                console.warn(
-                    `[attraction-windowed] karate: ${first.splitRows} split rows, worst ratio ${first.report.worst.toExponential(3)} at ${first.report.worstLabel}`,
-                );
-                assertCheckPasses(first.report);
-                expect(first.windowed.every((v) => Number.isFinite(v))).toBe(true);
-            } finally {
-                ctx.release(s);
-                ctx.dispose();
-            }
-        },
-        CASE_TIMEOUT,
-    );
+    it("karate in 64-arc windows: bitwise the one-dispatch result on unsplit rows, within the analytic bound on split rows, twice bitwise", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "attraction-windowed" });
+        const s = paritySnapshot("karate", 1, false);
+        try {
+            const start = startPositions(s, BASE_OPTIONS, false);
+            const first = await attractionWindowedRun(ctx, s, start, ARCS_PER_WINDOW, "windowed/karate");
+            const second = await attractionWindowedRun(ctx, s, start, ARCS_PER_WINDOW, "windowed/karate/2");
+            expectBitwiseEqual(first.windowed, second.windowed, "windowed twice");
+            expectBitwiseEqual(first.direct, second.direct, "direct twice");
+            // 156 arcs in three windows: the rows at 63 / 64 and 127 / 128 exercise the accumulate path
+            expect(first.splitRows).toBeGreaterThanOrEqual(1);
+            console.warn(
+                `[attraction-windowed] karate: ${first.splitRows} split rows, worst ratio ${first.report.worst.toExponential(3)} at ${first.report.worstLabel}`,
+            );
+            assertCheckPasses(first.report);
+            expect(first.windowed.every((v) => Number.isFinite(v))).toBe(true);
+        } finally {
+            ctx.release(s);
+            ctx.dispose();
+        }
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "tier0-rebase-ignored: reading colIdx[a] instead of colIdx[a - P.arcBase] folds the poison tail and breaks the window check",
-        async (t) => {
-            requireGpu(t);
-            const row = (SABOTAGE_P4_TIERS["fa2-attraction"] ?? []).find((m) => m.name === "tier0-rebase-ignored");
-            if (row === undefined) {
-                throw new Error("SABOTAGE_P4_TIERS lacks the fa2-attraction row tier0-rebase-ignored");
-            }
-            expect(row.test).toBe("test/layouts/attraction-windowed.test.ts");
-            const factor = await withSabotage("fa2-attraction", row, (ctx) => attractionWindowedWorstFactor(ctx));
-            console.warn(`[attraction-windowed] tier0-rebase-ignored: factor ${factor.toExponential(2)}`);
-            expect(factor).toBeGreaterThanOrEqual(row.minFactor);
-        },
-        CASE_TIMEOUT,
-    );
+    it("tier0-rebase-ignored: reading colIdx[a] instead of colIdx[a - P.arcBase] folds the poison tail and breaks the window check", async (t) => {
+        requireGpu(t);
+        const row = (SABOTAGE_P4_TIERS["fa2-attraction"] ?? []).find((m) => m.name === "tier0-rebase-ignored");
+        if (row === undefined) {
+            throw new Error("SABOTAGE_P4_TIERS lacks the fa2-attraction row tier0-rebase-ignored");
+        }
+        expect(row.test).toBe("test/layouts/attraction-windowed.test.ts");
+        const factor = await withSabotage("fa2-attraction", row, (ctx) => attractionWindowedWorstFactor(ctx));
+        console.warn(`[attraction-windowed] tier0-rebase-ignored: factor ${factor.toExponential(2)}`);
+        expect(factor).toBeGreaterThanOrEqual(row.minFactor);
+    });
 });

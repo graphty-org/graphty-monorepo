@@ -6,14 +6,14 @@
         ".": 416719,
         "./session": 303926,
         "./schema": 7616,
-        "./catalog": 112230,
+        "./catalog": 112255,
         "./commands": 1566,
-        "./extend": 73388,
+        "./extend": 80728,
         "./format": 1266,
         "./logging": 9617,
         "./react": 1044,
         "./webgpu": 4904,
-        "./ai": 120585,
+        "./ai": 120731,
         "./bundle": 2602217
     }
 }

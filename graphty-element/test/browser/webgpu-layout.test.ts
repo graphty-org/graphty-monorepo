@@ -324,7 +324,6 @@ async function cpuReference(): Promise<Graphty> {
     return reference;
 }
 
-// eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
 beforeAll(async () => {
     if (!GPU_LANE) {
         return;
@@ -332,10 +331,7 @@ beforeAll(async () => {
 
     gpu = await mount("required");
     await until(() => status(gpu).backend !== undefined, "an accelerator to attach", 30_000);
-    // The hook's own budget has to cover what it waits for: 30 s for the data, 120 s for the
-    // first settle and 30 s for the accelerator. Below that sum the hook dies on vitest's
-    // generic "Hook timed out" instead of the named message the wait was written to produce.
-}, 200_000);
+});
 
 afterAll(() => {
     while (mounted.length > 0) {
@@ -356,7 +352,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, a ForceAtlas2 settle of 150 nodes takes 2.7 to 9.4 s locally on SwiftShader and the file does not run on CI, more than a third of the 15 s budget; tracked in #1636
     it("settles forceatlas2 on the device, reporting active while it runs", { timeout: SETTLE_MS * 2 }, async () => {
         const seen = watchStatus(gpu);
 
@@ -378,7 +374,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         assert.equal(status(gpu).state, "idle", "and it is idle again once the arrangement is at rest");
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, a ForceAtlas2 settle of 150 nodes around a pinned one takes 2.0 to 7.6 s locally on SwiftShader and the file does not run on CI, more than a third of the 15 s budget; tracked in #1636
     it("moves a node when it is dragged, and leaves it pinned", { timeout: SETTLE_MS * 3 }, async () => {
         const node = gpu.graph.getDataManager().getNode("node-0");
         if (node === undefined) {
@@ -415,19 +411,19 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         node.unpin();
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, a spring settle of 150 nodes takes 2.0 to 5.2 s locally on SwiftShader and the file does not run on CI, more than a third of the 15 s budget; tracked in #1636
     it("settles spring on the device", { timeout: SETTLE_MS * 2 }, async () => {
         await settle(gpu, "spring");
         assert.isTrue((gpu.graph.getLayoutManager().layoutEngine as SimulationLayoutEngine).isAccelerated);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, a spring-electrical settle of 150 nodes takes 2.3 to 5.6 s locally on SwiftShader and the file does not run on CI, more than a third of the 15 s budget; tracked in #1636
     it("settles spring-electrical, which only exists on an accelerator", { timeout: SETTLE_MS * 2 }, async () => {
         await settle(gpu, "spring-electrical");
         assert.isTrue((gpu.graph.getLayoutManager().layoutEngine as SimulationLayoutEngine).isAccelerated);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, the default (force) settle of 150 nodes takes 2.7 to 6.1 s locally on SwiftShader and the file does not run on CI, more than a third of the 15 s budget; tracked in #1636
     it(
         "settles the DEFAULT arrangement on the device, asked for nothing else",
         { timeout: SETTLE_MS * 2 },
@@ -449,8 +445,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         },
     );
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it("labels a PageRank run computed on the device as single precision", { timeout: SETTLE_MS }, async () => {
+    it("labels a PageRank run computed on the device as single precision", async () => {
         const run = gpu.session.runs.start("pagerank");
         await run;
 
@@ -458,177 +453,163 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         assert.equal(run.caveats.precision, "f32");
     });
 
-    // The two traversal cases carry an explicit timeout, as the PageRank case does: a cyclic predecessor chain would
-    // hang the seam's unbounded walk, and a hang must read as a failure on the lane, not as a stalled job.
+    it("labels a breadth-first search computed on the device as single precision, and its levels are the CPU's", async () => {
+        const run = gpu.session.runs.start("bfs", { source: SOURCE });
+        const result = await run;
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "labels a breadth-first search computed on the device as single precision, and its levels are the CPU's",
-        { timeout: SETTLE_MS * 2 },
-        async () => {
-            const run = gpu.session.runs.start("bfs", { source: SOURCE });
-            const result = await run;
+        assert.equal(run.status, "succeeded");
+        assert.equal(run.caveats.precision, "f32");
 
-            assert.equal(run.status, "succeeded");
-            assert.equal(run.caveats.precision, "f32");
+        const cpu = await cpuReference();
+        const cpuRun = cpu.session.runs.start("bfs", { source: SOURCE });
+        const cpuResult = await cpuRun;
 
-            const cpu = await cpuReference();
-            const cpuRun = cpu.session.runs.start("bfs", { source: SOURCE });
-            const cpuResult = await cpuRun;
+        assert.equal(cpuRun.status, "succeeded");
+        assert.equal(cpuRun.caveats.precision, "f64", "the reference walked on the CPU");
 
-            assert.equal(cpuRun.status, "succeeded");
-            assert.equal(cpuRun.caveats.precision, "f64", "the reference walked on the CPU");
+        const reached = reachedOf(result);
+        const expected = reachedOf(cpuResult);
 
-            const reached = reachedOf(result);
-            const expected = reachedOf(cpuResult);
+        assert.isAbove(expected.size, 1, "the source reaches more than itself, or the case proves nothing");
+        assert.deepEqual([...reached.keys()].sort(), [...expected.keys()].sort(), "the same nodes are reached");
 
-            assert.isAbove(expected.size, 1, "the source reaches more than itself, or the case proves nothing");
-            assert.deepEqual([...reached.keys()].sort(), [...expected.keys()].sort(), "the same nodes are reached");
+        for (const [id, { level }] of expected) {
+            assert.equal(reached.get(id)?.level, level, `${id}: the level the device found`);
+        }
 
-            for (const [id, { level }] of expected) {
-                assert.equal(reached.get(id)?.level, level, `${id}: the level the device found`);
+        // The device's order is grouped by level: walking the nodes in visit order never steps back a level.
+        const byOrder = [...reached.values()].sort((a, b) => a.order - b.order);
+
+        assert.deepEqual(
+            byOrder.map((node) => node.order),
+            byOrder.map((_node, position) => position),
+            "the visit order numbers the reached nodes 0 .. n-1 once each",
+        );
+
+        for (let position = 1; position < byOrder.length; position++) {
+            const previous = byOrder[position - 1];
+            const current = byOrder[position];
+
+            assert.isDefined(previous);
+            assert.isDefined(current);
+            assert.isAtLeast(current.level, previous.level, `position ${position}: the order steps back a level`);
+        }
+
+        // Within a level the two backends may visit in a different order (the CPU walks FIFO, the device sorts
+        // by node index), so what is held is that each level occupies the same block of positions.
+        const positionsByLevel = (nodes: Map<string, Reached>): Map<number, number[]> => {
+            const blocks = new Map<number, number[]>();
+
+            for (const { level, order } of nodes.values()) {
+                blocks.set(
+                    level,
+                    [...(blocks.get(level) ?? []), order].sort((a, b) => a - b),
+                );
             }
 
-            // The device's order is grouped by level: walking the nodes in visit order never steps back a level.
-            const byOrder = [...reached.values()].sort((a, b) => a.order - b.order);
+            return blocks;
+        };
+        const gpuBlocks = positionsByLevel(reached);
 
-            assert.deepEqual(
-                byOrder.map((node) => node.order),
-                byOrder.map((_node, position) => position),
-                "the visit order numbers the reached nodes 0 .. n-1 once each",
+        for (const [level, positions] of positionsByLevel(expected)) {
+            assert.deepEqual(gpuBlocks.get(level), positions, `level ${level}: the block of visit positions`);
+        }
+    });
+
+    it("labels a Dijkstra run computed on the device as single precision, and its route costs the CPU's", async () => {
+        // "dijkstra" is only a legacy key of the `shortest-path` descriptor; runs.start matches canonical keys.
+        const params = { method: "dijkstra", source: SOURCE, target: TARGET };
+        const run = gpu.session.runs.start("shortest-path", params);
+        const result = await run;
+
+        assert.equal(run.status, "succeeded");
+        assert.equal(run.caveats.precision, "f32");
+        assert.equal(run.caveats.method, "dijkstra");
+
+        const cpu = await cpuReference();
+        const cpuRun = cpu.session.runs.start("shortest-path", params);
+        const cpuResult = await cpuRun;
+
+        assert.equal(cpuRun.caveats.precision, "f64", "the reference searched on the CPU");
+
+        // Every node's distance from the source is the CPU's, to single precision.
+        for (const { id } of GRAPH.nodes) {
+            const values = result.node(id);
+            const expected = cpuResult.node(id);
+
+            assert.isDefined(values, `${id}: the device published a distance`);
+            assert.isDefined(expected, `${id}: the CPU published a distance`);
+            assertSameDistance(numberField(values, "distance", id), numberField(expected, "distance", id), id);
+        }
+
+        const cost = numberField(result.graph, "cost", "graph");
+        const length = numberField(result.graph, "length", "graph");
+        const hops = numberField(result.graph, "hops", "graph");
+
+        assert.isAbove(length, 1, "a route runs from the source to the target, or the case proves nothing");
+        assertSameDistance(cost, numberField(cpuResult.graph, "cost", "graph"), "graph.cost");
+        assert.equal(hops, length - 1);
+
+        // The device's route is ONE valid path from the source to the target whose edge weights sum to the cost.
+        // Not node-for-node equality with the CPU's route: the two backends break ties differently by design (the
+        // CPU's predecessor is the relaxing arc under heap order, the device's the smallest key-step arc), so on
+        // a graph with two equal-cost shortest routes they differ while both are right.
+        const route: (string | undefined)[] = new Array<string | undefined>(length).fill(undefined);
+
+        for (const { id } of GRAPH.nodes) {
+            const values = result.node(id);
+
+            if (values?.onPath === true) {
+                const position = numberField(values, "order", id);
+
+                assert.isUndefined(route[position], `${id}: position ${position} on the route is taken`);
+                route[position] = id;
+            }
+        }
+
+        assert.equal(route[0], SOURCE, "the route starts at the source");
+        assert.equal(route[length - 1], TARGET, "the route ends at the target");
+        assert.notInclude(route, undefined, "every position on the route names a node");
+
+        const routeEdges: { source: string; target: string; weight: number }[] = [];
+
+        for (const id of (await gpu.session.scope.resolve("graph")).edges) {
+            const values = result.edge(id);
+            const edge = gpu.session.data.edge(id);
+
+            assert.isDefined(edge, `${id}: the run named an edge the graph holds`);
+
+            if (values?.onPath === true) {
+                const weight = typeof edge.weight === "number" ? edge.weight : 1;
+
+                routeEdges.push({ source: String(edge.source), target: String(edge.target), weight });
+            }
+        }
+
+        assert.equal(routeEdges.length, hops, "one edge on the route per hop");
+
+        let summed = 0;
+
+        for (let position = 1; position < length; position++) {
+            const from = route[position - 1];
+            const to = route[position];
+            const joining = routeEdges.filter(
+                (edge) => (edge.source === from && edge.target === to) || (edge.source === to && edge.target === from),
             );
 
-            for (let position = 1; position < byOrder.length; position++) {
-                const previous = byOrder[position - 1];
-                const current = byOrder[position];
+            assert.equal(joining.length, 1, `${String(from)} -> ${String(to)}: exactly one route edge joins them`);
+            summed += joining[0]?.weight ?? 0;
+        }
 
-                assert.isDefined(previous);
-                assert.isDefined(current);
-                assert.isAtLeast(current.level, previous.level, `position ${position}: the order steps back a level`);
-            }
+        assertSameDistance(summed, cost, "the route's edge weights sum to the cost");
+    });
 
-            // Within a level the two backends may visit in a different order (the CPU walks FIFO, the device sorts
-            // by node index), so what is held is that each level occupies the same block of positions.
-            const positionsByLevel = (nodes: Map<string, Reached>): Map<number, number[]> => {
-                const blocks = new Map<number, number[]>();
-
-                for (const { level, order } of nodes.values()) {
-                    blocks.set(
-                        level,
-                        [...(blocks.get(level) ?? []), order].sort((a, b) => a - b),
-                    );
-                }
-
-                return blocks;
-            };
-            const gpuBlocks = positionsByLevel(reached);
-
-            for (const [level, positions] of positionsByLevel(expected)) {
-                assert.deepEqual(gpuBlocks.get(level), positions, `level ${level}: the block of visit positions`);
-            }
-        },
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "labels a Dijkstra run computed on the device as single precision, and its route costs the CPU's",
-        { timeout: SETTLE_MS * 2 },
-        async () => {
-            // "dijkstra" is only a legacy key of the `shortest-path` descriptor; runs.start matches canonical keys.
-            const params = { method: "dijkstra", source: SOURCE, target: TARGET };
-            const run = gpu.session.runs.start("shortest-path", params);
-            const result = await run;
-
-            assert.equal(run.status, "succeeded");
-            assert.equal(run.caveats.precision, "f32");
-            assert.equal(run.caveats.method, "dijkstra");
-
-            const cpu = await cpuReference();
-            const cpuRun = cpu.session.runs.start("shortest-path", params);
-            const cpuResult = await cpuRun;
-
-            assert.equal(cpuRun.caveats.precision, "f64", "the reference searched on the CPU");
-
-            // Every node's distance from the source is the CPU's, to single precision.
-            for (const { id } of GRAPH.nodes) {
-                const values = result.node(id);
-                const expected = cpuResult.node(id);
-
-                assert.isDefined(values, `${id}: the device published a distance`);
-                assert.isDefined(expected, `${id}: the CPU published a distance`);
-                assertSameDistance(numberField(values, "distance", id), numberField(expected, "distance", id), id);
-            }
-
-            const cost = numberField(result.graph, "cost", "graph");
-            const length = numberField(result.graph, "length", "graph");
-            const hops = numberField(result.graph, "hops", "graph");
-
-            assert.isAbove(length, 1, "a route runs from the source to the target, or the case proves nothing");
-            assertSameDistance(cost, numberField(cpuResult.graph, "cost", "graph"), "graph.cost");
-            assert.equal(hops, length - 1);
-
-            // The device's route is ONE valid path from the source to the target whose edge weights sum to the cost.
-            // Not node-for-node equality with the CPU's route: the two backends break ties differently by design (the
-            // CPU's predecessor is the relaxing arc under heap order, the device's the smallest key-step arc), so on
-            // a graph with two equal-cost shortest routes they differ while both are right.
-            const route: (string | undefined)[] = new Array<string | undefined>(length).fill(undefined);
-
-            for (const { id } of GRAPH.nodes) {
-                const values = result.node(id);
-
-                if (values?.onPath === true) {
-                    const position = numberField(values, "order", id);
-
-                    assert.isUndefined(route[position], `${id}: position ${position} on the route is taken`);
-                    route[position] = id;
-                }
-            }
-
-            assert.equal(route[0], SOURCE, "the route starts at the source");
-            assert.equal(route[length - 1], TARGET, "the route ends at the target");
-            assert.notInclude(route, undefined, "every position on the route names a node");
-
-            const routeEdges: { source: string; target: string; weight: number }[] = [];
-
-            for (const id of (await gpu.session.scope.resolve("graph")).edges) {
-                const values = result.edge(id);
-                const edge = gpu.session.data.edge(id);
-
-                assert.isDefined(edge, `${id}: the run named an edge the graph holds`);
-
-                if (values?.onPath === true) {
-                    const weight = typeof edge.weight === "number" ? edge.weight : 1;
-
-                    routeEdges.push({ source: String(edge.source), target: String(edge.target), weight });
-                }
-            }
-
-            assert.equal(routeEdges.length, hops, "one edge on the route per hop");
-
-            let summed = 0;
-
-            for (let position = 1; position < length; position++) {
-                const from = route[position - 1];
-                const to = route[position];
-                const joining = routeEdges.filter(
-                    (edge) =>
-                        (edge.source === from && edge.target === to) || (edge.source === to && edge.target === from),
-                );
-
-                assert.equal(joining.length, 1, `${String(from)} -> ${String(to)}: exactly one route edge joins them`);
-                summed += joining[0]?.weight ?? 0;
-            }
-
-            assertSameDistance(summed, cost, "the route's edge weights sum to the cost");
-        },
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, two ForceAtlas2 settles of 150 nodes (one on SwiftShader, one on the CPU) take 7 to 24 s locally and the file does not run on CI, more than a third of the 15 s budget; tracked in #1636
     it("settles where the CPU settles, to a quarter of every quantile", { timeout: SETTLE_MS * 4 }, async () => {
         await settle(gpu, "forceatlas2");
         const accelerated = quantiles(gpu);
 
-        const cpu = await mount("off");
+        const cpu = await cpuReference();
 
         assert.equal(status(cpu).state, "off", "the reference element attached no accelerator");
 
@@ -666,10 +647,8 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the po
     /** SwiftShader is the only software adapter a lane launches; every other flag set is hardware. */
     const SOFTWARE = ADAPTER === "swiftshader";
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         SOFTWARE ? "refuses the software adapter under auto, saying why" : "attaches the hardware adapter under auto",
-        { timeout: 200_000 },
         async () => {
             const auto = await mount("auto");
             await until(() => status(auto).state !== "probing", "the probe under auto to settle", 30_000);
@@ -687,12 +666,10 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the po
         },
     );
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         SOFTWARE
             ? "lets go of the software adapter required attached once the policy relaxes to auto"
             : "keeps the hardware adapter when the policy relaxes from required to auto",
-        { timeout: 60_000 },
         async () => {
             assert.equal(status(gpu).backend, "webgpu", "required attached an adapter to begin with");
 

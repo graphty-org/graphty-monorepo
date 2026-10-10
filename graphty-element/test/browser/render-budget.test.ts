@@ -96,13 +96,17 @@ async function load(graph: Graph, nodeCount: number, edgeCount: number): Promise
 }
 
 /**
- * Render one frame and read what it cost.
+ * Read what the last frame drawn cost.
+ *
+ * It reads the frame the render loop drew, rather than drawing one more: every caller has waited
+ * for a stable frame, so that frame is the finished picture, and on a software GPU one more frame of
+ * the 10,000-node graph is seconds of rasterising still queued when the test ends, which the next
+ * test's first frame waits behind.
  * @param graph - The graph to measure.
  * @returns The counts, and the frame time for the log.
  */
 function measure(graph: Graph): Counts & { frameMs: number } {
     const { scene } = graph;
-    scene.render();
     const snapshot = graph.getStatsManager().getSnapshot().scene;
     assert.isDefined(snapshot, "the element's stats have scene instrumentation");
 
@@ -142,7 +146,7 @@ describe("the cost of drawing a whole graph", () => {
     for (const [nodeCount, edgeCount] of GRAPHS) {
         const name = `${String(nodeCount)} nodes, ${String(edgeCount)} edges`;
 
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+        // eslint-disable-next-line local/no-test-timing -- no condition to wait on: loading and drawing the 10,000-node graph took 25.8 s in a loaded pre-push gate, over the 15 s browser default; tracked in #1636
         it(
             `stays within its baseline for ${name}`,
             async () => {

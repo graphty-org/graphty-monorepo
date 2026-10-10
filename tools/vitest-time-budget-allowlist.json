@@ -1,34 +1,6 @@
 {
     "tests": [
         {
-            "file": "graph-io/test/audit/fuzz-mutations.test.ts",
-            "name": "fuzz audit: structural attacks > a 50 MB attribute value as one in-memory document > obo: completes with a snapshot or an ImportError",
-            "durationMs": 33410,
-            "limitMs": 60000,
-            "issue": 1804
-        },
-        {
-            "file": "graphty-element/test/browser/screenshot/screenshot-timing.test.ts",
-            "name": "waitForSettle times out if layout never settles",
-            "durationMs": 30220,
-            "limitMs": 35000,
-            "issue": 1806
-        },
-        {
-            "file": "graphty-element/test/browser/video/video-capture-animated.test.ts",
-            "name": "Video Capture - Animated Camera Mode > supports easing options",
-            "durationMs": 8420,
-            "limitMs": 15000,
-            "issue": 1806
-        },
-        {
-            "file": "graphty-element/test/session/sets/scale.test.ts",
-            "name": "the memory budget, at 100k nodes > the derived-input cache stays within max(256 MB, 1.5 x the snapshot's bytes)",
-            "durationMs": 16880,
-            "limitMs": 30000,
-            "issue": 1806
-        },
-        {
             "file": "graphty/src/components/shell/__tests__/AppShell.real-element.test.tsx",
             "name": "the shell's main flows, by real input, on the real graphty-element > keeps a second metric's layers over the first's on the element",
             "durationMs": 7790,

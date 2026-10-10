@@ -44,9 +44,6 @@ import { afterEach, assert, describe, test } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 
-/** How long the element needs to connect, drain its queue and draw. */
-const SETTLE_MS = 1500;
-
 /** How long a promise gets to settle before the test calls it hung. */
 const PATIENCE_MS = 4000;
 
@@ -92,8 +89,7 @@ function mount(): Graphty {
  */
 async function settle(element: Graphty): Promise<void> {
     await operationQueueOf(element.graph).waitForCompletion();
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+    await element.waitForStableFrame();
 }
 
 /**
@@ -119,18 +115,29 @@ function outcomeOf(promise: Promise<unknown>): Promise<Outcome> {
 /**
  * Hold the queue open so that everything asked for next waits its turn.
  * @param element - the mounted element
- * @returns a function that lets the queue go again
+ * @returns a function that lets the queue go again, once the slow operation has started -- so
+ * the requests asked for next are queued behind it rather than running the moment they are asked for
  */
-function blockTheQueue(element: Graphty): () => void {
+async function blockTheQueue(element: Graphty): Promise<() => void> {
     let release = (): void => undefined;
     const held = new Promise<void>((resolve) => {
         release = resolve;
     });
-
-    void operationQueueOf(element.graph).queueOperationAsync("data-update", () => held, {
-        description: "a slow operation, so the requests behind it have to wait",
+    let started = (): void => undefined;
+    const running = new Promise<void>((resolve) => {
+        started = resolve;
     });
 
+    void operationQueueOf(element.graph).queueOperationAsync(
+        "data-update",
+        () => {
+            started();
+            return held;
+        },
+        { description: "a slow operation, so the requests behind it have to wait" },
+    );
+
+    await running;
     return release;
 }
 
@@ -145,12 +152,7 @@ describe("a request the element supersedes", () => {
 
         await settle(element);
 
-        const release = blockTheQueue(element);
-
-        // Long enough for the slow operation to have started, so the two below are queued behind
-        // it rather than running the moment they are asked for.
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        const release = await blockTheQueue(element);
 
         const superseded = element.graph.setViewMode("2d");
         const winner = element.graph.setViewMode("3d");
@@ -183,10 +185,7 @@ describe("a request the element supersedes", () => {
 
         await settle(element);
 
-        const release = blockTheQueue(element);
-
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        const release = await blockTheQueue(element);
 
         const abandoned = element.graph.setLayout("circular");
 
@@ -208,10 +207,7 @@ describe("a request the element supersedes", () => {
 
         await settle(element);
 
-        const release = blockTheQueue(element);
-
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        const release = await blockTheQueue(element);
 
         const both = Promise.all([element.graph.setViewMode("2d"), element.graph.setViewMode("3d")]);
 

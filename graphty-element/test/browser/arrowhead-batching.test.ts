@@ -26,12 +26,6 @@ const WIDTH = 640;
 /** How tall it is. */
 const HEIGHT = 480;
 
-/** How many frames to render before reading one. */
-const FRAMES = 8;
-
-/** How long to leave between them. */
-const FRAME_MS = 10;
-
 /** How many pixels of a colour must be on screen before it counts as drawn. */
 const ENOUGH = 20;
 
@@ -40,7 +34,6 @@ describe("arrowheads are drawn in bulk", () => {
     let graph: Graph;
     let session: GraphSession;
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeEach(async () => {
         container = document.createElement("div");
         container.style.width = `${String(WIDTH)}px`;
@@ -87,24 +80,17 @@ describe("arrowheads are drawn in bulk", () => {
             set: { "edge.arrowHeadColor": "#0000FF" },
         });
         await frame();
-    }, 60000);
+    });
 
     afterEach(() => {
         graph.dispose();
         container.remove();
     });
 
-    /** Let the last repaint reach the scene and render a few frames. */
+    /** Let the last repaint reach the scene and a frame of it be drawn. */
     async function frame(): Promise<void> {
         await operationQueueOf(graph).waitForCompletion();
-
-        for (let at = 0; at < FRAMES; at++) {
-            graph.scene.render();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
-        }
+        await graph.waitForStableFrame();
     }
 
     /**

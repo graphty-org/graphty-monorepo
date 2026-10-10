@@ -117,12 +117,6 @@ const SHADED_MARGIN = 8;
  */
 const NODE_SPREAD = 30;
 
-/** How many frames to render before reading, enough for the instanced-colour shader to compile. */
-const FRAMES = 60;
-
-/** Room for a cold browser, a shader compile and sixty frames. */
-const CASE_TIMEOUT_MS = 30000;
-
 /** What one frame says about the surface of the one node in it. */
 interface Surface {
     /** The widest red-minus-green found on the node. */
@@ -199,11 +193,10 @@ describe("a lit node's surface", () => {
     let graph: Graph;
     let surface: Surface;
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeAll(async () => {
         ({ container, graph } = await mountOneNode("3d"));
-        surface = surfaceOf(await readFrame(graph, FRAMES));
-    }, CASE_TIMEOUT_MS);
+        surface = surfaceOf(await readFrame(graph));
+    });
 
     afterAll(() => {
         graph.dispose();
@@ -259,11 +252,10 @@ describe("a 2D node's surface", () => {
     let graph: Graph;
     let surface: Surface;
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeAll(async () => {
         ({ container, graph } = await mountOneNode("2d"));
-        surface = surfaceOf(await readFrame(graph, FRAMES));
-    }, CASE_TIMEOUT_MS);
+        surface = surfaceOf(await readFrame(graph));
+    });
 
     afterAll(() => {
         graph.dispose();

@@ -20,9 +20,10 @@ import { type GraphSnapshot, INVALID_INDEX, makeMask } from "@graphty/graph-form
 
 import { compareIds, runIdOfRef } from "../../catalog/sets/canonical";
 import type { EdgeMember, ItemKey, NodeId, ResultItem, RunId } from "../../catalog/types";
+import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import type { CapturedHalves, FilterRunResult } from "../visibility/filter";
-import { compactEdgeMembers, type EdgeMemberList } from "./prepare";
-import { addEdgeRow, bindEdgeMembers, edgeMemberKey, type ResolveContext } from "./resolve";
+import { compactEdgeMembers, edgeMemberKey, type EdgeMemberList } from "./prepare";
+import { addEdgeRow, bindEdgeMembers, type ResolveContext } from "./resolve";
 
 /** One held item's members, as a re-run captured them. Frozen. */
 export interface Capture {
@@ -238,7 +239,7 @@ export function capturedHalves(capture: Capture, context: ResolveContext): Captu
         nodes = makeMask(snapshot.nodeCount);
         const ids = context.ids ?? snapshot.ids;
         for (const id of capture.nodes) {
-            const index = ids.indexOf(id);
+            const index = rowOfEitherSpelling(ids, id);
             if (index !== INVALID_INDEX) {
                 nodes[index >>> 5] |= 1 << (index & 31);
             }

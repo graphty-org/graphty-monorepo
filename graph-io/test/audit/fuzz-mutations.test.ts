@@ -10,7 +10,7 @@
  * removed), format tokens spliced in, and compositions of up to four of those.
  *
  * Part 2 is the structural attack list: JSON nested 10k deep, XML with an internal DTD entity
- * expansion attempt, a 50 MB attribute value in every format, declared counts beyond MAX_COUNT,
+ * expansion attempt, a 16 MB attribute value in every format, declared counts beyond MAX_COUNT,
  * deep DOT nesting, `__proto__` keys, huge and non-finite numbers, repeated ids. The tests marked
  * FAILS pin the defects found: a repeated edge id in GEXF, Gephi CSV and three JSON dialects is
  * pushed without an issue and the core's freeze() then throws a raw E_DUPLICATE_EDGE_ID (the
@@ -764,8 +764,12 @@ describe("fuzz audit: structural attacks", () => {
         });
     });
 
-    describe("a 50 MB attribute value as one in-memory document", () => {
-        const big = "x".repeat(50 * MB);
+    // 16 MB is enough: it spans 64 of the input layer's 256 KB decode slices and 16 of the zip
+    // reader's 1 MB CRC slices, a quadratic scan of it never finishes, and V8's regexp backtrack
+    // stack already overflows at 4 to 8 MB of one repeated `(a|b)*` group, so a backtracking
+    // pattern over the value still throws RangeError here. 50 MB only added time.
+    describe("a 16 MB attribute value as one in-memory document", () => {
+        const big = "x".repeat(16 * MB);
         const documents: Readonly<Record<CorpusFormat, string | Uint8Array>> = {
             json: `{"nodes":[{"id":"a","v":"${big}"}],"links":[]}`,
             cx: `[{"nodes":[{"@id":1,"n":"${big}"}]}]`,
@@ -785,7 +789,7 @@ describe("fuzz audit: structural attacks", () => {
             cys: makeZip([
                 { name: "S/3.0.0.version", data: "" },
                 {
-                    // stored: 50 MB of one letter deflates above the 1000:1 ratio limit
+                    // stored: 16 MB of one letter deflates above the 1000:1 ratio limit
                     name: "S/networks/1-N.xgmml",
                     method: 0,
                     data: `<graph id="1" cy:registered="0" xmlns:cy="http://www.cytoscape.org"><att><graph id="2" cy:registered="1"><node id="3" label="${big}"/></graph></att></graph>`,

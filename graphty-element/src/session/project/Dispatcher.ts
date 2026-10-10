@@ -38,7 +38,7 @@ import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
 import type { VisibilityService } from "../commands/visibility";
 import type { CodedFact, ProgressChange } from "../shared";
-import type { HistoryCode, ProjectConfig } from "../types";
+import type { HistoryCode, HistoryStepId, ProjectConfig } from "../types";
 import { Arrangement, type ArrangementOp, mergeRowPatches } from "./arrangement";
 import { DerivationLane } from "./derive";
 import {
@@ -278,6 +278,12 @@ export interface TransactionOptions {
      * pointer moves write the lane before anything is dispatched (design section 5.3).
      */
     readonly moves?: boolean;
+    /**
+     * A step this transaction continues: its patch merges into that step while the step is the
+     * newest applied one, and otherwise records as its own step with `provenance.after` set to it,
+     * as a deferred member does.
+     */
+    readonly after?: HistoryStepId;
 }
 
 /** What moved live project state. */
@@ -287,6 +293,11 @@ type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 interface ProjectChange {
     readonly slices: readonly string[];
     readonly cause: HistoryCause;
+    /**
+     * The note ids a command wrote, so the `note:changed` publisher compares those alone. Absent
+     * when the change does not say (an undo, a redo, a restore, a rollback): compare the slice.
+     */
+    readonly notes?: readonly string[];
 }
 
 /** Why the history, or what the next undo will do, changed. */
@@ -676,6 +687,16 @@ function slicesOf(patch: Patch): readonly Slice[] {
 }
 
 /**
+ * The note ids a patch wrote, each once, for a change; nothing when it wrote no note.
+ * @param patch - The patch.
+ * @returns The change's `notes`, or an empty object.
+ */
+function notesOf(patch: Patch): Pick<ProjectChange, "notes"> {
+    const notes = [...new Set(patch.entries.filter((entry) => entry.slice === "notes").map((entry) => entry.key))];
+    return notes.length === 0 ? {} : { notes };
+}
+
+/**
  * The error a `tx` dispatch gets once its transaction has been aborted or has failed.
  * @param label - The transaction.
  * @returns An `AbortError`.
@@ -1014,7 +1035,7 @@ export class Dispatcher {
             { label, fact: options.fact ?? { code: "transaction", params: { label } } },
             null,
             options.provenance ?? {},
-            null,
+            options.after ?? null,
             this.tick++,
             {
                 status: "open",
@@ -2113,7 +2134,7 @@ export class Dispatcher {
         }
 
         if (baseline) {
-            const change = { slices: slicesOf(patch), cause: "command" as const };
+            const change = { slices: slicesOf(patch), cause: "command" as const, ...notesOf(patch) };
             this.emit(change, [change]);
             this.release(group, true);
             this.startDeferred(group, null);
@@ -2172,7 +2193,7 @@ export class Dispatcher {
             // else is a pin no step records.
             this.arrangement.checkPins();
 
-            const change = { slices, cause: "command" as const };
+            const change = { slices, cause: "command" as const, ...notesOf(patch) };
             this.emit(change, [change]);
         }
 

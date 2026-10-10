@@ -1144,6 +1144,13 @@ export type GraphtyErrorCode =
 */
 | "E_NO_WEBGL"
 /**
+* A feature the caller asked for needs an optional peer package that is not installed.
+* `details.package` names the package to install and `details.feature` the feature that
+* needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
+* picks a feature that does not need it.
+*/
+| "E_MISSING_PACKAGE"
+/**
 * The operation is well formed but this build or this host cannot perform it: a
 * worker-hosted session asked for `snapshot()`, a mutating command asked to jump the queue,
 * an export format the platform has no encoder for. `details.reason` says which. The caller
@@ -1502,6 +1509,8 @@ class Node_2 {
     pinOnDrag: boolean;
     refreshSelectionOverlay(): void;
     get roundRadius(): number | null;
+    // @internal
+    setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];

@@ -8,6 +8,86 @@ import { GraphListing } from '@graphty/graph-io';
 import { z } from 'zod/v4';
 
 // @public
+export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[];
+
+// @public
+export const AI_PROVIDER_IDS: readonly ["openai", "anthropic", "google", "webllm", "mock"];
+
+// @public
+export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELLED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED"];
+
+// @public
+export const AI_STAGES: readonly ["processing", "generating", "executing"];
+
+// @public
+export const AI_STATES: readonly ["ready", "submitted", "streaming", "executing", "error"];
+
+// @public
+export const AI_TOOL_CALL_STATUSES: readonly ["pending", "executing", "complete", "error"];
+
+// @public
+export interface AiKeyShape {
+    readonly minLength: number;
+    readonly prefix?: string;
+}
+
+// @public
+export type AiKeyShapeCheck = {
+    readonly valid: true;
+} | {
+    readonly valid: false;
+    readonly code: "E_KEY_EMPTY";
+    readonly params: Record<string, never>;
+} | {
+    readonly valid: false;
+    readonly code: "E_KEY_PREFIX";
+    readonly params: {
+        readonly prefix: string;
+    };
+} | {
+    readonly valid: false;
+    readonly code: "E_KEY_TOO_SHORT";
+    readonly params: {
+        readonly minLength: number;
+    };
+};
+
+// @public
+export type AiKeyShapeCode = "E_KEY_EMPTY" | "E_KEY_PREFIX" | "E_KEY_TOO_SHORT";
+
+// @public
+export interface AiModelDescriptor {
+    readonly downloadMB?: number;
+    readonly id: string;
+    readonly plainName: string;
+    readonly supportsTools: boolean;
+}
+
+// @public
+export interface AiProviderDescriptor {
+    readonly defaultModel: string;
+    readonly id: AiProviderId;
+    readonly keyShape?: AiKeyShape;
+    readonly models: readonly AiModelDescriptor[];
+    readonly plainName: string;
+    readonly requiresKey: boolean;
+    readonly runsLocally: boolean;
+    readonly testOnly: boolean;
+}
+
+// @public
+export function aiProviderDescriptor(id: AiProviderId): AiProviderDescriptor;
+
+// @public
+export type AiProviderId = (typeof AI_PROVIDER_IDS)[number];
+
+// @public
+export type AiResultCode = (typeof AI_RESULT_CODES)[number];
+
+// @public
+export type AiResultParams = Readonly<Record<string, string | number>>;
+
+// @public
 export function algorithmByKey(key: string): BuiltInAlgorithmDescriptor | undefined;
 
 // @public
@@ -235,6 +315,9 @@ export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
 
 // @public
 export type ChannelValueKind = "color" | "number" | "text" | "boolean" | "enum" | "labelStyle" | "nothing";
+
+// @public
+export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck;
 
 // @public
 export interface CodedFact<Code extends string = string> {
@@ -702,6 +785,13 @@ export type GraphtyErrorCode =
 * canvas reported. The session's data and results still work; only the view is unavailable.
 */
 | "E_NO_WEBGL"
+/**
+* A feature the caller asked for needs an optional peer package that is not installed.
+* `details.package` names the package to install and `details.feature` the feature that
+* needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
+* picks a feature that does not need it.
+*/
+| "E_MISSING_PACKAGE"
 /**
 * The operation is well formed but this build or this host cannot perform it: a
 * worker-hosted session asked for `snapshot()`, a mutating command asked to jump the queue,

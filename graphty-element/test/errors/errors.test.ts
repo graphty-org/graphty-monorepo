@@ -66,6 +66,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_DEVICE_INCORRECT",
     "E_DEVICE_LOST",
     "E_NO_WEBGL",
+    "E_MISSING_PACKAGE",
     "E_UNSUPPORTED",
     "E_READONLY",
     "E_DISPOSED",
@@ -137,6 +138,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_DEVICE_INCORRECT":
         case "E_DEVICE_LOST":
         case "E_NO_WEBGL":
+        case "E_MISSING_PACKAGE":
             return "hardware";
         case "E_UNSUPPORTED":
         case "E_INTERNAL":
@@ -398,6 +400,17 @@ describe("GraphtyError.wrap", () => {
 
         assert.strictEqual(wrapped.code, "E_PARSE_FAILED");
         assert.deepStrictEqual(wrapped.details, { format: "gexf", sourceCode: "E_SIBLING_ONLY" });
+    });
+
+    it("adopts a sibling's E_TOO_LARGE with its params as details, under the caller's own", () => {
+        const sibling = Object.assign(new RangeError("teraHAC: 9 nodes exceeds maxNodes 8"), {
+            code: "E_TOO_LARGE",
+            params: { nodeCount: 9, maxNodes: 8, bytes: 648 },
+        });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_INTERNAL", source: "run", details: { runId: "r1" } });
+
+        assert.strictEqual(wrapped.code, "E_TOO_LARGE");
+        assert.deepStrictEqual(wrapped.details, { nodeCount: 9, maxNodes: 8, bytes: 648, runId: "r1" });
     });
 
     it("uses the caller's message when one is given", () => {

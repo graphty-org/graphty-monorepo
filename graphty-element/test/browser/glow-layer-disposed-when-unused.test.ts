@@ -16,15 +16,12 @@ import type { GraphSession } from "../../src/session";
 
 const WIDTH = 320;
 const HEIGHT = 240;
-const FRAMES = 8;
-const FRAME_MS = 10;
 
 describe("glow layer when no node glows", () => {
     let container: HTMLElement;
     let graph: Graph;
     let session: GraphSession;
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeAll(async () => {
         container = document.createElement("div");
         container.style.width = `${String(WIDTH)}px`;
@@ -37,7 +34,7 @@ describe("glow layer when no node glows", () => {
         await graph.addNodes([{ id: "a" }, { id: "b" }]);
         await graph.setLayout("circular", { scale: 0.2 });
         await operationQueueOf(graph).waitForCompletion();
-    }, 60000);
+    });
 
     afterAll(() => {
         graph.dispose();
@@ -45,15 +42,9 @@ describe("glow layer when no node glows", () => {
     });
 
     async function frame(): Promise<Uint8Array> {
-        await operationQueueOf(graph).waitForCompletion();
-
-        for (let at = 0; at < FRAMES; at++) {
-            graph.scene.render();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
-        }
+        // Not a fixed number of frames: the glow layer fetches its shaders the first time a node
+        // glows, and until they arrive it composes nothing. The stable frame waits for them.
+        await graph.waitForStableFrame();
 
         const { engine } = graph;
 

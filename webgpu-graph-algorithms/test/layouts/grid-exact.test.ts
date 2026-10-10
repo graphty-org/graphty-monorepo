@@ -54,7 +54,6 @@ import { assertCheckPasses, type CheckReport, ratioOf } from "../helpers/sabotag
 import { acquire, gpuScale, isSoftware, requireGpu } from "../setup/gpu.js";
 
 const CASE_TIMEOUT = 600_000;
-const WRITER_TIMEOUT = 1_800_000;
 /** The design's exact-vs-grid fixtures (spec 11.4). */
 const FIXTURES: readonly string[] = [
     "random20k",
@@ -184,135 +183,125 @@ describe("exact vs grid (spec 11.4; PD-19, PD-20)", () => {
 
     for (const name of FIXTURES) {
         for (const dim of [2, 3] as const) {
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-            it(
-                `(1) ${name}/${dim}d at two sizes, both measured: twice bitwise, finite; the floored per-node error's RMS and p99 under grid-exact.rms / grid-exact.p99 on the asserted fixtures of a hardware adapter, printed otherwise`,
-                async (t) => {
-                    requireGpu(t);
-                    const options = { ...GRID_BASE_OPTIONS, dim };
-                    const rmsTolerance = gridTolerance("grid-exact.rms").value;
-                    const p99Tolerance = gridTolerance("grid-exact.p99").value;
-                    const software = isSoftware();
-                    const asserted = !software && ASSERTED.includes(name);
-                    const measured: Measurement[] = [];
-                    let previous = -1;
-                    for (const scale of sizes()) {
-                        const { snapshot: s, start } = await exactInputs(ctx, name, scale, options);
-                        try {
-                            if (s.nodeCount === previous) {
-                                continue;
-                            }
-                            previous = s.nodeCount;
-                            const label = `${name}/${dim}d/n=${s.nodeCount}`;
-                            const a = await exactVsGrid(ctx, s, start, options);
-                            const b = await exactVsGrid(ctx, s, start, options);
-                            expectBitwiseEqual(a.grid, b.grid, `${label}: run 1 vs run 2`);
-                            expect(a.grid.every(Number.isFinite), `${label}: the grid force is finite`).toBe(true);
-                            const field = fieldRelError(a.grid, a.exact);
-                            expect(
-                                [a.rms, a.p99, field].every(Number.isFinite),
-                                `${label}: the statistics are finite`,
-                            ).toBe(true);
-                            console.warn(
-                                `[grid-exact] ${label}: rms ${a.rms.toExponential(3)} (tolerance ${rmsTolerance.toExponential(3)}), p99 ${a.p99.toExponential(3)} (tolerance ${p99Tolerance.toExponential(3)}), max ${a.max.toExponential(3)}; |grid - exact| / |exact| over the whole force field ${field.toExponential(3)}`,
-                            );
-                            measured.push({ n: s.nodeCount, rms: a.rms, p99: a.p99, field });
-                        } finally {
-                            ctx.release(s);
+            it(`(1) ${name}/${dim}d at two sizes, both measured: twice bitwise, finite; the floored per-node error's RMS and p99 under grid-exact.rms / grid-exact.p99 on the asserted fixtures of a hardware adapter, printed otherwise`, async (t) => {
+                requireGpu(t);
+                const options = { ...GRID_BASE_OPTIONS, dim };
+                const rmsTolerance = gridTolerance("grid-exact.rms").value;
+                const p99Tolerance = gridTolerance("grid-exact.p99").value;
+                const software = isSoftware();
+                const asserted = !software && ASSERTED.includes(name);
+                const measured: Measurement[] = [];
+                let previous = -1;
+                for (const scale of sizes()) {
+                    const { snapshot: s, start } = await exactInputs(ctx, name, scale, options);
+                    try {
+                        if (s.nodeCount === previous) {
+                            continue;
                         }
+                        previous = s.nodeCount;
+                        const label = `${name}/${dim}d/n=${s.nodeCount}`;
+                        const a = await exactVsGrid(ctx, s, start, options);
+                        const b = await exactVsGrid(ctx, s, start, options);
+                        expectBitwiseEqual(a.grid, b.grid, `${label}: run 1 vs run 2`);
+                        expect(a.grid.every(Number.isFinite), `${label}: the grid force is finite`).toBe(true);
+                        const field = fieldRelError(a.grid, a.exact);
+                        expect(
+                            [a.rms, a.p99, field].every(Number.isFinite),
+                            `${label}: the statistics are finite`,
+                        ).toBe(true);
+                        console.warn(
+                            `[grid-exact] ${label}: rms ${a.rms.toExponential(3)} (tolerance ${rmsTolerance.toExponential(3)}), p99 ${a.p99.toExponential(3)} (tolerance ${p99Tolerance.toExponential(3)}), max ${a.max.toExponential(3)}; |grid - exact| / |exact| over the whole force field ${field.toExponential(3)}`,
+                        );
+                        measured.push({ n: s.nodeCount, rms: a.rms, p99: a.p99, field });
+                    } finally {
+                        ctx.release(s);
                     }
-                    const verdict = (m: Measurement): string =>
-                        m.rms <= rmsTolerance && m.p99 <= p99Tolerance ? "under the caps" : "OVER";
-                    console.warn(
-                        `[grid-exact] summary ${name}/${dim}d (${asserted ? "asserted" : "printed"}${software ? ", software adapter" : ""}): ${measured
-                            .map(
-                                (m) =>
-                                    `n=${m.n} rms ${m.rms.toExponential(3)} p99 ${m.p99.toExponential(3)} field ${m.field.toExponential(3)} ${verdict(m)}`,
-                            )
-                            .join("; ")}`,
-                    );
-                    if (!asserted) {
-                        return;
-                    }
-                    for (const m of measured) {
-                        assertCheckPasses({
-                            worst: ratioOf(m.rms, rmsTolerance),
-                            worstLabel: `${name}/${dim}d/n=${m.n}/rms`,
-                            samples: m.n,
-                        });
-                        assertCheckPasses({
-                            worst: ratioOf(m.p99, p99Tolerance),
-                            worstLabel: `${name}/${dim}d/n=${m.n}/p99`,
-                            samples: m.n,
-                        });
-                    }
-                },
-                CASE_TIMEOUT,
-            );
+                }
+                const verdict = (m: Measurement): string =>
+                    m.rms <= rmsTolerance && m.p99 <= p99Tolerance ? "under the caps" : "OVER";
+                console.warn(
+                    `[grid-exact] summary ${name}/${dim}d (${asserted ? "asserted" : "printed"}${software ? ", software adapter" : ""}): ${measured
+                        .map(
+                            (m) =>
+                                `n=${m.n} rms ${m.rms.toExponential(3)} p99 ${m.p99.toExponential(3)} field ${m.field.toExponential(3)} ${verdict(m)}`,
+                        )
+                        .join("; ")}`,
+                );
+                if (!asserted) {
+                    return;
+                }
+                for (const m of measured) {
+                    assertCheckPasses({
+                        worst: ratioOf(m.rms, rmsTolerance),
+                        worstLabel: `${name}/${dim}d/n=${m.n}/rms`,
+                        samples: m.n,
+                    });
+                    assertCheckPasses({
+                        worst: ratioOf(m.p99, p99Tolerance),
+                        worstLabel: `${name}/${dim}d/n=${m.n}/p99`,
+                        samples: m.n,
+                    });
+                }
+            });
         }
     }
 
     for (const dim of [2, 3] as const) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(
-            `(2) isolated/${dim}d at the strays' equilibrium: every degree-0 node's force after G7 is gravity plus the field of the others (the design's "gravity alone" item, the far and near terms named)`,
-            async (t) => {
-                requireGpu(t);
-                const options = { ...GRID_BASE_OPTIONS, dim };
-                const { snapshot: s, start } = await exactInputs(ctx, "isolated", gpuScale(), options);
-                try {
-                    const degree = s.outDegree();
-                    const strays: number[] = [];
-                    for (let i = 0; i < s.nodeCount; i++) {
-                        if (degree[i] === 0) {
-                            strays.push(i);
-                        }
+        it(`(2) isolated/${dim}d at the strays' equilibrium: every degree-0 node's force after G7 is gravity plus the field of the others (the design's "gravity alone" item, the far and near terms named)`, async (t) => {
+            requireGpu(t);
+            const options = { ...GRID_BASE_OPTIONS, dim };
+            const { snapshot: s, start } = await exactInputs(ctx, "isolated", gpuScale(), options);
+            try {
+                const degree = s.outDegree();
+                const strays: number[] = [];
+                for (let i = 0; i < s.nodeCount; i++) {
+                    if (degree[i] === 0) {
+                        strays.push(i);
                     }
-                    expect(strays.length, "isolated nodes").toBeGreaterThan(0);
-                    const capture = await captureGridStages(ctx, s, start, options, null);
-                    const { oracle } = capture;
-                    const force = capture.stages.nearField.values;
-                    const got = new Float64Array(3 * strays.length);
-                    const gravityAlone = new Float64Array(3 * strays.length);
-                    const want = new Float64Array(3 * strays.length);
-                    let nearAbs = 0;
-                    let farRatio = 0;
-                    for (let k = 0; k < strays.length; k++) {
-                        const i = strays[k];
-                        let g2 = 0;
-                        let f2 = 0;
-                        for (let a = 0; a < 3; a++) {
-                            got[3 * k + a] = force[3 * i + a];
-                            gravityAlone[3 * k + a] = oracle.gravity[3 * i + a];
-                            want[3 * k + a] =
-                                oracle.gravity[3 * i + a] + oracle.farField[3 * i + a] + oracle.nearField[3 * i + a];
-                            g2 += oracle.gravity[3 * i + a] ** 2;
-                            f2 += oracle.farField[3 * i + a] ** 2;
-                            nearAbs = Math.max(nearAbs, Math.abs(oracle.nearField[3 * i + a]));
-                        }
-                        farRatio = Math.max(farRatio, Math.sqrt(f2) / Math.sqrt(g2));
-                    }
-                    const tolerance = gridTolerance("grid-inspect.nearField").value;
-                    const err = stageError(true, got, want);
-                    const alone = stageError(true, got, gravityAlone);
-                    console.warn(
-                        `[grid-exact] isolated/${dim}d: ${strays.length} strays; force vs gravity + far field rel ${err.rel.toExponential(3)}; vs gravity alone rel ${alone.rel.toExponential(3)}; |far| / |gravity| up to ${farRatio.toExponential(3)} (${farRatio <= tolerance ? "negligible: the design's gravity-alone item holds as written" : "NOT negligible at the scaled equilibrium: the check compares against gravity + farField_oracle (the record's item)"}); the strays' near field (a stray within the 3x3 of another stray or of the core: ${nearAbs > 0 ? "present, included in the expectation and named in the record" : "absent, the design's item as written"}) up to ${nearAbs.toExponential(3)}`,
-                    );
-                    assertCheckPasses({
-                        worst: ratioOf(err.rel, tolerance),
-                        worstLabel: `isolated/${dim}d strays`,
-                        samples: strays.length,
-                    });
-                } finally {
-                    ctx.release(s);
                 }
-            },
-            CASE_TIMEOUT,
-        );
+                expect(strays.length, "isolated nodes").toBeGreaterThan(0);
+                const capture = await captureGridStages(ctx, s, start, options, null);
+                const { oracle } = capture;
+                const force = capture.stages.nearField.values;
+                const got = new Float64Array(3 * strays.length);
+                const gravityAlone = new Float64Array(3 * strays.length);
+                const want = new Float64Array(3 * strays.length);
+                let nearAbs = 0;
+                let farRatio = 0;
+                for (let k = 0; k < strays.length; k++) {
+                    const i = strays[k];
+                    let g2 = 0;
+                    let f2 = 0;
+                    for (let a = 0; a < 3; a++) {
+                        got[3 * k + a] = force[3 * i + a];
+                        gravityAlone[3 * k + a] = oracle.gravity[3 * i + a];
+                        want[3 * k + a] =
+                            oracle.gravity[3 * i + a] + oracle.farField[3 * i + a] + oracle.nearField[3 * i + a];
+                        g2 += oracle.gravity[3 * i + a] ** 2;
+                        f2 += oracle.farField[3 * i + a] ** 2;
+                        nearAbs = Math.max(nearAbs, Math.abs(oracle.nearField[3 * i + a]));
+                    }
+                    farRatio = Math.max(farRatio, Math.sqrt(f2) / Math.sqrt(g2));
+                }
+                const tolerance = gridTolerance("grid-inspect.nearField").value;
+                const err = stageError(true, got, want);
+                const alone = stageError(true, got, gravityAlone);
+                console.warn(
+                    `[grid-exact] isolated/${dim}d: ${strays.length} strays; force vs gravity + far field rel ${err.rel.toExponential(3)}; vs gravity alone rel ${alone.rel.toExponential(3)}; |far| / |gravity| up to ${farRatio.toExponential(3)} (${farRatio <= tolerance ? "negligible: the design's gravity-alone item holds as written" : "NOT negligible at the scaled equilibrium: the check compares against gravity + farField_oracle (the record's item)"}); the strays' near field (a stray within the 3x3 of another stray or of the core: ${nearAbs > 0 ? "present, included in the expectation and named in the record" : "absent, the design's item as written"}) up to ${nearAbs.toExponential(3)}`,
+                );
+                assertCheckPasses({
+                    worst: ratioOf(err.rel, tolerance),
+                    worstLabel: `isolated/${dim}d strays`,
+                    samples: strays.length,
+                });
+            } finally {
+                ctx.release(s);
+            }
+        });
     }
 
     for (const name of ["random20k", "clumpy100"]) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 148 s on the T4 lane, 139 s on the dev box's RTX 4070 SUPER under load, 139 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
         it(
             `(4, 5) ${name} at two sizes: the grid tier's spread after 50 and 200 iterations within grid-expansion of the exact tier's (asserted on a hardware adapter, printed on a software one); layoutMetrics after 200 within grid-distributional at the first size`,
             async (t) => {
@@ -366,88 +355,76 @@ describe("exact vs grid (spec 11.4; PD-19, PD-20)", () => {
     }
 
     for (const dim of [2, 3] as const) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(
-            `(6) issue #90, ${dim}D: a core with two outlier groups beyond the extent on opposite sides stays under grid-exact.rms / grid-exact.p99 (each orthant's outliers push from their own side)`,
-            async (t) => {
-                requireGpu(t);
-                const { start } = opposingOutliers(dim);
-                const n = start.length / 3;
-                const s = snapshotOf([], { nodeCount: n, arena: false });
-                try {
-                    const options = { ...GRID_BASE_OPTIONS, dim };
-                    const a = await exactVsGrid(ctx, s, start, options);
-                    const rms = gridTolerance("grid-exact.rms").value;
-                    const p99 = gridTolerance("grid-exact.p99").value;
-                    console.warn(
-                        `[grid-exact] outliers/${dim}d/n=${n}: rms ${a.rms.toExponential(3)} (tolerance ${rms.toExponential(3)}), p99 ${a.p99.toExponential(3)} (tolerance ${p99.toExponential(3)})`,
-                    );
-                    assertCheckPasses({ worst: ratioOf(a.rms, rms), worstLabel: `outliers/${dim}d/rms`, samples: n });
-                    assertCheckPasses({ worst: ratioOf(a.p99, p99), worstLabel: `outliers/${dim}d/p99`, samples: n });
-                } finally {
-                    ctx.release(s);
-                }
-            },
-            CASE_TIMEOUT,
-        );
+        it(`(6) issue #90, ${dim}D: a core with two outlier groups beyond the extent on opposite sides stays under grid-exact.rms / grid-exact.p99 (each orthant's outliers push from their own side)`, async (t) => {
+            requireGpu(t);
+            const { start } = opposingOutliers(dim);
+            const n = start.length / 3;
+            const s = snapshotOf([], { nodeCount: n, arena: false });
+            try {
+                const options = { ...GRID_BASE_OPTIONS, dim };
+                const a = await exactVsGrid(ctx, s, start, options);
+                const rms = gridTolerance("grid-exact.rms").value;
+                const p99 = gridTolerance("grid-exact.p99").value;
+                console.warn(
+                    `[grid-exact] outliers/${dim}d/n=${n}: rms ${a.rms.toExponential(3)} (tolerance ${rms.toExponential(3)}), p99 ${a.p99.toExponential(3)} (tolerance ${p99.toExponential(3)})`,
+                );
+                assertCheckPasses({ worst: ratioOf(a.rms, rms), worstLabel: `outliers/${dim}d/rms`, samples: n });
+                assertCheckPasses({ worst: ratioOf(a.p99, p99), worstLabel: `outliers/${dim}d/p99`, samples: n });
+            } finally {
+                ctx.release(s);
+            }
+        });
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "writes the five approximation members of the UNSCALED random20k / hubcell with their exact-tier references (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
-                // G4-F12: the 4,096-seed hubcell ladder alone costs ~250 s on lavapipe; without the flag the writes
-                // are no-ops and test/noise-floor.test.ts checks the committed fixtures on every run.
-                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
-            }
-            requireGpu(t);
-            const cls = adapterClass(ctx.caps);
-            const write = (
-                name: keyof typeof GRID_NOISE_FIXTURES,
-                values: ArrayLike<number>,
-                exact: ArrayLike<number>,
-            ): void => {
-                const { kernel, fixture } = GRID_NOISE_FIXTURES[name];
-                writeNoiseFixture(kernel, fixture, cls, values, "f32");
-                writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, exact, "f32");
-            };
-            const random = gridFixture("random20k", 1, GRID_BASE_OPTIONS);
-            try {
-                const { snapshot: s, start } = random;
-                const n = s.nodeCount;
-                const a = await exactVsGrid(ctx, s, start, GRID_BASE_OPTIONS);
-                console.warn(
-                    `[grid-exact] noise/random20k: rms ${a.rms.toExponential(3)}, p99 ${a.p99.toExponential(3)}`,
-                );
-                write("exactRms", sampleNodes(a.grid, n), sampleNodes(a.exact, n));
-                write("exactP99", sampleNodes(a.grid, n), sampleNodes(a.exact, n));
-                const g = await trajectory(ctx, s, start, GRID_BASE_OPTIONS, GRID_TUNING);
-                const e = await trajectory(ctx, s, start, GRID_BASE_OPTIONS, EXACT_TUNING);
-                console.warn(
-                    `[grid-exact] noise/random20k: spread 50 grid ${g.spread50.toFixed(4)} exact ${e.spread50.toFixed(4)}, spread 200 grid ${g.spread200.toFixed(4)} exact ${e.spread200.toFixed(4)}`,
-                );
-                write("expansion", [g.spread50, g.spread200], [e.spread50, e.spread200]);
-                const gm = metricsValues(layoutMetrics(s, g.positions, 2));
-                const em = metricsValues(layoutMetrics(s, e.positions, 2));
-                expect(gm.keys).toEqual(em.keys);
-                write("distributional", gm.values, em.values);
-            } finally {
-                ctx.release(random.snapshot);
-            }
-            const hub = gridFixture("hubcell", 1, GRID_BASE_OPTIONS);
-            try {
-                const u = await unbiasedLadder(ctx, hub.snapshot, hub.start, GRID_BASE_OPTIONS);
-                const top = u.rungs[u.rungs.length - 1];
-                console.warn(
-                    `[grid-exact] noise/hubcell: |mean - exact| / |exact| over the whole force field at ${top.seeds} seeds ${top.field.toExponential(3)}; rms of the floored per-node error ${top.rms.toExponential(3)}`,
-                );
-                const n = hub.snapshot.nodeCount;
-                write("unbiased", sampleNodes(u.mean, n), sampleNodes(u.exact, n));
-            } finally {
-                ctx.release(hub.snapshot);
-            }
-        },
-        WRITER_TIMEOUT,
-    );
+    it("writes the five approximation members of the UNSCALED random20k / hubcell with their exact-tier references (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+            // G4-F12: the 4,096-seed hubcell ladder alone costs ~250 s on lavapipe; without the flag the writes
+            // are no-ops and test/noise-floor.test.ts checks the committed fixtures on every run.
+            t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+        }
+        requireGpu(t);
+        const cls = adapterClass(ctx.caps);
+        const write = (
+            name: keyof typeof GRID_NOISE_FIXTURES,
+            values: ArrayLike<number>,
+            exact: ArrayLike<number>,
+        ): void => {
+            const { kernel, fixture } = GRID_NOISE_FIXTURES[name];
+            writeNoiseFixture(kernel, fixture, cls, values, "f32");
+            writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, exact, "f32");
+        };
+        const random = gridFixture("random20k", 1, GRID_BASE_OPTIONS);
+        try {
+            const { snapshot: s, start } = random;
+            const n = s.nodeCount;
+            const a = await exactVsGrid(ctx, s, start, GRID_BASE_OPTIONS);
+            console.warn(`[grid-exact] noise/random20k: rms ${a.rms.toExponential(3)}, p99 ${a.p99.toExponential(3)}`);
+            write("exactRms", sampleNodes(a.grid, n), sampleNodes(a.exact, n));
+            write("exactP99", sampleNodes(a.grid, n), sampleNodes(a.exact, n));
+            const g = await trajectory(ctx, s, start, GRID_BASE_OPTIONS, GRID_TUNING);
+            const e = await trajectory(ctx, s, start, GRID_BASE_OPTIONS, EXACT_TUNING);
+            console.warn(
+                `[grid-exact] noise/random20k: spread 50 grid ${g.spread50.toFixed(4)} exact ${e.spread50.toFixed(4)}, spread 200 grid ${g.spread200.toFixed(4)} exact ${e.spread200.toFixed(4)}`,
+            );
+            write("expansion", [g.spread50, g.spread200], [e.spread50, e.spread200]);
+            const gm = metricsValues(layoutMetrics(s, g.positions, 2));
+            const em = metricsValues(layoutMetrics(s, e.positions, 2));
+            expect(gm.keys).toEqual(em.keys);
+            write("distributional", gm.values, em.values);
+        } finally {
+            ctx.release(random.snapshot);
+        }
+        const hub = gridFixture("hubcell", 1, GRID_BASE_OPTIONS);
+        try {
+            const u = await unbiasedLadder(ctx, hub.snapshot, hub.start, GRID_BASE_OPTIONS);
+            const top = u.rungs[u.rungs.length - 1];
+            console.warn(
+                `[grid-exact] noise/hubcell: |mean - exact| / |exact| over the whole force field at ${top.seeds} seeds ${top.field.toExponential(3)}; rms of the floored per-node error ${top.rms.toExponential(3)}`,
+            );
+            const n = hub.snapshot.nodeCount;
+            write("unbiased", sampleNodes(u.mean, n), sampleNodes(u.exact, n));
+        } finally {
+            ctx.release(hub.snapshot);
+        }
+    });
 });

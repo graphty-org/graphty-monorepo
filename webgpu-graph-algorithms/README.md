@@ -268,6 +268,7 @@ sim.dispose();
 
 | Option                                                                | Default                       | Meaning                                                                                                                                                                                    |
 | --------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `maxIter`                                                             | `null`                        | the iteration cap; an integer >= 1, or `null` for none                                                                                                                                     |
 | `springLength`                                                        | `10`                          | the rest length of an edge; a finite number > 0                                                                                                                                            |
 | `springCoefficient`                                                   | `0.8`, size-scaled            | Hooke's constant. Left out or `null` it is ngraph's `0.8` times `min(1, 300 / nodeCount)`, applied once `nodeCount` is known at `load()`; a number you pass is used as given at every size |
 | `gravity`                                                             | `-12`, size-scaled            | ngraph's Coulomb constant, where NEGATIVE repels -- this is not ForceAtlas2's centre gravity. Left out or `null` it is ngraph's `-12` times the same factor. Any finite number is accepted |
@@ -280,8 +281,8 @@ The size scaling exists because ngraph's constants were tuned for graphs of a fe
 thousands the per-node forces are large enough that every node moves at the unit speed clamp and the layout
 never comes to rest. `SE_DEFAULTS` is the frozen record of the unscaled constants.
 
-This model has no iteration-count option, so `run()` without `maxIter` has no budget at all and returns only
-when the layout settles. Pass `run({ maxIter })` unless that is what you want.
+`maxIter` stops the run and turns `settled` true after that many iterations since `load()` / `reheat()`, as
+ForceAtlas2's does. Without it, and without `run({ maxIter })`, `run()` returns only when the layout settles.
 
 `sim.stats` is `SpringElectricalStats`: `LayoutStatsBase` plus `kineticEnergy`, and a `trace` of
 `{ kineticEnergy, meanDisplacement, settledCount }`. The energy lags the positions by one iteration -- the
@@ -932,7 +933,7 @@ pnpm install                                      # at the monorepo root
 cd webgpu-graph-algorithms
 pnpm run build:all                                # tsc + the vite bundle + the d.ts shims
 pnpm run lint                                     # eslint + tsc --noEmit + the strict-consumer compile
-pnpm exec vitest run --project=node               # the node suite on the default adapter
+pnpm exec vitest run --project=node --project=node-gpu-alone   # the node suite on the default adapter
 pnpm run coverage                                 # the node suite with the 80 / 80 / 75 / 80 thresholds
 node scripts/run-browser-project.js               # the browser smoke suite (SwiftShader by default)
 node scripts/gpu-report.js                        # the adapter report and the policy verdict (after build)

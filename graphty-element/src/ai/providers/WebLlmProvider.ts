@@ -6,6 +6,8 @@
 
 import { asSchema } from "ai";
 
+import { aiProviderDescriptor } from "../../catalog/ai";
+import { GraphtyError } from "../../errors/GraphtyError";
 import type {
     LlmProvider,
     LlmResponse,
@@ -39,75 +41,73 @@ export interface WebLlmModelInfo {
     downloadMB?: number;
 }
 
-/** The model the provider loads when none is configured. */
-const DEFAULT_MODEL_ID = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
+/** Options for a new `WebLlmProvider` (from `getWebLlmProviderClass()`). */
+export interface WebLlmProviderOptions {
+    /**
+     * Load the model on the first request instead of failing until `initialize()` has been
+     * called. Default false.
+     */
+    initializeOnFirstUse?: boolean;
+}
+
+/** The optional peer package the provider runs on. */
+const WEBLLM_PACKAGE = "@mlc-ai/web-llm";
 
 /**
- * Available models with their metadata.
+ * Load `@mlc-ai/web-llm`, so a page that picks the in-browser provider learns at once whether
+ * it can run.
+ * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when the package is not installed.
+ */
+export async function requireWebLlmPackage(): Promise<void> {
+    try {
+        await import("@mlc-ai/web-llm");
+    } catch (error_) {
+        throw new GraphtyError({
+            code: "E_MISSING_PACKAGE",
+            message: `The in-browser AI provider needs the optional package ${WEBLLM_PACKAGE}.`,
+            source: "config",
+            details: { package: WEBLLM_PACKAGE, feature: "webllm" },
+            cause: error_,
+        });
+    }
+}
+
+const WEBLLM = aiProviderDescriptor("webllm");
+
+/** The model the provider loads when none is configured. */
+const DEFAULT_MODEL_ID = WEBLLM.defaultModel;
+
+/** The description `getAvailableModels()` gives each model, by id. */
+const MODEL_DESCRIPTIONS: Readonly<Record<string, string>> = {
+    "Llama-3.2-1B-Instruct-q4f32_1-MLC": "Fast, lightweight model suitable for quick responses",
+    "Llama-3.2-3B-Instruct-q4f32_1-MLC": "Better quality responses with reasonable performance",
+    "Phi-3.5-mini-instruct-q4f16_1-MLC": "Good balance of quality and performance",
+    "Qwen2.5-1.5B-Instruct-q4f16_1-MLC": "Efficient model with good multilingual support",
+    "SmolLM2-360M-Instruct-q4f16_1-MLC": "Very small and fast, basic capabilities",
+    "Hermes-3-Llama-3.1-8B-q4f16_1-MLC": "Can call the assistant's tools; large download",
+    "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC": "Can call the assistant's tools; large download",
+};
+
+/**
+ * Available models with their metadata: the WebLLM models of the AI catalogue
+ * (`AI_PROVIDER_DESCRIPTORS` in `./catalog`).
  *
  * `supportsTools` mirrors WebLLM's exported `functionCallingModelIds`, which cannot be read
  * here without loading the whole optional package; test/ai/providers/WebLlmProvider.test.ts
  * checks every entry against that export, and once the package is loaded the provider reads
  * the export itself (see `modelSupportsTools`).
  */
-const AVAILABLE_MODELS: WebLlmModelInfo[] = [
-    {
-        id: DEFAULT_MODEL_ID,
-        name: "Llama 3.2 1B",
-        size: "~500MB",
-        description: "Fast, lightweight model suitable for quick responses",
-        supportsTools: false,
-        downloadMB: 500,
-    },
-    {
-        id: "Llama-3.2-3B-Instruct-q4f32_1-MLC",
-        name: "Llama 3.2 3B",
-        size: "~1.5GB",
-        description: "Better quality responses with reasonable performance",
-        supportsTools: false,
-        downloadMB: 1500,
-    },
-    {
-        id: "Phi-3.5-mini-instruct-q4f16_1-MLC",
-        name: "Phi 3.5 Mini",
-        size: "~2GB",
-        description: "Good balance of quality and performance",
-        supportsTools: false,
-        downloadMB: 2000,
-    },
-    {
-        id: "Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
-        name: "Qwen 2.5 1.5B",
-        size: "~800MB",
-        description: "Efficient model with good multilingual support",
-        supportsTools: false,
-        downloadMB: 800,
-    },
-    {
-        id: "SmolLM2-360M-Instruct-q4f16_1-MLC",
-        name: "SmolLM2 360M",
-        size: "~200MB",
-        description: "Very small and fast, basic capabilities",
-        supportsTools: false,
-        downloadMB: 200,
-    },
-    {
-        id: "Hermes-3-Llama-3.1-8B-q4f16_1-MLC",
-        name: "Hermes 3 Llama 3.1 8B",
-        size: "~4.5GB",
-        description: "Can call the assistant's tools; large download",
-        supportsTools: true,
-        downloadMB: 4500,
-    },
-    {
-        id: "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC",
-        name: "Hermes 2 Pro Mistral 7B",
-        size: "~4GB",
-        description: "Can call the assistant's tools; large download",
-        supportsTools: true,
-        downloadMB: 4000,
-    },
-];
+const AVAILABLE_MODELS: WebLlmModelInfo[] = WEBLLM.models.map((model) => {
+    const downloadMB = model.downloadMB ?? 0;
+    return {
+        id: model.id,
+        name: model.plainName,
+        size: downloadMB >= 1000 ? `~${downloadMB / 1000}GB` : `~${downloadMB}MB`,
+        description: MODEL_DESCRIPTIONS[model.id],
+        supportsTools: model.supportsTools,
+        downloadMB,
+    };
+});
 
 // OpenAI API key names (snake_case required by API)
 interface OpenAiRequestOptions {
@@ -176,6 +176,18 @@ export class WebLlmProvider implements LlmProvider {
 
     // WebLLM's own list of models it accepts tools for, read once the package has loaded
     private toolCapableModelIds?: readonly string[];
+
+    private readonly initializeOnFirstUse: boolean;
+    private initializing?: Promise<void>;
+
+    /**
+     * Creates a provider. Nothing is loaded until `initialize()` or, with
+     * `initializeOnFirstUse`, the first request.
+     * @param options - How the provider starts
+     */
+    constructor(options: WebLlmProviderOptions = {}) {
+        this.initializeOnFirstUse = options.initializeOnFirstUse ?? false;
+    }
 
     /**
      * Check if WebGPU is available in the current browser.
@@ -384,6 +396,25 @@ export class WebLlmProvider implements LlmProvider {
     }
 
     /**
+     * Make the engine ready for a request: initialize it once when `initializeOnFirstUse` is set,
+     * otherwise fail as before.
+     */
+    private async ensureInitialized(): Promise<void> {
+        if (this.initialized && this.engine) {
+            return;
+        }
+
+        if (!this.initializeOnFirstUse) {
+            throw new Error("WebLLM not initialized. Call initialize() first.");
+        }
+
+        this.initializing ??= this.initialize().finally(() => {
+            this.initializing = undefined;
+        });
+        await this.initializing;
+    }
+
+    /**
      * Generate a response from the LLM.
      * @param messages - Conversation messages
      * @param tools - Available tools for the LLM
@@ -405,9 +436,7 @@ export class WebLlmProvider implements LlmProvider {
             return this.generateMock(messages, tools);
         }
 
-        if (!this.initialized || !this.engine) {
-            throw new Error("WebLLM not initialized. Call initialize() first.");
-        }
+        await this.ensureInitialized();
 
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -468,9 +497,7 @@ export class WebLlmProvider implements LlmProvider {
             return;
         }
 
-        if (!this.initialized || !this.engine) {
-            throw new Error("WebLLM not initialized. Call initialize() first.");
-        }
+        await this.ensureInitialized();
 
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

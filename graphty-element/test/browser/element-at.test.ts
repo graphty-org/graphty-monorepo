@@ -1,7 +1,7 @@
 /**
  * @file `element.elementAt({ x, y })` answers what a click at that point would select. Each test
- * points the real mouse at a grid of points across the element, asks `elementAt`, clicks, and
- * compares the answer with the selection the click made, in 2D and in 3D.
+ * takes a grid of points across the element, asks `elementAt` at each, clicks it with the real
+ * mouse, and compares the answer with the selection the click made, in 2D and in 3D.
  */
 
 import "../../src/graphty-element";
@@ -73,7 +73,11 @@ function centerOf(element: Graphty, id: string | number): { x: number; y: number
 }
 
 /**
- * Point the mouse at a point, read `elementAt` there, click, and read what the click selected.
+ * Read `elementAt` at a point, click there, and read what the click selected.
+ *
+ * No hover first: `elementAt` picks from the point it is given, not from where the mouse is, and
+ * the click moves the mouse to the point itself. A hover per point doubled the driver round trips
+ * and made the grid test take over a third of the test budget.
  * @param element - The element.
  * @param point - The point, in CSS pixels from the element's top-left corner.
  * @returns The id `elementAt` gave (or null) and the id the click selected (or null).
@@ -82,14 +86,13 @@ async function answerAndClick(
     element: Graphty,
     point: { x: number; y: number },
 ): Promise<{ answered: string | number | null; selected: string | number | null }> {
-    // Copies: the browser driver rescales a `position` in place to the test frame's zoom.
-    await userEvent.hover(element, { position: { ...point } });
     const hit = element.elementAt(point);
     if (hit !== null) {
         assert.strictEqual(hit.kind, "node", "only nodes are found today");
     }
 
-    // The points differ, so no two clicks in a row make a double-click.
+    // The points differ, so no two clicks in a row make a double-click. A copy: the browser driver
+    // rescales a `position` in place to the test frame's zoom.
     await userEvent.click(element, { position: { ...point } });
     return { answered: hit?.id ?? null, selected: element.getSelectedNode()?.id ?? null };
 }
@@ -105,7 +108,6 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
         assert.isNull(element.elementAt({ x: 2, y: 2 }), "the corner is empty canvas");
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("returns the node a click at the same point selects, across the whole element", async () => {
         const element = await mounted(viewMode);
         const points = NODES.map(({ id }) => centerOf(element, id));
@@ -129,5 +131,5 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
 
         assert.isAtLeast(nodes, NODES.length, "some points landed on nodes");
         assert.isAtLeast(empty, 1, "some points landed on empty canvas");
-    }, 60_000);
+    });
 });

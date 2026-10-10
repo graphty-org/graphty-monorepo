@@ -37,6 +37,23 @@ export function pickNodeId(scene: Scene, x: number, y: number): NodeIdType | und
     return metadata?.nodeId;
 }
 
+/**
+ * When a pointer event HAPPENED, on the `performance.now()` clock.
+ *
+ * A click is told from a long press by how long the button was down, and that has to be read from
+ * the events' own time stamps, not from when the page got round to handling them. A pointerup
+ * waits in the queue while the page is busy -- a long frame, a layout step, the browser
+ * descheduled -- and measured at handling time a quick click made then read as a long press and
+ * selected nothing. An event without a usable stamp (one built by hand) is stamped now.
+ * @param event - The pointer event Babylon passed on, if any.
+ * @returns The event's time stamp in milliseconds.
+ */
+export function pointerEventTime(event: object | null | undefined): number {
+    // Babylon types the event as its own IMouseEvent, which does not declare the DOM's stamp.
+    const stamp: unknown = event && "timeStamp" in event ? event.timeStamp : undefined;
+    return typeof stamp === "number" && Number.isFinite(stamp) && stamp > 0 ? stamp : performance.now();
+}
+
 interface NodeBehaviorOptions {
     pinOnDrag?: boolean;
 }
@@ -223,7 +240,7 @@ export class NodeDragHandler {
         const newPosition = this.dragState.dragStartMeshPosition.add(delta);
 
         // Update mesh position (triggers edge updates automatically)
-        this.node.mesh.position.copyFrom(newPosition);
+        this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
         this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;
@@ -308,7 +325,7 @@ export class NodeDragHandler {
         }
 
         // Update mesh position
-        this.node.mesh.position.copyFrom(newPosition);
+        this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
         this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;
@@ -461,7 +478,7 @@ export class NodeDragHandler {
                     if (pickedNodeId === this.node.id) {
                         // Initialize click tracking
                         this.clickState = {
-                            pointerDownTime: Date.now(),
+                            pointerDownTime: pointerEventTime(pointerInfo.event),
                             pointerDownPosition: {
                                 x: this.scene.pointerX,
                                 y: this.scene.pointerY,
@@ -511,7 +528,7 @@ export class NodeDragHandler {
                 case PointerEventTypes.POINTERUP:
                     if (this.dragState.dragging) {
                         // Check if this was a click (short duration, minimal movement)
-                        const wasClick = this.isClick();
+                        const wasClick = this.isClick(pointerEventTime(pointerInfo.event));
 
                         this.onDragEnd();
 
@@ -597,14 +614,15 @@ export class NodeDragHandler {
     /**
      * Check if the current pointer interaction qualifies as a click.
      * A click is defined as a short duration interaction with minimal movement.
+     * @param pointerUpTime - When the pointer went up, from {@link pointerEventTime}.
      * @returns True if the interaction qualifies as a click
      */
-    private isClick(): boolean {
+    private isClick(pointerUpTime: number): boolean {
         if (!this.clickState) {
             return false;
         }
 
-        const duration = Date.now() - this.clickState.pointerDownTime;
+        const duration = pointerUpTime - this.clickState.pointerDownTime;
         return duration < CLICK_MAX_DURATION_MS && !this.clickState.hasMoved;
     }
 

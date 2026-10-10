@@ -342,6 +342,23 @@ describe("the Data page on the real element", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
+        "File settings keeps its place when the table pane grows a scrollbar",
+        async () => {
+            await openFromEmptyApp();
+            await chooseFiles(new File([PEOPLE], "people.csv"));
+            await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+
+            // The pane keeps the scrollbar's room whether or not the preview overflows. Checked as
+            // the style: the test browser runs headless, which hides scrollbars, so a position
+            // measured there never moves.
+            const pane = screen.getByRole("region", { name: "Table" });
+            assert.equal(getComputedStyle(pane).scrollbarGutter, "stable");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
         "T5: refuses an empty file with one problem block, and the app stays usable",
         async () => {
             const { session } = await openFromEmptyApp();

@@ -11,6 +11,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Built: the Data page's table pane keeps its scrollbar room.** `.dp-main` has
+  `scrollbar-gutter: stable` (`data-page/data-page.css`), so "File settings" / "CSV auto" no
+  longer jump 15 px left when a preview overflows (round 3 pilots: 1310 -> 1295 -> 1310). Fresh
+  build: x = 1295 on every Data page screen of T4A, T4B and T21B
+  (`tmp/r3-dry1-import-pane-scrollbar-gutter/`). Test: `DataPage.real-element.test.tsx` checks
+  the computed style -- vitest's headless Chromium hides scrollbars, so a position never moves
+  there; `real.mjs` shows them, which is where the jump is measurable.
 - (2026-10-10) **Fixed: a tie picked from the find box moves focus to the tie's values.** One
   request for both views: `focusValuesNext()` / `takeValuesFocus()` in `inspector/reads.ts`
   (renamed from the node-only pair); `FindBox` asks on every hit pick; `EdgeValues` takes it on
@@ -29,35 +36,20 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the words in a `<span key={announced}>`, so a repeat ("1 node selected" for a second node) is a
   new node in the polite region. Test: `Workspace.test.tsx` "speaks the same status words again".
   `real.mjs --sr` now prints text put in again too (it compared text only, so it hid this).
-- (2026-10-10) **Built: words at rest back under round 1 on three of four tier 2 screens.** On a
-  fresh build (`tmp/t2r2b-9/bars.log`): rest 49 (limit 53), path inspector 61 (66), neighbor list
-  33 (36), **edge inspector 31 (30), one over**. The key names a stale run's scope only when the
-  drawn count differs from the count it ran on: plain, ", full graph" (ran on every node), or "on
-  N nodes"; a run's node+edge highlight is one key line (chip + run name, no "On the path" row;
-  exported images keep both); unset-weight path note `Each edge counts as 1; "weight" has no
-meaning set.`; neighbor heading drops "within N hops" (the status line keeps it); Overview's
-  sentence is the heading "Full graph". OPEN for the studio: the edge screen's last word -- both
-  scope phrases there are true (15 of 32 drawn; PageRank ran on 20, the path on 32).
+- (2026-10-10, condensed) **Built: words at rest under round 1** on rest, path inspector and
+  neighbor list (`tmp/t2r2b-9/bars.log`); the edge inspector is one over (31 of 30). OPEN for the
+  studio: which of its two true scope phrases goes.
 - (2026-10-10) **Fixed: a deleted step came back when its open editor closed.** The editor's
   early return ("This step is gone") kept the last draw's save-on-leave closure, which wrote the
   old step list back (`Filters.tsx`). Test `FilterFocus.real-element.test.tsx`. `bars.mjs` now
   plants its failure cases on the empty Notes place, not the step editor (the planted blur saved
   the step, so "Add step" was gone).
-- (2026-10-10) **Built: a selection's own row made from a rule is named by the rule.**
-  `selectionName` in `style/StyleTab.tsx` reads `session.selection.origin`: a text origin that
-  starts with "=" names the row by the rest ("minutes >= `10`"), shown in the layer list, the
-  inspector header and the key ("Edge color: minutes >= `10`"); every other selection keeps its
-  node id, edge ends or count. Walk: `tmp/t2r2b-8/rule/06-09.png`. Open: on that walk the new
-  edge Color line showed 000000, not the band's 0077BB the highlight-look test expects -- check
-  whether `highlightStyle("edge")` or the walk's Line + Color path differs from the test's.
-- (2026-10-10) **Built: readers' words find Shortest path in the Analyze list.** Aliases now
-  include "linked", "between", "in between", "fewest", "chain" (search only, never shown;
-  "linked" replaced "link", which it contains). Walk on 3ee5ca8b0e01: Shift+A, "linked",
-  Shortest path, From, pick, To, pick, Find path = 8 steps, Chloe-Ava-Ivan-Kofi-Milo
-  (`tmp/t2r2b-11/linked/02-09.png`). Open: "linked" also lists Louvain and Leiden first ("densely
-  linked groups", Louvain marked Start here); after picking Shortest path focus is on the
-  dialog, not From, so typing a name types nothing (`tmp/t2r2b-11/fewest/05.png`) -- one more
-  step on every path; putting focus in From would bring T18 to 7.
+- (2026-10-10, condensed) **Built: a selection row made from a rule is named by the rule**
+  (`selectionName` in `style/StyleTab.tsx`, from `session.selection.origin`). Open: the walk's
+  new edge Color showed 000000, not the highlight band's 0077BB -- check `highlightStyle("edge")`.
+- (2026-10-10, condensed) **Built: "linked", "between", "fewest", "chain" find Shortest path**
+  (search-only aliases). Open: focus lands on the dialog, not From, after picking it (one step
+  more on every path).
 - (2026-10-10, condensed) **Built: the find box offers a typed condition as a rule** (last
   option, Enter picks it; judged by the element's `selection.count`). Walk `tmp/t2r2b-4/find/`.
 - (2026-10-10, condensed) **Built: keyboard focus on tier 2 controls** (second Esc keeps the
@@ -86,11 +78,14 @@ meaning set.`; neighbor heading drops "within N hops" (the status line keeps it)
 - (2026-10-09) **Dry run = `tier2/pilot/detours.sh all`** on every new frozen build, plus this
   round's detours: style a selection (width, color, name), click away from an open step editor,
   run a path twice, reopen the Path form, open a newer copy of a loaded file.
-- (2026-10-09, condensed) Script before calling it a defect (empty-canvas click while a run is
-  selected, edge width units); every study-tool change gets a planted-failure check.
+- (2026-10-09, condensed) Script before calling it a defect; every study-tool change gets a
+  planted-failure check.
 
 ## Decisions and reasons
 
+- (2026-10-10) **A scrolling pane with a header row reserves its gutter** (`scrollbar-gutter:
+  stable`), rather than moving the header out of the pane: one CSS line, and the Add and Replace
+  pages share the pane. Costs 15 px of table width when nothing overflows.
 - (2026-10-10) **One focus request for a find pick, not one per kind.** The pick sets it, and
   whichever view the selection draws (node or edge) takes it once; a second flag per kind would
   let a stale node request fire on a later node view. The edge view consumes it only once the
@@ -211,6 +206,11 @@ meaning set.`; neighbor heading drops "within N hops" (the status line keeps it)
 
 ## Tried: worked / did not work
 
+- (2026-10-10) Did not work: a browser test that measured "File settings" before and after
+  forcing the pane to overflow passed WITHOUT the fix -- vitest's headless Chromium runs with
+  hidden scrollbars (clientWidth stayed 1069). The narrow default viewport also made the row
+  overflow sideways. Worked: assert the computed `scrollbar-gutter`, and measure positions on
+  `real.mjs` screenshots, which draw scrollbars.
 - (2026-10-10) Did not work at first: the edge-pick test matched " -- " ties; the test's two
   rings load as a directed graph, so the joiner is " -> " (`edgeJoiner`). Read the failure
   screenshot before changing the code.

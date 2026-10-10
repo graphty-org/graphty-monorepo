@@ -36,6 +36,9 @@
 .dp-main {
     min-height: 0;
     overflow: auto;
+    /* Keep the scrollbar's room even when nothing overflows, so the header row ("File settings")
+       does not shift left when the preview grows a scrollbar. */
+    scrollbar-gutter: stable;
 }
 
 .dp-roles {

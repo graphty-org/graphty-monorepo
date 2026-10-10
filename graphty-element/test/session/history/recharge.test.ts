@@ -146,10 +146,15 @@ async function act(
             session.sets.addMembers(set.id, { edges: [{ source: "n2", target: "n3", id: `e${String(serial)}` }] });
             return true;
         }
-        case "set-read":
+        case "set-read": {
             // Reading a fixed set's edge members builds them as objects, once.
-            assert.notStrictEqual(pick(sets)?.definition.edges, null);
+            const definition = pick(sets)?.definition;
+            if (definition?.kind === "fixed") {
+                assert.notStrictEqual(definition.edges, null);
+            }
+
             return false;
+        }
         case "set-remove": {
             const set = pick(sets);
             if (set === undefined) {

@@ -643,6 +643,13 @@ export interface NodeEventDetail {
     button?: number;
     /** The modifier keys held during a click, for a consumer distinguishing shift-click. */
     modifiers?: { shift: boolean; ctrl: boolean; alt: boolean; meta: boolean };
+    /**
+     * The words the node's tooltip draws, on `graphty-node-hover` only, and only when a style
+     * layer gave the node a tooltip (`node.tooltip`). A consumer that draws its own tooltip in
+     * HTML reads the resolved words here rather than resolving the style stack itself.
+     * @since 3.22.0
+     */
+    tooltip?: string;
 }
 
 /** The DOM event name one internal node event is mirrored under. */
@@ -672,8 +679,10 @@ export function nodeEventDetail(event: NodeEvent): NodeEventDetail | null {
                     meta: event.event.metaKey,
                 },
             };
-        case "node-hover":
-            return { nodeId: event.node.id, data: event.data };
+        case "node-hover": {
+            const tooltip = event.node.tooltipText;
+            return { nodeId: event.node.id, data: event.data, ...(tooltip === undefined ? {} : { tooltip }) };
+        }
         case "node-drag-start":
         case "node-drag-end":
             return { nodeId: event.node.id, position: event.position, pinned: event.pinned };

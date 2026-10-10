@@ -51,7 +51,13 @@ describe("glow strength per style", () => {
     });
 
     async function frame(): Promise<Uint8Array> {
-        await operationQueueOf(graph).waitForCompletion();
+        // Not a count of frames: the glow is drawn only once the render loop has applied the
+        // style to the node (the frame after the style pass), and once the glow layer that
+        // application creates has loaded and compiled its shaders. Until then Babylon composes no
+        // glow at all. The first glow took 6 to 7 of the 8 frames below on an idle workstation;
+        // on a loaded runner it took more, and the faint glow read exactly 0. The stable-frame
+        // wait covers both: no style work pending, and every effect layer's shaders ready.
+        await graph.waitForStableFrame();
 
         for (let at = 0; at < FRAMES; at++) {
             graph.scene.render();

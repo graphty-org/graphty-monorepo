@@ -10,38 +10,40 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-10 -- Answer key matched to 26f3bb968e43 (round 3's current build, `rounds/r3d2/`)
-  for T12R A/B, T18 A/B, T20 A/B, T21 A/B, T22 A. Still on 897d9aed9ffe's notes: T4, T17, T19,
-  T22 B, T23, T24 (pilot folders exist in `r3d2/`, no findings handed over yet). Grading traps that
-  moved: T18 A's Ivan-Kofi tie runs through Jada (record anyone naming her); after a tie is picked
-  the find box loses focus, so "/" no longer types into it (T12R); T12R's keyboard route from the
-  title is 4 Tabs, not tier 1's 1.
-- 2026-10-09 -- T22 and T24 now say "point out on the drawing", not "stand out" (and not "show", a
-  View menu word); T22's "see where" became "how ... lie across" ("where" is avoided). Key
-  unchanged: T22 credits a selection or a color, T24 only the two ends selected. Compare with
-  round 2 on grade and count only.
-- 2026-10-09 -- STILL OWED before round 3 freezes: two throwaway pilots per reworded half (T22 A/B,
-  T24 A/B) on the round 3 candidate build, which does not exist yet. Round 3's plan.md must carry
-  the re-run list in criteria.md "Round plan" (r2-s05 again; T20, T21, T22 routes; T17/T18
-  follow-ups with the leak closed).
-- 2026-10-09 -- Dana's persona file says "Facilitator notes" in its intro paragraph, so
-  `real.mjs --brief` REFUSES every Dana briefing. Fix the persona file (or the tool's
-  team-only filter) before round 3, or every Dana session fails to start.
-- 2026-10-09 -- Briefing check: `tmp/researcher/t2r3/avoided-in-briefings.py <dir>` reads each
-  `<dir>/<T22A>/briefing.md` prompt against that task's avoided words plus "stand out" and "show";
-  it caught a planted "stand out" and "where". Run it on every round's briefings.
-- 2026-10-09 -- Answer to "did we dry run?": yes; about 30 implementation faults of 355 problems,
-  none above sev 2; 12 on the unwalked detour (styling a selection). The bigger fault was the
-  study's: participants read `tasks.md`, so round 2's route credits (T20, T21, T22) are unproven.
-- 2026-10-09 -- Prompt words make findings: "stand out" invited a style; "who was first before"
-  makes the before/after need; "make sure both will still be there" makes the saved-state need.
-  Never read a prompt-made behavior as user need; check every insight against the prompt first.
-- 2026-10-09 -- A leak voids passes, not problems. Score with that asymmetry.
-- 2026-10-09 -- Hold opinion-only problems one level down at SCORING time.
-- 2026-10-09 -- Apply one rule the same way everywhere (T18 vs T22 find box).
-- 2026-10-09 -- Run `tool/bars.mjs` on every frozen build in PREFLIGHT; grep the tool for each
-  check a bar names before trusting "built".
-- 2026-10-09 -- Voids must be re-run by the runner, not by hope (r2-s05, r1-s04).
+- 2026-10-10 -- Tier 2 round 2 is CLOSED (`rounds/round-2/insights.md`, `decisions.md`). 55 of 55
+  valid sessions passed, but participants read `tasks.md`, so passes are weak and the three new
+  routes (T20 weight meaning at load, T21 Replace in "...", T22 rule hint) are NOT credited.
+- 2026-10-10 -- Round 3 does not start until the three study-tool changes pass a planted failure:
+  (1) session folders outside the studio tree, `--start` refuses otherwise, a transcript check
+  voids any read of a facilitator file; (2) the dry run starts from two throwaway pilots per task on
+  the candidate build, every walked fault fixed before freeze, two-match clicks refused; (3) every
+  script a bar names exists (bar 10's clipped-text and raw-string counts in `bars.mjs`).
+- 2026-10-10 -- Round 3 re-run list (criteria.md "Round plan"): r2-s05; the T20, T21, T22 routes;
+  the T17/T18 follow-ups for the second-time measure. Compare T22/T24 with round 2 on grade and
+  count only (prompts changed to "point out on the drawing").
+- 2026-10-10 -- Watch in round 3, by change: T22 -- does the example line after "No match" plus
+  Enter-runs-the-rule get 3+ of 8 past the dead end (else "Select where..." comes next); does the
+  rule-named layer ("minutes >= `10`") read in the key. T21 -- does anyone see the repeat-count line
+  and use Replace from the Add page. Styling a selection -- does the highlight-look start draw a
+  visible mark after clearing. T18 -- paths cost at or under 8 with the new aliases; weighted run
+  row shows the total. T23 -- does "Filter to neighbors" as a plain command stop the hide-or-delete
+  doubt. Bar 9 (b) -- words at rest back at or under round 1 on all four screens.
+- 2026-10-10 -- Still open, not fixed by the app: drawn names cover each other (element label
+  placement, owner), bare numbers in rules and edge width units (breaking, owner). Do not score
+  their recurrence as a new finding; cite them as known.
+- 2026-10-10 -- Answer key matched to 26f3bb968e43 (`rounds/r3d2/`) for T12R, T18, T20, T21,
+  T22 A; still on 897d9aed9ffe's notes: T4, T17, T19, T22 B, T23, T24. Traps: T18 A's Ivan-Kofi
+  tie runs through Jada; after a tie is picked "/" no longer types into the find box; T12R's
+  keyboard route from the title is 4 Tabs.
+- 2026-10-09 -- Dana's persona intro says "Facilitator notes", so `real.mjs --brief` refused her
+  briefings. Confirm it is fixed before round 3 or every Dana session fails to start.
+- 2026-10-09 -- Run `tmp/researcher/t2r3/avoided-in-briefings.py <dir>` on every round's
+  briefings (avoided words plus "stand out", "show").
+- 2026-10-09 -- A leak voids passes, not problems: a problem found anyway is robust.
+- 2026-10-09 -- Prompt words make findings ("stand out", "who was first before", "make sure both
+  will still be there"); check every candidate insight against the prompt first.
+- 2026-10-09 -- Hold opinion-only problems one level down at SCORING time, not at the verdicts.
+- 2026-10-09 -- Grep the tool for each check a bar names before trusting a preflight's "built".
 - 2026-10-09 -- Click by name lands on same-named controls; confirm misclick-started faults by script.
 - 2026-10-09 -- Histories steer first moves; the SECOND place looked is the real signal.
 - 2026-10-06 -- All participants are one model: failure strong, pass weak.
@@ -84,6 +86,20 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-10 (researcher, tier 2 round 2 closed) -- Read `insights.md` and `decisions.md`.
+  Taught: the dry run worked where it walked (about 30 build faults of 355 problems, none above
+  sev 2, none decided a grade), but the walk list is always one round behind -- 12 of the 30 faults
+  sat on styling a selection, which nobody walked; and the study's own leak hurt more than the
+  build. Decided (director): study tool first (leak, pilot-seeded dry run, every named script
+  real, each sev 4), then one change per confirmed problem in its owning package: find box hint
+  plus Enter (T22), element repeat-edge count plus Replace on the Add page (T21), three keyboard
+  focus faults, selection styles start at the element's `highlightStyle()`, rule-named layers,
+  words at rest cut, compact-mantine 24 px checkbox target, path aliases, weighted path totals,
+  "Filter to neighbors" as a command, repeated status announced. Held: label placement, bare
+  numbers, edge width units (owner); "Select where..." unless 3+ of 8 still stall; neighbor
+  distance grouping (needs the element fact). My part done: T22/T24 prompts reworded, re-run list
+  in criteria.md. Nothing new for the owner from me.
 
 - 2026-10-10 (researcher, 26f3bb968e43 key) -- Same shape as before: a build section listing only
   what changed, each stale claim fixed in its task entry with the old build's screen kept as a
@@ -198,69 +214,15 @@ reasons, in short:
 - 2026-10-09 (round 3 prompts) -- Another agent was mid-merge in the shared worktree; a commit
   then would have taken its whole merge. Waited for MERGE_HEAD to clear before committing.
 
-- 2026-10-09 (round 2 verdicts) -- Worked: a verdict table per item from both skeptics, then
-  grepping transcripts for the one sentence that settles a split (r2-s12 "chapters 10", r2-s33 "82
-  is double"); viewing the three screenshots I cite before citing them. Did not work: my scoring
-  listing prompt-made behavior (styling after "stand out", writing down "who was first before") as
-  user need -- check each candidate insight against the prompt's own words first.
-
-- 2026-10-09 (round 2 scoring) -- Worked: one Measures dump of all grades (103 KB, two reads);
-  timestamp check of follow-ups against screenshot mtimes (found the leak no grader tallied);
-  `ls` for `briefing.md` in every folder (none); running `bars.mjs` in the background while
-  scoring (about 25 minutes); looking at `r2-s14/15.png` and `r2-s07/06.png` before classing.
-  Did not work: trusting preflight's "built" for bar 10 -- grep the tool for the check first.
-
-- 2026-10-09 (round 2 plan) -- Worked: checking the detour walks' `session.json` build stamps
-  before claiming the frozen build was walked (they read 5ac7ca8f7058, a working-tree build).
-  Worked: running `pilot/detours.sh all` (LANES=2) and `real.mjs --prove` x5 in the background
-  while writing the plan; about 40 minutes. Worked: `sessions.py` copied from round 1 with extra
-  asserts (sizes, the half swap, no Ruth on T19). Did not work: trusting a walk's FAIL as a
-  defect -- T20-D1's expectation was out of date; fixed the walk's order of checks.
-
-- 2026-10-09 -- Full pilot of all 20 halves on each new frozen build before a round: WORKED again
-  (8f0d5a6f7791). It caught a key path that a build fix silently broke (T12R ArrowDown) -- exactly
-  the failure a round would otherwise spend sessions finding. Keep it per build, not per round.
-
-- 2026-10-09 (key matches, folded) -- Worked: one scratch python of (section, old, new) edits,
-  each asserted, then an ASCII grep; reading the build's change-log entry first. Did not work: a
-  dry run's fixes left in its own report and not in `answers.md`, so the next pilot re-found them.
-
-- 2026-10-09 (round 2 key, folded) -- Worked: (old, new) pairs scoped per task with asserts;
-  viewing disputed screenshots; `work.json` before calling an entry gone; checking a build exists
-  before "measured on it". Did not work: anchors from memory; pilots with no steps log.
-
-- 2026-10-09 (skeptic verdicts) -- Worked: grepping the persona FILE named in the roster (the `P/`
-  path) to settle a skeptic split; viewing the two disputed screenshots myself. Did not work:
-  my scoring read a persona-scripted give-up as a screen failure and took first moves the
-  histories named as habits -- check persona files and briefings before calling a habit.
-
-- 2026-10-09 (tier 2 round 1 scoring) -- Worked: dumping every grade's Measures section into one
-  scratch file and reading it once (95 KB) instead of 56 opens; counting screenshots for steps and
-  grepping the transcripts' "Ease" line (s24 and s55 needed a look by hand); grepping transcripts
-  for door words. Worked: a whitespace-insensitive regex replace for edits (line breaks in my own
-  file defeated exact anchors). Did not have: an open-work lister, first-move fields, T21 moved
-  nodes -- reconstructed or reported as missing. Lesson: check `preflight.md` exists before scoring;
-  its absence decided four bars.
-
-- 2026-10-08 (key vs dry runs one to four and the round 1 plan, folded) -- Worked: one python file
-  of (old, new) pairs, each asserted to match once; rewriting whole sections with a section-count
-  assert; grep raw lines for anchors; grep for the old round's folder to find stale citations;
-  `sessions.py` holding run order and asserting it against the roster. Never walked: T20
-  "Capacity"; side routes (styling, selection) -- which is where round 1's build defects were.
-
-- 2026-10-07 (tier 2 key correction) -- Worked: checking `git log` and `git status graphty` for
-  the dependency fixes before writing "the fixed build" -- they were absent. Worked: a one-file walk
-  script (`tmp/researcher/t2key/time.sh`) through `with-browser.sh` for the untested Time role.
-  Did not work: python replace anchors copied from a wrapped view -- match the file's own line
-  breaks (grep -n first).
-- 2026-10-07 (tier 2 preparation) -- Worked: freezing a copy of `graphty/dist` (`REAL_DIST`) for
-  the pilots while other agents rebuild; piloting each new task on both halves (7 sessions, about
-  15 minutes) found three gaps the key now names (several-edge selection has no member list,
-  Everything clears the selection, raw from/to rows). Worked: a hand count from the files
-  (`rounds/tier-2/preflight/reference/hand.py`) agreeing with every screen value. Worked: grepping
-  histories AND persona files for tier 2 control words: Ruth's file said "notes" and "shortest".
-  Did not work: a setup edited after one half's pilot (T24A ran without "Show all labels"); pilot
-  again whenever a setup changes.
+- 2026-10-07 to 10-09 (tier 2 preparation through round 2 verdicts, folded) -- Worked: one
+  scratch python of asserted (old, new) pairs matching the file's own line breaks; one dump of all
+  grades read once; screenshot mtimes against follow-ups (found the leak); `session.json` build
+  stamps before claiming a build was walked; a full 20-half pilot per frozen build (caught a broken
+  key path); viewing every screenshot I cite; grepping the persona FILE, not the roster, to settle
+  a split; long scripts (`bars.mjs`, detours, `--prove` x5) in the background while writing. Did
+  not work: trusting preflight's "built"; reading prompt-made or persona-scripted behavior as user
+  need or as a screen failure; anchors from memory; a walk's FAIL taken as a defect without
+  checking the walk; a setup edited after one half's pilot; a dry run's fixes left in its report.
 
 - 2026-09-28 to 10-07 (earlier rounds, folded) -- Worked: one row per session with an assert;
   grader JSON plus `grade.md` greps; repro scripts; two skeptics reading the tool's code; the

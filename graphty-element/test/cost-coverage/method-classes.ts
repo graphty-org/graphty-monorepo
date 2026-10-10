@@ -825,6 +825,7 @@ export const READ_ONLY: readonly string[] = [
     "ScopedInput.edgeId",
     "ScopedInput.subgraph",
     "ScopedInput.subgraphEdgeIds",
+    "SelectionApi.count",
     "SelectionApi.edgeMask",
     "SelectionApi.has",
     "SelectionApi.nodeMask",

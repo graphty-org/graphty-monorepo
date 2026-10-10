@@ -773,6 +773,7 @@ export const READ_ONLY: readonly string[] = [
     "RenderManager.applyBackground",
     "RenderManager.getRenderStats",
     "RenderManager.holdFrames",
+    "RenderManager.requestFrame",
     "RenderManager.startRenderLoop",
     "RenderManager.stopRenderLoop",
     "ResultsApi.get",

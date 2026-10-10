@@ -24,6 +24,8 @@ export interface Notice {
     readonly message: string;
     /** A failure: it stays until the reader dismisses it, rather than going after 6 s. */
     readonly error?: boolean;
+    /** Describes the selection that just went: a new selection takes it down at once. */
+    readonly endsWithSelection?: boolean;
     readonly action?: { readonly label: string; readonly run: () => void };
 }
 

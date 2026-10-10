@@ -101,7 +101,7 @@ export const registration = defineRegistration({
                 // the find box stays there, so Enter brings the selection back.
                 const message = selectionClearedWords(session.selection.nodes.length, session.selection.edges.length);
                 session.selection.clear();
-                workspace.set({ notice: { message } });
+                workspace.set({ notice: { message, endsWithSelection: true } });
             },
         },
         {

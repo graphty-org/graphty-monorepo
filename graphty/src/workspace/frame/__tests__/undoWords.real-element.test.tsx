@@ -105,6 +105,40 @@ describe("Undo, Redo and Clear selection words", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
+        "takes the Selection cleared notice down when a new selection is made",
+        async () => {
+            const { session, store } = await openWithGraph();
+            const find = await screen.findByRole("combobox", { name: "Find" });
+            await userEvent.click(find);
+            await userEvent.type(find, "=value > `0`");
+            await userEvent.keyboard("{Enter}");
+            await waitFor(() => {
+                assert.isAbove(session.selection.edges.length, 0);
+            });
+            const edges = session.selection.edges.length;
+            // A pick moves focus to the values; a click outside every control leaves it nowhere.
+            await userEvent.click(document.body);
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.equal(session.selection.size, 0);
+                assert.equal(store.get().notice?.message, `Selection cleared: ${String(edges)} edges`);
+            });
+            await screen.findByText(`Selection cleared: ${String(edges)} edges`);
+
+            // The rule is still in the find box, so Enter there selects the same edges again.
+            await userEvent.click(find);
+            await userEvent.keyboard("{Enter}");
+            await waitFor(() => {
+                assert.equal(session.selection.edges.length, edges);
+                assert.isNull(store.get().notice);
+                assert.isNull(screen.queryByText(/^Selection cleared/));
+            });
+        },
+        TIMEOUT_MS,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
         "says what Escape cleared when the Selection row has the focus",
         async () => {
             const { session, store } = await openWithGraph();

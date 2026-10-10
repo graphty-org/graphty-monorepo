@@ -65,7 +65,9 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
                     ...(edges.length > 0 ? [count(edges.length, "edge")] : []),
                 ];
                 if (parts.length > 0) {
-                    store.set({ announcement: `${parts.join(", ")} selected` });
+                    // "Selection cleared" would contradict the new selection beside it.
+                    const ended = store.get().notice?.endsWithSelection === true;
+                    store.set({ announcement: `${parts.join(", ")} selected`, ...(ended ? { notice: null } : {}) });
                 }
             }),
             session.on("progress:changed", (change) => {

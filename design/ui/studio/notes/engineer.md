@@ -11,49 +11,36 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-10) **Built: the Data page's table pane keeps its scrollbar room.** `.dp-main` has
-  `scrollbar-gutter: stable` (`data-page/data-page.css`), so "File settings" / "CSV auto" no
-  longer jump 15 px left when a preview overflows (round 3 pilots: 1310 -> 1295 -> 1310). Fresh
-  build: x = 1295 on every Data page screen of T4A, T4B and T21B
-  (`tmp/r3-dry1-import-pane-scrollbar-gutter/`). Test: `DataPage.real-element.test.tsx` checks
-  the computed style -- vitest's headless Chromium hides scrollbars, so a position never moves
-  there; `real.mjs` shows them, which is where the jump is measurable.
-- (2026-10-10) **Fixed: a tie picked from the find box moves focus to the tie's values.** One
-  request for both views: `focusValuesNext()` / `takeValuesFocus()` in `inspector/reads.ts`
-  (renamed from the node-only pair); `FindBox` asks on every hit pick; `EdgeValues` takes it on
-  render and focuses the inspector title, as `NodeValues` does. Test `tasks.real-element.test.tsx`
-  "an edge picked with Down and Enter" (fails without the fix: focus stays on the input). Walk on
-  the fresh build `tmp/r3-dry1-find-tie-pick-moves-focus/walk/04-07.png`: Medici, Down, Enter
-  leaves the box unfocused, "/" focuses it empty, a letter searches.
-- (2026-10-10) **Built: the Overview heads its whole-graph rows with the shared heading.** Under
-  a filter step, "Full graph" is compact-mantine's `DataRowHeader` (bold, 32 px, row inset), not a
-  dimmed Text that read as a row missing its value (`inspector/GraphValues.tsx`). Test:
-  `Inspector.test.tsx` checks the words sit in `data-row-header-label`. Walked T17A and T17B to the
-  step just added on a fresh build: `tmp/r3-dry1-overview-full-graph-heading/T17A/07.png`,
-  `T17B/07.png`. Rule kept: a heading over a run of rows is always `DataRowHeader`.
-- (2026-10-10) **Fixed: the same status words written twice are spoken twice.** Every
-  `store.set` that carries `announcement` bumps `announced` (`state/store.ts`); `Frame.tsx` puts
-  the words in a `<span key={announced}>`, so a repeat ("1 node selected" for a second node) is a
-  new node in the polite region. Test: `Workspace.test.tsx` "speaks the same status words again".
-  `real.mjs --sr` now prints text put in again too (it compared text only, so it hid this).
+- (2026-10-10) **Fixed: "Selection cleared" goes when a new selection is made.** `Notice` has an
+  optional `endsWithSelection` (`state/store.ts`); the `selection.clear` command sets it, and the
+  `selection:changed` listener in `canvas/CanvasOverlays.tsx` drops such a notice on the next
+  non-empty selection. Other notices keep their 6 s timer. Test: `undoWords.real-element.test.tsx`
+  "takes the Selection cleared notice down" (find box rule, Enter, Escape, Enter again; fails
+  without the fix). Walk `tmp/r3-dry1-selection-cleared-notice-ends/`: `T22A/09.png` and `12.png`
+  show the toast after Escape; `T22A-fast/03.png` (Escape and Enter in one step, inside the 6 s)
+  shows "3 edges selected" with no toast.
+
+- (2026-10-10, condensed) **Built: the Data page's table pane keeps its scrollbar room**
+  (`scrollbar-gutter: stable` on `.dp-main`; headless vitest hides scrollbars, so the test reads
+  the computed style; `tmp/r3-dry1-import-pane-scrollbar-gutter/`).
+- (2026-10-10, condensed) **Fixed: a tie picked from the find box moves focus to its values**
+  (`focusValuesNext()` / `takeValuesFocus()` in `inspector/reads.ts`; `tasks.real-element.test.tsx`).
+- (2026-10-10, condensed) **Built: the Overview heads its whole-graph rows with `DataRowHeader`**
+  (`inspector/GraphValues.tsx`). Rule: a heading over a run of rows is always `DataRowHeader`.
+- (2026-10-10, condensed) **Fixed: the same status words written twice are spoken twice**
+  (`announced` counter in `state/store.ts`, `<span key={announced}>` in `Frame.tsx`).
 - (2026-10-10, condensed) **Built: words at rest under round 1** on rest, path inspector and
   neighbor list (`tmp/t2r2b-9/bars.log`); the edge inspector is one over (31 of 30). OPEN for the
   studio: which of its two true scope phrases goes.
-- (2026-10-10) **Fixed: a deleted step came back when its open editor closed.** The editor's
-  early return ("This step is gone") kept the last draw's save-on-leave closure, which wrote the
-  old step list back (`Filters.tsx`). Test `FilterFocus.real-element.test.tsx`. `bars.mjs` now
-  plants its failure cases on the empty Notes place, not the step editor (the planted blur saved
-  the step, so "Add step" was gone).
+- (2026-10-10, condensed) **Fixed: a deleted step came back when its open editor closed**
+  (stale save-on-leave closure in `Filters.tsx`; test `FilterFocus.real-element.test.tsx`).
 - (2026-10-10, condensed) **Built: a selection row made from a rule is named by the rule**
   (`selectionName` in `style/StyleTab.tsx`, from `session.selection.origin`). Open: the walk's
   new edge Color showed 000000, not the highlight band's 0077BB -- check `highlightStyle("edge")`.
-- (2026-10-10, condensed) **Built: "linked", "between", "fewest", "chain" find Shortest path**
-  (search-only aliases). Open: focus lands on the dialog, not From, after picking it (one step
-  more on every path).
-- (2026-10-10, condensed) **Built: the find box offers a typed condition as a rule** (last
-  option, Enter picks it; judged by the element's `selection.count`). Walk `tmp/t2r2b-4/find/`.
-- (2026-10-10, condensed) **Built: keyboard focus on tier 2 controls** (second Esc keeps the
-  find box; arrow-key Hops/Follow keep focus; leaving the step editor saves a whole changed rule).
+- (2026-10-10, condensed) **Built in the find box and keyboard:** "linked", "between",
+  "fewest", "chain" find Shortest path (open: focus lands on the dialog, not From); a typed
+  condition is offered as a rule (Enter picks it); second Esc keeps the find box; arrow-key
+  Hops/Follow keep focus; leaving the step editor saves a whole changed rule.
 - (2026-10-10) **Unfinished, uncommitted: the round 3 dry run from real routes.** In the worktree,
   not committed: `real.mjs` (Tab after a setup starts at Main menu; `REAL_MISS_FAILS=1` makes a
   scripted walk's miss exit 2; self-test checks for both), `detours.sh` (round 2 detours R2-* and
@@ -82,6 +69,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   planted-failure check.
 
 ## Decisions and reasons
+
+- (2026-10-10) **A notice that describes the selection ends with it, by a flag on the notice.** Not
+  by matching its words and not by a second notice slot: one optional field, set by the one
+  command whose words describe the selection, read by the listener that already announces
+  selections. A notice about anything else is not taken down by a selection.
 
 - (2026-10-10) **A scrolling pane with a header row reserves its gutter** (`scrollbar-gutter:
   stable`), rather than moving the header out of the pane: one CSS line, and the Add and Replace
@@ -205,6 +197,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the app, a run's Values view from its shape.
 
 ## Tried: worked / did not work
+
+- (2026-10-10) Did not work: `document.body.focus()` before Escape after a find-box pick; the pick
+  moved focus to the values and body is not focusable, so Escape went to the inspector and the
+  selection stayed. Worked: `userEvent.click(document.body)`. In `real.mjs`, Escape in the find box
+  only empties it (second Escape keeps it); click the Selection row first, as the pilot did. A
+  walk step that waits past 6 s proves nothing about a notice: put the clear and the new
+  selection in one `--step`.
 
 - (2026-10-10) Did not work: a browser test that measured "File settings" before and after
   forcing the pane to overflow passed WITHOUT the fix -- vitest's headless Chromium runs with

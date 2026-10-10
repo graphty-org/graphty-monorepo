@@ -137,8 +137,11 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
     const toItem = (row: PaintRow): TreeNodeData => {
         const eye =
             hasEye(row) && session !== null ? (
+                // Pinned: the eye shows at rest on every row that has one, not only on hover, so
+                // which rows can be hidden and which are hidden reads at a glance.
                 <ToggleIconButton
                     key="eye"
+                    data-pinned=""
                     variant="swap"
                     label={`Hide ${row.name}`}
                     checked={row.hidden}

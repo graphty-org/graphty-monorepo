@@ -271,8 +271,15 @@ describe("the Graph place on the real element", () => {
             const layerIds = session.runs.bindings(run.id);
             assert.isNotEmpty(layerIds, "the run painted");
 
+            // The eye shows at rest, with the pointer on another row, not only on hover.
+            await realInput.hover(screen.getByRole("treeitem", { name: "Everything" }));
+            const eye = screen.getByRole("button", { name: "Hide PageRank" });
+            await waitFor(() => {
+                assert.equal(getComputedStyle(eye).opacity, "1");
+            });
+
             // The eye: every layer of the run off, then one undo brings them all back.
-            await userEvent.click(screen.getByRole("button", { name: "Hide PageRank" }));
+            await userEvent.click(eye);
             await waitFor(() => {
                 assert.isTrue(layerIds.every((id) => session.styles.get(id)?.enabled === false));
             });

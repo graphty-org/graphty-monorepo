@@ -11,6 +11,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Built: the Overview heads its whole-graph rows with the shared heading.** Under
+  a filter step, "Full graph" is compact-mantine's `DataRowHeader` (bold, 32 px, row inset), not a
+  dimmed Text that read as a row missing its value (`inspector/GraphValues.tsx`). Test:
+  `Inspector.test.tsx` checks the words sit in `data-row-header-label`. Walked T17A and T17B to the
+  step just added on a fresh build: `tmp/r3-dry1-overview-full-graph-heading/T17A/07.png`,
+  `T17B/07.png`. Rule kept: a heading over a run of rows is always `DataRowHeader`.
 - (2026-10-10) **Fixed: the same status words written twice are spoken twice.** Every
   `store.set` that carries `announcement` bumps `announced` (`state/store.ts`); `Frame.tsx` puts
   the words in a `<span key={announced}>`, so a repeat ("1 node selected" for a second node) is a

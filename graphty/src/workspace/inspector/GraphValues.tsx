@@ -1,4 +1,4 @@
-import { CompactColorInput, ControlSection, DataRow, PANEL_GRID } from "@graphty/compact-mantine";
+import { CompactColorInput, ControlSection, DataRow, DataRowHeader } from "@graphty/compact-mantine";
 import type { ScopeInput } from "@graphty/graphty-element/session";
 import { Stack, Text, Tooltip } from "@mantine/core";
 import type React from "react";
@@ -53,9 +53,8 @@ export function Overview(): React.JSX.Element | null {
                 <>
                     <DataRow stat name="Nodes showing" value={ofWords(showing.visibleNodes, showing.totalNodes)} />
                     <DataRow stat name="Edges showing" value={ofWords(showing.visibleEdges, showing.totalEdges)} />
-                    <Text size="sm" c="dimmed" pl={PANEL_GRID.PAD_LEFT} pr={PANEL_GRID.PAD_RIGHT} py={2}>
-                        Full graph
-                    </Text>
+                    {/* A heading over the rows below, not a row with a missing value. */}
+                    <DataRowHeader label="Full graph" />
                 </>
             )}
             <DataRow stat name="Nodes" value={statistics.nodeCount} />

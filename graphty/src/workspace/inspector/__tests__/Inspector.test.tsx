@@ -101,7 +101,8 @@ describe("the inspector", () => {
             screen.getByRole("group", { name: "Edges showing" }).textContent,
             `${String(visibleEdges)} of 13`,
         );
-        assert.isNotNull(screen.getByText("Full graph"));
+        // "Full graph" heads the whole-graph rows in the shared row-run heading, not as a row of its own.
+        assert.equal(screen.getByText("Full graph").getAttribute("data-testid"), "data-row-header-label");
         assert.include(screen.getByRole("group", { name: "Nodes" }).textContent, "12");
 
         // Off again: back to the plain Overview.

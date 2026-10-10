@@ -22,6 +22,7 @@
 import type { EdgeId, FieldBand, FieldDescriptor, NodeId, ResultShape, RunId } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { retainedChanged } from "../project/retained";
 import type { Caveats } from "../runs/types";
 import type { CodedFact } from "../shared";
 import { englishReading, readingFactOf } from "./reading";
@@ -1108,6 +1109,7 @@ class Result implements RunResult {
             limit,
         );
         this.#tops.set(key, top);
+        retainedChanged();
 
         return top;
     }
@@ -1360,6 +1362,10 @@ class Result implements RunResult {
      */
     shareNodeIndex(index: ResultIdIndex, token: number): void {
         const table = this.#nodes;
+        if (table.index === index && table.token === token) {
+            return;
+        }
+
         if (table.index !== index) {
             if (index.size !== table.length) {
                 return;
@@ -1375,6 +1381,7 @@ class Result implements RunResult {
         }
 
         table.token = token;
+        retainedChanged();
     }
 
     /**

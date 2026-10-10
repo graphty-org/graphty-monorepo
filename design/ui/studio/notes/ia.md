@@ -7,40 +7,39 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-1. (2026-10-09) Tier 2 round 1: the dry run kept every success path clean (empty session logs,
-   no grade decided by a build defect); the three non-successes all stopped on WHERE a feature
-   lives. Off-path detours (styling, selection display) did meet build defects, and the study
-   tool (over four browsers, load about 158) reached participants more than the build did. The
-   next dry run also walks each task's commonest detours from round 1.
-2. (2026-10-09) Round 2 IA changes, one per path: (a) a data file opened from the start screen
-   goes through the Data page like every other door; (b) the source inspector shows "Replace with
-   file..." and "Edit source..." (same labels as the row menu); (c) the find box's "No match" on
-   a condition-shaped text says how a rule starts, in the app's words; (d) the column menu gets
-   "Select where..." that opens the find box prefilled with "=<column> "; (e) the key marks an
-   out-of-date run. Reasons and evidence in Decisions.
-3. (2026-10-09) The column is the second place every user goes (T20 6 of 7, T22 4 of 4). It is a
-   door, not a new home: "Select where..." lands in the find box; a weight's meaning stays set on
-   the Data page until the element exposes a way to change it after load.
-4. (2026-10-09) "Open project or file..." from the start screen loads a CSV straight
-   (`project/actions.ts` openInSession, `fresh` branch), while the same label inside a project
-   opens the Data page: a door-fidelity defect in the app, not a user habit.
-5. (2026-10-09) Do NOT change in round 2: Filters' home under Data, the rail, Analyze order,
-   Hops wording, the selection-over-fill priority, the path popover. One variable per path.
-6. (2026-10-07) Element-first, still open: run defaults read the loaded weight's meaning; rule
-   errors as { code, params } (backticks); edge picking; a run output's kind; label placement
-   and frame-to-fit ignoring label extents (round 1 confirmed the class).
-7. (2026-10-07) One popover per job, every door opens it (Path, Neighborhood).
-8. (2026-10-07) Notes: the subject a note takes follows the inspector (sev 2 in round 1); the
-   form should show and let the reader change its subject before any new place is drawn.
-9. (2026-10-07) No promise without a place: no node Weight role until something reads it.
-10. (2026-10-07) Before calling a door "blocked on the element", read the element's config and
-    catalog first.
-11. (2026-10-06) A refusal lives next to the control that caused it; same words from every door.
-12. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
+1. (2026-10-09) Round 1 verdict: the homes hold, the doors fail. Path run, Replace page, Filters
+   and load-time "Higher means" were read right every time once reached; every non-success stopped
+   on WHERE a feature lives, on controls that work.
+2. (2026-10-09) The dry run walked only the answer key's routes. Before round 2 it also walks each
+   task's two commonest round 1 detours, by pointer and by keyboard; my job is to name those
+   detours per task (they are IA facts: where people look first and second).
+3. (2026-10-09) Round 2 doors, decided: start-screen Open of a data file goes through the Data page;
+   the source inspector gets a "..." menu (Replace, Edit source, shared verbs with the row menu);
+   find's empty line offers the rule start when the element says the text is a rule; the key says
+   ", out of date". One door per confirmed problem; no feature moves.
+4. (2026-10-09) Rejected for round 2 (my proposal): "Select where..." on the column menu. Reason:
+   it would confound the find-hint test; it comes only if the hint fails with 3+ participants
+   looking in the same place. Watch the column as second place in T22.
+5. (2026-10-09) Watch in round 2: T22 success via the hint; T21 median steps via "..."; T20 under
+   22 steps and whether the Data page step costs tier 1's open-your-own-file task; that nobody
+   hunts Filters from Graph more than once (Filters' home stays under Data).
+6. (2026-10-09) The column is every user's second place (T20 6 of 7, T22 4 of 4). Treat it as a
+   door to existing homes, never a new home.
+7. (2026-10-09) Style lines must go only to the layer the row names: a run's Style tab with no
+   edge layer shows no Edges segment (fixes the silent write to Everything). One home per layer.
+8. (2026-10-09) Do NOT change in round 2: Filters under Data, the rail, Analyze order, Hops, the
+   path popover, Leave-out preselect, note subject. One variable per path.
+9. (2026-10-09) Simulated returning users go first where their history says; a matching first move
+   is weak evidence. Graders now mark scripted persona exits (Tom decided 2 of 3 non-successes).
+10. (2026-10-09) Units are structure too: "Total distance 14" became "Total minutes 14"; a number
+    names its unit and whole.
+11. (2026-10-07) Element-first, still open: label placement and frame-to-fit ignoring label extents
+    (confirmed class, filed on graphty-element, bar 10 will keep failing); bare numbers in rules is
+    an owner question.
+12. (2026-10-07) One popover per job, every door opens it; a working door nobody sees is not a door.
+13. (2026-10-06) A refusal lives next to the control that caused it; same words from every door.
+14. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
     in the Summary; a Style-tab pointer to Label; Size pre-bound to the row's result.
-13. (2026-10-06) Simulated participants share one model: a pass is weak, a failure strong; a first
-    move that matches a persona's history says little; label give-ups that follow a persona's
-    scripted rule.
 
 ## Priorities and values
 
@@ -94,41 +93,13 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Decisions and reasons
 
-- 2026-09-28 (owner): structure from graphty's ontology and IA; Figma for controls and gestures
-  only. Export... lives in the project-name menu, not top right. No avatar slot.
-- 2026-09-28 (studio, round 3-4): a Data place created so data management is one coherent area
-  (in, versioned, refreshed, joined, filtered, exported). Reason: the owner called a top-right
-  Export button a symptom of data management never having been designed.
-- 2026-09-28 to 2026-09-30 (studio, then owner): where results live moved four times -- Results
-  rail place, then an inspector section (round 3), kept despite missing its bar (round 4), back
-  to a rail place after a two-arm tree test (round 5: inspector arm 25% direct), then the owner's
-  refined B made every run a row in the paint tree with no Results place at all. Lesson: results
-  belong where they paint; the run's own record opens from its row.
-- 2026-09-30 (owner): refined structure B is THE structure: one tree of paint rows on the left
-  (top to bottom is paint order, a higher row wins), Selection pinned on top, Everything at the
-  bottom, every run a row with its paintable outputs as children, inspector with Style and Data
-  (now Values) tabs, filters belong with the data, hiding is the eye.
-- 2026-09-30 (owner): rail is for places; toolbar icons only; legend and camera via the toolbar,
-  not floating on the canvas; rename by double-click.
-- 2026-10-01 (studio, round 7): One File list (Save, Export..., Apply recipe or style file...,
-  Version history, Open project or file...) defined once and shown from both the main menu and
-  the project-name menu. Reason: without a File menu the save-and-reopen tree task fell from 100%
-  to 19% direct; 13 of 16 opened the main menu first.
-- 2026-10-01 (studio, round 7): the intake is "Open project or file..." with a hint saying what
-  the file decides. Reason: 10 of 16 rejected "Open..." as replacing their project.
-- 2026-10-01 (studio, round 7): Layout gets its own group, not under Style. Reason: tree 6% direct
-  when Layout lived under the Style tab; "style means colors".
-- 2026-10-01 (studio, round 7): the bind icon on Color and Size is the one door to "color/size
-  by"; no second door on the attribute inspector. Vocabulary lives only in the framework glossary.
-- 2026-10-02 (studio, round 8): the list's search box becomes one find over rows, elements
-  (label, id, value) and notes, live as you type, with "Select where <attribute> is <value>".
-  Reason: the box could not find a node (severity 4); select-by-rule tree 10% direct.
-- 2026-10-02 (studio, round 8): a node's neighbors have one home -- the neighborhood list
-  ("Javert's 17 connections") reached from Degree or Neighborhood (G). No table filter or
-  second Connections list. Reason: 0 of 12 could name neighbors; one home for "who is this node
-  tied to".
-- 2026-10-02 (studio, round 8): Export > Data opens on the showing table (Nodes by default); the
-  table's Export... opens the same dialog. Reason: first click 10%, tree 38% direct.
+- 2026-09-28 to 2026-10-02 (owner and mock rounds 3-8, summarized 2026-10-09): structure from
+  the ontology, Figma for controls only; a Data place for all data management; results live where
+  they paint (refined B: every run a row in the paint tree, owner 2026-09-30); rail for places,
+  toolbar icons only; one File list shown from the main and project-name menus (tree 19% -> 90%);
+  intake "Open project or file..."; Layout its own group; the bind icon is the one door to
+  "color/size by"; find over rows, elements and notes with "Select where"; one home for a node's
+  neighbors; Export > Data opens on the showing table. Details: the mock decision log.
 - 2026-10-03 (studio, tier 1 design): rail draws only Graph and Data; inspector tab renamed
   Values; selection bar holds only Neighborhood; recipe and style files refused with one problem
   block; Notes row not drawn. All reversible.
@@ -187,32 +158,21 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   user's second place. (5) Out-of-date mark on the key entry. Evidence: two experts, bar 5.
   Reason for all: each is a door to an existing home; none adds a home or moves one.
 
+- 2026-10-09 (Design Director, tier 2 round 1 decisions, on my proposal): adopted -- start-screen
+  Open of a data file through the Data page (with the risk that opening one's own file gains one
+  step, re-walked in the dry run); the source's "..." menu with Replace and Edit source sharing the
+  row menu's verbs; find's hint to the rule start, decided by the element (`scope.count`), not by
+  app parsing; ", out of date" on the key title only. Rejected -- "Select where..." on the column
+  (confounds the hint; only if the hint fails with 3+ in one place); visible Replace buttons in the
+  inspector body (words at rest). I accept: each reason keeps one variable per path.
+
 ## Tried: worked / did not work
 
-- 2026-09-28 to 10-02 -- Tree tests (text outline only). Worked as a ranking of where to look:
-  they found the File menu loss, the Layout-under-Style miss and select-by-rule. Did not work as
-  a pass/fail: correctness hit the ceiling (99.7%), only directness discriminates.
-- Round 4 -- Results in the inspector: did not work (63%, 0%, 69% direct; every miss went to the
-  table). Round 5 two-arm test with a frozen rule settled it; frozen rules before a round work.
-- Round 5 -- decisions not drawn on the screens re-measured the old design. Taught: a round may
-  not run until its decisions are drawn.
-- Round 7 -- removing the File menu in refined B: did not work (19% direct). Restored.
-- Round 7 -- renaming the owner's "hide"/"show hidden" for the list to "Remove from list view":
-  worked; 4 of 5 read a "hidden" row that still paints as a bug.
-- Round 8 -- one File list from two menus: worked (picture for slides 19% -> 90% direct; a
-  colleague's style file 13% -> 95%; replace next month's file 63% -> 86%).
-- Round 8 -- "Data" as rail place and inspector tab: did not work (12 of 12 lost their
-  selection). Renamed the tab Values (untested).
-- Round 8 -- Analyze headings by what a run adds ("Rank", "Find groups", "Measure the graph"):
-  did not work for betweenness (29% direct). The search box inside Analyze ("brokers" finds
-  Betweenness) did work.
-- Round 8 -- Label as a section with a "+": first click fine (20 of 21 on the "+"); the menu
-  behind it failed ("Show labels" trap). The place was right; the content of the door was wrong.
-- Round 8 -- "Covers: Javert and 17 neighbors": did not work -- a count with no names behind it.
-- Round 8 -- Main menu > Select where...: found only by guessing (2 of 21 direct). People look
-  in a search box first (16 of 16 in round 7).
-- Round 8 -- the "Full graph (filter)" chip read as a status label, not a control.
-- Round 8 -- the legend: 13 of 21 expected clicking a legend entry to isolate a result.
+- 2026-09-28 to 10-02 (mock rounds, summarized 2026-10-09) -- tree tests rank where people look
+  but hit the ceiling on correctness (only directness discriminates); frozen rules before a round
+  work; a round must not run until its decisions are drawn; Results in the inspector, Analyze
+  headings by outcome, main-menu Select where and the filter chip as status all failed; the File
+  list, "Remove from list view" and Analyze's own search box worked.
 
 - 2026-10-06 (round 1 real app) -- Degree row as the only door to neighbor names: did not work
   (0 of 4 clicked it; r1-s17b `07.png` shows it drawn exactly like the id and name rows).
@@ -248,6 +208,12 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 - 2026-10-09 -- Find box as the one home for rules: half worked. Users start there (4 of 4) but
   the refusal does not lead on; the "=" start is invisible.
 
+- 2026-10-09 -- Dry run of success paths only: worked for the paths (empty session logs) but did
+  not catch detour defects (style to Everything, selection tint, focus drops) or tool faults. Next
+  dry run walks detours and keys.
+- 2026-10-09 -- Load-time weight meaning: the home works (everyone who reached "Higher means"
+  chose right) but the habitual door (Open) skipped it, and "Back to start" dropped the graph.
+
 ## Thinking
 
 - **Tier 1 IA questions (2026-10-06)** were answered by rounds 1-3: the intake, names and
@@ -275,6 +241,8 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   picture, export the numbers, save and reopen.
 
 ## Sources
+
+- `tier2/rounds/round-1/insights.md`, `decisions.md` (2026-10-09)
 
 - `tier2/rounds/round-1/insights.md`, `scores.md`, `expert/figma.md`; screenshots
   `r1-s46/12.png`, `r1-s29/08.png`, `r1-s05/09.png`; `graphty/src/workspace/project/actions.ts`

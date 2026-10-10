@@ -64,7 +64,7 @@ describe("replay scenario", () => {
             "04:36 lane-red hosts 36961459359/1",
             "05:02 lane-red ci 36964426977/1",
             "05:02 lane-green gpu 36962785245/2",
-                        "05:55 lane-green ci 36967422970/1",
+            "05:55 lane-green ci 36967422970/1",
             "07:09 lane-green hosts 36973764472/1",
             "07:31 lane-red gpu 36973764479/1",
             "08:21 lane-green gpu 36973764479/2",

@@ -20,6 +20,8 @@ export const COUNTED_WORK_TESTS: Readonly<Record<string, readonly string[]>> = {
     "LayoutEngine.removeNode": ["test/layout/engine-removal.test.ts"],
     "NotesApi.add": ["test/session/notes/write.test.ts"],
     "NotesApi.mergeDocument": ["test/session/mutation-scaling.test.ts"],
+    "NotesApi.remove": ["test/session/notes/scaling.test.ts"],
+    "NotesApi.update": ["test/session/notes/scaling.test.ts"],
     "RunsApi.start": ["test/session/results/lazy-ranking.test.ts", "test/session/results/column-median.test.ts"],
     "ScopeApi.remove": ["test/session/mutation-scaling.test.ts"],
     "ScopeApi.save": ["test/session/mutation-scaling.test.ts"],
@@ -218,10 +220,6 @@ export const NOT_YET_COVERED: readonly string[] = [
     "Node.unpin",
     "Node.update",
     "Node.updateStyle",
-    // Walks every note per write (#1890); its test in test/session/mutation-scaling.test.ts fails until then.
-    "NotesApi.remove",
-    // Walks every note per write (#1890); its test in test/session/mutation-scaling.test.ts fails until then.
-    "NotesApi.update",
     "ProjectApi.open",
     "ProjectApi.rename",
     "RenderManager.dispose",

@@ -412,6 +412,18 @@ export function FindBox(): React.JSX.Element {
     // Enter would run the typed rule or pattern instead.
     const target = active >= 0 || runsTyped ? active : 0;
     const chosen: Option | undefined = options[target];
+    // Focus stays in the text box, so the browser never scrolls the list to the arrows' row: the
+    // row is brought into view here, by the least scroll that shows it whole, with its group's
+    // heading when it is the group's first row.
+    const activeId = active >= 0 ? optionId(active) : undefined;
+    useLayoutEffect(() => {
+        const row = activeId === undefined ? null : document.getElementById(activeId);
+        const heading = row?.previousElementSibling;
+        if (heading?.classList.contains("ws-find-heading") === true) {
+            heading.scrollIntoView({ block: "nearest" });
+        }
+        row?.scrollIntoView({ block: "nearest" });
+    }, [activeId]);
 
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
         if (event.key === "ArrowDown" && options.length > 0) {

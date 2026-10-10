@@ -11,6 +11,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **Built: a 24 px target on the extra-small checkbox; find-list arrows scroll the row
+  into view.** compact-mantine's xs Checkbox input grows to 24 x 24 (margin -6, paints nothing;
+  `::before` draws the 12 px face from the input's state colors): pixel-identical box, axe
+  target-size 0 on both filter-step screens. The find list did NOT scroll to the arrows' row on
+  8f0d5a6f7791 (`tmp/t2r2-10/find/04.png`); `FindBox` now scrolls it (and its group heading)
+  into view; `scrollable-region-focusable` on `.ws-find-viewport` recorded as a criteria exception.
 - (2026-10-09) **Round 2 critique: the next round's first fix is the study tool, not the app.**
   Participants read the facilitator's `tasks.md` (13 of 16 follow-ups answered early; r2-s05
   voided), so every route that worked is weak evidence. `real.mjs --start` must refuse a session
@@ -57,6 +63,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-09) **A bigger target is the input itself, not a pseudo-element hit area.** axe measures
+  the focusable element's box, so a `::after` hit area clicks but still fails target-size (it did,
+  in a probe: "12px by 12px", the containing tree row as the too-near neighbor). The input is the
+  24 px target and draws nothing; `background-clip: content-box` with 12 px padding hides its
+  face, `::before` (`border-color`/`background-color: inherit`) draws the box, so every state rule
+  keeps working; `outline-offset: -5px` keeps the ring 1 px off the drawn box. xs only (keyed on
+  Mantine's `data-size`). Limit: on rows under 24 px the area overhangs 2 px; a row painted later
+  (positioned, as Tree's) wins that overlap, so the next row keeps its clicks, but the next row's
+  box takes the previous row's bottom 2 px. Real filter rows are 44 px.
+- (2026-10-09) **Scroll the arrows' row with `scrollIntoView({ block: "nearest" })`, keyed on the
+  option id, not on every render** (a render-time scroll would fight a reader's wheel). The first
+  row of a group brings its heading too, or ArrowUp to the top hides "Nodes 64".
+
 - (2026-10-09) **The line lands on the row's own topmost layer, so read its selector, not
   `fresh`.** After a selection's first edit the inspector moves to the new layer's row, where
   `fresh` is undefined; reading `fresh?.selector` gave Color the highlight and Width the default.
@@ -83,23 +102,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   value is the app's choice), the frozen build mid-round, the three new routes before a clean
   re-run.
 
-- (2026-10-09) **An audit walks screens by script, both sizes, and reruns from the script.**
-  `round-2/expert/engineer/audit.sh` (one `walk` per screen, `SIZE=`, `LANES=`) and `audit2.sh`
-  for walks added after a run started. Reason: round 1's walks lived in a scratchpad and were gone;
-  a scripted walk lets the next round compare the same screens. Findings that persist say
-  "(round 1)" so the count can be read against bar 10.
-- (2026-10-09) **Round 2 waits on measurement first.** Round 1 decided: fix the tool, build the bar
-  scripts and walk the detours (pointer and keyboard) before any session, then reproduced defects,
-  then one door per confirmed problem; words at rest do not rise (only the source "..." menu and
-  the key's ", out of date"). Reason: a session spent on a tool or build fault teaches nothing
-  about what returning users need. No breaking API change; nothing for the owner.
-
-- (2026-10-09) **Label picks are an opt-in style field, not a default and not an event.**
-  Cytoscape.js passes label clicks through; a reading app wants a name to pick its node -- a
-  consumer's choice, so neutral default. Resolving in `pickNodeId` via metadata (one place) means
-  click, hover, drag and `elementAt` cannot disagree. A per-layer field beats an element-wide
-  switch; a `label-click` event would push wiring to every consumer. Recorded in
-  owner-decisions.md "decided by the team".
+- (2026-10-09, summarized) **Audit and round-2 method:** audits walk screens by script at both
+  sizes (`round-2/expert/engineer/audit.sh`, `audit2.sh`) so the next round compares the same
+  screens; measure first (tool, bar scripts, detour walks) before any session; no new words at
+  rest. **Label picks** are an opt-in per-layer style field resolved in `pickNodeId` (click, hover,
+  drag and `elementAt` agree), recorded under "decided by the team".
 
 - (2026-10-09, condensed) **A landed click is read from Playwright's call log** ("click action
   done"), not by a longer limit for everyone; setup clicks get 20 s.
@@ -123,29 +130,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (`openInSession`; Control+O on the page lands as a drop), and the source's inspector "..." holds
   the Sources row menu's verbs (`useSourceActions`). Tests `StartScreen.real-element.test.tsx`,
   `DataPlace.real-element.test.tsx`.
-- (2026-10-09) **Pointer-opened menus focus the menu, not row one, for every menu.** A filled first
-  row reads as already chosen (Edge actions showed "Select endpoints" blue in the T24 pilots). The
-  WAI-ARIA menu-button pattern focuses the first item on any open; we keep that for keyboard opens
-  only, where the highlight is the reader's cursor. The rule is limited to the row the focus trap
-  picks: applying it to any row focused from the menu also undid type-ahead from the menu (typing
-  "l" went back to row one) -- caught by `tests/figma/overlays.browser.test.tsx`.
+- (2026-10-09, summarized) **Menus, neighborhoods, events:** a pointer-opened menu focuses the
+  menu, not row one (only the focus trap's pick; type-ahead from the menu kept); one neighborhood
+  filter per center whatever the reach, the tooltip naming the other reach; a no-movement
+  selection gets a new event, never an empty `selection:changed` (breaking), recorded under
+  "decided by the team"; a suggestion the selector would refuse is no suggestion.
 
-- (2026-10-09) **One neighborhood filter per center, whatever the reach.** The toggle is about
-  "this node's neighbors are filtered", so a 2-hop step answers it at Hops 1 too; matching only the
-  reach shown made the button lie and stack a second step. The tooltip names the other reach so
-  the pressed state is not read as "1 hop". The OptionsForm unread note needed no change: it is
-  already 11 px and starts under its label (the popover's Weight); the inspector's Advanced run
-  settings form sits at 8 px, left of the rows' 16 px -- a form-layout question, not a note.
 - (2026-10-09, condensed) **Move the link, not the control** (reading order, smallest diff); a
   row's inspector answers to its title.
-- (2026-10-09) **A new event rather than an empty `selection:changed`.** Its TSDoc promises "only
-  a real movement arrives", so an empty delta would change what an existing event does (breaking)
-  and make every listener redraw for nothing. The new event fires only when no member moved, so
-  one call never fires both. Recorded under "decided by the team" in `owner-decisions.md`.
-- (2026-10-09) **A suggestion the selector would refuse is no suggestion.** Validated by parsing
-  the rewrite; a rewrite equal to the input is skipped first, which also stops the parse from
-  asking for its own suggestion again.
-
 - (2026-10-09) **No forced focus ring after a pointer click.** `focus({ focusVisible: true })`
   after Save would make the note card the one control that rings after a mouse click (spec 2.7,
   same reason as the cursor rule); a keyboard user sees the mark at the next key.
@@ -207,6 +199,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Worked: an axe probe as a throwaway compact-mantine browser test before choosing
+  the CSS (printed `failureSummary`); a pixel diff of the 24 px crop around the box against the
+  frozen build's `bars.mjs` capture (bbox None). `userEvent.click(container, { position })` clicks
+  a page point as long as what is hit is inside the container. Seen, not mine: `bars.mjs` MISSes
+  "a node's Values with its neighbors" on 8f0d5a6f7791 too (Degree click times out), and bar 9 (b)
+  is over round 1's counts on the shared tree.
+
 - (2026-10-09) Worked: a pixel check in an app real-element test from public API only --
   `element.captureScreenshot`, the midpoint of two `nodeScreenPosition`s scaled by bitmap width
   over the element's CSS width, the mean of a 9 px square, styled tie against an unstyled one.
@@ -249,16 +248,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-09, condensed) Worked: a scripted re-pilot of the fixed screens, then contact sheets
   (`montage *.png -tile 4x -geometry 720x450`) and full-size reads of each fixed item.
 
-- (2026-10-09) Worked: proving a tool test fails without the change by writing `git show HEAD:`
-  copies of the tool files into a scratch folder beside the new test and running `node --test`
-  there (no stash, no checkout). Did not work as a check: eslint on `design/ui/studio/tool/` --
-  it flags every Node global (`process`, `URL`) because that folder has no lint config; prettier is
-  the check that applies.
-
-- (2026-10-09) Worked: proving a test fails without the fix by copying the changed sources aside,
-  writing `git show HEAD:<file>` over them, running the test, and copying them back (no stash).
-  Did not work as a first guess: notifying only the internal scope notifier -- the app listens
-  only through `session.on`, so the fix needed a public event.
+- (2026-10-09, condensed) Proving a test fails without the change: copy the changed file aside,
+  write `git show HEAD:<file>` (or a one-line python edit) over it, run, copy back -- no stash. For
+  tool files, `node --test` on `git show HEAD:` copies in a scratch folder; prettier, not eslint,
+  checks `design/ui/studio/tool/`. The app hears the element only through `session.on`.
 
 - (2026-10-09, condensed) A pilot's exact steps are in its agent transcript under
   `.claudehistory/<session>/subagents/workflows/<wf>/agent-*.jsonl`; `--read` in a non-`--sr`

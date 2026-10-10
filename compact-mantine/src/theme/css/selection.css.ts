@@ -87,6 +87,31 @@ const css = `
     outline: 1px solid var(--cm-border-selected);
     outline-offset: 1px;
 }
+/* The extra-small box is drawn 12 px but takes clicks over 24 x 24 (WCAG 2.5.8): the input grows
+   6 px past the drawn box on every side (the negative margin keeps the layout) and paints nothing
+   itself; ::before draws the 12 px face from the input's own state colors. A row drawn after it
+   (a positioned row, as Tree's are) keeps its own clicks where the two overlap. */
+.cm-checkbox[data-size="xs"] .cm-checkbox-input {
+    position: relative;
+    width: 24px;
+    height: 24px;
+    margin: -6px;
+    padding: 12px;
+    border-style: none;
+    background-clip: content-box;
+    outline-offset: -5px;
+}
+.cm-checkbox[data-size="xs"] .cm-checkbox-input::before {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    box-sizing: border-box;
+    border: 1px solid;
+    border-color: inherit;
+    border-radius: inherit;
+    background-color: inherit;
+    pointer-events: none;
+}
 /* The blue (filled, default) variant. */
 .cm-checkbox:not([data-variant="neutral"]) .cm-checkbox-input:is(:checked, [data-indeterminate]) {
     background-color: var(--cm-bg-brand);

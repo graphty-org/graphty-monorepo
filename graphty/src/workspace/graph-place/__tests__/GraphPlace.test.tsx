@@ -486,6 +486,44 @@ describe("the Graph place", () => {
         });
     });
 
+    it("scrolls the row the arrows reach into view, down to the last and back to the first", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        await session.config.set({ data: { directed: false } });
+        await session.data.addNodes(Array.from({ length: 8 }, (_, i) => ({ id: `x${String(i)}` })));
+        await session.data.addEdges(
+            Array.from({ length: 7 }, (_, i) => ({ source: `x${String(i)}`, target: `x${String(i + 1)}`, kind: "x" })),
+        );
+        renderPlace(session);
+
+        const box = screen.getByRole("combobox", { name: "Find" });
+        await userEvent.type(box, "x");
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        const viewport = list.closest<HTMLElement>(".ws-find-viewport");
+        assert.isNotNull(viewport);
+        assert.isAbove(viewport.scrollHeight, viewport.clientHeight);
+        const rows = within(list).getAllByRole("option");
+        const shown = (row: HTMLElement): boolean => {
+            const r = row.getBoundingClientRect();
+            const v = viewport.getBoundingClientRect();
+            return r.top >= v.top - 0.5 && r.bottom <= v.top + viewport.clientHeight + 0.5;
+        };
+
+        await userEvent.keyboard("{ArrowDown}".repeat(rows.length));
+        const last = rows[rows.length - 1];
+        assert.equal(box.getAttribute("aria-activedescendant"), last.id);
+        await waitFor(() => {
+            assert.isTrue(shown(last), "the last row is in view");
+        });
+        await userEvent.keyboard("{ArrowUp}".repeat(rows.length));
+        assert.equal(box.getAttribute("aria-activedescendant"), rows[0].id);
+        await waitFor(() => {
+            assert.isTrue(shown(rows[0]), "the first row is in view");
+        });
+        assert.equal(viewport.scrollTop, 0, "the Nodes heading above the first row is in view too");
+        assert.equal(document.activeElement, box, "focus stays in the text box: no second Tab stop");
+    });
+
     it("ends a long name in ... and never scrolls the list sideways", async () => {
         const session = createGraphSession();
         sessions.push(session);

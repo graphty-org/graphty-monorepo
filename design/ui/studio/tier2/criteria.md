@@ -720,3 +720,25 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   compared with round 2 on the grade and the count only, not on steps. The re-run list is under
   "Round plan". Still to do before the freeze: two pilot sessions per reworded half on the round 3
   candidate build, which is not built yet. No bar, floor or step limit changed.
+
+- **2026-10-09, before round 3: the find list's axe `scrollable-region-focusable` is an accepted
+  exception on bar 8, and the extra-small checkbox's target-size failure is fixed.** Round 2's
+  bar 8 run failed two things. (1) The filter step's checkbox was a 12 x 12 px target with 12 px
+  of clear space (axe `target-size`, serious). compact-mantine's extra-small Checkbox now takes
+  clicks over 24 x 24 px while its drawn box stays 12 px, pixel for pixel the same as on
+  8f0d5a6f7791; on a local build of the studio worktree (95674c6d6f66) `tool/bars.mjs` reports 0
+  violations on "Data place with a filter step on" and "... off"
+  (`tmp/t2r2-10/bars.log`). (2) The find results' scroll area is not in the Tab order (axe
+  `scrollable-region-focusable`, serious, `.ws-find-viewport`). The list is the popup of an ARIA
+  combobox: focus stays in the text box and the arrow keys move through the rows. Scripted first
+  (Les Miserables, "e" typed, ArrowDown to the last row): on 8f0d5a6f7791 the marked row moved
+  below the list's edge and the list did not scroll, so a keyboard user could not see the row
+  Enter would pick (`tmp/t2r2-10/find/04.png`). Fixed in the app's find box: the row the arrows
+  reach scrolls into view, with its group's heading when it is the group's first row. On
+  95674c6d6f66 ArrowDown reaches the last row, "Select where name is Mlle Baptistine", in view,
+  and ArrowUp returns to the first with the "Nodes" heading in view
+  (`tmp/t2r2-10/find2/04.png`, `05.png`). Every row is therefore reachable and seen by keyboard
+  with no second Tab stop, which is the combobox pattern, so this one rule on this one element no
+  longer fails bar 8; `bars.mjs` still prints it, and the round report counts it as this
+  exception. Any other element with the rule still fails. No other bar, floor or step limit
+  changed.

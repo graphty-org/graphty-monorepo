@@ -11,6 +11,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **Round 2 screenshot audit done (`tier2/rounds/round-2/expert/engineer.md`, 33
+  findings, 2 at severity 3, both graphty-element labels).** New on study data: drawn names hide
+  each other (Farah under Chloe, Eli under Dev) and the picked tie under the "Stadium" label; labels
+  shrink to ~8 px at 900 x 700. Next app fixes, by severity: two-table source has no Edit/Replace
+  and no reason; "Edit source..." lands on "Replace: ..."; the refused rule's fix drops "=";
+  the neighbor Back row scrolls the inspector sideways.
 - (2026-10-09) **Tier 2 round 1 is closed. Its lesson: a dry run that walks only the answer key's
   routes lets build defects reach participants on the detours.** On walked routes no participant
   met a broken control (every `session.log` empty); off them they met style-to-Everything, the
@@ -54,6 +60,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-09) **An audit walks screens by script, both sizes, and reruns from the script.**
+  `round-2/expert/engineer/audit.sh` (one `walk` per screen, `SIZE=`, `LANES=`) and `audit2.sh`
+  for walks added after a run started. Reason: round 1's walks lived in a scratchpad and were gone;
+  a scripted walk lets the next round compare the same screens. Findings that persist say
+  "(round 1)" so the count can be read against bar 10.
 - (2026-10-09) **Round 2 waits on measurement first.** Round 1 decided: fix the tool, build the bar
   scripts and walk the detours (pointer and keyboard) before any session, then reproduced defects,
   then one door per confirmed problem; words at rest do not rise (only the source "..." menu and
@@ -173,6 +184,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Did not work: editing `audit.sh` while a run of it is going -- bash reads a
+  script by byte offset, so an edit can run garbage; I put new walks in a copy (`audit2.sh`) that
+  sources the same `walk()`. Did not work: a new script without `chmod +x` (the background run
+  exited 0 with "Permission denied" in its output; read the output, not the exit code). Worked:
+  2x2 `montage` contact sheets of 900 x 700 shots (readable), full-size reads for 1200 x 900; a
+  `--rclick` on a row that has no menu prints nothing, so look at the screenshot to tell. Control
+  names to remember: header chip "Filter: <n> of <m> nodes", source menu "Source actions",
+  step delete is right-click then "role=menuitem:Delete", "Graph" needs "Graph#1".
 - (2026-10-09) Did not work: a left-edge test with `getBoundingClientRect().left` of a padded
   `Text` -- the box starts before its padding, so the broken build passed. Worked: a Range over
   the element's contents (`range.selectNodeContents(el).getBoundingClientRect().left`) for where

@@ -10,41 +10,35 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-10 -- Tier 2 round 2 is CLOSED (`rounds/round-2/insights.md`, `decisions.md`). 55 of 55
-  valid sessions passed, but participants read `tasks.md`, so passes are weak and the three new
-  routes (T20 weight meaning at load, T21 Replace in "...", T22 rule hint) are NOT credited.
-- 2026-10-10 -- Round 3 does not start until the three study-tool changes pass a planted failure:
-  (1) session folders outside the studio tree, `--start` refuses otherwise, a transcript check
-  voids any read of a facilitator file; (2) the dry run starts from two throwaway pilots per task on
-  the candidate build, every walked fault fixed before freeze, two-match clicks refused; (3) every
-  script a bar names exists (bar 10's clipped-text and raw-string counts in `bars.mjs`).
-- 2026-10-10 -- Round 3 re-run list (criteria.md "Round plan"): r2-s05; the T20, T21, T22 routes;
-  the T17/T18 follow-ups for the second-time measure. Compare T22/T24 with round 2 on grade and
-  count only (prompts changed to "point out on the drawing").
-- 2026-10-10 -- Watch in round 3, by change: T22 -- does the example line after "No match" plus
-  Enter-runs-the-rule get 3+ of 8 past the dead end (else "Select where..." comes next); does the
-  rule-named layer ("minutes >= `10`") read in the key. T21 -- does anyone see the repeat-count line
-  and use Replace from the Add page. Styling a selection -- does the highlight-look start draw a
-  visible mark after clearing. T18 -- paths cost at or under 8 with the new aliases; weighted run
-  row shows the total. T23 -- does "Filter to neighbors" as a plain command stop the hide-or-delete
-  doubt. Bar 9 (b) -- words at rest back at or under round 1 on all four screens.
-- 2026-10-10 -- Still open, not fixed by the app: drawn names cover each other (element label
-  placement, owner), bare numbers in rules and edge width units (breaking, owner). Do not score
-  their recurrence as a new finding; cite them as known.
-- 2026-10-10 -- Answer key matched to 26f3bb968e43 (`rounds/r3d2/`) for T12R, T18, T20, T21,
-  T22 A; still on 897d9aed9ffe's notes: T4, T17, T19, T22 B, T23, T24. Traps: T18 A's Ivan-Kofi
-  tie runs through Jada; after a tie is picked "/" no longer types into the find box; T12R's
-  keyboard route from the title is 4 Tabs.
-- 2026-10-09 -- Dana's persona intro says "Facilitator notes", so `real.mjs --brief` refused her
-  briefings. Confirm it is fixed before round 3 or every Dana session fails to start.
-- 2026-10-09 -- Run `tmp/researcher/t2r3/avoided-in-briefings.py <dir>` on every round's
-  briefings (avoided words plus "stand out", "show").
+- 2026-10-10 -- Round 3 is PLANNED (`tier2/rounds/round-3/plan.md`, `sessions.py` asserts it):
+  56 sessions on 26f3bb968e43; core four and T22 at 8, T23 and T24 at 4, T4 and T19 at 3, T12R at 2. r3-s01 is r2-s05's re-run (T20 A, Nadia, empty). Two forced repeats of a round 2 half: Nadia
+  T20 A, Dana T20 B. No saved-project starts (frozen `tasks.md`).
+- 2026-10-10 -- Round 3's gate item 1 is OPEN: no briefed session has ever run with the leak
+  closed (no `tmp/studio-sessions/` existed); the r3 dry runs are scripted answer-key walks. The
+  reworded T22/T24 prompts need two throwaway briefed pilots each, in `round-3/prompt-pilots/`.
+- 2026-10-10 -- Dana's briefings were refused (persona intro names "Facilitator notes"); fixed in
+  `real.mjs` personaText (drops any paragraph matching the facilitator words). 56 of 56 now brief.
+  `--prove` must pass 5x with that tool commit before T19/T21.
+- 2026-10-10 -- Watch in round 3, by change: T22 -- example line after "No match" plus Enter gets
+  3+ of 8 past the dead end (else "Select where..." next); rule-named layer reads in the key. T21 --
+  repeat-count line seen, Replace from the Add page. Styling a selection draws a visible mark after
+  clearing. T18 -- cost at or under 8 with the aliases; weighted run row shows the total. T23 --
+  "Filter to neighbors" doubt gone. Bar 9 (b) back at or under round 1 on all four screens.
+- 2026-10-10 -- Credit T20, T21, T22 routes and the T17/T18 second-time measure on round 3 only;
+  count follow-up work only after the tool's `followUp` time.
+- 2026-10-10 -- Still open, not fixed by the app: drawn names cover each other, bare numbers in
+  rules, edge width units (owner). Cite as known; never score their recurrence as new.
+- 2026-10-10 -- Answer key matched to 26f3bb968e43 for T12R, T18, T20, T21, T22 A; T4, T17, T19,
+  T22 B, T23, T24 still on 897d9aed9ffe's notes. Traps: T18 A's Ivan-Kofi tie runs through Jada;
+  after a tie is picked "/" no longer types into the find box; T12R's keyboard route is 4 Tabs.
+- 2026-10-10 -- Briefing check: `tmp/researcher/t2r3/brief-all.py <scratch dir>` -- briefs every row with
+  `--task/--persona` into scratch, grep each prompt for its task's avoided words; the hits left
+  are the words `tasks.md` keeps on purpose (T20 "longer", T18 "from"/"to", T21 "updated list",
+  T23 "change the drawing so it has only").
 - 2026-10-09 -- A leak voids passes, not problems: a problem found anyway is robust.
-- 2026-10-09 -- Prompt words make findings ("stand out", "who was first before", "make sure both
-  will still be there"); check every candidate insight against the prompt first.
+- 2026-10-09 -- Prompt words make findings; check every candidate insight against the prompt.
 - 2026-10-09 -- Hold opinion-only problems one level down at SCORING time, not at the verdicts.
 - 2026-10-09 -- Grep the tool for each check a bar names before trusting a preflight's "built".
-- 2026-10-09 -- Click by name lands on same-named controls; confirm misclick-started faults by script.
 - 2026-10-09 -- Histories steer first moves; the SECOND place looked is the real signal.
 - 2026-10-06 -- All participants are one model: failure strong, pass weak.
 
@@ -86,6 +80,17 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-10 (researcher, tier 2 round 3 plan) -- Wrote `rounds/round-3/plan.md` with
+  `sessions.py` (asserted: 56, sizes, halves, per-persona 6/7, 37 graduates, no Ruth on T19,
+  r2-s05 re-run first, exactly two repeats of a round 2 half, halves alternating). Sizes: the
+  touched-at-4 rule needs 62, so the cap holds by cutting the two tasks that met every bar and
+  changed only off-path (T4, T19 to 3), keeping T23 and T24 at 4 (their paths changed; T24 and
+  T22 missed the steps target). Run order puts the three uncredited routes first. Fixed one study
+  tool fault on the way (Dana's refused briefings) because six sessions could not start otherwise;
+  a one-paragraph filter, no persona file touched (it lives in another worktree). Reported, not
+  done: the throwaway briefed pilots of the reworded prompts (gate item 1), which no one has run.
+  Kept round 2's step counts (T12R 5 though its path is 4 now) so the rounds compare; report both.
 
 - 2026-10-10 (researcher, tier 2 round 2 closed) -- Read `insights.md` and `decisions.md`.
   Taught: the dry run worked where it walked (about 30 build faults of 355 problems, none above
@@ -195,6 +200,15 @@ reasons, in short:
   the app; personas validate, never generate features.
 
 ## Tried: worked / did not work
+
+- 2026-10-10 (round 3 plan, after a token-limit stop) -- Worked: `git status`, a listing of
+  `tier2/rounds/` and of `tmp/studio-sessions/` first; nothing half-done (no round-3 folder).
+  Worked: briefing EVERY planned row in scratch with `--task/--persona` before writing the plan --
+  it found Dana's refusal, which my notes had flagged and nobody had fixed. Worked: reusing round
+  2's `sessions.py` with new asserts, including one that names the only allowed repeats. Worked:
+  briefing one real plan row after prettier to prove `real.mjs` still parses the padded table, then
+  deleting the scratch folder it made. Did not work: assuming the r3 dry runs were the briefed
+  throwaway pilots the round 2 decision asked for -- their `session.json` has no task.
 
 - 2026-10-10 (26f3bb968e43 key, after a token-limit stop) -- Worked: `git status` and a grep of
   the key for the new build id (none), and of `r3d2/pilot/` for which folders hold screenshots,

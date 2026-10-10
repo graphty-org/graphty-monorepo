@@ -156,6 +156,42 @@ function readFailures(dir) {
         });
 }
 
+/**
+ * Every issue labelled intermittent, the tracker's own lookup, a page of 100 at a time.
+ * @param request - the GitHub REST client
+ * @param repo - `owner/name`
+ * @returns the issues
+ */
+async function listIssues(request, repo) {
+    const issues = [];
+    for (let page = 1; ; page++) {
+        const got = await request(
+            "GET",
+            `/repos/${repo}/issues?labels=intermittent&state=all&per_page=100&page=${page}`,
+        );
+        issues.push(...got);
+        if (got.length < 100) return issues;
+    }
+}
+
+/**
+ * Performs one planned action.
+ * @param a - the action from plan()
+ * @param request - the GitHub REST client
+ * @param repo - `owner/name`
+ * @returns what it did, as a line
+ */
+async function perform(a, request, repo) {
+    if (a.create) {
+        const made = await request("POST", `/repos/${repo}/issues`, a.create);
+        return `filed #${made.number}: ${a.create.title}`;
+    }
+    if (a.reopen) await request("PATCH", `/repos/${repo}/issues/${a.issue}`, { state: "open" });
+    await request("POST", `/repos/${repo}/issues/${a.issue}/comments`, { body: a.comment });
+    const reopened = a.reopen ? " (reopened)" : "";
+    return `commented on #${a.issue}${reopened}`;
+}
+
 async function main() {
     const [dir] = process.argv.slice(2);
     const { GITHUB_REPOSITORY: repo, GITHUB_TOKEN: token, DRY_RUN, GITHUB_STEP_SUMMARY } = process.env;
@@ -170,37 +206,20 @@ async function main() {
         return res.json();
     };
     const failures = readFailures(dir);
-    let issues = [];
-    if (failures.length) {
-        // the tracker's own lookup: every issue labelled intermittent, a page of 100 at a time
-        for (let page = 1; ; page++) {
-            const got = await request(
-                "GET",
-                `/repos/${repo}/issues?labels=intermittent&state=all&per_page=100&page=${page}`,
-            );
-            issues.push(...got);
-            if (got.length < 100) break;
-        }
-    }
+    const issues = failures.length ? await listIssues(request, repo) : [];
     const actions = plan(failures, issues, ctx);
     const lines = [];
     for (const a of actions) {
         if (DRY_RUN === "true") {
             lines.push(a.create ? `would file: ${a.create.title}` : `would comment on #${a.issue}`);
-            continue;
+        } else {
+            lines.push(await perform(a, request, repo));
         }
-        if (a.create) {
-            const made = await request("POST", `/repos/${repo}/issues`, a.create);
-            lines.push(`filed #${made.number}: ${a.create.title}`);
-            continue;
-        }
-        if (a.reopen) await request("PATCH", `/repos/${repo}/issues/${a.issue}`, { state: "open" });
-        await request("POST", `/repos/${repo}/issues/${a.issue}/comments`, { body: a.comment });
-        lines.push(`commented on #${a.issue}${a.reopen ? " (reopened)" : ""}`);
     }
     if (!actions.length) lines.push("No test failed under the restriction.");
     console.log(lines.join("\n"));
-    if (GITHUB_STEP_SUMMARY) appendFileSync(GITHUB_STEP_SUMMARY, `${lines.map((l) => `- ${l}`).join("\n")}\n`);
+    const summary = lines.map((l) => "- " + l).join("\n");
+    if (GITHUB_STEP_SUMMARY) appendFileSync(GITHUB_STEP_SUMMARY, summary + "\n");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

@@ -23,10 +23,8 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
+import { nextFrame } from "../helpers/real-input";
 import { SKYBOX_PNG } from "../session/history/fixtures";
-
-/** Per-test budget: each builds a real Babylon scene and waits for two finished pictures. */
-const TEST_TIMEOUT_MS = 60_000;
 
 /** How far a channel may move before a pixel counts as changed: rounding, not a repaint. */
 const CHANNEL_TOLERANCE = 2;
@@ -137,9 +135,8 @@ async function drag(graph: Graph): Promise<void> {
     handler.onDragStart(start);
     handler.onDragUpdate(start.add(DRAG));
     handler.onDragEnd();
-    for (let wait = 0; wait < 500 && session.history.steps.length === steps; wait++) {
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 10));
+    for (let wait = 0; wait < 600 && session.history.steps.length === steps; wait++) {
+        await nextFrame();
     }
 
     assert.strictEqual(session.history.steps.length, steps + 1, "the drop recorded its step");
@@ -236,32 +233,27 @@ const CASES: readonly PictureCase[] = [
 
 describe("undo restores the picture", () => {
     for (const each of CASES) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(
-            `${each.name}, then undo, draws the picture from before`,
-            async () => {
-                const graph = await loadedGraph(each.dimension ?? "3d");
-                const session = graph.getSession();
-                const before = await picture(graph);
-                const camera = graph.getCameraState();
+        it(`${each.name}, then undo, draws the picture from before`, async () => {
+            const graph = await loadedGraph(each.dimension ?? "3d");
+            const session = graph.getSession();
+            const before = await picture(graph);
+            const camera = graph.getCameraState();
 
-                await each.act(session, graph);
-                assert.strictEqual(session.history.steps.length, 1, "the action is one step");
-                const acted = await picture(graph);
+            await each.act(session, graph);
+            assert.strictEqual(session.history.steps.length, 1, "the action is one step");
+            const acted = await picture(graph);
 
-                const outcome = await session.undo();
-                assert.strictEqual(outcome.kind, "undone");
-                await graph.setCameraState(camera);
-                session.selection.clear();
-                const after = await picture(graph);
+            const outcome = await session.undo();
+            assert.strictEqual(outcome.kind, "undone");
+            await graph.setCameraState(camera);
+            session.selection.clear();
+            const after = await picture(graph);
 
-                if (each.shows !== false) {
-                    assert.isAbove(changed(before, acted), 0, "the action changed the picture");
-                }
+            if (each.shows !== false) {
+                assert.isAbove(changed(before, acted), 0, "the action changed the picture");
+            }
 
-                assert.strictEqual(changed(before, after), 0, "after the undo the picture is the one from before");
-            },
-            TEST_TIMEOUT_MS,
-        );
+            assert.strictEqual(changed(before, after), 0, "after the undo the picture is the one from before");
+        });
     }
 });

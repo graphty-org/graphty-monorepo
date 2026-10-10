@@ -32,25 +32,20 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { getLoggingConfig, LogLevel, parseLoggingURLParams, resetLoggingConfig } from "../../logging";
-
-/** How long to give the element to connect and finish its first update. */
-const ELEMENT_READY_MS = 300;
 
 /** Containers mounted by a test, removed after it. */
 const containers: HTMLDivElement[] = [];
 
 /**
- * Waits for a number of milliseconds.
- * @param ms - How long to wait.
- * @returns A promise that settles after the wait.
+ * One turn of the event loop, so every promise chained before it has run to the end.
+ * @returns A promise that settles on the next macrotask.
  */
-function wait(ms: number): Promise<void> {
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    return new Promise((resolve) => setTimeout(resolve, ms));
+function yieldToEventLoop(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 /**
@@ -79,7 +74,11 @@ async function mount(): Promise<Graphty> {
     container.appendChild(element);
 
     await element.updateComplete;
-    await wait(ELEMENT_READY_MS);
+    // Connected, initialised and done with everything it queued while coming up.
+    await vi.waitFor(() => {
+        assert.isTrue(element.graph.initialized, "the element initialised its graph");
+    });
+    await element.waitForSettled();
 
     return element;
 }
@@ -93,7 +92,7 @@ afterEach(async () => {
         containers.pop()?.remove();
     }
 
-    await wait(0);
+    await yieldToEventLoop();
     resetLoggingConfig();
 
     if (window.location.search !== "") {

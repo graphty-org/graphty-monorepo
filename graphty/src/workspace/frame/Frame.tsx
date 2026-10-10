@@ -52,6 +52,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
     const announcement = useWorkspaceState((state) => state.announcement);
+    const announced = useWorkspaceState((state) => state.announced);
     const panels = page === "panels";
     // Leaving the Data page (Load, Cancel, Esc) takes away the control that had focus; focus goes
     // to the rail button of the open place, a control, not the page or the drawing's outline.
@@ -163,9 +164,10 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 )}
             </div>
             {/* The status line sits outside every surface the Data page hides, so it is in the page
-                before anything is written to it and a change is spoken once, as it happens. */}
+                before anything is written to it and a change is spoken once, as it happens. Each write
+                puts in a new text node, so the same words written again are spoken again. */}
             <VisuallyHidden role="status" aria-live="polite">
-                {announcement}
+                <span key={announced}>{announcement}</span>
             </VisuallyHidden>
         </div>
     );

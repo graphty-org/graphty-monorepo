@@ -11,6 +11,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Fixed: the same status words written twice are spoken twice.** Every
+  `store.set` that carries `announcement` bumps `announced` (`state/store.ts`); `Frame.tsx` puts
+  the words in a `<span key={announced}>`, so a repeat ("1 node selected" for a second node) is a
+  new node in the polite region. Test: `Workspace.test.tsx` "speaks the same status words again".
+  `real.mjs --sr` now prints text put in again too (it compared text only, so it hid this).
 - (2026-10-10) **Built: words at rest back under round 1 on three of four tier 2 screens.** On a
   fresh build (`tmp/t2r2b-9/bars.log`): rest 49 (limit 53), path inspector 61 (66), neighbor list
   33 (36), **edge inspector 31 (30), one over**. The key names a stale run's scope only when the
@@ -52,7 +57,6 @@ meaning set.`; neighbor heading drops "within N hops" (the status line keeps it)
   FindBox's rule as the option Enter picks is now committed. Still to do: build, `--prove`,
   `detours.sh all`, `rewalk.sh routes:tier2/rounds/round-2`, fix what fails, write the round 3
   preflight's walk table, commit. The "#n among kinds" refusal is already committed with its check.
-- (2026-10-10, condensed) **Built: bar 10's scripted counts** in `bars.mjs` (`measure.mjs bar10()`).
 - (2026-10-10, condensed) **Built:** Filter to neighbors is a plain command (adds or turns on
   this center's step; off lives on the step's checkbox); a weighted path's row and announcement
   give its total ("minutes 14") via `pathLengthWords(run)` in `analyze/words.ts`.
@@ -78,6 +82,13 @@ meaning set.`; neighbor heading drops "within N hops" (the status line keeps it)
   s30) needs a refusal like ambiguous names already get.
 
 ## Decisions and reasons
+
+- (2026-10-10) **A repeated announcement is keyed in the store, not by clearing the region.**
+  The counter sits in `store.set`, the one place every writer goes through, so no caller changes;
+  a cleared-then-refilled region needs a timer between the two writes or the screen reader sees
+  no change. All writers are event-driven (selection, load, run end, filter step, note), so a
+  repeat is always a new event worth speaking. The live region itself stays mounted (only its
+  child is replaced): a region inserted already filled is often not read.
 
 - (2026-10-10) **Scope words follow the drawn count, read from the element.** `rowName` compares
   `stale.ranOn` with `visibility.summary.visibleNodes` (equal: plain) and `totalNodes` (equal:
@@ -159,54 +170,18 @@ meaning set.`; neighbor heading drops "within N hops" (the status line keeps it)
   weight; a live region is in the page before its words arrive (`Frame.tsx`); the selection halo
   draws only back faces (`createOverlaySource`); ", out of date" only on `data-changed`; the
   Filters step editor is a `<form>` (`focusNext`/`focusStep`).
-- (2026-10-09) **The list follows the filter, not the other way round.** Reopening a node under its
-  2-hop filter opened one hop with the button pressed, and pressing it there removed the filter
-  instead of narrowing. Opening at the on step's depth makes list, Hops and button agree; with no
-  on step nothing changes (T12R still opens at Hops 1). Only an ON step counts: an off step is
-  the reader's own choice not to filter, so it should not change where the list opens.
-- (2026-10-09) **Wrap a sentence heading, opt in.** A neighbor heading is the task's answer, so it
-  must be read whole; section names of one to three words stay on one line, so `wrapLabel` is
-  per section with the old drawing as default (no change to any other section). One line at
-  `wrapLabel` keeps the 40px header (16px lines plus 8px padding = the old 32px line box).
-- (2026-10-09, condensed) **A chosen segment is filled** (`--cm-bg-inverse`) and every control shows
-  the arrow cursor (one rule in compact-mantine `00-foundation.css.ts`; only Anchor keeps the hand).
-- (2026-10-09, condensed) **A data file opened from the start screen goes through the Data page**
-  (`openInSession`; Control+O on the page lands as a drop), and the source's inspector "..." holds
-  the Sources row menu's verbs (`useSourceActions`). Tests `StartScreen.real-element.test.tsx`,
-  `DataPlace.real-element.test.tsx`.
-- (2026-10-09, summarized) **Menus, neighborhoods, events:** a pointer-opened menu focuses the
-  menu, not row one (only the focus trap's pick; type-ahead from the menu kept); one neighborhood
-  filter per center whatever the reach, the tooltip naming the other reach; a no-movement
-  selection gets a new event, never an empty `selection:changed` (breaking), recorded under
-  "decided by the team"; a suggestion the selector would refuse is no suggestion.
+- (2026-10-09, summarized 2026-10-10) **Standing calls from 10-09:** the neighbor list opens at
+  the ON filter step's depth (an off step is the reader's choice); sentence headings wrap by
+  per-section `wrapLabel` opt-in; a chosen segment is filled `--cm-bg-inverse` and every control
+  but a link shows the arrow cursor (compact-mantine `00-foundation.css.ts`; `--cm-segment-edge`
+  kept, removing it is breaking); a start-screen data file goes through the Data page; a
+  pointer-opened menu focuses the menu; one neighborhood filter per center; no forced focus ring
+  after a pointer click; a study tool that hides what a person saw is fixed in the tool, not the
+  app (never lengthen `NOTICE_MS` for it); `OptionsForm` passes no value at a run setting's
+  default; a heading's count must be checkable beside it; vertical lists use `scrollbars="y"` and
+  `EllipsizedName`; reopen is a fresh fit (camera unsaved, owner door); an Add counts what it adds;
+  bar scripts measure in the participant's own `real.mjs` session, each move with an `--expect`.
 
-- (2026-10-09, condensed) **Move the link, not the control** (reading order, smallest diff); a
-  row's inspector answers to its title.
-- (2026-10-09) **No forced focus ring after a pointer click.** `focus({ focusVisible: true })`
-  after Save would make the note card the one control that rings after a mouse click (spec 2.7,
-  same reason as the cursor rule); a keyboard user sees the mark at the next key.
-- (2026-10-09) **A study tool that hides what a person saw is fixed in the tool, not the app.**
-  Lengthening `NOTICE_MS` would change the product for the tool's sake. Rejected: a screenshot
-  before settling (it would catch half-drawn frames).
-
-- (2026-10-09, summarized) **Reset, Graph title, heading counts:** `OptionsForm` passes no value at
-  a run setting's default (a style layer's explicit default still overrides, so `StyleNumberInput`
-  keeps its reset; its real defect, an undefined `value` going uncontrolled, was fixed there); the
-  Graph title opens a "graph" row so a node can stay picked; a heading's count must be checkable
-  beside it ("Ava and 14 ..." matches Selection 15); a key under a filter names the run's own count.
-- (2026-10-09, condensed) **Segment fill = the inverse color** (brand blue failed 1.4.11 and
-  1.4.3); `--cm-segment-edge` kept (removing a published variable is breaking). **Arrow cursor on
-  every control, the hand only on links** (Mantine's UnstyledButton default was the hand).
-
-- (2026-10-09, summarized) **Round 1 and dry-run calls, still standing:** vertical lists pass
-  `scrollbars="y"` and ellipsize through `EllipsizedName`; path and Replace words name the weight
-  column and why it was not read; plain text is a condition only when the accepted rule matches;
-  the element no longer cancels canvas pointerdown; reopen is a fresh fit (camera unsaved, owner
-  door); an Add counts what it adds.
-- (2026-10-09, condensed) **The bar scripts measure in the participant's own `real.mjs` session**
-  (ops `measure`, `work`; checks in `measure.mjs`), each move with an `--expect`. Focus fell = body
-  or null (shadow-root focus is kept); shared names count reachable controls, not list items; bar
-  7 seeds 42; bar 9 limits are round 1's counts on round 1's frozen build.
 - (2026-10-08, summarized 2026-10-09) **Older dry-run fixes, still standing:** `--read` prints rows
   by cell; sources show "Added"/"Left out"; compact-mantine Tree type-ahead and menu Escape. OPEN:
   Columns after "=" omit run results; edge-only `edgePage` selection (owner door); dijkstra over a
@@ -222,6 +197,14 @@ meaning set.`; neighbor heading drops "within N hops" (the status line keeps it)
   the app, a run's Values view from its shape.
 
 ## Tried: worked / did not work
+
+- (2026-10-10) Worked: `MutationObserver.takeRecords()` before `disconnect()` in a test; did not
+  work: reading records in the observer's callback, which runs as a microtask after the test had
+  already disconnected (an empty list, with or without the fix). Control on the frozen
+  `tier2-r2d4-8f0d5a6f7`: Medici then Strozzi by find prints "1 node selected" once; on the fixed
+  build twice (`tmp/t2r2b-14/frozen` vs `repeat2`). Did not work: `m.target.textContent.trim()`
+  in the tool's observer -- a record on the document itself has null text, which threw in the
+  page and failed every setup start in `--prove`; `textContent?.trim()` fixed it.
 
 - (2026-10-10) Did not work: `npm run build` while another agent's untracked
   `graphty/src/zz-probe/` test broke `tsc`; worked: `npx vite build --outDir tmp/<task>/dist`

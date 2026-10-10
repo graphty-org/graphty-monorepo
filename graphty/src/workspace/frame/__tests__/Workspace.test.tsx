@@ -305,6 +305,33 @@ describe("the workspace frame", () => {
         assert.equal(stamp.textContent, "Build 0123456789ab, release graphty@0.8.35");
     });
 
+    it("speaks the same status words again when they are written again", () => {
+        const store = createWorkspaceStore(OPEN);
+        render(<Workspace store={store} />);
+        const words = "Shortest path from Chloe to Milo: 4 steps";
+        act(() => {
+            store.set({ announcement: words });
+        });
+        const line = screen.getAllByRole("status").find((region) => region.textContent === words);
+        assert.isDefined(line);
+        // A screen reader speaks a polite region when text is added to it, so count additions.
+        const observer = new MutationObserver(() => undefined);
+        observer.observe(line, { childList: true, subtree: true, characterData: true });
+
+        act(() => {
+            store.set({ announcement: words });
+        });
+        act(() => {
+            store.set({ announcement: words });
+        });
+        const spoken = observer
+            .takeRecords()
+            .flatMap((record) => [...record.addedNodes].map((node) => node.textContent));
+        observer.disconnect();
+
+        assert.deepEqual(spoken, [words, words]);
+    });
+
     it("shows one notice and takes it down after 6 seconds", () => {
         vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
         const store = createWorkspaceStore(OPEN);

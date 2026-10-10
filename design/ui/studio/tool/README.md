@@ -189,7 +189,7 @@ live: status (polite): "No match for \"zzzz\""
   options: `focus: combobox "Find" value "Stro" expanded; highlighted: option "Strozzi" selected`.
   A screen reader reads that item, not only the box.
 - `live:` is the text of a live region (`aria-live`, `role=status`, `role=alert`, `role=log`) each
-  time it appears or changes, with its politeness. A region inside another one is read as part of
+  time it appears or changes, or the same words are put in again, with its politeness. A region inside another one is read as part of
   it; a hidden one is not read. Text that changes several times in one step (typing a letter at a
   time) prints each version; a real screen reader may speak only the last. A region that arrived
   on the page with its text already in it ends with `-- unconfirmed: ...`: many screen readers

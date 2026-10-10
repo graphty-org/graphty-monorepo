@@ -773,12 +773,16 @@ function watchLive() {
     const LIVE = "[aria-live]:not([aria-live=off]), [role=status], [role=alert], [role=log]";
     const last = new WeakMap();
     window.__srLive = [];
-    const scan = () => {
+    const scan = (records = []) => {
+        // text put in again (a new node with the same words) is read again, as a screen reader does
+        const added = records
+            .filter((m) => m.addedNodes.length > 0 && m.target.textContent?.trim())
+            .map((m) => m.target);
         for (const r of document.querySelectorAll(LIVE)) {
             // a region inside another is read as part of it; a hidden one is not read at all
             if (r.parentElement?.closest(LIVE) || r.closest("[aria-hidden=true]") || !r.checkVisibility()) continue;
             const text = r.textContent.replace(/\s+/g, " ").trim();
-            if (last.get(r) === text) continue;
+            if (last.get(r) === text && !added.some((t) => r.contains(t))) continue;
             // a region first seen with its text already in it was never changed while on the page
             const arrivedFilled = !last.has(r);
             last.set(r, text);
@@ -1218,6 +1222,8 @@ async function plantLive(s) {
         region("Planted already filled");
         const later = region("");
         setTimeout(() => (later.textContent = "Planted change"), 100);
+        // the same words put in again are a second announcement
+        setTimeout(() => (later.textContent = "Planted change"), 200);
     });
     return { out: [], code: 0 };
 }
@@ -2388,9 +2394,9 @@ async function prove() {
         await ask(D, { op: "plant-live" });
         x = step(D, "--wait", "400");
         check(
-            "a live region inserted already filled is marked unconfirmed, a changed one is not",
+            "a live region inserted already filled is marked unconfirmed, a changed one is not, a repeat is read again",
             /^live: status \(polite\): "Planted already filled" -- unconfirmed/m.test(x.out) &&
-                /^live: status \(polite\): "Planted change"$/m.test(x.out),
+                (x.out.match(/^live: status \(polite\): "Planted change"$/gm) || []).length === 2,
             x.out,
         );
         x = step(D, "--key", "Escape", "--key", "Control+e", "--read");

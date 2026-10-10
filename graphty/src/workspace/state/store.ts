@@ -99,6 +99,11 @@ export interface WorkspaceState {
      */
     readonly announcement: string;
     /**
+     * How many times the status line has been written, counting a write of the same words again,
+     * so the line can be spoken again when a repeat is a new event.
+     */
+    readonly announced: number;
+    /**
      * What to load once the element of a project that was just opened has come up (a sample or
      * a file from the start screen), with the name it is known by; run once, then cleared.
      */
@@ -134,6 +139,7 @@ const INITIAL: WorkspaceState = {
     notice: null,
     noteDraft: null,
     announcement: "",
+    announced: 0,
     opening: null,
 };
 
@@ -182,7 +188,12 @@ export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): Wor
     return {
         get: () => state,
         set: (change) => {
-            state = { ...state, ...(typeof change === "function" ? change(state) : change) };
+            const fields = typeof change === "function" ? change(state) : change;
+            state = {
+                ...state,
+                ...fields,
+                ...("announcement" in fields ? { announced: state.announced + 1 } : {}),
+            };
             listeners.forEach((listener) => {
                 listener();
             });

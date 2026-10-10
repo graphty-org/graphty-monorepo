@@ -570,6 +570,14 @@ describe("the Data page on the real element", () => {
             });
             await within(inspector).findByText("Left out of people.csv and passes.csv");
             assert.isNull(within(inspector).queryByText("Source"));
+            // The heading draws the icon of the row it was opened from, in the row's color.
+            const headingIcon = (): SVGElement | null | undefined =>
+                document.getElementById(INSPECTOR_TITLE_ID)?.parentElement?.querySelector("svg");
+            const rowIcon = (name: string): SVGElement | null =>
+                within(sources).getByRole("treeitem", { name }).querySelector("svg");
+            assert.include(headingIcon()?.getAttribute("class"), "lucide-triangle-alert");
+            assert.equal(headingIcon()?.getAttribute("class"), rowIcon("1 row left out")?.getAttribute("class"));
+            assert.equal(headingIcon()?.getAttribute("stroke"), "var(--cm-text-danger)");
             await within(inspector).findByText("Line 4: z has no node row; source c, target z, weight 1");
             assertInOrder(
                 within(inspector).getByText("Left out"),
@@ -586,6 +594,21 @@ describe("the Data page on the real element", () => {
             assert.isNull(within(inspector).queryByText("Nodes"));
             assert.isNotNull(within(inspector).getByText("Edges"));
             assert.deepInclude(store.get(), { dockOpen: true, dockTab: "edges" });
+            assert.equal(headingIcon()?.getAttribute("class"), rowIcon("passes.csv")?.getAttribute("class"));
+            assert.include(headingIcon()?.getAttribute("class"), "lucide-spline");
+            await userEvent.click(within(sources).getByText("people.csv"));
+            await waitFor(() => {
+                assert.equal(document.getElementById(INSPECTOR_TITLE_ID)?.textContent, "people.csv");
+            });
+            assert.include(headingIcon()?.getAttribute("class"), "lucide-circle-dot");
+            await userEvent.click(within(row).getAllByText("people.csv and passes.csv")[0]);
+            await waitFor(() => {
+                assert.include(headingIcon()?.getAttribute("class"), "lucide-file-text");
+            });
+            await userEvent.click(within(sources).getByText("passes.csv"));
+            await waitFor(() => {
+                assert.equal(document.getElementById(INSPECTOR_TITLE_ID)?.textContent, "passes.csv");
+            });
 
             // The Graph place shows no source: switching to it closes the source's inspector.
             await userEvent.click(screen.getByRole("button", { name: "Graph" }));

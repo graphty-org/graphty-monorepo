@@ -5,7 +5,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { GLYPHS } from "../glyphs";
+import { GLYPHS, SOURCE_GLYPHS } from "../glyphs";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useAttributeActions } from "./attributeActions";
@@ -23,14 +23,6 @@ import {
     sourceRows,
     type TypeGlyph,
 } from "./words";
-
-const SOURCE_GLYPHS: Record<SourceKind, React.ReactNode> = {
-    file: <GLYPHS.file size={14} aria-hidden />,
-    nodes: <GLYPHS.node size={14} aria-hidden />,
-    edges: <GLYPHS.edge size={14} aria-hidden />,
-    // The warning the import page draws for the same rows.
-    "left-out": <GLYPHS.warning size={14} color="var(--cm-text-danger)" aria-hidden />,
-};
 
 const TYPE_GLYPHS: Record<TypeGlyph, React.ReactNode> = {
     category: <GLYPHS.category size={14} aria-hidden />,
@@ -80,6 +72,17 @@ function Quiet({ children }: Readonly<{ children: React.ReactNode }>): React.JSX
 }
 
 /**
+ * A Sources row's icon.
+ * @param props - Component props
+ * @param props.kind - The row's kind
+ * @returns The icon
+ */
+export function SourceGlyph({ kind }: Readonly<{ kind: SourceKind }>): React.JSX.Element {
+    const { icon: Icon, color } = SOURCE_GLYPHS[kind];
+    return <Icon size={14} color={color} aria-hidden />;
+}
+
+/**
  * The tree item for a Sources row.
  * @param row - the row.
  * @returns the item.
@@ -88,7 +91,7 @@ function sourceItem(row: SourceRow): TreeNodeData {
     return {
         id: row.id,
         name: row.name,
-        icon: SOURCE_GLYPHS[row.kind],
+        icon: <SourceGlyph kind={row.kind} />,
         strong: false,
         // The quiet text is a second line, so a long name and "12 nodes, 22 edges" each show whole.
         ...(row.quiet === "" ? {} : { description: row.quiet, descriptionVisible: true }),

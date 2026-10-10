@@ -5,13 +5,14 @@ import React, { useEffect, useState } from "react";
 
 import { wordsFor } from "../analyze/words";
 import { useAttributeActions } from "../data-place/attributeActions";
+import { SourceGlyph } from "../data-place/DataPlace";
 import { FilterStepEditor } from "../data-place/Filters";
 import { stepEditorName } from "../data-place/filterSteps";
 import { AttributeMenuItems } from "../data-place/MenuItems";
 import { useSourceActions } from "../data-place/sourceActions";
 import { SourceValues } from "../data-place/SourceValues";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
-import { loadIndexOf, loadName, sourceRowOf, sourcesWords } from "../data-place/words";
+import { loadIndexOf, loadName, type SourceKind, sourceRowOf, sourcesWords } from "../data-place/words";
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
@@ -44,6 +45,8 @@ interface Header {
     readonly swatch?: string;
     /** The provenance link: its words and what it opens. */
     readonly from?: { readonly words: string; readonly open?: () => void };
+    /** For a Sources row, the row's kind, so the header draws the row's own icon. */
+    readonly source?: SourceKind;
 }
 
 /** What the header's provenance links open. */
@@ -191,7 +194,11 @@ export function Inspector(): React.JSX.Element {
             <Stack gap={0} data-inspected={kindId} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
                 <Stack gap={0} px="md" py={6}>
                     <Group gap={6} wrap="nowrap">
-                        <KindIcon size={14} aria-hidden />
+                        {header.source === undefined ? (
+                            <KindIcon size={14} aria-hidden />
+                        ) : (
+                            <SourceGlyph kind={header.source} />
+                        )}
                         {header.swatch !== undefined && (
                             <ColorSwatch color={header.swatch} size={12} withShadow={false} aria-hidden />
                         )}
@@ -377,6 +384,7 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             // The left-out row is not a source of its own: its subtitle names the load it came from.
             return {
                 name: child?.name ?? loadName(load),
+                source: child?.kind ?? "file",
                 ...(child?.kind === "left-out" ? { kind: leftOutOf(loadName(load)) } : {}),
             };
         }

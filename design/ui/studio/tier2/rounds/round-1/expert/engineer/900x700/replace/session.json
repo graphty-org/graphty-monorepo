@@ -1,0 +1,28 @@
+{
+ "commit": "946256efb8762ce90b07eb24b2e0728a48012278",
+ "toolCommit": "25d387edd10bd5e582408c6b89f23d844a72cd32",
+ "uncommittedChanges": false,
+ "buildStamp": "946256efb876 graphty@0.8.56",
+ "url": "/?next",
+ "screenReaderMode": false,
+ "viewport": {
+  "width": 900,
+  "height": 700
+ },
+ "started": "2026-10-09T07:22:05.219Z",
+ "setup": [
+  "--click No thanks",
+  "--click Open project or file...",
+  "--upload team.csv",
+  "--key Shift+A",
+  "--type PageRank",
+  "--click PageRank",
+  "--click Run",
+  "--click PageRank",
+  "--click role=tab:Style",
+  "--click Add to Shape",
+  "--click role=menuitem:Size",
+  "--click role=option:PageRank",
+  "--key Escape"
+ ]
+}

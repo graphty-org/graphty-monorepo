@@ -1,0 +1,37 @@
+{
+ "start": {
+  "runs": [
+   "pagerank Influence"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "influence_1 Influence"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "friends.csv"
+  ]
+ },
+ "end": {
+  "runs": [
+   "pagerank Influence"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "influence_1 Influence"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "friends-v2.csv"
+  ]
+ },
+ "gone": {
+  "sources": [
+   "friends.csv"
+  ]
+ }
+}

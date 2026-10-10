@@ -10,47 +10,35 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-09 -- YES, DRY RUNS WERE DONE before round 2, the last a pilot of all 20 halves on the
-  frozen study build 8f0d5a6f7791 (`tier2/rounds/r2d4/pilot/`): 0 script/console/request errors,
-  every value held, nothing lost, every success path first try EXCEPT T12R, whose key path broke.
-  Key re-recorded on 8f0d5a6f7791 the same day; no bar moved.
-- 2026-10-09 -- T12R on 8f0d5a6f7791: the find list now marks its first result, so the old
-  Down-arrow + Enter habit opens the person's first TIE (A's tie reads "shared_chapters 17" =
-  Javert's 17, a false-answer trap), and focus stays in the find box after a tie. Path is 4 steps.
-  This is a UX change that tests exactly the returning user's habit -- watch it, do not explain it.
-- 2026-10-09 -- New on 8f0d5a6f7791 for graders: a click on a drawn name selects the node (T24 B
-  drops a two-stop selection to one); left-out row's inspector has the warning triangle (T4);
-  black path nodes over an orange PageRank key (T18 B); uneven sizes after undoing Size (T22 B).
-- 2026-10-09 -- Still on the build: row counts are link-blue buttons (T4, T20); Ravi-Pia path tie
-  drawn through Quinn (T18 A follow-up).
-- 2026-10-09 -- Round 2 UX risks to watch (design, not build faults): legend "PageRank on 20
-  nodes" beside chip "19 of 20" (T17, T23); T18's "A path needs a distance" line may push a weight
-  set as distance (`meaning-wrong`); T4 Load enabled with one file and no edges;
-  nodes have no hover tooltip and no names drawn (T18, T20, T24).
-- 2026-10-09 -- Tool risk under load (load avg 90-115): a setup click that times out may or may
-  not have landed, and `setup.log` says "could not click" either way (T22 B, T12R A). Check each
-  session's 01.png against its expected start before counting it.
-- 2026-10-09 -- Never wrap `real.mjs --start` in `with-browser.sh` (it takes its own slot; a
-  wrapped start waits for a second one). Walked counts: T20 route 10, T21 route 8, T22 route 4.
-
-- 2026-10-09 -- Dry runs walk ONLY the key's routes; round 1's defects sat on detours (Edges
-  color landing on Everything; selection display overriding fill). Next dry run seeds each task
-  with the previous round's commonest wrong turns.
-- 2026-10-09 -- The study TOOL reached participants more than the build in round 1 (5+ sessions
-  alive, wrong-row matches, silent synthetic drop, follow-ups skipped). Verify tool fixes before
-  each round, by a pilot that exercises them.
-- 2026-10-09 -- Confirmed sev 3 design problems (round 1, after skeptics): find box answering a
-  condition with "No match" (T22), Replace hidden at rest (T21), plain open ignoring a weight's
-  meaning (T20), drawn names overlapping (class only; layout unseeded), filtering not reachable
-  from Graph (T17). Round 2 tests the fixes for the first three.
-- 2026-10-09 -- Persona scripts can decide outcomes: read the persona FILE, not just the roster
-  briefing, before calling a give-up the screen's fault. "Scripted exit" = label only, grade G.
-- 2026-10-07 -- Do not override a grader without new evidence; one skeptic's weakening stands
-  unless the other answers its reason with evidence.
-- 2026-10-06 -- All participants are one model: N alike is not independent. Failure strong, pass
-  weak. Solid = a scripted repro or a cause in code.
-- 2026-10-07 -- Real users next after tier 2 (graphty.app with opt-in usage data, 5-8 analysts, a
-  real screen-reader user).
+- 2026-10-09 -- Round 1 CLOSED. Answer to "did we dry run?": YES (four builds walked, then the
+  frozen build), and on the walked routes 0 participants met a broken control (every session.log
+  empty, no grade decided by a defect). BUT it walked only the key's routes, by pointer only, and
+  never dry-ran the study tool -- so detour defects, focus faults and tool faults reached sessions.
+- 2026-10-09 -- Round 2 starts only after: tool fixed (<=4 alive, exact matches, real file drop,
+  every follow-up, no facilitator files in reach), bar 2/7/8/9 scripts built with planted failures,
+  and a dry run of each task's success path PLUS its two commonest round 1 wrong turns, by pointer
+  AND keyboard. A dry run report must list every detour walked.
+- 2026-10-09 -- Round 2 tests three door changes: find hint to a rule (T22), source inspector "..."
+  with Replace (T21), start-screen Open through the Data page (T20). Credit each only on its route;
+  a pass on the old route says nothing about the change.
+- 2026-10-09 -- Watch in round 2: does T22 clear its 3-of-4 floor via the hint; does the T20 Data
+  page route keep tier 1's open-your-own-file under its bar (one extra Load step); T12R's ArrowDown
+  now opens a tie (false-answer trap, "shared_chapters 17"); stale key ", out of date" (bar 5).
+- 2026-10-09 -- Expected to keep failing: bar 10 on drawn names overlapping (element label
+  placement, not fixed between rounds). Report it as the class, never per-instance (layout unseeded).
+- 2026-10-09 -- Persona scripts decided 2 of 3 round 1 non-successes (Tom's two-attempt exit).
+  Read the persona FILE before blaming the screen; grade "scripted exit" as a label beside G.
+- 2026-10-09 -- Histories steer first moves; the SECOND place looked is the real signal (the
+  column was second for 4 of 4 on T22, 6 of 7 on T20).
+- 2026-10-09 -- Check each session's 01.png against its expected start: under load a setup click
+  can land or not while setup.log says "could not click" either way.
+- 2026-10-09 -- Never wrap `real.mjs --start` in `with-browser.sh` (it takes its own slot).
+- 2026-10-07 -- One skeptic's weakening stands unless the other answers its reason with evidence;
+  never override a grader without new evidence.
+- 2026-10-06 -- All participants are one model: failure strong, pass weak. Solid = scripted repro
+  or a cause in code.
+- 2026-10-07 -- Stop rule: if round 2 does not move the core four over round 1 (success, ease
+  4.07), go to real users (graphty.app opt-in data, 5-8 analysts, a real screen-reader user).
 
 ## Priorities and values
 
@@ -90,6 +78,14 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-09 (researcher, round 1 closed) -- Read `rounds/round-1/insights.md` and
+  `decisions.md`. Taught: a dry run removes faults only where it walks; the commonest detours and
+  the tool itself must be walked too, else sessions spend time on build and tool faults instead of
+  on what returning users need. Decided (director): measurement first (tool, scripts, detour dry
+  run, all sev 4), then 11 app/element changes, one door per confirmed problem, no feature moves,
+  words at rest do not rise; "Select where" waits unless the hint fails for 3+ in one place;
+  drawn-name overlap filed against the element. Nothing new for the owner.
 
 - 2026-10-09 (researcher, key matched to the 8f0d5a6f7791 pilots) -- New build section (what
   changed vs 2dcea6dd5bba, plus a list of screens the key never described), and inline fixes where

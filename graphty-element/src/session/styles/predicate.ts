@@ -499,29 +499,51 @@ function backtickNumbers(where: Query): string {
     let out = "";
     let at = 0;
     while (at < where.length) {
+        const number = /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(where.slice(at))?.[0];
         const character = where.charAt(at);
-        let end = at + 1;
-        if (character === "`" || character === "'" || character === '"') {
-            while (end < where.length && where.charAt(end) !== character) {
-                end += where.charAt(end) === "\\" ? 2 : 1;
-            }
-            end = Math.min(end + 1, where.length);
-        } else if (startsIdentifier(character)) {
-            while (end < where.length && continuesIdentifier(where.charAt(end))) {
-                end++;
-            }
-        } else {
-            const number = /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(where.slice(at))?.[0];
-            if (number !== undefined) {
-                out += `\`${number}\``;
-                at += number.length;
-                continue;
-            }
+        if (number !== undefined && !isQuote(character) && !startsIdentifier(character)) {
+            out += `\`${number}\``;
+            at += number.length;
+            continue;
         }
+        const end = tokenEnd(where, at);
         out += where.slice(at, end);
         at = end;
     }
     return out;
+}
+
+/**
+ * Whether a character opens a quoted literal or name.
+ * @param character - The character.
+ * @returns true for a backtick, a single quote or a double quote.
+ */
+function isQuote(character: string): boolean {
+    return character === "`" || character === "'" || character === '"';
+}
+
+/**
+ * Where the token starting at a character ends: past the closing quote of a quoted literal (or at
+ * the end of an unclosed one), past the last character of a name, or one character on.
+ * @param where - The expression being lexed.
+ * @param at - The token's first character.
+ * @returns The offset just past the token.
+ */
+function tokenEnd(where: Query, at: number): number {
+    const character = where.charAt(at);
+    let end = at + 1;
+    if (isQuote(character)) {
+        while (end < where.length && where.charAt(end) !== character) {
+            end += where.charAt(end) === "\\" ? 2 : 1;
+        }
+        return Math.min(end + 1, where.length);
+    }
+    if (startsIdentifier(character)) {
+        while (end < where.length && continuesIdentifier(where.charAt(end))) {
+            end++;
+        }
+    }
+    return end;
 }
 
 /**

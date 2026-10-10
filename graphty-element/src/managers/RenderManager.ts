@@ -311,6 +311,8 @@ export class RenderManager implements Manager {
      * one frame after such a change can leave the new thing off the canvas.
      */
     private sceneChanged = false;
+    /** Whether a shader was still on its way when the loop last looked; see `mayRest`. */
+    private effectsPending = false;
     /** Scratch for {@link RenderManager.sameContents}. */
     private readonly contentsNow: unknown[] = [];
     private readonly oweForEvent = (event: { readonly type: string }): void => {
@@ -618,7 +620,8 @@ export class RenderManager implements Manager {
      *
      * Only when `pictureIsFinal` says so, and then only while nothing the
      * model does not track can change the next frame: a Babylon animation or a texture still
-     * loading (both advance only inside a frame), a mesh, material or texture added and not yet
+     * loading (both advance only inside a frame), a shader still being fetched or compiled (it
+     * arrives unannounced), a mesh, material or texture added and not yet
      * ready to draw, an every-frame animation, the reader's input on
      * the canvas, an event the element announced, a new callback waiting for the next frame, or
      * anything the last two frames drawn did not agree on -- the camera, the canvas size, the
@@ -642,6 +645,19 @@ export class RenderManager implements Manager {
             this.scene.animatables.length > 0 ||
             this.scene.getWaitingItemsCount() > 0
         ) {
+            return false;
+        }
+
+        // A shader still being fetched or compiled: the frame skips whatever is drawn with it,
+        // silently, and nothing announces when it arrives. Drawn until it has, and once more; one
+        // that never compiles keeps the loop drawing every frame, as with the option off.
+        if (!this.engine.areAllEffectsReady()) {
+            this.effectsPending = true;
+            return false;
+        }
+
+        if (this.effectsPending) {
+            this.effectsPending = false;
             return false;
         }
 

@@ -3605,6 +3605,7 @@ export class Graph implements GraphContext {
                         if (this.session.selection.edges.length > 0) {
                             this.session.selection.clear();
                         }
+                        this.session.emptyClick({ x, y });
                     }
                 }
             }

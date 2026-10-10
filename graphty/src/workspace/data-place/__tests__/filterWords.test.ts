@@ -3,6 +3,7 @@ import { assert, describe, it } from "vitest";
 import {
     applyName,
     applyTip,
+    cancelledWords,
     chipTip,
     chipWords,
     type Namer,
@@ -64,6 +65,8 @@ describe("the Filters words", () => {
 
     it("says a save, which turns the step on", () => {
         assert.equal(savedWords("weight is at least 4"), 'Saved "weight is at least 4". The step is on.');
+        assert.equal(cancelledWords(null), "Step not added.");
+        assert.equal(cancelledWords("weight is at least 4"), 'Not saved: "weight is at least 4" is as it was.');
     });
 
     it("says what the checkbox and the save button do", () => {

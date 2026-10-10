@@ -1165,6 +1165,58 @@ describe("the selection's own row on the real element", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
+        "a rule run from the find box names its row by the rule, in the layer list and the key; hand-picked ties keep their count",
+        async () => {
+            const { session } = await openWithGraph();
+            await session.data.addEdges([
+                { source: "1", target: "3", minutes: 12 },
+                { source: "2", target: "4", minutes: 10 },
+            ]);
+            const box = screen.getByRole("combobox", { name: "Find" });
+            await userEvent.type(box, "=minutes >= `10`");
+            await screen.findByText("Rule: press Enter to select matches", {}, { timeout: TIMEOUT_MS });
+            await userEvent.keyboard("{Enter}");
+            await waitFor(() => {
+                assert.equal(session.selection.edges.length, 2);
+            });
+            await pickStyleTab();
+            await addEdgeLine("Color");
+            const rule = "minutes >= `10`";
+            await waitFor(() => {
+                assert.deepEqual(
+                    idLayers(session).map((l) => l.name),
+                    [rule],
+                );
+            });
+            const place = screen.getByRole("region", { name: "Graph place" });
+            assert.isNotEmpty(await within(place).findAllByText(rule, {}, { timeout: TIMEOUT_MS }));
+            const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+            assert.isNotEmpty(await within(legend).findAllByText(new RegExp(rule), {}, { timeout: TIMEOUT_MS }));
+
+            // Two other ties picked by hand are named by their count.
+            const picked = session.data
+                .edges()
+                .filter((e) => e.target === String(Number(e.source) + 1))
+                .slice(0, 2)
+                .map((e) => e.id);
+            await act(async () => {
+                session.selection.clear();
+                await session.selection.apply({ edges: picked });
+            });
+            await pickStyleTab();
+            await addEdgeLine("Width");
+            await waitFor(() => {
+                assert.include(
+                    idLayers(session).map((l) => l.name),
+                    "2 edges",
+                );
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
         "a Color and a Width added to two selected ties start at the highlight look, drawn once the selection clears",
         async () => {
             const { session, element } = await openWithGraph();

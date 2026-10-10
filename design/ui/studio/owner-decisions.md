@@ -4,6 +4,23 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-10 -- Decided by the team: count what a selection would hold (`selection.count`)
+
+**What.** Built on the studio branch. `session.selection.count(target)` returns `{ nodes, edges }`:
+how many nodes and edges `selection.apply(target)` would select, without changing the selection. It
+reads the target exactly as `apply` does, so a rule `apply` refuses is refused with the same
+`GraphtyError` (`E_BAD_SELECTOR` with its `suggestion`). Additive: a new method on `SelectionApi`.
+
+**Why.** The graphty app's find box offers plain text that finds nothing as a rule ("minutes >=
+`10`" becomes the option "=minutes >= `10`") only when that rule would select something. It asked
+`scope.count({ where })`, which reads a rule as a node scope, so a rule over an edge column counted
+0 and the reader was told "No match" for a rule that selects three edges. Whether a typed rule
+selects anything is the element's question to answer, the same way for every consumer.
+
+**Alternatives.** Run `selection.apply` and undo it (a history step and a selection event for a
+question); teach the app which columns are edge columns and pick `scope.count`'s edge form (the app
+would parse the rule, which the architecture forbids).
+
 ## 2026-10-09 -- Decided by the team: what a highlight looks like, readable (`styles.highlightStyle`)
 
 **What.** Built on the studio branch. `session.styles.highlightStyle(target: "node" | "edge")`

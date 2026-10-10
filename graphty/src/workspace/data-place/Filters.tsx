@@ -20,7 +20,7 @@ import {
     Text,
     Tooltip,
 } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
@@ -29,6 +29,7 @@ import { NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps
 import {
     applyName,
     applyTip,
+    cancelledWords,
     chipTip,
     chipWords,
     ENDS_LINE,
@@ -48,6 +49,8 @@ interface Outcomes {
 /** Where focus goes once the Filters section draws the steps next: a step's row, or `PLUS` for "+". */
 const PLUS = "+";
 let pendingFocus: string | null = null;
+/** A new step left half-made when the inspector moved on, kept until it is added or cancelled. */
+let draft: { readonly session: GraphSession; readonly fields: Fields } | null = null;
 
 /**
  * Asks the Filters section to focus a step's row, or "+" (`PLUS`), once it has drawn the steps
@@ -380,10 +383,29 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     const steps = session?.visibility.steps ?? [];
     const step = steps.find((s) => s.id === id);
     const filled = id.startsWith(`${NEW}:`) ? id.slice(NEW.length + 1) : "";
-    const [fields, setFields] = useState<Fields>(() => fieldsOf(step, attributes, filled));
+    // "+" reopens a new step the reader left half-made by selecting something else
+    const [fields, setFields] = useState<Fields>(() =>
+        id === NEW && draft !== null && draft.session === session ? draft.fields : fieldsOf(step, attributes, filled),
+    );
     const set = (next: Partial<Fields>): void => {
         setFields((now) => ({ ...now, ...next }));
     };
+    const latest = useRef(fields);
+    latest.current = fields;
+    // false once the reader adds the step or closes the editor with Escape: nothing to keep then
+    const keep = useRef(true);
+    // Saves a whole, changed rule when the reader leaves the editor; set on every draw below.
+    const leave = useRef<() => void>(() => undefined);
+    useEffect(
+        () => () => {
+            // A click on anything else closes the editor: that saves the edit too.
+            leave.current();
+            if (id.startsWith(NEW)) {
+                draft = keep.current && session !== null ? { session, fields: latest.current } : null;
+            }
+        },
+        [id, session],
+    );
     const seeds = session?.selection.nodes ?? [];
     const attribute = attributes.find((a) => `${a.kind}:${a.path}` === fields.attribute);
     // A neighbors step keeps its own seeds unless the editor opened on a new selection.
@@ -427,6 +449,7 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                 ? [...steps, { id: added, on: true, rule }]
                 : steps.map((s) => (s.id === step.id ? { ...s, rule, on: true } : s));
         // The editor closes; focus goes to the step's row.
+        keep.current = false;
         focusNext(added);
         if (!(await writeSteps(session, store, next))) {
             pendingFocus = null;
@@ -438,8 +461,36 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
         });
     };
 
-    // Enter commits (the form's submit); Escape no inner control took closes the editor and
-    // returns focus to the step's row, or to "+" for a new step.
+    // Leaving the editor -- Tab out of it, or a click on anything else -- saves the edit as Enter
+    // does, without moving focus from where the reader put it. A rule not yet whole stays as typed.
+    leave.current = (): void => {
+        if (!keep.current || rule === null || unchanged || (step === undefined && !id.startsWith(NEW))) {
+            return;
+        }
+        keep.current = false;
+        const added = step === undefined ? newId(steps) : step.id;
+        const next =
+            step === undefined
+                ? [...steps, { id: added, on: true, rule }]
+                : steps.map((s) => (s.id === step.id ? { ...s, rule, on: true } : s));
+        void writeSteps(session, store, next).then((written) => {
+            if (!written) {
+                return;
+            }
+            // Tabbed out, the editor is still open: it moves on to the step as saved.
+            const { inspected } = store.get();
+            const open = inspected?.kind === "filter-step" && inspected.id === id;
+            // Still open on this saved step: a later edit is saved on leaving too.
+            keep.current = open && step !== undefined;
+            store.set({
+                announcement: savedWords(stepWords(session, { id: added, on: true, rule })),
+                ...(open ? { inspected: { kind: "filter-step", id: added } } : {}),
+            });
+        });
+    };
+
+    // Enter commits (the form's submit); Escape no inner control took closes the editor, says
+    // nothing was saved and returns focus to the step's row, or to "+" for a new step.
     return (
         <Stack
             component="form"
@@ -455,8 +506,19 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                 if (isPanelEscape(event.nativeEvent)) {
                     event.preventDefault();
                     event.stopPropagation();
+                    keep.current = false;
                     focusStep(step?.id ?? PLUS);
-                    store.set({ inspected: null });
+                    store.set({
+                        inspected: null,
+                        announcement: cancelledWords(step === undefined ? null : stepWords(session, step)),
+                    });
+                }
+            }}
+            onBlur={(event: React.FocusEvent) => {
+                // Focus moved out of the form, not between its fields or into a list it opened.
+                const to = event.relatedTarget;
+                if (!(to instanceof Node) || !event.currentTarget.contains(to)) {
+                    leave.current();
                 }
             }}
         >

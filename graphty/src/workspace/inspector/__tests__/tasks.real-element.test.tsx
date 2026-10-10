@@ -245,6 +245,37 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
+        "T12 on a directed graph: the arrow keys change Follow and focus stays on Follow, Hops unchanged",
+        async () => {
+            const { session } = await openRings();
+            await session.config.set({ data: { directed: true } });
+            await pick(session, "n0");
+
+            inspector()
+                .getByRole("button", { name: /Degree/ })
+                .focus();
+            await userEvent.keyboard("{Enter}");
+            const follow = await inspector().findByRole("radiogroup", { name: "Follow" });
+            within(follow).getByRole("radio", { checked: true }).focus();
+            await userEvent.keyboard("{ArrowRight}");
+            await waitFor(() => {
+                assert.equal(within(follow).getByRole("radio", { checked: true }).getAttribute("value"), "out");
+            });
+            await userEvent.keyboard("{ArrowRight}");
+            // Each change reselects and relists; focus must follow neither into Hops nor off the list.
+            await waitFor(() => {
+                const now = inspector().getByRole("radiogroup", { name: "Follow" });
+                assert.equal(within(now).getByRole("radio", { checked: true }).getAttribute("value"), "in");
+                assert.equal(document.activeElement, within(now).getByRole("radio", { checked: true }));
+            });
+            const hops = inspector().getByRole("radiogroup", { name: "Hops" });
+            assert.equal(within(hops).getByRole("radio", { checked: true }).getAttribute("value"), "1");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
         "T12 from the find box: a pick moves focus to the inspector's title, not a value row",
         async () => {
             const { session } = await openRings();

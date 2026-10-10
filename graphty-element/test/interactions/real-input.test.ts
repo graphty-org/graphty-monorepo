@@ -175,6 +175,31 @@ describe("the mouse", () => {
             assert.isNull(element.getSelectedNode(), "a click on empty canvas clears the selection");
         });
 
+        it("a click on empty canvas is published, with or without a selection", async () => {
+            const element = await mounted(viewMode);
+            let heard = 0;
+            let where = { x: 0, y: 0 };
+            const stop = element.session.on("canvas:empty-click", (at) => {
+                heard++;
+                where = at;
+            });
+            cleanups.push(stop);
+
+            await click(element, EMPTY);
+            await frames();
+            assert.strictEqual(heard, 1, "a click with nothing selected is heard");
+            assert.closeTo(where.x, EMPTY.x, 1, "and says where it landed");
+            assert.closeTo(where.y, EMPTY.y, 1);
+
+            await click(element, at(element, "b"));
+            await frames();
+            assert.strictEqual(heard, 1, "a click on a node is not an empty click");
+
+            await click(element, EMPTY);
+            await frames();
+            assert.strictEqual(heard, 2, "a click that clears a selection is heard too");
+        });
+
         it("dragging a node moves it to the pointer and pins it there", async () => {
             const element = await mounted(viewMode);
             const from = at(element, "c");

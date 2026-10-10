@@ -53,43 +53,36 @@ function backtickSuggestion(error: unknown): string | null {
         : null;
 }
 
+/** Why the element refused a typed rule, worded, and the rule it offers instead. */
+interface Refusal {
+    /** The line under the box. */
+    readonly words: string;
+    /** The element's rewrite of the reader's rule, with its "=", offered as the option Enter picks. */
+    readonly rule: string | null;
+}
+
 /**
- * One line wording why the element refused a typed rule, from the refusal's reason code.
+ * Words why the element refused a typed rule, from the refusal's reason code.
  * @param error - what `selection.apply` threw.
- * @returns the line, or null when the error is not a refused rule.
+ * @returns the refusal, or null when the error is not a refused rule.
  */
-function ruleRefusalWords(error: unknown): string | null {
+function ruleRefusal(error: unknown): Refusal | null {
     if (!isGraphtyError(error) || error.code !== "E_BAD_SELECTOR") {
         return null;
     }
     const details = (error.details ?? {}) as { position?: unknown };
     // The reader's own rule, rewritten by the element (an example from other numbers gets copied),
-    // on a line of its own so the sentence never wraps around it.
+    // is the option under the line.
     const suggestion = backtickSuggestion(error);
     if (suggestion !== null) {
-        return `Put numbers in backticks:\n${suggestion}`;
+        return { words: "Put numbers in backticks:", rule: `=${suggestion}` };
     }
     // The element counts from 0 after the "="; the reader counts from 1 including it.
-    return typeof details.position === "number"
-        ? `Not a rule Find can read (at character ${String(details.position + 2)})`
-        : "Not a rule Find can read";
-}
-
-/**
- * A refusal as drawn under the box: the rule it quotes, after the line break, set in monospace
- * on a line of its own.
- * @param words - the refusal's words, from `ruleRefusalWords`.
- * @returns the line.
- */
-function refusalLine(words: string): React.ReactNode {
-    const [sentence, rule] = words.split("\n");
-    return rule === undefined ? (
-        words
-    ) : (
-        <>
-            {sentence} <span className="ws-find-example ws-mono">{rule}</span>
-        </>
-    );
+    const words =
+        typeof details.position === "number"
+            ? `Not a rule Find can read (at character ${String(details.position + 2)})`
+            : "Not a rule Find can read";
+    return { words, rule: null };
 }
 
 /** How long typing pauses before the element checks a typed rule. */
@@ -100,9 +93,9 @@ const CHECK_DELAY_MS = 200;
  * matches, which reads the rule exactly as `selection.apply` does.
  * @param session - the element's session.
  * @param typed - the box's text, starting with "=".
- * @returns "ok", "empty" for a lone "=", the refusal's words, or null for any other error.
+ * @returns "ok", "empty" for a lone "=", the refusal, or null for any other error.
  */
-async function ruleVerdict(session: GraphSession, typed: string): Promise<string | null> {
+async function ruleVerdict(session: GraphSession, typed: string): Promise<"ok" | "empty" | Refusal | null> {
     if (isEmptyRule(typed)) {
         return "empty";
     }
@@ -111,7 +104,7 @@ async function ruleVerdict(session: GraphSession, typed: string): Promise<string
         return "ok";
     } catch (error) {
         // An error that is not a refused rule is left for Enter, which reports it as before.
-        return ruleRefusalWords(error);
+        return ruleRefusal(error);
     }
 }
 
@@ -126,7 +119,8 @@ async function ruleVerdict(session: GraphSession, typed: string): Promise<string
  */
 async function ruleFromText(session: GraphSession, typed: string): Promise<string | null> {
     try {
-        const { nodes, edges } = await session.scope.count({ where: typed });
+        // Counted as Enter would select it, so a rule over an edge column counts its edges.
+        const { nodes, edges } = await session.selection.count({ text: `=${typed}` });
         return nodes + edges > 0 ? typed : null;
     } catch (error) {
         return backtickSuggestion(error);
@@ -223,11 +217,12 @@ function kindWords(kinds: ReadonlySet<"node" | "edge">): string {
     return kinds.has("edge") ? "Edge column" : "Node column";
 }
 
-/** One pickable entry of the list: an element hit, a value row or a column for a rule. */
+/** One pickable entry of the list: an element hit, a value row, a column for a rule, or a rule to run. */
 type Option =
     | { readonly type: "hit"; readonly hit: FindHit }
     | { readonly type: "value"; readonly row: FindValueRow }
-    | { readonly type: "column"; readonly column: ColumnOption };
+    | { readonly type: "column"; readonly column: ColumnOption }
+    | { readonly type: "rule"; readonly rule: string };
 
 /**
  * An attribute's name as the reader knows it, from its literal column key.
@@ -265,11 +260,12 @@ export function FindBox(): React.JSX.Element {
     const { session, element, store } = useWorkspace();
     const [text, setText] = useState("");
     const [active, setActive] = useState(-1);
-    const [refusal, setRefusal] = useState<string | null>(null);
+    const [refusal, setRefusal] = useState<Refusal | null>(null);
     // What the element said of the typed rule: "ok", "empty", or null while unchecked.
     const [ruleCheck, setRuleCheck] = useState<"ok" | "empty" | null>(null);
-    // The rule plain text that found nothing reads as once "=" leads it, or null.
-    const [textAsRule, setTextAsRule] = useState<string | null>(null);
+    // The rule plain text that found nothing reads as once "=" leads it, null when it reads as
+    // none, or undefined until the element has answered.
+    const [textAsRule, setTextAsRule] = useState<string | null | undefined>(undefined);
     const listId = useId();
     // A change to the data, a run or the selection asks again, so a count or a hit is never stale.
     const version = useSessionVersion(session);
@@ -289,11 +285,20 @@ export function FindBox(): React.JSX.Element {
     const nodeHits = found?.records.filter((hit) => hit.kind !== "edge") ?? [];
     const edgeHits = found?.records.filter((hit) => hit.kind === "edge") ?? [];
     const hits = [...nodeHits, ...edgeHits];
+    // A rule shown under the box, the element's rewrite of a refused rule or the plain text as a
+    // rule, is an option too: the last, and the one Enter picks.
+    let ruleOption: string | null = null;
+    if (isRule) {
+        ruleOption = refusal?.rule ?? null;
+    } else if (typeof textAsRule === "string") {
+        ruleOption = `=${textAsRule}`;
+    }
     const options: Option[] = found
         ? [
               ...hits.map((hit): Option => ({ type: "hit", hit })),
               ...found.values.map((row): Option => ({ type: "value", row })),
               ...columns.map((column): Option => ({ type: "column", column })),
+              ...(ruleOption === null ? [] : [{ type: "rule", rule: ruleOption } as const]),
           ]
         : [];
 
@@ -326,7 +331,7 @@ export function FindBox(): React.JSX.Element {
     const foundNothing =
         found !== null && found.notSearchable === undefined && found.records.length === 0 && found.values.length === 0;
     useEffect(() => {
-        setTextAsRule(null);
+        setTextAsRule(undefined);
         if (session === null || !foundNothing) {
             return undefined;
         }
@@ -349,7 +354,7 @@ export function FindBox(): React.JSX.Element {
     const [spoken, setSpoken] = useState("");
     useEffect(() => {
         if (refusal !== null) {
-            setSpoken(refusal);
+            setSpoken(refusal.rule === null ? refusal.words : `${refusal.words} ${refusal.rule}`);
         }
     }, [refusal]);
     useEffect(() => {
@@ -367,6 +372,14 @@ export function FindBox(): React.JSX.Element {
             // The column replaces the word being typed; the box keeps focus for the rest of the rule.
             setText(text.slice(0, text.length - word.length) + option.column.insert);
             setActive(-1);
+            return;
+        }
+        if (option.type === "rule") {
+            // The rule goes in the box and runs, as if typed and run with Enter.
+            setText(option.rule);
+            setActive(-1);
+            setRefusal(null);
+            await runTyped(session, option.rule);
             return;
         }
         setText("");
@@ -397,11 +410,11 @@ export function FindBox(): React.JSX.Element {
         try {
             await current.selection.apply({ text: typed });
         } catch (error) {
-            const words = ruleRefusalWords(error);
-            if (words === null) {
+            const refused = ruleRefusal(error);
+            if (refused === null) {
                 throw error;
             }
-            setRefusal(words);
+            setRefusal(refused);
         }
     };
 
@@ -410,7 +423,14 @@ export function FindBox(): React.JSX.Element {
     const runsTyped = found?.notSearchable !== undefined && session !== null && !(isRule && isEmptyRule(text));
     // The option Enter picks: the first until the arrows move it, and marked as such; none while
     // Enter would run the typed rule or pattern instead.
-    const target = active >= 0 || runsTyped ? active : 0;
+    let target = 0;
+    if (active >= 0) {
+        target = active;
+    } else if (ruleOption !== null) {
+        target = options.length - 1;
+    } else if (runsTyped) {
+        target = -1;
+    }
     const chosen: Option | undefined = options[target];
     // Focus stays in the text box, so the browser never scrolls the list to the arrows' row: the
     // row is brought into view here, by the least scroll that shows it whole, with its group's
@@ -440,9 +460,9 @@ export function FindBox(): React.JSX.Element {
                 void runTyped(session, text);
             }
         } else if (event.key === "Escape" && text === "") {
+            // An empty box keeps focus: Esc never moves the reader out of where they are typing.
             event.preventDefault();
             event.stopPropagation();
-            event.currentTarget.blur();
         }
     };
 
@@ -494,18 +514,23 @@ export function FindBox(): React.JSX.Element {
                 ),
         } as const;
         emptyLine = ruleCheck === null ? null : ruleLines[ruleCheck];
-    } else if (textAsRule !== null) {
-        // The example gets its own line, so the sentence never wraps around it.
+    } else if (typeof textAsRule === "string") {
+        // The rule itself is the option under this line.
+        emptyLine = "Start with = to select by a value:";
+    } else if (textAsRule === null && session !== null) {
+        // Text that reads as no rule gets an example of one, on a line of its own.
         emptyLine = (
             <>
-                Start with = to select by a value: <span className="ws-find-example ws-mono">={textAsRule}</span>
+                <span>{emptyLine}</span>. To select by a value, type a rule such as{" "}
+                <span className="ws-find-example ws-mono">={exampleRule(session)}</span>
             </>
         );
     } else if (found?.notSearchable === "regex") {
         emptyLine = `Press Enter to select "${text}"`;
     }
 
-    const showLine = found !== null && (options.length === 0 || isRule) && refusal === null && emptyLine !== null;
+    const showLine =
+        found !== null && (options.length === 0 || isRule || ruleOption !== null) && refusal === null && emptyLine !== null;
 
     return (
         <div className="ws-find">
@@ -526,7 +551,7 @@ export function FindBox(): React.JSX.Element {
                 aria-controls={open ? listId : undefined}
                 aria-activedescendant={chosen === undefined ? undefined : optionId(target)}
                 // Mantine ties its error line and the line under the box to it with aria-describedby.
-                error={refusal === null ? null : refusalLine(refusal)}
+                error={refusal?.words ?? null}
                 errorProps={{ className: "ws-find-refusal" }}
                 description={showLine ? emptyLine : undefined}
                 descriptionProps={{ role: "status", className: "ws-find-empty" }}
@@ -646,6 +671,24 @@ export function FindBox(): React.JSX.Element {
                                 })}
                             </div>
                         ) : null}
+                        {ruleOption === null ? null : (
+                            <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+                                role="group"
+                                aria-label="Rule"
+                                className="ws-find-rule"
+                            >
+                                <ResultRow
+                                    id={optionId(options.length - 1)}
+                                    name={ruleOption}
+                                    path="Select its matches"
+                                    icon={<GLYPHS.filter size={14} />}
+                                    current={options.length - 1 === target}
+                                    onClick={() => {
+                                        void pick({ type: "rule", rule: ruleOption });
+                                    }}
+                                />
+                            </div>
+                        )}
                     </div>
                 </ScrollArea.Autosize>
             ) : null}

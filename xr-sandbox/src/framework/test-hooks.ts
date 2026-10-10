@@ -120,6 +120,29 @@ export function installTestHooks(d: HookDeps): void {
         },
         uiStats: () => ({ ...uiStats }),
         counts: () => ({ meshes: scene.meshes.length, beforeRender: scene.onBeforeRenderObservable.observers.length }),
+        /**
+         * IWER's remote control (get_transform, look_at, animate_to, ...), for checks that move the
+         * head or a hand over several frames. Poses are in XR coordinates (z is Babylon's -z).
+         * @param method - the remote method
+         * @param params - its params
+         * @returns its result
+         */
+        dispatch: (method: string, params: Record<string, unknown>) => device.remote.dispatch(method, params),
+        /**
+         * Aim a hand or controller at a world point (Babylon meters).
+         * @param hand - which hand
+         * @param x - meters
+         * @param y - meters
+         * @param z - meters
+         */
+        aimAt(hand: Hand, x: number, y: number, z: number) {
+            const src = input(hand);
+            if (!src) {
+                throw new Error(`no ${device.primaryInputMode} for ${hand}`);
+            }
+            const q = lookRotation(toXR(new Vector3(x, y, z).subtract(fromXR(src.position))));
+            src.quaternion.set(q.x, q.y, q.z, q.w);
+        },
         setOn: (id: string, on: boolean) => {
             fw.setOn(id, on);
         },

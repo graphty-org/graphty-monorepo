@@ -11,6 +11,7 @@ import type { GraphState } from "../core/state";
 import type { GraphView } from "../scene/graph-view";
 import type { HandPoses } from "../scene/poses";
 import type { Chip, Panel } from "../scene/ui";
+import type { FrameworkActions } from "./runtime";
 
 /** What a technique needs from the session; unmet needs are shown in the gear panel. */
 export type Need = "hand-joints" | "hand-select" | "hover" | "controllers" | "microphone" | "quest-microgestures";
@@ -94,6 +95,8 @@ export interface TechniqueContext {
     log(message: string, data?: Record<string, unknown>): void;
     /** A per-frame hook, run only while the technique is on, timed for the frame budget. */
     onFrame(fn: (dtMs: number) => void): void;
+    /** The framework's own actions (plan section 1.3), always present: gear panel, steps, recenter, flag, save. */
+    framework: Pick<FrameworkActions, "toggleGear" | "toggleSteps" | "recenter" | "flag" | "save">;
     /**
      * Ask for a line of text (plan section 1.3): the text entry technique's keyboard when it is on,
      * a row of canned chips when it is off. Resolves with the text, or null when dismissed.

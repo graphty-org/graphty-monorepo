@@ -246,6 +246,23 @@ export function createFramework(
                 log.log(`${t.id}.${message}`, { technique: t.id, ...data });
             },
             onFrame: (fn) => list.push(fn),
+            framework: {
+                toggleGear: () => {
+                    fw.actions.toggleGear();
+                },
+                toggleSteps: () => {
+                    fw.actions.toggleSteps();
+                },
+                recenter: () => {
+                    fw.actions.recenter();
+                },
+                flag: () => {
+                    fw.actions.flag();
+                },
+                save: () => {
+                    fw.actions.save();
+                },
+            },
             text: {
                 request: (r) => textSeam.request(r),
                 provide: (fn) => {

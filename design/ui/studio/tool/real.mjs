@@ -190,11 +190,18 @@ function facilitatorFiles(dir) {
 // Persona sections written for the study team, never for the agent playing the persona
 const TEAM_ONLY = /facilitator|study team|for the real study/i;
 function personaText(text) {
-    return text
-        .split(/^(?=## )/m)
-        .filter((s) => !TEAM_ONLY.test(s.split("\n")[0]))
-        .join("")
-        .trim();
+    return (
+        text
+            .split(/^(?=## )/m)
+            .filter((s) => !TEAM_ONLY.test(s.split("\n")[0]))
+            .join("")
+            // a paragraph that points at a team-only section ("'Facilitator notes' at the end is for the
+            // moderator", Dana's intro) is itself for the team, and the briefing check would refuse it
+            .split(/\n[ \t]*\n/)
+            .filter((p) => !FACILITATOR_WORDS.test(p))
+            .join("\n\n")
+            .trim()
+    );
 }
 // --brief: writes <dir>/briefing.md, everything a participant gets (tasks.md, "Rules for whoever runs
 // a session"): the persona files and the history under their name, the prompt word for word, the

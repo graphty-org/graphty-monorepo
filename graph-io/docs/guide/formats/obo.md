@@ -218,6 +218,7 @@ The codes `checkExport(snapshot, "obo", options)` can return before a save, also
 - `W_OBO_RELATION_RENAMED` (warning): A relation that is not an OBO id (empty, or holding a space, `!`, `{` or `}`) is written with `_` in place of those characters.
 - `W_OBO_ONTOLOGY_NAME` (warning): The graph name is not an ontology id; the header `ontology` is written with `_` in place of the other characters.
 - `W_TYPEDEF_NODES` (warning): `[Typedef]` frames read back as nodes only under the importer's `typedefs: "nodes"`; by default they are metadata.
+- `W_OBO_TYPE_GAINED` (warning): A graph without a node `type` column is written as `[Term]` frames and reads back with a `type` column holding Term.
 - `W_OBO_EDGE_ORDER` (warning): Edges are written in the frame of their source node, so they read back grouped by source, in node order.
 - `W_GRAPH_COLUMN_AS_METADATA` (warning): A graph attribute is written as a header `property_value` and reads back in `snapshot.meta.extra.obo.header`, not as a graph attribute.
 - `W_OBO_LINE_END` (warning): A carriage return or form feed in a text cannot be written; it is written as a line feed.

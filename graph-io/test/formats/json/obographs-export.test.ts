@@ -203,6 +203,27 @@ describe("the obographs dialect: any graph", () => {
             name: "g",
         });
 
+    it("notes the type column a graph without one gains, and the re-import gains it", async () => {
+        const untyped = build({ ids: ["a", "b"], edges: [[0, 1]] });
+        const notes = jsonExporter.check(untyped, OBO_GRAPHS);
+        expect(notes.map((n) => n.code)).toEqual(
+            expect.arrayContaining([JSON_LOSS.RELATION_ASSUMED, JSON_LOSS.OBOGRAPHS_TYPE_GAINED]),
+        );
+        expect(notes.find((n) => n.code === JSON_LOSS.OBOGRAPHS_TYPE_GAINED)?.count).toBe(2);
+        const { back } = await roundTrip(untyped);
+        expect(back.nodes.names()).toContain("type");
+        expect([0, 1].map((i) => back.nodes.get("type")?.value(i))).toEqual(["Term", "Term"]);
+    });
+
+    it("does not note the type column when the graph already has one", () => {
+        const typed = build({
+            ids: ["a", "b"],
+            edges: [[0, 1]],
+            nodeColumns: [{ name: "type", dtype: "string", values: ["Term", "Instance"] }],
+        });
+        expect(codes(typed)).not.toContain(JSON_LOSS.OBOGRAPHS_TYPE_GAINED);
+    });
+
     it("check() names every difference the re-import shows", () => {
         expect(new Set(codes(graph()))).toEqual(
             new Set([
@@ -212,6 +233,7 @@ describe("the obographs dialect: any graph", () => {
                 JSON_LOSS.RELATION_ASSUMED,
                 JSON_LOSS.COLUMN_NAME_CHANGED,
                 JSON_LOSS.GRAPH_COLUMN_AS_METADATA,
+                JSON_LOSS.OBOGRAPHS_TYPE_GAINED,
             ]),
         );
     });
@@ -272,7 +294,7 @@ describe("the obographs dialect: any graph", () => {
         expect(text).toContain(`"id":"${PURL}GO_1"`);
         expect(text).toContain(`"pred":"${PURL}BFO_0000050"`);
         expect(back.ids.toArray()).toEqual(["GO:1", "my_x:2"]);
-        expect(codes(g)).toEqual([JSON_LOSS.ROLE_ASSUMED]);
+        expect(codes(g)).toEqual([JSON_LOSS.OBOGRAPHS_TYPE_GAINED, JSON_LOSS.ROLE_ASSUMED]);
     });
 
     it("reports non-finite values written as null, and an undirected graph read back directed", async () => {

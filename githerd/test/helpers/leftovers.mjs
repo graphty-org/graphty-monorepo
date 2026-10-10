@@ -5,6 +5,8 @@
  */
 import { readdirSync, readFileSync } from "node:fs";
 
+import { expect, vi } from "vitest";
+
 /**
  * The process groups of every running process whose command line names a path under a directory.
  * A zombie has exited and is not counted.
@@ -42,6 +44,6 @@ export async function reapGroupsUsing(dir) {
             // Gone.
         }
     }
-    while (groupsUsing(dir).length) await new Promise((r) => setTimeout(r, 20));
+    await vi.waitFor(() => expect(groupsUsing(dir)).toEqual([]), { timeout: 15_000, interval: 20 });
     return groups;
 }

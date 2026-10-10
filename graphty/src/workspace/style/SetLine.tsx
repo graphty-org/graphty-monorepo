@@ -11,7 +11,7 @@ import {
 } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, toColorValue } from "@graphty/graphty-element/catalog";
 import type { ChannelValue, LayerId } from "@graphty/graphty-element/schema";
-import type { Layer } from "@graphty/graphty-element/session";
+import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Checkbox, ColorSwatch, Select, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
@@ -462,7 +462,11 @@ export function PaintLine({
 >): React.JSX.Element {
     return (
         <FieldRow {...rest} trailing={trailing} style={{ height: "auto", alignItems: "flex-end", paddingBlock: 4 }}>
-            <div role="group" aria-label={name} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div // NOSONAR(S6819): an ARIA group naming a part's controls; a fieldset would draw its own border and legend
+                role="group"
+                aria-label={name}
+                style={{ display: "flex", flexDirection: "column", gap: 4 }}
+            >
                 <Text size="xs" truncate>
                     {name}
                 </Text>
@@ -587,6 +591,59 @@ interface CompoundSetLineProps {
     fresh?: NewLayer;
 }
 
+/** One part of a compound line, with its descriptor and the line that sets it, if any. */
+interface CompoundPart {
+    readonly part: CompoundSetLineProps["compound"]["parts"][number];
+    readonly descriptor: CompoundSetLineProps["descriptors"][number];
+    readonly line: ReturnType<typeof lineOf>;
+}
+
+/**
+ * A compound line's summary at rest: a color as its swatch, a choice by name, a number as itself,
+ * a bound part by the source it reads.
+ * @param session - the element's session.
+ * @param parts - the line's parts.
+ * @returns the swatches and the words.
+ */
+function restSummary(session: GraphSession, parts: readonly CompoundPart[]): { swatches: string[]; words: string[] } {
+    const swatches: string[] = [];
+    const words: string[] = [];
+    for (const { part, descriptor, line } of parts.filter((p) => p.part.atRest === true)) {
+        if (line?.binding !== undefined) {
+            words.push(sourceName(session, line.binding) ?? line.binding.by);
+            continue;
+        }
+        const value = line?.value ?? descriptor.default;
+        if (value === undefined) {
+            continue;
+        }
+        if (descriptor.accepts === "color") {
+            const color = colorOf(value);
+            if (color !== null) {
+                swatches.push(color.hex);
+            }
+        } else {
+            words.push(restWord(descriptor.accepts, value, part.word));
+        }
+    }
+    return { swatches, words };
+}
+
+/**
+ * A part's value at rest, worded: a choice by name, a number or text as itself, anything else by
+ * the part's own word.
+ * @param accepts - what the part's channel accepts.
+ * @param value - its value.
+ * @param word - the part's own word.
+ * @returns the words.
+ */
+function restWord(accepts: CompoundPart["descriptor"]["accepts"], value: unknown, word: string): string {
+    if (accepts === "enum") {
+        return typeof value === "string" ? enumWords(value) : word;
+    }
+    return typeof value === "number" || typeof value === "string" ? String(value) : word;
+}
+
 /**
  * A compound line: one effect that covers several channels (Glow, an arrow, Pattern). At rest it
  * shows a summary; tapping it opens a titled popover with the key options first and the rest
@@ -654,31 +711,7 @@ export function CompoundSetLine({
         );
     };
 
-    // The summary at rest: a color as its swatch, a choice by name, a number as itself.
-    const swatches: string[] = [];
-    const words: string[] = [];
-    for (const { part, descriptor, line } of parts.filter((p) => p.part.atRest === true)) {
-        if (line?.binding !== undefined) {
-            words.push(sourceName(session, line.binding) ?? line.binding.by);
-            continue;
-        }
-        const value = line?.value ?? descriptor.default;
-        if (value === undefined) {
-            continue;
-        }
-        if (descriptor.accepts === "color") {
-            const color = colorOf(value);
-            if (color !== null) {
-                swatches.push(color.hex);
-            }
-        } else if (descriptor.accepts === "enum") {
-            words.push(typeof value === "string" ? enumWords(value) : part.word);
-        } else if (typeof value === "number" || typeof value === "string") {
-            words.push(String(value));
-        } else {
-            words.push(part.word);
-        }
-    }
+    const { swatches, words } = restSummary(session, parts);
     const summary = words.join(", ");
     const field = (p: (typeof parts)[number]): React.JSX.Element => (
         <Stack key={p.descriptor.channel} gap={0}>

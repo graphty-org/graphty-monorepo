@@ -52,6 +52,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
         <graphty-element
             ref={ref}
             layoutBehavior={LAYOUT_BEHAVIOR}
+            renderMode="on-demand"
             style={{ display: "block", width: "100%", height: "100%" }}
         />
     );

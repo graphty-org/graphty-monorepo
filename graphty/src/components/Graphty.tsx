@@ -185,7 +185,12 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
                 overflow: "hidden",
             }}
         >
-            <graphty-element ref={graphtyRef} acceleration={acceleration} layoutBehavior={APP_LAYOUT_BEHAVIOR} />
+            <graphty-element
+                ref={graphtyRef}
+                acceleration={acceleration}
+                layoutBehavior={APP_LAYOUT_BEHAVIOR}
+                renderMode="on-demand"
+            />
         </Box>
     );
 });

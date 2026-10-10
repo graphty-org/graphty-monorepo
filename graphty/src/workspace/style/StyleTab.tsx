@@ -118,12 +118,16 @@ export function StyleTab({ layers }: Readonly<StyleTabProps>): React.JSX.Element
 }
 
 /**
- * The name of the selection's own row: a node's label, an edge's ends, or how many are selected.
+ * The name of the selection's own row: the rule that selected it (its text without the "="), a
+ * node's label, an edge's ends, or how many are selected.
  * @param session - the element's session.
  * @returns the name.
  */
 function selectionName(session: GraphSession): string {
-    const { nodes, edges } = session.selection;
+    const { nodes, edges, origin } = session.selection;
+    if (origin !== null && "text" in origin && origin.text.startsWith("=")) {
+        return origin.text.slice(1).trim();
+    }
     // A node is named by its id until graphty-element publishes its name (#895), as the header does.
     if (nodes.length === 1 && edges.length === 0) {
         return String(nodes[0]);

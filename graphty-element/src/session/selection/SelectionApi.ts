@@ -251,6 +251,20 @@ export interface SelectionApi {
      */
     apply(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     /**
+     * How many nodes and edges `apply(target)` would select, without changing the selection. It
+     * reads the target exactly as `apply` does, so a rule `apply` refuses is refused here too,
+     * and a rule over an edge column counts the edges it matches.
+     *
+     * ```ts
+     * const { nodes, edges } = await session.selection.count({ text: "=minutes >= `10`" });
+     * ```
+     * @param target - What `apply` would select.
+     * @returns How many nodes and how many edges it names, before the selection's cap.
+     * @throws The same `GraphtyError` as `apply` for a target it refuses, such as `E_BAD_SELECTOR`
+     *   for a rule it cannot read.
+     */
+    count(target: SelectionTarget): Promise<{ readonly nodes: number; readonly edges: number }>;
+    /**
      * Empty the selection.
      * @returns What changed.
      */
@@ -790,6 +804,12 @@ class Selection implements SelectionOwner {
             op === "replace" && cause === "api" && !this.#truncated ? deepFreeze(structuredClone(target)) : null;
 
         return this.#delta(before, originBefore, members.unmatched, members.unresolvedPaths, cause, members.skipped);
+    }
+
+    count(target: SelectionTarget): Promise<{ readonly nodes: number; readonly edges: number }> {
+        this.#sync();
+        const members = resolveTarget(target, this.#context());
+        return Promise.resolve({ nodes: members.nodes.size, edges: members.edges.size });
     }
 
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void {

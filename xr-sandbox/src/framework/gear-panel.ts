@@ -179,6 +179,8 @@ export function createGearPanel(scene: Scene, zones: Zones, fw: Framework): Gear
                     "Run",
                     () => {
                         fw.log.log("action", { key: full });
+                        // An action reaches its technique as a change: the value counts the runs.
+                        fw.settings.set(full, (Number(fw.settings.get(full)) || 0) + 1);
                     },
                     ROW,
                     120,

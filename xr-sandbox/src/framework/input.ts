@@ -67,6 +67,13 @@ const AXES: [number, string][] = [
 ];
 const STICK_ON = 0.6;
 const STICK_OFF = 0.3;
+const MICRO: [number, string][] = [
+    [5, "swipe-left"],
+    [6, "swipe-right"],
+    [7, "swipe-forward"],
+    [8, "swipe-backward"],
+    [9, "tap-thumb"],
+];
 
 /**
  * Create the input layer.
@@ -107,6 +114,17 @@ export function createInput(xr: WebXRDefaultExperience, graph: GraphView): Input
 
     const pollGamepad = (h: HandState, now: number): void => {
         const gp = h.source?.inputSource.gamepad;
+        if (gp && h.isHand) {
+            // Quest thumb microgestures: buttons 5 to 9 of a hand's gamepad (Babylon's oculus-hand profile).
+            for (const [i, detail] of MICRO) {
+                const pressed = gp.buttons[i]?.pressed ?? false;
+                const key = `${h.hand}.micro.${detail}`;
+                if (pressed !== (buttonsDown.get(key) ?? false)) {
+                    buttonsDown.set(key, pressed);
+                    queue.push({ hand: h.hand, channel: "micro", detail, down: pressed, time: now });
+                }
+            }
+        }
         if (!gp || h.isHand) {
             return;
         }

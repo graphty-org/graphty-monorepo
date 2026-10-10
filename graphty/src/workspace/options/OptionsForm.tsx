@@ -1,7 +1,7 @@
 import { ControlSubGroup, DataRow, StyleNumberInput } from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { ActionIcon, Checkbox, Select, Stack, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Checkbox, type MantineSpacing, Select, Stack, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { type Meaning, weightName, weightRead } from "../analyze/words";
@@ -39,6 +39,12 @@ interface OptionsFormProps {
     algorithm?: string;
     /** The Advanced fold's name, when two folds can be on screen at once (the right panel's and a popover's). */
     advancedLabel?: string;
+    /**
+     * Insets the fields (and the Advanced fold's fields) from the section's content edge, while
+     * the fold's own toggle stays on that edge, so its chevron hangs in the section's gutter in
+     * line with the section chevrons.
+     */
+    fieldInset?: MantineSpacing;
 }
 
 /** The option types the form draws a control for; the rest keep their defaults. */
@@ -63,7 +69,10 @@ function num(value: unknown): number | undefined {
 }
 
 /** Props for one field. */
-interface FieldProps extends Omit<OptionsFormProps, "options" | "values" | "advanced" | "advancedLabel"> {
+interface FieldProps extends Omit<
+    OptionsFormProps,
+    "options" | "values" | "advanced" | "advancedLabel" | "fieldInset"
+> {
     option: OptionDescriptor;
     value: unknown;
 }
@@ -395,6 +404,7 @@ function OptionField({
  * @param props.algorithm - The algorithm the form sets up
  * @param props.advanced - More controls at the end of the Advanced fold
  * @param props.advancedLabel - The Advanced fold's name
+ * @param props.fieldInset - Insets the fields, not the fold's toggle
  * @returns The fields
  */
 export function OptionsForm({
@@ -402,6 +412,7 @@ export function OptionsForm({
     values,
     advanced: more,
     advancedLabel = "Advanced",
+    fieldInset,
     ...rest
 }: Readonly<OptionsFormProps>): React.JSX.Element {
     const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -410,13 +421,19 @@ export function OptionsForm({
         <OptionField key={option.name} option={option} value={values[option.name]} {...rest} />
     );
     const advanced = drawn.filter((o) => o.advanced === true);
+    const basic = drawn.filter((o) => o.advanced !== true);
     return (
         <>
-            {drawn.filter((o) => o.advanced !== true).map(field)}
+            {fieldInset === undefined && basic.map(field)}
+            {fieldInset !== undefined && basic.length > 0 && (
+                <Stack gap={8} px={fieldInset}>
+                    {basic.map(field)}
+                </Stack>
+            )}
             {advanced.length > 0 || more !== undefined ? (
                 <ControlSubGroup label={advancedLabel} opened={advancedOpen} onOpenChange={setAdvancedOpen}>
                     {advancedOpen ? (
-                        <Stack gap={8}>
+                        <Stack gap={8} px={fieldInset}>
                             {advanced.map(field)}
                             {more}
                         </Stack>

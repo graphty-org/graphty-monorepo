@@ -11,6 +11,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-09) **The run inspector's left edges line up.** The "Advanced run settings" chevron
+  hangs in the section gutter with the section chevrons: `OptionsForm` takes `fieldInset` (insets
+  the fields and the fold's fields, never the fold's toggle), and `MadeWith` passes `"md"` instead
+  of wrapping the whole form in `Stack px="md"` (that pushed the `ControlSubGroup` toggle, whose
+  -16px margin assumes the section's content edge, 8 px in). The histogram summary line has no
+  padding of its own: `ControlSection` content is already at `PAD_LEFT`, where `HistogramRow`
+  draws its labels. Test `inspector/__tests__/RunAlignment.real-element.test.tsx` (both cases fail
+  without the change: 306 vs 298, 330 vs 314). Evidence
+  `tmp/r2-dry4-run-inspector-alignment/{T18A/04,05; T21B/02}.png`. Still open: the Weight note
+  in `WeightRow` and the inspector notes use `pl={PAD_LEFT}` on top of the section padding, so they
+  start at the DataRow name column (x 1233), not the content edge -- deliberate per the earlier
+  "inspector notes" decision, so left alone.
+
 - (2026-10-09) **The source inspector is headed by its Sources row's own icon.** One map,
   `SOURCE_GLYPHS` in `glyphs.ts` (icon plus color: warning in `--cm-text-danger` for the left-out
   row, node and edge glyphs for the tables, file for the load), drawn by `SourceGlyph`
@@ -19,19 +32,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the heading's lucide class with the row's (failed without it: `lucide-file-text`). Evidence
   `tmp/r2-dry4-source-inspector-glyph/{T4A,T4B}/10-13.png`.
 
-- (2026-10-09) **A click on a node's drawn name picks the node when its label style sets
-  `pickable: true`** (new, additive, default unset = today: the label plane is pickable by
-  Babylon's default, carries no node id, so it takes the pick and answers no node -- a name click
-  selects nothing and a label over a sphere hides that part from the pointer). `Node.createLabel`
-  writes `{ nodeId }` on the label mesh's metadata, so `pickNodeId` (every pointer handler and
-  `elementAt`) resolves it; edge labels unaffected. Flows `LabelStyle.pickable` ->
-  `StylePainter` `RICH_TEXT_KEYS` -> `RichTextStyle.pickable`. The app sets it in `appLabelLook`
-  (row.ts) and `topDegreeLabelLayer`. Tests: `test/browser/label-click-picks-node.test.ts`
-  (fails without the change), graph-place `tasks.real-element.test.tsx` "a click on a drawn name"
-  (fails with the app's `pickable` off). T24B success point is now 762,145 (752,170 is on the
-  Stadium label). Evidence `tmp/r2-dry4-label-click-picks-node/{T24B-name,T24B-line,T24A,T24A-spheres}`.
-  The transparent margin around a chip is part of the plane, so a click just outside the white
-  chip also picks the node.
+- (2026-10-09, condensed) **A click on a node's drawn name picks the node when its label style sets
+  `pickable: true`** (additive, default unset = today). `Node.createLabel` writes `{ nodeId }` on
+  the label mesh's metadata, so `pickNodeId` resolves it; the app sets it in `appLabelLook` and
+  `topDegreeLabelLayer`. Tests `test/browser/label-click-picks-node.test.ts`, graph-place
+  `tasks.real-element.test.tsx` "a click on a drawn name". T24B success point is 762,145.
 
 - (2026-10-09, condensed) **`real.mjs` reports a click by what happened:** a landed click whose
   wait ran out prints `slow click (landed)`; setup clicks get 20 s (`SETUP_CLICK_MS`); a hidden or
@@ -141,10 +146,8 @@ plainName`; reports quote names at `NAME_CHARS` = 80. Test `tool/measure.test.mj
   the pressed state is not read as "1 hop". The OptionsForm unread note needed no change: it is
   already 11 px and starts under its label (the popover's Weight); the inspector's Advanced run
   settings form sits at 8 px, left of the rows' 16 px -- a form-layout question, not a note.
-- (2026-10-09) **Move the link, not the control.** Putting the link after the segmented control
-  keeps the sentence, the control and the link in reading order and is the smallest diff; a
-  reserved-width link slot would leave a gap while the unmatched rows show. A row's inspector
-  answers to its title: counts of the whole load under "1 row left out" read as the row's counts.
+- (2026-10-09, condensed) **Move the link, not the control** (reading order, smallest diff); a
+  row's inspector answers to its title.
 - (2026-10-09) **A new event rather than an empty `selection:changed`.** Its TSDoc promises "only
   a real movement arrives", so an empty delta would change what an existing event does (breaking)
   and make every listener redraw for nothing. The new event fires only when no member moved, so
@@ -214,6 +217,11 @@ plainName`; reports quote names at `NAME_CHARS` = 80. Test `tool/measure.test.mj
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Did not work: a left-edge test with `getBoundingClientRect().left` of a padded
+  `Text` -- the box starts before its padding, so the broken build passed. Worked: a Range over
+  the element's contents (`range.selectNodeContents(el).getBoundingClientRect().left`) for where
+  the text is drawn.
+
 - (2026-10-09) Worked: an app real-element test that finds a point on a drawn name with public
   API only -- walk up from `nodeScreenPosition(id)` past its `radius` and take the first point
   `elementAt` answers the node (the app lint rule `graphty/no-element-mutation` refuses
@@ -221,15 +229,11 @@ plainName`; reports quote names at `NAME_CHARS` = 80. Test `tool/measure.test.mj
   `test/managers/LayoutManager.test.ts` because `layout/dist` predates the master merge (stale
   build, not a source error).
 
-- (2026-10-09) Did not work: planting a slow click by blocking the main thread from the click
-  handler -- with `setTimeout(0)` it blocks Playwright's hit-target `stop()` evaluate, so the click
-  never logs "done"; with a 200 ms delay the wait has already passed. Worked: the click sets
-  `location.href` to a path `context.route` answers with 204 after 4.5 s, so the page stays and
-  Playwright's navigation barrier holds past the limit after "click action done".
+- (2026-10-09, condensed) Worked for a slow-click test: the click sets `location.href` to a path
+  `context.route` answers with 204 after 4.5 s (blocking the main thread did not work).
 
-- (2026-10-09) Did not work: making a section header grow with an inline `minHeight` alone --
-  `.cm-section-header` sets `height: 40px` in `chrome.css.ts`, so the header stayed 40 until the
-  `[data-wrap-label]` rule set `height: auto`. The browser test caught it (40 not above 40).
+- (2026-10-09, condensed) `.cm-section-header` sets `height: 40px`, so growing it needs a CSS rule
+  (`[data-wrap-label]` sets `height: auto`), not an inline `minHeight`.
 - (2026-10-09) Worked: when a pilot's log is gone, rebuild its walk from `repilot.sh` and the
   screenshots (T23B 14 to 17: Data page, then Find Medici and `g` under the 2-hop filter).
 - (2026-10-09) Worked: re-piloting only the halves a fix touches with
@@ -241,11 +245,8 @@ plainName`; reports quote names at `NAME_CHARS` = 80. Test `tool/measure.test.mj
   repilot.sh bare. Did not work: dropping the enabled-row early return outright (broke type-ahead
   from the menu itself, see decisions).
 
-- (2026-10-09) Worked: a scripted re-pilot that walks each half's success path plus the exact
-  steps that reach every fixed screen, then contact sheets (`montage *.png -tile 4x -geometry
-720x450`) to scan all 161 screenshots and full-size reads for each fixed item. Did not work at
-  first: hovering a section title as `"<text>#3"` -- after the neighbor list was named once only
-  two controls carry the name, so the span is `#2` now.
+- (2026-10-09, condensed) Worked: a scripted re-pilot of the fixed screens, then contact sheets
+  (`montage *.png -tile 4x -geometry 720x450`) and full-size reads of each fixed item.
 
 - (2026-10-09) Worked: proving a tool test fails without the change by writing `git show HEAD:`
   copies of the tool files into a scratch folder beside the new test and running `node --test`
@@ -258,11 +259,9 @@ plainName`; reports quote names at `NAME_CHARS` = 80. Test `tool/measure.test.mj
   Did not work as a first guess: notifying only the internal scope notifier -- the app listens
   only through `session.on`, so the fix needed a public event.
 
-- (2026-10-09) Worked: a pilot's exact steps are in its agent transcript under
-  `.claudehistory/<session>/subagents/workflows/<wf>/agent-*.jsonl` (tool_use commands); two
-  steps chained in one shell line give the second step's duration from screenshot mtimes. Worked:
-  `--read` in a non-`--sr` session tells where focus is. Did not work: assuming a missing notice
-  meant a second code path -- the test of the route passed on the first run.
+- (2026-10-09, condensed) A pilot's exact steps are in its agent transcript under
+  `.claudehistory/<session>/subagents/workflows/<wf>/agent-*.jsonl`; `--read` in a non-`--sr`
+  session tells where focus is.
 
 - (2026-10-09, summarized) **Measure before fixing a look.** A Playwright probe under
   `with-browser.sh` showed a list really overflowed (Mantine keeps a hidden ScrollArea bar mounted:

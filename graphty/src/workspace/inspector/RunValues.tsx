@@ -175,7 +175,7 @@ function MadeWith({
     // A path's Follow is a row, like its ends, and only on a directed graph: undirected, it changes nothing.
     const follow = options.find((o) => isPathFollow(run.algorithm, o.name));
     const fields = options.filter((o) => !rows.includes(o) && o !== follow && !(weighted && o.name === "weight"));
-    const form = (shown: typeof options, advancedLabel?: string): React.JSX.Element | null =>
+    const form = (shown: typeof options, advancedLabel?: string, fieldInset?: "md"): React.JSX.Element | null =>
         session === null || descriptor === undefined ? null : (
             <OptionsForm
                 session={session}
@@ -186,6 +186,7 @@ function MadeWith({
                 algorithm={run.algorithm}
                 canUseSelectedNode
                 advancedLabel={advancedLabel}
+                fieldInset={fieldInset}
                 onChange={(name, value) => {
                     onDraft({ ...draft, [name]: value });
                 }}
@@ -212,9 +213,11 @@ function MadeWith({
             )}
             {run.status === "succeeded" && weighted && <WeightRow run={run} />}
             {fields.length > 0 && (
-                <Stack gap={8} px="md">
-                    {/* Named for the panel, so it is never taken for a popover's own Advanced. */}
-                    {form(fields, "Advanced run settings")}
+                <Stack gap={8}>
+                    {/* Named for the panel, so it is never taken for a popover's own Advanced. The
+                        fields are inset; the fold's toggle is not, so its chevron sits in the
+                        section's gutter with the section chevrons. */}
+                    {form(fields, "Advanced run settings", "md")}
                 </Stack>
             )}
         </ControlSection>
@@ -286,7 +289,8 @@ function MeasureValues({
                     />
                 )}
                 {summary.min !== null && summary.max !== null && summary.median !== null && (
-                    <Text size="sm" c="dimmed" pl={PANEL_GRID.PAD_LEFT} pr={PANEL_GRID.PAD_RIGHT}>
+                    // On the section's content edge, where the histogram draws its end labels.
+                    <Text size="sm" c="dimmed">
                         {`${formatNumber(summary.measured)} of ${formatNumber(summary.count)} have a value, ${formatNumber(summary.min)} to ${formatNumber(summary.max)}, median ${formatNumber(summary.median)}`}
                     </Text>
                 )}

@@ -9,9 +9,12 @@ import { importGraph, registry } from "../src/registry.js";
 // format, exporter, option or code fails here until the pages are regenerated (`npm run docs:reference`, which
 // also creates the page of a new format).
 describe("generated documentation", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    // regenerating every page is the slow step: do it once for the tests that read the pages
+    let generated: ReturnType<typeof pages> | undefined;
+    const allPages = (): ReturnType<typeof pages> => (generated ??= pages());
+
     it("matches the current source", async () => {
-        const results = await pages();
+        const results = await allPages();
         if (process.env.UPDATE_REFERENCE === "1") {
             for (const r of results) {
                 writeFileSync(new URL(`../docs/${r.page}`, import.meta.url), r.expected);
@@ -20,23 +23,20 @@ describe("generated documentation", () => {
         }
         const stale = results.filter((r) => r.current !== r.expected).map((r) => r.page);
         expect(stale, "docs are out of date: run `npm run docs:reference` in graph-io").toEqual([]);
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("gives every option, code and capability a description", async () => {
         // a row without a meaning has no doc comment where it is declared: write one there
         expect(await undocumented()).toEqual([]);
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("never sends a reader to the internal design documents", async () => {
         // the published doc comments and the generated pages are read by users, who have neither
         expect(internalReferences()).toEqual([]);
-        const leaking = (await pages()).filter((r) => mentionsInternals(r.expected)).map((r) => r.page);
+        const leaking = (await allPages()).filter((r) => mentionsInternals(r.expected)).map((r) => r.page);
         expect(leaking).toEqual([]);
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("lists in each built-in importer and exporter exactly the options its type declares", async () => {
         // W_UNKNOWN_OPTION trusts these lists; a new option without its name here would be reported as a misspelling
         const names = await optionNames();
@@ -48,5 +48,5 @@ describe("generated documentation", () => {
         const all = Object.fromEntries(names.common.map((n) => [n, undefined]));
         const { report } = await importGraph("graph { a -- b }", { ...all, format: "dot" });
         expect(report.issues).toEqual([]);
-    }, 120_000);
+    });
 });

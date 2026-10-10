@@ -58,101 +58,82 @@ async function newProject(): Promise<GraphSession> {
 }
 
 describe("the canvas on the real element", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "shows No nodes to draw until the graph has a node, then the legend of a run that paints (T7)",
-        async () => {
-            const session = await newProject();
-            await screen.findByRole("region", { name: "No nodes to draw" }, { timeout: TIMEOUT_MS });
-            assert.isNull(screen.queryByRole("region", { name: "Legend" }));
+    it("shows No nodes to draw until the graph has a node, then the legend of a run that paints (T7)", async () => {
+        const session = await newProject();
+        await screen.findByRole("region", { name: "No nodes to draw" }, { timeout: TIMEOUT_MS });
+        assert.isNull(screen.queryByRole("region", { name: "Legend" }));
 
-            await session.data.addNodes(NODES);
-            await session.data.addEdges(EDGES);
-            await waitFor(() => {
-                assert.isNull(screen.queryByRole("region", { name: "No nodes to draw" }));
-            });
+        await session.data.addNodes(NODES);
+        await session.data.addEdges(EDGES);
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "No nodes to draw" }));
+        });
 
-            const run = session.runs.start("pagerank");
-            await run;
-            await session.styles.settled();
-            const painting = session.runs.painting(run.id);
-            assert.equal(painting?.state, "decided");
-            assert.isTrue(
-                painting?.suggestions.some((each) => each.outcome === "added"),
-                "PageRank's color went on the stack",
-            );
-            assert.include(session.runs.bindings(run.id), session.styles.list().at(-1)?.id, "PageRank's row is on top");
+        const run = session.runs.start("pagerank");
+        await run;
+        await session.styles.settled();
+        const painting = session.runs.painting(run.id);
+        assert.equal(painting?.state, "decided");
+        assert.isTrue(
+            painting?.suggestions.some((each) => each.outcome === "added"),
+            "PageRank's color went on the stack",
+        );
+        assert.include(session.runs.bindings(run.id), session.styles.list().at(-1)?.id, "PageRank's row is on top");
 
-            const legend = await screen.findByRole("region", { name: "Legend" });
-            await within(legend).findByRole("group", { name: `Color: ${run.label}` });
-            assert.isNull(screen.queryByText(/^Hidden by your layer/), "a run that painted gives no notice");
-        },
-        TIMEOUT_MS * 2,
-    );
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        await within(legend).findByRole("group", { name: `Color: ${run.label}` });
+        assert.isNull(screen.queryByText(/^Hidden by your layer/), "a run that painted gives no notice");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "paints Louvain over Betweenness, and names it the color winner (T8)",
-        async () => {
-            const session = await newProject();
-            await session.data.addNodes(NODES);
-            await session.data.addEdges(EDGES);
+    it("paints Louvain over Betweenness, and names it the color winner (T8)", async () => {
+        const session = await newProject();
+        await session.data.addNodes(NODES);
+        await session.data.addEdges(EDGES);
 
-            await session.runs.start("betweenness");
-            const run = session.runs.start("louvain");
-            await run;
-            await session.styles.settled();
-            const painting = session.runs.painting(run.id);
-            assert.equal(painting?.state, "decided");
-            assert.isTrue(
-                painting?.suggestions.some((each) => each.outcome === "added"),
-                "Louvain's color went on the stack",
-            );
-            const winner = session.styles
-                .explain({ node: "n0" })
-                .channels.find((each) => each.channel === "node.color")?.layerId;
-            assert.include(session.runs.bindings(run.id), winner, "Louvain wins color");
+        await session.runs.start("betweenness");
+        const run = session.runs.start("louvain");
+        await run;
+        await session.styles.settled();
+        const painting = session.runs.painting(run.id);
+        assert.equal(painting?.state, "decided");
+        assert.isTrue(
+            painting?.suggestions.some((each) => each.outcome === "added"),
+            "Louvain's color went on the stack",
+        );
+        const winner = session.styles
+            .explain({ node: "n0" })
+            .channels.find((each) => each.channel === "node.color")?.layerId;
+        assert.include(session.runs.bindings(run.id), winner, "Louvain wins color");
 
-            const legend = await screen.findByRole("region", { name: "Legend" });
-            await within(legend).findByRole("group", { name: `Color: ${run.label}` }, { timeout: TIMEOUT_MS });
-            assert.isNull(screen.queryByText(/^Hidden by your layer/), "a run that painted gives no notice");
-        },
-        TIMEOUT_MS * 2,
-    );
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        await within(legend).findByRole("group", { name: `Color: ${run.label}` }, { timeout: TIMEOUT_MS });
+        assert.isNull(screen.queryByText(/^Hidden by your layer/), "a run that painted gives no notice");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "says a run was hidden by the reader's layer, and Show anyway puts it on top (T8)",
-        async () => {
-            const session = await newProject();
-            await session.data.addNodes(NODES);
-            await session.data.addEdges(EDGES);
-            const mine = await session.styles.add(EVERYTHING_GRAY);
+    it("says a run was hidden by the reader's layer, and Show anyway puts it on top (T8)", async () => {
+        const session = await newProject();
+        await session.data.addNodes(NODES);
+        await session.data.addEdges(EDGES);
+        const mine = await session.styles.add(EVERYTHING_GRAY);
 
-            const run = session.runs.start("louvain");
-            await run;
-            await session.styles.settled();
-            const [outcome] = session.runs.painting(run.id)?.suggestions ?? [];
-            assert.equal(outcome.outcome, "suppressed");
-            assert.equal(outcome.outcome === "suppressed" ? outcome.byLayerId : undefined, mine.id);
+        const run = session.runs.start("louvain");
+        await run;
+        await session.styles.settled();
+        const [outcome] = session.runs.painting(run.id)?.suggestions ?? [];
+        assert.equal(outcome.outcome, "suppressed");
+        assert.equal(outcome.outcome === "suppressed" ? outcome.byLayerId : undefined, mine.id);
 
-            await screen.findByText("Hidden by your layer My gray", {}, { timeout: TIMEOUT_MS });
-            assert.isNull(screen.queryByRole("group", { name: `Color: ${run.label}` }));
-            await userEvent.click(screen.getByRole("button", { name: "Show anyway" }));
+        await screen.findByText("Hidden by your layer My gray", {}, { timeout: TIMEOUT_MS });
+        assert.isNull(screen.queryByRole("group", { name: `Color: ${run.label}` }));
+        await userEvent.click(screen.getByRole("button", { name: "Show anyway" }));
 
-            await waitFor(
-                () => {
-                    assert.equal(
-                        session.styles.list().at(-1)?.id,
-                        session.runs.bindings(run.id)[0],
-                        "Louvain is on top",
-                    );
-                },
-                { timeout: TIMEOUT_MS },
-            );
-            const legend = await screen.findByRole("region", { name: "Legend" });
-            await within(legend).findByRole("group", { name: `Color: ${run.label}` }, { timeout: TIMEOUT_MS });
-        },
-        TIMEOUT_MS * 2,
-    );
+        await waitFor(
+            () => {
+                assert.equal(session.styles.list().at(-1)?.id, session.runs.bindings(run.id)[0], "Louvain is on top");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        await within(legend).findByRole("group", { name: `Color: ${run.label}` }, { timeout: TIMEOUT_MS });
+    });
 });

@@ -21,7 +21,6 @@ const pkg = fileURLToPath(new URL("..", import.meta.url));
 let dir = "";
 let chunks: Rollup.OutputChunk[] = [];
 
-// eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
 beforeAll(async () => {
     expect(existsSync(join(pkg, "dist/gpu.js")), "build the package first (npm run build)").toBe(true);
     dir = mkdtempSync(join(tmpdir(), "cytoscape-extensions-bundle-"));
@@ -38,7 +37,7 @@ beforeAll(async () => {
         build: { write: false, minify: false, rollupOptions: { input: join(dir, "main.js") } },
     })) as Rollup.RollupOutput;
     chunks = out.output.filter((o): o is Rollup.OutputChunk => o.type === "chunk");
-}, 120_000);
+});
 
 afterAll(() => {
     if (dir !== "") {
@@ -94,7 +93,6 @@ describe("a Vite production build whose entry module awaits a loading method at 
     // cannot run until the page's await settles. Node, unlike a browser, reports the stuck await and exits with 13.
     let entry = "";
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     beforeAll(async () => {
         const page = mkdtempSync(join(tmpdir(), "cytoscape-extensions-tla-"));
         mkdirSync(join(page, "node_modules/@graphty"), { recursive: true });
@@ -140,9 +138,8 @@ describe("a Vite production build whose entry module awaits a loading method at 
         return (): void => {
             rmSync(page, { recursive: true, force: true });
         };
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("warns, naming the method and the fix, instead of stopping with no message", async () => {
         const [dataset, gpu, then] = await Promise.all([
             runPage(entry, "dataset"),
@@ -159,5 +156,5 @@ describe("a Vite production build whose entry module awaits a loading method at 
         expect(then.code, then.out).toBe(0);
         expect(then.out).toContain("nodes 34");
         expect(then.out).not.toContain("graphty:");
-    }, 60_000);
+    });
 });

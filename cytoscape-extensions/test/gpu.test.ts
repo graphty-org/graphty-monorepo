@@ -235,6 +235,8 @@ interface Fake {
     disposed: number;
     released: GraphSnapshot[];
     pageRankCalls: number;
+    /** Settles when the latest fake pageRank call has finished. */
+    lastPageRank: Promise<void>;
     /** Resolves `lost` of the current device. */
     lose(why: string): void;
     /** Makes the next pageRank reject, as a device error mid-run would. */
@@ -265,6 +267,7 @@ function fakeProvider(decline?: string): Fake {
         disposed: 0,
         released: [],
         pageRankCalls: 0,
+        lastPageRank: Promise.resolve(),
         lose: () => undefined,
         failNext: false,
     };
@@ -282,16 +285,27 @@ function fakeProvider(decline?: string): Fake {
             const accelerator: GpuAccelerator = {
                 kind: "fake",
                 pageRank: async (s, o) => {
-                    // each call takes longer than the one before, so concurrent calls finish in order
-                    const delay = 5 * fake.pageRankCalls++;
+                    fake.pageRankCalls++;
                     if (fake.failNext) {
                         fake.failNext = false;
                         throw new Error("E_DEVICE_LOST: the device was lost mid-run");
                     }
-                    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-                    await new Promise((resolve) => setTimeout(resolve, delay));
-                    assertResident(fake, s);
-                    return pageRank(s, o);
+                    // concurrent calls finish in order: each waits for the one before it, then for its caller
+                    // to finish with the result (a task later), so a run is still on the device when the
+                    // run before it writes its field
+                    const before = fake.lastPageRank;
+                    let finished: () => void = () => undefined;
+                    fake.lastPageRank = new Promise<void>((resolve) => {
+                        finished = resolve;
+                    });
+                    try {
+                        await before;
+                        await new Promise((resolve) => setTimeout(resolve, 0));
+                        assertResident(fake, s);
+                        return pageRank(s, o);
+                    } finally {
+                        finished();
+                    }
                 },
                 forceAtlas2: (options): LayoutSimulation => {
                     // the CPU simulation behind an asynchronous step, as a GPU simulation has

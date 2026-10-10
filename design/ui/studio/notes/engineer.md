@@ -207,6 +207,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-10) Resuming after an interrupted session: check `git log` and `tmp/<session>/` before
+  redoing a task. Focus after actions (inspector title after a run or find pick, Degree after
+  Back, no canvas ring after a pointer click) was already on the branch (c9430b8d7, refined in
+  7f61a2ab2); its re-pilot shots still hold (`tmp/r1-dry2-focus-after-actions/T12RA/09.png`
+  Degree focused, `T24A/02.png` no canvas outline). Worked: nothing to redo.
 - (2026-10-10) Did not work: running `bars.mjs` on `graphty/dist` of the shared worktree; another
   agent rebuilt it mid-run (ENOENT on index.html). Copy the dist into the task folder and pass
   `--dist`. Seen, not mine: tier 1's "a node's Values with its neighbors" step misses (click on

@@ -48,11 +48,10 @@ describe("useAiManager", () => {
         const { useAiManager } = await import("../useAiManager");
         const { result } = renderHook(() => useAiManager({ defaultProvider: "openai" }));
 
-        // Wait a bit to ensure no async init happens
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 50));
-
+        // Without an element the hook has nothing to enable: its only way to become ready is the
+        // element's enableAiControl, so there is no later async step to wait for.
         expect(result.current.isReady).toBe(false);
+        expect(mockDoors.enableAiControl).not.toHaveBeenCalled();
     });
 
     it("enables the element's assistant when an element is provided", async () => {

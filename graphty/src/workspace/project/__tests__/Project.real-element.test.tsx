@@ -175,270 +175,245 @@ afterEach(() => {
 });
 
 describe("T14: save and reopen, on the real element", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "saves to a file the browser keeps, and reopens it from Recent projects",
-        async () => {
-            const root = await navigator.storage.getDirectory();
-            const file = await root.getFileHandle("t14.graphty.json", { create: true });
-            const picker = vi.fn(() => Promise.resolve(file));
-            vi.stubGlobal("showSaveFilePicker", picker);
-            try {
-                const store = createWorkspaceStore();
-                const { session, before } = await buildProject(store);
-                assert.isTrue(session.project.dirty);
-
-                await saveAs("Florentine, my copy");
-                await waitFor(() => {
-                    assert.equal(store.get().notice?.message, "Saved as Florentine, my copy");
-                });
-                assert.equal(picker.mock.calls.length, 1);
-                assert.isFalse(session.project.dirty);
-                assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine, my copy" }));
-                assert.include(await (await file.getFile()).text(), "graphty-document");
-
-                // A later Save writes the same file, with no dialog.
-                await session.styles.add({
-                    name: "Later",
-                    target: "node",
-                    selector: { match: "everything" },
-                    set: { "node.size": 2 },
-                });
-                await userEvent.keyboard("{Control>}s{/Control}");
-                await waitFor(() => {
-                    assert.equal(store.get().notice?.message, "Saved Florentine, my copy");
-                });
-                assert.equal(picker.mock.calls.length, 1);
-                const saved = snapshot(session);
-
-                await closeFromMenu("Florentine, my copy");
-                assert.isNull(store.get().project);
-                const recent = await screen.findByRole("button", { name: /^Florentine, my copy/ });
-                assert.isNotNull(within(recent).getByText("15 nodes"));
-
-                await userEvent.click(recent);
-                const reopened = await elementSession(session);
-                await waitFor(
-                    () => {
-                        assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
-                    },
-                    { timeout: TIMEOUT_MS },
-                );
-                assert.deepEqual(snapshot(reopened), saved);
-                assert.include(saved.runs, before.runs[0]);
-                assert.deepEqual(saved.selection, before.selection);
-                assert.isFalse(reopened.project.dirty);
-                assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine, my copy" }));
-
-                // Opening it again over unsaved changes: the element refuses, the reader discards.
-                await reopened.styles.add({
-                    name: "Unsaved",
-                    target: "node",
-                    selector: { match: "everything" },
-                    set: { "node.size": 3 },
-                });
-                store.set({ notice: null });
-                await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-                await userEvent.hover(await screen.findByRole("menuitem", { name: "Open recent" }));
-                await userEvent.click(await screen.findByRole("menuitem", { name: /^Florentine, my copy/ }));
-                const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
-                await userEvent.click(within(ask).getByRole("button", { name: "Discard" }));
-                await waitFor(
-                    () => {
-                        assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
-                    },
-                    { timeout: TIMEOUT_MS },
-                );
-                assert.deepEqual(snapshot(reopened), saved);
-            } finally {
-                vi.unstubAllGlobals();
-                await root.removeEntry("t14.graphty.json");
-            }
-        },
-        TIMEOUT_MS * 2,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "downloads where the browser keeps no file handles, and reopens with Locate...",
-        async () => {
-            vi.stubGlobal("showSaveFilePicker", undefined);
-            vi.stubGlobal("showOpenFilePicker", undefined);
-            const downloads: { name: string; blob: Blob }[] = [];
-            const blobs = new Map<string, Blob>();
-            const create = URL.createObjectURL.bind(URL);
-            vi.spyOn(URL, "createObjectURL").mockImplementation((object: Blob | MediaSource) => {
-                const url = create(object);
-                if (object instanceof Blob) {
-                    blobs.set(url, object);
-                }
-                return url;
-            });
-            vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
-                const blob = blobs.get(this.href);
-                if (this.download !== "" && blob !== undefined) {
-                    downloads.push({ name: this.download, blob });
-                }
-            });
-            try {
-                const store = createWorkspaceStore();
-                const { session, before } = await buildProject(store);
-
-                await saveAs("Florentine");
-                await waitFor(() => {
-                    assert.equal(store.get().notice?.message, "Downloaded Florentine");
-                });
-                assert.deepEqual(
-                    downloads.map((download) => download.name),
-                    ["Florentine.graphty.json"],
-                );
-
-                await closeFromMenu("Florentine");
-                const recent = await screen.findByRole("button", { name: /^Florentine/ });
-                assert.isNotNull(within(recent).getByText(/ - Locate\.\.\.$/));
-
-                // Locate... asks for the file: the reader picks the download.
-                const picked = new File([downloads[0].blob], "Florentine.graphty.json");
-                vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(function (this: HTMLInputElement) {
-                    const transfer = new DataTransfer();
-                    transfer.items.add(picked);
-                    this.files = transfer.files;
-                    this.dispatchEvent(new Event("change"));
-                });
-                await userEvent.click(recent);
-                const reopened = await elementSession(session);
-                await waitFor(
-                    () => {
-                        assert.match(store.get().notice?.message ?? "", OPENED("Florentine"));
-                    },
-                    { timeout: TIMEOUT_MS },
-                );
-                assert.deepEqual(snapshot(reopened), before);
-
-                // Save again downloads a new copy, with no dialog.
-                await reopened.styles.add({
-                    name: "Later",
-                    target: "node",
-                    selector: { match: "everything" },
-                    set: { "node.size": 2 },
-                });
-                await userEvent.keyboard("{Control>}s{/Control}");
-                await waitFor(() => {
-                    assert.equal(store.get().notice?.message, "Downloaded Florentine");
-                });
-                assert.equal(downloads.length, 2);
-            } finally {
-                vi.unstubAllGlobals();
-            }
-        },
-        TIMEOUT_MS * 2,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "renames through the element: the new name is unsaved and survives an edit",
-        async () => {
-            const root = await navigator.storage.getDirectory();
-            const file = await root.getFileHandle("t14-rename.graphty.json", { create: true });
-            vi.stubGlobal(
-                "showSaveFilePicker",
-                vi.fn(() => Promise.resolve(file)),
-            );
-            try {
-                const store = createWorkspaceStore();
-                const { session } = await buildProject(store);
-                await saveAs("Florentine A");
-                await waitFor(() => {
-                    assert.isFalse(session.project.dirty);
-                });
-
-                await userEvent.keyboard("{F2}");
-                const field = await screen.findByRole("textbox", { name: "Project name" });
-                await userEvent.clear(field);
-                await userEvent.type(field, "Florentine B{Enter}");
-                await waitFor(() => {
-                    assert.equal(session.project.name, "Florentine B");
-                });
-                assert.isTrue(session.project.dirty);
-
-                // An edit publishes the project's status again; the header keeps the new name.
-                await session.styles.add({
-                    name: "Later",
-                    target: "node",
-                    selector: { match: "everything" },
-                    set: { "node.size": 2 },
-                });
-                assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine B" }));
-
-                // Close asks, because the rename is not saved.
-                await closeFromMenu("Florentine B");
-                const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
-                await userEvent.click(within(ask).getByRole("button", { name: "Cancel" }));
-            } finally {
-                vi.unstubAllGlobals();
-                await root.removeEntry("t14-rename.graphty.json");
-            }
-        },
-        TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "keeps the old name and still asks before Close when Save as cannot write the file",
-        async () => {
-            const refused = {
-                createWritable: () => Promise.reject(new DOMException("refused", "NotAllowedError")),
-            };
-            vi.stubGlobal(
-                "showSaveFilePicker",
-                vi.fn(() => Promise.resolve(refused)),
-            );
-            try {
-                const store = createWorkspaceStore();
-                await buildProject(store);
-                await saveAs("Florentine, unsaved");
-                await waitFor(() => {
-                    assert.equal(store.get().notice?.message, "Florentine, unsaved could not be saved.");
-                });
-                assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine families" }));
-
-                await closeFromMenu("Florentine families");
-                assert.isNotNull(await screen.findByRole("dialog", { name: "Discard unsaved changes?" }));
-                assert.isNotNull(store.get().project);
-            } finally {
-                vi.unstubAllGlobals();
-            }
-        },
-        TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "asks before Close project or New project throws away unsaved changes",
-        async () => {
+    it("saves to a file the browser keeps, and reopens it from Recent projects", async () => {
+        const root = await navigator.storage.getDirectory();
+        const file = await root.getFileHandle("t14.graphty.json", { create: true });
+        const picker = vi.fn(() => Promise.resolve(file));
+        vi.stubGlobal("showSaveFilePicker", picker);
+        try {
             const store = createWorkspaceStore();
-            const { session } = await buildProject(store);
+            const { session, before } = await buildProject(store);
             assert.isTrue(session.project.dirty);
 
-            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "New project" }));
-            const asked = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
-            await userEvent.click(within(asked).getByRole("button", { name: "Cancel" }));
-            assert.equal(store.get().project?.name, "Florentine families");
+            await saveAs("Florentine, my copy");
+            await waitFor(() => {
+                assert.equal(store.get().notice?.message, "Saved as Florentine, my copy");
+            });
+            assert.equal(picker.mock.calls.length, 1);
+            assert.isFalse(session.project.dirty);
+            assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine, my copy" }));
+            assert.include(await (await file.getFile()).text(), "graphty-document");
 
-            await closeFromMenu("Florentine families");
-            const dialog = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
-            await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
-            assert.isNotNull(store.get().project);
+            // A later Save writes the same file, with no dialog.
+            await session.styles.add({
+                name: "Later",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 2 },
+            });
+            await userEvent.keyboard("{Control>}s{/Control}");
+            await waitFor(() => {
+                assert.equal(store.get().notice?.message, "Saved Florentine, my copy");
+            });
+            assert.equal(picker.mock.calls.length, 1);
+            const saved = snapshot(session);
 
-            await closeFromMenu("Florentine families");
-            await userEvent.click(
-                within(await screen.findByRole("dialog", { name: "Discard unsaved changes?" })).getByRole("button", {
-                    name: "Discard",
-                }),
-            );
+            await closeFromMenu("Florentine, my copy");
             assert.isNull(store.get().project);
-        },
-        TIMEOUT_MS,
-    );
+            const recent = await screen.findByRole("button", { name: /^Florentine, my copy/ });
+            assert.isNotNull(within(recent).getByText("15 nodes"));
+
+            await userEvent.click(recent);
+            const reopened = await elementSession(session);
+            await waitFor(
+                () => {
+                    assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.deepEqual(snapshot(reopened), saved);
+            assert.include(saved.runs, before.runs[0]);
+            assert.deepEqual(saved.selection, before.selection);
+            assert.isFalse(reopened.project.dirty);
+            assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine, my copy" }));
+
+            // Opening it again over unsaved changes: the element refuses, the reader discards.
+            await reopened.styles.add({
+                name: "Unsaved",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 3 },
+            });
+            store.set({ notice: null });
+            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+            await userEvent.hover(await screen.findByRole("menuitem", { name: "Open recent" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: /^Florentine, my copy/ }));
+            const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+            await userEvent.click(within(ask).getByRole("button", { name: "Discard" }));
+            await waitFor(
+                () => {
+                    assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.deepEqual(snapshot(reopened), saved);
+        } finally {
+            vi.unstubAllGlobals();
+            await root.removeEntry("t14.graphty.json");
+        }
+    });
+
+    it("downloads where the browser keeps no file handles, and reopens with Locate...", async () => {
+        vi.stubGlobal("showSaveFilePicker", undefined);
+        vi.stubGlobal("showOpenFilePicker", undefined);
+        const downloads: { name: string; blob: Blob }[] = [];
+        const blobs = new Map<string, Blob>();
+        const create = URL.createObjectURL.bind(URL);
+        vi.spyOn(URL, "createObjectURL").mockImplementation((object: Blob | MediaSource) => {
+            const url = create(object);
+            if (object instanceof Blob) {
+                blobs.set(url, object);
+            }
+            return url;
+        });
+        vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+            const blob = blobs.get(this.href);
+            if (this.download !== "" && blob !== undefined) {
+                downloads.push({ name: this.download, blob });
+            }
+        });
+        try {
+            const store = createWorkspaceStore();
+            const { session, before } = await buildProject(store);
+
+            await saveAs("Florentine");
+            await waitFor(() => {
+                assert.equal(store.get().notice?.message, "Downloaded Florentine");
+            });
+            assert.deepEqual(
+                downloads.map((download) => download.name),
+                ["Florentine.graphty.json"],
+            );
+
+            await closeFromMenu("Florentine");
+            const recent = await screen.findByRole("button", { name: /^Florentine/ });
+            assert.isNotNull(within(recent).getByText(/ - Locate\.\.\.$/));
+
+            // Locate... asks for the file: the reader picks the download.
+            const picked = new File([downloads[0].blob], "Florentine.graphty.json");
+            vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(function (this: HTMLInputElement) {
+                const transfer = new DataTransfer();
+                transfer.items.add(picked);
+                this.files = transfer.files;
+                this.dispatchEvent(new Event("change"));
+            });
+            await userEvent.click(recent);
+            const reopened = await elementSession(session);
+            await waitFor(
+                () => {
+                    assert.match(store.get().notice?.message ?? "", OPENED("Florentine"));
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.deepEqual(snapshot(reopened), before);
+
+            // Save again downloads a new copy, with no dialog.
+            await reopened.styles.add({
+                name: "Later",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 2 },
+            });
+            await userEvent.keyboard("{Control>}s{/Control}");
+            await waitFor(() => {
+                assert.equal(store.get().notice?.message, "Downloaded Florentine");
+            });
+            assert.equal(downloads.length, 2);
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("renames through the element: the new name is unsaved and survives an edit", async () => {
+        const root = await navigator.storage.getDirectory();
+        const file = await root.getFileHandle("t14-rename.graphty.json", { create: true });
+        vi.stubGlobal(
+            "showSaveFilePicker",
+            vi.fn(() => Promise.resolve(file)),
+        );
+        try {
+            const store = createWorkspaceStore();
+            const { session } = await buildProject(store);
+            await saveAs("Florentine A");
+            await waitFor(() => {
+                assert.isFalse(session.project.dirty);
+            });
+
+            await userEvent.keyboard("{F2}");
+            const field = await screen.findByRole("textbox", { name: "Project name" });
+            await userEvent.clear(field);
+            await userEvent.type(field, "Florentine B{Enter}");
+            await waitFor(() => {
+                assert.equal(session.project.name, "Florentine B");
+            });
+            assert.isTrue(session.project.dirty);
+
+            // An edit publishes the project's status again; the header keeps the new name.
+            await session.styles.add({
+                name: "Later",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 2 },
+            });
+            assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine B" }));
+
+            // Close asks, because the rename is not saved.
+            await closeFromMenu("Florentine B");
+            const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+            await userEvent.click(within(ask).getByRole("button", { name: "Cancel" }));
+        } finally {
+            vi.unstubAllGlobals();
+            await root.removeEntry("t14-rename.graphty.json");
+        }
+    });
+
+    it("keeps the old name and still asks before Close when Save as cannot write the file", async () => {
+        const refused = {
+            createWritable: () => Promise.reject(new DOMException("refused", "NotAllowedError")),
+        };
+        vi.stubGlobal(
+            "showSaveFilePicker",
+            vi.fn(() => Promise.resolve(refused)),
+        );
+        try {
+            const store = createWorkspaceStore();
+            await buildProject(store);
+            await saveAs("Florentine, unsaved");
+            await waitFor(() => {
+                assert.equal(store.get().notice?.message, "Florentine, unsaved could not be saved.");
+            });
+            assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine families" }));
+
+            await closeFromMenu("Florentine families");
+            assert.isNotNull(await screen.findByRole("dialog", { name: "Discard unsaved changes?" }));
+            assert.isNotNull(store.get().project);
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("asks before Close project or New project throws away unsaved changes", async () => {
+        const store = createWorkspaceStore();
+        const { session } = await buildProject(store);
+        assert.isTrue(session.project.dirty);
+
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "New project" }));
+        const asked = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+        await userEvent.click(within(asked).getByRole("button", { name: "Cancel" }));
+        assert.equal(store.get().project?.name, "Florentine families");
+
+        await closeFromMenu("Florentine families");
+        const dialog = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        assert.isNotNull(store.get().project);
+
+        await closeFromMenu("Florentine families");
+        await userEvent.click(
+            within(await screen.findByRole("dialog", { name: "Discard unsaved changes?" })).getByRole("button", {
+                name: "Discard",
+            }),
+        );
+        assert.isNull(store.get().project);
+    });
 });

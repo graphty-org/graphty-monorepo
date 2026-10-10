@@ -94,7 +94,6 @@ async function loadCat(container: HTMLElement, session: GraphSession): Promise<v
 }
 
 describe("AppShell loads and closes as undoable steps", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("takes the whole load back with one Undo, labels and chosen layout included", async () => {
         const { container, session } = await mountShell();
 
@@ -124,9 +123,8 @@ describe("AppShell loads and closes as undoable steps", () => {
         await waitFor(() => {
             expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
         });
-    }, 30_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("records nothing for a load that fails, and leaves the previous dataset on screen", async () => {
         const { container, session } = await mountShell();
 
@@ -154,9 +152,8 @@ describe("AppShell loads and closes as undoable steps", () => {
         expect(shellLayers(session)).toHaveLength(1);
         expect(screen.getAllByText(CAT_SOCIAL_NETWORK_NAME).length).toBeGreaterThan(0);
         expect(container.querySelector("[data-canvas-welcome='true']")).toBeNull();
-    }, 30_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("brings a closed dataset back with its styles on one Undo", async () => {
         const { container, session } = await mountShell();
 
@@ -188,5 +185,5 @@ describe("AppShell loads and closes as undoable steps", () => {
         expect(shellLayers(session)).toEqual(labels);
         expect(container.querySelector("[data-canvas-welcome='true']")).toBeNull();
         expect(screen.getAllByText(CAT_SOCIAL_NETWORK_NAME).length).toBeGreaterThan(0);
-    }, 30_000);
+    });
 });

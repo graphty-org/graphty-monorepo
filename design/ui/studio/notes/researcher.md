@@ -10,12 +10,12 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-10 -- Answer key matched to 897d9aed9ffe (the build round 3 moved to) for T4, T12R B,
-  T17 A, T18, T19, T20, T22, T24 B (`rounds/r3d1/pilot/`). Not matched there yet: T12R A, T17 B,
-  T21, T23, T24 A (pilot folders exist, no findings handed over). Grading traps that moved: "Full
-  graph" is now a bold heading; a typed rule shows its count before Enter only when its TEXT equals
-  the rule that made the selection; T20 counts type-then-pick as one step; the T18 arrow note had
-  the wrong ties (Ava to Chloe, Ivan to Ava are right).
+- 2026-10-10 -- Answer key matched to 26f3bb968e43 (round 3's current build, `rounds/r3d2/`)
+  for T12R A/B, T18 A/B, T20 A/B, T21 A/B, T22 A. Still on 897d9aed9ffe's notes: T4, T17, T19,
+  T22 B, T23, T24 (pilot folders exist in `r3d2/`, no findings handed over yet). Grading traps that
+  moved: T18 A's Ivan-Kofi tie runs through Jada (record anyone naming her); after a tie is picked
+  the find box loses focus, so "/" no longer types into it (T12R); T12R's keyboard route from the
+  title is 4 Tabs, not tier 1's 1.
 - 2026-10-09 -- T22 and T24 now say "point out on the drawing", not "stand out" (and not "show", a
   View menu word); T22's "see where" became "how ... lie across" ("where" is avoided). Key
   unchanged: T22 credits a selection or a color, T24 only the two ends selected. Compare with
@@ -85,22 +85,18 @@ reasons, in short:
 
 ## Decisions and reasons
 
-- 2026-10-10 (researcher, 897d9aed9ffe key) -- Added a short build section listing only what
-  changed from b6d932823642, and fixed each stale claim in its task entry, old build's wording kept
-  as a parenthetical. Took one pilot claim on its measurement, not its echo: T18 A measured that
-  the suggestion lists cover no pick button; T18 B's "run over the pick buttons" repeated the key,
-  so the key now says it only for what was measured. Checked the T18 arrow fix against friends.csv
-  (Ava,Chloe and Ivan,Ava) before writing it. Dropped a T12R "change" that was not one (the
-  two-sentence tooltip dates from b6d932823642). No prompt, bar or step count changed.
+- 2026-10-10 (researcher, 26f3bb968e43 key) -- Same shape as before: a build section listing only
+  what changed, each stale claim fixed in its task entry with the old build's screen kept as a
+  parenthetical. Added a missed overlap (Jada on T18 A's main chain) as a grader instruction, not a
+  defect claim, after viewing `r3d2/pilot/T18A/10.png` myself. Kept tier 1's frozen key untouched
+  and recorded T12R's 4-Tab count in tier 2's entry instead. Wrote "an earlier note said" where a
+  pilot contradicted the key but no older screenshot was re-checked (T18 B, T20 To lists). No
+  prompt, bar or step count changed; `tasks.md` untouched.
 
-- 2026-10-10 (researcher, round 3 answer key) -- Added a b6d932823642 section and rewrote each
-  stale claim in place, keeping the old build's wording as a parenthetical. Reason: graders read
-  the task entry, not the build sections, so a stale quote ("on 20 nodes", "On the path", "press
-  again") left in the entry would grade a correct reading as wrong. Did not change any step count
-  used by bar 11: the shorter T22 round 2 route (3 steps) is recorded, but the success paths' counts
-  stay, so round 3 compares with round 2 on the same limits. The T19 A missing "Opened friends"
-  toast was recorded as untraced, not as a defect or a tool fault: one of three opens, no alert
-  caught. No prompt changed: no pilot found a prompt that did not match the screens.
+- 2026-10-10 (researcher, b6d932823642 and 897d9aed9ffe keys, folded) -- A build section plus
+  in-place fixes, old wording as a parenthetical, because graders read the task entry. Bar 11 step
+  counts never moved. Took a pilot claim on its measurement, not its echo of the key; checked the
+  T18 arrow fix against friends.csv. The T19 A missing toast recorded as untraced.
 
 - 2026-10-09 (researcher, round 3 prompts and re-runs) -- Reworded the second half of T22 and
   T24 to "point out on the drawing" (T24: "point out Gus and Ivan, and nobody else, on the
@@ -116,19 +112,11 @@ reasons, in short:
   not built (HEAD holds only the decision), and piloting on the round 2 build would measure the
   wrong screens.
 
-- 2026-10-09 (researcher, tier 2 round 2 critique) -- Proposed the five changes above. Reasons:
-  each fixes a confirmed sev 3 or the sev 2 that cost most steps, reusing what exists: the find
-  box already has `exampleRule` and `ruleFromText`; the element already returns the bare-number
-  suggestion (`E_BAD_SELECTOR`, `number-needs-backticks`), so running it on Enter consumes a
-  neutral fact, not a workaround; `startingValue` in `graphty/src/workspace/style/row.ts` starts
-  every "+" line at the element's default, which by definition draws nothing new -- a starting
-  value is the consumer's choice, so the fix is the app's. Checked `r2-s12/03.png` ("No match for
-  chapters 10", no way on) and `r2-s15/06.png` (backtick correction, plain text). Rejected this
-  round: element bare-number parsing (changes what an existing call accepts; unsure = breaking,
-  so owner list if wanted), label placement (element, deferred), moving the path tool (find box
-  led 8 of 8 to a right answer). Answer to the owner's "did we dry run" stands: yes, about 30 of
-  355 problems were build faults, none above sev 2, 12 on the unwalked selection-styling detour;
-  the bigger fault was the study's leaked task file.
+- 2026-10-09 (researcher, tier 2 round 2 critique, folded) -- Five smallest changes, one per
+  confirmed sev 3, each reusing what exists (find box `exampleRule`/`ruleFromText`, the element's
+  `number-needs-backticks` suggestion as a neutral fact; a "+" line's starting value is the app's
+  choice). Rejected: element bare-number parsing (unsure = breaking), label placement (element),
+  moving the path tool (find box led 8 of 8 to a right answer).
 - 2026-10-09 (researcher, round 2 skeptic verdicts) -- Wrote `rounds/round-2/insights.md`.
   Applied: both drop = dropped (insight 6, routes carried habits); one drop or weaken = weakened
   (T24 halo, the "All 13 rows" caption, insights 1 to 5) unless the other answered with evidence.
@@ -169,20 +157,10 @@ reasons, in short:
   T20; demoted fill tint / selection mark to one sev 2 design finding. Rejected: calling the
   popover a build defect from one session at load 158 without a script.
 
-- 2026-10-09 (researcher, tier 2 round 1 scoring) -- Scored from 55 grades, the transcripts'
-  ease lines and four expert reports; one row per session in `tmp/researcher/t2r1/score.py`
-  (asserts 56 / 55). Choices: (1) steps = screenshots after the start, main prompt only on T17 and
-  T18, because graders counted inconsistently (s36, s45 off by one). (2) Success-path steps from
-  the key's commands (T18 = 4), not graders' "about 5"; T18 bar 11 fails at 4 and holds at 5 --
-  stated both ways. (3) Bar 3 strict: a problem seen by 2+ participants is confirmed, and its
-  severity is the worst outcome it caused (one give-up = 4); the lenient reading is written beside
-  it. Reason: the others recovered only by guesses the screen did not offer. (4) Bar 2: the second
-  path run replacing the first scored `not-kept` by the bar's wording (5 sessions), graders had
-  only flagged it. (5) Bar 5 fails on the stale key after Replace (its value shown without its
-  mark). "Components 1" under a filter left as a candidate (a note labels it). (6) Bar 10
-  confirmations only by two specialists or specialist + session, since the scripted counts did
-  not run; five sev 3 confirmed. (7) Bars 2, 7, 8, 9 "do not hold" for not being scored, per the
-  frozen rule. Rejected: re-counting the void as a failure for T20 (holds either way, said so).
+- 2026-10-09 (researcher, tier 2 round 1 scoring, folded) -- One asserted row per session
+  (`tmp/researcher/t2r1/score.py`); steps = screenshots after the start; success-path steps from the
+  key's commands; bar 3 strict (2+ participants confirm, severity = worst outcome) with the lenient
+  reading beside it; "not scored" bars do not hold, per the frozen rule.
 
 - 2026-10-08 (round 1 plan and key vs dry runs, folded) -- No saved-project starts (frozen
   tasks.md wins); key edits by asserted (old, new) pairs; checked cited screenshots myself.
@@ -202,13 +180,15 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
-- 2026-10-10 (897d9aed9ffe key, after a token-limit stop) -- Worked: `git status` plus a grep of
-  the key for the new build id first; nothing was half-applied, so the whole list was applied once.
-  Worked: Edit anchored on text read from the file, then a scoped citation to the pilot folder.
+- 2026-10-10 (26f3bb968e43 key, after a token-limit stop) -- Worked: `git status` and a grep of
+  the key for the new build id (none), and of `r3d2/pilot/` for which folders hold screenshots,
+  before editing; nothing was half-applied. Worked: one asserted (old, new) script in the
+  scratchpad. Noted: `answers.md` at HEAD is not prettier-clean; the pre-commit hook formats it.
+  Noted: a pilot report can be stale about its siblings (T21 B said T21 A had no screenshots; it
+  had 7 by the time I looked) -- list the folders, do not trust the report.
 
-- 2026-10-10 (round 3 key) -- Worked again: exact-match (old, new) script, and spot-checking three
-  screenshots before trusting pilot reports. After a token-limit stop, check `git status` on the
-  key and every pilot folder's PNGs first: here nothing was half-written.
+- 2026-10-10 (round 3 and 897d9aed9ffe keys, folded) -- Worked: exact-match (old, new) scripts,
+  spot-checking cited screenshots, and checking `git status` first after a token-limit stop.
 
 - 2026-10-09 (round 3 prompts) -- Worked: writing each half's real briefing with `real.mjs
 --brief <scratch dir> --task T22A --persona <name>` and checking the prompt text the participant

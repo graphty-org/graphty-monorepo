@@ -808,3 +808,19 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   step the Overview holds only Nodes showing and Edges showing, and the whole graph's rows sit in a
   second section headed Full graph; with no step on, the Overview is one section, as before. No
   bar, floor, step limit or prompt changed.
+
+- **2026-10-10, during round 3: the answer key matched to the pilots on build 26f3bb968e43.** T12R
+  A and B, T18 A and B, T20 A and B, T21 A and B and T22 A were piloted on the new build from their
+  starts (`rounds/r3d2/pilot/`). Every success path landed on the first try with no script errors,
+  console errors or failed requests, and every reference value held. `answers.md` now describes
+  those screens, each change citing the pilot's screenshot: a section on this build; after a tie is
+  picked from the find list, focus leaves the find box and a following "/" no longer types into it,
+  and from the node's title the Degree row is the fourth Tab, behind the Node actions button, the
+  Values tab and the Summary header (T12R); the highlighted Ivan to Kofi tie on A's main chain runs
+  through Jada, a node not on the path, which the key had missed since 897d9aed9ffe, and on B the
+  list under To covers only the top half of the Weight box (T18); the list under To covers only the
+  Follow label, leaving Out and All readable, B's Meadow to Ridge edge shows no arrowhead, and B's
+  preview drops the file's trailing ".0" (T20); the left panel's title takes the new file's name on
+  both halves, not only on B, and B is now matched (T21); the lone "=" list's "Columns" heading
+  (T22). T4, T17, T19, T22 B, T23 and T24 keep 897d9aed9ffe's notes until they are matched. No
+  prompt was wrong, so `tasks.md` is unchanged. No bar, floor, step limit or success path changed.

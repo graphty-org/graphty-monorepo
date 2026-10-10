@@ -25,7 +25,7 @@ grade against a hand calculation. Every value was then read again on the study b
 from the final walk's screens (`pilot/<task>-final/`), and agrees.
 
 **Every value and every "known on this build" note is re-recorded on the build a round studies**
-(criteria, preflight items 3 to 5). This key is recorded on build b6d932823642, the round 3 study build (its section below, after 8f0d5a6f7791's), and matched to 897d9aed9ffe, the build the study moved to during round 3 (its section follows b6d932823642's), for the task halves piloted on it; a note that build no longer shows has been deleted or reworded, not left
+(criteria, preflight items 3 to 5). This key is recorded on build b6d932823642, the round 3 study build (its section below, after 8f0d5a6f7791's), matched to 897d9aed9ffe, the build the study moved to during round 3 (its section follows b6d932823642's), for the task halves piloted on it, and matched to 26f3bb968e43, the build it moved to next (its section follows 897d9aed9ffe's), for the task halves piloted on that; a note that build no longer shows has been deleted or reworded, not left
 for graders.
 
 **The first round 1 build, 16dcf3494700.** Round 1 was first planned on build 16dcf3494700. Every task half was piloted on it from the start `roster.md` names, with screenshots in
@@ -352,6 +352,20 @@ every reference value held. The notes on b6d932823642 above still hold, except:
   settings" and "CSV auto" no longer move when it appears (T4).
 - The first open of a saved project shows its "Opened ..." toast again (T19).
 
+**The round 3 study build from 2026-10-10, 26f3bb968e43 (graphty@0.8.61).** The study moved to
+build 26f3bb968e43 later in round 3 (`criteria.md`, first line). Its pilots are in
+`rounds/r3d2/pilot/<task><half>/`. The entries for T12R A and B, T18 A and B, T20 A and B, T21 A and B
+and T22 A are matched to those screens; T4, T17, T19, T22 B, T23 and T24 keep 897d9aed9ffe's notes
+until theirs are. On every half matched, the success path landed on the first try with no script
+errors, console errors or failed requests, and every reference value held, with only the dates and
+times of Ran different. The notes on 897d9aed9ffe above still hold, except:
+
+- After Down arrow and Enter pick a tie in the find list, focus leaves the find box: the box is
+  empty with no focus ring, and a following "/" focuses it without typing into it, so the name can
+  be typed at once (`rounds/r3d2/pilot/T12RA/11.png` to `13.png`; `T12RB/09.png`, `10.png`). No focus mark
+  shows anywhere after the pick (T12R). The note on 8f0d5a6f7791 that focus stays in the box no
+  longer holds.
+
 **Routes the round 2 build adds (walked on ddf8b3b63039).** Three round 2 changes open routes this key did
 not list: the find box answers a typed condition with the rule that would read it (T22), the
 source's inspector gets the "..." menu holding Replace with file... and Edit source... (T21), and a
@@ -651,8 +665,9 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   PM"), so the newer chain can be told by its time changing. The second run replaces the first: the Graph tree keeps one
   "Shortest path 4 hops" row and the first chain is gone, so a participant who wants both must
   note the first. Reopening the popover with p brings back empty From and To. Every value here
-  held on b6d932823642 (`rounds/r3/pilot/T18A/10.png`, `15.png`; `T18B/07.png`, `14.png`) and on
-  897d9aed9ffe (`rounds/r3d1/pilot/T18A/10.png`, `17.png`; `T18B/07.png`, `14.png`), with only the
+  held on b6d932823642 (`rounds/r3/pilot/T18A/10.png`, `15.png`; `T18B/07.png`, `14.png`), on
+  897d9aed9ffe (`rounds/r3d1/pilot/T18A/10.png`, `17.png`; `T18B/07.png`, `14.png`) and on
+  26f3bb968e43 (`rounds/r3d2/pilot/T18A/10.png`, `17.png`; `T18B/07.png`, `14.png`), with only the
   dates and times of Ran different.
 - **Success path (A):** `--key p` (or a node's menu "Path between...", or Analyze, "Shortest
   path"); `--type Chloe --click "Chloe"` (the option); `--click "To" --type Milo --click "Milo"`;
@@ -664,7 +679,7 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   path button (`rounds/r1d3/pilot/T18A/07.png`), so the `--click "To"` step is harmless but not
   needed. "Advanced run settings" is collapsed after the first run; once opened, it stays open after the next run (`rounds/r1d3/pilot/T18A/11.png`, `15.png`). The popover's own Advanced does not: opened before a run, it is collapsed again when the popover is reopened (`rounds/r2d1/pilot/T18A/07.png`, `12.png`). After a pick or an Enter moves focus to Find path, its focus ring is a faint thin outline, hard to see against the blue button (`rounds/r2d1/pilot/T18B/06.png`, `10.png`). Escape pressed while the Weight list is open closes only the list; the
   popover stays open. The one-item suggestion list under From covers the To label and the top of the To box while it
-  is open (the box's placeholder still shows below it); the one under To covers the Weight label and most of its box on B (`rounds/r2d2/pilot/T18B/03.png`, `05.png`), and on A the one under To covers the Follow label and the top half of the Out | All row (`rounds/r2d1/pilot/T18A/05.png`; `rounds/r3d1/pilot/T18A/05.png`, `15.png`). On 897d9aed9ffe each list is as wide as the field plus the pick button column but covers no pick button: on A, From's list sits between the From and To rows and the To pick button (about 850,632) stays visible below it (`rounds/r3d1/pilot/T18A/03.png`, `13.png`); earlier notes said the lists ran over the pick buttons. Enter picks the
+  is open (the box's placeholder still shows below it); the one under To covers the Weight label and the top half of its box on B, with the word "None" and the box's arrow still showing below it (`rounds/r3d2/pilot/T18B/06.png`, `12.png`; an earlier note said most of the box, `rounds/r2d2/pilot/T18B/03.png`, `05.png`), and on A the one under To covers the Follow label and the top half of the Out | All row (`rounds/r2d1/pilot/T18A/05.png`; `rounds/r3d1/pilot/T18A/05.png`, `15.png`). On 897d9aed9ffe each list is as wide as the field plus the pick button column but covers no pick button: on A, From's list sits between the From and To rows and the To pick button (about 850,632) stays visible below it (`rounds/r3d1/pilot/T18A/03.png`, `13.png`); earlier notes said the lists ran over the pick buttons. Enter picks the
   suggestion and moves on. The popover covers the lower third of the drawing; it closes when Find path
   runs (`rounds/r1d4/pilot/T18A/10.png`), so it covers part of a highlighted path only when opened
   again after a run (`12.png`), and picking a node in From or To does not mark it on the drawing. The pick
@@ -676,10 +691,10 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   "Size: PageRank" and "Color: PageRank" rows sit below it. On the ranked starts the path's nodes and edges are black and stand
   out from the orange PageRank colors (`rounds/r1d3/pilot/T18A/10.png`, `T18B/06.png`). The
   inspector's icon beside the run's title is the same path icon as the Graph tree row, and after a
-  run the tree's "Shortest path 4 hops" row is highlighted (`T18A/10.png`, `T18B/06.png`). Two
-  layout overlaps can mislead a reader of the drawing: on A, the path's start, Chloe (about
+  run the tree's "Shortest path 4 hops" row is highlighted (`T18A/10.png`, `T18B/06.png`). Layout
+  overlaps can mislead a reader of the drawing: on A, the path's start, Chloe (about
   716,744), half-covers a larger orange node not on it (about 735,744;
-  `rounds/r2/pilot/T18A/10.png`, `11.png`); on B, the highlighted Peruzzi-Bischeri edge passes straight through Castellani, an orange node not on the path (about 713,604; hovering on fabc16247403 put Peruzzi at 697,715, Bischeri at 720,557 and Castellani at 713,604, `rounds/r2d1/pilot/T18B/11.png` to `14.png`). On A's follow-up the highlighted tie from Ravi to Pia (about 507,284 to 692,156) passes straight through Quinn, an orange node not on the path (about 622,209; hovering at 630,218 names Quinn), on 2dcea6dd5bba (`rounds/r2d3/pilot/T18A/16.png`, `17.png`): record any participant who puts Quinn in the Ben to Nora chain. Hovering a node shows no tooltip and no change, though the pointer turns into a hand (`rounds/r2d2/pilot/T18A/12.png`), so the drawing cannot name such a node until names are put on. A chain read off the drawing with
+  `rounds/r2/pilot/T18A/10.png`, `11.png`); also on A's main chain, the highlighted tie from Ivan (about 820,546) to Kofi (about 988,444) passes straight through Jada, an orange node not on the path (about 925,485; the tool's `--hover-at 932,500` names her, while the screen shows no tooltip), the same on 897d9aed9ffe and 26f3bb968e43 (`rounds/r3d1/pilot/T18A/10.png`; `rounds/r3d2/pilot/T18A/10.png`, `11.png`): record any participant who puts Jada in the Chloe to Milo chain; on B, the highlighted Peruzzi-Bischeri edge passes straight through Castellani, an orange node not on the path (about 713,604; hovering on fabc16247403 put Peruzzi at 697,715, Bischeri at 720,557 and Castellani at 713,604, `rounds/r2d1/pilot/T18B/11.png` to `14.png`). On A's follow-up the highlighted tie from Ravi to Pia (about 507,284 to 692,156) passes straight through Quinn, an orange node not on the path (about 622,209; hovering at 630,218 names Quinn), on 2dcea6dd5bba (`rounds/r2d3/pilot/T18A/16.png`, `17.png`): record any participant who puts Quinn in the Ben to Nora chain. Hovering a node shows no tooltip and no change, though the pointer turns into a hand (`rounds/r2d2/pilot/T18A/12.png`), so the drawing cannot name such a node until names are put on. A chain read off the drawing with
   names on is still SD, as below; record any participant who names a node from such an overlap.
   On A the drawing shows each tie's arrowhead in the file's direction, and the chain runs against
   two of them: friends.csv lists Ava,Chloe and Ivan,Ava, so the ties Ava to Chloe and Ivan to Ava
@@ -779,7 +794,7 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   (about x 310 to 548, y 52 to 93; on 8f0d5a6f7791 and earlier "Shortest path" over a black swatch
   "On the path", y 52 to 107), and the route's nodes and edges black and thicker
   (`rounds/r3/pilot/T20A/13.png`).
-  Once the run opens, the Overview is replaced by the run's Values; both are in the right-hand inspector (about x 1200 to 1440), while the left panel holds only the title button "Graph bus-stops.csv" and the tree (`rounds/r3d1/pilot/T20A/07.png`, `13.png`). On 897d9aed9ffe the A end screen is `rounds/r3d1/pilot/T20A/13.png` and the title click `14.png`; B's are `rounds/r3d1/pilot/T20B/13.png` and `16.png`; every value above held. On fabc16247403 the left panel's title "Graph bus-stops.csv" is a button: a click brings back the graph's inspector with "Loaded weight minutes (farther)" and "Direction Directed", the path still highlighted (`rounds/r2d1/pilot/T20A/12.png`). On ddf8b3b63039 nothing brought it back (`rounds/r2/pilot/T20A/14.png` to `19.png`). So after a run a participant may point to Loaded weight or to Made with's Weight row; both are right.
+  Once the run opens, the Overview is replaced by the run's Values; both are in the right-hand inspector (about x 1200 to 1440), while the left panel holds only the title button "Graph bus-stops.csv" and the tree (`rounds/r3d1/pilot/T20A/07.png`, `13.png`). On 897d9aed9ffe the A end screen is `rounds/r3d1/pilot/T20A/13.png` and the title click `14.png`; B's are `rounds/r3d1/pilot/T20B/13.png` and `16.png`; every value above held. On 26f3bb968e43 they are `rounds/r3d2/pilot/T20A/13.png` and `14.png`, B's `T20B/13.png` and `16.png`; every value above held again. On fabc16247403 the left panel's title "Graph bus-stops.csv" is a button: a click brings back the graph's inspector with "Loaded weight minutes (farther)" and "Direction Directed", the path still highlighted (`rounds/r2d1/pilot/T20A/12.png`). On ddf8b3b63039 nothing brought it back (`rounds/r2/pilot/T20A/14.png` to `19.png`). So after a run a participant may point to Loaded weight or to Made with's Weight row; both are right.
   **The wrong answers:** read without the minutes, the program counts links and returns Depot,
   Station, Harbor (2 links, 29 minutes) or Depot, School, Harbor (2 links, 21 minutes); both are
   `weight-not-read`.
@@ -791,7 +806,12 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   from the drawing. The Path popover opens over the lower part of the drawing, where both ends of
   the route are (`rounds/r1d4/pilot/T20B/10.png` to `13.png`). On A no stop names are drawn either,
   and the Park-to-Clinic edge of the highlighted route shows no arrowhead: it ends under the large
-  Clinic node (`rounds/r1d4/pilot/T20A/14.png`).
+  Clinic node (`rounds/r1d4/pilot/T20A/14.png`; `rounds/r3d2/pilot/T20A/13.png`, `14.png`). On B the
+  tool's hover printout for Creek and for Summit is `tooltip: null` (`rounds/r3d2/pilot/T20B/14.png`,
+  `15.png`), and the route's Meadow-to-Ridge edge shows no arrowhead where it meets Ridge (about
+  760,428, `rounds/r3d2/pilot/T20B/13.png`, `16.png`; read from the screenshot only). B's import preview
+  shows the km values without the file's trailing ".0" ("3.0" as 3, "6.0" as 6,
+  `rounds/r3d2/pilot/T20B/03.png`).
 - **Success path (A), the load-time route:** `--click "No thanks"`; `--click "New from data..."`;
   `--click "choose a file..." --upload bus-stops.csv`; open the minutes column's role (click-at
   728,203, the box showing "Attribute"; 728,225 lands on the small type caption under it, "whole
@@ -836,9 +856,11 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   opens the page and chooses the file. "From Depot" and "To Harbor" each count as one step: on
   897d9aed9ffe each is walked as typing the name and then clicking its option, so the walk shows 12
   screenshots through Find path (`rounds/r3d1/pilot/T20A/02.png` to `13.png`); count each
-  type-then-pick pair as one. While open, From's option list ("Depot", about y 612 to 643) covers
-  the To field, and To's ("Harbor") covers the Follow row's Out | All, so the next field is hidden
-  until an option is picked (`rounds/r3d1/pilot/T20A/09.png`, `11.png`). Grade it as the success path: S when it ends right with no
+  type-then-pick pair as one. While open, From's option list ("Depot", about y 612 to 643; B
+  "Trailhead") covers the To field until an option is picked. To's ("Harbor", about y 665 to 697;
+  B "Summit") covers the Follow label and only the top few pixels of the Out | All row (about y 692
+  to 716), so Out and All stay readable (`rounds/r3d2/pilot/T20A/09.png`, `11.png`; `T20B/09.png`,
+  `11.png`; an earlier note said it covered Out | All). Grade it as the success path: S when it ends right with no
   detour. Its screens: the page is titled "Open as a new graph", its Tables list reads "Edges:
   bus-stops.csv, 17 rows" (B "Edges: trails.csv, 13 rows"), its header "bus-stops: 10 nodes, 17
   edges" (B "trails: 9 nodes, 13 edges"), and Direction ("As the file says"), Cancel and Load sit
@@ -916,9 +938,10 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   with nothing on them marking them out of date. The marks are the "Data changed since this run"
   bar, the row's icon, which changes to a history icon with no words, and the drawing's key, whose
   titles read "Size: PageRank, out of date" and "Color: PageRank, out of date" while it still
-  shows the old range (`rounds/r2/pilot/T21A/06.png`, `T21B/06.png`). On B the left panel's
-  title changes from "Graph team.csv" to "Graph team-v2.csv" while the project name in the top
-  bar stays "team" (`T21B/06.png`). The run's time is shown in its
+  shows the old range (`rounds/r2/pilot/T21A/06.png`, `T21B/06.png`). On both halves the left
+  panel's title changes to the new file's name ("Graph friends-v2.csv"; B "Graph team-v2.csv")
+  while the project name in the top bar stays the same ("friends"; B "team"), and nothing on
+  screen says how the two names relate (`rounds/r3d2/pilot/T21A/06.png`, `07.png`; `T21B/06.png`). The run's time is shown in its
   subtitle and under Made with ("Ran Oct 8, 4:33:16 PM"), and it changes on Rerun, so the time
   also tells the participant the run was redone.
 - **Success path (A):** `--click "Values"` (to read the first name before); `--click "Data"`;
@@ -979,6 +1002,13 @@ friends-v2.csv`; `--click "Replace"`; `--click "PageRank"` (after a replacement 
   that the participant caught. **F:** `stale-read`, `added-not-replaced` left in place, `false-done`.
 - **On b6d932823642** every A value and screen above held, by the right-click route in 6 steps
   (`rounds/r3/pilot/T21A/02.png` to `08.png`; Rerun `07.png`, one Tab to the "ran ..." link `08.png`).
+- **On 26f3bb968e43** every A and B value and screen above held, by the right-click route in 6
+  steps: A `rounds/r3d2/pilot/T21A/02.png` to `07.png` (before `02.png`, the Replace page `05.png`, the
+  out-of-date state `06.png`, after Rerun `07.png`, Ran from 4:03:12 PM to 4:04:06 PM); B
+  `rounds/r3d2/pilot/T21B/02.png` to `07.png` (Ran from 4:04:51 PM to 4:05:35 PM). On both halves
+  PageRank's first Values section is headed "Values", as noted for 8f0d5a6f7791. On the Data page
+  the Sources row leads with a small curved-stroke icon that does not read as a file or a table
+  (`rounds/r3d2/pilot/T21B/03.png`).
 - **For graders reading `work.json`:** after the replacement it lists the old file (friends.csv;
   team.csv) under "gone" in sources. That is the replacement the task asks for, not `work-lost`:
   the run and all three layers are kept (`rounds/r2/pilot/T21A/work.json`, `T21B/work.json`).
@@ -1009,13 +1039,13 @@ and the count. Round 3 is compared with round 2 on the grade and the count only,
 - **Success path (A):** `--key /`; `--type "=minutes >= \`10\`"`(a gray line under the box reads
 "Rule: press Enter to select matches");`--key Enter`; read the line under the box or the
 inspector. B: `--type "=shared_chapters >= \`10\`"`. A bare number (`=minutes >= 10`) gets the red line "Put numbers in backticks:" under the box as it is typed, and under it an option row drawn as the marked option: the corrected rule with its "=" ("=minutes >= `10`"; B "=shared_chapters >= `10`") over "Select its matches" (`rounds/r3/pilot/T22A/04.png`, `T22B/04.png`). Enter on it selects the matches and rewrites the box to the corrected rule (`T22A/05.png`, `T22B/05.png`), so the bare-number route is 3 steps, the same as the success path; on 8f0d5a6f7791 and earlier, Enter on the refused rule changed nothing and the correction cost a step. The red line is worded as a refusal while the option under it works: record any participant who retypes instead of pressing Enter. A correction is never a detour. A lone "="
-lists the columns a rule can use (A: id as a node column, minutes as an edge column; B: id, name
+lists, under a "Columns" heading, the columns a rule can use (A: id as a node column, minutes as an edge column, the id row drawn as the marked option, `rounds/r3d2/pilot/T22A/11.png`; B: id, name
 as node columns, shared_chapters as an edge column; the PageRank values are not listed) above
 the layer list, with "Type a rule, such as minutes > `9`" (B: "shared_chapters > `16`",
 `rounds/r1d4/pilot/T22A/03.png`, `T22B/02.png`; on B "Type a rule, such as" sits alone and
 "shared_chapters > `16`" wraps onto the next line). An accepted rule stays in the box after Enter (with no visible text highlight), and the
 line under it reads "3 edges selected" (B "13 edges selected"). A second Enter on the accepted rule
-changes nothing and is not a detour. Typing a rule shows the count ("3 edges selected"; B "13 edges selected") under the box before Enter only when the typed text is the same as the rule that made the current selection (`rounds/r3d1/pilot/T22A/09.png`; `T22B/07.png`); any other text, even a rule that picks exactly the set already selected ("=minutes > `9`" with the 3 edges from "=minutes >= `10`" selected), shows the gray "Rule: press Enter to select matches", as it does when nothing is selected (`rounds/r3d1/pilot/T22A/06.png`; `T22B/11.png`). Enter then gives the count (`rounds/r3d1/pilot/T22A/10.png`). On 897d9aed9ffe every other A and B value held (A `rounds/r3d1/pilot/T22A/04.png`, B `T22B/05.png`, `12.png`). Escape in the box clears the box and keeps the selection; the
+changes nothing and is not a detour. Typing a rule shows the count ("3 edges selected"; B "13 edges selected") under the box before Enter only when the typed text is the same as the rule that made the current selection (`rounds/r3d1/pilot/T22A/09.png`; `T22B/07.png`); any other text, even a rule that picks exactly the set already selected ("=minutes > `9`" with the 3 edges from "=minutes >= `10`" selected), shows the gray "Rule: press Enter to select matches", as it does when nothing is selected (`rounds/r3d1/pilot/T22A/06.png`; `T22B/11.png`). Enter then gives the count (`rounds/r3d1/pilot/T22A/10.png`). On 897d9aed9ffe every other A and B value held (A `rounds/r3d1/pilot/T22A/04.png`, B `T22B/05.png`, `12.png`). On 26f3bb968e43 every A value and route held: the success path (`rounds/r3d2/pilot/T22A/03.png`, `04.png`), Escape (`05.png`), the no-"=" route (`06.png`, `07.png`) and the bare number (`09.png`). Escape in the box clears the box and keeps the selection; the
 line under the box goes with the text, so the count is then read from the inspector or the
 Selection layer row (`rounds/r1d3/pilot/T22A/09.png`, `T22B/08.png`). The "=" list's example ("Type a rule, such as minutes > `9`"; B "shared_chapters > `16`") still comes from the data's own column; on B record any participant who uses 16.
 - **Round 2 route (T22), walked on ddf8b3b63039, and as it is on b6d932823642:** on the round 3
@@ -1230,7 +1260,7 @@ is compared with round 2 on the grade and the number only, not on steps.
 
 ## T12R. One person and who they are tied to, for a returning user
 
-Graded with tier 1's key (`../answers.md`, T12): the same names, counts and grades. What differs from the ranked starts, walked on both halves on fabc16247403 (`rounds/r2d1/pilot/T12RA/`, `T12RB/`) and A again on eaea2a75d95b (`rounds/r2d2/pilot/T12RA/`, every screen below matching; the 5-step path landed on the first try with no script, console or request errors), and both halves again on 8f0d5a6f7791 (`rounds/r2d4/pilot/T12RA/`, `T12RB/`), where the path is 4 steps (below). An older citation is kept only where this build shows the same screen:
+Graded with tier 1's key (`../answers.md`, T12): the same names, counts and grades. What differs from the ranked starts, walked on both halves on fabc16247403 (`rounds/r2d1/pilot/T12RA/`, `T12RB/`) and A again on eaea2a75d95b (`rounds/r2d2/pilot/T12RA/`, every screen below matching; the 5-step path landed on the first try with no script, console or request errors), and both halves again on 8f0d5a6f7791 (`rounds/r2d4/pilot/T12RA/`, `T12RB/`), where the path is 4 steps (below), and on 26f3bb968e43 (`rounds/r3d2/pilot/T12RA/`, `T12RB/`), where the 4-step path landed on the first try with no script, console or request errors. An older citation is kept only where this build shows the same screen:
 
 - **The path is 4 steps on 8f0d5a6f7791** (no sample to open): `--key /`; `--type Javert` (B:
   Medici); `--key Enter`; `--click "Degree"` (the row's name is "Degree 17", B "Degree 6"). On this
@@ -1243,12 +1273,19 @@ Graded with tier 1's key (`../answers.md`, T12): the same names, counts and grad
   keyboard path (`../answers.md`, T12) is one key shorter on this build for the same reason: no
   Down arrow. Expect returning participants to press Down arrow by habit. A's tie inspector reads
   "shared_chapters 17", the same number as Javert's 17 connections; 17 given from that screen,
-  with no names, is not a read of the neighbors. After Enter picks a tie, focus stays in the
-  emptied find box (its ring shows), so a following `/` is typed into the box as text ("No match
-  for "/Javert"", `T12RA/06.png`, `07.png`) and the box has to be cleared by hand.
+  with no names, is not a read of the neighbors. After Enter picks a tie, the find box is
+  empty with no focus ring and no focus mark shows anywhere; a following `/` focuses the box
+  without typing into it, and the name can be typed at once (on 26f3bb968e43, `rounds/r3d2/pilot/T12RA/11.png`
+  to `13.png`; `T12RB/09.png`, `10.png`). On 8f0d5a6f7791 focus stayed in the box, and the `/` was
+  typed into it as text ("No match for "/Javert"", `rounds/r2d4/pilot/T12RA/06.png`, `07.png`).
   After Enter picks the node, focus is in the inspector at the node's title heading, but no mark is drawn: the
-  title is plain white text (`rounds/r1d4/pilot/T12RA/05.png`, `T12RB/05.png`); a keyboard
-  user needs Tab to reach the Degree row. Selecting the node does not move the camera.
+  title is plain white text (`rounds/r1d4/pilot/T12RA/05.png`, `T12RB/05.png`); from the
+  title a keyboard user reaches the Degree row only with the fourth Tab (the "Node actions" (...)
+  button, the Values tab, the Summary section header, then Degree) and opens it with Enter, so the
+  keyboard path from the title is 4 Tabs and Enter, not the 1 Tab tier 1's key counts
+  (`rounds/r3d2/pilot/T12RB/11.png` to `18.png`). The "Node actions" menu (Enter on it) holds Neighborhood
+  G, Path between... P, Frame selection F and Add note N; its Neighborhood item, like the `g`
+  shortcut, opens the same view (`rounds/r3d2/pilot/T12RB/12.png`, `13.png`). Selecting the node does not move the camera.
 - **The node's values:** the inspector header reads "Javert / Node" (a node icon and a color
   swatch beside it) with "Style" and "Values" tabs, Values chosen. The "Summary" section holds id,
   name and the Degree row ("Degree", "17" and a chevron, B "6"); a separate collapsible "Results"

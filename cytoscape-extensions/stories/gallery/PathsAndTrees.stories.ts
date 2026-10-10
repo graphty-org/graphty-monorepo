@@ -9,7 +9,10 @@ export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = overview("PathsAndTrees");
+export const Overview: Story = {
+    ...overview("PathsAndTrees"),
+    parameters: { __id: "gallery--paths-and-trees" },
+};
 
 export const Dijkstra: Story = {
     ...tile("PathsAndTrees", "dijkstra"),

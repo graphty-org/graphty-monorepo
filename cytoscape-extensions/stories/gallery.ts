@@ -86,9 +86,10 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
         }
         const status = document.createElement("div");
         status.dataset.testid = "status";
-        // a fixed height of six lines (a caption, the counts and the backend line), so a long line never moves the tiles
-        // below it
-        status.style.cssText = "padding:4px 6px;height:84px;overflow:hidden;white-space:pre-wrap;font-size:11px;";
+        // at least six lines (a caption, the counts and the backend line); a longer caption wraps, even inside a long
+        // option array, and grows the tile instead of being cut off
+        status.style.cssText =
+            "padding:4px 6px;min-height:84px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;";
         status.textContent = "waiting...";
         cell.append(title, body, status);
         grid.append(cell);

@@ -36,6 +36,17 @@ function layoutOnce(cy: Core, options: Record<string, unknown>): Promise<Backend
 }
 
 /**
+ * Puts every node at the random starting position a force simulation begins from (graphty-random), for a story whose
+ * simulation cannot run here: the network stays on the canvas under the reason.
+ * @param cy - the core
+ * @param seed - the seed
+ * @returns when the nodes are placed
+ */
+export async function scatter(cy: Core, seed: number): Promise<void> {
+    await layoutOnce(cy, { name: "graphty-random", seed, animate: false });
+}
+
+/**
  * The inputs a static layout needs that the graph can supply: three layers for multipartite (by node order), the
  * first node as the root of bfs and radial.
  * @param cy - the core
@@ -94,7 +105,7 @@ export async function runLayout(cy: Core, layout: string, run: LayoutRun): Promi
         // a one-shot layout runs only on the CPU: nothing to report
         return { ran: "cpu", detail: null };
     }
-    return { ran: backend.ran, detail: backend.ran === "gpu" ? backend.device : backend.reason };
+    return { ran: backend.ran, detail: backend.ran === "gpu" ? backend.device : plainReason(backend.reason) };
 }
 
 /**
@@ -964,7 +975,7 @@ export async function runAlgorithm(cy: Core, algorithm: string, run: AlgorithmRu
     if (!b) {
         return { ran: "cpu", detail: NO_GPU, note, ms };
     }
-    return { ran: b.ran, detail: b.ran === "gpu" ? b.device : b.reason, note, ms };
+    return { ran: b.ran, detail: b.ran === "gpu" ? b.device : plainReason(b.reason), note, ms };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -976,19 +987,43 @@ export const CPU_LAYOUT: Pick<Outcome, "ran" | "detail"> = {
 };
 
 /**
+ * The backend's reason for running on the CPU, in a reader's words: the extension's "this runtime has no WebGPU
+ * (navigator.gpu is undefined)" names a browser internal a reader does not need.
+ * @param reason - the extension's reason
+ * @returns the reason to show
+ */
+function plainReason(reason: string): string {
+    return reason.startsWith("this runtime has no WebGPU") ? "WebGPU is not available in this browser" : reason;
+}
+
+/** The color of a node that belongs to no real group: a group of one, such as a football team with no conference. */
+const LONE_GRAY = "#a0a4a8";
+
+/**
  * Colors nodes by a ground-truth field (community, club, conference, ...).
  * @param cy - the core
  * @param field - the node data field, or null for none
+ * @param lone - true paints every group of one node, and every "Independent: ..." value, one neutral gray, so
+ *   groups that are not really groups do not use up the palette's colors
  */
-export function colorBy(cy: Core, field: string | null): void {
+export function colorBy(cy: Core, field: string | null, lone = false): void {
     if (field === null) {
         return;
     }
+    const sizes = new Map<unknown, number>();
+    cy.nodes().forEach((n) => {
+        const v: unknown = n.data(field);
+        sizes.set(v, (sizes.get(v) ?? 0) + 1);
+    });
+    const isLone = (v: unknown): boolean =>
+        lone && (sizes.get(v) === 1 || (typeof v === "string" && v.startsWith("Independent")));
     const groups = new Map<unknown, number>();
     cy.batch(() => {
         cy.nodes().forEach((n) => {
             const v: unknown = n.data(field);
-            if (v !== undefined) {
+            if (isLone(v)) {
+                n.data("color", LONE_GRAY);
+            } else if (v !== undefined) {
                 if (!groups.has(v)) {
                     groups.set(v, groups.size);
                 }

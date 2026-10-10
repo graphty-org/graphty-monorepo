@@ -14,13 +14,13 @@ import csv from "../../graph-io/docs/samples/got-edges.csv?raw";
 import graphml from "../../graph-io/docs/samples/got-network.graphml?raw";
 import movies from "../../graph-io/docs/samples/movies-nodes.csv?raw";
 import movieRels from "../../graph-io/docs/samples/movies-rels.csv?raw";
-import xgmml from "../../graph-io/docs/samples/proteins.xgmml?raw";
 import dot from "../../graph-io/docs/samples/teams.gv?raw";
 import cx from "../../graph-io/test/conformance/fixtures/cx/rcx/Direct-p53-effectors.cx?raw";
 import cysUrl from "../../graph-io/test/conformance/fixtures/cys/tutorials/STELZ.cys?url";
 import gexf from "../../graph-io/test/conformance/fixtures/gexf/graphology/les_miserables.gexf?raw";
 import compound from "../../graph-io/test/conformance/fixtures/json/cytoscape/network-compound-nodes.json?raw";
 import json from "../../graph-io/test/conformance/fixtures/json/jgf/les_miserables.json?raw";
+import xgmml from "../../graph-io/test/conformance/fixtures/xgmml/efi-est/20920_3-oxoacyl_c_20_full_ssn.xgmml?raw";
 import cx2 from "../../graph-io/test/corpus/cx2/emt-network.cx2?raw";
 import obo from "../../graph-io/test/corpus/obo/taxrank.obo?raw";
 import pajek from "../../graph-io/test/corpus/pajek/karate.net?raw";
@@ -172,11 +172,11 @@ const SAMPLES: Record<Exclude<ImportFormat, "auto">, Sample> = {
         label: "title",
     },
     xgmml: {
-        file: "proteins.xgmml",
+        file: "20920_3-oxoacyl_c_20_full_ssn.xgmml",
         text: xgmml,
-        about: "A network saved by Cytoscape desktop as XGMML (MIT), at its saved positions, with each edge's interaction.",
-        label: "label",
-        edgeLabel: "interaction",
+        about: "A sequence similarity network from the EFI-EST web tool (MIT): 105 carrier proteins of natural-product pathways, each named by its Description list, joined where their sequences align; edge width shows the alignment score.",
+        label: "Description",
+        edgeWidth: "alignment_score",
     },
     cx2: {
         file: "emt-network.cx2",

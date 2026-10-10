@@ -59,7 +59,9 @@ function galleryStories(page: GalleryPage): string {
         "",
         "type Story = StoryObj;",
         "",
-        `export const Overview: Story = overview("${page}");`,
+        // the Overview keeps the id the page had as one story of "Gallery" (gallery--layouts, ...), which documentation
+        // and bookmarks link to
+        `export const Overview: Story = {\n    ...overview("${page}"),\n    parameters: { __id: "gallery--${page.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase()}" },\n};`,
         "",
         stories.join("\n"),
     ].join("\n");

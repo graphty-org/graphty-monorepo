@@ -26,7 +26,7 @@ import { elementsOf, GENERATE, markDirected, SIZES } from "./demo.js";
 import { EXAMPLES, spread } from "./examples.js";
 import { formatTile } from "./formats.js";
 import { renderGallery, type Tile } from "./gallery.js";
-import { placeForAlgorithm, runAlgorithm } from "./run.js";
+import { placeForAlgorithm, runAlgorithm, scatter } from "./run.js";
 import { LAYOUT_SHOWCASE, showDataset, showGenerator, showLayout } from "./showcase.js";
 
 const SEED = 42;
@@ -67,10 +67,11 @@ const layouts: Page = {
             } catch (e) {
                 // spring-electrical exists only on the GPU: without one it does not run, and the tile says why
                 if (layout === "spring-electrical" && /no CPU simulation/.test((e as Error).message)) {
-                    cy.elements().remove(); // nothing was placed: an empty tile, not a heap of nodes in a corner
+                    // nothing was placed: the network at the random start the layout would have moved it from
+                    await scatter(cy, SEED);
                     return {
                         ran: "not run",
-                        detail: "graphty-spring-electrical runs only on a GPU, and this browser has no WebGPU. On a machine with one, this tile shows the layout.",
+                        detail: "graphty-spring-electrical runs only on a GPU, and WebGPU is not available in this browser: the nodes are drawn at their random starting positions. On a machine with WebGPU, this tile shows the layout.",
                     };
                 }
                 throw e;

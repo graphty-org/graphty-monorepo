@@ -9,7 +9,10 @@ export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = overview("Layouts");
+export const Overview: Story = {
+    ...overview("Layouts"),
+    parameters: { __id: "gallery--layouts" },
+};
 
 export const ForceAtlas2: Story = {
     ...tile("Layouts", "forceatlas2"),

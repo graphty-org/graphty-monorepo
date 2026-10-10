@@ -5,7 +5,7 @@
 
 import { SIMULATION_LAYOUTS } from "./catalog.js";
 import { renderDemo, type RunArgs, showWorking, SIZES } from "./demo.js";
-import { colorBy, runLayout } from "./run.js";
+import { colorBy, runLayout, scatter } from "./run.js";
 
 export interface LayoutArgs extends RunArgs {
     layout: string;
@@ -21,7 +21,7 @@ export interface LayoutArgs extends RunArgs {
  * Story render: lays the network out with the chosen layout. On 2,000 nodes or more without animation, a CPU
  * simulation still steps one frame at a time under the working overlay (the extension's animated mode), so the page
  * stays live; a GPU run steps asynchronously anyway. A run the runtime cannot do (a GPU-only layout, or gpu: require,
- * without WebGPU) leaves the canvas empty and says why.
+ * without WebGPU) draws the network at its random starting positions and says why.
  * @param args - the story args
  * @returns the story root
  */
@@ -62,12 +62,16 @@ export function renderLayout(args: LayoutArgs): HTMLElement {
         } catch (e) {
             const { message } = e as Error;
             if (/no CPU simulation|gpu: "require"/.test(message)) {
-                cy.elements().remove();
+                // the network stays on the canvas, at the random start the simulation would have moved it from
+                await scatter(cy, args.seed);
                 const why =
                     SIZES[args.size] >= 50_000 && gpuMode === "require"
                         ? "; at this size the story needs WebGPU: the CPU simulations compare every pair of nodes and would take hours"
                         : "";
-                return { ran: "not run", detail: message + why };
+                return {
+                    ran: "not run",
+                    detail: `${message}${why}. The nodes are drawn at their random starting positions.`,
+                };
             }
             throw e;
         } finally {

@@ -654,8 +654,11 @@ export async function showDataset(cy: Core, name: string, seed: number): Promise
         }
         default:
             await placeSettled(cy, seed, name === "les-miserables" ? { weight: "weight" } : {});
-            colorBy(cy, info?.groundTruth ?? null);
-            note = info?.groundTruth ? `${info.title}, colored by ${info.groundTruth}.` : `${info?.title ?? name}.`;
+            // football's eight independent teams are each a "conference" of one: gray, not eight more colors
+            colorBy(cy, info?.groundTruth ?? null, name === "football");
+            note = info?.groundTruth
+                ? `${info.title}, colored by ${info.groundTruth}${name === "football" ? "; the independent teams are gray" : ""}.`
+                : `${info?.title ?? name}.`;
     }
     return `${note}\n${counts(cy)}`;
 }

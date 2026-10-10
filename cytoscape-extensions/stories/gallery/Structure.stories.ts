@@ -9,7 +9,10 @@ export default meta;
 
 type Story = StoryObj;
 
-export const Overview: Story = overview("Structure");
+export const Overview: Story = {
+    ...overview("Structure"),
+    parameters: { __id: "gallery--structure" },
+};
 
 export const WeaklyConnectedComponents: Story = {
     ...tile("Structure", "weaklyConnectedComponents"),

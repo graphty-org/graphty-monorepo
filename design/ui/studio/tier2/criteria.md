@@ -189,9 +189,9 @@ step editor. `tool/bars.mjs` measures tier 1's screens only; it is extended to t
     - **T17 and T18 follow-ups:** every session that finishes the first prompt gets the follow-up
       from the tool (`tool/README.md`), with participants unable to read `tasks.md`; the
       second-time measure is reported on round 3 only.
-  Before the build is frozen, each reworded prompt (T22 A, T22 B, T24 A, T24 B) is piloted in two
-  throwaway sessions on the round 3 candidate build, with the leak closed, and the routes they take
-  are walked in the dry run.
+      Before the build is frozen, each reworded prompt (T22 A, T22 B, T24 A, T24 B) is piloted in two
+      throwaway sessions on the round 3 candidate build, with the leak closed, and the routes they take
+      are walked in the dry run.
 - **Frozen build:** each round serves one copy of `graphty/dist` (`REAL_DIST`), made after the
   preflight passes, so no rebuild changes the app under a session.
 

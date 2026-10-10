@@ -181,7 +181,7 @@ reasons, in short:
 ## Tried: worked / did not work
 
 - 2026-10-09 (round 3 prompts) -- Worked: writing each half's real briefing with `real.mjs
-  --brief <scratch dir> --task T22A --persona <name>` and checking the prompt text the participant
+--brief <scratch dir> --task T22A --persona <name>` and checking the prompt text the participant
   gets, not `tasks.md`; it found the old "where" and Dana's refused briefing. Worked: dropping the
   "kept on purpose" words (data words like minutes, tie) from the avoided list by sentence. Did
   not work: assuming the unchanged sentences were clean because round 1 wrote them.

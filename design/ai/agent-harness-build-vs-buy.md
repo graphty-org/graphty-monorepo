@@ -3,6 +3,9 @@
 A detailed bake-off of TanStack AI, Strands Agents and LangChain createAgent is in
 [agent-harness-bakeoff.md](agent-harness-bakeoff.md).
 
+graphty chose TanStack AI; the design is in
+[tanstack-ai-harness-design.md](tanstack-ai-harness-design.md).
+
 Written 2026-10-09 against master. This document decides which parts of the assistant inside graphty
 can come from an existing agent harness and which graphty must write. The assistant in question runs
 in the reader's browser, inside graphty-element, on the reader's own model key, with no graphty

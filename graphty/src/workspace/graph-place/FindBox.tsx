@@ -75,6 +75,23 @@ function ruleRefusalWords(error: unknown): string | null {
         : "Not a rule Find can read";
 }
 
+/**
+ * A refusal as drawn under the box: the rule it quotes, after the line break, set in monospace
+ * on a line of its own.
+ * @param words - the refusal's words, from `ruleRefusalWords`.
+ * @returns the line.
+ */
+function refusalLine(words: string): React.ReactNode {
+    const [sentence, rule] = words.split("\n");
+    return rule === undefined ? (
+        words
+    ) : (
+        <>
+            {sentence} <span className="ws-find-example ws-mono">{rule}</span>
+        </>
+    );
+}
+
 /** How long typing pauses before the element checks a typed rule. */
 const CHECK_DELAY_MS = 200;
 
@@ -370,26 +387,27 @@ export function FindBox(): React.JSX.Element {
         }
     };
 
+    // A regex or expression is not run while typing; Enter runs it as a selection unless an
+    // option was chosen with the arrows.
+    const runsTyped = found?.notSearchable !== undefined && session !== null && !(isRule && isEmptyRule(text));
+    // The option Enter picks: the first until the arrows move it, and marked as such; none while
+    // Enter would run the typed rule or pattern instead.
+    const target = active >= 0 || runsTyped ? active : 0;
+    const chosen: Option | undefined = options[target];
+
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
         if (event.key === "ArrowDown" && options.length > 0) {
             event.preventDefault();
-            setActive((i) => Math.min(i + 1, options.length - 1));
+            setActive(Math.min(target + 1, options.length - 1));
         } else if (event.key === "ArrowUp" && options.length > 0) {
             event.preventDefault();
-            setActive((i) => Math.max(i - 1, 0));
+            setActive(Math.max(target - 1, 0));
         } else if (event.key === "Enter") {
             event.preventDefault();
-            const chosen = active >= 0 ? options[active] : undefined;
             if (chosen !== undefined) {
                 void pick(chosen);
-            } else if (found?.notSearchable !== undefined && session !== null && !(isRule && isEmptyRule(text))) {
-                // A regex or expression is not run while typing; Enter runs it as a selection.
+            } else if (runsTyped) {
                 void runTyped(session, text);
-            } else {
-                const option = options[Math.max(active, 0)];
-                if (option !== undefined) {
-                    void pick(option);
-                }
             }
         } else if (event.key === "Escape" && text === "") {
             event.preventDefault();
@@ -441,7 +459,7 @@ export function FindBox(): React.JSX.Element {
                     ""
                 ) : (
                     <>
-                        Type a rule, such as <span className="ws-nowrap">{exampleRule(session)}</span>
+                        Type a rule, such as <span className="ws-nowrap ws-mono">{exampleRule(session)}</span>
                     </>
                 ),
         } as const;
@@ -476,9 +494,9 @@ export function FindBox(): React.JSX.Element {
                 aria-autocomplete="list"
                 aria-expanded={open && options.length > 0}
                 aria-controls={open ? listId : undefined}
-                aria-activedescendant={active >= 0 ? optionId(active) : undefined}
+                aria-activedescendant={chosen === undefined ? undefined : optionId(target)}
                 // Mantine ties its error line and the line under the box to it with aria-describedby.
-                error={refusal}
+                error={refusal === null ? null : refusalLine(refusal)}
                 errorProps={{ className: "ws-find-refusal" }}
                 description={showLine ? emptyLine : undefined}
                 descriptionProps={{ role: "status", className: "ws-find-empty" }}
@@ -536,7 +554,7 @@ export function FindBox(): React.JSX.Element {
                                                         <GLYPHS.node size={14} />
                                                     )
                                                 }
-                                                current={i === active}
+                                                current={i === target}
                                                 onClick={() => {
                                                     void pick({ type: "hit", hit });
                                                 }}
@@ -562,7 +580,7 @@ export function FindBox(): React.JSX.Element {
                                             id={optionId(i)}
                                             name={`Select where ${attributeName(session, row.path)} is ${String(row.value)} (${String(row.count)})`}
                                             icon={<GLYPHS.filter size={14} />}
-                                            current={i === active}
+                                            current={i === target}
                                             onClick={() => {
                                                 void pick({ type: "value", row });
                                             }}
@@ -589,7 +607,7 @@ export function FindBox(): React.JSX.Element {
                                             match={word}
                                             path={kindWords(column.kinds)}
                                             icon={<GLYPHS.attribute size={14} />}
-                                            current={i === active}
+                                            current={i === target}
                                             onClick={() => {
                                                 void pick({ type: "column", column });
                                             }}

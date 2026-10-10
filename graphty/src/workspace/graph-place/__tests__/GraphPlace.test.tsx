@@ -213,7 +213,7 @@ describe("the Graph place", () => {
         await userEvent.type(box, "law");
         const list = await screen.findByRole("listbox", { name: "Find results" });
         const options = within(list).getAllByRole("option");
-        assert.isNull(box.getAttribute("aria-activedescendant"), "no row is active until Down");
+        assert.equal(box.getAttribute("aria-activedescendant"), options[0].id, "the first row is active until Down");
 
         for (let i = 0; i < options.length + 2; i++) {
             await userEvent.keyboard("{ArrowDown}");
@@ -230,6 +230,38 @@ describe("the Graph place", () => {
         });
         assert.isNull(store.get().inspected, "the inspector shows what is selected");
         assert.equal((box as HTMLInputElement).value, "", "a pick clears the box");
+    });
+
+    it("marks the option Enter picks from the moment the list shows, and Enter picks it", async () => {
+        const session = await sessionWithGraph();
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+
+        await userEvent.type(box, "Cos");
+        const first = within(await screen.findByRole("listbox", { name: "Find results" })).getAllByRole("option")[0];
+        assert.match(first.textContent ?? "", /Cosette/);
+        assert.equal(first.getAttribute("aria-selected"), "true");
+        assert.equal(box.getAttribute("aria-activedescendant"), first.id);
+        assert.equal(session.selection.size, 0, "the mark selects nothing");
+
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.isTrue(session.selection.has("c"));
+        });
+    });
+
+    it("marks no option while Enter would run the typed rule", async () => {
+        const session = await sessionWithGraph();
+        await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+
+        await userEvent.type(box, "=min");
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        assert.isNull(box.getAttribute("aria-activedescendant"));
+        assert.isNull(within(list).queryByRole("option", { selected: true }));
+        await userEvent.keyboard("{ArrowDown}");
+        assert.equal(box.getAttribute("aria-activedescendant"), within(list).getAllByRole("option")[0].id);
     });
 
     it("picks a value row, selecting every element carrying the value", async () => {
@@ -330,6 +362,9 @@ describe("the Graph place", () => {
         assert.equal(hint.textContent, "Type a rule, such as minutes > `12`");
         // The example rule never breaks; the sentence wraps before it.
         assert.equal(getComputedStyle(example).whiteSpace, "nowrap");
+        // Set like every rule the box quotes.
+        assert.isTrue(example.classList.contains("ws-mono"));
+        const ruleFont = getComputedStyle(example).fontFamily;
         // The theme's field hint (11px, secondary ink), not a 9px caption.
         assert.isTrue(hint.classList.contains("cm-field-description"));
         assert.equal(getComputedStyle(hint).fontSize, "11px");
@@ -337,7 +372,9 @@ describe("the Graph place", () => {
 
         await userEvent.type(box, "minutes >= 10");
         // The reader's own rule, not an example from other numbers, which would get copied.
-        assert.isNotNull(await screen.findByText("Put numbers in backticks: minutes >= `10`"));
+        const suggestion = await screen.findByText("minutes >= `10`");
+        assert.equal(suggestion.parentElement?.textContent, "Put numbers in backticks: minutes >= `10`");
+        assert.equal(getComputedStyle(suggestion).fontFamily, ruleFont);
         assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
         assert.equal(session.selection.size, 0);
 
@@ -381,14 +418,14 @@ describe("the Graph place", () => {
 
         await userEvent.type(box, "=weight > 3{Enter}");
         // The line under the box, not the status region that speaks it.
-        const line = (await screen.findAllByText("Put numbers in backticks: weight > `3`")).find(
-            (each) => each.getAttribute("role") !== "status",
-        );
-        assert.isDefined(line);
+        const rule = await screen.findByText("weight > `3`");
+        const line = rule.parentElement as HTMLElement;
+        assert.equal(line.textContent, "Put numbers in backticks: weight > `3`");
         // It starts where the hint does.
         assert.closeTo(textLeft(line), hintLeft, 1);
-        // The rule takes a line of its own.
-        assert.equal(getComputedStyle(line).whiteSpace, "pre-line");
+        // The rule takes a line of its own, in the monospace face of every rule the box quotes.
+        assert.equal(getComputedStyle(rule).display, "block");
+        assert.isTrue(rule.classList.contains("ws-mono"));
         assert.equal(box.getAttribute("aria-invalid"), "true");
         assert.notEqual(line.id, "");
         assert.include(box.getAttribute("aria-describedby") ?? "", line.id);

@@ -110,7 +110,7 @@ describe("the Graph place on the real element", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "finds and picks with the keyboard alone: / focuses, Down enters the list, Enter picks (T12)",
+        "finds and picks with the keyboard alone: / focuses, the first match is marked, Enter picks it (T12)",
         async () => {
             const { session, store } = await openGraph();
 
@@ -122,7 +122,6 @@ describe("the Graph place on the real element", () => {
             });
             await userEvent.keyboard("Eve");
             await screen.findByRole("listbox", { name: "Find results" });
-            await userEvent.keyboard("{ArrowDown}");
             const active = box.getAttribute("aria-activedescendant");
             assert.isNotNull(active);
             assert.match(document.getElementById(active ?? "")?.textContent ?? "", /Eve/);

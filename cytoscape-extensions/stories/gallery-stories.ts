@@ -135,22 +135,21 @@ const generators: Page = {
     }),
 };
 
-/** Every bundled dataset, laid out and colored to show what it holds. */
+/** Every bundled dataset, laid out and colored to show what it holds; a one-tile story names its source and license. */
 const datasets: Page = {
-    intro: (every) =>
-        `${every ? "Every bundled dataset of cy.graphtyDataset" : "A bundled dataset"}, laid out and colored to show what it holds.`,
+    intro: (every, key) => {
+        const info = DATASETS.find((d) => d.name === key);
+        return every || info === undefined
+            ? "Every bundled dataset of cy.graphtyDataset, laid out and colored to show what it holds."
+            : `${info.title}; license: ${info.license}`;
+    },
     tile: (name) => ({
         title: name,
         load: async (cy) => {
             const { directed } = await cy.graphtyDataset(name);
             markDirected(cy, directed);
         },
-        run: async (cy) => {
-            const info = DATASETS.find((d) => d.name === name);
-            const note = await showDataset(cy, name, SEED);
-            // as the Demo's Dataset story prints it
-            return { ran: "", detail: null, note: info ? `${note}\n${info.title}; license: ${info.license}` : note };
-        },
+        run: async (cy) => ({ ran: "", detail: null, note: await showDataset(cy, name, SEED) }),
     }),
 };
 

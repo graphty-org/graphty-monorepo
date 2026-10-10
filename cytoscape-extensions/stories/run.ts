@@ -8,7 +8,7 @@ import type { Collection, Core, EdgeSingular, LayoutOptions, Layouts, NodeCollec
 
 import { ASYNC_ALGORITHM_NAMES, type Backend, type ExportFormat } from "../src/index.js";
 import { SIMULATION_LAYOUTS } from "./catalog.js";
-import { colorByValue, type Outcome, PALETTE } from "./demo.js";
+import { colorByValue, NO_GPU, type Outcome, PALETTE } from "./demo.js";
 
 type GpuMode = "auto" | "off" | "require";
 
@@ -377,7 +377,7 @@ const GREEN = "#59a14f";
 function mark(c: { data(key: string, value: unknown): unknown }, label?: string): void {
     c.data("mark", true);
     if (label !== undefined) {
-        c.data("label", label);
+        c.data("tag", label);
     }
 }
 
@@ -570,7 +570,7 @@ const PAINTERS: Partial<Record<string, Painter>> = {
                 group: "nodes" as const,
                 data: {
                     id: `c${i}`,
-                    label: String(part.length),
+                    tag: String(part.length),
                     size: 8 + 4 * part.length,
                     ...(part.length > 1 ? { color: PALETTE[k++ % PALETTE.length] } : {}),
                 },
@@ -591,7 +591,7 @@ const PAINTERS: Partial<Record<string, Painter>> = {
         paintByShape(cy, r);
         if (r.length <= 40) {
             r.forEach((n, i) => {
-                n.data("label", String(i + 1));
+                n.data("tag", String(i + 1));
             });
             return "each node numbered by its place in the order: every arrow runs from a lower number to a higher one";
         }
@@ -939,7 +939,7 @@ export async function runAlgorithm(cy: Core, algorithm: string, run: AlgorithmRu
     const note = painted + (asked.length > 0 ? ` (${asked.join(", ")})` : "");
     const b = (r as AnyResult | null)?.backend;
     if (!b) {
-        return { ran: "cpu", detail: "no GPU implementation of this algorithm", note, ms };
+        return { ran: "cpu", detail: NO_GPU, note, ms };
     }
     return { ran: b.ran, detail: b.ran === "gpu" ? b.device : b.reason, note, ms };
 }

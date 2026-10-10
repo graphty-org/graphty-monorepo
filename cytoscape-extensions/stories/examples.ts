@@ -6,7 +6,7 @@
 
 import cytoscape, { type Collection, type Core, type ElementDefinition, type LayoutOptions } from "cytoscape";
 
-import { elementsOf, GENERATE, type Outcome, SIZES } from "./demo.js";
+import { elementsOf, GENERATE, NO_GPU, type Outcome, SIZES } from "./demo.js";
 
 const SEED = 42;
 
@@ -266,7 +266,7 @@ async function cycleCheck(cy: Core): Promise<Outcome> {
     const says = (has: boolean): string => (has ? "has a cycle (red)" : "has no cycle (green)");
     return {
         ran: "cpu",
-        detail: "no GPU implementation of this algorithm",
+        detail: NO_GPU,
         note: `left: ${says(left)}; right, the same graph with one arc added (the curved one): ${says(right)}`,
     };
 }

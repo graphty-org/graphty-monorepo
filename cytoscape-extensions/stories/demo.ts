@@ -162,11 +162,12 @@ const STYLE: StylesheetJson = [
             height: (n: NodeSingular) => sized(n.data("size") as number, 6)(n),
         },
     },
-    // a short label beside a node: its place in an order, "s" and "t", a component's size
+    // a short label beside a node: its place in an order, "s" and "t", a component's size ("tag", so a graph's own
+    // label field, from a file or a dataset, is never drawn by this rule)
     {
-        selector: "node[label]",
+        selector: "node[tag]",
         style: {
-            label: "data(label)",
+            label: "data(tag)",
             "font-size": sized(9, 9),
             "text-valign": "top",
             "text-margin-y": sized(-2),
@@ -380,6 +381,9 @@ export function reportFailure(what: string, e: unknown): void {
 }
 
 /** What the status line reports about one run. */
+/** The reason an algorithm with no GPU implementation gives for running on the CPU; the gallery leaves it out. */
+export const NO_GPU = "no GPU implementation of this algorithm";
+
 export interface Outcome {
     /** "gpu", "cpu", or "not run" (detail then says why). */
     ran: string;

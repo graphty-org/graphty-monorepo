@@ -7,7 +7,16 @@
 
 import type { Core } from "cytoscape";
 
-import { fadeManyEdges, fitToContainer, markDone, newCore, type Outcome, reportFailure, retireAll } from "./demo.js";
+import {
+    fadeManyEdges,
+    fitToContainer,
+    markDone,
+    newCore,
+    NO_GPU,
+    type Outcome,
+    reportFailure,
+    retireAll,
+} from "./demo.js";
 
 /**
  * The backend line of a tile: which backend ran and why, or why nothing ran; nothing when the run has no backend to
@@ -19,7 +28,8 @@ function statusLine(out: Outcome): string {
     if (out.ran === "not run") {
         return out.detail ?? "";
     }
-    if (out.ran === "" || !out.detail) {
+    // only where a GPU could have run: an algorithm with no GPU implementation always runs on the CPU
+    if (out.ran === "" || !out.detail || out.detail === NO_GPU) {
         return "";
     }
     return `Ran on the ${out.ran.toUpperCase()}: ${out.detail}`;
@@ -63,7 +73,7 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
         title.textContent = t.title;
         const body = document.createElement("div");
         // a full tile leaves room for the line above it, its heading and its status line
-        body.style.cssText = `display:flex;${full ? "height:calc(100vh - 140px);" : "height:170px;"}`;
+        body.style.cssText = `display:flex;${full ? "height:calc(100vh - 168px);" : "height:170px;"}`;
         const canvas = document.createElement("div");
         canvas.style.cssText = "flex:1;min-width:0;position:relative;";
         body.append(canvas);
@@ -75,8 +85,9 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
         }
         const status = document.createElement("div");
         status.dataset.testid = "status";
-        // a fixed height, so a long line never moves the tiles below it
-        status.style.cssText = "padding:4px 6px;height:56px;overflow:hidden;white-space:pre-wrap;font-size:11px;";
+        // a fixed height of six lines (a caption, the counts and the backend line), so a long line never moves the tiles
+        // below it
+        status.style.cssText = "padding:4px 6px;height:84px;overflow:hidden;white-space:pre-wrap;font-size:11px;";
         status.textContent = "waiting...";
         cell.append(title, body, status);
         grid.append(cell);

@@ -194,4 +194,59 @@ describe("Filters on the real element", () => {
         },
         TIMEOUT_MS,
     );
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "keeps a half-made step when another item is selected, and adds a whole one",
+        async () => {
+            const { session, store } = await openWithGraph();
+            const attribute = (): HTMLInputElement =>
+                screen.getByRole<HTMLInputElement>("combobox", { name: "Attribute" });
+            await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
+            await userEvent.click(attribute());
+            await userEvent.click(await screen.findByRole("option", { name: "value" }));
+
+            // Selecting the attribute's row moves the inspector off the editor, a rule with no
+            // value adds nothing ...
+            await userEvent.click(await screen.findByRole("treeitem", { name: "value, edge attribute" }));
+            await waitFor(() => {
+                assert.equal(store.get().inspected?.kind, "attribute");
+            });
+            assert.lengthOf(session.visibility.steps, 0);
+            // ... and "+" brings the half-made step back as it was left.
+            await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
+            await waitFor(() => {
+                assert.equal(attribute().value, "value");
+            });
+
+            // Escape in the editor cancels it: the next "+" starts empty.
+            await userEvent.click(screen.getByRole("textbox", { name: "Value" }));
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(store.get().inspected);
+            });
+            assert.equal(store.get().announcement, "Step not added.");
+            await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
+            await waitFor(() => {
+                assert.equal(attribute().value, "");
+            });
+
+            // A whole rule is added when a click leaves the editor, and the inspector stays on
+            // what was clicked.
+            await userEvent.click(attribute());
+            await userEvent.click(await screen.findByRole("option", { name: "value" }));
+            await userEvent.type(screen.getByRole("textbox", { name: "Value" }), "9");
+            await userEvent.click(screen.getByRole("treeitem", { name: "value, edge attribute" }));
+            await waitFor(() => {
+                assert.deepEqual(session.visibility.steps[0]?.rule, {
+                    kind: "range",
+                    attribute: "data.value",
+                    min: 9,
+                    nodes: "ends",
+                });
+            });
+            assert.equal(store.get().inspected?.kind, "attribute");
+            assert.equal(store.get().announcement, 'Saved "value is at least 9". The step is on.');
+        },
+        TIMEOUT_MS,
+    );
 });

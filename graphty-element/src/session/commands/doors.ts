@@ -485,6 +485,7 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     nodeMask: READ,
     edgeMask: READ,
     apply: SELECTION,
+    count: READ,
     clear: SELECTION,
     // The doors test selects node "d1" before calling it.
     promote: calls(
@@ -556,6 +557,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ run: "no-such-run" }],
         [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }],
     ),
+    highlightStyle: READ,
     legend: READ,
     proposeEncoding: READ,
     settled: READ,
@@ -1132,6 +1134,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...SESSION,
             paint: READ,
+            emptyClick: EVENTS,
         },
     },
     {

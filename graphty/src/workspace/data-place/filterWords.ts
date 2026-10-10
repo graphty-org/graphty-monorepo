@@ -71,6 +71,16 @@ export function savedWords(words: string): string {
 }
 
 /**
+ * The status line after Escape closes the step editor without saving: 'Step not added.' for a
+ * new step, 'Not saved: "weight is at least 4" is as it was.' for an edit.
+ * @param words - the saved step's sentence, or null for a new step.
+ * @returns the words.
+ */
+export function cancelledWords(words: string | null): string {
+    return words === null ? "Step not added." : `Not saved: "${words}" is as it was.`;
+}
+
+/**
  * The header chip's tooltip: what is showing, and that a click opens Filters to turn it off.
  * The Filters list is not on the Graph page, so the words say how to reach it.
  * @param on - the sentences of the steps that are on.

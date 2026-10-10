@@ -185,12 +185,10 @@ r2-s32 never learned the tool exists and said this "would not work on a larger n
   action (adding, ticking and deleting a step, Escape from the step editor, the Path popover and the
   find box, Find path, saving a note, each Load, Rerun, Filter to neighbors, Select endpoints).
 
-By hand the accessibility specialist found three severity-3 faults the script does not press, each
+By hand the accessibility specialist found two severity-3 faults the script does not press, each
 from one specialist and so not confirmed: a second Escape in the emptied find box drops focus to the
 page (`FindBox.tsx` blurs on purpose; the script presses Escape once); changing Follow by arrow keys
-moves focus into Hops, so the next arrow changes Hops; "Higher means" and "Each row is" are radio
-groups with no accessible name (confirmed in source; compact-mantine's field label is not tied to
-its segmented control).
+moves focus into Hops, so the next arrow changes Hops.
 
 ### Bar 9 (b), measured
 
@@ -219,7 +217,7 @@ not exist, so none is confirmed by measurement.
    know what a backtick is", would have stopped without copying). Owner: graphty-element (accept a
    bare number), then the app's words.
 
-Severity 3 from one specialist only (each needs a second look or a script): the three accessibility
+Severity 3 from one specialist only (each needs a second look or a script): the two accessibility
 faults above.
 
 **Found by both the sessions and the experts:** drawn names, backticks, the out-of-date state after

@@ -11,94 +11,54 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-09) **Find marks the option Enter picks, and quotes rules in monospace.** `FindBox`
-  derives `target` once (`active`, else the first option unless Enter would run a typed rule or
-  regex, `runsTyped`) and uses it for Enter, `current` and `aria-activedescendant`, so mark and
-  pick cannot disagree; the arrows step from `target`. A lone "=" still marks its first column
-  (Enter picks it, as before). Every quoted rule is `ws-mono`: the "Type a rule, such as" example
-  and the backtick refusal (`refusalLine` splits the refusal's "\n" and sets the rule in a
-  `ws-find-example ws-mono` span; the spoken string is unchanged). Tests in `GraphPlace.test.tsx`
-  (4 fail without it); T12 real-element test no longer presses Down before Enter. Evidence
-  `tmp/r2-dry4-find-box-rule-font-and-enter-target/{T22B/02,03; T23A/02-05}.png`.
-
-- (2026-10-09, condensed) **Run inspector left edges line up:** `OptionsForm fieldInset` insets
-  fields, never the fold toggle; `MadeWith` passes `"md"`. Test
-  `inspector/__tests__/RunAlignment.real-element.test.tsx`. Inspector notes stay at `pl={PAD_LEFT}`.
-
-- (2026-10-09, condensed) **Source inspector header uses its Sources row's icon** (`SOURCE_GLYPHS`
-  in `glyphs.ts`, drawn by `SourceGlyph`). Test in `DataPage.real-element.test.tsx`.
-
-- (2026-10-09, condensed) **A click on a node's drawn name picks the node when its label style sets
-  `pickable: true`** (additive, default unset = today). `Node.createLabel` writes `{ nodeId }` on
-  the label mesh's metadata, so `pickNodeId` resolves it; the app sets it in `appLabelLook` and
-  `topDegreeLabelLayer`. Tests `test/browser/label-click-picks-node.test.ts`, graph-place
-  `tasks.real-element.test.tsx` "a click on a drawn name". T24B success point is 762,145.
-
-- (2026-10-09, condensed) **`real.mjs` reports a click by what happened:** a landed click whose
-  wait ran out prints `slow click (landed)`; setup clicks get 20 s (`SETUP_CLICK_MS`); a hidden or
-  empty tooltip prints `tooltip: null`. Evidence `tmp/r2-dry3-study-tool-click-report/frozen/`.
-
-- (2026-10-09) **The neighbor list opens at the reach of the filter that is on, and its heading
-  wraps.** `selection.neighborhood` (Degree link and `g`, `toolbar/commands.ts`) reads an on
-  neighborhood step seeded on the one center (`filteredReach`) and selects and keys the list at
-  its depth; no such step, one hop. The heading uses compact-mantine `ControlSection wrapLabel`
-  (new, default off; recorded "decided by the team"): a long title wraps, the header grows, so it
-  is never cut and has no tooltip; a cut title without `wrapLabel` still shows the shared tooltip
-  (`EllipsizedName`). Tests: "reopens a node's neighbor list at the reach of its 2-hop filter" in
-  `toolbar/__tests__/tasks.real-element.test.tsx` (fails without the change: list opened at 1
-  hop), two `wrapLabel` cases in `ControlSection.browser.test.tsx`. Evidence
-  `tmp/r2-dry3-neighbor-list-reach-and-heading/T23B/{05,10,11,12,13}.png`, `T12RA/04`, `T12RB/04`.
-  For `real.mjs`: the heading's text now matches 2 things (group, span); hover it as `"<text>#2"`.
-
-- (2026-10-09, condensed) **Import preview caption** "All N rows" / "The first N rows of M"
-  (`previewCaption`, `data-page/words.ts`); "Add a table" tooltip opens left of its "+".
-
-- (2026-10-09, condensed) **A pointer-opened menu highlights no row** (compact-mantine
-  `overlayBehavior.ts`; a key-opened one goes to the first enabled row). `MenuKeys.browser.test.tsx`.
-
-- (2026-10-09, condensed) **Study build is 2dcea6dd5bba** (`tier2/criteria.md` names it; the
-  earlier d5a3bee20b61 is superseded). Re-pilot with `tier2/pilot/repilot.sh`.
-
-- (2026-10-09, condensed) **Find, neighbor list and inspector notes:** the Find refusal starts at
-  the hint's x (`.ws-find-refusal`); the neighbor list is named once (its `ControlSection` group);
-  Filter to neighbors toggles the one neighborhood step on this center at any reach; inspector notes
-  are `size="sm"` with `pl={PANEL_GRID.PAD_LEFT}`. Tests in `GraphPlace`, `Inspector`, `PathForm.real-element`.
-- (2026-10-09, condensed) **Nothing on the Data page moves when a link goes;** a Sources row shows
-  only what its title names (`DataPage.real-element.test.tsx`).
-- (2026-10-09, condensed) **Study screenshots draw native scrollbars** (`measure.mjs` `LAUNCH`
-  drops `--hide-scrollbars`); `work.json` records whole step rules and runs as `technicalName
-plainName`; reports quote names at `NAME_CHARS` = 80. Test `tool/measure.test.mjs`. Bars 2, 7, 8, 9 scored by
-  `bars.mjs`; one 4-browser pool; ambiguous names refused with `"<name>#n"`.
-
-- (2026-10-09, condensed) **Element and tool facts:** `selection:origin-changed` `{ origin }` fires
-  when only a selection's origin changes; a bare-number `suggestion` only when the rewrite parses
-  (`selection-origin.test.ts`, `selector.test.ts`). A notice lasts 6 s (`NOTICE_MS`); `real.mjs`
-  prints `a notice showed and went before this screenshot` (`goneNotices`).
-- (2026-10-09, condensed) **Save and Recent projects:** focus after Save returns to what opened it
-  (no mark after a pointer click, `:focus-visible`); Recent projects' date reads like a note's
-  (`whenWords`, non-breaking spaces). Tests in `Project.real-element.test.tsx`, `project.test.tsx`.
-- (2026-10-09, condensed) **Find's hints show the reader's own rule** (`details.suggestion` from the
-  element, only when it parses; "Start with = to select by a value:"); a condition typed without
-  "=" gets how to write it (`readsAsRule` in `FindBox.tsx`). Tests `selector.test.ts`,
-  `GraphPlace.test.tsx`.
-- (2026-10-09, condensed) **The Data page's root is `.dp-page`** (sharing `.dp` with the Data place
-  let `display: flex` replace its grid, so Load moved); the format button sits on the file heading's
-  line under "File settings". Test in `DataPage.real-element.test.tsx`.
-- (2026-10-09, condensed) **Panels:** the Graph title opens the graph's Overview (`fromRow` in
-  `inspector/inspected.ts` resolves "graph"); the open filter step's row is marked; the
-  neighborhood wears its node's header; `OptionsForm` passes no `value` at a default. Tests in
-  `GraphPlace.test.tsx`, `inspected.test.ts`, `Filters.real-element.test.tsx`, `OptionsForm.test.tsx`.
-- (2026-10-09, condensed) **The dry run walks the detours as a script: `tier2/pilot/detours.sh all`**
-  (30 walks: success paths, `--sr` keyboard walks, round 1's wrong turns, each with `--expect`;
-  report `tier2/dry-run-r2-1.md`). Its fixes: pointerdown no longer canceled (2a236410c), short
-  Select lists open whole (ca3f10515), note focus and Control+Enter (55e71f98e, 0e9e329c6).
-- (2026-10-09) **A style line goes only to a layer its row names; nothing falls back to
-  Everything.** `writeLine(..., fresh)` in `style/row.ts` takes the layer to add as a required
-  argument and throws when there is none; `RowStyle` offers a side only when the row has a layer
-  on it or one to add (PageRank: no Nodes | Edges switch). Test `StyleTab.real-element.test.tsx`;
-  evidence `tmp/t2r1-11/`.
+- (2026-10-09) **Tier 2 round 1 is closed. Its lesson: a dry run that walks only the answer key's
+  routes lets build defects reach participants on the detours.** On walked routes no participant
+  met a broken control (every `session.log` empty); off them they met style-to-Everything, the
+  halo tint, and focus loss after Add/Delete step. Round 2 starts only after the tool is fixed,
+  the bar scripts exist, and the dry run walks detours by pointer AND keyboard on the frozen build.
+- (2026-10-09) **The study tool reached participants more often than the build did.** Over four
+  sessions alive (load ~158, click timeouts), wrong-row matches, synthetic file drop doing nothing,
+  missing follow-ups, a participant reading facilitator files. Treat the tool as a product under
+  test: every tool change gets a planted-failure check before sessions run.
+- (2026-10-09) **Dry run for round 2 = `tier2/pilot/detours.sh all`** (success paths, `--sr`
+  keyboard walks, round 1 wrong turns, each with `--expect`); report `tier2/dry-run-r2-1.md`. Re-run
+  it on every new frozen build; a session starts only when it is clean. Re-pilot: `repilot.sh`.
+- (2026-10-09) **Bars 2, 7, 8, 9 are scored by `tool/bars.mjs`**, each with one planted failure.
+  A bar with no script cannot hold, whatever sessions show.
+- (2026-10-09) **Round 2 build changes landed** (each tested): find hints the rule a typed condition
+  would be; source inspector "..." menu holds Replace and Edit source; a data file from the start
+  screen goes through the Data page; step-editor focus; true load words spoken once; ellipsized
+  find rows; ", out of date" on the canvas key; style lines never fall back to Everything
+  (`writeLine` requires the layer); halo draws back faces only; path Weight starts on the loaded
+  weight.
+- (2026-10-09) **Find marks the option Enter picks** (`target` in `FindBox` drives Enter, `current`
+  and `aria-activedescendant`); quoted rules are `ws-mono`.
+- (2026-10-09) **Label clicks pick the node when the label style sets `pickable: true`**
+  (additive, default off; resolved in `pickNodeId` via label metadata). Decided by the team.
+- (2026-10-09) **The neighbor list opens at the on filter step's reach**; its heading wraps via
+  compact-mantine `ControlSection wrapLabel` (additive). In `real.mjs` hover it as `"<text>#2"`.
+- (2026-10-09) **`real.mjs` reports what happened:** `slow click (landed)`, `tooltip: null`,
+  notices that came and went, ambiguous names refused with `"<name>#n"`; one 4-browser pool.
+- (2026-10-09) **Watch in round 2:** whether find's rule hint lets T22 succeed without help;
+  whether "..." on the source is found for Replace (T21, was median 9 steps); whether the Data-page
+  route costs tier 1's open-your-own-file bar; whether ", out of date" is noticed; any `session.log`
+  line at all (a non-empty log is a dry-run miss, record which detour).
+- (2026-10-09) **Open, not mine to fix in the app:** drawn names overlap and run off the canvas
+  (element label placement, severity 3 class); selection/focus ring contrast (#811); edge width
+  units (`EdgeMesh.ts` *20 and /40) need a script before being called a defect.
+- (2026-10-09) **One-session claims need a script first** (Analyze popover not closing, thin
+  Direction list): never call a defect from one session under load.
+- (2026-10-09) **Left-edge tests measure a Range over contents**, not the padded box.
+- (2026-10-09) **Per-change details for the round 2 fixes** are in this file's git history
+  and in each change's test; this file keeps only the lesson.
 
 ## Decisions and reasons
+
+- (2026-10-09) **Round 2 waits on measurement first.** Round 1 decided: fix the tool, build the bar
+  scripts and walk the detours (pointer and keyboard) before any session, then reproduced defects,
+  then one door per confirmed problem; words at rest do not rise (only the source "..." menu and
+  the key's ", out of date"). Reason: a session spent on a tool or build fault teaches nothing
+  about what returning users need. No breaking API change; nothing for the owner.
 
 - (2026-10-09) **Label picks are an opt-in style field, not a default and not an event.**
   Cytoscape.js passes label clicks through; a reading app wants a name to pick its node -- a

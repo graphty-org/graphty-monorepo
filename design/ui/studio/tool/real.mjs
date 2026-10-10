@@ -88,7 +88,7 @@ const files = join(here, "files");
 const tier2 = join(here, "../tier2");
 const setups = join(here, "../rounds/tier-2/setups");
 const gate = join(here, "with-browser.sh");
-// The tier 1 workspace is reached with ?next until the Switch-over makes it the default (graphty/src/App.tsx)
+// The tier 1 workspace is the app's default; ?next still reaches it (graphty/src/App.tsx)
 const TIER1 = "/?next";
 // REAL_VIEWPORT=<w>x<h> sets the window for a screenshot audit at other sizes; studies keep 1440 x 900
 const [vw, vh] = (process.env.REAL_VIEWPORT || "1440x900").split("x").map(Number);

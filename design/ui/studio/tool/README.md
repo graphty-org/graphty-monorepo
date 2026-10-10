@@ -6,7 +6,7 @@ settle, and saves a numbered screenshot of the whole 1440 x 900 window after eve
 session is one live browser, so the graph stays exactly where the participant last saw it.
 
 The app under study is the production build in `graphty/dist` of this worktree, opened at `/?next`
-(the tier 1 workspace; the parameter goes away when that workspace becomes the default). The tool
+(the tier 1 workspace, now the app's default; the parameter is kept so old links work). The tool
 serves the build itself on a loopback port, so no dev server or network is involved. Rebuild the
 app after changing it: `pnpm exec nx run graphty:build` from the worktree root, with the Sentry
 variables unset. To study a build that others' rebuilds must not replace mid-session, copy

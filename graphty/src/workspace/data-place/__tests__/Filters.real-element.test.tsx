@@ -194,4 +194,41 @@ describe("Filters on the real element", () => {
         },
         TIMEOUT_MS,
     );
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "keeps a half-made step when another item is selected, until it is added or cancelled",
+        async () => {
+            const { store } = await openWithGraph();
+            const attribute = (): HTMLInputElement =>
+                screen.getByRole<HTMLInputElement>("combobox", { name: "Attribute" });
+            await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
+            await userEvent.click(attribute());
+            await userEvent.click(await screen.findByRole("option", { name: "value" }));
+            await userEvent.type(screen.getByRole("textbox", { name: "Value" }), "9");
+
+            // Selecting the attribute's row moves the inspector off the editor ...
+            await userEvent.click(await screen.findByRole("treeitem", { name: "value, edge attribute" }));
+            await waitFor(() => {
+                assert.equal(store.get().inspected?.kind, "attribute");
+            });
+            // ... and "+" brings the half-made step back as it was left.
+            await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
+            await waitFor(() => {
+                assert.equal(attribute().value, "value");
+            });
+            assert.equal(screen.getByRole<HTMLInputElement>("textbox", { name: "Value" }).value, "9");
+
+            // Escape in the editor cancels it: the next "+" starts empty.
+            await userEvent.click(screen.getByRole("textbox", { name: "Value" }));
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(store.get().inspected);
+            });
+            await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
+            await waitFor(() => {
+                assert.equal(attribute().value, "");
+            });
+        },
+        TIMEOUT_MS,
+    );
 });

@@ -20,7 +20,7 @@ import {
     Text,
     Tooltip,
 } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
@@ -48,6 +48,8 @@ interface Outcomes {
 /** Where focus goes once the Filters section draws the steps next: a step's row, or `PLUS` for "+". */
 const PLUS = "+";
 let pendingFocus: string | null = null;
+/** A new step left half-made when the inspector moved on, kept until it is added or cancelled. */
+let draft: { readonly session: GraphSession; readonly fields: Fields } | null = null;
 
 /**
  * Asks the Filters section to focus a step's row, or "+" (`PLUS`), once it has drawn the steps
@@ -380,10 +382,25 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     const steps = session?.visibility.steps ?? [];
     const step = steps.find((s) => s.id === id);
     const filled = id.startsWith(`${NEW}:`) ? id.slice(NEW.length + 1) : "";
-    const [fields, setFields] = useState<Fields>(() => fieldsOf(step, attributes, filled));
+    // "+" reopens a new step the reader left half-made by selecting something else
+    const [fields, setFields] = useState<Fields>(() =>
+        id === NEW && draft !== null && draft.session === session ? draft.fields : fieldsOf(step, attributes, filled),
+    );
     const set = (next: Partial<Fields>): void => {
         setFields((now) => ({ ...now, ...next }));
     };
+    const latest = useRef(fields);
+    latest.current = fields;
+    // false once the reader adds the step or closes the editor with Escape: nothing to keep then
+    const keep = useRef(true);
+    useEffect(
+        () => () => {
+            if (id.startsWith(NEW)) {
+                draft = keep.current && session !== null ? { session, fields: latest.current } : null;
+            }
+        },
+        [id, session],
+    );
     const seeds = session?.selection.nodes ?? [];
     const attribute = attributes.find((a) => `${a.kind}:${a.path}` === fields.attribute);
     // A neighbors step keeps its own seeds unless the editor opened on a new selection.
@@ -427,6 +444,7 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                 ? [...steps, { id: added, on: true, rule }]
                 : steps.map((s) => (s.id === step.id ? { ...s, rule, on: true } : s));
         // The editor closes; focus goes to the step's row.
+        keep.current = false;
         focusNext(added);
         if (!(await writeSteps(session, store, next))) {
             pendingFocus = null;
@@ -455,6 +473,7 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                 if (isPanelEscape(event.nativeEvent)) {
                     event.preventDefault();
                     event.stopPropagation();
+                    keep.current = false;
                     focusStep(step?.id ?? PLUS);
                     store.set({ inspected: null });
                 }

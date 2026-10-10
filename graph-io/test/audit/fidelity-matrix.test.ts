@@ -642,6 +642,10 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     ["W_RELATION_ASSUMED", { global: ["edges.relation:*"] }],
     ["W_OBO_TYPE_GAINED", { global: ["nodes.type:extra"] }],
     ["W_OBO_EDGE_ORDER", { global: ["topology", "weights", "edges.*:value"] }],
+    ["W_OBOGRAPHS_EDGE_COLUMN_AS_META", { global: ["edges.meta:*", "weights", "flags"], column: MISSING_CLASS }],
+    ["W_OBOGRAPHS_ID_CHANGED", { global: ["ids", "topology", "edges.relation:value"] }],
+    ["W_OBOGRAPHS_DATATYPE_DROPPED", { column: ["value"] }],
+    ["W_OBOGRAPHS_TYPE_GAINED", { global: ["nodes.type:extra"] }],
     // the cross-format trip compares no graph meta (metaDiffs runs in same-format trips only), and the
     // ontology id is the header's, not a column's
     ["W_OBO_ONTOLOGY_NAME", { unobservable: true }],
@@ -1022,17 +1026,37 @@ describe("fidelity matrix: coverage", () => {
     });
 });
 
+interface Destination {
+    /** "gexf", or "json (obographs)" for a dialect. */
+    readonly label: string;
+    readonly format: CorpusFormat;
+    readonly options: AnyExportOptions;
+    /** Whether the destination writes another dialect than the format's default, so a file of the format goes there too. */
+    readonly dialect: boolean;
+}
+
+/** Every target in its default form, plus the dialects a target writes besides its default. */
+const DESTINATIONS: readonly Destination[] = [
+    ...TARGETS.map((format) => ({ label: format, format, options: exportOptionsFor(format), dialect: false })),
+    {
+        label: "json (obographs)",
+        format: "json",
+        options: { ...exportOptionsFor("json"), dialect: "obographs" },
+        dialect: true,
+    },
+];
+
 describe("fidelity matrix: every ordered pair of formats", () => {
     for (const input of INPUTS) {
-        for (const target of TARGETS) {
-            if (target === input.format) {
+        for (const { label: target, format, options, dialect } of DESTINATIONS) {
+            if (format === input.format && !dialect) {
                 continue;
             }
             describe(`${input.label} -> ${target}`, () => {
                 let cached: Promise<Trip> | null = null;
                 const run = (): Promise<Trip> => {
                     if (cached === null) {
-                        cached = original(input).then((o) => trip(o.snapshot, target, exportOptionsFor(target), {}));
+                        cached = original(input).then((o) => trip(o.snapshot, format, options, {}));
                     }
                     return cached;
                 };

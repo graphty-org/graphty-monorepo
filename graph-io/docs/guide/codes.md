@@ -319,6 +319,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_OBOGRAPHS_DATATYPE_DROPPED"></a>`W_OBOGRAPHS_DATATYPE_DROPPED`: Obographs: a property_value's xsd datatype has no place in basicPropertyValues and reads back unset. Save: [json](./formats/json.md).
 - <a id="W_OBOGRAPHS_EDGE_COLUMN_AS_META"></a>`W_OBOGRAPHS_EDGE_COLUMN_AS_META`: Obographs: an edge column (or the explicit weights) is written into each edge's meta and reads back inside the meta column. Save: [json](./formats/json.md).
 - <a id="W_OBOGRAPHS_ID_CHANGED"></a>`W_OBOGRAPHS_ID_CHANGED`: Obographs: a node id or relation is written as an IRI the importer's default oboIds "curie" reads back as another id. Save: [json](./formats/json.md).
+- <a id="W_OBOGRAPHS_TYPE_GAINED"></a>`W_OBOGRAPHS_TYPE_GAINED`: Obographs: a graph without a node type column is written with CLASS nodes and reads back with a type column holding Term. Save: [json](./formats/json.md).
 - <a id="W_OBO_CARDINALITY"></a>`W_OBO_CARDINALITY`: A frame has only one `intersection_of` or `union_of` clause, where OBO needs at least two. Import: [obo](./formats/obo.md).
 - <a id="W_OBO_DEPRECATED_SYNTAX"></a>`W_OBO_DEPRECATED_SYNTAX`: A backslash line continuation (deprecated in 1.4). Import: [obo](./formats/obo.md).
 - <a id="W_OBO_DEPRECATED_TAG"></a>`W_OBO_DEPRECATED_TAG`: An OBO 1.0 / 1.2 tag read as its 1.4 meaning (exact_synonym, xref_analog, use_term, typeref, version). Import: [obo](./formats/obo.md).

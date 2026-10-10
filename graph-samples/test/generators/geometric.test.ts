@@ -281,6 +281,11 @@ describe("waxmanGraph", () => {
         expect(full.src.length).toBe(4950);
     });
 
+    it("keeps every pair at a huge alpha and none at a tiny one", () => {
+        expect(waxmanGraph({ n: 50, alpha: 1e120, beta: 1, seed: 2 }).src.length).toBe(1225);
+        expect(waxmanGraph({ n: 50, alpha: 1e-120, beta: 1, seed: 2 }).src.length).toBe(0);
+    });
+
     it("rejects bad options and caps the pair walk", () => {
         expect(() => waxmanGraph({ n: -1, alpha: 0.1, beta: 0.1 })).toThrow(RangeError);
         expect(() => waxmanGraph({ n: 10, alpha: 0, beta: 0.1 })).toThrow(RangeError);

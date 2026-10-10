@@ -11,6 +11,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Built: a selection's own row made from a rule is named by the rule.**
+  `selectionName` in `style/StyleTab.tsx` reads `session.selection.origin`: a text origin that
+  starts with "=" names the row by the rest ("minutes >= `10`"), shown in the layer list, the
+  inspector header and the key ("Edge color: minutes >= `10`"); every other selection keeps its
+  node id, edge ends or count. Walk: `tmp/t2r2b-8/rule/06-09.png`. Open: on that walk the new
+  edge Color line showed 000000, not the band's 0077BB the highlight-look test expects -- check
+  whether `highlightStyle("edge")` or the walk's Line + Color path differs from the test's.
 - (2026-10-10) **Built: readers' words find Shortest path in the Analyze list.** Aliases now
   include "linked", "between", "in between", "fewest", "chain" (search only, never shown;
   "linked" replaced "link", which it contains). Walk on 3ee5ca8b0e01: Shift+A, "linked",
@@ -54,14 +61,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   highlight look (`styles.highlightStyle`; open: width 24 band covers the tie); an Add that
   repeats loaded ties says so and offers Replace. Dry run verdict: ~30 of ~355 problems were build
   faults, 12 on the one detour no dry run walked (styling a selection): walk what participants do.
-- (2026-10-09) **Find box, severity 3:** "chapters 10" says only "No match". Proposed: when plain
-  text names part of a column the app already lists after "=", hint "=<column> >= `10`"; for bare
-  numbers an opt-in element parse option (`bareNumbers`, default off, additive) instead of changing
-  what the selector accepts (that would be breaking).
 - (2026-10-09) **Drawn names covering names and the picked tie stay graphty-element's** (label
   placement, no size floor). Not a round 3 app change; no workaround in the app.
-- (2026-10-09) **A layer made from a rule should be named by the rule**, not "13 edges"
-  (`selection.origin.text` is already read in `FindBox`). Smallest fix for "the key says nothing".
 - (2026-10-09) **Open from the round 2 audit, app:** two-table source has no Edit/Replace and no
   reason; "Edit source..." lands on "Replace: ..."; the refused rule's fix drops "="; neighbor
   Back row scrolls the inspector sideways.
@@ -77,6 +78,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-10) A rule selection's row takes the rule's text without its "=", trimmed, not a
+  sentence ("Edges where ..."): the rule is the reader's own words and the key already titles the
+  section "Edge color: <row>". Only text origins starting with "=" count; a plain text search or a
+  `{ where }` target keeps the count, since the first is not a rule and the second has no text a
+  reader typed. A hand-picked set with the same ids as an earlier rule reuses that rule's row
+  (rows are found by ids), so it shows the rule's name -- left as is.
 - (2026-10-10) **Path search words go in aliases, not in the line a reader sees.** Matching
   is a substring of name, line, aliases, key; a word in the line would also be shown. The test
   asserts Shortest path is among the results for each word, not alone: "between" rightly also
@@ -114,33 +121,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   `pathLengthWords`, with the inspector's distance-only rule for "Total <column>". Unweighted (or a
   non-distance weight) keeps "4 hops". No element change: `cost` and `caveats.weight` were
   already published.
-- (2026-10-09) **Only participant folders are refused in the studio, not every folder.** Pilots,
-  experts, graders' repros and `--prove` start under `design/ui/studio` by design; a literal "refuse
-  anything under the studio tree" would break them. A participant folder is recognized by place
-  (`rounds/*/sessions/*`, the old layout) or by holding `briefing.md`. Scratch mirrors the studio
-  path so `--end` and the plan lookup need no record file. The leak check is the backstop, since
-  `tmp/studio-sessions/` is still in the same repository: it flags facilitator names anywhere, any
-  `personas/` path, any studio path but its own copy, `real.mjs` and `tool/files/`, any `..`, and a
-  Grep/Glob with no folder. Checked on r2-s05's real log: it names `tasks.md` and the persona read.
-
-- (2026-10-09) **A bigger target is the input itself, not a pseudo-element hit area.** axe measures
-  the focusable element's box, so a `::after` hit area clicks but still fails target-size (it did,
-  in a probe: "12px by 12px", the containing tree row as the too-near neighbor). The input is the
-  24 px target and draws nothing; `background-clip: content-box` with 12 px padding hides its
-  face, `::before` (`border-color`/`background-color: inherit`) draws the box, so every state rule
-  keeps working; `outline-offset: -5px` keeps the ring 1 px off the drawn box. xs only (keyed on
-  Mantine's `data-size`). Limit: on rows under 24 px the area overhangs 2 px; a row painted later
-  (positioned, as Tree's) wins that overlap, so the next row keeps its clicks, but the next row's
-  box takes the previous row's bottom 2 px. Real filter rows are 44 px.
-- (2026-10-09) **Scroll the arrows' row with `scrollIntoView({ block: "nearest" })`, keyed on the
-  option id, not on every render** (a render-time scroll would fight a reader's wheel). The first
-  row of a group brings its heading too, or ArrowUp to the top hides "Nodes 64".
-
-- (2026-10-09) **The line lands on the row's own topmost layer, so read its selector, not
-  `fresh`.** After a selection's first edit the inspector moves to the new layer's row, where
-  `fresh` is undefined; reading `fresh?.selector` gave Color the highlight and Width the default.
-  The real-element test caught it (width 8, not 24). Rejected: a scaled width in the app (copies
-  an element constant and hides the units question).
+- (2026-10-09, summarized 2026-10-10) **Study folders, targets, scrolling, selection lines:**
+  only participant folders (`rounds/*/sessions/*` or holding `briefing.md`) are refused in the
+  studio; pilots, experts and `--prove` start there by design, and the leak check is the backstop.
+  A 24 px xs checkbox target is the input itself (axe measures the focusable box; a `::after` hit
+  area still fails), its face drawn by `::before`. The find list scrolls the arrows' row with
+  `scrollIntoView({ block: "nearest" })` keyed on the option id, never every render. A selection
+  row's line reads its own topmost layer's selector, not `fresh` (undefined after the first edit).
 
 - (2026-10-09, condensed) **Read the report type before adding a field:** the repeated-ties count
   already existed (`repeated.seen`); the defect was the measured merge, fixed in the element.
@@ -228,6 +215,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-10) Worked: proving the rule-name test fails by disabling the branch (`&& false`)
+  gave "expected [ '2 edges' ] to deeply equal [ 'minutes >= `10`' ]". Did not work at first: a
+  rule typed with backticks gets no option row under the box (only "Rule: press Enter to select
+  matches"), so the test waits for that line, not an option.
 - (2026-10-10) Worked: a real-element test with real typing for every path a unit adds. The
   backtick-typed condition failed only there (edge column counted as a node scope). Did not work:
   running vitest while another agent rebuilt the shared dists (graph-io chunks missing, "Failed to

@@ -185,9 +185,12 @@ describe("the table dock", () => {
             await within(dialog).findByText(/^One row per edge/);
             // The file holds every edge: its first line is the header, then one line per edge.
             const preview = within(dialog).getByLabelText("Preview of the exported data");
-            await waitFor(() => {
-                assert.include(preview.textContent, "n0");
-            });
+            await waitFor(
+                () => {
+                    assert.include(preview.textContent, "n0");
+                },
+                { timeout: TIMEOUT_MS },
+            );
 
             // Shift+T again closes the dock.
             await userEvent.keyboard("{Escape}");

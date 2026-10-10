@@ -21,8 +21,8 @@ function ofWords(part: number, whole: number): string {
 /**
  * The graph's Values tab, the Overview (tier1-design.md section 2.7, task T6): every count the
  * element publishes about the graph's shape, each that can be selected a link that selects it.
- * While a filter step is on, it leads with the element's visible counts and says that the rest
- * are for the whole graph, so a reader does not take them for what is showing.
+ * While a filter step is on, it leads with the element's visible counts and heads the rest "Full
+ * graph", the key's word for the same scope, so a reader does not take them for what is showing.
  * @returns The Overview
  */
 export function Overview(): React.JSX.Element | null {
@@ -54,7 +54,7 @@ export function Overview(): React.JSX.Element | null {
                     <DataRow stat name="Nodes showing" value={ofWords(showing.visibleNodes, showing.totalNodes)} />
                     <DataRow stat name="Edges showing" value={ofWords(showing.visibleEdges, showing.totalEdges)} />
                     <Text size="sm" c="dimmed" pl={PANEL_GRID.PAD_LEFT} pr={PANEL_GRID.PAD_RIGHT} py={2}>
-                        The counts below are for the whole graph.
+                        Full graph
                     </Text>
                 </>
             )}

@@ -163,7 +163,7 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
             p="xs"
         >
             <Stack gap="xs">
-                {sections.map(({ title, block, entry }) => {
+                {sections.map(({ title, block, entry, merged }) => {
                     const continuous = block.kind === "sequential" || block.kind === "diverging";
                     return (
                         <fieldset
@@ -171,10 +171,17 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
                             aria-label={title}
                             className="ws-legend-section"
                         >
-                            <Text size="xs" fw={500}>
-                                {title}
-                            </Text>
-                            {continuous ? <Ramp block={block} title={title} /> : <List block={block} entry={entry} />}
+                            {/* A run's one highlight is one line: its chip beside the run's name. */}
+                            {!merged && (
+                                <Text size="xs" fw={500}>
+                                    {title}
+                                </Text>
+                            )}
+                            {continuous ? (
+                                <Ramp block={block} title={title} />
+                            ) : (
+                                <List block={block} entry={merged ? title : entry} />
+                            )}
                         </fieldset>
                     );
                 })}

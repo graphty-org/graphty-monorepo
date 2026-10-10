@@ -178,10 +178,10 @@ describe("the legend card's words", () => {
         };
         const sections = keySections([ranked, edges, nodes], names);
         assert.deepEqual(
-            sections.map(({ title, entry }) => [title, entry]),
+            sections.map(({ title, entry, merged }) => [title, entry, merged]),
             [
-                ["Shortest path", "On the path"],
-                ["Color: PageRank", "pagerank"],
+                ["Shortest path", "On the path", true],
+                ["Color: PageRank", "pagerank", false],
             ],
         );
         assert.deepEqual(imageLegend([ranked, edges, nodes], names)[0], {
@@ -208,8 +208,10 @@ describe("the legend card's words", () => {
             status: "succeeded",
             stale: null as Run["stale"],
         };
+        const summary = { visibleNodes: 15, totalNodes: 20 };
         const session = {
             runs: { get: () => run },
+            visibility: { summary },
             styles: { get: () => undefined },
             sets: { get: () => undefined },
             catalog: { algorithms: () => [{ key: "pagerank", plainName: "PageRank" }] },
@@ -219,8 +221,15 @@ describe("the legend card's words", () => {
         assert.equal(title(), "Size: PageRank");
         run.stale = { reason: "data-changed" } as unknown as Run["stale"];
         assert.equal(title(), "Size: PageRank, out of date");
-        // A filter step since the run: the values still hold for the nodes it ran on.
+        // A filter step since a run on every node: the values still hold, and the key says so only
+        // while the drawing shows fewer.
         run.stale = { reason: "scope-changed", ranOn: 20, nowVisible: 15 } as unknown as Run["stale"];
-        assert.equal(title(), "Size: PageRank on 20 nodes");
+        assert.equal(title(), "Size: PageRank, full graph");
+        // As many drawn as it ran on: nothing to tell apart, so no scope words.
+        summary.visibleNodes = 20;
+        assert.equal(title(), "Size: PageRank");
+        // A narrower run than the whole graph, with another count drawn: its own count.
+        run.stale = { reason: "scope-changed", ranOn: 12, nowVisible: 15 } as unknown as Run["stale"];
+        assert.equal(title(), "Size: PageRank on 12 nodes");
     });
 });

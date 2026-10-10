@@ -7,8 +7,8 @@
  * result and the style each element is drawn with. The element resolves all of it into one
  * graph-format snapshot -- positions into the `position` role column, colours, sizes and edge
  * widths into the `color`, `size` and `thickness` role columns, results into attribute columns
- * named by their result path, a partition's group as its rank (the "Group 2" the summary and the
- * legend print, not the algorithm's own group id) -- and the exporter writes what its format has
+ * named by their result path (a partition's group as the algorithm's group id, or with
+ * `{ groupRanks: true }` as its rank by size, 1 for the largest) -- and the exporter writes what its format has
  * a place for. The exporter's `check()` lists everything else as a loss note, so nothing is
  * dropped silently.
  *
@@ -280,6 +280,8 @@ interface ExportBuildOptions {
     readonly neutraliseFormulas?: boolean;
     /** Write the note columns. The `notes` option every writer takes; off by default. */
     readonly notes?: boolean;
+    /** Write a partition's group as its rank by size. The `groupRanks` option; off by default. */
+    readonly groupRanks?: boolean;
     /** The writer writes the node table alone (a CSV node table): report no edge or graph loss. */
     readonly nodesOnly?: boolean;
 }
@@ -505,7 +507,7 @@ export function buildExportSnapshot(
         });
     }
 
-    writeResults(session, builder, options.nodesOnly === true ? [] : notes, cell);
+    writeResults(session, builder, options.nodesOnly === true ? [] : notes, cell, options.groupRanks === true);
     const held = session.notes.counts().notes;
     if (held > 0) {
         if (options.notes === true) {
@@ -543,12 +545,14 @@ export function buildExportSnapshot(
  * @param builder - The export's builder, rows in the session's order.
  * @param notes - Receives a note for each field no column could hold.
  * @param cell - What each column name and text value goes through.
+ * @param groupRanks - Write a partition's group as its rank by size instead of its group id.
  */
 function writeResults(
     session: GraphSession,
     builder: GraphBuilder,
     notes: LossNote[],
     cell: <T>(value: T) => T | string,
+    groupRanks: boolean,
 ): void {
     const nodes = session.data.nodes();
     const edges = session.data.edges();
@@ -558,10 +562,10 @@ function writeResults(
             continue;
         }
 
-        // A partition's group is written as its rank, the number the run summary, the legend and a
-        // page column name it by ("Group 2"), so a table read beside the picture joins it; the
-        // algorithm's own group ids are arbitrary labels.
-        const ranks = partitionGroupRanks(result);
+        // Asked for, a partition's group is written as its rank, the number a summary or a legend
+        // can name it by ("Group 2"), so a table read beside the picture joins it. Otherwise the
+        // file holds the algorithm's own group ids, as the live result does.
+        const ranks = groupRanks ? partitionGroupRanks(result) : undefined;
         for (const field of result.fields) {
             const name = cell(session.results.path(root.runId, field.name));
             const ranked = ranks !== undefined && (field.name === "group" || field.name === "sizes");
@@ -649,13 +653,13 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     } else if (registered !== undefined) {
         declared = [...(registered.writerOptions ?? []), ...COMMON_WRITER_OPTIONS];
     }
-    // `notes` is the element's own option; no exporter reads it.
-    const { notes, ...resolved } = resolveOptionValues(declared, options, { kind: "format", id: format });
+    // `notes` and `groupRanks` are the element's own options; no exporter reads them.
+    const { notes, groupRanks, ...resolved } = resolveOptionValues(declared, options, { kind: "format", id: format });
     if (format !== "csv") {
         return {
             exporter: builtIn ?? (registered as FormatWriterRegistration).exporter,
             options: resolved,
-            build: { notes: notes === true },
+            build: { notes: notes === true, groupRanks: groupRanks === true },
         };
     }
 
@@ -674,6 +678,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
         build: {
             neutraliseFormulas: neutraliseFormulas !== false,
             notes: notes === true,
+            groupRanks: groupRanks === true,
             nodesOnly: !neo4j && rest.table === "nodes",
         },
     };

@@ -98,9 +98,11 @@ function keyOptions(row: FormatRow): readonly OptionDescriptor[] {
 }
 
 /**
- * The writer options for a row: its preset, each key option's value (the first choice when none
- * is set), then every other option of the row the reader set; the rest stay the element's
- * defaults.
+ * The writer options for a row: the app's own defaults, its preset, each key option's value (the
+ * first choice when none is set), then every other option of the row the reader set; the rest stay
+ * the element's defaults. The app's one default of its own: a partition's group is written as its
+ * rank by size (`groupRanks`), the "Group 2" the legend and the summaries name it by, so an
+ * exported table joins the picture.
  * @param row - the row.
  * @param values - the choices' values.
  * @returns the options for `exportGraph` / `downloadGraph`.
@@ -117,7 +119,8 @@ export function writerOptions(row: FormatRow, values: DataChoices["values"]): Re
             values[option.name] ?? option.default ?? option.values?.[0]?.value,
         ]),
     );
-    return { ...row.preset, ...set, ...chosen };
+    const ranks = row.options.some((option) => option.name === "groupRanks") ? { groupRanks: true } : {};
+    return { ...ranks, ...row.preset, ...set, ...chosen };
 }
 
 /** The preview stops at this many lines or this many characters, whichever comes first. */

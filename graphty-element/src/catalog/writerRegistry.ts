@@ -40,8 +40,8 @@ export interface FormatWriterRegistration {
 
 /**
  * The options every writer takes, whatever the format: graph-io's `sanitizeIds` and
- * `onMixedDirection`, and the element's own `notes`, which the element reads and never hands to
- * the exporter. All `advanced`: a picker can leave them folded away.
+ * `onMixedDirection`, and the element's own `notes` and `groupRanks`, which the element reads and
+ * never hands to the exporter. All `advanced`: a picker can leave them folded away.
  */
 export const COMMON_WRITER_OPTIONS: readonly OptionDescriptor[] = [
     {
@@ -82,6 +82,18 @@ export const COMMON_WRITER_OPTIONS: readonly OptionDescriptor[] = [
             "Write the graphty.notes.count and graphty.notes.text columns on the nodes and edges notes " +
             "name. Off by default, so notes are never shared by accident; every export of a session " +
             "holding notes reports W_GRAPHTY_NOTES either way.",
+    },
+    {
+        name: "groupRanks",
+        plainName: "Groups by Rank",
+        technicalName: "groupRanks",
+        type: "boolean",
+        default: false,
+        advanced: true,
+        description:
+            "Write a partition's group (Louvain, connected components and other community results) as " +
+            "its rank by size, 1 for the largest and ties by group id, in the group column and the " +
+            "sizes table. Off by default: the file holds the algorithm's own group ids.",
     },
 ];
 

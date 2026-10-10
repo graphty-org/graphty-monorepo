@@ -1,13 +1,16 @@
+import { formatDescriptor } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
 import {
     backgroundRefusal,
     DEFAULT_IMAGE,
     fileName,
+    formatRows,
     IMAGE_PRESETS,
     presetOf,
     screenshotOptions,
     slug,
+    writerOptions,
 } from "../choices";
 
 describe("the Export dialog's choices", () => {
@@ -55,5 +58,13 @@ describe("the Export dialog's choices", () => {
         assert.equal(fileName("Les Miserables", "Front", "png"), "les-miserables_front.png");
         assert.equal(fileName("  ", "nodes", "csv"), "untitled_nodes.csv");
         assert.equal(slug("Current view!"), "current-view");
+    });
+
+    it("writes a partition's group as its rank by size unless the reader turns it off", () => {
+        const csv = formatDescriptor("csv");
+        assert.isDefined(csv);
+        const [row] = formatRows(csv === undefined ? [] : [csv]);
+        assert.isTrue(writerOptions(row, {}).groupRanks);
+        assert.isFalse(writerOptions(row, { groupRanks: false }).groupRanks);
     });
 });

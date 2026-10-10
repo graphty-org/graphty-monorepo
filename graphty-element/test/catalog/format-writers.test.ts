@@ -417,7 +417,12 @@ function partitionSix(context: RunExecutionContext): Promise<RunOutcome> {
 }
 
 describe("a partition's groups in an export", () => {
-    it("writes each node's group as the rank the summary and the legend name it by, not the raw id", async () => {
+    /**
+     * Each node's group as an export writes it.
+     * @param options - The export's options.
+     * @returns The group column, by node id.
+     */
+    async function writtenGroups(options: Record<string, unknown>): Promise<Record<string, string>> {
         const harness = makeSession({ runs: { execute: partitionSix } });
         harness.add(["a", "b", "c", "d", "e", "f"].map((id) => ({ id })));
         await harness.session.runs.start("louvain", undefined, { as: "louvain", style: false });
@@ -429,14 +434,28 @@ describe("a partition's groups in an export", () => {
             "the live result keeps the algorithm's ids, largest group first",
         );
 
-        const text = await exportSession(harness.session, "csv", { table: "nodes" }).text();
+        const text = await exportSession(harness.session, "csv", { table: "nodes", ...options }).text();
         const [header, ...rows] = text.trim().split(/\r?\n/);
         const columns = header.split(",").map((name) => name.replaceAll('"', ""));
         const id = columns.indexOf("id");
         const group = columns.indexOf(harness.session.results.path("louvain", "group"));
         assert.isAbove(group, -1, header);
-        const written = Object.fromEntries(rows.map((row) => row.split(",")).map((cells) => [cells[id], cells[group]]));
-        assert.deepEqual(written, { a: "1", b: "1", c: "1", d: "3", e: "2", f: "2" });
         harness.session.dispose();
+        return Object.fromEntries(rows.map((row) => row.split(",")).map((cells) => [cells[id], cells[group]]));
+    }
+
+    it("writes each node's group as the algorithm's group id by default", async () => {
+        assert.deepEqual(await writtenGroups({}), { a: "7", b: "7", c: "7", d: "0", e: "3", f: "3" });
+    });
+
+    it("writes each node's group as its rank by size with groupRanks, 1 for the largest", async () => {
+        assert.deepEqual(await writtenGroups({ groupRanks: true }), { a: "1", b: "1", c: "1", d: "3", e: "2", f: "2" });
+    });
+
+    it("lists groupRanks among every format's writer options, off by default", () => {
+        for (const format of ["csv", "graphml", "gexf", "json"] as const) {
+            const option = formatDescriptor(format)?.writerOptions?.find((entry) => entry.name === "groupRanks");
+            assert.strictEqual(option?.default, false, format);
+        }
     });
 });

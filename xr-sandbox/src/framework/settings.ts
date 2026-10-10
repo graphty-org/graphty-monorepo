@@ -57,6 +57,14 @@ export const FRAMEWORK_SETTINGS: SettingSpec[] = [
     { key: "hoverHints", label: "Hover hints", kind: "bool", default: true },
     { key: "audioClicks", label: "Audio clicks", kind: "bool", default: true },
     { key: "logPanel", label: "In-headset log", kind: "bool", default: false },
+    // Design section 4.4: the palette and the held copy share the off hand; never both shown.
+    {
+        key: "offHand",
+        label: "Off hand carries",
+        kind: "choice",
+        choices: ["palette", "held copy"],
+        default: "palette",
+    },
 ];
 
 /** The settings store. */

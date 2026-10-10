@@ -249,6 +249,7 @@ export function createFramework(
                 bool: (k) => settings.get(`${t.id}.${k}`) === true,
                 num: (k) => Number(settings.get(`${t.id}.${k}`)),
                 str: (k) => String(settings.get(`${t.id}.${k}`)),
+                framework: (k) => settings.get(`framework.${k}`),
                 onChange: (fn) => {
                     settings.onChange(t.id, fn);
                 },

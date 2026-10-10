@@ -91,6 +91,8 @@ export interface TechniqueContext {
         num(key: string): number;
         str(key: string): string;
         onChange(fn: (key: string) => void): void;
+        /** A framework setting, read-only (for example "offHand": "palette" or "held copy"). */
+        framework(key: string): boolean | number | string;
     };
     log(message: string, data?: Record<string, unknown>): void;
     /** A per-frame hook, run only while the technique is on, timed for the frame budget. */

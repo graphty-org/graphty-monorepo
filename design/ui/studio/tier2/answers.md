@@ -321,7 +321,7 @@ requests, and every reference value held. The notes on 8f0d5a6f7791 above still 
 - After a shortest path run the drawing's key holds one row, a black swatch beside "Shortest path"
   (about x 310 to 548, y 52 to 93); there is no "On the path" entry (`rounds/r3/pilot/T18A/10.png`,
   `T18B/07.png`, `T20A/13.png`). On a ranked start the PageRank rows sit below it.
-- A weighted path's Graph tree row reads the unit and the total, "Shortest path  minutes 14" (B
+- A weighted path's Graph tree row reads the unit and the total, "Shortest path minutes 14" (B
   "km 7.5"); an unweighted path's still reads "Shortest path 4 hops" (`rounds/r3/pilot/T20A/13.png`,
   `T20B/13.png`, `T18A/15.png`).
 - The neighbor list's heading no longer says how far it reaches: Hops 2 reads "Ava and 14
@@ -562,7 +562,7 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   and record each who does. Reporting the whole club (20; 77) from that state is `read-wrong`,
   unless the participant notices and ticks it again. Every value here held on 897d9aed9ffe (A
   `rounds/r3d1/pilot/T17A/07.png` at 4 or more, `12.png` at 5 or more, the unticks `08.png` and
-  `13.png`, the step's editor "Filter step  Off" with "Save and turn on" `10.png`, the unsaved 5
+  `13.png`, the step's editor "Filter step Off" with "Save and turn on" `10.png`, the unsaved 5
   under the header "weight is at least 4" `11.png`), on b6d932823642 (A
   `rounds/r3/pilot/T17A/07.png` to `15.png`, B `T17B/07.png` to `13.png`) and on eaea2a75d95b (A
   `rounds/r2d2/pilot/T17A/07.png`, `08.png`, `09.png`, `11.png`, `12.png`; B
@@ -873,7 +873,7 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
 - **"Capacity" under Higher means:** not walked. A participant who chooses it is graded by the
   end state (the route, the total and what Made with says), and graders record the choice.
 - **Numbers beside the route:** on b6d932823642 the Graph tree row reads the weighted total with the
-  unit first, "Shortest path  minutes 14" (B "km 7.5"), so it gives the right total and no 4 is on
+  unit first, "Shortest path minutes 14" (B "km 7.5"), so it gives the right total and no 4 is on
   screen (`rounds/r3/pilot/T20A/13.png`, `T20B/13.png`). On earlier builds it read "Shortest path 4
   hops"; 4 given as the minutes is still `read-wrong`, though only a hand count of the route's links
   can produce it now.

@@ -28,7 +28,7 @@
  * decision for whoever authors the descriptor: pass it through `overrides`.
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { OptionsSchema } from "../config/OptionsSchema";
 import type { OptionChoice, OptionDescriptor, OptionType } from "./types";

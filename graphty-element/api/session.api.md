@@ -8,7 +8,7 @@ import type { DerivedGraph } from '@graphty/graph-format';
 import type { DuplicatePolicy } from '@graphty/graph-format';
 import type { GraphSnapshot } from '@graphty/graph-format';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 // @public
 export const ACCELERATION_ERROR_CODES: readonly AccelerationErrorCode[];

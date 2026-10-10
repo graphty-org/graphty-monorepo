@@ -9,7 +9,7 @@
  */
 
 import type { SimulationType } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { SimulationLayoutEngine } from "./SimulationLayoutEngine";

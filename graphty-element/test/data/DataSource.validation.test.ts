@@ -1,5 +1,5 @@
 import { assert, describe, test } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { JsonDataSource } from "../../src/data/JsonDataSource.js";
 

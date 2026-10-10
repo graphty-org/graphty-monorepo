@@ -5,7 +5,7 @@
 ```ts
 
 import { GraphListing } from '@graphty/graph-io';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 // @public
 export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[];

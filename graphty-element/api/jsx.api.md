@@ -51,8 +51,7 @@ import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
 import { XGMML_LOSS } from '@graphty/graph-io';
-import { z } from 'zod/v4';
-import { z as z_2 } from 'zod';
+import { z } from 'zod';
 
 // @public
 export interface GraphtyElementJSXProps {

@@ -1,0 +1,417 @@
+{
+    "captureScreenshot": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "download": {
+                "description": "Whether to trigger a download (default: false)",
+                "type": "boolean"
+            },
+            "format": {
+                "description": "Image format (default: png)",
+                "enum": ["png", "jpeg"],
+                "type": "string"
+            },
+            "height": {
+                "description": "Height of the screenshot in pixels",
+                "exclusiveMinimum": 0,
+                "type": "number"
+            },
+            "quality": {
+                "description": "JPEG quality 0-1 (default: 0.92)",
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+            },
+            "width": {
+                "description": "Width of the screenshot in pixels",
+                "exclusiveMinimum": 0,
+                "type": "number"
+            }
+        },
+        "type": "object"
+    },
+    "captureVideo": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "action": {
+                "description": "Action to perform: start or stop recording",
+                "enum": ["start", "stop"],
+                "type": "string"
+            },
+            "duration": {
+                "description": "Auto-stop after this many seconds (only for start action)",
+                "exclusiveMinimum": 0,
+                "type": "number"
+            },
+            "format": {
+                "description": "Video format (default: webm, note: mp4 may not be supported in all browsers)",
+                "enum": ["webm", "mp4"],
+                "type": "string"
+            }
+        },
+        "required": ["action"],
+        "type": "object"
+    },
+    "clearStyles": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "layerName": {
+                "description": "Name of the style layer to clear (clears all if not specified)",
+                "type": "string"
+            }
+        },
+        "type": "object"
+    },
+    "describeProperty": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "limit": {
+                "description": "Maximum number of unique values to show (1-50, default 20)",
+                "maximum": 50,
+                "minimum": 1,
+                "type": "number"
+            },
+            "property": {
+                "description": "Property path to analyze (e.g., 'type', 'data.category', 'weight')",
+                "type": "string"
+            },
+            "target": {
+                "description": "Whether to analyze node or edge properties (default: 'nodes')",
+                "enum": ["nodes", "edges"],
+                "type": "string"
+            }
+        },
+        "required": ["property"],
+        "type": "object"
+    },
+    "findAndStyleEdges": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "layerName": {
+                "description": "Name for this style layer (for later removal)",
+                "type": "string"
+            },
+            "selector": {
+                "description": "Expression matching edges. A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name such as id or type matches nothing. An empty string matches everything.",
+                "type": "string"
+            },
+            "style": {
+                "additionalProperties": false,
+                "description": "Style properties for edges",
+                "properties": {
+                    "arrowColor": {
+                        "description": "Color for the arrow head",
+                        "type": "string"
+                    },
+                    "arrowOpacity": {
+                        "description": "Opacity of the arrow head, 0 to 1",
+                        "maximum": 1,
+                        "minimum": 0,
+                        "type": "number"
+                    },
+                    "arrowSize": {
+                        "description": "Size of the arrow head",
+                        "exclusiveMinimum": 0,
+                        "type": "number"
+                    },
+                    "color": {
+                        "description": "Color for the edge line (e.g., '#00ff00', 'green')",
+                        "type": "string"
+                    },
+                    "enabled": {
+                        "description": "Whether the edge is visible",
+                        "type": "boolean"
+                    },
+                    "lineType": {
+                        "description": "Line pattern (e.g., 'solid', 'dash', 'dot')",
+                        "type": "string"
+                    },
+                    "width": {
+                        "description": "Width of the edge line",
+                        "exclusiveMinimum": 0,
+                        "type": "number"
+                    }
+                },
+                "type": "object"
+            }
+        },
+        "required": ["selector", "style"],
+        "type": "object"
+    },
+    "findAndStyleNodes": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "layerName": {
+                "description": "Name for this style layer (for later removal)",
+                "type": "string"
+            },
+            "selector": {
+                "description": "Expression matching nodes. A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name such as id or type matches nothing. An empty string matches everything.",
+                "type": "string"
+            },
+            "style": {
+                "additionalProperties": false,
+                "description": "Style properties for nodes",
+                "properties": {
+                    "color": {
+                        "description": "Color for the node (e.g., '#ff0000', 'red')",
+                        "type": "string"
+                    },
+                    "enabled": {
+                        "description": "Whether the node is visible",
+                        "type": "boolean"
+                    },
+                    "glowColor": {
+                        "description": "Glow effect color",
+                        "type": "string"
+                    },
+                    "glowStrength": {
+                        "description": "Glow effect strength. One strength is drawn at a time for the whole scene",
+                        "exclusiveMinimum": 0,
+                        "type": "number"
+                    },
+                    "outlineColor": {
+                        "description": "Outline color",
+                        "type": "string"
+                    },
+                    "outlineWidth": {
+                        "description": "Outline width. Not drawn: every outline in the scene is stroked at one width, so asking for this is answered with the reason rather than applied",
+                        "exclusiveMinimum": 0,
+                        "type": "number"
+                    },
+                    "shape": {
+                        "description": "Shape type (e.g., 'sphere', 'box', 'cylinder')",
+                        "type": "string"
+                    },
+                    "size": {
+                        "description": "Size of the node (default is 1)",
+                        "exclusiveMinimum": 0,
+                        "type": "number"
+                    }
+                },
+                "type": "object"
+            }
+        },
+        "required": ["selector", "style"],
+        "type": "object"
+    },
+    "findNodes": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "limit": {
+                "description": "Maximum number of node IDs to return (default 50)",
+                "type": "number"
+            },
+            "selector": {
+                "description": "Expression matching nodes. A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name such as id or type matches nothing. An empty string matches everything.",
+                "type": "string"
+            }
+        },
+        "required": ["selector"],
+        "type": "object"
+    },
+    "getSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "query": {
+                "description": "Type of schema information to retrieve",
+                "enum": ["nodeTypes", "edgeTypes", "nodeProperties", "edgeProperties", "all"],
+                "type": "string"
+            }
+        },
+        "required": ["query"],
+        "type": "object"
+    },
+    "listAlgorithms": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "namespace": {
+                "description": "Optional namespace to filter algorithms by",
+                "type": "string"
+            }
+        },
+        "type": "object"
+    },
+    "queryGraph": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "query": {
+                "description": "Type of information to query about the graph",
+                "enum": ["nodeCount", "edgeCount", "currentLayout", "all", "summary"],
+                "type": "string"
+            }
+        },
+        "required": ["query"],
+        "type": "object"
+    },
+    "runAlgorithm": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "namespace": {
+                "description": "The namespace of the algorithm (e.g., 'graphty')",
+                "type": "string"
+            },
+            "options": {
+                "additionalProperties": {},
+                "description": "The algorithm's options, by name (e.g., { source: 'a', target: 'b' } for dijkstra, { dampingFactor: 0.9 } for pagerank). An unknown name or an out-of-range value is refused.",
+                "propertyNames": {
+                    "type": "string"
+                },
+                "type": "object"
+            },
+            "type": {
+                "description": "The type of algorithm to run (e.g., 'degree', 'pagerank')",
+                "type": "string"
+            }
+        },
+        "required": ["namespace", "type"],
+        "type": "object"
+    },
+    "sampleData": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "count": {
+                "description": "Number of samples to return per type (1-10, default 3)",
+                "maximum": 10,
+                "minimum": 1,
+                "type": "number"
+            },
+            "stratifyBy": {
+                "description": "Property path to stratify sampling by (e.g., 'data.type' to sample from each type)",
+                "type": "string"
+            },
+            "target": {
+                "description": "What to sample: 'nodes', 'edges', or 'both' (default)",
+                "enum": ["nodes", "edges", "both"],
+                "type": "string"
+            }
+        },
+        "type": "object"
+    },
+    "setCameraPosition": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "animate": {
+                "description": "Whether to animate the camera transition (default: true)",
+                "type": "boolean"
+            },
+            "position": {
+                "additionalProperties": false,
+                "description": "Custom camera position (3D only)",
+                "properties": {
+                    "x": {
+                        "type": "number"
+                    },
+                    "y": {
+                        "type": "number"
+                    },
+                    "z": {
+                        "type": "number"
+                    }
+                },
+                "required": ["x", "y", "z"],
+                "type": "object"
+            },
+            "preset": {
+                "description": "Named camera preset to apply",
+                "type": "string"
+            },
+            "target": {
+                "additionalProperties": false,
+                "description": "Point the camera should look at (3D only)",
+                "properties": {
+                    "x": {
+                        "type": "number"
+                    },
+                    "y": {
+                        "type": "number"
+                    },
+                    "z": {
+                        "type": "number"
+                    }
+                },
+                "required": ["x", "y", "z"],
+                "type": "object"
+            }
+        },
+        "type": "object"
+    },
+    "setDimension": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "dimension": {
+                "description": "Dimension mode: '2d' or '3d'",
+                "enum": ["2d", "3d"],
+                "type": "string"
+            }
+        },
+        "required": ["dimension"],
+        "type": "object"
+    },
+    "setImmersiveMode": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "mode": {
+                "description": "VR for virtual reality, AR for augmented reality, exit to return to normal view",
+                "enum": ["vr", "ar", "exit"],
+                "type": "string"
+            }
+        },
+        "required": ["mode"],
+        "type": "object"
+    },
+    "setLayout": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "options": {
+                "additionalProperties": {},
+                "description": "Additional layout-specific options",
+                "propertyNames": {
+                    "type": "string"
+                },
+                "type": "object"
+            },
+            "type": {
+                "description": "Layout algorithm type (e.g., 'circular', 'ngraph', 'random', 'spiral', 'd3')",
+                "type": "string"
+            }
+        },
+        "required": ["type"],
+        "type": "object"
+    },
+    "zoomToNodes": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+            "animate": {
+                "description": "Whether to animate the zoom (default: true)",
+                "type": "boolean"
+            },
+            "padding": {
+                "description": "Extra padding around nodes (default: 1.2 = 20% padding)",
+                "type": "number"
+            },
+            "selector": {
+                "description": "Expression matching nodes. A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name such as id or type matches nothing. An empty string matches everything.",
+                "type": "string"
+            }
+        },
+        "type": "object"
+    }
+}

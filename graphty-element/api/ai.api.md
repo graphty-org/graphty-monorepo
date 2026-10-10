@@ -50,7 +50,6 @@ import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
 import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod';
-import { z as z_2 } from 'zod/v4';
 
 // @public
 export class AiController {

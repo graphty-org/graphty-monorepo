@@ -22,10 +22,14 @@ import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import type { NodeEventDetail } from "../../src/events";
+import { hover } from "../helpers/real-input";
 
 /** Two nodes and the edge between them, as an inline JSON data source. */
 const GRAPH = JSON.stringify({
-    nodes: [{ id: "a" }, { id: "b" }],
+    nodes: [
+        { id: "a", name: "Alpha" },
+        { id: "b", name: "Beta" },
+    ],
     edges: [{ source: "a", target: "b" }],
 });
 
@@ -136,6 +140,50 @@ describe("the DOM mirror of a node event", () => {
         assert.strictEqual(details.length, 1);
         assert.notProperty(details[0], "node", "a listener is handed an id, never the mesh");
         assert.doesNotThrow(() => structuredClone(details[0]), "a detail a worker cannot take is a detail that leaks");
+    });
+
+    test("a real hover carries the words the node's tooltip draws", async () => {
+        const element = await mountWithGraph();
+        await element.session.styles.add({
+            name: "names on hover",
+            selector: { match: "has", path: "data.name" },
+            encode: { "node.tooltip": { by: "data.name" } },
+        });
+        await element.waitForSettled();
+        const details: NodeEventDetail[] = [];
+        element.addEventListener("graphty-node-hover", (event) => {
+            details.push(event.detail);
+        });
+
+        let at = element.nodeScreenPosition("b");
+        await vi.waitFor(() => {
+            at = element.nodeScreenPosition("b");
+            assert.isTrue(at?.visible, "node b is on screen");
+        });
+        await hover(element, { x: 2, y: 2 });
+        await hover(element, { x: at?.x ?? 0, y: at?.y ?? 0 });
+
+        await vi.waitFor(() => {
+            assert.deepStrictEqual(
+                details.map((d) => [d.nodeId, d.tooltip]),
+                [["b", "Beta"]],
+                "the hover names the node and the words its tooltip draws",
+            );
+        });
+    });
+
+    test("a hover over a node with no tooltip carries no tooltip words", async () => {
+        const element = await mountWithGraph();
+        const details: NodeEventDetail[] = [];
+        element.addEventListener("graphty-node-hover", (event) => {
+            details.push(event.detail);
+        });
+
+        const node = element.graph.getNode("a");
+        assert.isDefined(node, "the fixture has a node to hover");
+        element.graph.eventManager.emitNodeEvent("node-hover", { node: node, data: { id: "a" } });
+
+        assert.notProperty(details[0], "tooltip", "no layer wrote a tooltip, so there are no words");
     });
 
     test("keeps the element's own update events off the DOM", async () => {

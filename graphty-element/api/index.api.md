@@ -3152,6 +3152,7 @@ export interface NodeEventDetail {
         y: number;
         z: number;
     };
+    tooltip?: string;
 }
 
 // @public (undocumented)

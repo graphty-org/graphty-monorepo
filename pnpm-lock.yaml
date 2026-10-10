@@ -1075,6 +1075,9 @@ importers:
 
   xr-sandbox:
     dependencies:
+      1eurofilter:
+        specifier: 1.3.0
+        version: 1.3.0
       '@babylonjs/core':
         specifier: 8.56.2
         version: 8.56.2
@@ -1126,6 +1129,9 @@ packages:
 
   '@actions/exec@3.0.0':
     resolution: {integrity: sha512-6xH/puSoNBXb72VPlZVm7vQ+svQpFyA96qdDBvhB8eNZOE8LtPf9L4oAsfzK/crCL8YZ+19fKYVnM63Sl+Xzlw==}
+
+  1eurofilter@1.3.0:
+    resolution: {integrity: sha512-3t57UlTR7J2Uyq7kwfzgQg+auO6Yb3G09GKFeBVJQvaK/Otn0dcW20RNMt4d05G0/XcEQoORW87rGo3RFiyHYg==}
 
   '@actions/http-client@4.0.1':
     resolution: {integrity: sha512-+Nvd1ImaOZBSoPbsUtEhv+1z99H12xzncCkz0a3RuehINE81FZSe2QTj3uvAPTcJX/SCzUQHQ0D1GrPMbrPitg==}
@@ -10425,6 +10431,8 @@ snapshots:
     dependencies:
       tunnel: 0.0.6
       undici: 6.29.0
+
+  1eurofilter@1.3.0: {}
 
   '@actions/io@3.0.2': {}
 

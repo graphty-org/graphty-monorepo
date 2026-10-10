@@ -104,6 +104,8 @@ export function installTestHooks(d: HookDeps): void {
                 gear: d.gear.button.mesh.getAbsolutePosition().asArray(),
                 gearEnabled: d.gear.button.mesh.isEnabled(),
                 origin: left?.origin.asArray(),
+            // The open preview (the graph's tint), or null: a cancelled pull or sieve must leave none.
+            preview: fw.commands.preview && { owner: fw.commands.preview.owner, keep: fw.commands.preview.keep.size },
                 dir: left?.dir.asArray(),
                 camera: camera.globalPosition.asArray(),
                 device: [device.position.x, device.position.y, device.position.z],

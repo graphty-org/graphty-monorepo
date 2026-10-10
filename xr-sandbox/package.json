@@ -13,6 +13,7 @@
         "dryrun": "node dryrun/run.mjs"
     },
     "dependencies": {
+        "1eurofilter": "1.3.0",
         "@babylonjs/core": "8.56.2",
         "@babylonjs/gui": "8.56.2",
         "@graphty/algorithms": "workspace:*",

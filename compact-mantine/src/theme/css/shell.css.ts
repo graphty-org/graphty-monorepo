@@ -333,7 +333,9 @@ const css = `
     flex-direction: column;
     align-items: center;
     width: 56px;
-    height: 100%;
+    /* Content-box keeps the 56 wide plus the 1px border; the height takes the 8 + 16 padding
+       back out, so the rail fills its container exactly and its footer is not pushed 24px below. */
+    height: calc(100% - 24px);
     padding: 8px 0 16px;
     background-color: var(--cm-bg);
     border-inline-end: 1px solid var(--cm-border);

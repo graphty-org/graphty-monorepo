@@ -29,14 +29,14 @@ describe("the canvas toolbar", () => {
         await page.viewport(1366, 768);
     });
 
-    it("draws Analyze, Layout, View and Quick actions in order", () => {
+    it("draws Analyze, Layout, View, Legend, Table and Quick actions in order", () => {
         render(<Workspace initialState={OPEN} />);
 
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
         const names = within(toolbar)
             .getAllByRole("button")
             .map((button) => button.getAttribute("aria-label"));
-        assert.deepEqual(names, ["Analyze", "Layout", "View", "Quick actions"]);
+        assert.deepEqual(names, ["Analyze", "Layout", "View", "Legend", "Table", "Quick actions"]);
     });
 
     it("draws Layout as a network chart and Quick actions as a search", () => {
@@ -61,19 +61,22 @@ describe("the canvas toolbar", () => {
         assert.isFalse(screen.getByRole("button", { name: "Quick actions" }).hasAttribute("aria-disabled"));
     });
 
-    it("lists Legend and Table under the View menu's Show section, each a check row", async () => {
+    it("gives Legend and Table their own buttons, pressed while showing, and keeps them out of View", async () => {
         const store = createWorkspaceStore({ ...OPEN, dialog: "view" });
         render(<Workspace store={store} />);
 
+        const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+        // No element comes up in this file, so each says why it cannot switch yet.
+        const legend = within(toolbar).getByRole("button", { name: "Legend" });
+        assert.equal(legend.getAttribute("aria-pressed"), "true");
+        assert.equal(legend.getAttribute("aria-description"), "Nothing is drawn");
+        const table = within(toolbar).getByRole("button", { name: "Table" });
+        assert.equal(table.getAttribute("aria-pressed"), "false");
+        assert.equal(table.getAttribute("aria-description"), "The graph is still loading");
+
         const menu = await screen.findByRole("menu", { name: "View" });
-        assert.include(menu.textContent, "Show");
-        // No element comes up in this file, so each row says why it cannot switch yet.
-        const legend = within(menu).getByRole("menuitemcheckbox", { name: /^Legend/ });
-        assert.equal(legend.getAttribute("aria-checked"), "true");
-        assert.include(legend.textContent, "Nothing is drawn");
-        const table = within(menu).getByRole("menuitemcheckbox", { name: /^Table/ });
-        assert.equal(table.getAttribute("aria-checked"), "false");
-        assert.include(table.textContent, "The graph is still loading");
+        assert.notInclude(menu.textContent, "Legend");
+        assert.notInclude(menu.textContent, "Table");
     });
 
     it("opens Quick actions with Ctrl+K, listing built commands by their homes", async () => {

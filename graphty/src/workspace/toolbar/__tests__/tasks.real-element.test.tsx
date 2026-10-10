@@ -1,7 +1,7 @@
 /**
  * The tier 1 tasks this package delivers, each walked from the empty app on the REAL
  * graphty-element: T7 (rank nodes), T8 (find groups) and T11 (a readable layout), plus the View
- * flyout and a node's neighborhood. Every assertion reads what the element reports, never pixels.
+ * flyout, the Legend and Table tools, and a node's neighborhood. Every assertion reads what the element reports, never pixels.
  *
  * Opening the sample goes through the element's own import by URL, as the Start screen package
  * will; until that package lands its sample cards are not drawn, so the walk calls the same door.
@@ -14,7 +14,7 @@ import type { RunId } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent as realInput } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
@@ -486,5 +486,40 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             });
         },
         TIMEOUT_MS,
+    );
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, as every walk in this file, tracked in #1636
+    it(
+        "shows and hides the legend and the table from their own toolbar buttons, pressed while showing",
+        async () => {
+            const session = await openKarate();
+            const run = session.runs.start("pagerank");
+            await run;
+            await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+            const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+            const legend = within(toolbar).getByRole("button", { name: "Legend" });
+            const table = within(toolbar).getByRole("button", { name: "Table" });
+            assert.equal(legend.getAttribute("aria-pressed"), "true");
+            assert.equal(table.getAttribute("aria-pressed"), "false");
+            assert.isNull(screen.queryByRole("region", { name: "Table" }));
+
+            await realInput.click(legend);
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("region", { name: "Legend" }));
+            });
+            assert.equal(legend.getAttribute("aria-pressed"), "false");
+            await realInput.click(legend);
+            await screen.findByRole("region", { name: "Legend" });
+            assert.equal(legend.getAttribute("aria-pressed"), "true");
+
+            await realInput.click(table);
+            await screen.findByRole("region", { name: "Table" });
+            assert.equal(table.getAttribute("aria-pressed"), "true");
+            await realInput.click(table);
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("region", { name: "Table" }));
+            });
+            assert.equal(table.getAttribute("aria-pressed"), "false");
+        },
+        TIMEOUT_MS * 2,
     );
 });

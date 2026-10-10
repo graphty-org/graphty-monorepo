@@ -55,6 +55,7 @@ import {
     Spline,
     SquareDashed,
     StickyNote,
+    Table,
     Trash2,
     TriangleAlert,
     Undo2,
@@ -93,6 +94,7 @@ export const GLYPHS = {
     analyze: FlaskConical,
     layout: ChartNetwork,
     legend: List,
+    table: Table,
     quickActions: Search,
     filter: ListFilter,
     // Take the next node clicked on the canvas.

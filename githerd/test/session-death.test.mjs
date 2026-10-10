@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { createPushQueue } from "../lib/actor/push.mjs";
@@ -112,9 +112,15 @@ function kill(pid) {
 /**
  * Waits until a condition holds, checking every 20 ms.
  * @param {() => boolean} cond the condition
+ * @returns {Promise<void>} once it holds
  */
-async function until(cond) {
-    while (!cond()) await new Promise((r) => setTimeout(r, 20));
+function until(cond) {
+    return vi.waitFor(
+        () => {
+            if (!cond()) throw new Error("condition never held");
+        },
+        { timeout: 15_000, interval: 20 },
+    );
 }
 
 /**
@@ -186,8 +192,8 @@ function recover(job, over = {}) {
         ledger: (e) => entries.push(e),
         resumeVerified: true,
         now: () => t0,
-        graceMs: 1000,
-        sleep: () => new Promise((r) => setTimeout(r, 20)),
+        // The real wait, over a short grace: ten checks 20 ms apart.
+        graceMs: 200,
         ...over,
     });
 }

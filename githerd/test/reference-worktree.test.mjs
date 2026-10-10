@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import {
@@ -374,15 +374,14 @@ describe("run", () => {
         const r = await run("sh", ["-c", `sleep 30 & echo $! > ${pidFile}; wait`], { cwd: repo.tmp, timeoutMs: 300 });
         expect(r.timedOut).toBe(true);
         const pid = Number(readFileSync(pidFile, "utf8"));
-        let alive = true;
-        for (let i = 0; i < 50 && alive; i++) {
+        const alive = () => {
             try {
                 process.kill(pid, 0);
-                await new Promise((res) => setTimeout(res, 20));
+                return true;
             } catch {
-                alive = false;
+                return false;
             }
-        }
-        expect(alive).toBe(false);
+        };
+        await vi.waitFor(() => expect(alive()).toBe(false), { timeout: 1000, interval: 20 });
     });
 });

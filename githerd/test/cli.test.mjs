@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { escalate, move, newJob } from "../lib/board.mjs";
@@ -250,9 +250,7 @@ afterEach(async () => {
         }
     }
     const all = [...pids, ...strays];
-    const end = Date.now() + 5000;
-    while (all.some(alive) && Date.now() < end) await new Promise((r) => setTimeout(r, 50));
-    expect(all.filter(alive)).toEqual([]);
+    await vi.waitFor(() => expect(all.filter(alive)).toEqual([]), { timeout: 5000, interval: 50 });
     rmSync(dir, { recursive: true, force: true });
 });
 
@@ -1135,9 +1133,7 @@ describe("doctor", () => {
         expect(c.supervision).toBe(`FAIL supervision: no pm2 process servherd-${daemonName()}; run githerd ensure`);
         expect(c.state).toMatch(/^warn state: no /);
         const pid = Number(readFileSync(pidFile, "utf8"));
-        const end = Date.now() + 5000;
-        while (alive(pid) && Date.now() < end) await new Promise((res) => setTimeout(res, 50));
-        expect(alive(pid)).toBe(false);
+        await vi.waitFor(() => expect(alive(pid)).toBe(false), { timeout: 5000, interval: 50 });
     });
 
     it("reports a missing notify command and a deploy key's private half in ~/.ssh", async () => {

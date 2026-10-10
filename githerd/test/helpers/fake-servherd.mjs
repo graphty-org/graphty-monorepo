@@ -14,7 +14,7 @@
  * bare name). `start` spawns the command detached, answers "existing" for an unchanged command
  * whose process is alive, and "restarted" (after stopping the old process) for a changed one or a
  * dead process. `restart` finds the server by name. Nothing restarts a process that dies.
- * `FAKE_SERVHERD_SLEEP_MS` makes it sleep first, after logging the call.
+ * `FAKE_SERVHERD_HANG` makes it hang after logging the call, until it is killed (a stuck servherd).
  */
 import { spawn } from "node:child_process";
 import { appendFileSync, openSync, readFileSync, writeFileSync } from "node:fs";
@@ -29,7 +29,8 @@ appendFileSync(
     `${JSON.stringify({ pid: process.pid, argv, cwd: process.cwd(), pm2Home: process.env.PM2_HOME ?? null })}\n`,
 );
 appendFileSync(join(dir, "pids.jsonl"), `${process.pid}\n`);
-if (process.env.FAKE_SERVHERD_SLEEP_MS) await sleep(Number(process.env.FAKE_SERVHERD_SLEEP_MS));
+// An interval keeps the process alive; nothing resolves the promise, so only a signal ends it.
+if (process.env.FAKE_SERVHERD_HANG) await new Promise(() => setInterval(() => {}, 60_000));
 
 /** @type {Record<string, any>} */
 let registry = {};
@@ -41,12 +42,23 @@ try {
 const save = () => writeFileSync(registryFile, JSON.stringify(registry, null, 2));
 
 /**
- * Waits.
- * @param {number} ms how long
- * @returns {Promise<void>} resolves after it
+ * Waits until a condition holds or a limit passes, checking it every `every` ms.
+ * @param {() => boolean} cond the condition
+ * @param {number} every how often to check
+ * @param {number} [limit] the most to wait, in ms; none by default
+ * @returns {Promise<void>} once the condition holds or the limit passed
  */
-function sleep(ms) {
-    return new Promise((r) => setTimeout(r, ms));
+function until(cond, every, limit = Infinity) {
+    const end = Date.now() + limit;
+    return new Promise((resolve) => {
+        if (cond()) return resolve();
+        const timer = setInterval(() => {
+            if (cond() || Date.now() >= end) {
+                clearInterval(timer);
+                resolve();
+            }
+        }, every);
+    });
 }
 
 /**
@@ -79,13 +91,13 @@ async function stop(entry) {
             // gone
         }
     }
-    for (let i = 0; i < 16 && alive(pid); i++) await sleep(100);
+    await until(() => !alive(pid), 100, 1600);
     try {
         process.kill(-pid, "SIGKILL");
     } catch {
         // gone
     }
-    while (alive(pid)) await sleep(50);
+    await until(() => !alive(pid), 50);
 }
 
 /**

@@ -1,7 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { setTimeout as delay } from "node:timers/promises";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { identify } from "../lib/proc.mjs";
 import {
@@ -20,6 +19,8 @@ import { fakeWorkers, killServer, sleep, typed } from "./helpers/fake-worker.mjs
 
 /** @type {ReturnType<typeof fakeWorkers>} */
 let fw;
+/** How long a fake's screen or key log gets to change, checked every 20 ms. */
+const WAIT = { timeout: 2000, interval: 20 };
 /** A second private tmux server whose pane runs an attached client, when a test needs one. */
 let viewer = "";
 
@@ -77,7 +78,7 @@ describe("typeLine and pressKey", () => {
         const { window } = await fw.start("issue-3", { screen: "idle" });
         expect(await typeLine(window, "/usage", sleep)).toEqual({ sent: true });
         pressKey(window, "Escape");
-        for (let i = 0; i < 100 && fw.keys("issue-3").at(-1)?.key !== "Escape"; i++) await delay(20);
+        await vi.waitFor(() => expect(fw.keys("issue-3").at(-1)).toEqual({ key: "Escape" }), WAIT);
         const keys = fw.keys("issue-3");
         expect(keys.find((k) => k.submit !== undefined)).toEqual({ submit: "/usage" });
         expect(keys.at(-1)).toEqual({ key: "Escape" });
@@ -129,7 +130,7 @@ describe("ring", () => {
         const attach = `env -u TMUX tmux -L ${fw.socket} attach -t githerd`;
         execFileSync("tmux", ["-L", viewer, "new-session", "-d", "-x", "200", "-y", "50", attach]);
         execFileSync("tmux", ["-L", fw.socket, "select-window", "-t", window.window]);
-        for (let i = 0; i < 100 && !viewed(window); i++) await delay(20);
+        await vi.waitFor(() => expect(viewed(window)).toBe(true), WAIT);
         expect(await ring(window, { nonce: "n0nce", job: "issue-5", sleep })).toEqual({ rung: false, why: "viewed" });
         expect(fw.keys("issue-5")).toEqual([]);
     });
@@ -139,7 +140,7 @@ describe("interrupt", () => {
     it("sends Escape when no dialog shows, and nothing to a dialog", async () => {
         const idle = await fw.start("issue-6", { screen: "idle" });
         expect(interrupt(idle.window)).toEqual({ sent: true });
-        for (let i = 0; i < 100 && !fw.keys("issue-6").length; i++) await delay(20);
+        await vi.waitFor(() => expect(fw.keys("issue-6")).not.toEqual([]), WAIT);
         expect(fw.keys("issue-6")).toEqual([{ key: "Escape" }]);
         const dialog = await fw.start("issue-7", { screen: "permission" });
         expect(interrupt(dialog.window)).toMatchObject({ sent: false, why: "permission" });

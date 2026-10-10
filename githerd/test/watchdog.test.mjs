@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { move, newJob } from "../lib/board.mjs";
 import { identify } from "../lib/proc.mjs";
@@ -239,10 +239,15 @@ describe("progress counters", () => {
 /**
  * Waits until a condition holds, for at most 5 s.
  * @param {() => boolean} ok the condition
+ * @returns {Promise<void>} once it holds
  */
-async function until(ok) {
-    for (let i = 0; i < 250 && !ok(); i++) await sleep(20);
-    if (!ok()) throw new Error("condition never held");
+function until(ok) {
+    return vi.waitFor(
+        () => {
+            if (!ok()) throw new Error("condition never held");
+        },
+        { timeout: 5000, interval: 20 },
+    );
 }
 
 describe("watchWanted", () => {

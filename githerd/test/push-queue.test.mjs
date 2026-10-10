@@ -146,9 +146,15 @@ function kill(pid) {
 /**
  * Waits until a condition holds, checking every 20 ms.
  * @param {() => boolean} cond the condition
+ * @returns {Promise<void>} once it holds
  */
-async function until(cond) {
-    while (!cond()) await new Promise((r) => setTimeout(r, 20));
+function until(cond) {
+    return vi.waitFor(
+        () => {
+            if (!cond()) throw new Error("condition never held");
+        },
+        { timeout: 15_000, interval: 20 },
+    );
 }
 
 /**

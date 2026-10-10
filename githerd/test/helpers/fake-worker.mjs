@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
+import { expect, vi } from "vitest";
 
 import { identify } from "../../lib/proc.mjs";
 import { capturePane, killServer, running, startWorker } from "../../lib/tmux.mjs";
@@ -63,7 +64,12 @@ export function fakeWorkers({ socket = `githerd-test-${process.pid}-${Date.now()
             const one = await startWorker({ job, cwd: dir, argv, socket, sessionsDir, sleep });
             started.push({ pid: one.window.pid, startTime: identify(one.window.pid)?.startTime ?? "" });
             // Wait for the first draw, so a capture sees the screen.
-            for (let i = 0; one.ok && i < 100 && !capturePane(one.window).includes("\u2500"); i++) await delay(20);
+            if (one.ok) {
+                await vi.waitFor(() => expect(capturePane(one.window)).toContain("\u2500"), {
+                    timeout: 2000,
+                    interval: 20,
+                });
+            }
             return one;
         },
         keys(job) {
@@ -77,8 +83,9 @@ export function fakeWorkers({ socket = `githerd-test-${process.pid}-${Date.now()
         async cleanup() {
             killServer(socket);
             const live = () => started.filter((s) => running(s.pid, s.startTime)).map((s) => s.pid);
-            for (let i = 0; i < 100 && live().length; i++) await delay(20);
-            const left = live();
+            const left = await vi
+                .waitFor(() => expect(live()).toEqual([]), { timeout: 2000, interval: 20 })
+                .then(() => [], live);
             rmSync(dir, { recursive: true, force: true });
             if (left.length) throw new Error(`fake workers left running: ${left.join(", ")}`);
         },

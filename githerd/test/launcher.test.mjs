@@ -20,7 +20,7 @@ import { basename, join } from "node:path";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import {
@@ -87,13 +87,14 @@ function alive(pid) {
  * @returns {Promise<any>} the check's value
  */
 async function until(check, what, ms = 15_000) {
-    const end = Date.now() + ms;
-    for (;;) {
-        const value = await check();
-        if (value) return value;
-        if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
-        await new Promise((r) => setTimeout(r, 50));
-    }
+    return vi.waitFor(
+        async () => {
+            const value = await check();
+            if (!value) throw new Error(`timed out waiting for ${what}`);
+            return value;
+        },
+        { timeout: ms, interval: 50 },
+    );
 }
 
 /**
@@ -345,8 +346,8 @@ afterEach(async () => {
 
 describe("startup", () => {
     it("answers initialize while servherd is still starting the daemon", async () => {
-        const launcher = spawnLauncher({ FAKE_SERVHERD_SLEEP_MS: "20000" });
-        // The launcher has called servherd, which now sleeps for 20 s.
+        const launcher = spawnLauncher({ FAKE_SERVHERD_HANG: "1" });
+        // The launcher has called servherd, which now hangs until the test kills it.
         await until(() => starts().length === 1, "the servherd start call");
         launcher.send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } });
         launcher.send({ jsonrpc: "2.0", id: 2, method: "tools/list" });

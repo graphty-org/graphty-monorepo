@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { git as gitSync, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { move, newJob } from "../lib/board.mjs";
@@ -747,8 +747,7 @@ describe("HTTP endpoints", () => {
             body: JSON.stringify({ event: "Stop", job: "j1", nonce: "n", input: { session_id: "w1" } }),
         });
         expect(await res.json()).toEqual({});
-        for (let i = 0; i < 100 && daemon.state.retiring.length; i++) await new Promise((r) => setTimeout(r, 20));
-        expect(daemon.state.retiring).toEqual([]);
+        await vi.waitFor(() => expect(daemon.state.retiring).toEqual([]), { timeout: 2000, interval: 20 });
         expect(job.state).toBe("done");
         await daemon.shutdown();
         const ended = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "session-ended");
@@ -3174,13 +3173,14 @@ describe("the notify command check", () => {
  * @returns {Promise<any>} the check's value
  */
 async function until(check, what) {
-    const end = Date.now() + 15_000;
-    for (;;) {
-        const value = await check();
-        if (value) return value;
-        if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
-        await new Promise((r) => setTimeout(r, 20));
-    }
+    return vi.waitFor(
+        async () => {
+            const value = await check();
+            if (!value) throw new Error(`timed out waiting for ${what}`);
+            return value;
+        },
+        { timeout: 15_000, interval: 20 },
+    );
 }
 
 /**

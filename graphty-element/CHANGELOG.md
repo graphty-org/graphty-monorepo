@@ -1,3 +1,22 @@
+## 3.23.0 (2026-10-10)
+
+### 🚀 Features
+
+- **graphty-element:** lint rule reporting node mesh position writes outside the funnel ([#1605](https://github.com/graphty-org/graphty-monorepo/issues/1605))
+- **graphty-element:** let a screenshot set how long it waits for the layout ([340165b7c](https://github.com/graphty-org/graphty-monorepo/commit/340165b7c))
+
+### 🩹 Fixes
+
+- **graphty-element:** tell note:changed from the notes a write names, not every note ([#1890](https://github.com/graphty-org/graphty-monorepo/issues/1890), [#1643](https://github.com/graphty-org/graphty-monorepo/issues/1643))
+
+### 🔥 Performance
+
+- **graphty-element:** look up path edge members by key, not by scanning the path ([ebe854d0d](https://github.com/graphty-org/graphty-monorepo/commit/ebe854d0d))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.22.0 (2026-10-10)
 
 ### 🚀 Features

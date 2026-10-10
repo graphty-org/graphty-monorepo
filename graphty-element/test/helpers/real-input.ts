@@ -139,8 +139,15 @@ export async function click(element: Element, point: Point, modifiers?: Modifier
  * @param from - Where the press is.
  * @param to - Where the release is.
  * @param steps - How many moves between them.
+ * @param held - Run at `to` with the button still down, before the release.
  */
-export async function drag(element: Element, from: Point, to: Point, steps = 8): Promise<void> {
+export async function drag(
+    element: Element,
+    from: Point,
+    to: Point,
+    steps = 8,
+    held?: () => Promise<void>,
+): Promise<void> {
     await mouseEvent("mouseMoved", element, from, 0);
     await mouseEvent("mousePressed", element, from, 1);
     for (let i = 1; i <= steps; i++) {
@@ -155,6 +162,7 @@ export async function drag(element: Element, from: Point, to: Point, steps = 8):
         await nextFrame();
     }
 
+    await held?.();
     await mouseEvent("mouseReleased", element, to, 0);
 }
 

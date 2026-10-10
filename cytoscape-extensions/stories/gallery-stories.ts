@@ -13,11 +13,12 @@
 import { DATASETS } from "@graphty/graph-samples";
 import type { StoryObj } from "@storybook/html-vite";
 
-import type { ExportFormat, GeneratorName } from "../src/index.js";
+import type { GeneratorName } from "../src/index.js";
 import { ALGORITHM_GROUPS, GALLERY_PAGES, type GalleryPage, type Network, presetWithSeed } from "./catalog.js";
 import { elementsOf, GENERATE, SIZES } from "./demo.js";
+import { formatTile } from "./formats.js";
 import { renderGallery, type Tile } from "./gallery.js";
-import { colorBy, counts, CPU_LAYOUT, placeForAlgorithm, roundTrip, runAlgorithm, runLayout } from "./run.js";
+import { colorBy, counts, placeForAlgorithm, runAlgorithm, runLayout } from "./run.js";
 
 const SEED = 42;
 
@@ -99,7 +100,10 @@ const generators: Page = {
         run: async (cy) => {
             colorBy(cy, cy.nodes().some((n) => n.data("community") !== undefined) ? "community" : null);
             await placeForAlgorithm(cy, SEED);
-            return { ...CPU_LAYOUT, detail: "layout held on the CPU", note: counts(cy) };
+            // the call that made the graph, as the Demo's Generate story prints it; long option arrays cut short
+            const options = JSON.stringify(presetWithSeed(name as GeneratorName, SEED));
+            const call = `cy.graphtyGenerate(${JSON.stringify(name)}, ${options.length > 120 ? `${options.slice(0, 117)}...` : options})`;
+            return { ran: "", detail: null, note: `${call}\n${counts(cy)}` };
         },
     }),
 };
@@ -117,27 +121,19 @@ const datasets: Page = {
             const info = DATASETS.find((d) => d.name === name);
             colorBy(cy, info?.groundTruth ?? null);
             await placeForAlgorithm(cy, SEED);
-            return { ...CPU_LAYOUT, detail: "layout held on the CPU", note: counts(cy) };
+            const about = info === undefined ? "" : `${info.title}; license: ${info.license}\n`;
+            return { ran: "", detail: null, note: `${about}${counts(cy)}` };
         },
     }),
 };
 
-/** Karate club written in every format and read back. */
+/** A real file read in every format graphtyImport takes, and karate written in every format graphtyExport writes. */
 const formats: Page = {
     intro: (every) =>
-        `Zachary's karate club through cy.graphtyExport and back through cy.graphtyImport${every ? ", in every format" : ""}.`,
-    tile: (format) => ({
-        title: `graphtyExport("${format}")`,
-        load: async (cy) => {
-            await cy.graphtyDataset("karate");
-        },
-        run: async (cy) => {
-            colorBy(cy, "club");
-            await placeForAlgorithm(cy, SEED);
-            const note = await roundTrip(cy, format as ExportFormat, SEED);
-            return { ...CPU_LAYOUT, detail: "layout held on the CPU", note };
-        },
-    }),
+        every
+            ? "cy.graphtyImport reading a file in each format it takes (the start of the file beside the graph), and cy.graphtyExport writing karate in each format."
+            : "The start of the file is beside the graph it became.",
+    tile: formatTile,
 };
 
 const PAGES: Record<GalleryPage, Page> = {

@@ -60,3 +60,28 @@ export const Cx2: Story = {
     ...tile("Formats", "cx2"),
     name: "cx2",
 };
+
+export const Cx: Story = {
+    ...tile("Formats", "cx"),
+    name: "cx",
+};
+
+export const Obo: Story = {
+    ...tile("Formats", "obo"),
+    name: "obo",
+};
+
+export const Cys: Story = {
+    ...tile("Formats", "cys"),
+    name: "cys",
+};
+
+export const Auto: Story = {
+    ...tile("Formats", "auto"),
+    name: "auto",
+};
+
+export const Export: Story = {
+    ...tile("Formats", "export"),
+    name: "export",
+};

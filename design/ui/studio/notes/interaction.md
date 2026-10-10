@@ -15,37 +15,37 @@ save and reopen.
 
 ## Top of mind
 
-- 2026-10-09 **The dry runs walked only the answer key's routes.** Four builds plus the frozen
-  build were walked task by task and every success path worked; no participant met a broken
-  control there. Participants' detours (styling, selection display) met build defects no walk had
-  touched. From now on a dry run also walks each task's commonest detours (the previous round's
-  wrong turns, plus "what would a person try first"), and each one-session defect gets a script.
-- 2026-10-09 **Round 2 proposals (smallest set):** (1) the source inspector shows "Edit source..."
-  and "Replace with file..." as visible actions -- one change that serves T20 and T21; (2) the find
-  box's "No match" on text holding a comparison says how a rule starts, with the existing example;
-  (3) the canvas key marks an out-of-date run like its row does; (4) fix Edges Color writing to
-  Everything. Reasons and evidence under Decisions.
-- 2026-10-09 **Do not change in round 2:** where Filters lives (7 of 8 found it at the success
-  path's cost), the Replace page, the import page's "Higher means", the Path popover's flow, the
-  neighbors list, label placement in the app (element class), Hops wording, notes' subject.
-- 2026-10-09 **A visible door beats a new route.** Edit source already reaches "Higher means"
-  without dropping the graph, but only by right-click. Surfacing an existing command is cheaper
-  and safer than a new one.
-- 2026-10-09 **Selection display repainting fills is a design question, not a defect yet** (path
-  looks one node short, new fill hidden until deselect). Needs a decision on how selection is
-  marked (element style), not an app patch.
+- 2026-10-09 **A dry run must walk the detours, by pointer AND keyboard, and the study tool must be
+  dry-run too.** Tier 2 round 1 had a dry run (four builds plus the frozen build), but only on the
+  answer key's routes, by pointer only. Participants met build defects only on detours (Edges Color
+  to Everything, halo tint, focus to the page after Add/Delete step, Enter not committing a step);
+  the study tool reached them more often than the build did (over four browsers, wrong-row matches,
+  a dead synthetic drop, missing bar scripts). Round 2 starts only after a written detour walk.
+- 2026-10-09 **Round 2 changes I own or watch** (one door per problem): find's empty line offers
+  "start with =" only when the ELEMENT accepts "=text" as a rule (no app parsing); the source
+  inspector gets a "..." menu (Edit source, Replace), not visible buttons; a data file opened from
+  the start screen goes through the Data page; focus after Add/Delete step and find's Escape, Enter
+  commits and Escape closes a step edit; load words true and spoken once; key says ", out of date";
+  no silent Everything in style lines; path Weight starts on the loaded weight.
+- 2026-10-09 **Watch in round 2:** does T22 reach its floor with the hint (if 3+ still fail in the
+  same place, "Select where..." on the column is next); does anyone find the "..." on the source
+  (a menu is less visible than my buttons were); does the start-screen open's extra Load step hurt
+  tier 1's own-file task; focus scripts pass, not just pointer walks.
+- 2026-10-09 **A visible door beats a new route,** but words at rest do not rise: the Director chose
+  a header "..." over my visible buttons. Surface existing commands; do not add homes.
+- 2026-10-09 **The halo tint was a defect, not a design question** (its docs say ring). Read the
+  component's own contract before calling something a design choice.
+- 2026-10-09 **Two routes to one command must behave the same** (Open from start vs inside a project
+  differed). Same lesson as neighbors: the door a newcomer picks is the broken one.
 - 2026-10-07 **A decided change that is not verified on the served build is not done.**
-- 2026-10-07 **Recovery routes are first-class.** Fit is what a lost reader presses; "Back to
-  start" must never be the only way to a setting (T20).
-- 2026-10-07 **Simulated participants are one model and follow their histories.** A first move
-  that matches the history says little; trust reproductions and causes in code. Label a give-up
-  that follows a persona's scripted rule.
-- 2026-10-07 **Element English leaks into my refusals.** In-place refusals hold; their words come
-  from codes.
-- 2026-10-07 **The neighbors flow is done** (round 2 8 of 8). Do not touch it.
+- 2026-10-07 **Recovery routes are first-class.** "Back to start" must never be the only way to a
+  setting.
+- 2026-10-07 **Simulated participants are one model and follow their histories.** Trust
+  reproductions and causes in code; graders label scripted persona exits.
+- 2026-10-07 **Element English leaks into my refusals.** Refusals in place; words from codes.
 - 2026-10-06 **Change one thing per problem per round,** so the round can tell what helped.
-- 2026-10-06 **Every detour must work or not look clickable. Refusals in place, under the field,
-  until the value changes.**
+- 2026-10-06 **Every detour must work or not look clickable. Refusals in place until the value
+  changes.**
 - 2026-10-06 **Not doing yet:** first-run tour, toolbar words, names drawn by default.
 - 2026-10-06 **Where a fix goes:** graph logic in graphty-element; flows, focus, words in the app;
   shared control defects in compact-mantine.
@@ -126,27 +126,10 @@ Each with its reason. A screen that breaks one is a defect.
   on Values; Degree opens the named neighbor list. Export > Data opens on the showing table. Build
   the real app (owner, 2026-10-03). Delete acts at once with Undo. A bind on a row edits that row.
   The element returns facts and codes; the app writes every word (owner).
-- 2026-10-06 (mine, reversible) Notices also pause while they hold keyboard focus, are announced
-  in a polite live region, and are never the only route back. Not yet built.
-
-- 2026-10-06 (mine, reversible, round 2 proposal) The "Neighborhood" command with one node
-  selected does exactly what the Degree row does: select the one-hop neighbors AND open the
-  named list. Evidence: `toolbar/commands.ts` `selection.neighborhood` only calls
-  `selection.apply`; `NodeValues.tsx` `openNeighborhood` also sets the inspected list; 0 of 4
-  found the list (r1-s17b, s19b, s21b, s22b).
-- 2026-10-06 (mine, reversible) A layout refusal is shown under the Method field until the
-  method changes, worded by the app from graphty-element's reason code; not a timed notice.
-  Evidence: r1-s43b `06.png`, the notice drawn as a bare "x" beside the popover.
-- 2026-10-06 (mine, reversible) A multi-node Summary omits a text attribute whose commonest
-  value occurs once (all values distinct) rather than print "Babet (1)". App words over the
-  element's `distribution` fact.
-
-- 2026-10-06 Round 1 decisions I hold to (Design Director, from the skeptic-checked insights):
-  Neighborhood on one node opens the named list; Summary drops "Babet (1)" and "Edges 0" (delete
-  words, add none); Selection row and Sources tables stop dead-ending; empty combo has no arrow;
-  "No crossings" refusal under Method; wheel zoom in the orbit camera; focus ring for every
-  control; focus to the new Style line; runs named by method. Rejected: Degree cue (two changes at
-  once), Summary listing names (second neighbor surface), new refusal code, notice-slot changes.
+- 2026-10-06 (summarized) Mine: notices pause on focus, polite region, never the only route back
+  (not built). Round 1 held: Neighborhood on one node opens the named list (both doors share one
+  function); Summary drops "Babet (1)"; "No crossings" refusal under Method from a code; focus to
+  the new Style line; runs named by method. Rejected: Degree cue, Summary names, notice-slot changes.
 
 - 2026-10-07 Round 2 decisions (Design Director), with my proposals' fate: menu dialogs keep
   focus -- fixed in compact-mantine's Menu, not per caller (mine was app or shared; the shared
@@ -161,36 +144,25 @@ Each with its reason. A screen that breaks one is a defect.
   "+" opens its picker instead (Label "+" pattern). Not changed: Force unsettled cloud (untraced),
   4x print export, key placement and fit inset (new API, seed is the owner's).
 
-- 2026-10-07 Tier 2 proposals (mine, for the Director; from the tier 2 audit and refined B
-  sections 2.3, 7, 8, 10.1, 10.3, 11.3). Keep refined B where decided. Mine where it departs or
-  is silent: (a) the path run's Values tab lists the route in order with hop count and total,
-  chosen by the element's per-field type, never a histogram on a boolean (audit crash at
-  `RunValues.tsx:171`); (b) Find with a leading "=" shows a live first row "Select where <rule>:
-  N edges" and a malformed rule's reason under the box from an element code (today the error
-  escapes uncaught); (c) Replace with file marks each changed row "Numbers changed" and offers
-  Rerun on the row, not an automatic rerun of slow runs (criterion 6); (d) the filter chip is
-  drawn only once a step exists (restraint) -- refined B draws "Full graph" always, open;
-  (e) Analyze shows "Weight: not read by Degree" on entries that read none, from a catalog fact.
-  Open owner questions: how a "stronger" weight becomes a distance for shortest path (1/w,
-  refuse, or ask); bare numbers in the rule language (`weight > 3`) as a query-language change.
+- 2026-10-07 (summarized) Tier 2 proposals: path Values lists the route; Find with "=" selects by
+  rule with element-coded reasons; Replace marks changed runs, Rerun on the row; filter chip only
+  once a step exists; Analyze says which weight a method reads. Owner questions: stronger weight
+  as distance; bare numbers in rules.
 
-- 2026-10-09 Round 2 proposals after tier 2 round 1 (mine, reversible; for the Director):
-  (a) **Source inspector shows "Edit source..." and "Replace with file..."** as buttons, the same
-  commands as the row's right-click menu (`DataPlace.tsx` `useRowMenu`; `data-page/request.ts`
-  `editSource`, `canReplace`). Evidence: 8 of 8 hunted for Replace, 7 left-clicked the row and saw
-  only facts (`r1-s29/08.png`); T20's "Back to start" dropped the graph (`r1-s05/09.png`) while
-  Edit source already reaches "Higher means". Rejected: a hover "...", a main-menu entry (two new
-  homes), a new "set weight meaning" route.
-  (b) **Find box: "No match" for text holding <, >, = or != says "To select by a value, start
-  with =, such as <example>"** using `exampleRule` (`FindBox.tsx` emptyLine). App words, no
-  parsing beyond spotting the operator. Evidence: 4 of 4 typed `minutes >= 10`, got only "No
-  match" (`r1-s46/12.png`). Rejected for now: bare numbers in rules (owner's query-language
-  question), a "Select where" on the column (second change to one problem; next if (b) fails).
-  (c) **The canvas key's heading for an out-of-date run carries the same out-of-date mark and
-  words as its row** (stale state is an element fact). Evidence: bar 5 fails as written,
-  `r1-s28/07.png`; two experts. Rejected: dimming the drawing (a reader's choice).
-  (d) **Fix Edges Color writing to Everything** with a run's layer open (r1-s43, r1-s46,
-  `r1-s46/05.png`): a defect, fixed between rounds.
+- 2026-10-09 Tier 2 round 2 decisions (Design Director) and my proposals' fate:
+  (a) source inspector doors: TAKEN AS A "..." HEADER MENU (Edit source, Replace, same `canReplace`,
+  verbs shared like `attributeActionsOf`), not my visible buttons -- buttons add words at rest.
+  (b) find hint: TAKEN, BUT the element decides: the app asks `session.scope.count({ where: "=" +
+  text })`; accepted or refused only with `number-needs-backticks` -> "To select by a value, start
+  with =, such as <exampleRule>"; else "No match". Better than my operator-spotting (no app syntax).
+  (c) key ", out of date": TAKEN, words only, from `run.stale`. (d) Edges Color to Everything:
+  TAKEN at the root -- `writeLine` loses its default layer; a row with no layer for a side shows
+  no lines for it. ADDED by others, mine to watch: start-screen data file opens the Data page;
+  focus after Add/Delete step and find Escape, Enter/Escape in step edits, named note deletes;
+  load status uses `headerName` and left-out count, spoken once after mount; path Weight starts on
+  the loaded weight; "Total minutes"; Replace page button "Replace"; path aliases. Halo drawn back
+  faces only (element). Not now: "Select where..." (only if the hint fails), Filters' home, label
+  overlap (element issue), bare numbers (owner), compact-mantine Toast role and segment contrast.
 
 ## Tried: worked / did not work
 
@@ -303,3 +275,4 @@ Each with its reason. A screen that breaks one is a defect.
   `design/ui/studio/tmp/interaction_owner.py` and `interaction_agents.py`.
 - `design/ui/studio/rounds/round-1/`, `round-2/` (insights, decisions, scores, repro r2-s07, s19,
   s56), `r2/pilot/T6-T16/pilot.md`, read 2026-10-07.
+- `design/ui/studio/tier2/rounds/round-1/insights.md` and `decisions.md`, read 2026-10-09.

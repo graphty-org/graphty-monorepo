@@ -2,7 +2,7 @@
 
 Date: 2026-10-10. Written by the studio director for graphty's owner.
 
-The studio evaluated 43 paper designs for controlling graphty in a VR headset (Meta Quest 3/3S, Samsung Galaxy XR, Apple Vision Pro): what a person does with hands, controllers, eyes where exposed and optional voice to load, explore, analyze, style and publish a graph. Scenery and graphics were never judged. Every design was scored on eight criteria (Appendix A). Twelve finalists and three hybrids went through up to three rounds of review and revision, and three judges then ranked those 15. Every prototype has its own file under [prototypes/](prototypes/README.md), and [the index](prototypes/README.md) lists all 46 (the 43 designs plus the studio's three hybrids). The criteria, the triage and the judges' rankings are the appendices at the end of this document.
+The studio evaluated 43 paper designs, and 3 hybrids it later made from them (46 in all), for controlling graphty in a VR headset (Meta Quest 3/3S, Samsung Galaxy XR, Apple Vision Pro): what a person does with hands, controllers, eyes where exposed and optional voice to load, explore, analyze, style and publish a graph. Scenery and graphics were never judged. Every design was scored on eight criteria (Appendix A). Twelve finalists and three hybrids went through up to three rounds of review and revision, and three judges then ranked those 15. Every prototype has its own file under [prototypes/](prototypes/README.md), and [the index](prototypes/README.md) lists all 46. The criteria, the triage and the judges' rankings are the appendices at the end of this document. The six mocks recommended for building are in [Which VR mocks to build](xr-prototype-mocks.md).
 
 The criteria are scored 1 to 5 in half steps:
 
@@ -60,150 +60,63 @@ So deleting the two claims would not, on its own, make 44 recommended. Both cove
 - writes that carry the version they were based on;
 - references that store what they resolved to.
 
-The webxr question needs a headset spike, not a paper round.
+Whether 44 can be built is not a question for another paper round, and not a stand-alone test either: it is a check inside the Paired Browser mock (next heading).
 
 The next closest are:
 
 - **[Hotbox (26)](prototypes/prototype-26.md):** short only on efficiency (2.5) on the reviewers' scores, and also on coverage (3.5) once capped.
 - **[One Question at a Time (30)](prototypes/prototype-30.md):** short on coverage (3) and efficiency (3).
 
-### What happens next: spikes, not another paper round
+### What happens next: the six mocks are the spikes, not another paper round
 
 The stop rule ended 44 after round 2: its mean rose 0.19, under the 0.2 the rule requires. The director's earlier note ("one more round of 44 if the studio reopens") is withdrawn. The criteria were frozen before screening, and 44 is no exception.
 
-The remaining question about 44 is whether it can be built, and only a headset answers that. Its paper fixes go into the spec of the first mock instead. Section 3 covers how coarse the stop rule is, and the one finalist (29) that the token-limit gap stopped by mistake.
+The next step is the six mocks listed under "The tiers" below. Each is a spike of one whole interaction model, in which a person does graphty's basic journey end to end in the headset; any feasibility question is a check inside one of them, never a test of its own. The remaining question about 44 -- whether its in-scene panel text can be read and its frame budget held in a browser on all three headsets -- is answered inside the Paired Browser mock, measured while people walk its journeys. 44's paper fixes go into that mock's spec. Section 3 covers how coarse the stop rule is, and the one finalist (29) that the token-limit gap stopped by mistake.
 
 ### The tiers
 
 **Recommended to implement:** none.
 
-**Worth a mock**, meaning a cheap headset prototype of the risky part only, in this order:
+**Mocks to build.** The studio's first list here named pieces -- a tag layer, a fast menu on
+controllers, the slab alone, a text-rendering test -- as mocks. That is withdrawn. A mock is now a
+spike of one whole interaction model: a different idea of how graphty could work in a headset, in
+which a person does the basic journey end to end (open data, get oriented, find a node, explore its
+neighbors, run an analysis, read it, style by it, filter, note, undo, save) and one hard real-world
+task. A technique worth keeping is a feature inside one of them, never a mock of its own. Six were
+chosen, specified and reviewed, ranked:
 
-- Every entry is a reviewed design, and its scores are those of its last round.
-- Where the mock covers only part of a design, the entry names that part and claims no score for it.
-- A variant the studio did not review gets no score.
+1. **Paired Browser** (44, containing 28, with 26's hotbox as its fast menu): every object has a
+   page of facts, worded commands and links; hold any node in the graph for its commands. The plain
+   baseline the others are measured against; it builds the shared toolkit. Risk: people stop looking
+   at the graph.
+2. **Prop and Plane** (38, whole design): hold the graph in one hand and cut it with a plate in the
+   other; most commands are ways of holding the plate. The only design a monitor cannot reproduce.
+   Risk: a hands-only plate precise enough on Quest and Vision Pro.
+3. **Findings Inbox** (42): graphty runs its cheap analyses first and posts findings as cards that you
+   file with a flick, working in cases. The only design that asks for fewer commands. Risk: the
+   machine sets the agenda.
+4. **Point and Ask** (34, with 25's command sentence and 35's tags): point at targets, say or type the
+   request, check it as editable tiles, press Go; complete with no model and no voice. The set's
+   AI-mediated design. Risk: on Quest it is typed and can become a command palette.
+5. **Cutting Room** (23, with 45's record): every change is a clip on a film timeline, edited in place
+   with a count of what will replay. The only design that edits the history. Risk: the replay engine
+   graphty-element lacks.
+6. **Facet Browser** (41, with 29's shelves): narrow the data by values, ranges and regions swept in
+   the graph instead of pointing at nodes. It is built knowingly under the rule that the graph in
+   space must carry at least one act in four (6 of 33 acts under the strict count): it is the set's
+   test of whether people need to point at nodes at all, so a low share of acts on nodes is its
+   hypothesis, not an oversight. If people also leave the graph alone on its free task, the finding is
+   that a query rail is a desktop app in a headset, and it is not carried forward as a design of its
+   own. Built last, and first to cut.
 
-1. **[Paired Browser (44)](prototypes/prototype-44.md).** A hybrid of plain designs. Mode model: always on one object's page. Works with hands alone and no voice.
-    - [Graph Browser (28)](prototypes/prototype-28.md) is not listed separately. 44 contains it whole, so by the criteria's own rule 28 is dropped as a duplicate. Its unpaired core becomes 44's first milestone, as judges 1 and 2 propose.
-    - **Why:**
-        - All three judges put it first.
-        - It is the closest to the bar.
-        - It is the only design that answers files, text and wide tables together.
-        - Every core act is a standard select event (release, a timed hold, a drag, two hands), with no gaze, no gesture classifier and no speech.
-        - It builds the panel toolkit and the pairing that most other designs need.
-    - **Biggest open risk:**
-        - The size of the in-scene toolkit.
-        - Whether panel text, the pointer and the graph composite correctly on Quest within the frame budget.
-        - Behind that sits judge 3's objection, which the file names as its own top risk: it may be "a desktop app in a headset" in which people stop looking at the graph.
-    - **First spike:**
-        - Draw one generated form page and one sorted reader in the scene at 1.1 m, with 1.3 cm text and 12 rows.
-        - Build it two ways on Quest 3 hands: a quad layer under a cleared projection layer with a depth hole, and a texture panel.
-        - Draw the ray, the hold ring and a name tag over it, at 1,000 and 10,000 nodes.
-        - Repeat on Vision Pro's transient pointer.
-        - Measure frame time, legibility and wrong-target pinches.
-        - Log how often the person pinches the graph against how often they pinch links and buttons on the panel (judge 3's test). Without that count, building 44 first cannot tell the studio whether the headset adds anything.
-    - **Fixes the mock's spec carries (none of them scored):**
-        - delete the second projection layer and the background wake lock;
-        - writes to a project's home carry the version they were based on, and one device holds a project at a time;
-        - the red team's typing gate: the pause starts on key-down, each pinch is held for one round trip, Enter picks the highlighted search result, and "paused" shows at the ray tip;
-        - a row cursor with mark-and-next on every list page;
-        - a kept, comparable scenario table for "What if removed";
-        - a time window that is view-only by default, run pages that state the window they ran on, and the time window as a recipe input;
-        - sets kept from a result store their members, with drift reported on reopen.
+Build order: Paired Browser first (it builds the shared foundation), then Findings Inbox with Prop and
+Plane started alongside it, then Point and Ask, Cutting Room and Facet Browser. Built in sequence the
+six come to roughly 90 engineer-weeks.
 
-        The row cursor and the scenario table are the two changes that would move its efficiency (3.5) toward 4.
-2. **[Hotbox (26)](prototypes/prototype-26.md), on controllers only.** A plain design. Mode model: hold one button, every command for the target shows, release on one.
-    - **Why:**
-        - After 44 it is the closest to the bar under both readings.
-        - It has the best repeat path in the studio: Repeat last, and Again on a new target. Efficiency is the ceiling every finalist shares.
-        - No lens left a severity 3 open in its last round.
-    - **How it answers its two objections:**
-        - _Hands are excluded until a pinch rule passes._ The round 3 red team, the onboarding reviewer and judge 1 agree on the hands problem. The first time the hotbox is opened with hands, the cursor overshoots into a corner command almost every time, and that command can be Undo.
-            - That is an error, not a hesitation, and it is how a person afraid of breaking things quits.
-            - On Vision Pro, a relaxed or 150 ms pinch can run a row nobody saw lit.
-            - The red team confirms that "the item that runs is the item that was lit" holds on controllers. So the mock is controllers only, as judge 2 conditions it.
-        - _There is one fast-layer mock, not two._ Judge 3 ranks 26 fourteenth because [Fast Ring over Pages (46)](prototypes/prototype-46.md) asks the same question: can a fast layer sit over complete surfaces? It does.
-            - The studio mocks that question once, with 26: reviewed, with no lens severity 3 open, ease_of_use 3.5 and webxr_feasibility 4.
-            - The reviewed 46 aims with the head and has five severity 3 findings open. A hand-aimed 46 was never reviewed.
-            - Judge 3's preference for the resting-hand ring is recorded as a disagreement.
-    - **Biggest open risk:** the wrong-item rate in first sessions, and on hands the corner overshoot.
-    - **First spike:**
-        - Controllers only.
-        - Measure the wrong-item rate in first sessions.
-        - Count the hub-removal repeat (click, then B).
-        - Count the top-10 agreement check across five rankings. Today it costs about 44 acts, because several runs cannot be one target.
-        - Move to hands only after a stated pinch rule passes the same test.
-3. **[Hint Keys (35)](prototypes/prototype-35.md): the tag layer only.** A plain design. Mode model: see it, name it.
-    - **Why:**
-        - A two-letter tag at a constant angular size (about 2 degrees) sits on every node, row, bar and history step. That makes picking one node among thousands a reading task.
-        - Any standard select hits a tag on any headset, with taps only and hands alone.
-        - Judges 1 and 2 would build it as an addressing layer.
-    - **Not mocked:** the finger-segment keypad (a classifier whose pose hides the fingers it reads), the phrase recognizer, and the rest of its command system.
-    - **Biggest open risk:**
-        - Rendering 2,000 tags at constant angular size within the frame budget.
-        - The red team's round 3 severity 3 also stands: a pick run replaces the selection even when what was picked was runs, sets or history steps.
-    - **First spike:** the shared dense-selection test.
-        - Pick 12 scattered nodes among 400, and among 10,000, three ways: with 44's "which one?" card, 35's tags and 38's slab.
-        - Run it on Quest 3 hands and on controllers.
-        - Measure time and wrong picks.
-4. **[Findings Inbox (42)](prototypes/prototype-42.md).** A usage design. Mode model: triage. graphty runs cheap analyses on load, and the person files each finding.
-    - **Why:**
-        - It is the only design that asks for fewer commands instead of cheaper ones.
-        - The flick is specified on hands, controllers, Vision Pro's transient pointer and thumbsticks, from a resting elbow, and it needs speed as well as distance.
-        - Coverage is 4.5 by the lens and 4 capped.
-    - **Biggest open risk:** efficiency is 2.
-        - With no case boundary, one alert's filters and fades shape the next (the expert's severity 3).
-        - A callout can cite an automatic result that the inbox-clearing flick deletes (the red team's severity 3).
-    - **First spike:**
-        - Run the four-way flick and its footer, with the view following each card, on all three headsets for 30 minutes.
-        - Test trust in machine findings on the 2D page first, which is cheaper.
-        - The red team's Start case, Close case and Next case is an unreviewed fix. The mock may include it as scaffolding, but the studio has no score for 42 with it.
-5. **[Cutting Room (23)](prototypes/prototype-23.md).** The only metaphor left. Mode model: edit the history, not the state.
-    - **Why:**
-        - "Replace the data, keep my steps", and fixing step 8 while keeping the 7 good steps after it, are worth more for weekly work than any other single feature (judge 2).
-        - Its coverage went from 1.5 to 4 by generating every object's verbs from the command catalog.
-    - **Biggest open risk:**
-        - The replay engine (cached state, state diffs, branches) is months of graphty-element work. That is why webxr_feasibility has been 3 for three rounds.
-        - The red team also found replays that re-bind silently. "Community 7" lands on a different group. "Re-measure here" recolors a published figure from a run on a 30-node subset.
-    - **First spike:**
-        - Build it in graphty-element and behind a 2D history view first, as judge 3 asks.
-        - Replay a recorded journal in a worker on new data, with each reference stored by what it meant.
-        - Stop at the first reference whose members change, and show old beside new.
-        - Only after that, mock the timeline and ripple bar in the headset. That mock may run over precomputed states, so the headset question (can a person edit an old step with hands) does not wait for the engine.
-6. **[Prop and Plane (38)](prototypes/prototype-38.md): the slab only.** A research design. Mode model: a held plate with two stances.
-    - **Why:**
-        - It is the one idea a monitor cannot do. A plate pushed through the graph draws the nodes of a thin slice flat on its face, with a crosshair that snaps node to node.
-        - That turns occlusion into a plane-distance filter, which stays cheap at 10,000 nodes and needs no gaze.
-        - It is judge 3's second choice, and the tier would hold no research design without it.
-    - **Against it:**
-        - Two judges rank it last of 15.
-        - Its mean (3.31) is the lowest of the finalists.
-        - Its seated home puts the graph about 50 degrees below eye level (severity 3).
-        - So the mock is the slab and nothing else, not the scheme.
-    - **Biggest open risk:** jitter of the palm plane with hands alone, and arm load while the plate is held in the graph.
-    - **First spike:** the shared dense-selection test (entry 3), with the slab's snapping crosshair.
-
-**Keep as a source of parts.** These are named parts, not designs to build. Several are already inside 44.
-
-| Part                                                                                                                                                                                                                                           | From                                  | Where it goes                                                                       |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------- |
-| The unpaired core, and the red team's row cursor. Do not carry over its round 2 pose gate and aim settle, the drag that turns the graph, or Back, Forward and Home on the panel edge the graph covers                                          | 28 Graph Browser                      | 44's first milestone                                                                |
-| Press to preview, release to choose, slide off to cancel (the select lifecycle answers Vision Pro's missing hover); a Check card listing every default it skipped; versioned task cards                                                        | 30 One Question at a Time             | 44's forms                                                                          |
-| The detented range handle that names who sits just outside ("Ridolfi and Castellani at 0.069 are out"); the route chip with facets that recount for the nodes on the route; per-value counts and relational facets that search the whole graph | 41 Facet Browser                      | graphty-element first (the 2D app gets them too), then a facet page in 44           |
-| A "why this look" page of pills on named roles; refusals that explain themselves                                                                                                                                                               | 29 Encoding Shelves                   | 44's graph page                                                                     |
-| The Review step (Yes, No, Skip, "not reviewed") as the one way a person's judgment enters the record; the Methods page; probe beads; "only fitting ports light"                                                                                | 32 Patch Bay                          | every recipe; 44's History                                                          |
-| The arm-load floor (no poses, a sticky one-hand alternative for every hold, tracking loss always cancels); "strike only this" on one old step                                                                                                  | 45 Editable Record                    | every design; the element's replay engine                                           |
-| The phone as a keyboard with its keys mirrored under the field being typed, lift to commit                                                                                                                                                     | 39 Phone in Hand                      | already in 44                                                                       |
-| The target tray that binds "this" only to objects the person pinched; editable slot tiles that show the request back in graphty's terms                                                                                                        | 34 Point and Ask                      | 44's optional assistant, once a "data withheld" route shows the exact outgoing text |
-| The counted outcome strip ("keeps 5 of 16"); scope from a labeled chip, never from where a pinch lands                                                                                                                                         | 46 Fast Ring over Pages               | 26's center row; 44's forms                                                         |
-| Object-first marking menu with a half-second reveal; pull a node for hops with a live "1 hop: 6"                                                                                                                                               | 3 Gesture Grammar (eliminated)        | a fast layer, if the 26 mock passes                                                 |
-| Handles that show a count before release; drag back past the rest notch to cancel                                                                                                                                                              | 12 Lean In (eliminated)               | any drag control                                                                    |
-| A pending guess with a count and named borderline cases; correction by counter-example                                                                                                                                                         | 19 Show Me (eliminated)               | a selection-by-example mock, if one is made (see the open questions)                |
-| The "which one?" list for dense picks; option kinds the headset cannot show are labeled "Set this on the 2D page" instead of dropped                                                                                                           | 24 Hand Menu and Windows (eliminated) | already in 44                                                                       |
-| The command sentence with typed slots and a preview line of counts and cost                                                                                                                                                                    | 25 Search Everything (eliminated)     | already in 45; a candidate for 44's History lines                                   |
-| The detent histogram filter: "keeps 5 of 16; next below: Ridolfi 0.069"                                                                                                                                                                        | 27 The Sheet (eliminated)             | already in 44's linked reader                                                       |
-
-The other parts named at screening are in the "Dropped prototypes" table of the triage (Appendix B).
+The full recommendation -- each mock's idea, what a person does in it end to end, what it uniquely
+teaches, its biggest risk, its size, how the set covers the space of ideas and where every kept
+technique from the 46 designs now lives -- is [Which VR mocks to build](xr-prototype-mocks.md). Each mock's specification is linked from it. Parts named at
+screening that no mock keeps are in the "Dropped prototypes" table of Appendix B.
 
 ### Before any of these reaches a study session
 
@@ -224,26 +137,21 @@ These rules come from the red team's walks of the publish journey and from all t
 - **A person's judgment enters the record as a Review step** (Yes, No, Skip), never as a frozen list of ids.
 - **Every revision is walked against stress journey 6 (publish the analysis) before its fixes are called done.** That is where the red team found a severity 3 in almost every design.
 
-### What this portfolio does not contain
+### What the set of mocks does not contain
 
-- **It leans toward one toolkit on purpose.**
-    - 44, 26 and 35 are all object-then-verb surfaces over labeled controls, and the tag and hotbox mocks would run over 44's pages.
-    - Judge 1 chose this: within two quarters, one toolkit shared by everything that ships is worth more than variety.
-    - The other three entries keep three different mode models: triage (42), history editing (23) and a held prop (38).
-- **Some mode models are missing.** No entry in any tier tests:
-    - two people (20 was eliminated for needing two people, and no single-person variant was ever tried);
-    - demonstration (19);
+- **Some ways of working are missing.** No mock tests:
+    - two people sharing the controls (20 was eliminated for needing two people, and no single-person
+      variant was ever tried);
+    - demonstration as the main way of working (19 survives only as a feature inside Findings Inbox);
     - live mixing with no apply step (21);
-    - tools held in the hand (4 and 8 were both closed sets; 38's plate is the only held object left);
-    - hand distance (12).
+    - hand distance as the mode (12);
+    - tools held in the hand (4 and 8 were both closed sets; Prop and Plane's plate is the only held
+      object left).
 
-    Each was dropped for a reason recorded at screening. None was rebuilt to test whether the mode model failed or only that one design did.
+    Each was dropped for a reason recorded at screening. None was rebuilt to test whether the way of
+    working failed or only that one design did.
 
-- **No paradigm design earns a mock.**
-    - [Patch Bay (32)](prototypes/prototype-32.md) has a permanent engineering load: webxr_feasibility 3, and its own file says "no revision removes this".
-    - Point and Ask's (34) main question is what share of requests a local compiler can handle. The 2D page's command palette answers that more cheaply.
-    - Their parts are kept.
-- **Hands alone with no voice:** 44, 35's tag layer, 42 and 38 all work that way. 26 is controllers only by choice.
+- **Hands alone with no voice:** all six mocks work that way; Point and Ask's voice path is optional.
 
 ## 2. Every finalist's scores
 
@@ -259,23 +167,23 @@ These rules come from the red team's walks of the publish journey and from all t
 
 Order of the eight scores: vr_usability, ergonomics_access, webxr_feasibility, coverage, extensibility, onboarding, ease_of_use, efficiency.
 
-| #   | Name                                                 | Kind     | Rounds | First round (mean)                 | Last round (mean)                    | Capped last (mean)                 | Under the bar, last round (capped adds)            | Tier                     |
-| --- | ---------------------------------------------------- | -------- | ------ | ---------------------------------- | ------------------------------------ | ---------------------------------- | -------------------------------------------------- | ------------------------ |
-| 44  | [Paired Browser](prototypes/prototype-44.md)         | hybrid   | 2      | 3 3.5 3.5 4.5 4.5 4 3.5 3.5 (3.75) | 3.5 4 3.5 4.5 4.5 4.5 3.5 3.5 (3.94) | 3.5 4 3.5 3.5 4.5 4 3.5 3.5 (3.75) | webxr 3.5 (coverage 3.5)                           | mock 1                   |
-| 26  | [Hotbox](prototypes/prototype-26.md)                 | plain    | 3      | 2.5 3 4 3 4 3 3 2.5 (3.13)         | 3.5 4 4 4 4 4 3.5 2.5 (3.69)         | 3.5 4 4 3.5 4 3.5 3.5 2.5 (3.56)   | efficiency 2.5 (coverage 3.5)                      | mock 2, controllers only |
-| 35  | [Hint Keys](prototypes/prototype-35.md)              | plain    | 3      | 2.5 3.5 3 4 4 3 2.5 2 (3.06)       | 3.5 4 4 4.5 4.5 4 3 2.5 (3.75)       | 3.5 4 3.5 4 4.5 4 3 2.5 (3.63)     | ease 3, efficiency 2.5 (webxr 3.5)                 | mock 3, tag layer        |
-| 42  | [Findings Inbox](prototypes/prototype-42.md)         | usage    | 3      | 3 3.5 3.5 3 4 3.5 3 2.5 (3.25)     | 3.5 4 4 4.5 4.5 4 3 2 (3.69)         | 3.5 4 4 4 4.5 3.5 3 2 (3.56)       | ease 3, efficiency 2                               | mock 4                   |
-| 23  | [Cutting Room](prototypes/prototype-23.md)           | metaphor | 3      | 3 3.5 3 1.5 3 3 2.5 2 (2.69)       | 3.5 4 3 4 4 4 3 3.5 (3.63)           | 3.5 4 3 3.5 4 3.5 3 3.5 (3.5)      | webxr 3, ease 3 (coverage 3.5)                     | mock 5                   |
-| 38  | [Prop and Plane](prototypes/prototype-38.md)         | research | 2      | 3 3.5 3 3 4 3 3 2.5 (3.13)         | 3.5 3.5 3.5 3.5 4 3.5 3 2 (3.31)     | unchanged                          | webxr 3.5, coverage 3.5, ease 3, efficiency 2      | mock 6, slab only        |
-| 28  | [Graph Browser](prototypes/prototype-28.md)          | plain    | 2      | 3 3.5 4 3 4.5 4 3.5 2.5 (3.5)      | 3.5 4 4 4 4.5 4 3 2.5 (3.69)         | 3.5 3.5 4 3.5 4.5 3.5 3 2.5 (3.5)  | ease 3, efficiency 2.5 (coverage 3.5)              | 44's first milestone     |
-| 30  | [One Question at a Time](prototypes/prototype-30.md) | plain    | 2      | 4 4.5 4 3.5 4 4 3.5 3 (3.81) *     | 4 4 4 3 4 4.5 3.5 3 (3.75)           | 3.5 4 4 3 4 4.5 3.5 3 (3.69)       | coverage 3, efficiency 3                           | parts                    |
-| 41  | [Facet Browser](prototypes/prototype-41.md)          | usage    | 3      | 3.5 4 3.5 4 4 3.5 3 3 (3.56)       | 4 4 4 4 4.5 4 3 2.5 (3.75)           | 4 4 4 3.5 4 4 3 2.5 (3.63)         | ease 3, efficiency 2.5 (coverage 3.5)              | parts                    |
-| 29  | [Encoding Shelves](prototypes/prototype-29.md)       | plain    | 2      | 3.5 4 3.5 3 4 3.5 3.5 3 (3.5) *    | 3.5 4 3.5 4.5 4.5 4 3 2.5 (3.69)     | 3.5 4 3.5 3.5 4 4 3 2.5 (3.5)      | webxr 3.5, ease 3, efficiency 2.5 (coverage 3.5)   | parts                    |
-| 32  | [Patch Bay](prototypes/prototype-32.md)              | paradigm | 3      | 3 3 3 4 4 3 3.5 3.5 (3.38) *       | 3.5 4 3 4.5 4.5 4.5 3 2.5 (3.69)     | 3.5 4 3 4 4.5 4 3 2.5 (3.56)       | webxr 3, ease 3, efficiency 2.5                    | parts                    |
-| 45  | [Editable Record](prototypes/prototype-45.md)        | hybrid   | 3      | 3 3.5 3.5 3.5 4 3.5 3.5 2.5 (3.38) | 3.5 4 3.5 4 4.5 4 2.5 2.5 (3.56)     | 3.5 4 3.5 3.5 4 4 2.5 2.5 (3.44)   | webxr 3.5, ease 2.5, efficiency 2.5 (coverage 3.5) | parts                    |
-| 39  | [Phone in Hand](prototypes/prototype-39.md)          | research | 2      | 3 3.5 3 3.5 4.5 3 3.5 3 (3.38)     | 3.5 4 3.5 4.5 4.5 3 3 2.5 (3.56)     | 3.5 4 3.5 4 4.5 3 3 2.5 (3.5)      | webxr 3.5, onboarding 3, ease 3, efficiency 2.5    | parts (already in 44)    |
-| 34  | [Point and Ask](prototypes/prototype-34.md)          | paradigm | 2      | 3 3.5 3.5 3 4 3.5 3.5 4 (3.5)      | 3.5 4 3.5 3.5 4 4 3 2.5 (3.5)        | 3.5 4 3.5 3.5 4 3.5 3 2.5 (3.44)   | webxr 3.5, coverage 3.5, ease 3, efficiency 2.5    | parts                    |
-| 46  | [Fast Ring over Pages](prototypes/prototype-46.md)   | hybrid   | 2      | 3.5 3.5 3.5 4 4 3.5 3 3.5 (3.56)   | 3.5 3.5 4 3 4 3.5 3 3 (3.44)         | unchanged                          | coverage 3, ease 3, efficiency 3                   | parts                    |
+| #   | Name                                                 | Kind     | Rounds | First round (mean)                 | Last round (mean)                    | Capped last (mean)                 | Under the bar, last round (capped adds)            | Tier                                                                                      |
+| --- | ---------------------------------------------------- | -------- | ------ | ---------------------------------- | ------------------------------------ | ---------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 44  | [Paired Browser](prototypes/prototype-44.md)         | hybrid   | 2      | 3 3.5 3.5 4.5 4.5 4 3.5 3.5 (3.75) | 3.5 4 3.5 4.5 4.5 4.5 3.5 3.5 (3.94) | 3.5 4 3.5 3.5 4.5 4 3.5 3.5 (3.75) | webxr 3.5 (coverage 3.5)                           | mock 1, Paired Browser                                                                    |
+| 26  | [Hotbox](prototypes/prototype-26.md)                 | plain    | 3      | 2.5 3 4 3 4 3 3 2.5 (3.13)         | 3.5 4 4 4 4 4 3.5 2.5 (3.69)         | 3.5 4 4 3.5 4 3.5 3.5 2.5 (3.56)   | efficiency 2.5 (coverage 3.5)                      | inside mock 1, as its fast menu                                                           |
+| 35  | [Hint Keys](prototypes/prototype-35.md)              | plain    | 3      | 2.5 3.5 3 4 4 3 2.5 2 (3.06)       | 3.5 4 4 4.5 4.5 4 3 2.5 (3.75)       | 3.5 4 3.5 4 4.5 4 3 2.5 (3.63)     | ease 3, efficiency 2.5 (webxr 3.5)                 | inside mock 4, as its tags                                                                |
+| 42  | [Findings Inbox](prototypes/prototype-42.md)         | usage    | 3      | 3 3.5 3.5 3 4 3.5 3 2.5 (3.25)     | 3.5 4 4 4.5 4.5 4 3 2 (3.69)         | 3.5 4 4 4 4.5 3.5 3 2 (3.56)       | ease 3, efficiency 2                               | mock 3                                                                                    |
+| 23  | [Cutting Room](prototypes/prototype-23.md)           | metaphor | 3      | 3 3.5 3 1.5 3 3 2.5 2 (2.69)       | 3.5 4 3 4 4 4 3 3.5 (3.63)           | 3.5 4 3 3.5 4 3.5 3 3.5 (3.5)      | webxr 3, ease 3 (coverage 3.5)                     | mock 5                                                                                    |
+| 38  | [Prop and Plane](prototypes/prototype-38.md)         | research | 2      | 3 3.5 3 3 4 3 3 2.5 (3.13)         | 3.5 3.5 3.5 3.5 4 3.5 3 2 (3.31)     | unchanged                          | webxr 3.5, coverage 3.5, ease 3, efficiency 2      | mock 2, whole design                                                                      |
+| 28  | [Graph Browser](prototypes/prototype-28.md)          | plain    | 2      | 3 3.5 4 3 4.5 4 3.5 2.5 (3.5)      | 3.5 4 4 4 4.5 4 3 2.5 (3.69)         | 3.5 3.5 4 3.5 4.5 3.5 3 2.5 (3.5)  | ease 3, efficiency 2.5 (coverage 3.5)              | inside mock 1                                                                             |
+| 30  | [One Question at a Time](prototypes/prototype-30.md) | plain    | 2      | 4 4.5 4 3.5 4 4 3.5 3 (3.81) *     | 4 4 4 3 4 4.5 3.5 3 (3.75)           | 3.5 4 4 3 4 4.5 3.5 3 (3.69)       | coverage 3, efficiency 3                           | parts: the activation rule in all six; its check list in Paired Browser and Point and Ask |
+| 41  | [Facet Browser](prototypes/prototype-41.md)          | usage    | 3      | 3.5 4 3.5 4 4 3.5 3 3 (3.56)       | 4 4 4 4 4.5 4 3 2.5 (3.75)           | 4 4 4 3.5 4 4 3 2.5 (3.63)         | ease 3, efficiency 2.5 (coverage 3.5)              | mock 6                                                                                    |
+| 29  | [Encoding Shelves](prototypes/prototype-29.md)       | plain    | 2      | 3.5 4 3.5 3 4 3.5 3.5 3 (3.5) *    | 3.5 4 3.5 4.5 4.5 4 3 2.5 (3.69)     | 3.5 4 3.5 3.5 4 4 3 2.5 (3.5)      | webxr 3.5, ease 3, efficiency 2.5 (coverage 3.5)   | parts, inside mock 6                                                                      |
+| 32  | [Patch Bay](prototypes/prototype-32.md)              | paradigm | 3      | 3 3 3 4 4 3 3.5 3.5 (3.38) *       | 3.5 4 3 4.5 4.5 4.5 3 2.5 (3.69)     | 3.5 4 3 4 4.5 4 3 2.5 (3.56)       | webxr 3, ease 3, efficiency 2.5                    | parts: the review step in all six; the methods page in Findings Inbox and Cutting Room    |
+| 45  | [Editable Record](prototypes/prototype-45.md)        | hybrid   | 3      | 3 3.5 3.5 3.5 4 3.5 3.5 2.5 (3.38) | 3.5 4 3.5 4 4.5 4 2.5 2.5 (3.56)     | 3.5 4 3.5 3.5 4 4 2.5 2.5 (3.44)   | webxr 3.5, ease 2.5, efficiency 2.5 (coverage 3.5) | parts, inside mock 5                                                                      |
+| 39  | [Phone in Hand](prototypes/prototype-39.md)          | research | 2      | 3 3.5 3 3.5 4.5 3 3.5 3 (3.38)     | 3.5 4 3.5 4.5 4.5 3 3 2.5 (3.56)     | 3.5 4 3.5 4 4.5 3 3 2.5 (3.5)      | webxr 3.5, onboarding 3, ease 3, efficiency 2.5    | parts: the phone keyboard in all six, through the shared text and file service            |
+| 34  | [Point and Ask](prototypes/prototype-34.md)          | paradigm | 2      | 3 3.5 3.5 3 4 3.5 3.5 4 (3.5)      | 3.5 4 3.5 3.5 4 4 3 2.5 (3.5)        | 3.5 4 3.5 3.5 4 3.5 3 2.5 (3.44)   | webxr 3.5, coverage 3.5, ease 3, efficiency 2.5    | mock 4                                                                                    |
+| 46  | [Fast Ring over Pages](prototypes/prototype-46.md)   | hybrid   | 2      | 3.5 3.5 3.5 4 4 3.5 3 3.5 (3.56)   | 3.5 3.5 4 3 4 3.5 3 3 (3.44)         | unchanged                          | coverage 3, ease 3, efficiency 3                   | parts: counted outcomes in Paired Browser and Point and Ask                               |
 
 \* Round 1 mixes two versions of the file; see section 3.
 
@@ -283,7 +191,7 @@ What the capped column changes:
 
 - **Coverage and webxr_feasibility both at 4 or more:** on the reviewers' scores, five finalists have both (26, 28, 35, 41 and 42). Capped, only 42 does.
 - **Judge 1's claim that 41 is "the only finalist at 4 on vr_usability, webxr_feasibility, coverage and onboarding":** true of the reviewers' scores. Capped, 41's coverage is 3.5, because route, flow and cut lookups are never recorded, so the methods and the recipe lose the computation behind the finding.
-- **The earlier claim "26 is the only fast layer with no severity 3 left":** literally true; no lens and no red team raised one against 26 in round 3. But the red team counts 15 of 22 areas fully reachable, not 19, which is below the 4 anchor. It also scores onboarding 3.5, because the corner command is an error rather than a hesitation. Neither affects the mock, which runs on controllers only.
+- **The earlier claim "26 is the only fast layer with no severity 3 left":** literally true; no lens and no red team raised one against 26 in round 3. But the red team counts 15 of 22 areas fully reachable, not 19, which is below the 4 anchor. It also scores onboarding 3.5, because the corner command is an error rather than a hesitation. Neither changes where 26 lives now: its hotbox is Paired Browser's fast menu, given to hands by default only if their wrong-item rate matches controllers'.
 - **The order of the closest designs does not change:** 44 is closest under both readings, 26 is next under both, and 30 ties 26 when capped.
 
 Judges' numbers corrected against the reviews:
@@ -346,7 +254,7 @@ Judges' numbers corrected against the reviews:
 
 ## 4. Stress journeys the director walked
 
-The criteria assign stress journeys 2 to 5 to the coverage lens and journey 1 to the onboarding lens. Journey 6 (publish the analysis) was walked only by red teams. The walks below close the gaps that matter for the worth-a-mock tier.
+The criteria assign stress journeys 2 to 5 to the coverage lens and journey 1 to the onboarding lens. Journey 6 (publish the analysis) was walked only by red teams. The walks below close the gaps that mattered for choosing the mocks.
 
 ### Paired Browser (44): journey 6, a week after journey 2's fraud case
 
@@ -372,7 +280,7 @@ Each step below follows the file's own rules.
 
 - 44 joins the list of designs with the shared defect.
 - Two severity 3 findings cap its coverage at 3.5.
-- Each has a paper fix inside the idea (section 1, mock 1).
+- Each has a paper fix inside the idea, carried by the Paired Browser mock and the shared graphty-element work (section 1).
 
 ### Prop and Plane (38): journey 6 rechecked after its revision
 
@@ -396,17 +304,17 @@ Each step below follows the file's own rules.
 - a time window is not a recipe input kind, so a time-windowed run replays on an unstated window, as in 44 (severity 2 here, since no 38 journey runs under a window);
 - a 2000-character report section is drafted on the laptop.
 
-None of these touches the slab, which is all the mock tests.
+The Prop and Plane mock is now the whole design, so these are in its scope: files and exports go through the shared text and file service, and the set and time-window defaults are open in its spec.
 
 ### Not walked
 
 - **[Hint Keys (35)](prototypes/prototype-35.md):**
     - The round 3 red team walked journey 1, steps 4 to 8, and journey 6, step 6 (where the pick run breaks).
     - The rest of journey 6 has never been walked.
-    - The mock covers only the tag layer, which journey 6 does not test.
+    - Its tags now live inside Point and Ask, whose mock does not walk journey 6.
 - **[Fast Ring over Pages (46)](prototypes/prototype-46.md):**
     - Journey 3 was never walked past step 1, and nobody walked journey 6 after its revision. Yet the file claims journeys 2 to 5 complete.
-    - 46 is now a source of parts, so its coverage claim decides nothing. The claim stays unverified.
+    - 46's counted outcomes now live in Paired Browser and Point and Ask, so its own coverage claim decides nothing. The claim stays unverified.
 
 ## 5. What the studio learned across designs
 
@@ -444,46 +352,48 @@ None of these touches the slab, which is all the mock tests.
 | Tables                                  | A wide sheet with frozen name and sort columns, and a linked histogram with one cut handle                                                                                                                                              | 44                                             |
 | Files                                   | A laptop folder listed in the headset's Inbox through a pairing, still unbuilt                                                                                                                                                          | 44, 32, 35                                     |
 | Precise reading                         | A cut handle that settles between two named values ("between Tornabuoni 0.071 and Ridolfi 0.069")                                                                                                                                       | 44 (from 27), 41                               |
-| Picking one node in a dense graph       | Tags (35), the slab (38) or the "which one?" card (44); the mock tier compares all three                                                                                                                                                | 35, 38, 44                                     |
+| Picking one node in a dense graph       | Tags (35), the slab (38) or the "which one?" card (44); the six mocks compare six answers head to head ([Which VR mocks to build](xr-prototype-mocks.md))                                                                               | 35, 38, 44                                     |
 | History                                 | Editing an old step in place, with a preview of what will replay                                                                                                                                                                        | 23, 45 (both need the element's replay engine) |
 
 ## 6. Prototypes not chosen at screening
 
 31 of the 43 were eliminated at screening. 12 finalists went forward, joined by 3 new hybrids (the triage in Appendix B has the full board).
 
-| #   | Name                                                | Why it was dropped                                                           | Worth keeping                                                     |
-| --- | --------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| 1   | [Palette Hand](prototypes/prototype-1.md)           | A four-face palette has no room for forms, tables or lists                   | The face that always shows the selection's verbs                  |
-| 2   | [Point and Say](prototypes/prototype-2.md)          | Voice is the only command path, so Quest Browser reaches nothing             | Fix one wrong word by poking its chip                             |
-| 3   | [Gesture Grammar](prototypes/prototype-3.md)        | No panels, so no place for tables, forms and lists                           | Object-first marking menu; pull a node for hops with a live count |
-| 4   | [Tool Belt](prototypes/prototype-4.md)              | Its eight-slot belt is already full                                          | Preview-then-confirm filter                                       |
-| 5   | [Workbench](prototypes/prototype-5.md)              | Coverage 2 and webxr_feasibility 2; 28 does its job better                   | Compound rules as an editable AND/OR list                         |
-| 6   | [Workshop](prototypes/prototype-6.md)               | Its fixed pegboard needs twice the tools it holds                            | Analysis state as objects on rails                                |
-| 7   | [Hand Signs](prototypes/prototype-7.md)             | The mode is a held pose that tracks well only where it tires the arm         | An undo that names the step                                       |
-| 8   | [Grip and Tool](prototypes/prototype-8.md)          | A closed set of eight grips, with no path for people who cannot form them    | Attribute tags generated from result fields                       |
-| 9   | [Spellcasting](prototypes/prototype-9.md)           | Memorized glyphs cannot be discovered and cannot grow                        | A live preview before the cast                                    |
-| 10  | [HUD](prototypes/prototype-10.md)                   | Coverage 1.5; it lacks surfaces                                              | A name tag at the reticle before any act                          |
-| 11  | [Context Menus](prototypes/prototype-11.md)         | Coverage 2, webxr_feasibility 2.5; 24 and 28 carry the idea further          | Its controller mapping                                            |
-| 12  | [Lean In](prototypes/prototype-12.md)               | Hand distance as the mode cannot carry panel-shaped work                     | Counts before release; drag back past the rest notch to cancel    |
-| 13  | [Hand of Cards](prototypes/prototype-13.md)         | Coverage 1.5; 23 is the stronger history metaphor                            | Per-object undo that lights its blast radius (in 45)              |
-| 14  | [Voodoo Dolls](prototypes/prototype-14.md)          | Coverage 1.5, onboarding 2                                                   | Two touching copies show only the verbs that fit that pair        |
-| 15  | [Physics Lab](prototypes/prototype-15.md)           | Feedback and selection stop working past a few hundred nodes                 | A well's rim reading "0.070 -- 5 kept"                            |
-| 16  | [Proofreader's Slate](prototypes/prototype-16.md)   | Coverage 1.5; fingertip ink unproven on two of three headsets                | Strike, stet and bracket steps as history and recipe (in 45)      |
-| 17  | [Orbits](prototypes/prototype-17.md)                | Eye pursuit is not readable by a web page on any headset                     | Nothing changes until an explicit confirm                         |
-| 18  | [Linked Views](prototypes/prototype-18.md)          | Coverage 2, extensibility 2.5                                                | A linked sorted table and histogram (in 44)                       |
-| 19  | [Show Me](prototypes/prototype-19.md)               | Demonstration covers ranking and filters but little else                     | A pending guess with a count; correction by counter-example       |
-| 20  | [Pilot and Navigator](prototypes/prototype-20.md)   | Every command needs two people                                               | A joint-hold ghost that names the target and counts the effect    |
-| 21  | [Mixing Desk](prototypes/prototype-21.md)           | Coverage 1.5                                                                 | A cue bus that previews any strip before it reaches the graph     |
-| 22  | [Command Card](prototypes/prototype-22.md)          | The fixed grid runs out of room                                              | Cancel-last at a body landmark that names its target              |
-| 24  | [Hand Menu and Windows](prototypes/prototype-24.md) | Repeats the platform default that 28 carries further                         | "Which one?" list; "Set this on the 2D page" (both in 44)         |
-| 25  | [Search Everything](prototypes/prototype-25.md)     | Repeats 28's address bar at a lower score                                    | The typed-slot command sentence (in 45)                           |
-| 27  | [The Sheet](prototypes/prototype-27.md)             | Efficiency 2; overlaps 29                                                    | The detent histogram filter (in 44)                               |
-| 31  | [Lens Kit](prototypes/prototype-31.md)              | Coverage 2.5; whole-graph lens previews threaten frame rate                  | The two-count readout (inside now, if spread)                     |
-| 33  | [Verb, Count, Scope](prototypes/prototype-33.md)    | A grammar to learn                                                           | Target-first verb ring and repeat on a new target (in 46)         |
-| 36  | [Focus Remote](prototypes/prototype-36.md)          | Onboarding 2.5, efficiency 2                                                 | A status strip naming the focus and the next input                |
-| 37  | [Zoom Stream](prototypes/prototype-37.md)           | Files unanswered; 30 covers safe commit with better feasibility              | The slow-crossing Go box that states what will change             |
-| 40  | [Desk Touch](prototypes/prototype-40.md)            | An untested contact classifier on an uninstrumented table                    | The table edge as a detented rail with a magnifier                |
-| 43  | [Variant Grid](prototypes/prototype-43.md)          | Rendering every tile as a live whole-graph variant is beyond graphty-element | Counted outcome tiles (in 46)                                     |
+The last column names the mock that now hosts each technique worth keeping, as a feature inside that mock's whole design, or says "not kept". "All six" means the technique is part of the rules every mock shares, such as press to preview and release to commit.
+
+| #   | Name                                                | Why it was dropped                                                           | Worth keeping                                                                       | Where it lives now                                                                                                                |
+| --- | --------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | [Palette Hand](prototypes/prototype-1.md)           | A four-face palette has no room for forms, tables or lists                   | The face that always shows the selection's verbs                                    | Not kept; Paired Browser's hold menu shows a selection's verbs on demand                                                          |
+| 2   | [Point and Say](prototypes/prototype-2.md)          | Voice is the only command path, so Quest Browser reaches nothing             | Fix one wrong word by poking its chip                                               | Point and Ask (press a tile to change it)                                                                                         |
+| 3   | [Gesture Grammar](prototypes/prototype-3.md)        | No panels, so no place for tables, forms and lists                           | Object-first marking menu; pull a node for hops with a live count                   | Paired Browser (the hold menu); Cutting Room (hop rings pulled on the graph) and Prop and Plane (tilt the plate for one more hop) |
+| 4   | [Tool Belt](prototypes/prototype-4.md)              | Its eight-slot belt is already full                                          | Preview-then-confirm filter                                                         | All six                                                                                                                           |
+| 5   | [Workbench](prototypes/prototype-5.md)              | Coverage 2 and webxr_feasibility 2; 28 does its job better                   | Compound rules as an editable AND/OR list                                           | Facet Browser (the query bar's chips, with "or" and "not" in each chip)                                                           |
+| 6   | [Workshop](prototypes/prototype-6.md)               | Its fixed pegboard needs twice the tools it holds                            | Analysis state as objects on rails                                                  | Point and Ask (the rail of live controls each request leaves)                                                                     |
+| 7   | [Hand Signs](prototypes/prototype-7.md)             | The mode is a held pose that tracks well only where it tires the arm         | An undo that names the step                                                         | All six                                                                                                                           |
+| 8   | [Grip and Tool](prototypes/prototype-8.md)          | A closed set of eight grips, with no path for people who cannot form them    | Attribute tags generated from result fields                                         | Facet Browser (every result's fields become facets)                                                                               |
+| 9   | [Spellcasting](prototypes/prototype-9.md)           | Memorized glyphs cannot be discovered and cannot grow                        | A live preview before the cast                                                      | All six                                                                                                                           |
+| 10  | [HUD](prototypes/prototype-10.md)                   | Coverage 1.5; it lacks surfaces                                              | A name tag at the reticle before any act                                            | Paired Browser and Cutting Room (the name tag where the ray rests)                                                                |
+| 11  | [Context Menus](prototypes/prototype-11.md)         | Coverage 2, webxr_feasibility 2.5; 24 and 28 carry the idea further          | Its controller mapping                                                              | Not kept; each mock maps controllers to its own controls                                                                          |
+| 12  | [Lean In](prototypes/prototype-12.md)               | Hand distance as the mode cannot carry panel-shaped work                     | Counts before release; drag back past the rest notch to cancel                      | Prop and Plane                                                                                                                    |
+| 13  | [Hand of Cards](prototypes/prototype-13.md)         | Coverage 1.5; 23 is the stronger history metaphor                            | Per-object undo that lights its blast radius                                        | Cutting Room                                                                                                                      |
+| 14  | [Voodoo Dolls](prototypes/prototype-14.md)          | Coverage 1.5, onboarding 2                                                   | Two touching copies show only the verbs that fit that pair                          | Prop and Plane (pair verbs on the tray)                                                                                           |
+| 15  | [Physics Lab](prototypes/prototype-15.md)           | Feedback and selection stop working past a few hundred nodes                 | A well's rim reading "0.070 -- 5 kept"                                              | Paired Browser and Prop and Plane (the cut handle that names who sits just outside)                                               |
+| 16  | [Proofreader's Slate](prototypes/prototype-16.md)   | Coverage 1.5; fingertip ink unproven on two of three headsets                | Strike, stet and bracket steps as history and recipe                                | Cutting Room                                                                                                                      |
+| 17  | [Orbits](prototypes/prototype-17.md)                | Eye pursuit is not readable by a web page on any headset                     | Nothing changes until an explicit confirm                                           | All six                                                                                                                           |
+| 18  | [Linked Views](prototypes/prototype-18.md)          | Coverage 2, extensibility 2.5                                                | A linked sorted table and histogram                                                 | Paired Browser, Findings Inbox                                                                                                    |
+| 19  | [Show Me](prototypes/prototype-19.md)               | Demonstration covers ranking and filters but little else                     | A pending guess with a count; correction by counter-example                         | Findings Inbox                                                                                                                    |
+| 20  | [Pilot and Navigator](prototypes/prototype-20.md)   | Every command needs two people                                               | A joint-hold ghost that names the target and counts the effect                      | Findings Inbox (the ghost on every verb; one person, no joint hold)                                                               |
+| 21  | [Mixing Desk](prototypes/prototype-21.md)           | Coverage 1.5                                                                 | A cue bus that previews any strip before it reaches the graph                       | Cutting Room (the held preview on every verb)                                                                                     |
+| 22  | [Command Card](prototypes/prototype-22.md)          | The fixed grid runs out of room                                              | Cancel-last at a body landmark that names its target                                | Not kept; every mock's Undo names its step instead                                                                                |
+| 24  | [Hand Menu and Windows](prototypes/prototype-24.md) | Repeats the platform default that 28 carries further                         | "Which one?" list; "Set this on the 2D page"                                        | "Which one?" in Paired Browser and Findings Inbox; "Set this on the 2D page" not kept                                             |
+| 25  | [Search Everything](prototypes/prototype-25.md)     | Repeats 28's address bar at a lower score                                    | The typed-slot command sentence                                                     | Point and Ask, Cutting Room                                                                                                       |
+| 27  | [The Sheet](prototypes/prototype-27.md)             | Efficiency 2; overlaps 29                                                    | The detent histogram filter                                                         | Paired Browser, Prop and Plane, Facet Browser                                                                                     |
+| 31  | [Lens Kit](prototypes/prototype-31.md)              | Coverage 2.5; whole-graph lens previews threaten frame rate                  | The two-count readout (inside now, if spread)                                       | Prop and Plane                                                                                                                    |
+| 33  | [Verb, Count, Scope](prototypes/prototype-33.md)    | A grammar to learn                                                           | Target-first verb ring and repeat on a new target                                   | Paired Browser (the hold menu and its "Again" slots)                                                                              |
+| 36  | [Focus Remote](prototypes/prototype-36.md)          | Onboarding 2.5, efficiency 2                                                 | A status strip naming the focus and the next input; moving a focus with no pointing | Paired Browser (the status line names what the next input will do); Facet Browser (Focus mode)                                    |
+| 37  | [Zoom Stream](prototypes/prototype-37.md)           | Files unanswered; 30 covers safe commit with better feasibility              | The slow-crossing Go box that states what will change                               | Not kept as a crossing; Point and Ask's Go, under a preview that counts the change, does the job                                  |
+| 40  | [Desk Touch](prototypes/prototype-40.md)            | An untested contact classifier on an uninstrumented table                    | The table edge as a detented rail with a magnifier                                  | Not kept                                                                                                                          |
+| 43  | [Variant Grid](prototypes/prototype-43.md)          | Rendering every tile as a live whole-graph variant is beyond graphty-element | Counted outcome tiles                                                               | Paired Browser, Point and Ask                                                                                                     |
 
 ## 7. How the studio worked
 
@@ -508,13 +418,13 @@ None of these touches the slab, which is all the mock tests.
 - **Would 44's webxr_feasibility be 4 with the two unbuildable claims deleted?**
     - Only a WebXR re-read of a revised file can say, and the stop rule forbids that round.
     - The answer would not change the verdict while coverage is capped.
-    - The first mock's compositing spike answers the underlying question.
-- **29 is owed a third round.** The token-limit gap stopped it by mistake (section 3), and the round has not been run. Its tier (source of parts) would change only if one round lifted its efficiency by a full point.
+    - The Paired Browser mock's panel-text and frame-budget check answers the underlying question.
+- **29 is owed a third round.** The token-limit gap stopped it by mistake (section 3), and the round has not been run. Its tier (its shelves live inside Facet Browser) would change only if one round lifted its efficiency by a full point.
 - **30's and 32's original round 1 scores are partly lost:** ergonomics and onboarding for 30, vr-interaction and onboarding for 32. Neither loss can change a stop decision (section 3), but their first-round columns in section 2 are not clean.
 - **No lens has ruled on the red team's score disputes.** The capped column is the director's application of the cap rule, not a rescoring.
-- **44's file does not specify how its sets and time windows behave.** The director's walk scored it on its most plausible reading. The file should state both rules before the mock is specified.
+- **44's file does not specify how its sets and time windows behave.** The director's walk scored it on its most plausible reading. The Paired Browser mock's spec should state both rules before the mock reaches a study.
 - **Some journeys have never been walked:** the rest of journey 6 for 35, and journeys 3 and 6 for 46.
-- **Should the studio try a single-person variant of two-person control (20) or a demonstration mock (19)?** No tier tests either mode model (section 1), and the studio has not spent a round on them.
+- **Should a seventh mock test a single-person variant of two-person control (20), or demonstration as the main way of working (19), as a whole design?** No mock tests either way of working (section 1), and the studio has not spent a round on them. The recommendation's first candidate for a seventh mock is [One Question at a Time (30)](prototypes/prototype-30.md), built as a whole design for everyday use.
 - **The stop rule's threshold** should be stated in half steps by any future studio (section 3).
 
 ## Appendix A: the criteria

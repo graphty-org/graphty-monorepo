@@ -784,3 +784,20 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   tie's values, the Data page header stays in place when the table pane scrolls, the Selection
   cleared notice comes down when a new selection is made, and Filter to neighbors is disabled, with
   its reason, while its filter is on. No bar, floor, step limit or prompt changed.
+
+- **2026-10-10, during round 3: the answer key matched to the pilots on build 897d9aed9ffe.** T4
+  A and B, T12R B, T17 A, T18 A and B, T19 A and B, T20 A and B, T22 A and B and T24 B were piloted
+  on the new build from their starts (`rounds/r3d1/pilot/`). Every success path landed on the first
+  try with no script errors, console errors or failed requests, and every reference value held.
+  `answers.md` now describes those screens, each change citing the pilot's screenshot: a section on
+  this build; the Overview's "Full graph" row is a bold heading, not a bare label row (T17, and
+  its "Wrong reading" note); "File settings" and "CSV auto" no longer move when the Data page's
+  scrollbar appears, and the scrollbar's extent (T4); the first open of a saved project shows its
+  toast again (T19); the arrow note names the right ties, Ava to Chloe and Ivan to Ava, which
+  friends.csv confirms, and the suggestion lists cover no pick button (T18); a typed rule shows the
+  count before Enter only when its text is the one that made the selection (T22); the step count
+  treats each type-then-pick of From and To as one step, From's and To's lists cover the next field,
+  the Overview and Values are in the right-hand inspector, and Creek is named by the tool's printout,
+  not by a hover (T20); the "Filter to neighbors" tooltip's second sentence (T12R); the edge
+  inspector's label and value shading (T24 B). No prompt was wrong, so `tasks.md` is unchanged. No
+  bar, floor, step limit or success path changed.

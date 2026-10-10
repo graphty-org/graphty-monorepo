@@ -10,11 +10,12 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-10 -- Answer key matched to the round 3 build b6d932823642 for T4 B, T17, T18, T19,
-  T20, T21 A, T22, T23. STILL OWED: T4 A, T12R A/B, T21 B, T24 A/B (pilots exist in
-  `tier2/rounds/r3/pilot/`, entries not yet matched). Grading traps that moved: "full graph" on the
-  key under a filter, the bare "Full graph" Overview row, T22's bare-number route now 3 steps, and
-  "Filter to neighbors" never pressed (second press silent).
+- 2026-10-10 -- Answer key matched to 897d9aed9ffe (the build round 3 moved to) for T4, T12R B,
+  T17 A, T18, T19, T20, T22, T24 B (`rounds/r3d1/pilot/`). Not matched there yet: T12R A, T17 B,
+  T21, T23, T24 A (pilot folders exist, no findings handed over). Grading traps that moved: "Full
+  graph" is now a bold heading; a typed rule shows its count before Enter only when its TEXT equals
+  the rule that made the selection; T20 counts type-then-pick as one step; the T18 arrow note had
+  the wrong ties (Ava to Chloe, Ivan to Ava are right).
 - 2026-10-09 -- T22 and T24 now say "point out on the drawing", not "stand out" (and not "show", a
   View menu word); T22's "see where" became "how ... lie across" ("where" is avoided). Key
   unchanged: T22 credits a selection or a color, T24 only the two ends selected. Compare with
@@ -83,6 +84,14 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-10 (researcher, 897d9aed9ffe key) -- Added a short build section listing only what
+  changed from b6d932823642, and fixed each stale claim in its task entry, old build's wording kept
+  as a parenthetical. Took one pilot claim on its measurement, not its echo: T18 A measured that
+  the suggestion lists cover no pick button; T18 B's "run over the pick buttons" repeated the key,
+  so the key now says it only for what was measured. Checked the T18 arrow fix against friends.csv
+  (Ava,Chloe and Ivan,Ava) before writing it. Dropped a T12R "change" that was not one (the
+  two-sentence tooltip dates from b6d932823642). No prompt, bar or step count changed.
 
 - 2026-10-10 (researcher, round 3 answer key) -- Added a b6d932823642 section and rewrote each
   stale claim in place, keeping the old build's wording as a parenthetical. Reason: graders read
@@ -193,6 +202,10 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-10 (897d9aed9ffe key, after a token-limit stop) -- Worked: `git status` plus a grep of
+  the key for the new build id first; nothing was half-applied, so the whole list was applied once.
+  Worked: Edit anchored on text read from the file, then a scoped citation to the pilot folder.
+
 - 2026-10-10 (round 3 key) -- Worked again: exact-match (old, new) script, and spot-checking three
   screenshots before trusting pilot reports. After a token-limit stop, check `git status` on the
   key and every pilot folder's PNGs first: here nothing was half-written.
@@ -232,15 +245,9 @@ reasons, in short:
   each asserted, then an ASCII grep; reading the build's change-log entry first. Did not work: a
   dry run's fixes left in its own report and not in `answers.md`, so the next pilot re-found them.
 
-- 2026-10-09 (round 2 key) -- Worked: applying each task's edits as (old, new) pairs scoped to the
-  task's section with an assert per pair; viewing the two screenshots where pilots disagreed
-  before writing either claim; reading `work.json` to confirm a "gone" entry before telling
-  graders to ignore it. Did not work: an Edit anchored on text I remembered, not the file's.
-
-- 2026-10-09 (round 2 key) -- Worked: checking `git status graphty` and the workflow script's order
-  before claiming "measured on the new build" (the build did not exist). Worked: reconstructing a
-  pilot walk with no steps log from its screenshots and `session.json`. Lesson: a pilot without a
-  steps log cannot be re-run exactly; the tool should always write one.
+- 2026-10-09 (round 2 key, folded) -- Worked: (old, new) pairs scoped per task with asserts;
+  viewing disputed screenshots; `work.json` before calling an entry gone; checking a build exists
+  before "measured on it". Did not work: anchors from memory; pilots with no steps log.
 
 - 2026-10-09 (skeptic verdicts) -- Worked: grepping the persona FILE named in the roster (the `P/`
   path) to settle a skeptic split; viewing the two disputed screenshots myself. Did not work:

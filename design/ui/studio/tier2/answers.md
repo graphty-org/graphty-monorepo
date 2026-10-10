@@ -25,7 +25,7 @@ grade against a hand calculation. Every value was then read again on the study b
 from the final walk's screens (`pilot/<task>-final/`), and agrees.
 
 **Every value and every "known on this build" note is re-recorded on the build a round studies**
-(criteria, preflight items 3 to 5). This key is recorded on build b6d932823642, the round 3 study build (its section below, after 8f0d5a6f7791's); a note that build no longer shows has been deleted or reworded, not left
+(criteria, preflight items 3 to 5). This key is recorded on build b6d932823642, the round 3 study build (its section below, after 8f0d5a6f7791's), and matched to 897d9aed9ffe, the build the study moved to during round 3 (its section follows b6d932823642's), for the task halves piloted on it; a note that build no longer shows has been deleted or reworded, not left
 for graders.
 
 **The first round 1 build, 16dcf3494700.** Round 1 was first planned on build 16dcf3494700. Every task half was piloted on it from the start `roster.md` names, with screenshots in
@@ -276,8 +276,9 @@ Screens this key did not describe, all the same on 2dcea6dd5bba where it was wal
   (`rounds/r2d4/pilot/T20A/12.png` against `13.png`); the Park-to-Clinic route edge ends under the
   large Clinic node with no visible arrowhead (`12.png`); in the Overview, the "Loaded weight" label
   and its value "minutes (farther)" nearly touch (`07.png`).
-- T20 B: of the two route nodes that overlap, Creek is at about 790,636 (hovering there names it)
-  and Summit at about 755,645 (`rounds/r2d4/pilot/T20B/14.png`). The "Higher means" label sits at
+- T20 B: of the two route nodes that overlap, Creek is at about 790,636 (the tool's printout names
+  it, `node with id "Creek"`; nothing on screen does, since a hover shows no tooltip,
+  `rounds/r3d1/pilot/T20B/14.png`, `15.png`) and Summit at about 755,645 (`rounds/r2d4/pilot/T20B/14.png`). The "Higher means" label sits at
   about y 270 and its choice buttons at about y 283 to 305 (`05.png`): a point at y 272 lands on
   the label, not a choice.
 - T22: with a lone "=" typed, the first column row ("id, Node column") is drawn filled, as the
@@ -337,6 +338,19 @@ requests, and every reference value held. The notes on 8f0d5a6f7791 above still 
   over "Select its matches". Enter selects the matches and rewrites the box to that rule (T22).
 - The "Selection cleared" toast can still be on screen after a new selection of the same ties is
   made, so "Selection cleared: 3 edges" and "3 edges selected" show at once (`rounds/r3/pilot/T22A/16.png`).
+
+**The round 3 study build from 2026-10-10, 897d9aed9ffe (graphty@0.8.61).** The study moved to
+build 897d9aed9ffe during round 3 (`criteria.md`, first line). Its pilots are in
+`rounds/r3d1/pilot/<task><half>/`. On T4, T12R B, T17 A, T18, T19, T20, T22 and T24 B every
+success path landed on the first try with no script errors, console errors or failed requests, and
+every reference value held. The notes on b6d932823642 above still hold, except:
+
+- Under a filter step the Overview's "Full graph" row is a bold white heading, drawn like
+  "Overview" and the "Weight" and "Summary" section heads, not a bare label row
+  (`rounds/r3d1/pilot/T17A/07.png`, `12.png`).
+- On the Data page the right pane's scrollbar is drawn in a gutter outside the content, so "File
+  settings" and "CSV auto" no longer move when it appears (T4).
+- The first open of a saved project shows its "Opened ..." toast again (T19).
 
 **Routes the round 2 build adds (walked on ddf8b3b63039).** Three round 2 changes open routes this key did
 not list: the find box answers a typed condition with the rule that would read it (T22), the
@@ -446,7 +460,7 @@ node row) | 6`, with a red-orange warning triangle before p13 and p13 drawn in r
   `11.png`). On A likewise the name "people and messages" reaches the header only at Load. With "Add": 11 and 18. The import page's weight line, unmatched-row line and
   Add and Leave out buttons are drawn at about body size. Before "Show the 1 unmatched row" is
   clicked, the edge table's preview ends at line 15, cut at the bottom, under the caption "The first 18 rows of 18" (on 2dcea6dd5bba "All 18 rows", A "All 23 rows", `rounds/r2d3/pilot/T4B/07.png`, `T4A/07.png`), so the caption says every row is shown while some are below the pane; a vertical scrollbar, the whole right pane's rather than the table's, runs from the heading row down to the summary strip, and it is the only sign that line 17 is below (A likewise, line 24 below line 15). The summary
-  under the table names the problem (`rounds/r2d2/pilot/T4B-eaea2a75d/07.png`, `T4A/07.png`). While that scrollbar is drawn, "File settings" and "CSV auto" sit about 15 px further left than without it (`T4B-eaea2a75d/07.png` to `09.png` against `04.png`, `10.png`); record any participant who mis-clicks them. On eaea2a75d95b the screens are, for A, `rounds/r2d2/pilot/T4A/` (the "Add a table" tooltip `05.png`, the edge table with its warning `07.png`, after Load `11.png`, the Data page `12.png`, the hover with no tooltip `13.png`, the "1 row left out" inspector `15.png`, the source's inspector `16.png`) and, for B, `T4B-eaea2a75d/` (the first file `04.png`, the tooltip `05.png`, its menu `06.png`, the edge table `07.png`, the unmatched row `10.png`, after Load `11.png`, the two inspectors `14.png`, `15.png`). On fabc16247403 both halves' screens are `rounds/r2d1/pilot/T4A/` and `T4B/` (the import page `03.png`, the first file `04.png`, the "Add a table" tooltip `05.png`, its menu `06.png`), then: the edge table with its warning `07.png`, the Leave out tooltip `08.png`,
+  under the table names the problem (`rounds/r2d2/pilot/T4B-eaea2a75d/07.png`, `T4A/07.png`). On 897d9aed9ffe the scrollbar runs from just under the page title (about y 90, beside the heading "players and passes: 10 nodes, 17 edges") down to about y 770, just above the summary strip, and it is drawn in a gutter outside the content, so "File settings" and "CSV auto" stay where they are with or without it (A: "File settings" at x 1295 in both `rounds/r3d1/pilot/T4A/04.png` and `07.png`; B: about x 1294 and 1358 in `rounds/r3d1/pilot/T4B/04.png`, `07.png` to `10.png`, `12.png`, `13.png`). On earlier builds they moved about 15 px left while the scrollbar was drawn (`rounds/r2d2/pilot/T4B-eaea2a75d/07.png` against `04.png`). On eaea2a75d95b the screens are, for A, `rounds/r2d2/pilot/T4A/` (the "Add a table" tooltip `05.png`, the edge table with its warning `07.png`, after Load `11.png`, the Data page `12.png`, the hover with no tooltip `13.png`, the "1 row left out" inspector `15.png`, the source's inspector `16.png`) and, for B, `T4B-eaea2a75d/` (the first file `04.png`, the tooltip `05.png`, its menu `06.png`, the edge table `07.png`, the unmatched row `10.png`, after Load `11.png`, the two inspectors `14.png`, `15.png`). On fabc16247403 both halves' screens are `rounds/r2d1/pilot/T4A/` and `T4B/` (the import page `03.png`, the first file `04.png`, the "Add a table" tooltip `05.png`, its menu `06.png`), then: the edge table with its warning `07.png`, the Leave out tooltip `08.png`,
   the Add tooltip `09.png`, the unmatched row `10.png`, after Load `11.png`, the Data page `12.png`,
   the hover with no tooltip `13.png`, the "1 row left out" inspector `14.png`, the source's
   inspector `15.png`. On both halves the import page is headed "Open as a new graph" from its first
@@ -458,6 +472,15 @@ node row) | 6`, with a red-orange warning triangle before p13 and p13 drawn in r
   `07.png`, the two tooltips `08.png`, `09.png`, the unmatched row `10.png`, "10 node rows" `11.png`,
   `12.png`, after Load `13.png`, the Data page `14.png`, the hover `15.png`, the "1 row left out"
   inspector `16.png`, the source's `17.png`), every value as above, with the caption "All 18 rows".
+  On 897d9aed9ffe every A and B value and every note above held again, except where it says
+  otherwise (the scrollbar): A's screens are `rounds/r3d1/pilot/T4A/` (01.png to 17.png) and B's
+  `rounds/r3d1/pilot/T4B/` (the import page `03.png`, the first file `04.png`, the "Add a table"
+  tooltip `05.png`, its menu `06.png`, the edge table with its warning `07.png`, the Leave out and
+  Add tooltips `08.png`, `09.png`, the unmatched row `10.png`, the hover on "10 node rows" `11.png`,
+  "10 node rows" clicked `12.png`, "18 edge rows" clicked `13.png`, after Load `14.png`, the Data
+  page `15.png`, the hover on the source row `16.png`, the "1 row left out" inspector `17.png`, the
+  source's `18.png`). Clicking "18 edge rows" after "10 node rows" shows the whole edge table, not
+  the unmatched row (`13.png`).
 - **Success path:** `--click "No thanks"`; `--click "New from data..."`; `--click "choose a
 file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); `--click "File..."
 --upload messages.csv`; read the report (`--click "Show the 1 unmatched row"` shows it); `--click "Load"`; `--click "Data"` (Sources); the "1 row left out" row is in the list; selecting it (or
@@ -500,7 +523,7 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   reads the full name "weight is at least 4" with its checkbox ticked and a second line "20 to 19
   nodes" (the row has no tooltip); after "Add step" the right-hand panel leaves the step editor
   and shows the graph's Overview, which leads with "Nodes showing 19 of 20" and "Edges showing 12
-  of 41", then a bare "Full graph" label row over the whole graph's counts (`rounds/r3/pilot/T17A/07.png`; on earlier builds the sentence "The counts below are for the whole graph.", `rounds/r1d3/pilot/T17A/07.png`). On A the Overview also lists "Loaded weight weight". The
+  of 41", then a "Full graph" heading over the whole graph's counts, drawn bold and white like "Overview" and the "Weight" and "Summary" section heads (`rounds/r3d1/pilot/T17A/07.png`, `12.png`; on b6d932823642 a bare label row drawn like a value row's label, `rounds/r3/pilot/T17A/07.png`; on earlier builds the sentence "The counts below are for the whole graph.", `rounds/r1d3/pilot/T17A/07.png`). On A the Overview also lists "Loaded weight weight". The
   step's own editor (a click on its row) says "Off" in its header once unticked
   (`rounds/r1d3/pilot/T17A/09.png`); its "On" header was not opened on this build. **Back:**
   untick the step's checkbox ("Apply step: weight is at least 4"); the row still reads "weight is
@@ -523,7 +546,10 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   `T17B/13.png`: the row reads "off" and the chip goes); only the small "off" on the row's second
   line says so. Expect fewer participants to fall into it now that the button names the effect,
   and record each who does. Reporting the whole club (20; 77) from that state is `read-wrong`,
-  unless the participant notices and ticks it again. Every value here held on b6d932823642 (A
+  unless the participant notices and ticks it again. Every value here held on 897d9aed9ffe (A
+  `rounds/r3d1/pilot/T17A/07.png` at 4 or more, `12.png` at 5 or more, the unticks `08.png` and
+  `13.png`, the step's editor "Filter step  Off" with "Save and turn on" `10.png`, the unsaved 5
+  under the header "weight is at least 4" `11.png`), on b6d932823642 (A
   `rounds/r3/pilot/T17A/07.png` to `15.png`, B `T17B/07.png` to `13.png`) and on eaea2a75d95b (A
   `rounds/r2d2/pilot/T17A/07.png`, `08.png`, `09.png`, `11.png`, `12.png`; B
   `T17B-eaea2a75d/07.png`, `08.png`, `09.png`, `11.png`, `12.png`). While an edited value is
@@ -572,8 +598,9 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   appears), or never brought back (`work-lost` if the step was deleted with no way back and the
   participant believed the club gone).
 - **Wrong reading:** under the "showing" rows the Overview still lists Nodes 20, Edges 41 (B: 77,
-  254), Density, Components and Edges per node for the whole graph, below the bare "Full graph" row,
-  which has no value beside it and is easy to pass over.
+  254), Density, Components and Edges per node for the whole graph, below the "Full graph" heading
+  (a bold section heading on 897d9aed9ffe, `rounds/r3d1/pilot/T17A/07.png`; on b6d932823642 a bare
+  label row that was easy to pass over).
   20 (or 77) given as "still in it" is `read-wrong`.
 
 ## T18. The fewest people in between
@@ -624,7 +651,9 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   PM"), so the newer chain can be told by its time changing. The second run replaces the first: the Graph tree keeps one
   "Shortest path 4 hops" row and the first chain is gone, so a participant who wants both must
   note the first. Reopening the popover with p brings back empty From and To. Every value here
-  held on b6d932823642 (`rounds/r3/pilot/T18A/10.png`, `15.png`; `T18B/07.png`, `14.png`).
+  held on b6d932823642 (`rounds/r3/pilot/T18A/10.png`, `15.png`; `T18B/07.png`, `14.png`) and on
+  897d9aed9ffe (`rounds/r3d1/pilot/T18A/10.png`, `17.png`; `T18B/07.png`, `14.png`), with only the
+  dates and times of Ran different.
 - **Success path (A):** `--key p` (or a node's menu "Path between...", or Analyze, "Shortest
   path"); `--type Chloe --click "Chloe"` (the option); `--click "To" --type Milo --click "Milo"`;
   `--click "Find path"` (the run opens on its Values; no focus mark can be seen on this build,
@@ -635,7 +664,7 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   path button (`rounds/r1d3/pilot/T18A/07.png`), so the `--click "To"` step is harmless but not
   needed. "Advanced run settings" is collapsed after the first run; once opened, it stays open after the next run (`rounds/r1d3/pilot/T18A/11.png`, `15.png`). The popover's own Advanced does not: opened before a run, it is collapsed again when the popover is reopened (`rounds/r2d1/pilot/T18A/07.png`, `12.png`). After a pick or an Enter moves focus to Find path, its focus ring is a faint thin outline, hard to see against the blue button (`rounds/r2d1/pilot/T18B/06.png`, `10.png`). Escape pressed while the Weight list is open closes only the list; the
   popover stays open. The one-item suggestion list under From covers the To label and the top of the To box while it
-  is open (the box's placeholder still shows below it); the one under To covers the Weight label and most of its box on B (`rounds/r2d2/pilot/T18B/03.png`, `05.png`), and both run over the pick buttons beside the fields and on A the Follow label and the top half of the Out | All row (`rounds/r2d1/pilot/T18A/05.png`); Enter picks the
+  is open (the box's placeholder still shows below it); the one under To covers the Weight label and most of its box on B (`rounds/r2d2/pilot/T18B/03.png`, `05.png`), and on A the one under To covers the Follow label and the top half of the Out | All row (`rounds/r2d1/pilot/T18A/05.png`; `rounds/r3d1/pilot/T18A/05.png`, `15.png`). On 897d9aed9ffe each list is as wide as the field plus the pick button column but covers no pick button: on A, From's list sits between the From and To rows and the To pick button (about 850,632) stays visible below it (`rounds/r3d1/pilot/T18A/03.png`, `13.png`); earlier notes said the lists ran over the pick buttons. Enter picks the
   suggestion and moves on. The popover covers the lower third of the drawing; it closes when Find path
   runs (`rounds/r1d4/pilot/T18A/10.png`), so it covers part of a highlighted path only when opened
   again after a run (`12.png`), and picking a node in From or To does not mark it on the drawing. The pick
@@ -653,7 +682,9 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   `rounds/r2/pilot/T18A/10.png`, `11.png`); on B, the highlighted Peruzzi-Bischeri edge passes straight through Castellani, an orange node not on the path (about 713,604; hovering on fabc16247403 put Peruzzi at 697,715, Bischeri at 720,557 and Castellani at 713,604, `rounds/r2d1/pilot/T18B/11.png` to `14.png`). On A's follow-up the highlighted tie from Ravi to Pia (about 507,284 to 692,156) passes straight through Quinn, an orange node not on the path (about 622,209; hovering at 630,218 names Quinn), on 2dcea6dd5bba (`rounds/r2d3/pilot/T18A/16.png`, `17.png`): record any participant who puts Quinn in the Ben to Nora chain. Hovering a node shows no tooltip and no change, though the pointer turns into a hand (`rounds/r2d2/pilot/T18A/12.png`), so the drawing cannot name such a node until names are put on. A chain read off the drawing with
   names on is still SD, as below; record any participant who names a node from such an overlap.
   On A the drawing shows each tie's arrowhead in the file's direction, and the chain runs against
-  some of them (Ivan to Chloe, Kofi to Ivan, `T18A/10.png`); the Follow row, "All", is the only
+  two of them: friends.csv lists Ava,Chloe and Ivan,Ava, so the ties Ava to Chloe and Ivan to Ava
+  point back along the chain (arrowheads at Chloe, about 705,718, and at Ava, about 652,575,
+  `rounds/r3d1/pilot/T18A/10.png`); the Follow row, "All", is the only
   sign that a path counts ties both ways. Record any participant who doubts the chain for that
   reason.
 - **S:** names in order and the count (4 introductions, or 3 people between, or 5 people in the
@@ -693,7 +724,11 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   Opening it shows the toast "Opened friends" (B "Opened Florentine families") (`T19A/11.png`).
   On b6d932823642 the first open of A's saved project showed no toast and the tool caught none that
   came and went (`rounds/r3/pilot/T19A/11.png`); two more opens in the same session showed it
-  (`14.png`, `16.png`). The cause is not traced. A missing toast changes no grade: the success state
+  (`14.png`, `16.png`). The cause is not traced. On 897d9aed9ffe the first open after the reopen
+  showed the toast at once on both halves, as on the builds before b6d932823642 ("Opened friends",
+  `rounds/r3d1/pilot/T19A/16.png`, still on screen in `17.png`; "Opened Florentine families",
+  `rounds/r3d1/pilot/T19B/12.png`); every other T19 value and note held there (A `01.png` to
+  `17.png`, success state `17.png`; B `01.png` to `13.png`, success state `13.png`). A missing toast changes no grade: the success state
   is the Notes place (`T19A/12.png`; B `rounds/r3/pilot/T19B/13.png`). The note cards' times show a
   visible gap inside a two-digit minute ("11:0 3 AM"), the font's spacing, not a wrong value
   (`rounds/r3/pilot/T19A/04.png`).
@@ -744,7 +779,7 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   (about x 310 to 548, y 52 to 93; on 8f0d5a6f7791 and earlier "Shortest path" over a black swatch
   "On the path", y 52 to 107), and the route's nodes and edges black and thicker
   (`rounds/r3/pilot/T20A/13.png`).
-  Once the run opens, the Overview is replaced by the run's Values. On fabc16247403 the left panel's title "Graph bus-stops.csv" is a button: a click brings back the graph's inspector with "Loaded weight minutes (farther)" and "Direction Directed", the path still highlighted (`rounds/r2d1/pilot/T20A/12.png`). On ddf8b3b63039 nothing brought it back (`rounds/r2/pilot/T20A/14.png` to `19.png`). So after a run a participant may point to Loaded weight or to Made with's Weight row; both are right.
+  Once the run opens, the Overview is replaced by the run's Values; both are in the right-hand inspector (about x 1200 to 1440), while the left panel holds only the title button "Graph bus-stops.csv" and the tree (`rounds/r3d1/pilot/T20A/07.png`, `13.png`). On 897d9aed9ffe the A end screen is `rounds/r3d1/pilot/T20A/13.png` and the title click `14.png`; B's are `rounds/r3d1/pilot/T20B/13.png` and `16.png`; every value above held. On fabc16247403 the left panel's title "Graph bus-stops.csv" is a button: a click brings back the graph's inspector with "Loaded weight minutes (farther)" and "Direction Directed", the path still highlighted (`rounds/r2d1/pilot/T20A/12.png`). On ddf8b3b63039 nothing brought it back (`rounds/r2/pilot/T20A/14.png` to `19.png`). So after a run a participant may point to Loaded weight or to Made with's Weight row; both are right.
   **The wrong answers:** read without the minutes, the program counts links and returns Depot,
   Station, Harbor (2 links, 29 minutes) or Depot, School, Harbor (2 links, 21 minutes); both are
   `weight-not-read`.
@@ -798,7 +833,12 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   trails.csv); click-at 728,203 (the minutes column's role box, which spans about y 200 to 222; B the km column's, same point; `rounds/r2d1/pilot/T20A/04.png`);
   `--click "Weight"`; `--click "Farther"`; `--click "Load"`; `--key p`; From Depot; To Harbor;
   `--click "Find path"` -- **10 steps** (walked), one fewer than the success path, since one step
-  opens the page and chooses the file. Grade it as the success path: S when it ends right with no
+  opens the page and chooses the file. "From Depot" and "To Harbor" each count as one step: on
+  897d9aed9ffe each is walked as typing the name and then clicking its option, so the walk shows 12
+  screenshots through Find path (`rounds/r3d1/pilot/T20A/02.png` to `13.png`); count each
+  type-then-pick pair as one. While open, From's option list ("Depot", about y 612 to 643) covers
+  the To field, and To's ("Harbor") covers the Follow row's Out | All, so the next field is hidden
+  until an option is picked (`rounds/r3d1/pilot/T20A/09.png`, `11.png`). Grade it as the success path: S when it ends right with no
   detour. Its screens: the page is titled "Open as a new graph", its Tables list reads "Edges:
   bus-stops.csv, 17 rows" (B "Edges: trails.csv, 13 rows"), its header "bus-stops: 10 nodes, 17
   edges" (B "trails: 9 nodes, 13 edges"), and Direction ("As the file says"), Cancel and Load sit
@@ -952,7 +992,7 @@ and the count. Round 3 is compared with round 2 on the grade and the count only,
 
 - **A (bus stops): 3 links take 10 minutes or more -- School to Harbor 12, Station to Harbor 14,
   Depot to Station 15.** Screen: the line under the find box reads "3 edges selected"; inspector
-  header "3 edges selected", Summary Edges 3, Selection 3, a "Selected edges" table (Edge, minutes)
+  header "3 edges selected", Summary Edges 3 (and the Selection row 3 in the left list), a "Selected edges" table (Edge, minutes)
   listing School -> Harbor 12, Depot -> Station 15, Station -> Harbor 14; the three lines drawn
   with a blue band on the full map of 10 stops (`rounds/r1d4/pilot/T22A/07.png`; on eaea2a75d95b `rounds/r2d2/pilot/T22A-eaea2a75d/07.png`, not the d5a3bee20b61 walk in `T22A/`), and no filter
   step.
@@ -975,7 +1015,7 @@ the layer list, with "Type a rule, such as minutes > `9`" (B: "shared_chapters >
 `rounds/r1d4/pilot/T22A/03.png`, `T22B/02.png`; on B "Type a rule, such as" sits alone and
 "shared_chapters > `16`" wraps onto the next line). An accepted rule stays in the box after Enter (with no visible text highlight), and the
 line under it reads "3 edges selected" (B "13 edges selected"). A second Enter on the accepted rule
-changes nothing and is not a detour. Typing a rule while the set it picks is already selected shows the count ("3 edges selected"; B "13 edges selected") under the box before Enter, not the gray "Rule: press Enter to select matches", which shows when nothing is selected (`rounds/r3/pilot/T22A/07.png` against `13.png`; `T22B/11.png`). Escape in the box clears the box and keeps the selection; the
+changes nothing and is not a detour. Typing a rule shows the count ("3 edges selected"; B "13 edges selected") under the box before Enter only when the typed text is the same as the rule that made the current selection (`rounds/r3d1/pilot/T22A/09.png`; `T22B/07.png`); any other text, even a rule that picks exactly the set already selected ("=minutes > `9`" with the 3 edges from "=minutes >= `10`" selected), shows the gray "Rule: press Enter to select matches", as it does when nothing is selected (`rounds/r3d1/pilot/T22A/06.png`; `T22B/11.png`). Enter then gives the count (`rounds/r3d1/pilot/T22A/10.png`). On 897d9aed9ffe every other A and B value held (A `rounds/r3d1/pilot/T22A/04.png`, B `T22B/05.png`, `12.png`). Escape in the box clears the box and keeps the selection; the
 line under the box goes with the text, so the count is then read from the inspector or the
 Selection layer row (`rounds/r1d3/pilot/T22A/09.png`, `T22B/08.png`). The "=" list's example ("Type a rule, such as minutes > `9`"; B "shared_chapters > `16`") still comes from the data's own column; on B record any participant who uses 16.
 - **Round 2 route (T22), walked on ddf8b3b63039, and as it is on b6d932823642:** on the round 3
@@ -1145,7 +1185,10 @@ is compared with round 2 on the grade and the number only, not on steps.
   (`01.png`, `03.png`, `06.png`). Record any participant who reads the tie as Gus to Hana.
 - **B (bus stops): 4 minutes.** Inspector "Station -> Stadium" (a gray swatch beside the title,
   subtitle "Edge"), From Station, To Stadium, minutes 4 (under "Summary"), the left panel's Selection row 1
-  (`rounds/r1d4/pilot/T24B/02.png`); the edge inspector itself has no count row; the "Stadium" label reads in full, with the selected line's
+  (`rounds/r1d4/pilot/T24B/02.png`); in that Summary the names From and To are bright white and
+  minutes dim gray, while the values are the other way round, Station and Stadium gray and 4 bold
+  white (`rounds/r3d1/pilot/T24B/02.png`); on 897d9aed9ffe every B value held (`rounds/r3d1/pilot/T24B/01.png`
+  to `05.png`, the menu opened by a click, so no tooltip shows); the edge inspector itself has no count row; the "Stadium" label reads in full, with the selected line's
   band passing behind the label's white box; the button's tooltip "Edge actions" (`03.png`); the
   menu (`04.png`); after Select endpoints, Station and Stadium ringed in yellow, "2 nodes
   selected", Nodes 2, "Edges joining these nodes 1", the left panel's Selection row 2 (`05.png`).
@@ -1221,9 +1264,12 @@ Graded with tier 1's key (`../answers.md`, T12): the same names, counts and grad
   the person asked about wears the same yellow glow as the neighbors. Neither sample is directed,
   so there is no Follow control. "Back to Javert" returns to the Summary (Selection back to 1,
   `T12RA/08.png`, `T12RB/08.png`); after it no focus mark can be seen (not checked with a screen
-  reader). The tooltip of "Filter to neighbors" ("Hide every node outside this neighborhood") opens to
-  the left of the button over the canvas edge and hides no name (`rounds/r1d4/pilot/T12RA/09.png`,
-  `T12RB/09.png`). A screen reader reads each Hops segment twice (radio "1", then the text "1")
+  reader). The tooltip of "Filter to neighbors" ("Hide every node outside this neighborhood. Its step in
+  Filters turns it off" since b6d932823642, `rounds/r3d1/pilot/T12RB/06.png`; only the first
+  sentence on earlier builds) opens to the left of the button over the canvas edge and hides no name
+  (`rounds/r1d4/pilot/T12RA/09.png`, `T12RB/09.png`). It names "Filters", but before the filter is
+  applied no Filters heading shows anywhere (the left panel lists only Selection, PageRank and
+  Everything); the task needs no filter. A screen reader reads each Hops segment twice (radio "1", then the text "1")
   and runs the heading into the group label ("Javert's 17 connections Hops" on 946256efb876; not rechecked on fabc16247403, where the heading reads "Javert and 17 connections").
 - **The find box lists ties too:** typing "Medici" lists the node under "Nodes 1" and its six ties
   under "Edges 6" ("Acciaiuoli -- Medici", "Medici -- Barbadori", and so on,

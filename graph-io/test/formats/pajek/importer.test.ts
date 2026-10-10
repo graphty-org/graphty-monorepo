@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { DIRECTION_FORCED_CODE, DIRECTION_REFUSED_CODE, MIXED_DIRECTION_CODE } from "../../../src/common/direction.js";
 import { PAJEK_ISSUE, pajekImporter, type PajekImportOptions } from "../../../src/formats/pajek/importer.js";
+import { tokenize, type TokenNotes } from "../../../src/formats/pajek/syntax.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../../../src/types.js";
 import {
     corpusFiles,
@@ -953,5 +954,30 @@ describe("pajekImporter: the manual's line forms", () => {
         expect(report.errorCount).toBe(0);
         expect(snapshot.nodeCount).toBe(5);
         expect(snapshot.edgeCount).toBe(2);
+    });
+});
+
+describe("pajek tokenize: runs of ordinary characters", () => {
+    // tokenize() takes each run up to the next quote, or blank outside quotes, in one slice
+    it.each([
+        ["a  bc\td", ["a", "bc", "d"], false],
+        ['1 "a b\tc" 0.5', ["1", "a b\tc", "0.5"], false],
+        ['ab"c d"e f', ["abc de", "f"], true],
+        ['"" x', ["", "x"], false],
+        ["[ 1, 3 ] x[ y", ["[ 1, 3 ]", "x[", "y"], false],
+        ['"a\u{1F600}b c"', ["a\u{1F600}b c"], false],
+    ])("%j", (line, tokens, oddQuote) => {
+        const notes: TokenNotes = { oddQuote: false };
+        expect(tokenize(line, notes)).toEqual(tokens);
+        expect(notes.oddQuote).toBe(oddQuote);
+    });
+
+    it("a 1 MB quoted label is one token", () => {
+        const label = "x y".repeat(350_000);
+        expect(tokenize(`1 "${label}"`)).toEqual(["1", label]);
+    });
+
+    it("an unclosed quote is null", () => {
+        expect(tokenize('1 "a b')).toBeNull();
     });
 });

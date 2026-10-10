@@ -617,7 +617,6 @@ function calibrationAt(speed: number): MachineCalibration {
 /** This process's CPU affinity before the guard pinned it, restored afterwards; undefined if unpinned. */
 let affinity: string | undefined;
 
-// eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
 beforeAll(async () => {
     const cpus = process.env.COST_GUARD === "1" ? fastestCoreCpus() : undefined;
     if (cpus !== undefined) {
@@ -628,7 +627,7 @@ beforeAll(async () => {
     }
 
     await machineSpeed(); // warm the probe's JIT; its first answers are low
-}, 30_000);
+});
 
 afterAll(() => {
     if (affinity !== undefined) {
@@ -647,7 +646,7 @@ describe.runIf(process.env.COST_GUARD === "1")(
         for (const row of ROWS) {
             const bounds =
                 row.optimismOnly === undefined ? `[${MAX_OPTIMISM}, ${MAX_PESSIMISM}]` : `at least ${MAX_OPTIMISM}`;
-            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, a row is timed runs on graphs of up to 800,000 nodes between calibration probes of about 2.3 s each; degree takes 6.4 s locally and about twice that on CI's 0.5x-speed runners, more than a third of the 30 s budget; tracked in #1636
             it(`${row.key} on ${row.shapeName ?? "random, m = 5n"}: estimate / measured stays ${bounds}`, async () => {
                 const descriptor = algorithmByKey(row.key);
                 const graphs = row.sizes.map((nodes) => measuredGraph(row.shape ?? random(5), nodes));

@@ -23,8 +23,6 @@ import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { seededScenePositions } from "../oracle/forceatlas2.js";
 import { acquire, acquireRaw, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
-
 type SeSim = ForceSimulation<SpringElectricalOptions, SpringElectricalStats>;
 
 /** The options every case starts from: layout units = scene units, seeded, settling disabled. */
@@ -340,29 +338,24 @@ describe("spring-electrical behaviour pins (spec 11.4, 7.20)", () => {
         });
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "the same seed gives the same layout bitwise on the same device; a different seed gives a different layout",
-        async (t) => {
-            requireGpu(t);
-            const layoutWith = async (seed: number): Promise<F32> =>
-                await withSe(ctx, { ...BASE, seed }, async (sim) => {
-                    const positions = new Float32Array(3 * karate.nodeCount).fill(Number.NaN);
-                    sim.load(karate, positions);
-                    await sim.run({ maxIter: 20, batch: 5 });
-                    return positions;
-                });
-            const a = await layoutWith(42);
-            const b = await layoutWith(42);
-            const c = await layoutWith(43);
-            expectBitwiseEqual(a, b, "seed 42 twice");
-            expect(
-                a.some((v, i) => v !== c[i]),
-                "seed 43 differs",
-            ).toBe(true);
-        },
-        CASE_TIMEOUT,
-    );
+    it("the same seed gives the same layout bitwise on the same device; a different seed gives a different layout", async (t) => {
+        requireGpu(t);
+        const layoutWith = async (seed: number): Promise<F32> =>
+            await withSe(ctx, { ...BASE, seed }, async (sim) => {
+                const positions = new Float32Array(3 * karate.nodeCount).fill(Number.NaN);
+                sim.load(karate, positions);
+                await sim.run({ maxIter: 20, batch: 5 });
+                return positions;
+            });
+        const a = await layoutWith(42);
+        const b = await layoutWith(42);
+        const c = await layoutWith(43);
+        expectBitwiseEqual(a, b, "seed 42 twice");
+        expect(
+            a.some((v, i) => v !== c[i]),
+            "seed 43 differs",
+        ).toBe(true);
+    });
 
     it('repulsion: "exact" runs the exact tier whatever exactMaxNodes says (the spring grid tier is P4-T13)', async (t) => {
         requireGpu(t);

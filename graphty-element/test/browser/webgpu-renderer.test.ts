@@ -288,10 +288,16 @@ describe("the renderer a graph is drawn with", () => {
         const answered = new Promise<void>((resolve) => {
             answer = resolve;
         });
+        // Told when the graph asks for its adapter, which is the moment the renderer is opening.
+        let ask: () => void = () => undefined;
+        const asked = new Promise<void>((resolve) => {
+            ask = resolve;
+        });
         Object.defineProperty(navigator, "gpu", {
             configurable: true,
             value: {
                 requestAdapter: async (): Promise<null> => {
+                    ask();
                     await answered;
                     return null;
                 },
@@ -309,8 +315,13 @@ describe("the renderer a graph is drawn with", () => {
             // it is attached arrives.
             const added = graph.addNodes(NODES);
             const init = graph.init();
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 200));
+            // The renderer is now opening. Give the queued add every chance to run early: turns
+            // of the event loop and a frame, all while the adapter has not answered.
+            await asked;
+            for (let turn = 0; turn < 10; turn++) {
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            }
+            await new Promise((resolve) => requestAnimationFrame(resolve));
             const builtWhileOpening = graph.getDataManager().nodes.size;
 
             answer();

@@ -37,7 +37,11 @@ export interface KeyPersistenceConfig {
  * Configuration options for initializing the AiManager.
  */
 export interface AiManagerConfig {
-    /** The LLM provider to use (e.g., "openai", "anthropic", "google", "mock") */
+    /**
+     * The LLM provider to use (e.g., "openai", "anthropic", "google", "mock", "webllm").
+     * `"webllm"` is built by `enableAiControl`; `AiManager.init` itself needs it as
+     * `providerInstance`.
+     */
     provider: ProviderType;
     /** Optional API key for the provider */
     apiKey?: string;
@@ -220,6 +224,8 @@ export class AiManager {
             return {
                 success: false,
                 message: "AI Manager has been disposed. Please re-initialize before using.",
+                code: "AI_DISPOSED",
+                params: {},
             };
         }
 
@@ -227,6 +233,8 @@ export class AiManager {
             return {
                 success: false,
                 message: "AI Manager not initialized. Call init() first.",
+                code: "AI_NOT_ENABLED",
+                params: {},
             };
         }
 

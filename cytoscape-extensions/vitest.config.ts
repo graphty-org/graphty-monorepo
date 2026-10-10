@@ -18,6 +18,13 @@ export default defineConfig({
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
         globals: true,
+        // The workspace packages resolve to their built dist/ outside node_modules, so vitest would transform them
+        // (graph-io's 13 MB took 2 s on its first import); load them as plain Node modules like any dependency.
+        server: {
+            deps: {
+                external: [/\/(graph-format|graph-io|graph-samples|algorithms|layout|webgpu-graph-algorithms)\/dist\//],
+            },
+        },
         environment: "node",
         include: ["test/**/*.test.ts"],
         // The monorepo's suite limit (vitest.shared.config.ts): the slowest tests spawn tsc, a Vite build or a

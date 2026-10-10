@@ -168,6 +168,23 @@ export async function charactersExamined(
         return Reflect.apply(exec, this, [text]) as RegExpExecArray | null;
     });
 
+    try {
+        await alone(body);
+    } finally {
+        for (const [target, key, value] of patched.reverse()) {
+            Reflect.set(target, key, value);
+        }
+    }
+    return examined;
+}
+
+/**
+ * Run `body`, throwing if it gave up control to the event loop: other code (a timer, an I/O
+ * callback, a message from the test runner) could then have run inside a metered window.
+ * Promise continuations are allowed; they run nothing but the body's own chain.
+ * @param body - the work to run
+ */
+async function alone(body: () => Promise<void> | void): Promise<void> {
     let yielded: string | null = null;
     const turns = createHook({
         before(): void {
@@ -182,16 +199,45 @@ export async function charactersExamined(
         await body();
     } finally {
         turns.disable();
-        for (const [target, key, value] of patched.reverse()) {
-            Reflect.set(target, key, value);
-        }
     }
     if (yielded !== null) {
         throw new Error(
             `the metered body gave up control to the event loop (${yielded}), so other code could add to the count`,
         );
     }
-    return examined;
+}
+
+/**
+ * Run `body` and count its keyed lookups: every Map get() and has() and Set has(). A walk that
+ * climbs a parent chain from every node again, instead of stopping at a node already resolved,
+ * makes one lookup per step, so its count is quadratic in the chain's length where a linear
+ * resolver's is linear.
+ * @param body - the work to meter
+ * @returns the lookups made
+ */
+export async function keyedLookups(body: () => Promise<void> | void): Promise<number> {
+    let lookups = 0;
+    const patched: [object, string, unknown][] = [];
+    for (const [target, key] of [
+        [Map.prototype, "get"],
+        [Map.prototype, "has"],
+        [Set.prototype, "has"],
+    ] as const) {
+        const read = Reflect.get(target, key) as (...a: unknown[]) => unknown;
+        patched.push([target, key, read]);
+        Reflect.set(target, key, function (this: unknown, ...args: unknown[]): unknown {
+            lookups++;
+            return Reflect.apply(read, this, args);
+        });
+    }
+    try {
+        await alone(body);
+    } finally {
+        for (const [target, key, value] of patched.reverse()) {
+            Reflect.set(target, key, value);
+        }
+    }
+    return lookups;
 }
 
 /**
@@ -275,29 +321,4 @@ export async function arrayReadsOfLength(length: number, body: () => Promise<voi
         globalThis.Array = OriginalArray;
     }
     return reads;
-}
-
-/**
- * Run `body` and count its Map lookups (`get`, `has`). A walk that restarts from the start of a
- * chain for every element looks each link up quadratically often.
- * @param body - the work to meter
- * @returns the body's result and the lookups
- */
-export async function mapLookups<T>(body: () => Promise<T>): Promise<{ result: T; lookups: number }> {
-    let lookups = 0;
-    const saved = (["get", "has"] as const).map((key) => [key, Reflect.get(Map.prototype, key)] as const);
-    for (const [key, original] of saved) {
-        Reflect.set(Map.prototype, key, function (this: Map<unknown, unknown>, k: unknown): unknown {
-            lookups++;
-            return Reflect.apply(original as (k: unknown) => unknown, this, [k]);
-        });
-    }
-    try {
-        const result = await body();
-        return { result, lookups };
-    } finally {
-        for (const [key, original] of saved) {
-            Reflect.set(Map.prototype, key, original);
-        }
-    }
 }

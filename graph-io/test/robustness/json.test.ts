@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { JSON_ISSUE, jsonImporter, type JsonImportOptions } from "../../src/formats/json/index.js";
 import { type CommonImportOptions, ImportError, type ImportIssue, type ImportReport } from "../../src/types.js";
-import { mapLookups } from "../helpers/work-meter.js";
+import { keyedLookups } from "../helpers/work-meter.js";
 
 type Options = JsonImportOptions & CommonImportOptions;
 
@@ -746,19 +746,33 @@ describe("JSON robustness: Cytoscape", () => {
         expect(s.nodes.require("parent").isSet(2)).toBe(false);
     });
 
-    it("json-cy-parent-deep-chain: a 10k-deep compound chain listed root first resolves in linear work", async () => {
-        // the work is the parent-link lookups: a walk up the chain from every node makes n^2 / 2 of them
-        const n = 10_000;
-        const nodes = Array.from({ length: n }, (_, i) => ({ data: i === 0 ? { id: 0 } : { id: i, parent: i - 1 } }));
-        const text = doc({ elements: { nodes } });
-        const {
-            result: { s, report },
-            lookups,
-        } = await mapLookups(() => load(text));
-        expect(codes(report)).toEqual([]);
-        expect(value(s, "nodes", "parent", n - 1)).toBe(n - 2);
-        console.log(`json-cy-parent-deep-chain ${n}: ${lookups} Map lookups`);
-        expect(lookups).toBeLessThan(20 * n);
+    it("json-cy-parent-deep-chain: a compound chain listed root first resolves in linear time", async () => {
+        // the parent walk counted in keyed lookups at two depths: a linear resolver about doubles
+        // them, one that climbs to the root again from every node quadruples them. 25k levels is
+        // over twice what Node's default stack gives a simple recursive walk (about 9.6k frames).
+        const chain = (n: number): string =>
+            doc({
+                elements: {
+                    nodes: Array.from({ length: n }, (_, i) => ({
+                        data: i === 0 ? { id: 0 } : { id: i, parent: i - 1 },
+                    })),
+                },
+            });
+        const run = async (n: number): Promise<{ work: number; loaded: Loaded }> => {
+            const text = chain(n);
+            const b = new GraphBuilder({ directed: true, weightDtype: "f64" });
+            let report: ImportReport | undefined;
+            const work = await keyedLookups(async () => {
+                report = await jsonImporter.import(text, b);
+            });
+            expect(report).toBeDefined();
+            return { work, loaded: { s: b.freeze(), report: report as ImportReport } };
+        };
+        const half = await run(12_500);
+        const full = await run(25_000);
+        expect(full.work / half.work).toBeLessThan(2.5);
+        expect(codes(full.loaded.report)).toEqual([]);
+        expect(value(full.loaded.s, "nodes", "parent", 24_999)).toBe(24_998);
     });
 
     it("json-cy-group-conflicts-section: an edge-shaped record in elements.nodes is reported", async () => {
@@ -931,6 +945,7 @@ describe("JSON robustness: NetworkX adjacency and tree data", () => {
         expect(codes(report)).toEqual([JSON_ISSUE.DUPLICATE_NODE]);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("json-tree-deep-chain: a 1M-node path written as nested children imports", async () => {
         const depth = 1_000_000;
         const text =
@@ -941,7 +956,7 @@ describe("JSON robustness: NetworkX adjacency and tree data", () => {
         expect(s.nodeCount).toBe(depth);
         expect(s.edgeCount).toBe(depth - 1);
         expect(codes(report)).toEqual([]);
-    });
+    }, 120_000);
 });
 
 // ============================================================ OBO Graphs

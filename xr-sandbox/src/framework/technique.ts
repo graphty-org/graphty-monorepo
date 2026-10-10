@@ -6,7 +6,7 @@
 import type { Scene, TransformNode, WebXRDefaultExperience } from "@babylonjs/core";
 
 import type { Claim, Gesture, Hand, PressStart } from "../core/arbiter";
-import type { CommandCode, CommandParams, CommandRecord, Preview } from "../core/commands";
+import type { CommandCode, CommandParams, CommandRecord, HistoryEntry, Preview } from "../core/commands";
 import type { GraphState } from "../core/state";
 import type { GraphView } from "../scene/graph-view";
 import type { HandPoses } from "../scene/poses";
@@ -74,6 +74,10 @@ export interface TechniqueContext {
         undo(hand?: Hand): void;
         redo(hand?: Hand): void;
         undoLabel(): string | null;
+        /** The history, oldest first; selections are never in it. */
+        history(): readonly HistoryEntry[];
+        /** Undo back to and including history entry `index`. */
+        undoTo(index: number, hand?: Hand): void;
     };
     /** Anchors maintained by the framework: a hand's grip, or the space above the graph. */
     anchor(name: "hand-left" | "hand-right" | "graph-top"): TransformNode;

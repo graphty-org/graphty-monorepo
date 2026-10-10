@@ -220,6 +220,10 @@ export function createFramework(
                 undo: (hand) => void commands.undo(source(hand)),
                 redo: (hand) => void commands.redo(source(hand)),
                 undoLabel: () => commands.undoLabel(),
+                history: () => commands.history,
+                undoTo: (i, hand) => {
+                    commands.undoTo(i, source(hand));
+                },
             },
             anchor: (name) => anchors[name],
             ui: {

@@ -66,7 +66,12 @@ export function installTestHooks(d: HookDeps): void {
         }
         const i = graph.data.names.indexOf(what);
         if (i < 0) {
-            throw new Error(`no node named ${what}`);
+            // Any mesh by name, so a technique's check can aim at its own buttons.
+            const mesh = scene.getMeshByName(what);
+            if (mesh) {
+                return mesh.getAbsolutePosition().clone();
+            }
+            throw new Error(`no node or mesh named ${what}`);
         }
         return graph.nodeWorld(i, new Vector3());
     };

@@ -35,6 +35,8 @@ export interface HistoryEntry {
     code: CommandCode;
     params: unknown;
     technique: string;
+    /** The hand that acted, when one did. */
+    hand?: string;
     time: number;
     label: string;
     before: StateSnapshot;
@@ -254,6 +256,7 @@ export function createCommands(state: GraphState, deps: CommandDeps): Commands {
                     code,
                     params,
                     technique: source.technique,
+                    hand: source.hand,
                     time: Date.now(),
                     label: text,
                     before: snapshot(state),

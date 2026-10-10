@@ -5,39 +5,41 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-09 (tier 2 round 1 closed: insights and decisions read).
+Last updated: 2026-10-09 (tier 2 round 2 expert walkthrough on build 8f0d5a6f7791).
 
 ## Top of mind
 
-1. (2026-10-09) Round 2 starts only after a dry run that walks each task's commonest detours, by
-   pointer AND keyboard, on the new frozen build. Every build defect participants met in round 1
-   was on a detour (styling an edge from a run's Style tab, recoloring a selected node, selecting a
-   path node). My visual walk must cover those same detours, not only the answer key's routes.
-2. (2026-10-09) Selection halo (graphty-element `Node.ts`): draw only back faces so the node keeps
-   its color; check the camera-inside case. Severity 2 after the skeptics. Watch in round 2: black
-   path nodes read black, a new fill reads its own color while selected.
-3. (2026-10-09) Out-of-date: the team chose ONE mark -- the canvas key title gains ", out of date"
-   from `run.stale`. My warning color, dimmed Top 10, colored clock and dimmed range were rejected
-   as four marks for one state. Watch: whether that quiet text is seen without the prompt hinting.
-4. (2026-10-09) Source inspector gets the same header "..." menu as the other inspectors (Replace,
-   Edit source). Watch: is it found at rest; does it look identical to the other inspectors' menus.
-5. (2026-10-09) Find's empty line becomes a rule hint with the example in monospace. Watch its
-   size and contrast: it must not be the gray small text "No match" was.
-6. (2026-10-09) Find result rows: long names end in "..." and show whole on hover; no sideways
-   scroll. If the row is compact-mantine's, the fix is there (`EllipsizedName`).
-7. (2026-10-09) Deferred, not dropped: drawn-name overlap and frame-to-fit (graphty-element, filed
-   as one issue; bar 10 expected to keep failing on it); SegmentedControl chosen state and Toast
-   role (compact-mantine, later round so round 2 stays attributable).
-8. (2026-10-09) Round 2 rule: words and marks at rest do not rise except the one menu and the one
-   key mark; each change adds at most one door. Do not propose extra visual emphasis this round.
-9. (2026-10-09) Canvas key does not avoid what is drawn under it (kept, severity 2); which name it
-   covers depends on the unseeded layout -- never cite a specific collision as a count.
+1. (2026-10-09, round 2 walk) 27 confirmed visual findings (round 1: 30); one severity 3 open,
+   drawn-name overlap (graphty-element, deferred). Report: `tier2/rounds/round-2/expert/visual.md`.
+2. (2026-10-09) Selection halo: own color now kept, but the halo is a see-through disc that tints
+   the node BEHIND it (Farah reads mustard behind Chloe's halo, `round-2/expert/visual/path/07.png`)
+   and big discs cover edges and labels when many are selected. Next fix: an opaque ring (or a
+   ring drawn only outside the node's silhouette), not a translucent sphere. graphty-element.
+3. (2026-10-09) Selection has two looks: yellow halo on nodes, blue double rails on edges. One idea,
+   one look -- propose one selection color for both (graphty-element default style).
+4. (2026-10-09) Out-of-date mark: the key words ", out of date" exist but in the key's smallest
+   type, same color; the inspector strip now has a blue Rerun, so severity 2. Filter-stale says
+   "on 20 nodes" -- a second phrasing. Watch whether sessions see either before acting.
+5. (2026-10-09) The two-table source's inspector lacks the "..." menu the single-file one has
+   (`twotables/11.png` vs `replace/05.png`). Check it before the next round: a T4-then-T21 reader
+   cannot reach Replace from the header there.
+6. (2026-10-09) Long names: the find list is fixed; the inspector's selected-edges list still cuts
+   names so rows read identical and its "Edge" header collapses to one stroke. Same rule, new place.
+7. (2026-10-09) Verified fixed: segmented chosen state, import footer jump, left-out icon,
+   histogram width, Overview note alignment, find hint in monospace, source "..." menu.
+8. (2026-10-09) Still parked polish: three left edges in the right panel (1217/1225/1233), ragged
+   Top 10 digits, header colors, label-vs-value emphasis rule. Bundle them as one consistency pass
+   when the round rule allows polish.
+9. (2026-10-09) Canvas key does not avoid what is drawn under it; which name it covers depends on
+   the unseeded layout -- never cite a specific collision as a count.
 10. (2026-10-09) Edge width reading thinner than its number is NOT a defect until a script measures
-    it (`EdgeMesh.ts` scales by *20 and /40); "thick only while selected" was refuted.
-11. (2026-10-09) A pass in a simulated study is weak evidence; a first move that matches a
-    persona's history says little. Judge visual findings by screenshots, not by session counts.
+    it (`EdgeMesh.ts` scales by *20 and /40).
+11. (2026-10-09) A pass in a simulated study is weak evidence. Judge visual findings by
+    screenshots, not by session counts.
 12. (2026-10-09) Device scale 1 screenshots break letter spacing; confirm at scale 2 before filing
-    a font fault. Polish (left edges, ragged digits, header colors) stays parked.
+    a font fault.
+13. (2026-10-09) Walk detours, not only answer-key routes: the halo-behind and the missing source
+    menu were both off the main path (many selected; a two-table source).
 
 ## Priorities and values
 
@@ -60,6 +62,14 @@ Last updated: 2026-10-09 (tier 2 round 1 closed: insights and decisions read).
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- 2026-10-09 (round 2 walk): Out-of-date mark lowered from 3 to 2: the inspector strip now holds a
+  blue primary Rerun, the panel's most saturated element, so the state is no longer the quietest
+  thing there; the canvas key's words are still not distinct, so it stays open.
+- 2026-10-09 (round 2 walk): Selection halo stays severity 2 under a new mechanism: own color kept,
+  but the translucent disc tints the node behind it. Owner graphty-element.
+- 2026-10-09 (round 2 walk): Missing "..." on the two-table source inspector rated 2 (one inspector
+  kind, two headers; it hides Replace from a reader who loaded two tables). Owner graphty app.
 
 - 2026-10-09: Rated the out-of-date mark severity 3: bar 5 counts a stale value shown without its
   mark, and a mark nobody sees is not a mark (`tier2/rounds/round-1/expert/visual/replace/07.png`).
@@ -88,6 +98,15 @@ Last updated: 2026-10-09 (tier 2 round 1 closed: insights and decisions read).
   it as a ring.
 
 ## Tried: worked / did not work
+
+- 2026-10-09 worked (round 2): re-walking round 1's eight walks on the new build and checking each
+  round 1 finding off one by one gave a clean fixed / persists list; plus two detours (many nodes
+  selected via Hops 2, a two-table source) found two new findings.
+- 2026-10-09 worked: `real.mjs --start` takes its own browser slot; starting the next walk in the
+  background while stepping another kept within the 4-slot cap. Slots were held by other agents
+  for about 15 minutes once -- wait, do not wrap or bypass.
+- 2026-10-09 did not work: `--key Escape --key /` in the find box typed "/" into the box (Escape
+  does not blur it); use Control+a and type over instead.
 
 - 2026-10-09 worked: walking each task's success path from the answer key with `real.mjs` and a
   task setup file reached every bar 8 screen in eight sessions; one browser at a time.

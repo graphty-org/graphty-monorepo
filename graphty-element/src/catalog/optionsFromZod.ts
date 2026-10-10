@@ -349,7 +349,12 @@ function flatten(node: JsonSchemaNode, depth: number): FlatUnion {
         return { arms: [], nullable: false, unresolvedRef: true };
     }
 
-    const branches = node.anyOf ?? node.oneOf;
+    // zod writes a union of plain types as one node with a type list (`["string", "number",
+    // "null"]`), the same thing as an anyOf with one arm per type.
+    const branches =
+        node.anyOf ??
+        node.oneOf ??
+        (Array.isArray(node.type) ? node.type.map((type) => ({ ...node, type })) : undefined);
     if (branches === undefined) {
         if (node.type === "null") {
             return { arms: [], nullable: true, unresolvedRef: false };

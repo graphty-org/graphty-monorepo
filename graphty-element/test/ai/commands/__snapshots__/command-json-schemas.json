@@ -9,7 +9,10 @@
             },
             "format": {
                 "description": "Image format (default: png)",
-                "enum": ["png", "jpeg"],
+                "enum": [
+                    "png",
+                    "jpeg"
+                ],
                 "type": "string"
             },
             "height": {
@@ -37,7 +40,10 @@
         "properties": {
             "action": {
                 "description": "Action to perform: start or stop recording",
-                "enum": ["start", "stop"],
+                "enum": [
+                    "start",
+                    "stop"
+                ],
                 "type": "string"
             },
             "duration": {
@@ -47,11 +53,16 @@
             },
             "format": {
                 "description": "Video format (default: webm, note: mp4 may not be supported in all browsers)",
-                "enum": ["webm", "mp4"],
+                "enum": [
+                    "webm",
+                    "mp4"
+                ],
                 "type": "string"
             }
         },
-        "required": ["action"],
+        "required": [
+            "action"
+        ],
         "type": "object"
     },
     "clearStyles": {
@@ -81,11 +92,16 @@
             },
             "target": {
                 "description": "Whether to analyze node or edge properties (default: 'nodes')",
-                "enum": ["nodes", "edges"],
+                "enum": [
+                    "nodes",
+                    "edges"
+                ],
                 "type": "string"
             }
         },
-        "required": ["property"],
+        "required": [
+            "property"
+        ],
         "type": "object"
     },
     "findAndStyleEdges": {
@@ -140,7 +156,10 @@
                 "type": "object"
             }
         },
-        "required": ["selector", "style"],
+        "required": [
+            "selector",
+            "style"
+        ],
         "type": "object"
     },
     "findAndStyleNodes": {
@@ -198,7 +217,10 @@
                 "type": "object"
             }
         },
-        "required": ["selector", "style"],
+        "required": [
+            "selector",
+            "style"
+        ],
         "type": "object"
     },
     "findNodes": {
@@ -214,7 +236,9 @@
                 "type": "string"
             }
         },
-        "required": ["selector"],
+        "required": [
+            "selector"
+        ],
         "type": "object"
     },
     "getSchema": {
@@ -223,11 +247,19 @@
         "properties": {
             "query": {
                 "description": "Type of schema information to retrieve",
-                "enum": ["nodeTypes", "edgeTypes", "nodeProperties", "edgeProperties", "all"],
+                "enum": [
+                    "nodeTypes",
+                    "edgeTypes",
+                    "nodeProperties",
+                    "edgeProperties",
+                    "all"
+                ],
                 "type": "string"
             }
         },
-        "required": ["query"],
+        "required": [
+            "query"
+        ],
         "type": "object"
     },
     "listAlgorithms": {
@@ -247,11 +279,19 @@
         "properties": {
             "query": {
                 "description": "Type of information to query about the graph",
-                "enum": ["nodeCount", "edgeCount", "currentLayout", "all", "summary"],
+                "enum": [
+                    "nodeCount",
+                    "edgeCount",
+                    "currentLayout",
+                    "all",
+                    "summary"
+                ],
                 "type": "string"
             }
         },
-        "required": ["query"],
+        "required": [
+            "query"
+        ],
         "type": "object"
     },
     "runAlgorithm": {
@@ -275,7 +315,10 @@
                 "type": "string"
             }
         },
-        "required": ["namespace", "type"],
+        "required": [
+            "namespace",
+            "type"
+        ],
         "type": "object"
     },
     "sampleData": {
@@ -294,7 +337,11 @@
             },
             "target": {
                 "description": "What to sample: 'nodes', 'edges', or 'both' (default)",
-                "enum": ["nodes", "edges", "both"],
+                "enum": [
+                    "nodes",
+                    "edges",
+                    "both"
+                ],
                 "type": "string"
             }
         },
@@ -322,7 +369,11 @@
                         "type": "number"
                     }
                 },
-                "required": ["x", "y", "z"],
+                "required": [
+                    "x",
+                    "y",
+                    "z"
+                ],
                 "type": "object"
             },
             "preset": {
@@ -343,7 +394,11 @@
                         "type": "number"
                     }
                 },
-                "required": ["x", "y", "z"],
+                "required": [
+                    "x",
+                    "y",
+                    "z"
+                ],
                 "type": "object"
             }
         },
@@ -355,11 +410,16 @@
         "properties": {
             "dimension": {
                 "description": "Dimension mode: '2d' or '3d'",
-                "enum": ["2d", "3d"],
+                "enum": [
+                    "2d",
+                    "3d"
+                ],
                 "type": "string"
             }
         },
-        "required": ["dimension"],
+        "required": [
+            "dimension"
+        ],
         "type": "object"
     },
     "setImmersiveMode": {
@@ -368,11 +428,17 @@
         "properties": {
             "mode": {
                 "description": "VR for virtual reality, AR for augmented reality, exit to return to normal view",
-                "enum": ["vr", "ar", "exit"],
+                "enum": [
+                    "vr",
+                    "ar",
+                    "exit"
+                ],
                 "type": "string"
             }
         },
-        "required": ["mode"],
+        "required": [
+            "mode"
+        ],
         "type": "object"
     },
     "setLayout": {
@@ -392,7 +458,9 @@
                 "type": "string"
             }
         },
-        "required": ["type"],
+        "required": [
+            "type"
+        ],
         "type": "object"
     },
     "zoomToNodes": {

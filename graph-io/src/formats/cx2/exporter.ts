@@ -450,7 +450,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     const position = snapshot.nodes.byRole("position");
     nonFiniteNote(snapshot, [...nodeAttrs, ...edgeAttrs, ...graphAttrs], weights, position, note);
 
-    const edgeIds = planEdgeIds(snapshot, note);
+    const edgeIds = planEdgeIds(snapshot, note, ids);
     const z = [...snapshot.nodes].find(isZ) ?? null;
     const positionZ = position !== null && z === null && position.meta.extra.sourceDims === 3;
     return {

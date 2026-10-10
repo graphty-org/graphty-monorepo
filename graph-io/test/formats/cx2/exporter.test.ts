@@ -155,6 +155,21 @@ describe("cx2Exporter", () => {
         expect(back.flags.weighted).toBe(false);
     });
 
+    it("generates edge ids that no node has, for readers with one id space (Cytoscape.js)", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge(0, 1);
+        b.addEdge(1, 2);
+        b.addEdge(2, 3);
+        b.declareEdgeColumn({ name: "id", dtype: "string", role: "id" });
+        ["a", "b", "c"].forEach((id, e) => b.setEdgeValue("id", e, id));
+        const back = (await importGraph(await cx2Exporter.exportToString(b.freeze()), { format: "cx2" })).snapshot;
+        const nodeIds = new Set(Array.from({ length: back.nodeCount }, (_, i) => Number(back.ids.idOf(i))));
+        const edgeIds = Array.from({ length: back.edgeCount }, (_, e) => back.edges.byRole("id")?.value(e));
+        expect([...nodeIds].sort()).toEqual([0, 1, 2, 3]);
+        expect(edgeIds.filter((id) => nodeIds.has(Number(id)))).toEqual([]);
+        expect(new Set(edgeIds).size).toBe(3);
+    });
+
     it("keeps -0, notes f32 and dict columns, and generates edge ids that are not integers", async () => {
         const b = new GraphBuilder({ directed: true });
         b.addEdge(1, 2);

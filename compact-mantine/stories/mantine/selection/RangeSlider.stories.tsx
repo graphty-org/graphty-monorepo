@@ -46,12 +46,14 @@ const meta: Meta<typeof RangeSlider> = {
 export default meta;
 type Story = StoryObj<typeof RangeSlider>;
 
+/** Each thumb's name (a thumb is a `role="slider"`, and every slider needs one). */
+const NAMES = { thumbFromLabel: "Minimum", thumbToLabel: "Maximum" };
+
 /** A range from 20 to 80; drag either thumb. */
 export const Default: Story = {
     args: {
         defaultValue: [20, 80],
-        thumbFromLabel: "Minimum",
-        thumbToLabel: "Maximum",
+        ...NAMES,
     },
 };
 
@@ -62,14 +64,14 @@ export const States: Story = {
         <StateGrid
             columns={220}
             cells={[
-                ["rest", <RangeSlider defaultValue={[20, 70]} />],
+                ["rest", <RangeSlider {...NAMES} defaultValue={[20, 70]} />],
                 [
                     "focus",
                     <div data-story-focus>
-                        <RangeSlider defaultValue={[30, 80]} />
+                        <RangeSlider {...NAMES} defaultValue={[30, 80]} />
                     </div>,
                 ],
-                ["disabled", <RangeSlider defaultValue={[20, 70]} disabled />],
+                ["disabled", <RangeSlider {...NAMES} defaultValue={[20, 70]} disabled />],
             ]}
         />
     ),
@@ -82,6 +84,7 @@ export const States: Story = {
 /** Labeled marks under the track. */
 export const WithMarks: Story = {
     args: {
+        ...NAMES,
         defaultValue: [25, 75],
         marks: [
             { value: 0, label: "Cold" },
@@ -94,6 +97,7 @@ export const WithMarks: Story = {
 /** `minRange={10}` keeps the thumbs at least 10 apart. */
 export const MinRange: Story = {
     args: {
+        ...NAMES,
         defaultValue: [40, 60],
         minRange: 10,
     },
@@ -102,6 +106,7 @@ export const MinRange: Story = {
 /** `step={10}` moves each thumb in steps of 10. */
 export const CustomStep: Story = {
     args: {
+        ...NAMES,
         defaultValue: [20, 80],
         step: 10,
         marks: [

@@ -179,6 +179,9 @@ export const overlayComponentExtensions: MantineThemeComponents = {
             type: "hover",
             scrollHideDelay: 0,
             scrollbarSize: SCROLLBAR_SIZE,
+            // A Tab stop, so a scroller with nothing focusable inside can be scrolled from the
+            // keyboard (WCAG 2.1.1, axe scrollable-region-focusable); the CSS draws its focus ring.
+            viewportProps: { tabIndex: 0 },
         },
         classNames: compactScrollAreaClassNames,
     }),

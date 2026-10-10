@@ -1,33 +1,17 @@
 {
- "start": {
-  "runs": [
-   "pagerank Influence"
-  ],
-  "layers": [
-   "node-defaults_1 Node defaults",
-   "edge-defaults_1 Edge defaults",
-   "influence_1 Influence"
-  ],
-  "notes": [],
-  "steps": [],
-  "sources": [
-   "Les Miserables"
-  ]
- },
- "end": {
-  "runs": [
-   "pagerank Influence"
-  ],
-  "layers": [
-   "node-defaults_1 Node defaults",
-   "edge-defaults_1 Edge defaults",
-   "influence_1 Influence"
-  ],
-  "notes": [],
-  "steps": [],
-  "sources": [
-   "Les Miserables"
-  ]
- },
- "gone": {}
+    "start": {
+        "runs": ["pagerank Influence"],
+        "layers": ["node-defaults_1 Node defaults", "edge-defaults_1 Edge defaults", "influence_1 Influence"],
+        "notes": [],
+        "steps": [],
+        "sources": ["Les Miserables"]
+    },
+    "end": {
+        "runs": ["pagerank Influence"],
+        "layers": ["node-defaults_1 Node defaults", "edge-defaults_1 Edge defaults", "influence_1 Influence"],
+        "notes": [],
+        "steps": [],
+        "sources": ["Les Miserables"]
+    },
+    "gone": {}
 }

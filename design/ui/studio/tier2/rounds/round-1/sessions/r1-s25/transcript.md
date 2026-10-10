@@ -100,14 +100,14 @@ node design/ui/studio/tool/real.mjs --end design/ui/studio/tier2/rounds/round-1/
   at once that nobody was lost. After loading, the ranking was marked old ("Data changed since this
   run") and one Rerun button fixed it. I never had to rebuild anything.
 - **What confused me:**
-  - Finding the swap took a detour. I looked in the main menu first (where I've always opened files);
-    it only has "Open project or file...", which I was afraid would start a new map. The real way was
-    hidden behind a right-click on the file in Data -> Sources. Clicking the file normally showed its
-    counts and rows but no swap button; I only found it because I tried a right-click. A colleague who
-    doesn't right-click would probably not find it.
-  - Between Load and Rerun the map still showed last month's sizes and legend numbers while the table
-    showed the new weights. The only sign was a tiny icon change on the PageRank row; I had to hover it
-    to learn the ranking was out of date. The Rerun strip only appeared once I clicked the row.
-  - "Higher means: Not set / Closer / Farther / Capacity" on the replace page -- I understood "Closer"
-    but not "Capacity"; I left it because the sentence said the ranking already reads higher as closer.
-  - Ctrl+S asked me to name the project as if it had never been saved; I expected it to just save.
+    - Finding the swap took a detour. I looked in the main menu first (where I've always opened files);
+      it only has "Open project or file...", which I was afraid would start a new map. The real way was
+      hidden behind a right-click on the file in Data -> Sources. Clicking the file normally showed its
+      counts and rows but no swap button; I only found it because I tried a right-click. A colleague who
+      doesn't right-click would probably not find it.
+    - Between Load and Rerun the map still showed last month's sizes and legend numbers while the table
+      showed the new weights. The only sign was a tiny icon change on the PageRank row; I had to hover it
+      to learn the ranking was out of date. The Rerun strip only appeared once I clicked the row.
+    - "Higher means: Not set / Closer / Farther / Capacity" on the replace page -- I understood "Closer"
+      but not "Capacity"; I left it because the sentence said the ranking already reads higher as closer.
+    - Ctrl+S asked me to name the project as if it had never been saved; I expected it to just save.

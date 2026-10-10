@@ -36,12 +36,12 @@ was his last try, not the cause of his stopping. It is recorded under "Tool note
 - **Steps:** 8 after the start (`02.png` to `09.png`). The key's path has 6 (Values, Data,
   right-click the source row, Replace with file..., Load, Rerun).
 - **Wrong turns: 3.**
-  1. Main menu, "Open project or file..." (`03.png`, `04.png`), which went straight to the file
-     chooser and then to "Add to friends" (`05.png`). He cancelled there, so nothing was added.
-  2. A left click on the "friends.csv" source row (`08.png`), expecting a way to swap the file. A
-     left click shows only the source's facts; Replace is on the row's right-click menu or its "..."
-     button, which is not drawn until the pointer hovers on the row.
-  3. Dropping friends-v2.csv on the graph canvas (`09.png`), which the app ignores.
+    1. Main menu, "Open project or file..." (`03.png`, `04.png`), which went straight to the file
+       chooser and then to "Add to friends" (`05.png`). He cancelled there, so nothing was added.
+    2. A left click on the "friends.csv" source row (`08.png`), expecting a way to swap the file. A
+       left click shows only the source's facts; Replace is on the row's right-click menu or its "..."
+       button, which is not drawn until the pointer hovers on the row.
+    3. Dropping friends-v2.csv on the graph canvas (`09.png`), which the app ignores.
 - **Traps the key names:** not reached. He did not read the old drawing as the new result, did not
   press "Edit source...", and did not load the file as an addition.
 - **False "done": none.** His debrief says plainly that he did not finish and does not know who is

@@ -33,13 +33,13 @@ session is not void.
   actions; the extra steps are the detour below and opening Notes and Graph by the rail instead
   of keys.
 - **Wrong turns: 1.**
-  1. Steps 2 to 4 (`02.png` to `04.png`): "Add note" from the Notes place opened a form "About
-     PageRank", because the inspector was showing the PageRank run the setup left open. Tom
-     wanted a note on the whole club; the form offers no way to change its subject, so he
-     cancelled. He recovered at once by choosing "Everything" in the Graph place (`06.png`),
-     after which the form said "About Graph" (`08.png`).
-  Steps 17 to 20 (opening the main menu to check whether the project was kept, then Save) were
-  the task's own save, not a detour.
+    1. Steps 2 to 4 (`02.png` to `04.png`): "Add note" from the Notes place opened a form "About
+       PageRank", because the inspector was showing the PageRank run the setup left open. Tom
+       wanted a note on the whole club; the form offers no way to change its subject, so he
+       cancelled. He recovered at once by choosing "Everything" in the Graph place (`06.png`),
+       after which the form said "About Graph" (`08.png`).
+       Steps 17 to 20 (opening the main menu to check whether the project was kept, then Save) were
+       the task's own save, not a detour.
 - **False "done": none.** His final claim -- both reminders in, saved, both back after closing
   and reopening -- matches `20.png` to `23.png`. truth-on-screen: no wrong claim; he did not read
   "1 note" in Farah's inspector as the project's total.

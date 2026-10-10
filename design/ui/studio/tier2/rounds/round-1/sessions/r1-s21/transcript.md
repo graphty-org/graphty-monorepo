@@ -16,6 +16,7 @@ in the toolbar at the bottom (the flask). I'll try that.
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --click-at 680,864
 ```
+
 -> `button "Analyze"`, 02.png
 
 ## Step 2 (02.png)
@@ -27,6 +28,7 @@ list goes on below, so I'll scroll down to see what other groups there are befor
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --wheel 680,700,600
 ```
+
 -> 03.png
 
 ## Step 3 (03.png)
@@ -38,6 +40,7 @@ is exactly my question, in plain enough words. Clicking it.
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --click-at 566,794
 ```
+
 -> `option "Shortest path ..."`, 04.png
 
 ## Step 4 (04.png)
@@ -51,6 +54,7 @@ From.
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --click "Where the path starts" --type "Chloe"
 ```
+
 -> 05.png
 
 ## Step 5 (05.png)
@@ -60,6 +64,7 @@ It suggests "Chloe" under the box. Picking her from the list so it knows I mean 
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --click-at 555,609
 ```
+
 -> `option "Chloe"`, 06.png
 
 ## Step 6 (06.png)
@@ -70,6 +75,7 @@ Typing Milo.
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --click "Where the path ends" --type "Milo"
 ```
+
 -> 07.png
 
 ## Step 7 (07.png)
@@ -79,6 +85,7 @@ Milo is suggested. Picking him, then I'll press "Find path".
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --click-at 550,663
 ```
+
 -> `option "Milo"`, 08.png
 
 ## Step 8 (08.png)
@@ -88,6 +95,7 @@ From Chloe, To Milo, Follow All, Weight None. Pressing "Find path".
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --click "Find path"
 ```
+
 -> 09.png
 
 ## Step 9 (09.png)
@@ -114,6 +122,7 @@ I'll go back to the analysis button; I expect Shortest path to be at the top und
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --click-at 680,864
 ```
+
 -> `button "Analyze"`, 10.png
 
 ## Step 10 (10.png)
@@ -123,6 +132,7 @@ Yes, "Shortest path" is first under Recent. Clicking it.
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --click-at 566,448
 ```
+
 -> `option "Shortest path ..."`, 11.png
 
 ## Step 11 (11.png)
@@ -132,6 +142,7 @@ A fresh, empty form (From and To blank, Follow All, Weight None). Fine, typing B
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --click "Where the path starts" --type "Ben"
 ```
+
 -> 12.png
 
 ## Step 12 (12.png)
@@ -141,6 +152,7 @@ Ben is suggested. Picking him.
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --click-at 549,609
 ```
+
 -> `option "Ben"`, 13.png
 
 ## Step 13 (13.png)
@@ -150,6 +162,7 @@ Ben in From, the To box is focused. Typing Nora.
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --type "Nora"
 ```
+
 -> 14.png
 
 ## Step 14 (14.png)
@@ -159,6 +172,7 @@ Nora suggested. Picking her.
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --click-at 551,663
 ```
+
 -> `option "Nora"`, 15.png
 
 ## Step 15 (15.png)
@@ -168,6 +182,7 @@ Ben to Nora, Follow All, Weight None. Find path.
 ```
 node tool/real.mjs --step tier2/rounds/round-1/sessions/r1-s21 --click "Find path"
 ```
+
 -> 16.png
 
 ## Step 16 (16.png)

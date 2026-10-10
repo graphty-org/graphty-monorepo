@@ -10,6 +10,7 @@ introductions it takes.
 ## Steps
 
 ### Start
+
 Command: `REAL_DIST=.../tier2-r1d4-946256efb/ node ../tool/real.mjs --start <S> setup:friends-ranked.txt`
 Screenshot: 01.png
 
@@ -18,6 +19,7 @@ think that's the "who matters most" thing I did last time. No names on the dots 
 and Milo. Last time I used the find box to jump to a name, so I'll type Chloe there.
 
 ### Step 2
+
 Command: `--step <S> --click "Find nodes, edges, values" --type "Chloe"`
 Screenshot: 02.png
 Result: the list under the find box shows Nodes 1 (Chloe) and Edges 4: Ava -> Chloe, Ben -> Chloe,
@@ -27,6 +29,7 @@ Elena: Good, she's there, and it already tells me who she's linked to: Ava, Ben,
 click Chloe so I get her list of connections on the right, like last time, and see where she is.
 
 ### Step 3
+
 Command: `--step <S> --click "Chloe"` (tool: ambiguous, 5 matches, took the first, the node "Chloe")
 Screenshot: 03.png
 Result: a dot near the bottom middle gets a yellow ring. The right side now says Chloe, Node, with
@@ -36,6 +39,7 @@ Elena: There she is, the yellow one at the bottom. Four connections. Now where's
 up the same way and see who he's connected to, then see if anybody overlaps.
 
 ### Step 4
+
 Command: `--step <S> --click "Find nodes, edges, values" --type "Milo"`
 Screenshot: 04.png
 Result: Milo found. Edges 4: Kofi -> Milo, Lena -> Milo, Milo -> Nora, Milo -> Omar.
@@ -45,9 +49,11 @@ so it's at least two people in between. Ugh, this could take a while by hand. Le
 so I can see where he sits compared to Chloe.
 
 ### Step 5
+
 Command: `--step <S> --click "option=Milo"` -- tool: nothing on screen is called that (my wording; no screenshot change worth noting, 05.png)
 
 ### Step 6
+
 Command: `--step <S> --click-at 109,153` (option "Milo")
 Screenshot: 06.png
 Result: Milo is the yellow-ringed dot at the top right. Right side: Milo, Degree 4, PageRank #3 of 20.
@@ -58,6 +64,7 @@ little flask button at the bottom. Maybe it can also work out how to get from on
 I'll open that.
 
 ### Step 7-8
+
 Commands: `--step <S> --hover-at 680,864` (button "Analyze", tooltip "Analyze Shift+A"), then `--click-at 680,864`
 Screenshots: 07.png, 08.png
 Result: a list opens with a "Filter analyses" box, Recent: PageRank, then "Rank nodes and edges":
@@ -69,6 +76,7 @@ ranking again, not what I want. There's a filter box at the top. I'll just type 
 "chain".
 
 ### Step 9
+
 Command: `--step <S> --type "chain"`
 Screenshot: 09.png
 Result: "No analysis matches "chain"".
@@ -77,6 +85,7 @@ Elena: Nothing. Probably my word, not theirs. The descriptions kept saying "shor
 sounds like what I want, fewest people in between. I'll try "shortest".
 
 ### Step 10
+
 Command: `--step <S> --key Control+a --type "shortest"`
 Screenshot: 10.png
 Result: list narrows to Betweenness, Edge betweenness, All-pairs distance, and under "Find paths and
@@ -86,6 +95,7 @@ two nodes."
 Elena: "Shortest path -- the fewest steps between two..." That's it. "Start here" even. Clicking it.
 
 ### Step 11
+
 Command: `--step <S> --click-at 566,806` (option "Shortest path")
 Screenshot: 11.png
 Result: a "Shortest path" form: From (already says Milo), To ("Where the path ends"), Follow: Out / All
@@ -98,6 +108,7 @@ distance" line I don't understand at all; it's set to None, I'll leave it. Follo
 that too.
 
 ### Step 12
+
 Command: `--step <S> --click-at 824,578 --type "Chloe"` (button "Clear From", then typing)
 Screenshot: 12.png
 Result: From says Chloe, with a suggestion "Chloe" dropping down under it (covering the To box).
@@ -105,6 +116,7 @@ Result: From says Chloe, with a suggestion "Chloe" dropping down under it (cover
 Elena: It's suggesting Chloe. I'll pick her from the list.
 
 ### Step 13
+
 Command: `--step <S> --click-at 555,609` (option "Chloe")
 Screenshot: 13.png
 Result: From = Chloe; the To box now has a blue outline (looks like the cursor moved there).
@@ -112,6 +124,7 @@ Result: From = Chloe; the To box now has a blue outline (looks like the cursor m
 Elena: From is Chloe. The To box is lit up, so I'll type Milo straight in.
 
 ### Step 14
+
 Command: `--step <S> --type "Milo"`
 Screenshot: 14.png
 Result: To says Milo with a "Milo" suggestion below.
@@ -119,6 +132,7 @@ Result: To says Milo with a "Milo" suggestion below.
 Elena: Picking Milo from the suggestion, then I'll hit Find path.
 
 ### Step 15
+
 Command: `--step <S> --click-at 550,663` (option "Milo")
 Screenshot: 15.png
 Result: From Chloe, To Milo, Follow All, Weight None. Find path button has a focus ring.
@@ -126,6 +140,7 @@ Result: From Chloe, To Milo, Follow All, Weight None. Find path button has a foc
 Elena: Chloe to Milo. Find path.
 
 ### Step 16
+
 Command: `--step <S> --click "Find path"`
 Screenshot: 16.png
 Result: the list closes. Five dots turn black with thick black lines between them, running from the
@@ -143,6 +158,7 @@ Ava's line had the arrow pointing at Chloe in the find list, but "All" was alrea
 it doesn't care which way. That's my answer. I'm done.
 
 ### End
+
 Command: `--end <S>`
 
 ## Debrief (in character)
@@ -153,6 +169,7 @@ Command: `--end <S>`
 **Ease: 5 out of 7.**
 
 **What confused me:**
+
 - I typed "chain" into the analysis list first and got "No analysis matches". I only found it
   because the descriptions above kept saying "shortest paths" and I borrowed their word. If I hadn't
   read those little grey lines I'd have been stuck reading friends lists by hand.

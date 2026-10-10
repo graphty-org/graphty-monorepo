@@ -56,20 +56,20 @@ end state.
 - **Steps:** 36 steps after the start (`02.png` to `37.png`). The answer key's success path is
   about 3 steps.
 - **Wrong turns: 7.**
-  1. Steps 2 and 3 (`03.png`): "chapters" typed in the find box returned "No match".
-  2. Steps 8 to 10 (`08.png` to `10.png`): "shared_chapters", then "shared_chapters >= 10", then
-     Enter. All "No match", with no hint toward "=".
-  3. Step 6 (`06.png`): the attribute's "..." menu. She rightly turned down "Filter to...".
-  4. Steps 11 to 16 (`11.png` to `16.png`): Everything's Edges, "Width by attribute" on
-     shared_chapters. That made every tie a hairline ("1 to 3"). Then she clicked what she took
-     for a settings cog, and it was "Detach Width", which undid it.
-  5. Step 25 (`25.png`): the Shift-click landed on the wrong "Enjolras" row (the tool picked the
-     first matching cell), so only 5 ties were selected. She fixed it at step 27.
-  6. Steps 30 to 34 (`30.png` to `34.png`): she put width 30 on the new layer. It drew thick blue
-     bands while the ties were selected (`31.png`), but once she cleared the selection the bands
-     looked like nearly ordinary gray lines (`32.png`). She thought it had not worked.
-  7. Steps 35 and 36 (`36.png`): the new layer's color started at A9A9A9, the gray every tie
-     already has, so adding a color changed nothing until she typed a red.
+    1. Steps 2 and 3 (`03.png`): "chapters" typed in the find box returned "No match".
+    2. Steps 8 to 10 (`08.png` to `10.png`): "shared_chapters", then "shared_chapters >= 10", then
+       Enter. All "No match", with no hint toward "=".
+    3. Step 6 (`06.png`): the attribute's "..." menu. She rightly turned down "Filter to...".
+    4. Steps 11 to 16 (`11.png` to `16.png`): Everything's Edges, "Width by attribute" on
+       shared_chapters. That made every tie a hairline ("1 to 3"). Then she clicked what she took
+       for a settings cog, and it was "Detach Width", which undid it.
+    5. Step 25 (`25.png`): the Shift-click landed on the wrong "Enjolras" row (the tool picked the
+       first matching cell), so only 5 ties were selected. She fixed it at step 27.
+    6. Steps 30 to 34 (`30.png` to `34.png`): she put width 30 on the new layer. It drew thick blue
+       bands while the ties were selected (`31.png`), but once she cleared the selection the bands
+       looked like nearly ordinary gray lines (`32.png`). She thought it had not worked.
+    7. Steps 35 and 36 (`36.png`): the new layer's color started at A9A9A9, the gray every tie
+       already has, so adding a color changed nothing until she typed a red.
 - **False "done": none.** At step 37 she said she was done. The red ties, the layer and a count
   of 13 that had been on screen all agree with the answer key. truth-on-screen: she said Cosette
   to Valjean has 31 chapters (`23.png` shows shared_chapters 31). She gave a first count of 13

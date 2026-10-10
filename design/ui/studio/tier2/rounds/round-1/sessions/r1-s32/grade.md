@@ -30,13 +30,13 @@ asked; nothing in the run points to a tool fault. Not void.
   right-click the source row, Replace with file..., Load, Rerun), plus a click on the PageRank row
   that the key allows when the run's inspector was not open at Load. So 7 on her route; 2 over.
 - **Wrong turns: 2.** Both recovered in one step, with no help.
-  1. A click on the file name "team.csv" beside "Graph" at the top of the left panel (`03.png`),
-     expecting a way to swap the file. It is plain text; the screen did not change (`03.png` is
-     byte-for-byte the same as `02.png`).
-  2. A left click on the "team.csv" row under Sources (`05.png`). It showed the source's facts
-     ("Added: Nodes 12, Edges 16") and its rows, with no action. She then right-clicked the same
-     row, which opened the menu with "Replace with file..." (`06.png`). This is the same dead end
-     that made another participant give up on the other half of this task.
+    1. A click on the file name "team.csv" beside "Graph" at the top of the left panel (`03.png`),
+       expecting a way to swap the file. It is plain text; the screen did not change (`03.png` is
+       byte-for-byte the same as `02.png`).
+    2. A left click on the "team.csv" row under Sources (`05.png`). It showed the source's facts
+       ("Added: Nodes 12, Edges 16") and its rows, with no action. She then right-clicked the same
+       row, which opened the menu with "Replace with file..." (`06.png`). This is the same dead end
+       that made another participant give up on the other half of this task.
 - **First move:** the inspector's Values tab, to read "first before" -- on the success path.
 - **Broken habit:** none. Her history names the find box, the list of connections, the analysis
   button and the start screen, not the Data place, and none of her moves went to those.

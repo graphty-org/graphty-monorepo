@@ -29,17 +29,17 @@ the suggestion rows). No tool fault; the session is not void.
   success path is about 4 (key p, From, To, Find path); from a selected node, its "..." menu, "Path
   between...", To and Find path is 4 as well.
 - **Wrong turns: 2.**
-  1. Steps 4 to 6 (`04.png` to `06.png`): opened Strozzi's list of connections (Degree), the place
-     her history names, then tried Hops 2 and Hops 3 hoping Pazzi would appear. Pazzi is 4 ties
-     away and the Hops control stops at 3, so it never did ("Strozzi's 12 connections within 3
-     hops", `06.png`); the list is alphabetical, mixing every ring, so it could not give an order
-     either. This is a broken habit by the criteria: a first move into a place the history names
-     that offers no way on to the task.
-  2. Step 7 (`07.png`): opened the neighborhood view's "..." menu ("Neighborhood actions"), which
-     holds only "Frame selection". She went back to Strozzi (`08.png`) and found "Path between..."
-     in the node's own "..." menu (`09.png`).
-  Step 2 (the find box, `02.png`) was her habit too, and it did lead on: it selected Strozzi,
-  whose menu holds the chain tool. Not a wrong turn.
+    1. Steps 4 to 6 (`04.png` to `06.png`): opened Strozzi's list of connections (Degree), the place
+       her history names, then tried Hops 2 and Hops 3 hoping Pazzi would appear. Pazzi is 4 ties
+       away and the Hops control stops at 3, so it never did ("Strozzi's 12 connections within 3
+       hops", `06.png`); the list is alphabetical, mixing every ring, so it could not give an order
+       either. This is a broken habit by the criteria: a first move into a place the history names
+       that offers no way on to the task.
+    2. Step 7 (`07.png`): opened the neighborhood view's "..." menu ("Neighborhood actions"), which
+       holds only "Frame selection". She went back to Strozzi (`08.png`) and found "Path between..."
+       in the node's own "..." menu (`09.png`).
+       Step 2 (the find box, `02.png`) was her habit too, and it did lead on: it selected Strozzi,
+       whose menu holds the chain tool. Not a wrong turn.
 - **Follow-up (the second time):** 6 steps (`14.png` to `19.png`; step 19 is two actions, pick
   Ginori and Find path), 0 wrong turns. She reused the route she had found (find box, node, "...",
   "Path between...") rather than the shorter p shortcut shown in the menu. The target is steps <=

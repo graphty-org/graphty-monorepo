@@ -296,8 +296,8 @@ Screens this key did not describe, all the same on 2dcea6dd5bba where it was wal
   (`rounds/r2d4/pilot/T24B/01.png`). Searching "Stadium" lists the results under the headings
   "Nodes 1" and "Edges 3", with "Stadium" in bold in each tie's title (`10.png`).
 - For graders reading `work.json` (T18 B): the PageRank run is `pagerank PageRank (label
-  Influence)` with layer `influence_1 Influence`, the path run `shortest_path Shortest path (label
-  Shortest route)` with layers "Shortest route (nodes)" and "Shortest route (edges)"; no screen
+Influence)` with layer `influence_1 Influence`, the path run `shortest_path Shortest path (label
+Shortest route)` with layers "Shortest route (nodes)" and "Shortest route (edges)"; no screen
   shows "Influence" or "Shortest route". Grade from the screen.
 
 **Routes the round 2 build adds (walked on ddf8b3b63039).** Three round 2 changes open routes this key did

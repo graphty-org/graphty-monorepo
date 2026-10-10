@@ -83,14 +83,14 @@ Output: "session ended".
   "Select endpoints" from the line's three-dots menu.
 - **Ease:** 6 of 7.
 - **What confused me:**
-  - "weight" is the program's word, not mine. My file's third column is runs together; I had to
-    assume that's what "weight" meant. If the column had a real name in my file I'd want to see it.
-  - "Gus -> Ivan" with an arrow. Running together has no direction; the arrow made me wonder for a
-    second whether it's "Gus invited Ivan" or something.
-  - "Select endpoints" -- "endpoints" is not a word I use. I guessed it meant the two people at
-    either end. "Select Gus and Ivan" or "Select both people" I would not have had to guess at.
-  - The line had no tooltip on hover; I only knew it was clickable because the pointer changed.
-  - I'm not sure the yellow glow sticks once I click somewhere else. For a slide I'd need it to,
-    so next time I'd go to the Fill plus on the Style tab, but I did not try that here.
-  - Small grey labels again ("Edge", "Selection" under the headings) -- hard to read without my
-    glasses.
+    - "weight" is the program's word, not mine. My file's third column is runs together; I had to
+      assume that's what "weight" meant. If the column had a real name in my file I'd want to see it.
+    - "Gus -> Ivan" with an arrow. Running together has no direction; the arrow made me wonder for a
+      second whether it's "Gus invited Ivan" or something.
+    - "Select endpoints" -- "endpoints" is not a word I use. I guessed it meant the two people at
+      either end. "Select Gus and Ivan" or "Select both people" I would not have had to guess at.
+    - The line had no tooltip on hover; I only knew it was clickable because the pointer changed.
+    - I'm not sure the yellow glow sticks once I click somewhere else. For a slide I'd need it to,
+      so next time I'd go to the Fill plus on the Style tab, but I did not try that here.
+    - Small grey labels again ("Edge", "Selection" under the headings) -- hard to read without my
+      glasses.

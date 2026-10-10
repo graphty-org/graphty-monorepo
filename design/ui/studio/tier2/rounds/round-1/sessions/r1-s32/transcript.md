@@ -91,19 +91,19 @@ value"). The coloring and sizing stayed on, so the work I had is still there. Do
   Di (0.1339); Hal dropped to second (0.1305).
 - **Ease:** 6 of 7. About two minutes, nine clicks.
 - **What slowed me down:**
-  - Clicking the file name next to "Graph" at the top left did nothing. It looks like the place
-    the file lives, but it is just a label. I found the swap only by going to Data and
-    right-clicking the file -- I tried right-click because that's how Windows works. If I hadn't,
-    I would not have seen "Replace with file..." anywhere; there is no button for it on the file's
-    own panel on the right, which just says "Added: Nodes 12, Edges 16".
-  - The replace page had a "Higher means" row set to "Not set". I left it because the note under
-    it said PageRank reads higher as closer anyway, and the old run said the same. If that note
-    weren't there I would have stopped and wondered whether I had to pick something to keep it
-    "the same as last time".
-  - After loading, the ranking quietly stayed the old one. The only hint on the left was the
-    little icon changing next to PageRank (still "12"); the "Data changed since this run / Rerun"
-    message only appeared once I clicked PageRank. Before that, the two new people showing up blue
-    was the real clue. QA would want to know a ranking in the file was stale -- I'd want that said
-    without clicking.
+    - Clicking the file name next to "Graph" at the top left did nothing. It looks like the place
+      the file lives, but it is just a label. I found the swap only by going to Data and
+      right-clicking the file -- I tried right-click because that's how Windows works. If I hadn't,
+      I would not have seen "Replace with file..." anywhere; there is no button for it on the file's
+      own panel on the right, which just says "Added: Nodes 12, Edges 16".
+    - The replace page had a "Higher means" row set to "Not set". I left it because the note under
+      it said PageRank reads higher as closer anyway, and the old run said the same. If that note
+      weren't there I would have stopped and wondered whether I had to pick something to keep it
+      "the same as last time".
+    - After loading, the ranking quietly stayed the old one. The only hint on the left was the
+      little icon changing next to PageRank (still "12"); the "Data changed since this run / Rerun"
+      message only appeared once I clicked PageRank. Before that, the two new people showing up blue
+      was the real clue. QA would want to know a ranking in the file was stale -- I'd want that said
+      without clicking.
 - **What worked:** "Was 12 nodes, 16 edges; now 14, 21" on the replace page told me in one line
   what changed. The Rerun button kept my coloring and sizing, so nothing was lost.

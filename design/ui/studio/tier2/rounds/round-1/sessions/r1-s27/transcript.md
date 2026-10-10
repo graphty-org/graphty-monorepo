@@ -85,6 +85,7 @@ entry all carried over, and the 'Data changed since this run' bar with a Rerun b
 not have to go hunting in the analysis button again. That is the Gephi half I hate redoing.
 
 **What confused me / slowed me down:**
+
 - Replacing the file is only on a right-click of the file name under Data > Sources. Nothing on the
   row says it has a menu; I only tried right-click because Gephi trained me to. Someone who does not
   right-click would be stuck there.

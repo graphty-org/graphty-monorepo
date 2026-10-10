@@ -153,7 +153,7 @@ Each with its reason. A screen that breaks one is a defect.
   (a) source inspector doors: TAKEN AS A "..." HEADER MENU (Edit source, Replace, same `canReplace`,
   verbs shared like `attributeActionsOf`), not my visible buttons -- buttons add words at rest.
   (b) find hint: TAKEN, BUT the element decides: the app asks `session.scope.count({ where: "=" +
-  text })`; accepted or refused only with `number-needs-backticks` -> "To select by a value, start
+text })`; accepted or refused only with `number-needs-backticks` -> "To select by a value, start
   with =, such as <exampleRule>"; else "No match". Better than my operator-spotting (no app syntax).
   (c) key ", out of date": TAKEN, words only, from `run.stale`. (d) Edges Color to Everything:
   TAKEN at the root -- `writeLine` loses its default layer; a row with no layer for a side shows

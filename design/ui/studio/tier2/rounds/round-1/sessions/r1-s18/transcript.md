@@ -171,16 +171,16 @@ through Bischeri, Guadagni and Albizzi.
   by hand -- a numbered list in order, plus what it was made with. Writing that into a case file
   is easy. It loses points for how long it took to find.
 - **What confused me:**
-  - I went to my usual place first, the list of connections, and found "Hops 1 2 3". I tried 2
-    and 3 hoping Pazzi would appear; it never did, because it stops at 3, and even if it had, the
-    list mixes every ring together alphabetically, so it can't give me an order. Nothing on that
-    screen pointed me at the chain tool.
-  - The "..." on the connections view only had "Frame selection"; the one that has "Path
-    between..." is on the family's own page. I only found it because I went back and tried the
-    other "...". Two menus that look the same but hold different things.
-  - When I worked out the second chain, the first one disappeared without a word. In my job I
-    need both chains on file; I'd have exported the first before running the second if I had
-    known.
-  - "Hops" -- one hop from what? Here it was clear enough (from Strozzi), but the word still isn't
-    mine. The path result also says "4 hops" on the left and "5 nodes, 4 edges" on the right; I'd
-    say "4 marriages, 3 families in between".
+    - I went to my usual place first, the list of connections, and found "Hops 1 2 3". I tried 2
+      and 3 hoping Pazzi would appear; it never did, because it stops at 3, and even if it had, the
+      list mixes every ring together alphabetically, so it can't give me an order. Nothing on that
+      screen pointed me at the chain tool.
+    - The "..." on the connections view only had "Frame selection"; the one that has "Path
+      between..." is on the family's own page. I only found it because I went back and tried the
+      other "...". Two menus that look the same but hold different things.
+    - When I worked out the second chain, the first one disappeared without a word. In my job I
+      need both chains on file; I'd have exported the first before running the second if I had
+      known.
+    - "Hops" -- one hop from what? Here it was clear enough (from Strozzi), but the word still isn't
+      mine. The path result also says "4 hops" on the left and "5 nodes, 4 edges" on the right; I'd
+      say "4 marriages, 3 families in between".

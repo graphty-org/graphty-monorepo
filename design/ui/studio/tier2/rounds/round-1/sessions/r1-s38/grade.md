@@ -33,12 +33,12 @@ what she wanted. The session is not void.
 - **Wrong turns: 0.** She went straight to "New from data...", found the bare "+" beside Tables
   on the first try, and read the unmatched row before deciding. The extra steps were deliberate
   choices, not detours that failed:
-  - Steps 10 to 14 (`10.png` to `14.png`): changed Direction from "As the file says" to Directed
-    (no effect on the result: a CSV opened as the file says is already directed) and set passes
-    as the weight with "Closer". The answer key asks graders to record a participant who stops to
-    set the weight: she did.
-  - Steps 21 to 25 (`21.png` to `25.png`): added a name label to every node. The answer key asks
-    graders to record a participant who stops to put names on: she did.
+    - Steps 10 to 14 (`10.png` to `14.png`): changed Direction from "As the file says" to Directed
+      (no effect on the result: a CSV opened as the file says is already directed) and set passes
+      as the weight with "Closer". The answer key asks graders to record a participant who stops to
+      set the weight: she did.
+    - Steps 21 to 25 (`21.png` to `25.png`): added a name label to every node. The answer key asks
+      graders to record a participant who stops to put names on: she did.
 - **False "done": none.** Her claim "11 players and 18 passes ... every one of the 18 pass rows
   arrived, because I chose 'Add'" matches the screen (`09.png`, `15.png`). She did not say every
   player was on the squad list: she named s11 as the one that did not fit and said the coach must

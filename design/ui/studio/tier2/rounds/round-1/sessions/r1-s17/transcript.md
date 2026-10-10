@@ -12,6 +12,7 @@ introductions it takes."
 ## Steps
 
 ### 01 -- start
+
 `node ../tool/real.mjs --start $S setup:friends-ranked.txt` -> 01.png
 
 Ruth: The running club is open: twenty brown balls with arrows, no names on any of them. On the
@@ -19,6 +20,7 @@ left there's the find box I know, and a PageRank layer from a ranking someone al
 says size and color are PageRank. I need Chloe. Same as always: I type her name into the find box.
 
 ### 02 -- type Chloe in the find box
+
 `node ../tool/real.mjs --step $S --click "Find nodes, edges, values" --type "Chloe"` -> 02.png
 
 Ruth: One node, Chloe, and four ties in names: Ava -> Chloe, Ben -> Chloe, Chloe -> Dev,
@@ -26,6 +28,7 @@ Chloe -> Farah. Good, names. Milo is not one of them, so it's at least two intro
 open Chloe to see her list of connections on the right, the way I did before.
 
 ### 03 -- open Chloe
+
 `node ../tool/real.mjs --step $S --click "Chloe"` -> 03.png (tool: "Chloe" matched 5 options; took the first, the node)
 
 Ruth: Chloe is lit up yellow at the bottom of the drawing. Right side: id Chloe, Degree 4, PageRank
@@ -34,11 +37,13 @@ Last time the toolbar's analysis button had a list of things the program can wor
 there's one for how two people are linked. Hovering the first toolbar button to be sure it's that one.
 
 ### 04 -- hover the flask
+
 `node ../tool/real.mjs --step $S --hover-at 680,864` -> 04.png (tooltip "Analyze Shift+A")
 
 Ruth: "Analyze." That's the one. Opening it.
 
 ### 05 -- open Analyze
+
 `node ../tool/real.mjs --step $S --click "Analyze"` -> 05.png
 
 Ruth: A long list, all "Rank nodes and edges": Degree, Betweenness ("sit on the most shortest paths
@@ -48,6 +53,7 @@ None of these is "how is Chloe linked to Milo". There's a "Filter analyses" box 
 ask it in my own word: "link".
 
 ### 06 -- filter "link"
+
 `node ../tool/real.mjs --step $S --type "link"` -> 06.png
 
 Ruth: Degree, Louvain, Leiden, and "Link prediction -- which missing edges the shared neighbors
@@ -56,6 +62,7 @@ hadn't seen: "Find paths and edge sets". That's my question in their words. I'll
 and scroll down to that section to see everything under it.
 
 ### 07 -- clear the filter, scroll down
+
 `node ../tool/real.mjs --step $S --click-at 849,592 --wheel 680,700,1500` -> 07.png
 
 Ruth: "Find paths and edge sets": Shortest path (marked "Start here") -- "The fewest steps, or the
@@ -64,6 +71,7 @@ nearly word for word. Guided route and Weakest cut are grayed and say "Select 2 
 Shortest path isn't grayed, so presumably it will ask me for the two people. Picking Shortest path.
 
 ### 08 -- Shortest path form
+
 `node ../tool/real.mjs --step $S --click "Shortest path"` -> 08.png
 
 Ruth: A small form. "From" already says Chloe -- it took her from what I had selected, good.
@@ -73,16 +81,19 @@ weight's meaning is not set, and a path needs a distance. None." Fine: I want th
 not any weighting, so None suits me. Typing Milo into To.
 
 ### 09 -- type Milo
+
 `node ../tool/real.mjs --step $S --click "Where the path ends" --type "Milo"` -> 09.png
 
 Ruth: A suggestion "Milo" drops down under the box, covering the Follow row. Picking it.
 
 ### 10 -- pick Milo
+
 `node ../tool/real.mjs --step $S --click-at 550,663` -> 10.png
 
 Ruth: From Chloe, To Milo, Follow All, Weight None. Find path has focus. Pressing it.
 
 ### 11 -- Find path
+
 `node ../tool/real.mjs --step $S --click "Find path"` -> 11.png
 
 Ruth: There it is, in names. "Path: 5 nodes, 4 edges." "Nodes in order: Chloe 1, Ava 2, Ivan 3,
@@ -93,6 +104,7 @@ Chloe -> Ava I already saw in Chloe's ties (Ava -> Chloe). Now I check one link 
 Ava to Ivan. I'll look Ivan up in the find box.
 
 ### 12 -- find Ivan
+
 `node ../tool/real.mjs --step $S --click "Find nodes, edges, values" --type "Ivan"` -> 12.png
 
 Ruth: Ivan has five ties: Gus -> Ivan, Hana -> Ivan, Ivan -> Jada, Ivan -> Kofi, Ivan -> Ava.
@@ -101,6 +113,7 @@ the chain is read, but I asked it to follow All, and running together goes both 
 Last thing: Milo's own ties, so I can see Kofi is really one of them.
 
 ### 13 -- find Milo
+
 `node ../tool/real.mjs --step $S --click "Clear search" --click "Find nodes, edges, values" --type "Milo"` -> 13.png
 
 Ruth: Milo's ties: Kofi -> Milo, Lena -> Milo, Milo -> Nora, Milo -> Omar. Kofi-Milo holds.
@@ -113,27 +126,32 @@ way. Who is in that chain, in order, and how many introductions does it take?"
 Ruth: Same thing again. Back to Analyze; Shortest path should be under Recent now.
 
 ### 14 -- reopen Analyze
+
 `node ../tool/real.mjs --step $S --key Escape --click "Analyze"` -> 14.png
 
 Ruth: Shortest path is at the top under Recent. Clicking it.
 
 ### 15 -- Shortest path form again
+
 `node ../tool/real.mjs --step $S --click-at 565,448` -> 15.png
 
 Ruth: Same form. From still says Chloe (she's still selected), To is empty again. I'll clear
 From with its little x and type Ben.
 
 ### 16 -- From: Ben
+
 `node ../tool/real.mjs --step $S --click-at 824,578 --click-at 660,578 --type "Ben"` -> 16.png
 
 Ruth: "Ben" offered. Picking it, then Nora in To.
 
 ### 17 -- pick Ben, type Nora
+
 `node ../tool/real.mjs --step $S --click-at 549,609 --click "Where the path ends" --type "Nora"` -> 17.png
 
 Ruth: From Ben, To "Nora" with Nora offered. Pick it, then Find path. Follow still All, Weight None.
 
 ### 18 -- pick Nora, Find path
+
 `node ../tool/real.mjs --step $S --click-at 551,663 --click "Find path"` -> 18.png
 
 Ruth: "Path: 5 nodes, 4 edges. Nodes in order: Ben 1, Theo 2, Ravi 3, Pia 4, Nora 5." Made with:
@@ -143,6 +161,7 @@ Ben-Nora instead of adding a second one. I wrote the first one down, so no harm 
 wanted both on the map for the editor I'd have lost one. Checking a middle link: Ravi.
 
 ### 19 -- find Ravi
+
 `node ../tool/real.mjs --step $S --click "Find nodes, edges, values" --type "Ravi"` -> 19.png
 
 Ruth: Ravi's ties: Pia -> Ravi, Quinn -> Ravi, Ravi -> Sana, Ravi -> Theo. Theo-Ravi and Ravi-Pia
@@ -150,6 +169,7 @@ both hold. Answer: Ben -> Theo -> Ravi -> Pia -> Nora, three people in between, 
 introductions. I'm done.
 
 ### 20 -- end
+
 `node ../tool/real.mjs --end $S`
 
 ## At the end (Ruth, in her own words)

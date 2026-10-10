@@ -139,17 +139,17 @@ every character brought back.
   The tick box to switch it off, and changing the 5 to an 8 in place with "Save and turn on", meant
   I never had to rebuild anything.
 - **What confused me:**
-  1. Finding it. I went first to the toolbar (the second button is Layout) and to Everything
-     (only how dots look). I found "Filters" only because I went to Data to look at my columns. I
-     would not have guessed that narrowing the picture lives under Data rather than Graph or the
-     toolbar.
-  2. My first "5" landed in the Attribute box, which then read "shared_chapters5". When I clicked
-     into the Value box it put itself back to shared_chapters, so no harm, but for a moment I
-     thought I had broken the column choice. (The tool reported that clicking the "Value" label
-     timed out although the box was visible and enabled, so the typing went to the box that still
-     had focus; clicking the box itself worked.)
-  3. With the rule on, Overview says "Components 1" while I can see two separate pieces on the
-     screen. The note says those counts are for the whole graph, so it is right, but it made me
-     look twice.
-  4. "Filter step" and "Add step" -- I don't think of a filter as a step; "Add filter" or "Apply"
-     would have read more plainly to me.
+    1. Finding it. I went first to the toolbar (the second button is Layout) and to Everything
+       (only how dots look). I found "Filters" only because I went to Data to look at my columns. I
+       would not have guessed that narrowing the picture lives under Data rather than Graph or the
+       toolbar.
+    2. My first "5" landed in the Attribute box, which then read "shared_chapters5". When I clicked
+       into the Value box it put itself back to shared_chapters, so no harm, but for a moment I
+       thought I had broken the column choice. (The tool reported that clicking the "Value" label
+       timed out although the box was visible and enabled, so the typing went to the box that still
+       had focus; clicking the box itself worked.)
+    3. With the rule on, Overview says "Components 1" while I can see two separate pieces on the
+       screen. The note says those counts are for the whole graph, so it is right, but it made me
+       look twice.
+    4. "Filter step" and "Add step" -- I don't think of a filter as a step; "Add filter" or "Apply"
+       would have read more plainly to me.

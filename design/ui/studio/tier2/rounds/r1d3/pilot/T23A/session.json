@@ -1,28 +1,28 @@
 {
- "commit": "8c4eef4722ac44be6fad357c302e7dd978d743c3",
- "toolCommit": "ec80696d9f14ee90571f8eea0bdf63e511c5e1ae",
- "uncommittedChanges": false,
- "buildStamp": "8c4eef4722ac graphty@0.8.56",
- "url": "/?next",
- "screenReaderMode": false,
- "viewport": {
-  "width": 1440,
-  "height": 900
- },
- "started": "2026-10-09T02:33:02.831Z",
- "setup": [
-  "--click No thanks",
-  "--click Open project or file...",
-  "--upload friends.csv",
-  "--key Shift+A",
-  "--type PageRank",
-  "--click PageRank",
-  "--click Run",
-  "--click PageRank",
-  "--click role=tab:Style",
-  "--click Add to Shape",
-  "--click role=menuitem:Size",
-  "--click role=option:PageRank",
-  "--key Escape"
- ]
+    "commit": "8c4eef4722ac44be6fad357c302e7dd978d743c3",
+    "toolCommit": "ec80696d9f14ee90571f8eea0bdf63e511c5e1ae",
+    "uncommittedChanges": false,
+    "buildStamp": "8c4eef4722ac graphty@0.8.56",
+    "url": "/?next",
+    "screenReaderMode": false,
+    "viewport": {
+        "width": 1440,
+        "height": 900
+    },
+    "started": "2026-10-09T02:33:02.831Z",
+    "setup": [
+        "--click No thanks",
+        "--click Open project or file...",
+        "--upload friends.csv",
+        "--key Shift+A",
+        "--type PageRank",
+        "--click PageRank",
+        "--click Run",
+        "--click PageRank",
+        "--click role=tab:Style",
+        "--click Add to Shape",
+        "--click role=menuitem:Size",
+        "--click role=option:PageRank",
+        "--key Escape"
+    ]
 }

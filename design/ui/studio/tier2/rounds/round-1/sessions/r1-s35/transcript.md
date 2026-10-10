@@ -12,6 +12,7 @@ Commands run from design/ui/studio/tool with S=../tier2/rounds/round-1/sessions/
 REAL_DIST=/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d4-946256efb/
 
 ## Step 1
+
 `node real.mjs --start $S empty` -> 01.png
 
 Start screen, same as always. Usage-data box at the bottom. "Open project or file..." is what I
@@ -20,6 +21,7 @@ right under it -- that sounds like building something from more than one file. F
 of the usage box.
 
 ## Step 2
+
 `node real.mjs --step $S --click "No thanks" --click "New from data..."` -> 02.png
 
 A page "Open as a new graph". Left side says "Tables" with a plus, right side "Drop a file here, or
@@ -28,6 +30,7 @@ The grey labels are small, but "Tables" with a plus looks like I can add more th
 I'll start with the staff list, people.csv, via "choose a file...".
 
 ## Step 3
+
 `node real.mjs --step $S --click "choose a file..." --upload people.csv` -> 03.png
 
 It read the staff list: "people: 12 nodes", each row is "a node", id is the "Key", name and team
@@ -36,22 +39,25 @@ node rows read; the load makes 12 nodes and 0 edges." Fine so far, it says what 
 need the second sheet. The plus next to "Tables" -- I'll click it and give it messages.csv.
 
 ## Step 4
+
 `node real.mjs --step $S --click-at 271,107` (the plus; it is "Add a table") -> 04.png
 
 A little menu: File..., From a URL..., Paste.... File... it is, then messages.csv.
 
 ## Step 5
+
 `node real.mjs --step $S --click "File..." --upload messages.csv` -> 05.png
 
 Now two tables on the left: "Nodes: people.csv 12 rows" with a green tick and "Edges:
 messages.csv 23 rows, 1 left out" with a red warning triangle. It guessed from/to right. Heading:
 "people and messages: 12 nodes, 22 edges". At the bottom: "1 edge row names a node missing from
-the node rows. Show the 1 unmatched row  Add  Leave out". That is exactly my p13 row -- good, it
+the node rows. Show the 1 unmatched row Add Leave out". That is exactly my p13 row -- good, it
 caught it instead of quietly dropping it. Also it says "Weight: none (each edge counts 1)" and
 emails is just an "Attribute" -- I'll come back to that, the email count is the whole point of
 "how often". First, show me the unmatched row so I know it is the one I think.
 
 ## Step 6
+
 `node real.mjs --step $S --click "Show the 1 unmatched row"` -> 06.png
 
 "1 unmatched row: p13 has no node row" -- line 24, p11 to p13, 6 emails. Exactly the one. It looks
@@ -61,6 +67,7 @@ as an unknown person than lose it. Same as a supplier survey answer that's "just
 it and flag it. Click "Add".
 
 ## Step 7
+
 `node real.mjs --step $S --click "Add"` -> 07.png
 
 Now "13 nodes, 23 edges", both tables green, "the load makes 13 nodes and 23 edges". 12 people
@@ -70,11 +77,13 @@ more than one that emailed twice. The "emails" box says "Attribute" -- I'll open
 "weight" is a choice.
 
 ## Step 8
+
 `node real.mjs --step $S --click-at 728,203` (the "emails" role box) -> 08.png
 
 List: From, To, Weight, Date or time, Edge id, Attribute (ticked). "Weight" -- yes. Picking it.
 
 ## Step 9
+
 `node real.mjs --step $S --click "Weight"` -> 09.png
 
 "Weight: emails", and a new row "Higher means: Not set | Closer | Farther | Capacity" with a long
@@ -84,12 +93,14 @@ a truck or a warehouse, not email.) The Direction box still says "As the file sa
 from one person to another, so that's fine; I'm leaving it.
 
 ## Step 10
+
 `node real.mjs --step $S --click "Closer"` -> 10.png
 
 "Weight: emails (closer)" and the sentence now reads "A higher weight means a closer tie, such as
 more emails between two people." That's my case in their words. Still 13 nodes, 23 edges. Load.
 
 ## Step 11
+
 `node real.mjs --step $S --click "Load"` -> 11.png
 
 It's drawn. Title bar now "people and messages", right side "From 2 files", Nodes 13, Edges 23,
@@ -99,6 +110,7 @@ is the stray p13 (probably the lonely one at the top). I trust tables, not pictu
 Data place and check the rows, like I do with my supplier export.
 
 ## Step 12
+
 `node real.mjs --step $S --click "Data"` -> 12.png
 
 Data place: Sources "people.csv and messages.csv, 13 nodes, 23 edges", with both files listed
@@ -107,6 +119,7 @@ p13 has no name or team, which is what I'd expect. Not a row-by-row table, thoug
 search box like I do for a supplier: type p13 and see where it is.
 
 ## Step 13
+
 `node real.mjs --step $S --click "Graph" --click "Find nodes, edges, values" --type "p13" --key Enter` -> 13.png
 
 As I guessed: the lonely dot at the top lights up yellow. Right panel: "p13, Node", id p13, Degree
@@ -114,15 +127,16 @@ As I guessed: the lonely dot at the top lights up yellow. Right panel: "p13, Nod
 a real person came in with her name and her links. Kemi Bello (p11) is the one who wrote to p13.
 
 ## Step 14
+
 `node real.mjs --step $S --click "Find nodes, edges, values" --key Control+a --type "Kemi" --key Enter` -> 14.png
 
-Kemi lights up -- the dot right under p13. Panel: id p11, name Kemi Bello, team Operations, Degree
-4. In my sheet Kemi has four rows: with Ines (p09), Jonah (p10), Lars (p12) and p13. Four. So the
+Kemi lights up -- the dot right under p13. Panel: id p11, name Kemi Bello, team Operations, Degree 4. In my sheet Kemi has four rows: with Ines (p09), Jonah (p10), Lars (p12) and p13. Four. So the
 name and team came over from people.csv onto the dots that messages.csv made -- the two sheets
 really were joined on the p-number, which is the thing I always did by hand with XLOOKUP. Counts
 match, the stray row is accounted for, a spot check matches. I'm done.
 
 ## End
+
 `node real.mjs --end $S`
 
 ## Debrief (in character)
@@ -143,6 +157,7 @@ told me what the load would make before I pressed Load. It caught the orphan row
 dropping it. That last part is what earns my trust. My supplier sheets are full of those.
 
 **What confused me or slowed me down:**
+
 - Nothing said whether "Add" or "Leave out" was picked until I'd clicked. The picked one only gets
   a thin outline, and on my laptop screen I'd miss it. I assumed "Leave out" was the default, which
   means the 23rd link would have gone missing if I hadn't looked.

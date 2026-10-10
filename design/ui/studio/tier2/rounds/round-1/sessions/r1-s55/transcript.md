@@ -68,12 +68,12 @@ Command: `--end $S`
 - **Ease:** 6 of 7. Four steps, and every count agreed with every other count (17 edges in search,
   Degree 17, "17 connections", 17 names I counted, Selection 18 with him).
 - **What confused me:**
-  - Nothing on screen says that a tie means "appear in the same chapter". I am taking the task's
-    word for that; the program only calls them connections. I can't confirm what a tie counted.
-  - The new Hops 1/2/3 switch sits between the heading and the names. "Hops" is not a word I know
-    here; I left it on 1 because the list already matched the heading. If it had been on 2 I am not
-    sure I would have noticed the list had changed meaning.
-  - Clicking the name in the search results opened him, but the search also listed 17 edges with
-    his name, so it took a second to see which row was the person.
-  - "PageRank 0.0303, #5 of 77" -- I know where it came from (I ran it last time), but the page
-    does not say what the 0.0303 counts.
+    - Nothing on screen says that a tie means "appear in the same chapter". I am taking the task's
+      word for that; the program only calls them connections. I can't confirm what a tie counted.
+    - The new Hops 1/2/3 switch sits between the heading and the names. "Hops" is not a word I know
+      here; I left it on 1 because the list already matched the heading. If it had been on 2 I am not
+      sure I would have noticed the list had changed meaning.
+    - Clicking the name in the search results opened him, but the search also listed 17 edges with
+      his name, so it took a second to see which row was the person.
+    - "PageRank 0.0303, #5 of 77" -- I know where it came from (I ran it last time), but the page
+      does not say what the 0.0303 counts.

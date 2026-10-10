@@ -112,6 +112,7 @@ as a numbered list, with "Each edge counts as 1" as proof of how it counted. My 
 stayed on everything else.
 
 **What confused me:**
+
 - The analysis list is long and opens on ranking stuff; the path one is at the bottom under "Find
   paths and edge sets", below all the group methods. I only found it because I scrolled. I didn't
   try typing in "Filter analyses", and wouldn't have known which word to type.

@@ -14,5 +14,5 @@ tier2/rounds/round-1/sessions/r1-s05/01.png
 ## Steps
 
 1. (01.png) The start screen I remember: "Open project or file..." on the left, samples on the
-right, and a data-sharing box at the bottom. I'll say no thanks to the sharing first, then open
-my colleague's file.
+   right, and a data-sharing box at the bottom. I'll say no thanks to the sharing first, then open
+   my colleague's file.

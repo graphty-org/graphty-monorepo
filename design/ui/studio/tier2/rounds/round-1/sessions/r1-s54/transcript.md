@@ -87,6 +87,7 @@ the column name from my file. "Select endpoints" in the three-dot menu got me th
 click.
 
 What confused me or slowed me down:
+
 - "Select endpoints" was tucked behind the three-dot menu; I only found it because I poke at menus.
   And "endpoints" is a bit programmer-speak -- "select Station and Stadium" or "select both stops"
   would read faster.

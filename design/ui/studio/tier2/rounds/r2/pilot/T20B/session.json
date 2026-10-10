@@ -1,16 +1,16 @@
 {
- "commit": "ddf8b3b63039eb633436898a4aaf23d2cbeaef00",
- "toolCommit": "aa9049c9c5530fd108d9ff5d8e7b3667cbf27737",
- "uncommittedChanges": false,
- "buildStamp": "ddf8b3b63039 graphty@0.8.60",
- "url": "/?next",
- "screenReaderMode": false,
- "viewport": {
-  "width": 1440,
-  "height": 900
- },
- "started": "2026-10-09T13:02:22.848Z",
- "setup": [],
- "task": null,
- "followUp": "none"
+    "commit": "ddf8b3b63039eb633436898a4aaf23d2cbeaef00",
+    "toolCommit": "aa9049c9c5530fd108d9ff5d8e7b3667cbf27737",
+    "uncommittedChanges": false,
+    "buildStamp": "ddf8b3b63039 graphty@0.8.60",
+    "url": "/?next",
+    "screenReaderMode": false,
+    "viewport": {
+        "width": 1440,
+        "height": 900
+    },
+    "started": "2026-10-09T13:02:22.848Z",
+    "setup": [],
+    "task": null,
+    "followUp": "none"
 }

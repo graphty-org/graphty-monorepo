@@ -1,20 +1,16 @@
 {
- "start": null,
- "end": {
-  "runs": [
-   "shortest_path Shortest route"
-  ],
-  "layers": [
-   "node-defaults_1 Node defaults",
-   "edge-defaults_1 Edge defaults",
-   "shortest-route-nodes_1 Shortest route (nodes)",
-   "shortest-route-edges_1 Shortest route (edges)"
-  ],
-  "notes": [],
-  "steps": [],
-  "sources": [
-   "trails.csv"
-  ]
- },
- "gone": {}
+    "start": null,
+    "end": {
+        "runs": ["shortest_path Shortest route"],
+        "layers": [
+            "node-defaults_1 Node defaults",
+            "edge-defaults_1 Edge defaults",
+            "shortest-route-nodes_1 Shortest route (nodes)",
+            "shortest-route-edges_1 Shortest route (edges)"
+        ],
+        "notes": [],
+        "steps": [],
+        "sources": ["trails.csv"]
+    },
+    "gone": {}
 }

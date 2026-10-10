@@ -1,37 +1,19 @@
 {
- "start": {
-  "runs": [
-   "pagerank Influence"
-  ],
-  "layers": [
-   "node-defaults_1 Node defaults",
-   "edge-defaults_1 Edge defaults",
-   "influence_1 Influence"
-  ],
-  "notes": [],
-  "steps": [],
-  "sources": [
-   "team.csv"
-  ]
- },
- "end": {
-  "runs": [
-   "pagerank Influence"
-  ],
-  "layers": [
-   "node-defaults_1 Node defaults",
-   "edge-defaults_1 Edge defaults",
-   "influence_1 Influence"
-  ],
-  "notes": [],
-  "steps": [],
-  "sources": [
-   "team-v2.csv"
-  ]
- },
- "gone": {
-  "sources": [
-   "team.csv"
-  ]
- }
+    "start": {
+        "runs": ["pagerank Influence"],
+        "layers": ["node-defaults_1 Node defaults", "edge-defaults_1 Edge defaults", "influence_1 Influence"],
+        "notes": [],
+        "steps": [],
+        "sources": ["team.csv"]
+    },
+    "end": {
+        "runs": ["pagerank Influence"],
+        "layers": ["node-defaults_1 Node defaults", "edge-defaults_1 Edge defaults", "influence_1 Influence"],
+        "notes": [],
+        "steps": [],
+        "sources": ["team-v2.csv"]
+    },
+    "gone": {
+        "sources": ["team.csv"]
+    }
 }

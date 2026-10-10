@@ -1,14 +1,14 @@
 {
- "commit": "946256efb8762ce90b07eb24b2e0728a48012278",
- "toolCommit": "dae31ce469a94f47df022a4611896bf930290c08",
- "uncommittedChanges": false,
- "buildStamp": "946256efb876 graphty@0.8.56",
- "url": "/?next",
- "screenReaderMode": false,
- "viewport": {
-  "width": 1440,
-  "height": 900
- },
- "started": "2026-10-09T06:03:15.176Z",
- "setup": []
+    "commit": "946256efb8762ce90b07eb24b2e0728a48012278",
+    "toolCommit": "dae31ce469a94f47df022a4611896bf930290c08",
+    "uncommittedChanges": false,
+    "buildStamp": "946256efb876 graphty@0.8.56",
+    "url": "/?next",
+    "screenReaderMode": false,
+    "viewport": {
+        "width": 1440,
+        "height": 900
+    },
+    "started": "2026-10-09T06:03:15.176Z",
+    "setup": []
 }

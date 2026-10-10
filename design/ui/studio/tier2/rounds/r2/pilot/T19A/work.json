@@ -1,36 +1,20 @@
 {
- "start": {
-  "runs": [
-   "pagerank Influence"
-  ],
-  "layers": [
-   "node-defaults_1 Node defaults",
-   "edge-defaults_1 Edge defaults",
-   "influence_1 Influence"
-  ],
-  "notes": [],
-  "steps": [],
-  "sources": [
-   "friends.csv"
-  ]
- },
- "end": {
-  "runs": [
-   "pagerank Influence"
-  ],
-  "layers": [
-   "node-defaults_1 Node defaults",
-   "edge-defaults_1 Edge defaults",
-   "influence_1 Influence"
-  ],
-  "notes": [
-   "note_01M4GBX0C1C7X7QPKMH6FHT9QC Spring list, checked against the sign-up sheet",
-   "note_01M4GBWBKZ9SSSDG2HV65S2ZKQ Moving away in May; ask who takes over the Tuesday run"
-  ],
-  "steps": [],
-  "sources": [
-   "friends.csv"
-  ]
- },
- "gone": {}
+    "start": {
+        "runs": ["pagerank Influence"],
+        "layers": ["node-defaults_1 Node defaults", "edge-defaults_1 Edge defaults", "influence_1 Influence"],
+        "notes": [],
+        "steps": [],
+        "sources": ["friends.csv"]
+    },
+    "end": {
+        "runs": ["pagerank Influence"],
+        "layers": ["node-defaults_1 Node defaults", "edge-defaults_1 Edge defaults", "influence_1 Influence"],
+        "notes": [
+            "note_01M4GBX0C1C7X7QPKMH6FHT9QC Spring list, checked against the sign-up sheet",
+            "note_01M4GBWBKZ9SSSDG2HV65S2ZKQ Moving away in May; ask who takes over the Tuesday run"
+        ],
+        "steps": [],
+        "sources": ["friends.csv"]
+    },
+    "gone": {}
 }

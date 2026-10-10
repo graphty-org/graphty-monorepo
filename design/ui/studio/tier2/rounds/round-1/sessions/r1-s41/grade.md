@@ -31,15 +31,15 @@ button first) took the rail button, which is what the step meant. The session is
 - **Steps:** 18 after the start (`02.png` to `19.png`). The answer key's success path is about 13
   actions; the extra steps are the detour below and the local copy.
 - **Wrong turns: 2.**
-  1. Step 3 (`04.png`): "Add note" from the Notes place opened a form "About PageRank", because
-     the inspector was showing the PageRank run that the setup left open. Jordan wanted a note on
-     the whole club; the form offers no way to change its subject, so he cancelled.
-  2. Step 4 (`05.png`): he clicked empty canvas to "unpick" everything; the inspector stayed on
-     PageRank, so the next note would still have been about PageRank. He recovered at step 5 by
-     choosing "Everything" in the Graph place (`06.png`), after which the form said "About Graph"
-     (`07.png`).
-  Step 12 (opening the main menu to check whether the project was kept) and step 18 (Save local
-  copy) were checks, not detours.
+    1. Step 3 (`04.png`): "Add note" from the Notes place opened a form "About PageRank", because
+       the inspector was showing the PageRank run that the setup left open. Jordan wanted a note on
+       the whole club; the form offers no way to change its subject, so he cancelled.
+    2. Step 4 (`05.png`): he clicked empty canvas to "unpick" everything; the inspector stayed on
+       PageRank, so the next note would still have been about PageRank. He recovered at step 5 by
+       choosing "Everything" in the Graph place (`06.png`), after which the form said "About Graph"
+       (`07.png`).
+       Step 12 (opening the main menu to check whether the project was kept) and step 18 (Save local
+       copy) were checks, not detours.
 - **False "done": none.** His final claim -- both reminders in, both back after closing and
   reopening, a file copy saved -- matches `18.png`, `19.png` and the download. truth-on-screen: no
   wrong claim; he did not read "1 note" in the inspector as the project's total.

@@ -63,13 +63,13 @@ Medici". Click to open Filters, where you can turn it off."
   only those 12, and the top bar says "12 of 15 nodes".
 - **Ease:** 6 of 7. Six steps, maybe two minutes. Faster than reading lists one after another.
 - **What confused me:**
-  - "Hops" -- I had to guess it meant marriages away from Medici. "Within 2 hops" in the heading
-    helped once I clicked, but the word itself is not mine; I would have said "steps" or "links".
-  - "Filter to neighbors" -- I was not sure if it would delete the other three until I saw
-    "12 of 15 nodes" and hovered it. The button does not say it can be undone.
-  - The list of 11 is alphabetical, with nothing saying who is a direct marriage and who comes
-    through someone. For a case file I need to write HOW they are tied, so I would still have to
-    switch back to 1 hop and compare by hand.
-  - The PageRank row on the left changed its icon after filtering and nothing said why.
-  - Finding the list: the connections are behind "Degree 6 >"; I only knew because I had used it
-    before.
+    - "Hops" -- I had to guess it meant marriages away from Medici. "Within 2 hops" in the heading
+      helped once I clicked, but the word itself is not mine; I would have said "steps" or "links".
+    - "Filter to neighbors" -- I was not sure if it would delete the other three until I saw
+      "12 of 15 nodes" and hovered it. The button does not say it can be undone.
+    - The list of 11 is alphabetical, with nothing saying who is a direct marriage and who comes
+      through someone. For a case file I need to write HOW they are tied, so I would still have to
+      switch back to 1 hop and compare by hand.
+    - The PageRank row on the left changed its icon after filtering and nothing said why.
+    - Finding the list: the connections are behind "Degree 6 >"; I only knew because I had used it
+      before.

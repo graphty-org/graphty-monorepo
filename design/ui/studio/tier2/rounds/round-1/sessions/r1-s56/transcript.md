@@ -55,14 +55,14 @@ picked and I only want direct marriages. Done.
 - **Ease:** 7 of 7. Same three moves as my customer-circle routine: find box, click the name, open
   Degree. Four steps, no detours.
 - **What confused me:**
-  - Nothing blocked me. The find box already gave the answer as six "Medici -- X" edges before I
-    clicked anything, which was a nice confirmation, though the edge rows list the pair in mixed
-    order ("Acciaiuoli -- Medici" vs "Medici -- Barbadori"), so scanning for the other family takes
-    a second.
-  - The "Hops 1 2 3" row and "Filter to neighbors" are new to me. Hops looked like it might change
-    the list, so I was briefly unsure whether 1 meant "direct ties only"; the count "6 connections"
-    matching Degree 6 settled it. Neither got in the way.
-  - The panel title says "Neighborhood" under Medici while the row I clicked said "Degree" -- two
-    names for the same thing, minor.
-  - The node labels are not drawn on the canvas, so without the find box I could not have spotted
-    the Medici dot by eye (it is the biggest one, but I only know that because PageRank is #1).
+    - Nothing blocked me. The find box already gave the answer as six "Medici -- X" edges before I
+      clicked anything, which was a nice confirmation, though the edge rows list the pair in mixed
+      order ("Acciaiuoli -- Medici" vs "Medici -- Barbadori"), so scanning for the other family takes
+      a second.
+    - The "Hops 1 2 3" row and "Filter to neighbors" are new to me. Hops looked like it might change
+      the list, so I was briefly unsure whether 1 meant "direct ties only"; the count "6 connections"
+      matching Degree 6 settled it. Neither got in the way.
+    - The panel title says "Neighborhood" under Medici while the row I clicked said "Degree" -- two
+      names for the same thing, minor.
+    - The node labels are not drawn on the canvas, so without the find box I could not have spotted
+      the Medici dot by eye (it is the biggest one, but I only know that because PageRank is #1).

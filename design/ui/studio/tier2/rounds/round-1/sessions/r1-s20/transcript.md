@@ -124,14 +124,14 @@ Command: `node $T/real.mjs --end $S`
   suggest names as you type and jump to the next box, and the Values tab hands me the families in
   order. Faster than writing nx.shortest_path in a notebook.
 - **What confused me / what I'd want:**
-  - Nothing tells me whether this is the ONLY chain of that length. NetworkX's shortest_path quietly
-    picks one of several; I'd want a line saying "1 of N equally short chains" (or "the only one")
-    before I put it in front of my manager.
-  - Running it a second time replaced the first result. For the follow-up that was fine, but if I
-    were comparing two pairs I'd have lost the first one; I only noticed because the left list
-    still had a single "Shortest path" row. A small note that it replaced the earlier run would help.
-  - The dots carry no names, so the black path on the canvas means nothing until I read the Values
-    list. The list was enough; I didn't need labels for this task.
-  - Note on the study tool, not the app: once, asking the tool to click "Shortest path" while the
-    analysis list was open, it clicked the left panel row behind the list instead (the tool said
-    the name was ambiguous). A person clicking the list row would not hit that.
+    - Nothing tells me whether this is the ONLY chain of that length. NetworkX's shortest_path quietly
+      picks one of several; I'd want a line saying "1 of N equally short chains" (or "the only one")
+      before I put it in front of my manager.
+    - Running it a second time replaced the first result. For the follow-up that was fine, but if I
+      were comparing two pairs I'd have lost the first one; I only noticed because the left list
+      still had a single "Shortest path" row. A small note that it replaced the earlier run would help.
+    - The dots carry no names, so the black path on the canvas means nothing until I read the Values
+      list. The list was enough; I didn't need labels for this task.
+    - Note on the study tool, not the app: once, asking the tool to click "Shortest path" while the
+      analysis list was open, it clicked the left panel row behind the list instead (the tool said
+      the name was ambiguous). A person clicking the list row would not hit that.

@@ -10,6 +10,7 @@ those people."
 ## Steps
 
 ### 1. Start
+
 `REAL_DIST=.../tier2-r1d4-946256efb/ with-browser.sh node real.mjs --start rounds/round-1/sessions/r1-s47 setup:friends-ranked.txt` -> 01.png
 
 Seen: the club is drawn as orange balls of different sizes with arrows; no names on the dots. Left
@@ -17,6 +18,7 @@ panel has a find box, "Selection", "PageRank 20", "Everything". Right panel show
 Plan (in character): last time I used the find box to jump to a name. I'll type Ava there.
 
 ### 2. Type Ava in the find box
+
 `real.mjs --step $S --click "Find nodes, edges, values" --type "Ava"` -> 02.png
 
 Seen: "Nodes 1: Ava" and "Edges 6": Ava -> Ben, Ava -> Chloe, Ava -> Dev, Sana -> Ava, Theo -> Ava,
@@ -24,6 +26,7 @@ Ivan -> Ava. So Ava runs with 6 people: Ben, Chloe, Dev, Sana, Theo, Ivan. The d
 change or mark Ava. Plan: click Ava in the list to see her and her list of people on the right.
 
 ### 3. Click Ava in the results
+
 `real.mjs --step $S --click "Ava"` -> 03.png (tool: ambiguous, took the first, the node "Ava")
 
 Seen: Ava is lit up in yellow (a small dot near the middle-bottom). Right panel: Ava, Node, Degree 6
@@ -31,6 +34,7 @@ with a little arrow, PageRank #20 of 20. Selection now says 1. Plan: last time I
 connections on the right -- click "Degree 6" to open her list.
 
 ### 4. Click "Degree 6"
+
 `real.mjs --step $S --click "Degree"` -> 04.png
 
 Seen: the right panel became "Ava -- Neighborhood", "Ava's 6 connections", with rows "Hops 1 2 3",
@@ -40,6 +44,7 @@ next to "connections" reads like "how far out". The party is her runners plus th
 two. Plan: click "2".
 
 ### 5. Click "2"
+
 `real.mjs --step $S --click "2"` -> 05.png (tool: ambiguous with "Dev 2", took the first, the 2 button)
 
 Seen: "Ava's 14 connections within 2 hops"; list Ben, Chloe, Dev, Eli, Farah, Gus, Hana, Ivan, Jada,
@@ -49,6 +54,7 @@ is what I want -- I did not touch it. So my answer: 14 people, not counting Ava.
 drawing show only them -- "Filter to neighbors" looks like the thing.
 
 ### 6. Click "Filter to neighbors"
+
 `real.mjs --step $S --click "Filter to neighbors"` -> 06.png
 
 Seen: the five plain dots at the top right are gone; 15 glowing dots remain, in the same places as
@@ -58,6 +64,7 @@ arrow and its 20 stayed 20 -- I don't know what that means, but I ignore it. The
 Ava and her 14 people, so I am done.
 
 ### 7. End
+
 `real.mjs --end $S`
 
 ## At the end (in character)
@@ -70,6 +77,7 @@ nodes").
 knew: the find box, then the person's list of connections on the right.
 
 **What confused me or slowed me down:**
+
 - The way in is hidden behind "Degree 6". I only clicked it because it had a little arrow and I
   remembered reading someone's connections on the right last time. "Degree" is not a word I use;
   nothing says "see who Ava runs with" until after I click it.

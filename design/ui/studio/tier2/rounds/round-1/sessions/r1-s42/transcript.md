@@ -154,6 +154,7 @@ I click the Medici dot).
 **Ease:** 5 of 7.
 
 **What confused me:**
+
 - The "+" next to Notes quietly attached my second reminder to the Medici, because the Medici was
   still picked. The "About Medici" label caught it, but only because I was reading carefully; I
   had to Cancel, click the background, and try again. Nothing on the "+" told me it would go to

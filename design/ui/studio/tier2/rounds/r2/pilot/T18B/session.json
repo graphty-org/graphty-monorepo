@@ -1,29 +1,29 @@
 {
- "commit": "ddf8b3b63039eb633436898a4aaf23d2cbeaef00",
- "toolCommit": "aa9049c9c5530fd108d9ff5d8e7b3667cbf27737",
- "uncommittedChanges": false,
- "buildStamp": "ddf8b3b63039 graphty@0.8.60",
- "url": "/?next",
- "screenReaderMode": false,
- "viewport": {
-  "width": 1440,
-  "height": 900
- },
- "started": "2026-10-09T12:55:29.684Z",
- "setup": [
-  "--click No thanks",
-  "--click Open the Florentine families sample",
-  "--key Shift+A",
-  "--type PageRank",
-  "--click PageRank",
-  "--click Run",
-  "--click PageRank",
-  "--click role=tab:Style",
-  "--click Add to Shape",
-  "--click role=menuitem:Size",
-  "--click role=option:PageRank",
-  "--key Escape"
- ],
- "task": "T18B",
- "followUp": "given 2026-10-09T12:56:38.757Z"
+    "commit": "ddf8b3b63039eb633436898a4aaf23d2cbeaef00",
+    "toolCommit": "aa9049c9c5530fd108d9ff5d8e7b3667cbf27737",
+    "uncommittedChanges": false,
+    "buildStamp": "ddf8b3b63039 graphty@0.8.60",
+    "url": "/?next",
+    "screenReaderMode": false,
+    "viewport": {
+        "width": 1440,
+        "height": 900
+    },
+    "started": "2026-10-09T12:55:29.684Z",
+    "setup": [
+        "--click No thanks",
+        "--click Open the Florentine families sample",
+        "--key Shift+A",
+        "--type PageRank",
+        "--click PageRank",
+        "--click Run",
+        "--click PageRank",
+        "--click role=tab:Style",
+        "--click Add to Shape",
+        "--click role=menuitem:Size",
+        "--click role=option:PageRank",
+        "--key Escape"
+    ],
+    "task": "T18B",
+    "followUp": "given 2026-10-09T12:56:38.757Z"
 }

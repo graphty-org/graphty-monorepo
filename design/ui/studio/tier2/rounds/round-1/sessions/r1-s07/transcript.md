@@ -42,22 +42,22 @@ Commands run from `design/ui/studio` with
   screen said "Weight: minutes (farther)".
 - **Ease: 4 of 7.** Once I found the right screen it was quick and clear. Getting there was not.
 - **What confused me:**
-  - I opened the file the way I always do ("Open project or file...") and it loaded straight in
-    without a word about my minutes column. Only later, on the other screen, did I see it had
-    read them as "Weight: none (each edge counts 1)". Nothing on the first load told me that. If
-    I had not been asked to make minutes count, I would have trusted a route that ignored them.
-  - After loading, I could not find any place to say what the minutes mean. Clicking "minutes"
-    on Data shows "Kind: Amount" but nothing is changeable; its "..." only offers Filter and
-    Show in table; the source file panel only shows counts; the table's "..." only offers
-    Export. I went back to the start screen and tried "New from data..." on a hunch -- that is
-    where the setting lives. The main menu has no "New from data", so from inside a graph I had
-    to leave it to find it.
-  - "Back to start" dropped my loaded graph without asking. It did not matter today, but it
-    would with real work.
-  - "Weight" was a guess from Excel weighting. "Higher means: Closer / Farther / Capacity" was
-    clear once I saw it, and the line after choosing Farther confirmed it.
-  - "Follow: Out / All" on the route box -- I did not know what it meant and left it. The
-    answer came out right, but I am not sure whether it went against a bus's direction.
-  - The result says "Total distance 14" with no unit. I would have liked "14 minutes"; I had to
-    know it was my minutes column.
-  - Stop names are not drawn on the picture; I only knew the stops from the tables.
+    - I opened the file the way I always do ("Open project or file...") and it loaded straight in
+      without a word about my minutes column. Only later, on the other screen, did I see it had
+      read them as "Weight: none (each edge counts 1)". Nothing on the first load told me that. If
+      I had not been asked to make minutes count, I would have trusted a route that ignored them.
+    - After loading, I could not find any place to say what the minutes mean. Clicking "minutes"
+      on Data shows "Kind: Amount" but nothing is changeable; its "..." only offers Filter and
+      Show in table; the source file panel only shows counts; the table's "..." only offers
+      Export. I went back to the start screen and tried "New from data..." on a hunch -- that is
+      where the setting lives. The main menu has no "New from data", so from inside a graph I had
+      to leave it to find it.
+    - "Back to start" dropped my loaded graph without asking. It did not matter today, but it
+      would with real work.
+    - "Weight" was a guess from Excel weighting. "Higher means: Closer / Farther / Capacity" was
+      clear once I saw it, and the line after choosing Farther confirmed it.
+    - "Follow: Out / All" on the route box -- I did not know what it meant and left it. The
+      answer came out right, but I am not sure whether it went against a bus's direction.
+    - The result says "Total distance 14" with no unit. I would have liked "14 minutes"; I had to
+      know it was my minutes column.
+    - Stop names are not drawn on the picture; I only knew the stops from the tables.

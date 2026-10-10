@@ -34,14 +34,14 @@ screenshot matches its command. The session is not void.
   success path is 6 steps; the extra ones are the two looks below, the hover on the row's icon,
   the click on the run row, and the save.
 - **Wrong turns: 2.**
-  1. Step 2 (`03.png`): opened the main menu looking for "a new version of my file". It holds
-     only "Open project or file...", which she rightly feared would start a new map; she closed
-     it with Escape and went to Data.
-  2. Step 4 (`05.png`): clicked the friends.csv row in Data -> Sources. It shows the source's
-     counts and its rows, but no way to swap the file. She then tried a right-click (`06.png`),
-     which held "Replace with file...".
-  The hover on the PageRank row's icon (`09.png`) was a check that paid off ("Data changed since
-  this run"), not a wrong turn.
+    1. Step 2 (`03.png`): opened the main menu looking for "a new version of my file". It holds
+       only "Open project or file...", which she rightly feared would start a new map; she closed
+       it with Escape and went to Data.
+    2. Step 4 (`05.png`): clicked the friends.csv row in Data -> Sources. It shows the source's
+       counts and its rows, but no way to swap the file. She then tried a right-click (`06.png`),
+       which held "Replace with file...".
+       The hover on the PageRank row's icon (`09.png`) was a check that paid off ("Data changed since
+       this run"), not a wrong turn.
 - **False "done": none.** At step 8 (`08.png`), after Load, she did not report a name: she saw that
   the key still read the old range (0.03779 to 0.06394) and concluded the ranking had not been
   redone. Her final claims all hold on screen: the names and values (`13.png`), "same 20 people and

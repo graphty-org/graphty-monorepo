@@ -97,15 +97,15 @@ I'll ask her to just send me the new ranking."
 - **Ease:** 2 out of 7. Finding the old ranking was easy once I clicked Values. Everything about
   the new file was hard.
 - **What confused me:**
-  - "Open project or file..." went straight to the file picker and then showed "Add to friends".
-    I wanted the new list instead of the old one, not added to it. Nothing on that screen said
-    "instead of", and nothing said whether my ranking would survive.
-  - The counts did not match. The new file has 41 rows, the table said 41 rows, but the same
-    screen said "20 nodes, 82 edges" and "the load makes 20 nodes and 82 edges". I took 82 to
-    mean both lists on top of each other, so I cancelled.
-  - The Data panel shows the old file under "Sources" with its counts, but clicking it only shows
-    facts about it. I saw no way to put a newer file there.
-  - Dragging the new file onto the window did nothing and said nothing. I couldn't tell whether
-    it was refused or ignored.
-  - There was a "Higher means: Not set / Closer / Farther / Capacity" question in the add screen.
-    I don't know what my friend's numbers mean, and nobody asked me that last time.
+    - "Open project or file..." went straight to the file picker and then showed "Add to friends".
+      I wanted the new list instead of the old one, not added to it. Nothing on that screen said
+      "instead of", and nothing said whether my ranking would survive.
+    - The counts did not match. The new file has 41 rows, the table said 41 rows, but the same
+      screen said "20 nodes, 82 edges" and "the load makes 20 nodes and 82 edges". I took 82 to
+      mean both lists on top of each other, so I cancelled.
+    - The Data panel shows the old file under "Sources" with its counts, but clicking it only shows
+      facts about it. I saw no way to put a newer file there.
+    - Dragging the new file onto the window did nothing and said nothing. I couldn't tell whether
+      it was refused or ignored.
+    - There was a "Higher means: Not set / Closer / Farther / Capacity" question in the add screen.
+      I don't know what my friend's numbers mean, and nobody asked me that last time.

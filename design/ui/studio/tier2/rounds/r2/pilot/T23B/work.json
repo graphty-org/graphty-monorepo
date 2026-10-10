@@ -1,35 +1,17 @@
 {
- "start": {
-  "runs": [
-   "pagerank Influence"
-  ],
-  "layers": [
-   "node-defaults_1 Node defaults",
-   "edge-defaults_1 Edge defaults",
-   "influence_1 Influence"
-  ],
-  "notes": [],
-  "steps": [],
-  "sources": [
-   "Florentine families"
-  ]
- },
- "end": {
-  "runs": [
-   "pagerank Influence"
-  ],
-  "layers": [
-   "node-defaults_1 Node defaults",
-   "edge-defaults_1 Edge defaults",
-   "influence_1 Influence"
-  ],
-  "notes": [],
-  "steps": [
-   "step-1 on"
-  ],
-  "sources": [
-   "Florentine families"
-  ]
- },
- "gone": {}
+    "start": {
+        "runs": ["pagerank Influence"],
+        "layers": ["node-defaults_1 Node defaults", "edge-defaults_1 Edge defaults", "influence_1 Influence"],
+        "notes": [],
+        "steps": [],
+        "sources": ["Florentine families"]
+    },
+    "end": {
+        "runs": ["pagerank Influence"],
+        "layers": ["node-defaults_1 Node defaults", "edge-defaults_1 Edge defaults", "influence_1 Influence"],
+        "notes": [],
+        "steps": ["step-1 on"],
+        "sources": ["Florentine families"]
+    },
+    "gone": {}
 }

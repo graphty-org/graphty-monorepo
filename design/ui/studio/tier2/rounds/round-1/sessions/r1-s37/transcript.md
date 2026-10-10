@@ -59,7 +59,7 @@ Screenshot 07.png. Left: "Edges: messages.csv, 23 rows, 1 left out" with a warni
 Heading: "people and messages: 12 nodes, 22 edges". from = From, to = To, emails = Attribute (whole
 number). "Weight: none (each edge counts 1)". Footer: "12 node rows and 23 edge rows read; the load
 makes 12 nodes and 22 edges. 1 edge row names a node missing from the node rows. Show the 1 unmatched
-row  [Add] [Leave out]". Elena: "Wait -- 23 rows but only 22 edges, so one email line would be
+row [Add] [Leave out]". Elena: "Wait -- 23 rows but only 22 edges, so one email line would be
 dropped. I was told to make sure every link arrived. Let me see which row before I decide."
 
 ## Step 8 -- show the unmatched row
@@ -170,6 +170,7 @@ counts at the bottom ("the load makes 13 nodes and 23 edges") told me exactly wh
 before I pressed Load. That is the part I would show a colleague.
 
 **What confused me or slowed me down:**
+
 - The dots have no names on them, and when I click one the heading is the code ("p11"), not the
   person ("Kemi Bello"); a line says "p11 -> p13". I had to read down the panel to find out who
   anyone was. With a name column right there in the staff list I expected names.

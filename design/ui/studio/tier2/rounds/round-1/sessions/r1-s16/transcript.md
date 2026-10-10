@@ -20,47 +20,56 @@ colored by PageRank, a PageRank row in the left list (77), a legend top left.
 ## Steps
 
 ### 1 -> 02.png
+
 Tom: "There's the lab map, er, the Les Miserables one, orange dots like last time. I need only the
 pairs with 5 or more chapters. The only button I know is the flask one, the analysis button. I'll try that."
 `$R --step $S --click-at 679,864` (button "Analyze"). A list opened: Recent PageRank, then "Rank nodes and
 edges": Degree, Betweenness, Closeness, Katz, HITS... and a box "Filter analyses" at the top.
 
 ### 2
+
 Tom: "These are all those algorithm names. I'm not learning those. There's a box at the top though; I'll
 type what I want, 'chapters', and see if anything comes up."
 `$R --step $S --type "chapters"` -> 03.png: "No analysis matches 'chapters'".
 
 ### 3
+
 Tom: "Nothing. So it's not in the analysis button. Close this. There's another button next to the flask,
 the one with the little chart and dots. I don't know it; I'll point at it and see what it's called."
 `$R --step $S --key Escape` -> 04.png: Escape emptied the box but the list stayed open.
 `$R --step $S --hover-at 728,864` -> 05.png: the other button is "Layout". The analysis list is still open behind it.
 
 ### 4
+
 Tom: "Layout. That's how it's arranged; not what I want. And this list won't go away. I'll click on the
 blank part of the picture to get rid of it."
 `$R --step $S --click-at 1100,700` (empty canvas) -> 06.png: the analysis list is STILL open. Clicking the
 picture did not close it; the flask button no longer looks pressed, but the list stays.
 
 ### 5
+
 Tom: "It's stuck there. I'll try the Escape key again."
 `$R --step $S --key Escape` -> 07.png: still open. Focus moved to the picture (it has an outline now) but the
 list stays on top of it.
 
 ### 6
+
 Tom: "Still there. Maybe pressing the flask again closes it, like a switch."
 `$R --step $S --click-at 679,864` -> 08.png: the list closed. Only pressing the flask a second time closed it.
 
 ### 7
+
 Tom: "Finally. Right, the box at the top left says 'Find nodes, edges, values'. The chapters are a value on the
 ties, I suppose. I'll click in there."
 `$R --step $S --click "Find nodes, edges, values"` -> 09.png: the box is active, nothing else changed.
 
 ### 8
+
 Tom: "Nothing pops up. I'll type 'chapters' here and see what it finds."
 `$R --step $S --type "chapters"` -> 10.png: "No match for 'chapters'". The picture is unchanged.
 
 ### 9 -- stop
+
 Tom: "No match. That's twice now: the analysis button didn't know it and the find box doesn't either. Nobody
 showed me this one and I can't see where it would be. I'll ask her to just send me a PNG with only the
 strong pairs on it."
@@ -73,14 +82,14 @@ strong pairs on it."
   reached.
 - **Ease:** 2 out of 7.
 - **What confused me:**
-  - I only know the flask button. It is a list of ranking names (Degree, Betweenness, Katz, HITS...). I
-    typed "chapters" in its box and it said no analysis matches. Nothing told me where else to look.
-  - That list would not go away. Escape only emptied the box; clicking the picture didn't close it;
-    Escape again didn't close it. Only pressing the flask a second time did. I thought I had broken it.
-  - The box at the top left says "Find nodes, edges, values", so I thought the chapter counts would be
-    in there. It said "No match for 'chapters'". I don't know if the chapters number is even in this file,
-    or what it is called in here.
-  - Nothing on the screen says "ties" or "chapters" anywhere, so I had no word to go looking for.
+    - I only know the flask button. It is a list of ranking names (Degree, Betweenness, Katz, HITS...). I
+      typed "chapters" in its box and it said no analysis matches. Nothing told me where else to look.
+    - That list would not go away. Escape only emptied the box; clicking the picture didn't close it;
+      Escape again didn't close it. Only pressing the flask a second time did. I thought I had broken it.
+    - The box at the top left says "Find nodes, edges, values", so I thought the chapter counts would be
+      in there. It said "No match for 'chapters'". I don't know if the chapters number is even in this file,
+      or what it is called in here.
+    - Nothing on the screen says "ties" or "chapters" anywhere, so I had no word to go looking for.
 
 ## Observations for the team (not Tom's words)
 

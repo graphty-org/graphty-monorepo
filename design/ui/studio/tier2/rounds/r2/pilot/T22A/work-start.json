@@ -1,15 +1,7 @@
 {
- "runs": [
-  "pagerank Influence"
- ],
- "layers": [
-  "node-defaults_1 Node defaults",
-  "edge-defaults_1 Edge defaults",
-  "influence_1 Influence"
- ],
- "notes": [],
- "steps": [],
- "sources": [
-  "bus-stops.csv"
- ]
+    "runs": ["pagerank Influence"],
+    "layers": ["node-defaults_1 Node defaults", "edge-defaults_1 Edge defaults", "influence_1 Influence"],
+    "notes": [],
+    "steps": [],
+    "sources": ["bus-stops.csv"]
 }

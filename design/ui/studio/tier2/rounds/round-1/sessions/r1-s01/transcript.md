@@ -6,6 +6,7 @@ Commands run through `real.mjs` with `REAL_DIST` set to that build; `S` is this 
 ## Steps
 
 ### 01 -- start
+
 Command: `with-browser.sh node real.mjs --start $S empty`
 
 Dev: "Okay, the start screen again. Same as last time: Open project or file, New from data, samples
@@ -13,11 +14,13 @@ on the right. There's the usage-data box at the bottom; I'll say no thanks like 
 open the file the way I opened the class spreadsheet -- Open project or file."
 
 ### 02 -- dismiss the usage box
+
 Command: `--step $S --click "No thanks"`
 
 Dev: "Start screen is clean now. Open project or file, like I did with the class spreadsheet."
 
 ### 03 -- open the file
+
 Command: `--step $S --click "Open project or file" --upload bus-stops.csv`
 
 Result: the drawing opened right away: 10 dots, 17 arrows, Overview on the right says Nodes 10,
@@ -29,6 +32,7 @@ minutes in here? Before I go to the toolbar I want to see if the minutes came in
 click Data on the left."
 
 ### 04 -- Data
+
 Command: `--step $S --click "Data"`
 
 Result: Data shows Sources (bus-stops.csv, 10 nodes, 17 edges), Filters, and Attributes: Nodes
@@ -39,6 +43,7 @@ reading it isn't the same as knowing bigger minutes means a longer trip. Let me 
 minutes and see if it says anything about it."
 
 ### 05 -- click minutes
+
 Command: `--step $S --click "minutes"`
 
 Result: the right side shows "minutes, Attribute": Table Edges, Kind Amount, Origin From the
@@ -49,6 +54,7 @@ nothing here says whether 15 is a long trip or a strong link. Is 'Amount' someth
 change? Let me click on it."
 
 ### 06 -- click "Amount"
+
 Command: `--step $S --click "Amount"`
 
 Result: nothing changed; it is just text.
@@ -57,6 +63,7 @@ Dev: "Nope, it's just a label. There's a little three-dot thing up in the corner
 minutes. Maybe the options are hiding in there, like in every other program."
 
 ### 07 -- the three-dot menu on minutes
+
 Command: `--step $S --click-at 1419,73` (button "Attribute actions")
 
 Result: a menu with only "Filter to..." and "Show in table".
@@ -67,6 +74,7 @@ did last time. Toolbar: the flask, that's Analyze, where I ran the ranking. I'll
 menu and click the flask."
 
 ### 08 -- Escape, then Analyze
+
 Command: `--step $S --key Escape --click-at 680,864` (button "Analyze")
 
 Result: the Analyze list opens with a "Filter analyses" box: "Rank nodes and edges" -- Degree,
@@ -77,6 +85,7 @@ Dev: "Right, this is the list I ranked from. These are all rankings though. I wa
 way from Depot to Harbor. There's a filter box, it's already blinking. I'll type 'quickest'."
 
 ### 09 -- type "quickest"
+
 Command: `--step $S --type "quickest"`
 
 Result: `No analysis matches "quickest"`.
@@ -85,6 +94,7 @@ Dev: "Nothing. Okay, it doesn't know 'quickest'. What would a program call it...
 try route."
 
 ### 10 -- type "route"
+
 Command: `--step $S --key Control+a --type "route"`
 
 Result: "Find paths and edge sets": "Shortest path (Start here) -- The fewest steps, or the
@@ -95,6 +105,7 @@ minutes? It says 'by weight', and my column is called minutes, so I'm not sure i
 thing. Let's click it and see what it asks."
 
 ### 11 -- Shortest path
+
 Command: `--step $S --click "Shortest path"`
 
 Result: a Shortest path form: From ("Where the path starts"), To ("Where the path ends"),
@@ -104,6 +115,7 @@ Dev: "Okay! From, To, and Weight says None. So right now it would NOT use my min
 thing I looked. I'll fill in From first: Depot."
 
 ### 12 -- type Depot in From
+
 Command: `--step $S --click "From" --type "Depot"`
 
 Result: a suggestion "Depot" drops down under the box.
@@ -111,11 +123,13 @@ Result: a suggestion "Depot" drops down under the box.
 Dev: "It found Depot. I'll pick it from the list."
 
 ### 13 -- pick Depot
+
 Command: `--step $S --click-at 555,627` (option "Depot")
 
 Dev: "Now To: Harbor."
 
 ### 14 -- type Harbor in To
+
 Command: `--step $S --click "To" --type "Harbor"`
 
 Result: From shows Depot; the Harbor suggestion drops down.
@@ -123,11 +137,13 @@ Result: From shows Depot; the Harbor suggestion drops down.
 Dev: "Pick Harbor."
 
 ### 15 -- pick Harbor
+
 Command: `--step $S --click-at 557,681` (option "Harbor")
 
 Dev: "Depot to Harbor. Now Weight, it says None. I'll open it and look for minutes."
 
 ### 16 -- open Weight
+
 Command: `--step $S --click "Weight"`
 
 Result: two choices: "None" (checked) and "minutes (farther)".
@@ -137,6 +153,7 @@ that from? I never told it. It's right, though -- that's what I want. But my ins
 ask how it knew. I'll pick it."
 
 ### 17 -- choose minutes (farther)
+
 Command: `--step $S --click "minutes (farther)"`
 
 Result: Weight now reads "minutes (farther)".
@@ -145,6 +162,7 @@ Dev: "Depot, Harbor, minutes (farther). Follow says All -- buses, hmm, I'll leav
 know what Out does. Find path."
 
 ### 18 -- Find path
+
 Command: `--step $S --click "Find path"`
 
 Result: the path is drawn in black with a key "Shortest path -- On the path". The right side:
@@ -164,6 +182,7 @@ this one run. If I rank stops next, will it use minutes, and which way? Let me l
 Advanced run settings first in case there's something there."
 
 ### 19 -- Advanced run settings
+
 Command: `--step $S --click "Advanced run settings"`
 
 Result: one more line: Method "Dijkstra, chosen automatically".
@@ -174,6 +193,7 @@ which should also care about minutes. If its Weight already says minutes (farthe
 program remembers it for everything. If it says None, I only set it for the route."
 
 ### 20 -- Analyze again
+
 Command: `--step $S --click-at 680,864` (button "Analyze")
 
 Result: the list now starts with Recent: Shortest path, then the rankings.
@@ -181,6 +201,7 @@ Result: the list now starts with Recent: Shortest path, then the rankings.
 Dev: "Closeness."
 
 ### 21 -- Closeness
+
 Command: `--step $S --click "Closeness"`
 
 Result: a small Closeness form: the one-line description, Advanced (closed), "Under a second",
@@ -190,6 +211,7 @@ Dev: "Hm, no Weight here at all. Does that mean it ignores minutes, or that it u
 already? Maybe it's in Advanced."
 
 ### 22 -- Closeness Advanced
+
 Command: `--step $S --click "Advanced"`
 
 Result: only "Sample size: Every node".
@@ -198,6 +220,7 @@ Dev: "Just sample size. So I can't tell it to use minutes for closeness. I'll ru
 and look at its 'Made with' part, like on the route, to see if it says minutes."
 
 ### 23 -- Run Closeness
+
 Command: `--step $S --click "Run"`
 
 Result: the dots turn shades of orange; the key adds "Color: Closeness 0.05263 to 0.07692"
@@ -208,12 +231,14 @@ closeness was made with. Last time results showed up on the left under Graph -- 
 'Analyze ... to add results here'. I'll go to Graph."
 
 ### 24 -- (tool miss) Graph by tab role
+
 Command: `--step $S --click "role=tab:Graph"`
 
 Result: the tool printed `nothing on screen is called "Graph"` (my wrong guess at how the rail
 button is named; the screen did not change). Not a participant action.
 
 ### 25 -- Graph in the left rail
+
 Command: `--step $S --click-at 27,75` (button "Graph")
 
 Result: the left list now reads Selection, Closeness (10), Shortest path (4 hops, highlighted),
@@ -222,6 +247,7 @@ Everything.
 Dev: "There they are, both results. Click Closeness to see what it was made with."
 
 ### 26 -- select Closeness
+
 Command: `--step $S --click-at 156,156` (treeitem "Closeness")
 
 Result: the right side shows Closeness on its Style tab (Fill: Color Closeness; Shape, Effects,
@@ -230,6 +256,7 @@ Label, Tooltip). A Values tab sits next to it.
 Dev: "This is the coloring part. The route showed 'Made with' under Values, so: Values."
 
 ### 27 -- Closeness Values
+
 Command: `--step $S --click "Values"`
 
 Result: a bar chart 0.05263 to 0.07692, Top 10 (Harbor 0.07692, Library 0.07143, Clinic
@@ -246,6 +273,7 @@ it never asked me anything. On the start screen there was a second way in, 'New 
 Maybe that one asks about the columns. I'll look in the main menu, top left."
 
 ### 28 -- main menu
+
 Command: `--step $S --click-at 23,20` (button "Main menu")
 
 Result: Back to start, New project, Open project or file..., Open sample, Save, Save as..., Save
@@ -255,6 +283,7 @@ Dev: "No 'New from data' in here. 'New project' maybe, but the one I saw was on 
 screen. Back to start -- I hope it doesn't throw away my route... there's undo up top at least."
 
 ### 29 -- Back to start
+
 Command: `--step $S --click "Back to start"`
 
 Result: "Discard unsaved changes? bus-stops has changes that are not saved. They are lost if
@@ -264,11 +293,13 @@ Dev: "Good, it warns me. I wrote the route down already: Depot, Market, Park, Cl
 14 -- and it took like five clicks, I can redo it. It's only my test run. Discard."
 
 ### 30 -- Discard
+
 Command: `--step $S --click "Discard"`
 
 Dev: "Start screen. 'New from data...' -- let's see if this one asks about my columns."
 
 ### 31 -- New from data
+
 Command: `--step $S --click "New from data"`
 
 Result: a full page "Open as a new graph": Tables (+), "Drop a file here, or choose a file...",
@@ -278,6 +309,7 @@ Dev: "Oh, this is a whole setup page. Much more like the Gephi import the tutori
 Choose a file..."
 
 ### 32 -- choose the file
+
 Command: `--step $S --click "choose a file" --upload bus-stops.csv`
 
 Result: "bus-stops: 10 nodes, 17 edges". Each row is: a node / an edge (picked) / CSV auto.
@@ -290,6 +322,7 @@ link counted as 1 -- that's exactly what I was worried about. And minutes is set
 'Attribute'. Let me open that minutes box and see what else it can be."
 
 ### 33 -- open the minutes role
+
 Command: `--step $S --click-at 728,203` (combobox "Role of minutes")
 
 Result: From, To, Weight, Date or time, Edge id, Attribute (checked).
@@ -297,6 +330,7 @@ Result: From, To, Weight, Date or time, Edge id, Attribute (checked).
 Dev: "Weight! The line above said Weight: none, so minutes should be the Weight."
 
 ### 34 -- minutes as Weight
+
 Command: `--step $S --click-at 691,131` (option "Weight")
 
 Result: "Weight: minutes", then "Higher means": Not set (picked) / Closer / Farther / Capacity,
@@ -308,6 +342,7 @@ means the stops are farther apart. And look what it says if I leave it Not set: 
 read a higher weight as CLOSER. That's backwards for bus minutes. Glad I came here. Farther."
 
 ### 35 -- Farther
+
 Command: `--step $S --click "Farther"`
 
 Result: "Weight: minutes (farther)" and "A higher weight means farther apart, such as a longer
@@ -318,6 +353,7 @@ path takes the smallest total.' Perfect. Direction 'As the file says' -- I'll le
 before. Load."
 
 ### 36 -- Load
+
 Command: `--step $S --click "Load"`
 
 Result: the same drawing. Overview now has a new line: "Loaded weight: minutes (farther)".
@@ -327,11 +363,13 @@ the first time. That's the proof for the whole file, not just one run. Now redo 
 Analyze, Shortest path."
 
 ### 37 -- Analyze, type "route"
+
 Command: `--step $S --click-at 680,864 --type "route"`
 
 Dev: "Shortest path is there again."
 
 ### 38 -- Shortest path, second time
+
 Command: `--step $S --click "Shortest path"`
 
 Result: the same form, but Weight already reads "minutes (farther, loaded)".
@@ -340,12 +378,14 @@ Dev: "This time Weight already says 'minutes (farther, loaded)' without me touch
 that's the 'every calculation' part working. Depot..."
 
 ### 39 -- From Depot, To Harbor
+
 Command: `--step $S --click "From" --type "Depot" --click-at 555,627 --click "To" --type "Harbor" --click-at 557,681`
 (options "Depot" and "Harbor", picked the same way as the first time)
 
 Dev: "Find path."
 
 ### 40 -- Find path, second time
+
 Command: `--step $S --click "Find path"`
 
 Result: the same route as before: Path 5 nodes, 4 edges; Total distance 14; Nodes in order
@@ -355,6 +395,7 @@ Dev: "Same answer, 14. Good -- and now the setting is on the file, not just on t
 done."
 
 ### end
+
 Command: `--end $S`
 
 ## At the end (in character)

@@ -1,1 +1,343 @@
-{"kind":"graphty-document","version":1,"name":"Florentine families","generator":{"name":"graphty-element","version":"1.10.0"},"requires":["graphty-data","graphty-session","graphty-results"],"members":[{"kind":"graphty-data","version":1,"format":"json","dialect":"node-link","graph":{"directed":false,"nodes":[{"id":"Acciaiuoli","name":"Acciaiuoli"},{"id":"Medici","name":"Medici"},{"id":"Castellani","name":"Castellani"},{"id":"Peruzzi","name":"Peruzzi"},{"id":"Strozzi","name":"Strozzi"},{"id":"Barbadori","name":"Barbadori"},{"id":"Ridolfi","name":"Ridolfi"},{"id":"Tornabuoni","name":"Tornabuoni"},{"id":"Albizzi","name":"Albizzi"},{"id":"Salviati","name":"Salviati"},{"id":"Pazzi","name":"Pazzi"},{"id":"Bischeri","name":"Bischeri"},{"id":"Guadagni","name":"Guadagni"},{"id":"Ginori","name":"Ginori"},{"id":"Lamberteschi","name":"Lamberteschi"}],"links":[{"source":"Acciaiuoli","target":"Medici"},{"source":"Castellani","target":"Peruzzi"},{"source":"Castellani","target":"Strozzi"},{"source":"Castellani","target":"Barbadori"},{"source":"Medici","target":"Barbadori"},{"source":"Medici","target":"Ridolfi"},{"source":"Medici","target":"Tornabuoni"},{"source":"Medici","target":"Albizzi"},{"source":"Medici","target":"Salviati"},{"source":"Salviati","target":"Pazzi"},{"source":"Peruzzi","target":"Strozzi"},{"source":"Peruzzi","target":"Bischeri"},{"source":"Strozzi","target":"Ridolfi"},{"source":"Strozzi","target":"Bischeri"},{"source":"Ridolfi","target":"Tornabuoni"},{"source":"Tornabuoni","target":"Guadagni"},{"source":"Albizzi","target":"Ginori"},{"source":"Albizzi","target":"Guadagni"},{"source":"Bischeri","target":"Guadagni"},{"source":"Guadagni","target":"Lamberteschi"}]},"source":{"type":"gml","name":"Florentine families","config":{"url":"/samples/florentine.gml"}},"sources":[{"type":"gml","name":"Florentine families","config":{"url":"/samples/florentine.gml"},"tables":[],"added":{"nodes":15,"edges":20}}]},{"kind":"graphty-session","version":1,"config":{"data":{"directed":"auto","knownFields":{"nodeIdPath":"id","nodeLabelPath":null,"nodeWeightPath":null,"nodeTimePath":null,"edgeSrcIdPath":null,"edgeDstIdPath":null,"edgeIdPath":null,"repeatedEdges":"keep","edgeWeightPath":"weight","edgeWeightMeaning":null,"edgeTimePath":null,"positionScale":1,"idCoercion":"canonical"}},"runAlgorithmsOnLoad":false,"background":{"backgroundType":"color","color":"#F5F5F5"},"selectionStyle":{"color":"#FFD700","scale":1.45,"opacity":0.4,"edgeColor":"#0077BB","edgeScale":2.5,"edgeOpacity":1},"layoutBehavior":{"preSteps":0,"stepMultiplier":1,"minDelta":0}},"layout":{"id":"force","engine":"ngraph","options":{"seed":1},"dimension":"3d"},"visibility":{"filter":null,"window":null,"showContext":false},"sets":[],"views":[]},{"kind":"graphty-arrangement","version":1,"ids":["Acciaiuoli","Medici","Castellani","Peruzzi","Strozzi","Barbadori","Ridolfi","Tornabuoni","Albizzi","Salviati","Pazzi","Bischeri","Guadagni","Ginori","Lamberteschi"],"x":{"dtype":"f64","data":"AAAAIB3II8AAAABgSw/ivwAAAGDUDeS/AAAA4ATH9b8AAAAg+aoiwAAAAGBHsPo/AAAA4BDVJMAAAACA/rcQwAAAAEDvIiJAAAAAwPTrur8AAABgCWkcwAAAAGD1VM0/AAAA4IUIGkAAAADAz3omQAAAAGCaNS1A"},"y":{"dtype":"f64","data":"AAAAIJU9IkAAAABgZmIKQAAAAEDcrCfAAAAAgMAXMsAAAAAA2lQnwAAAAEA3Vue/AAAAQFK47r8AAACA8/0dQAAAAIAcxxDAAAAAIH8jLEAAAACgwlstQAAAAMDGCx3AAAAAgDs1EUAAAADgBkYhwAAAAECtsAFA"},"z":{"dtype":"f64","data":"AAAAIBjQGMAAAADAGWQJwAAAAMCZIyNAAAAAYP9F4D8AAACANFsKQAAAAAAlGyBAAAAAwJk91z8AAABgiGcTQAAAAADyGwRAAAAAoIySIMAAAABAxkEwwAAAAMCImPa/AAAAQIEx4b8AAADAlxUpQAAAAABnPiDA"},"pins":[]},{"kind":"graphty-results","version":1,"fingerprint":"1b475c9e9a6987de","runs":[{"id":"pagerank","derived":false,"algorithm":"pagerank","shape":"node-metric","fields":[{"name":"value","plainName":"Influence","technicalName":"PageRank score","kind":"node","type":"number","path":"results.pagerank.value"},{"name":"rank","plainName":"Rank","technicalName":"rank","kind":"node","type":"integer","path":"results.pagerank.rank"},{"name":"percentile","plainName":"Percentile","technicalName":"percentile","kind":"node","type":"number","path":"results.pagerank.percentile"},{"name":"min","plainName":"Lowest","technicalName":"min","kind":"graph","type":"number","path":"results.pagerank.min"},{"name":"max","plainName":"Highest","technicalName":"max","kind":"graph","type":"number","path":"results.pagerank.max"},{"name":"median","plainName":"Middle","technicalName":"median","kind":"graph","type":"number","path":"results.pagerank.median"},{"name":"mean","plainName":"Average","technicalName":"mean","kind":"graph","type":"number","path":"results.pagerank.mean"},{"name":"measured","plainName":"Measured","technicalName":"measured","kind":"graph","type":"integer","path":"results.pagerank.measured"},{"name":"normalization","plainName":"Normalization","technicalName":"normalization","kind":"graph","type":"string","path":"results.pagerank.normalization"},{"name":"tiedAtMin","plainName":"Tied at the lowest value","technicalName":"tiedAtMin","kind":"graph","type":"integer","path":"results.pagerank.tiedAtMin"}],"measured":{"nodes":15,"edges":20},"graph":{"normalization":"none","min":0.030657362888801092,"max":0.14581761349922912,"median":0.06886171181725949,"mean":0.06666666666666667,"measured":15,"tiedAtMin":1},"caveats":{"exact":true,"seed":null,"direction":"undirected","weight":null,"precision":"f64","method":"power-iteration","notes":["A reader follows a link with probability 0.85 and jumps to a random node otherwise.","The ranks sum to 1 across the graph.","The graph is undirected, so every edge carries rank both ways.","Edge weights are not read."],"converged":true,"iterations":39},"durationMs":1,"nodes":{"ids":["Acciaiuoli","Medici","Castellani","Peruzzi","Strozzi","Barbadori","Ridolfi","Tornabuoni","Albizzi","Salviati","Pazzi","Bischeri","Guadagni","Ginori","Lamberteschi"],"columns":{"value":{"dtype":"f64","data":"q730y6Rknz96eZTMJqrCP1gksvefv7E/4IDTz0ZgsT9g5ALcno22P4Mj1P4Jwak/+P7g9p3PsT9eZFZwYD+yP0CpY+5WQbQ/glTzYhxjrz8k1qETq3WiPwWjM9DroLE/vuuv9Z0wuT80SNLMGZmgPyO20067pp8/"},"rank":{"dtype":"f64","data":"AAAAAAAALkAAAAAAAADwPwAAAAAAABxAAAAAAAAAIkAAAAAAAAAIQAAAAAAAACZAAAAAAAAAGEAAAAAAAAAUQAAAAAAAABBAAAAAAAAAJEAAAAAAAAAoQAAAAAAAACBAAAAAAAAAAEAAAAAAAAAqQAAAAAAAACxA"},"percentile":{"dtype":"f64","data":"ERERERERsT8AAAAAAADwPzMzMzMzM+M/3t3d3d3d3T+8u7u7u7vrP1VVVVVVVdU/VVVVVVVV5T93d3d3d3fnP5qZmZmZmek/mpmZmZmZ2T8RERERERHRPxEREREREeE/3t3d3d3d7T+amZmZmZnJPxEREREREcE/"}}},"edges":{"columns":{}}}]},{"kind":"graphty-style","version":1,"layers":[{"name":"Influence","target":"node","kind":"encoding","selector":{"match":"has","path":"results.pagerank.value"},"source":{"by":"run","runId":"pagerank","algorithm":"pagerank","params":{"dampingFactor":0.85,"maxIterations":100,"tolerance":0.000001,"useDelta":true}},"enabled":true,"encode":{"node.color":{"by":"results.pagerank.value","scale":"linear"},"node.size":{"by":"results.pagerank.value","scale":"linear","range":[1,3]}}}]},{"kind":"graphty-notes","version":1,"notes":[{"id":"note_01M4FPNXYZ7T34TXGGFVNHGXZ8","time":"2026-10-09T06:47:46.399Z","targets":[{"graph":true}],"text":"Marriages only; business ties are a separate list"},{"id":"note_01M4FPQ5NS3NHP1446DE564RGH","time":"2026-10-09T06:48:27.065Z","targets":[{"node":"Medici"}],"text":"Check the 1434 return from exile"}]},{"kind":"graphty-view-state","version":1,"selection":{"nodes":["Medici"],"edges":[]}}]}
+{
+    "kind": "graphty-document",
+    "version": 1,
+    "name": "Florentine families",
+    "generator": { "name": "graphty-element", "version": "1.10.0" },
+    "requires": ["graphty-data", "graphty-session", "graphty-results"],
+    "members": [
+        {
+            "kind": "graphty-data",
+            "version": 1,
+            "format": "json",
+            "dialect": "node-link",
+            "graph": {
+                "directed": false,
+                "nodes": [
+                    { "id": "Acciaiuoli", "name": "Acciaiuoli" },
+                    { "id": "Medici", "name": "Medici" },
+                    { "id": "Castellani", "name": "Castellani" },
+                    { "id": "Peruzzi", "name": "Peruzzi" },
+                    { "id": "Strozzi", "name": "Strozzi" },
+                    { "id": "Barbadori", "name": "Barbadori" },
+                    { "id": "Ridolfi", "name": "Ridolfi" },
+                    { "id": "Tornabuoni", "name": "Tornabuoni" },
+                    { "id": "Albizzi", "name": "Albizzi" },
+                    { "id": "Salviati", "name": "Salviati" },
+                    { "id": "Pazzi", "name": "Pazzi" },
+                    { "id": "Bischeri", "name": "Bischeri" },
+                    { "id": "Guadagni", "name": "Guadagni" },
+                    { "id": "Ginori", "name": "Ginori" },
+                    { "id": "Lamberteschi", "name": "Lamberteschi" }
+                ],
+                "links": [
+                    { "source": "Acciaiuoli", "target": "Medici" },
+                    { "source": "Castellani", "target": "Peruzzi" },
+                    { "source": "Castellani", "target": "Strozzi" },
+                    { "source": "Castellani", "target": "Barbadori" },
+                    { "source": "Medici", "target": "Barbadori" },
+                    { "source": "Medici", "target": "Ridolfi" },
+                    { "source": "Medici", "target": "Tornabuoni" },
+                    { "source": "Medici", "target": "Albizzi" },
+                    { "source": "Medici", "target": "Salviati" },
+                    { "source": "Salviati", "target": "Pazzi" },
+                    { "source": "Peruzzi", "target": "Strozzi" },
+                    { "source": "Peruzzi", "target": "Bischeri" },
+                    { "source": "Strozzi", "target": "Ridolfi" },
+                    { "source": "Strozzi", "target": "Bischeri" },
+                    { "source": "Ridolfi", "target": "Tornabuoni" },
+                    { "source": "Tornabuoni", "target": "Guadagni" },
+                    { "source": "Albizzi", "target": "Ginori" },
+                    { "source": "Albizzi", "target": "Guadagni" },
+                    { "source": "Bischeri", "target": "Guadagni" },
+                    { "source": "Guadagni", "target": "Lamberteschi" }
+                ]
+            },
+            "source": { "type": "gml", "name": "Florentine families", "config": { "url": "/samples/florentine.gml" } },
+            "sources": [
+                {
+                    "type": "gml",
+                    "name": "Florentine families",
+                    "config": { "url": "/samples/florentine.gml" },
+                    "tables": [],
+                    "added": { "nodes": 15, "edges": 20 }
+                }
+            ]
+        },
+        {
+            "kind": "graphty-session",
+            "version": 1,
+            "config": {
+                "data": {
+                    "directed": "auto",
+                    "knownFields": {
+                        "nodeIdPath": "id",
+                        "nodeLabelPath": null,
+                        "nodeWeightPath": null,
+                        "nodeTimePath": null,
+                        "edgeSrcIdPath": null,
+                        "edgeDstIdPath": null,
+                        "edgeIdPath": null,
+                        "repeatedEdges": "keep",
+                        "edgeWeightPath": "weight",
+                        "edgeWeightMeaning": null,
+                        "edgeTimePath": null,
+                        "positionScale": 1,
+                        "idCoercion": "canonical"
+                    }
+                },
+                "runAlgorithmsOnLoad": false,
+                "background": { "backgroundType": "color", "color": "#F5F5F5" },
+                "selectionStyle": {
+                    "color": "#FFD700",
+                    "scale": 1.45,
+                    "opacity": 0.4,
+                    "edgeColor": "#0077BB",
+                    "edgeScale": 2.5,
+                    "edgeOpacity": 1
+                },
+                "layoutBehavior": { "preSteps": 0, "stepMultiplier": 1, "minDelta": 0 }
+            },
+            "layout": { "id": "force", "engine": "ngraph", "options": { "seed": 1 }, "dimension": "3d" },
+            "visibility": { "filter": null, "window": null, "showContext": false },
+            "sets": [],
+            "views": []
+        },
+        {
+            "kind": "graphty-arrangement",
+            "version": 1,
+            "ids": [
+                "Acciaiuoli",
+                "Medici",
+                "Castellani",
+                "Peruzzi",
+                "Strozzi",
+                "Barbadori",
+                "Ridolfi",
+                "Tornabuoni",
+                "Albizzi",
+                "Salviati",
+                "Pazzi",
+                "Bischeri",
+                "Guadagni",
+                "Ginori",
+                "Lamberteschi"
+            ],
+            "x": {
+                "dtype": "f64",
+                "data": "AAAAIB3II8AAAABgSw/ivwAAAGDUDeS/AAAA4ATH9b8AAAAg+aoiwAAAAGBHsPo/AAAA4BDVJMAAAACA/rcQwAAAAEDvIiJAAAAAwPTrur8AAABgCWkcwAAAAGD1VM0/AAAA4IUIGkAAAADAz3omQAAAAGCaNS1A"
+            },
+            "y": {
+                "dtype": "f64",
+                "data": "AAAAIJU9IkAAAABgZmIKQAAAAEDcrCfAAAAAgMAXMsAAAAAA2lQnwAAAAEA3Vue/AAAAQFK47r8AAACA8/0dQAAAAIAcxxDAAAAAIH8jLEAAAACgwlstQAAAAMDGCx3AAAAAgDs1EUAAAADgBkYhwAAAAECtsAFA"
+            },
+            "z": {
+                "dtype": "f64",
+                "data": "AAAAIBjQGMAAAADAGWQJwAAAAMCZIyNAAAAAYP9F4D8AAACANFsKQAAAAAAlGyBAAAAAwJk91z8AAABgiGcTQAAAAADyGwRAAAAAoIySIMAAAABAxkEwwAAAAMCImPa/AAAAQIEx4b8AAADAlxUpQAAAAABnPiDA"
+            },
+            "pins": []
+        },
+        {
+            "kind": "graphty-results",
+            "version": 1,
+            "fingerprint": "1b475c9e9a6987de",
+            "runs": [
+                {
+                    "id": "pagerank",
+                    "derived": false,
+                    "algorithm": "pagerank",
+                    "shape": "node-metric",
+                    "fields": [
+                        {
+                            "name": "value",
+                            "plainName": "Influence",
+                            "technicalName": "PageRank score",
+                            "kind": "node",
+                            "type": "number",
+                            "path": "results.pagerank.value"
+                        },
+                        {
+                            "name": "rank",
+                            "plainName": "Rank",
+                            "technicalName": "rank",
+                            "kind": "node",
+                            "type": "integer",
+                            "path": "results.pagerank.rank"
+                        },
+                        {
+                            "name": "percentile",
+                            "plainName": "Percentile",
+                            "technicalName": "percentile",
+                            "kind": "node",
+                            "type": "number",
+                            "path": "results.pagerank.percentile"
+                        },
+                        {
+                            "name": "min",
+                            "plainName": "Lowest",
+                            "technicalName": "min",
+                            "kind": "graph",
+                            "type": "number",
+                            "path": "results.pagerank.min"
+                        },
+                        {
+                            "name": "max",
+                            "plainName": "Highest",
+                            "technicalName": "max",
+                            "kind": "graph",
+                            "type": "number",
+                            "path": "results.pagerank.max"
+                        },
+                        {
+                            "name": "median",
+                            "plainName": "Middle",
+                            "technicalName": "median",
+                            "kind": "graph",
+                            "type": "number",
+                            "path": "results.pagerank.median"
+                        },
+                        {
+                            "name": "mean",
+                            "plainName": "Average",
+                            "technicalName": "mean",
+                            "kind": "graph",
+                            "type": "number",
+                            "path": "results.pagerank.mean"
+                        },
+                        {
+                            "name": "measured",
+                            "plainName": "Measured",
+                            "technicalName": "measured",
+                            "kind": "graph",
+                            "type": "integer",
+                            "path": "results.pagerank.measured"
+                        },
+                        {
+                            "name": "normalization",
+                            "plainName": "Normalization",
+                            "technicalName": "normalization",
+                            "kind": "graph",
+                            "type": "string",
+                            "path": "results.pagerank.normalization"
+                        },
+                        {
+                            "name": "tiedAtMin",
+                            "plainName": "Tied at the lowest value",
+                            "technicalName": "tiedAtMin",
+                            "kind": "graph",
+                            "type": "integer",
+                            "path": "results.pagerank.tiedAtMin"
+                        }
+                    ],
+                    "measured": { "nodes": 15, "edges": 20 },
+                    "graph": {
+                        "normalization": "none",
+                        "min": 0.030657362888801092,
+                        "max": 0.14581761349922912,
+                        "median": 0.06886171181725949,
+                        "mean": 0.06666666666666667,
+                        "measured": 15,
+                        "tiedAtMin": 1
+                    },
+                    "caveats": {
+                        "exact": true,
+                        "seed": null,
+                        "direction": "undirected",
+                        "weight": null,
+                        "precision": "f64",
+                        "method": "power-iteration",
+                        "notes": [
+                            "A reader follows a link with probability 0.85 and jumps to a random node otherwise.",
+                            "The ranks sum to 1 across the graph.",
+                            "The graph is undirected, so every edge carries rank both ways.",
+                            "Edge weights are not read."
+                        ],
+                        "converged": true,
+                        "iterations": 39
+                    },
+                    "durationMs": 1,
+                    "nodes": {
+                        "ids": [
+                            "Acciaiuoli",
+                            "Medici",
+                            "Castellani",
+                            "Peruzzi",
+                            "Strozzi",
+                            "Barbadori",
+                            "Ridolfi",
+                            "Tornabuoni",
+                            "Albizzi",
+                            "Salviati",
+                            "Pazzi",
+                            "Bischeri",
+                            "Guadagni",
+                            "Ginori",
+                            "Lamberteschi"
+                        ],
+                        "columns": {
+                            "value": {
+                                "dtype": "f64",
+                                "data": "q730y6Rknz96eZTMJqrCP1gksvefv7E/4IDTz0ZgsT9g5ALcno22P4Mj1P4Jwak/+P7g9p3PsT9eZFZwYD+yP0CpY+5WQbQ/glTzYhxjrz8k1qETq3WiPwWjM9DroLE/vuuv9Z0wuT80SNLMGZmgPyO20067pp8/"
+                            },
+                            "rank": {
+                                "dtype": "f64",
+                                "data": "AAAAAAAALkAAAAAAAADwPwAAAAAAABxAAAAAAAAAIkAAAAAAAAAIQAAAAAAAACZAAAAAAAAAGEAAAAAAAAAUQAAAAAAAABBAAAAAAAAAJEAAAAAAAAAoQAAAAAAAACBAAAAAAAAAAEAAAAAAAAAqQAAAAAAAACxA"
+                            },
+                            "percentile": {
+                                "dtype": "f64",
+                                "data": "ERERERERsT8AAAAAAADwPzMzMzMzM+M/3t3d3d3d3T+8u7u7u7vrP1VVVVVVVdU/VVVVVVVV5T93d3d3d3fnP5qZmZmZmek/mpmZmZmZ2T8RERERERHRPxEREREREeE/3t3d3d3d7T+amZmZmZnJPxEREREREcE/"
+                            }
+                        }
+                    },
+                    "edges": { "columns": {} }
+                }
+            ]
+        },
+        {
+            "kind": "graphty-style",
+            "version": 1,
+            "layers": [
+                {
+                    "name": "Influence",
+                    "target": "node",
+                    "kind": "encoding",
+                    "selector": { "match": "has", "path": "results.pagerank.value" },
+                    "source": {
+                        "by": "run",
+                        "runId": "pagerank",
+                        "algorithm": "pagerank",
+                        "params": {
+                            "dampingFactor": 0.85,
+                            "maxIterations": 100,
+                            "tolerance": 0.000001,
+                            "useDelta": true
+                        }
+                    },
+                    "enabled": true,
+                    "encode": {
+                        "node.color": { "by": "results.pagerank.value", "scale": "linear" },
+                        "node.size": { "by": "results.pagerank.value", "scale": "linear", "range": [1, 3] }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "graphty-notes",
+            "version": 1,
+            "notes": [
+                {
+                    "id": "note_01M4FPNXYZ7T34TXGGFVNHGXZ8",
+                    "time": "2026-10-09T06:47:46.399Z",
+                    "targets": [{ "graph": true }],
+                    "text": "Marriages only; business ties are a separate list"
+                },
+                {
+                    "id": "note_01M4FPQ5NS3NHP1446DE564RGH",
+                    "time": "2026-10-09T06:48:27.065Z",
+                    "targets": [{ "node": "Medici" }],
+                    "text": "Check the 1434 return from exile"
+                }
+            ]
+        },
+        { "kind": "graphty-view-state", "version": 1, "selection": { "nodes": ["Medici"], "edges": [] } }
+    ]
+}

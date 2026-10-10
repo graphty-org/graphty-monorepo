@@ -9,6 +9,7 @@ All commands run from `design/ui/studio/tier2` with
 ## Steps
 
 ### 01 -- start
+
 `node ../tool/real.mjs --start $S setup:friends-ranked.txt` -> 01.png
 
 Ruth: The club sheet is open, colored and sized by PageRank from last time. Twenty in the PageRank row,
@@ -17,6 +18,7 @@ I need to get rid of the pairs with fewer than 4 runs. The left side has Selecti
 Everything. I'll try the Data rail first, since the counts are data.
 
 ### 02 -- the Data rail
+
 `node ../tool/real.mjs --step $S --click "Data"` -> 02.png
 
 Ruth: "friends.csv, 20 nodes, 41 edges." That is all of them: 20 runners, 41 rows. Under Edges
@@ -24,18 +26,21 @@ there is "weight" -- that must be my run counts, though it's called weight, not 
 "Filters" row with a plus. Narrowing the map down sounds like a filter. I'll press the plus.
 
 ### 03 -- plus next to Filters
+
 `node ../tool/real.mjs --step $S --click-at 276,197` -> 03.png (tool: button "Add filter step")
 
 Ruth: The right side now says "New filter step": Keep [an attribute's value], Attribute [empty], and a
 grayed "Add step". "Keep an attribute's value" reads fine. I'll open the Attribute list and look for weight.
 
 ### 04 -- Attribute list
+
 `node ../tool/real.mjs --step $S --click "Attribute"` -> 04.png
 
 Ruth: The list has Nodes: id, and Edges: weight. Weight is the only number, so it's the run count.
 Choosing it.
 
 ### 05 -- weight chosen
+
 `node ../tool/real.mjs --step $S --click-at 1245,295` -> 05.png (tool: option "weight")
 
 Ruth: Now it reads Keep an attribute's value, weight, Is "at least", Value [blank], and a line under it:
@@ -43,12 +48,14 @@ Ruth: Now it reads Keep an attribute's value, weight, Is "at least", Value [blan
 also tells me runners with no strong pair will drop out, which is what I want. Typing 4.
 
 ### 06 -- typed 4
+
 `node ../tool/real.mjs --step $S --click "Value" --type "4"` -> 06.png
 
 Ruth: Value shows 4 and "Add step" turned blue. The drawing hasn't changed yet -- no preview of how many
 would go, so I'm committing blind. Pressing Add step.
 
 ### 07 -- Add step
+
 `node ../tool/real.mjs --step $S --click "Add step"` -> 07.png
 
 Ruth: The drawing thinned out to short pairs and chains. Top bar now says "19 of 20 nodes"; the left
@@ -62,6 +69,7 @@ Now bring the whole club back. The ticked box next to the step looks like an on/
 rather switch it off than delete it, in case the club asks again. Unticking it.
 
 ### 08 -- untick
+
 `node ../tool/real.mjs --step $S --click-at 273,239` -> 08.png (tool: input "Apply step: weight is at least 4")
 
 Ruth: Everyone is back: the full ring of lines, Nodes 20, Edges 41, the "19 of 20" in the top bar is
@@ -75,18 +83,21 @@ Ruth: I kept the step, so I'd rather change its 4 to a 5 than build a new one. I
 words to see if they open for editing.
 
 ### 09 -- open the step
+
 `node ../tool/real.mjs --step $S --click-at 160,231` -> 09.png (tool: treeitem "weight is at least 4")
 
 Ruth: The right side shows the step again with Value 4 and a button "Save and turn on". Good -- it
 remembered everything. I'll replace 4 with 5.
 
 ### 10 -- value 5
+
 `node ../tool/real.mjs --step $S --click "Value" --key Control+a --type "5"` -> 10.png
 
 Ruth: Value now 5; the step title still says "at least 4" until I save, which is fair. Pressing
 "Save and turn on".
 
 ### 11 -- Save and turn on
+
 `node ../tool/real.mjs --step $S --click "Save and turn on"` -> 11.png
 
 Ruth: Top bar "10 of 20 nodes"; step reads "weight is at least 5 / 20 to 10 nodes"; Values says
@@ -96,6 +107,7 @@ that blob as two. The panel says 10 and the five lines agree with it. Answer: 10
 Now unticking the step to bring the whole club back.
 
 ### 12 -- untick again
+
 `node ../tool/real.mjs --step $S --click-at 273,239` -> 12.png (tool: input "Apply step: weight is at least 5")
 
 Ruth: Whole club back: Nodes 20, Edges 41, step "off", no count in the top bar. I'm done.
@@ -118,6 +130,7 @@ the panel said which counts were for the whole graph -- that saved me a check. C
 clicking the step's words, and switching it off with the box instead of deleting it, worked as I hoped.
 
 **What confused me or slowed me.**
+
 - My third column is run counts, but the program calls it "weight" everywhere. I had to infer that
   it was the same thing because it was the only number.
 - I had to commit with "Add step" before seeing what it would do; there was no preview count while

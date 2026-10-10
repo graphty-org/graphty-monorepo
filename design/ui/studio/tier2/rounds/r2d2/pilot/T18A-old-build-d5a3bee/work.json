@@ -1,36 +1,23 @@
 {
- "start": {
-  "runs": [
-   "pagerank PageRank (label Influence)"
-  ],
-  "layers": [
-   "node-defaults_1 Node defaults",
-   "edge-defaults_1 Edge defaults",
-   "influence_1 Influence"
-  ],
-  "notes": [],
-  "steps": [],
-  "sources": [
-   "friends.csv"
-  ]
- },
- "end": {
-  "runs": [
-   "pagerank PageRank (label Influence)",
-   "shortest_path Shortest path (label Shortest route)"
-  ],
-  "layers": [
-   "node-defaults_1 Node defaults",
-   "edge-defaults_1 Edge defaults",
-   "influence_1 Influence",
-   "shortest-route-nodes_1 Shortest route (nodes)",
-   "shortest-route-edges_1 Shortest route (edges)"
-  ],
-  "notes": [],
-  "steps": [],
-  "sources": [
-   "friends.csv"
-  ]
- },
- "gone": {}
+    "start": {
+        "runs": ["pagerank PageRank (label Influence)"],
+        "layers": ["node-defaults_1 Node defaults", "edge-defaults_1 Edge defaults", "influence_1 Influence"],
+        "notes": [],
+        "steps": [],
+        "sources": ["friends.csv"]
+    },
+    "end": {
+        "runs": ["pagerank PageRank (label Influence)", "shortest_path Shortest path (label Shortest route)"],
+        "layers": [
+            "node-defaults_1 Node defaults",
+            "edge-defaults_1 Edge defaults",
+            "influence_1 Influence",
+            "shortest-route-nodes_1 Shortest route (nodes)",
+            "shortest-route-edges_1 Shortest route (edges)"
+        ],
+        "notes": [],
+        "steps": [],
+        "sources": ["friends.csv"]
+    },
+    "gone": {}
 }

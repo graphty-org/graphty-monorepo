@@ -9,12 +9,14 @@ and `S=design/ui/studio/tier2/rounds/round-1/sessions/r1-s06`.
 ## Steps
 
 ### 01 -- start
+
 `node design/ui/studio/tool/real.mjs --start $S empty` -> 01.png
 
 Nadia: "Start screen, same as always. There's the usage-data box at the bottom; I'll say no thanks
 first, then open the file from Open project or file, like I do with an alert's file."
 
 ### 02 -- open the file
+
 `--step $S --click "No thanks" --click "Open project or file..." --upload trails.csv` -> 02.png
 
 Result: the file opened straight into a drawing, no questions asked. 9 nodes, 13 edges, "Directed".
@@ -26,6 +28,7 @@ program has to treat more km as a longer walk -- I have no idea whether it did. 
 I'd expect the columns."
 
 ### 03 -- Data tab
+
 `--step $S --click "Data"` -> 03.png
 
 Result: Sources (trails.csv, 9 nodes, 13 edges), Filters, Attributes: Nodes / id, Edges / km.
@@ -33,6 +36,7 @@ Result: Sources (trails.csv, 9 nodes, 13 edges), Filters, Attributes: Nodes / id
 Nadia: "There's km, under Edges. Maybe clicking it lets me say what it is."
 
 ### 04 -- click km
+
 `--step $S --click "km"` -> 04.png
 
 Result: right panel shows km: Table Edges, Kind Amount, Origin From the file, Has a value 100%,
@@ -42,6 +46,7 @@ Nadia: "Kind: Amount. Nothing here says longer or shorter. There's a three-dot m
 right of this panel -- I'll try that."
 
 ### 05 -- the attribute's three-dot menu
+
 `--step $S --click-at 1419,74` (button "Attribute actions") -> 05.png
 
 Result: two items: "Filter to..." and "Show in table".
@@ -50,6 +55,7 @@ Nadia: "Filter, table. Not what I want. Maybe the file itself, under Sources, ha
 it was read in. Closing this and clicking trails.csv."
 
 ### 06 -- the source file
+
 `--step $S --key Escape --click-at 136,141` (treeitem "trails.csv") -> 06.png
 
 Result: right panel shows trails.csv, Source, Added: Nodes 9, Edges 13. A table opened along the
@@ -60,6 +66,7 @@ Nadia: "Good, at least I can see the rows now, like my spreadsheet. But the file
 what was added -- no settings. Maybe the km column heading in the table has options."
 
 ### 07 -- km column heading
+
 `--step $S --click-at 1158,742` (button "km") -> 07.png
 
 Result: the table sorted by km, highest first. A small arrow appeared next to the heading.
@@ -67,6 +74,7 @@ Result: the table sorted by km, highest first. A small arrow appeared next to th
 Nadia: "It just sorted. There's a little drop arrow beside km -- trying that."
 
 ### 08 -- column options
+
 `--step $S --click-at 1183,742` (button "Options for km") -> 08.png
 
 Result: menu with "Move left" and "Move right", both grayed out.
@@ -76,6 +84,7 @@ maybe I did the opening wrong -- there was a 'New from data...' on the start scr
 used. Let me look in the main menu, top left."
 
 ### 09 -- main menu
+
 `--step $S --key Escape --click-at 23,20` (button "Main menu") -> 09.png
 
 Result: Back to start, New project, Open project or file..., Open sample, Save, Save as..., Save
@@ -85,6 +94,7 @@ Nadia: "No 'New from data' in here. I'll go back to the start screen and use tha
 like the careful way of bringing a file in."
 
 ### 10 -- back to start
+
 `--step $S --click "Back to start"` -> 10.png
 
 Result: the start screen. It did not ask whether to keep the trails graph; Recent projects is empty.
@@ -93,6 +103,7 @@ Nadia: "OK, it dropped what I had without asking. Doesn't matter, I hadn't done 
 data..."
 
 ### 11 -- New from data...
+
 `--step $S --click "New from data..."` -> 11.png
 
 Result: page "Open as a new graph": Tables (+), "Drop a file here, or choose a file...", Direction
@@ -101,6 +112,7 @@ Result: page "Open as a new graph": Tables (+), "Drop a file here, or choose a f
 Nadia: "This looks like the careful way in. Choosing the file."
 
 ### 12 -- choose the file
+
 `--step $S --click "choose a file..." --upload trails.csv` -> 12.png
 
 Result: "trails: 9 nodes, 13 edges". Each row is: a node / an edge (selected) / CSV auto. Three
@@ -112,6 +124,7 @@ trail counted the same, which is exactly what the task says not to do. The km dr
 'Attribute'; let me open it."
 
 ### 13 -- km drop-down
+
 `--step $S --click-at 728,203` (combobox "Role of km") -> 13.png
 
 Result: choices From, To, Weight, Date or time, Edge id, Attribute (checked).
@@ -119,6 +132,7 @@ Result: choices From, To, Weight, Date or time, Edge id, Attribute (checked).
 Nadia: "The line below said 'Weight: none', so I want km to be the weight. Picking Weight."
 
 ### 14 -- km as Weight
+
 `--step $S --click "Weight"` -> 14.png
 
 Result: "Weight: km". New row "Higher means: Not set / Closer / Farther / Capacity", Not set chosen.
@@ -129,6 +143,7 @@ Nadia: "So even calling it a weight isn't enough -- it still counts every trail 
 say what higher means. More km is a longer walk, so higher means farther. Farther."
 
 ### 15 -- Farther
+
 `--step $S --click "Farther"` -> 15.png
 
 Result: "Weight: km (farther)". Text: "A higher weight means farther apart, such as a longer distance or
@@ -138,6 +153,7 @@ Nadia: "'A path takes the smallest total' -- that's what I want, the fewest km. 
 it said Directed, and you can walk a trail either way. Let me see what Direction offers."
 
 ### 16 -- Direction drop-down
+
 `--step $S --click "Direction"` -> 16.png
 
 Result: the list opened below the box at the very bottom of the window and is squeezed to a thin
@@ -148,6 +164,7 @@ screen. Never mind. 'As the file says' -- the file goes from the trailhead side 
 anyway. I'm not fighting it. Closing it and pressing Load."
 
 ### 17 -- Load
+
 `--step $S --key Escape --click "Load"` -> 17.png
 
 Result: the graph again, and the Overview on the right now has a line "Loaded weight: km (farther)".
@@ -157,6 +174,7 @@ Nadia: "Good -- 'Loaded weight: km (farther)'. That's something I could screensh
 Now the route. When I ranked people I used the flask button in the toolbar; I'll try that."
 
 ### 18 -- Analyze
+
 `--step $S --click-at 679,624` (button "Analyze") -> 18.png
 
 Result: a list with a "Filter analyses" box: Degree, Betweenness, Edge betweenness, Closeness,
@@ -166,6 +184,7 @@ PageRank (Start here), Eigenvector, Katz, HITS, All-pairs distance, Depth-first 
 Nadia: "Long list, mostly ranking. I'll type in the box instead of reading all of it: 'shortest'."
 
 ### 19 -- type "shortest"
+
 `--step $S --type "shortest"` -> 19.png
 
 Result: Betweenness, Edge betweenness, All-pairs distance under "Rank nodes and edges"; under "Find
@@ -175,6 +194,7 @@ weight, between two nodes."
 Nadia: "'Shortest route by weight, between two nodes.' That's it. Clicking Shortest path."
 
 ### 20 -- Shortest path
+
 `--step $S --click-at 566,566` (option "Shortest path") -> 20.png
 
 Result: a "Shortest path" form: From ("Where the path starts"), To ("Where the path ends"), Follow:
@@ -184,6 +204,7 @@ Nadia: "It already picked km, the way I loaded it. 'Follow: All' -- I guess that
 along a trail, which is what I wanted from Direction. Typing Trailhead in From."
 
 ### 21 -- From: Trailhead
+
 `--step $S --click "Where the path starts" --type "Trailhead"` -> 21.png
 
 Result: a suggestion "Trailhead" appears under the box (it covers the To box).
@@ -191,6 +212,7 @@ Result: a suggestion "Trailhead" appears under the box (it covers the To box).
 Nadia: "Pick the suggestion, then the To box."
 
 ### 22 -- pick Trailhead
+
 `--step $S --click-at 563,387` (option "Trailhead") -> 22.png
 
 Result: From = Trailhead; the To box is now outlined (has focus).
@@ -198,6 +220,7 @@ Result: From = Trailhead; the To box is now outlined (has focus).
 Nadia: "It jumped to the To box for me. Summit."
 
 ### 23 -- To: Summit
+
 `--step $S --type "Summit"` -> 23.png
 
 Result: suggestion "Summit" under the To box.
@@ -205,6 +228,7 @@ Result: suggestion "Summit" under the To box.
 Nadia: "Pick Summit, then Find path."
 
 ### 24 -- pick Summit, Find path
+
 `--step $S --click-at 559,441 --click "Find path"` -> 24.png
 
 Result: the route is drawn in black on the graph with a key "Shortest path -- On the path". Left

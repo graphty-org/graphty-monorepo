@@ -79,7 +79,7 @@ Grace: "Lars Nilsen, Director, degree 6 -- the director in the middle of everyth
 - **Finished?** Yes. Both sheets are in as one network, drawn: 12 people (matches Excel's 12 rows) and 22 links. Of the 23 rows in messages.csv, one did not fit: line 24, p11 to p13 (6 emails), because p13 is not in people.csv. I chose to leave it out; the program kept a note of it under Data > Sources, "1 row left out", with the line number.
 - **Ease:** 6 of 7. "New from data...", then the plus beside Tables to add the second sheet, worked on the first try, and the counts and the one bad row were spelled out before I pressed Load.
 - **What confused me:**
-  - "Weight: none (each edge counts 1)" under the messages sheet. My emails column is obviously how strong the tie is, and I didn't see how to make it count. I'd want it to ask, or say how.
-  - The selected person's panel is headed with the id ("p12") instead of the name, even though the program knows the name column. Names are also not drawn on the dots after loading.
-  - "Add" next to the unmatched row: I wasn't sure whether it would add p13 as a nameless person or something else, so I left it alone.
-  - I had to guess between "Open project or file..." (what I used before) and "New from data..." for two sheets; I guessed right, but nothing on the start screen says which one takes two files.
+    - "Weight: none (each edge counts 1)" under the messages sheet. My emails column is obviously how strong the tie is, and I didn't see how to make it count. I'd want it to ask, or say how.
+    - The selected person's panel is headed with the id ("p12") instead of the name, even though the program knows the name column. Names are also not drawn on the dots after loading.
+    - "Add" next to the unmatched row: I wasn't sure whether it would add p13 as a nameless person or something else, so I left it alone.
+    - I had to guess between "Open project or file..." (what I used before) and "New from data..." for two sheets; I guessed right, but nothing on the start screen says which one takes two files.

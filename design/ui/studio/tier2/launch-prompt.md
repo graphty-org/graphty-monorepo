@@ -4,6 +4,7 @@ table, weight set at load and used by every run, rerunning on new data, Select w
 queries, neighborhood distance, edge selection). ultracode
 
 Context and memory:
+
 - Every designer reads their notes in design/ui/studio/notes/ first, works from them, and
   updates them as they decide and learn (decisions with reasons, what worked and what didn't,
   "Top of mind" at the top, summarized when long). Commit the notes after every round.
@@ -12,6 +13,7 @@ Context and memory:
   design/ui/studio/tier2/ (criteria, tasks, answer key, roster, pilots) before planning.
 
 Method:
+
 - The success criteria in tier2/criteria.md were written before any session. Have the
   researcher, the user advocate and the red team review them once; change a bar only with a
   reason in the change log, then freeze them. No session runs before the criteria are frozen.
@@ -40,6 +42,7 @@ Method:
 - No touch profile and no keyboard-only study this time.
 
 Iteration:
+
 - After each round the studio critiques, the red team challenges, the director decides, and
   the engineers fix locally in the package that owns each problem (graph functionality in
   graphty-element as neutral facts, words in the app, shared components in compact-mantine),

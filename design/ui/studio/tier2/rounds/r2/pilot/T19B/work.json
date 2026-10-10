@@ -1,36 +1,20 @@
 {
- "start": {
-  "runs": [
-   "pagerank Influence"
-  ],
-  "layers": [
-   "node-defaults_1 Node defaults",
-   "edge-defaults_1 Edge defaults",
-   "influence_1 Influence"
-  ],
-  "notes": [],
-  "steps": [],
-  "sources": [
-   "Florentine families"
-  ]
- },
- "end": {
-  "runs": [
-   "pagerank Influence"
-  ],
-  "layers": [
-   "node-defaults_1 Node defaults",
-   "edge-defaults_1 Edge defaults",
-   "influence_1 Influence"
-  ],
-  "notes": [
-   "note_01M4GCNXVYV0HSXN28R9DBK7TH Marriages only; business ties are a separate list",
-   "note_01M4GCN315R88Q51SKB4E80KNX Check the 1434 return from exile"
-  ],
-  "steps": [],
-  "sources": [
-   "Florentine families"
-  ]
- },
- "gone": {}
+    "start": {
+        "runs": ["pagerank Influence"],
+        "layers": ["node-defaults_1 Node defaults", "edge-defaults_1 Edge defaults", "influence_1 Influence"],
+        "notes": [],
+        "steps": [],
+        "sources": ["Florentine families"]
+    },
+    "end": {
+        "runs": ["pagerank Influence"],
+        "layers": ["node-defaults_1 Node defaults", "edge-defaults_1 Edge defaults", "influence_1 Influence"],
+        "notes": [
+            "note_01M4GCNXVYV0HSXN28R9DBK7TH Marriages only; business ties are a separate list",
+            "note_01M4GCN315R88Q51SKB4E80KNX Check the 1434 return from exile"
+        ],
+        "steps": [],
+        "sources": ["Florentine families"]
+    },
+    "gone": {}
 }

@@ -1,33 +1,33 @@
 {
- "commit": "cd64fc06c0bd72ab7b7804fb77fe58ed2e5533c7",
- "uncommittedChanges": true,
- "buildStamp": "3dfe7daf9e45 graphty@0.8.56",
- "url": "/?next",
- "screenReaderMode": false,
- "viewport": {
-  "width": 1440,
-  "height": 900
- },
- "started": "2026-10-08T19:33:01.546Z",
- "setup": [
-  "--click No thanks",
-  "--click Open project or file...",
-  "--upload bus-stops.csv",
-  "--key Shift+A",
-  "--type PageRank",
-  "--click PageRank",
-  "--click Run",
-  "--click PageRank",
-  "--click role=tab:Style",
-  "--click Add to Shape",
-  "--click role=menuitem:Size",
-  "--click role=option:PageRank",
-  "--key Escape",
-  "--click Everything",
-  "--click role=tab:Style",
-  "--click Add label line",
-  "--click role=option:id",
-  "--click Show all labels",
-  "--key Escape"
- ]
+    "commit": "cd64fc06c0bd72ab7b7804fb77fe58ed2e5533c7",
+    "uncommittedChanges": true,
+    "buildStamp": "3dfe7daf9e45 graphty@0.8.56",
+    "url": "/?next",
+    "screenReaderMode": false,
+    "viewport": {
+        "width": 1440,
+        "height": 900
+    },
+    "started": "2026-10-08T19:33:01.546Z",
+    "setup": [
+        "--click No thanks",
+        "--click Open project or file...",
+        "--upload bus-stops.csv",
+        "--key Shift+A",
+        "--type PageRank",
+        "--click PageRank",
+        "--click Run",
+        "--click PageRank",
+        "--click role=tab:Style",
+        "--click Add to Shape",
+        "--click role=menuitem:Size",
+        "--click role=option:PageRank",
+        "--key Escape",
+        "--click Everything",
+        "--click role=tab:Style",
+        "--click Add label line",
+        "--click role=option:id",
+        "--click Show all labels",
+        "--key Escape"
+    ]
 }

@@ -11,80 +11,66 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Round 2 closed; its lesson for me: a study that leaks proves only failures.**
+  Participants read the facilitator's task file, so the three routes added for round 2 (weight
+  meaning at load, Replace in the source's "..." menu, the find box's rule hint) are NOT credited
+  until round 3 re-measures them clean. Do not reword or move them meanwhile. Round 3 does not
+  start until the study-tool fixes (no participant read outside its own folder, dry run from pilot
+  routes, every named bar script proven on a planted fault) pass.
+- (2026-10-10) **The dry run must walk what participants do, not last round's list.** 12 of about
+  30 build faults sat on the one detour nobody walked (styling a selection). Round 3: two
+  throwaway pilots per task on the candidate build, script their routes, walk them plus round 2's
+  detours, keyboard-press every control on each screen, and FIX before freeze -- never hand a
+  found fault to a later pass (the find box's second Escape slipped through that way).
+- (2026-10-10) **Unfinished, uncommitted: the round 3 dry run from real routes.** In the worktree:
+  `real.mjs` (Tab after a setup starts at Main menu; `REAL_MISS_FAILS=1` exits 2 on a scripted
+  miss; self-test checks both), `detours.sh` (R2-* detours, KS-* keyboard sweeps), `rewalk.sh`
+  (`routes:<round>`), README, the `canvas:empty-click` owner-decisions entry. To do: build,
+  `--prove`, `detours.sh all`, `rewalk.sh routes:tier2/rounds/round-2`, fix, write the round 3
+  preflight walk table (every route and detour, 0 known faults, script results for the two
+  disputed behaviors: half-made step on another selection, empty-canvas click during a run), commit.
+- (2026-10-10) **Round 3 changes, built (verify on the next frozen build):** find box offers a
+  typed condition as a rule Enter runs, with the "=" kept; Add warns on repeated ties with Replace
+  beside Load; three focus faults (second Escape, Hops/Follow arrows, Tab out of the step editor
+  saves); selection layer Color/Width start at `styles.highlightStyle`; a rule's layer named by its
+  rule; words at rest under round 1 (edge inspector 31 of 30 -- OPEN which scope phrase goes); 24 px
+  xs checkbox; path aliases; weighted path row shows its total; Filter to neighbors a plain
+  command, disabled with its reason when its step is on; repeated status keyed in the store.
+- (2026-10-10) **Watch in round 3.** (1) Find box: do 3 or more of 8 still stall after a typed
+  condition? That alone unlocks "Select where..." on a column. (2) Highlight-start styling: the
+  walk once showed edge Color 000000, not the highlight band's 0077BB, and width 24 may cover the
+  tie -- check before freeze. (3) Paths cost at or under 8 steps (bar 11). (4) Bar 9 (b) words at
+  rest on all four tier 2 screens. (5) Leak check lists 0 unvoided reads. (6) Reworded T22/T24
+  compared with round 2 on outcome only, not steps.
+- (2026-10-10) **Not mine to fix in the app, ever:** drawn names covering names and ties (element
+  label placement on an unseeded layout, owner's list); bare numbers in rules and what an edge
+  width measures (both breaking, owner's list); never scale widths or parse rules in the app.
+  "Components 1" under a filter is held so the words change is measured alone.
 - (2026-10-10) **Owner decision: the chosen segment keeps Figma's face, never an inverse fill.**
-  Dark: a #2c2c2c face with a 1px #444 edge on the #383838 track; light: a white face with a 1px
-  #e6e6e6 edge on the #f5f5f5 track. `highContrast` gives the face a 3:1 edge. Word options read by
-  the weight-600 label decided on 10-08. Do not fill the segment again (the fill of c826a0c0d was
-  reverted); see `owner-decisions.md`.
-
+  Dark #2c2c2c face, 1px #444 edge on #383838; light white face, 1px #e6e6e6 edge on #f5f5f5;
+  `highContrast` gives a 3:1 edge. See `owner-decisions.md`.
 - (2026-10-10) **OPEN, not reproduced: a reopen from Recent projects once drew no "Opened friends"**
-  (r3 pilot `T19A/11.png`). The pilot's route was `--reopen` (a fresh tab), not Back to start.
-  Eleven walks on the frozen build b6d932823 (Back to start, `--reopen`, 30 s gaps, three walks at
-  once, a probed copy) all showed it; the probe puts the notice 15 ms after `project.open`
-  resolves. Ruled out: a stale or partial store write, the toast, the tool's watcher (it reports a
-  notice that times out, in a reopened tab too). The pilot's 11 and 14 differ only in the toast, so
-  the open did its work; the open finishing late (it never went into the DOM, and the next
-  step reported nothing either) is the open suspect, an element question. No code changed: a fix
-  without a mechanism would be a guess. Evidence `tmp/r3-dry1-reopen-shows-opened-notice/`.
-
-- (2026-10-10, condensed) **Fixed: "Selection cleared" goes when a new selection is made**
-  (`Notice.endsWithSelection` in `state/store.ts`, dropped in `canvas/CanvasOverlays.tsx`; test in
-  `undoWords.real-element.test.tsx`; walk `tmp/r3-dry1-selection-cleared-notice-ends/`).
-
-- (2026-10-10, condensed) **Built: the Data page's table pane keeps its scrollbar room**
-  (`scrollbar-gutter: stable` on `.dp-main`; headless vitest hides scrollbars, so the test reads
-  the computed style; `tmp/r3-dry1-import-pane-scrollbar-gutter/`).
-- (2026-10-10, condensed) **Fixed: a tie picked from the find box moves focus to its values**
-  (`focusValuesNext()` / `takeValuesFocus()` in `inspector/reads.ts`; `tasks.real-element.test.tsx`).
-- (2026-10-10) **Built: under a filter step, the whole graph's rows get their own "Full graph"
-  `ControlSection`** below an Overview that holds only "Nodes showing" / "Edges showing"
-  (`inspector/GraphValues.tsx`; no step: one Overview, unchanged). Replaces the `DataRowHeader`
-  caption, which read as a row missing its value. Test: Inspector.test "leads the Overview ...".
-  Commit 997395818. Checked on graphty/dist, not frozen yet: T17A/07 and T17B/07 show the
-  heading with a caret, Nodes 20 / 77 and Edges 254 inside; 08 (step off) is one Overview.
-  Evidence `tmp/r3-dry2-overview-full-graph-section/`. In that route, Add step already turns the
-  step on, so a following "Apply step" click turns it off.
-- (2026-10-10, condensed) **Built: words at rest under round 1** on rest, path inspector and
-  neighbor list (`tmp/t2r2b-9/bars.log`); the edge inspector is one over (31 of 30). OPEN for the
-  studio: which of its two true scope phrases goes.
-- (2026-10-10, condensed) **Built: a selection row made from a rule is named by the rule**
-  (`selectionName` in `style/StyleTab.tsx`, from `session.selection.origin`). Open: the walk's
-  new edge Color showed 000000, not the highlight band's 0077BB -- check `highlightStyle("edge")`.
-- (2026-10-10, condensed) **Built in the find box and keyboard:** "linked", "between",
-  "fewest", "chain" find Shortest path (open: focus lands on the dialog, not From); a typed
-  condition is offered as a rule (Enter picks it); second Esc keeps the find box; arrow-key
-  Hops/Follow keep focus; leaving the step editor saves a whole changed rule.
-- (2026-10-10) **Unfinished, uncommitted: the round 3 dry run from real routes.** In the worktree,
-  not committed: `real.mjs` (Tab after a setup starts at Main menu; `REAL_MISS_FAILS=1` makes a
-  scripted walk's miss exit 2; self-test checks for both), `detours.sh` (round 2 detours R2-* and
-  keyboard sweeps KS-*), `rewalk.sh` (replays a session's transcript route, `routes:<round>`),
-  README, the owner-decisions entry for `canvas:empty-click` (its code is in bde1e5de0), and
-  FindBox's rule as the option Enter picks is now committed. Still to do: build, `--prove`,
-  `detours.sh all`, `rewalk.sh routes:tier2/rounds/round-2`, fix what fails, write the round 3
-  preflight's walk table, commit. The "#n among kinds" refusal is already committed with its check.
-- (2026-10-10) **Built: Filter to neighbors is disabled, with its reason, while its step is on at
-  the reach shown** (`applied` in `inspector/NodeValues.tsx`, `NEIGHBOR_FILTER_APPLIED_WORDS` in
-  `inspector/words.ts`); still a plain command that adds or turns on this center's step, off on the
-  step's checkbox. Test: toolbar `tasks.real-element.test.tsx` "pressed twice" (fails without).
-  Re-pilot `tier2/rounds/r3/pilot/T23A-disabled/`, `T23B-disabled/`; answer key T23 updated. A
-  weighted path gives its total ("minutes 14") via `pathLengthWords(run)` in `analyze/words.ts`.
-- (2026-10-09, condensed) **Built on 10-09:** 24 px xs checkbox target (compact-mantine);
-  find-list arrows scroll the row into view; participants run outside the studio's files
-  (`--brief`, `--start` refusals, `--leaks`); a selection layer's Color or Width starts at the
-  highlight look (`styles.highlightStyle`; open: width 24 band covers the tie); an Add that
-  repeats loaded ties says so and offers Replace. Dry run verdict: ~30 of ~355 problems were build
-  faults, 12 on the one detour no dry run walked (styling a selection): walk what participants do.
-- (2026-10-09) **Open from the round 2 audit.** Element: drawn names covering names and the
-  picked tie (label placement, no size floor); no workaround in the app. App: two-table source has no Edit/Replace and no
-  reason; "Edit source..." lands on "Replace: ..."; the refused rule's fix drops "="; neighbor
-  Back row scrolls the inspector sideways.
-- (2026-10-09) **Dry run = `tier2/pilot/detours.sh all`** on every new frozen build, plus this
-  round's detours: style a selection (width, color, name), click away from an open step editor,
-  run a path twice, reopen the Path form, open a newer copy of a loaded file.
-- (2026-10-09, condensed) Script before calling it a defect; every study-tool change gets a
-  planted-failure check.
+  (r3 pilot `T19A/11.png`, route `--reopen`). Eleven walks showed it; suspect the open finishing
+  late (an element question). No code without a mechanism. Evidence
+  `tmp/r3-dry1-reopen-shows-opened-notice/`.
+- (2026-10-10) **Under a filter step, the whole graph's rows are a "Full graph" `ControlSection`**
+  (commit 997395818), checked on graphty/dist, not yet frozen.
+- (2026-10-09) **Open from the round 2 audit:** two-table source has no Edit/Replace and no reason;
+  "Edit source..." lands on "Replace: ..."; neighbor Back row scrolls the inspector sideways; the
+  neighbor list cannot say 1 step vs 2 until the element reports distance.
+- (2026-10-09) Script before calling it a defect (two round 2 "app faults" were the study tool's
+  click by name landing on a same-named control); every study-tool change gets a planted-failure
+  check.
 
 ## Decisions and reasons
+
+- (2026-10-10) **Round 2 decisions I build to (from round 2's decisions.md).** One change per
+  confirmed problem, in its owning package (graph facts in the element, shared controls in
+  compact-mantine, words and arrangement in the app); no feature moves; no second door where one
+  is being measured (so no column rows in plain search, no find-box door to paths, "+" opening a
+  value picker held); words at rest only go down. Rejected: an opt-in `bareNumbers` flag (a
+  capability, not a choice, so it waits for the owner as a breaking change); matching file names
+  in the app to detect a repeat Add (guessing what the element reports).
 
 - (2026-10-10) **A heading that splits a panel into two scopes is a `ControlSection`, not a
   `DataRowHeader`.** `DataRowHeader` is a column caption: same inset and size as row labels, empty
@@ -181,11 +167,6 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   already existed (`repeated.seen`); the defect was the measured merge, fixed in the element.
   Replace from the Add page calls `replaceSource`; an open page restarts on a replace request.
 
-- (2026-10-09, condensed) **Round 2 critique ranking:** study tool briefing, Add warns on repeats
-  and offers Replace, find's hint for a condition in words, new lines start visible, rule-made
-  layers named by their rule. Not changed: no new words at rest, label placement in the app, the
-  element's style defaults, the frozen build mid-round.
-
 - (2026-10-09, summarized) **Audit and round-2 method:** audits walk screens by script at both
   sizes (`round-2/expert/engineer/audit.sh`, `audit2.sh`) so the next round compares the same
   screens; measure first (tool, bar scripts, detour walks) before any session; no new words at
@@ -223,6 +204,16 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   8966b0888, stale runs ce34f31f3, every load a source f141b1283, edge-attribute filter 559f5dcb2,
   coded selector refusals 3d89d43c3; app-only: edge inspector e666ae17d, Export warnings worded by
   the app, a run's Values view from its shape.
+
+## Thinking
+
+- (2026-10-10) Round 2's study leak biases one way: a problem found anyway is solid, a route that
+  worked proves little. So treat every round 2 "pass" on a new route as unmeasured, and every
+  confirmed failure as real.
+- (2026-10-10) Prompts shape behavior: "stand out" produced the whole styling detour. When a
+  finding traces to the prompt's own words, fix the prompt, not the app.
+- (2026-10-10) The simulation understates costs a person pays (typing a backtick, guessing Replace
+  is "replace"); weigh those findings up, not down.
 
 ## Tried: worked / did not work
 

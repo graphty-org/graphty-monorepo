@@ -356,8 +356,70 @@ describe("planar", () => {
     });
 });
 
+/**
+ * Asserts a spectral layout is NetworkX's `spectral_layout` up to the sign of each axis (an eigenvector's sign is
+ * arbitrary) and the rescaling: networkx puts the largest coordinate at `scale`, this package the farthest node.
+ * Only for graphs whose wanted eigenvalues are distinct, where the eigenvectors are unique up to sign.
+ */
+function matchesNetworkX(r: LayoutResult, expected: number[][], scale = 1, center: number[] = [0, 0, 0]): void {
+    const farthest = Math.max(...expected.map((p) => Math.hypot(...p)));
+    for (let k = 0; k < r.dim; k++) {
+        const axis = expected.map((p, i) => [r.positions[r.dim * i + k] - center[k], (p[k] * scale) / farthest]);
+        const sign = Math.sign(axis.reduce((sum, [a, e]) => sum + a * e, 0));
+        axis.forEach(([a, e], i) => assert.ok(Math.abs(a - sign * e) < 1e-5, `node ${i}[${k}]: ${a} vs ${sign * e}`));
+    }
+}
+
+/** Per axis, the Rayleigh quotient x^T L x / x^T x of the layout's centred coordinates over the given edges. */
+function rayleighQuotients(r: LayoutResult, src: ArrayLike<number>, dst: ArrayLike<number>): number[] {
+    return Array.from({ length: r.dim }, (_, k) => {
+        const x = (i: number): number => r.positions[r.dim * i + k];
+        let energy = 0;
+        for (let e = 0; e < src.length; e++) {
+            energy += (x(src[e]) - x(dst[e])) ** 2;
+        }
+        let norm = 0;
+        for (let i = 0; i < r.n; i++) {
+            norm += x(i) ** 2;
+        }
+        return energy / norm;
+    });
+}
+
 describe("spectral", () => {
-    it("matches the legacy layout exactly in 2D and 3D, with parallel edges and a self-loop", () => {
+    // NetworkX 2.8.8 `spectral_layout` of the same graphs (self-loops and parallel edges dropped, which do not change
+    // the Laplacian), node order as here
+    const sevenNodes = [
+        [0, 0, 0.7578307943726018],
+        [-0.3090169943749475, -0.8660254037844396, 0.3572448624619029],
+        [-0.5, -0.5352331346596343, -0.6098551272527702],
+        [-0.3090169943749473, 0.8660254037844383, 0.3572448624619029],
+        [-0.5, 0.5352331346596348, -0.6098551272527701],
+        [1, 0, -0.6098551272527701],
+        [0.6180339887498948, 0, 0.3572448624619029],
+    ];
+    const fiveNodes = [
+        [0.8090169943749467, 0.951056516295153, 0.3090169943749481],
+        [-0.3090169943749471, 0.5877852522924735, -0.8090169943749481],
+        [-1, 0, 1],
+        [-0.3090169943749472, -0.587785252292474, -0.8090169943749466],
+        [0.8090169943749476, -0.9510565162951526, 0.3090169943749469],
+    ];
+    const pathOfTen = [
+        [1, 0.9629115554022719, 0.9021130325903055],
+        [0.9021130325903065, 0.5951120693986313, 0.1583844403245355],
+        [0.7159209561595872, 0, -0.7159209561595875],
+        [0.4596495484253581, -0.595112069398632, -1],
+        [0.15838444032453658, -0.9629115554022722, -0.4596495484253573],
+        [-0.15838444032453497, -0.9629115554022717, 0.45964954842535877],
+        [-0.459649548425358, -0.595112069398631, 1],
+        [-0.7159209561595876, 0, 0.7159209561595875],
+        [-0.902113032590307, 0.595112069398632, -0.15838444032453705],
+        [-1, 0.962911555402272, -0.9021130325903063],
+    ];
+    const first = (rows: number[][], dim: number): number[][] => rows.map((p) => p.slice(0, dim));
+
+    it("matches NetworkX in 2D and 3D, with parallel edges and a self-loop", () => {
         // edges out of index order, a parallel pair (2, 4) and a self-loop on 5
         const g: Graph = {
             nodes: () => ["a", "b", "c", "d", "e", "f", "g"],
@@ -374,8 +436,78 @@ describe("spectral", () => {
             ],
         };
         const s = toLayoutSnapshot(g);
-        matchesGolden(layout.spectral(s, { seed: 4, scale: 2, center: [1, 2] }), golden("spectral 2d"));
-        matchesGolden(layout.spectral(s, { seed: 8, dim: 3 }), golden("spectral 3d"));
+        matchesNetworkX(layout.spectral(s, { seed: 4, scale: 2, center: [1, 2] }), first(sevenNodes, 2), 2, [1, 2]);
+        matchesNetworkX(layout.spectral(s, { seed: 8, dim: 3 }), sevenNodes);
+        const five = toLayoutSnapshot({
+            nodes: () => [0, 1, 2, 3, 4],
+            edges: () => [
+                [0, 1],
+                [0, 1],
+                [1, 2],
+                [2, 3],
+                [3, 4],
+                [4, 0],
+                [1, 3],
+                [2, 2],
+            ],
+        });
+        matchesNetworkX(layout.spectral(five, { seed: 7 }), first(fiveNodes, 2));
+        matchesNetworkX(
+            layout.spectral(five, { seed: 7, scale: 2, center: [1, 2, 3], dim: 3 }),
+            fiveNodes,
+            2,
+            [1, 2, 3],
+        );
+    });
+
+    it("draws a path with the smoothest eigenvectors: NetworkX's layout, the first axis monotonic", () => {
+        matchesNetworkX(layout.spectral(path(10), { seed: 1, dim: 3 }), pathOfTen);
+        const r = layout.spectral(path(300), { seed: 5 });
+        const x = Array.from({ length: 300 }, (_, i) => r.positions[2 * i]);
+        const direction = Math.sign(x[299] - x[0]);
+        for (let i = 1; i < 300; i++) {
+            assert.ok(direction * (x[i] - x[i - 1]) > 0, `node ${i} breaks the order`);
+        }
+    });
+
+    for (const side of [4, 30]) {
+        it(`draws a ${side} x ${side} grid with the eigenvectors of the smallest non-zero eigenvalue`, () => {
+            // the grid's two smallest non-zero eigenvalues are both 2 - 2 cos(pi / side): any orthonormal basis of
+            // that eigenspace is a valid layout, so check what every basis shares
+            const g = gridGraph({ rows: side, cols: side });
+            const r = layout.spectral(
+                fromEdgeArrays({ nodeCount: g.nodeCount, src: g.src, dst: g.dst, directed: false }),
+                { seed: 42 },
+            );
+            const lambda = 2 - 2 * Math.cos(Math.PI / side);
+            for (const q of rayleighQuotients(r, g.src, g.dst)) {
+                assert.ok(Math.abs(q - lambda) < 1e-5 * lambda, `Rayleigh quotient ${q}, expected ${lambda}`);
+            }
+            let cross = 0;
+            for (let i = 0; i < r.n; i++) {
+                cross += r.positions[2 * i] * r.positions[2 * i + 1];
+            }
+            assert.ok(Math.abs(cross) < 1e-5, `the axes are not orthogonal: ${cross}`);
+            // the four corners are the farthest nodes, at `scale`
+            for (const corner of [0, side - 1, side * (side - 1), side * side - 1]) {
+                assert.ok(Math.abs(Math.hypot(...row(r, corner)) - 1) < 1e-5, `corner ${corner} is not at the rim`);
+            }
+        });
+    }
+
+    it("gives zero to a component the graph has no eigenvector left for", () => {
+        // a triangle has only two non-constant eigenvectors
+        const r = layout.spectral(
+            graph(3, [
+                [0, 1],
+                [1, 2],
+                [2, 0],
+            ]),
+            { seed: 1, dim: 3 },
+        );
+        for (let i = 0; i < 3; i++) {
+            assert.equal(r.positions[3 * i + 2], 0);
+        }
     });
 
     it("puts two nodes at the centre minus and plus scale", () => {
@@ -385,42 +517,8 @@ describe("spectral", () => {
     });
 });
 
-describe("spectral and planar keep the output of layout 1.x", () => {
-    // The coordinates below were produced by the implementations before the migration to snapshots.
-    const spectralGraph = toLayoutSnapshot({
-        nodes: () => [0, 1, 2, 3, 4],
-        edges: () => [
-            [0, 1],
-            [0, 1],
-            [1, 2],
-            [2, 3],
-            [3, 4],
-            [4, 0],
-            [1, 3],
-            [2, 2],
-        ],
-    });
-
-    it("spectral in 2D, with a parallel edge and a self-loop", () => {
-        matchesGolden(layout.spectral(spectralGraph, { seed: 7 }), [
-            [0.39279270028992536, 0.0031423426377324903],
-            [-0.6355519396046398, -0.18854288286515103],
-            [8.704879263260277e-12, 0.593684065965646],
-            [0.635551939590555, -0.7720581144464991],
-            [-0.39279270028454544, 0.36377458870827156],
-        ]);
-    });
-
-    it("spectral in 3D, with a parallel edge and a self-loop", () => {
-        matchesGolden(layout.spectral(spectralGraph, { seed: 7, scale: 2, center: [1, 2, 3], dim: 3 }), [
-            [1.6630117939800617, 2.005304096099559, 3.6630117939800617],
-            [-0.07277561760632345, 1.6817503102315094, 1.9272243823936765],
-            [1.0000000000146934, 3.0021050221725725, 3.000000000014693],
-            [2.072775617582549, 0.6968097035963008, 4.072775617582549],
-            [0.33698820602901913, 2.614030867900058, 2.336988206029019],
-        ]);
-    });
-
+describe("planar keeps the output of layout 1.x", () => {
+    // The coordinates below were produced by the implementation before the migration to snapshots.
     // six nodes whose Hamiltonian cycle 0-2-4-1-3-5 is not in index order, so it becomes the outer face
     const planarEdges: [number, number][] = [
         [0, 2],

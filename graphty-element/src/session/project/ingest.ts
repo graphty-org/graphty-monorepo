@@ -17,7 +17,7 @@ import jmespath from "jmespath";
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId } from "../../catalog/types";
 import { DataSource, type DataSourceChunk, type DeclaredDirection } from "../../data/DataSource";
-import { decideRepeat } from "../../data/edgeIdentity";
+import { decideRepeat, pairKey } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
@@ -795,6 +795,11 @@ export class Ingest<K extends KnownEdge> {
                 if (this.mergeRepeat(known, record, weight.weight, policy, srcNodeId, dstNodeId, tally, writer)) {
                     continue;
                 }
+            } else if (this.measuredRepeat(srcNodeId, dstNodeId, recordId)) {
+                tally.repeatedSeen++;
+                if (this.countRepeat(policy, tally)) {
+                    continue;
+                }
             }
 
             // The STORE takes the edge now, whether or not the endpoints have render objects:
@@ -1055,6 +1060,46 @@ export class Ingest<K extends KnownEdge> {
         // The oldest edge between the pair is the one a merge policy folds into, so that `first`
         // and `last` mean what they say when three records name one pair.
         return this.host.edgesBetween(sourceId, targetId)[0] ?? null;
+    }
+
+    /**
+     * Whether a measured merge's record repeats an edge of the graph it is measured against, which
+     * the scratch session does not hold. Matched by pair, as `knownEdgeFor` matches a record with
+     * no file id.
+     * ponytail: a record with a file id is never matched here, since the graph's file ids are not
+     * handed over; hand them over when a consumer reports repeats by id.
+     * @param sourceId - the source endpoint id
+     * @param targetId - the target endpoint id
+     * @param recordId - the record's file id, if any
+     * @returns true when it repeats one
+     */
+    private measuredRepeat(sourceId: NodeIdType, targetId: NodeIdType, recordId: unknown): boolean {
+        const pairs = this.measure?.pairs;
+        return pairs !== undefined && !isStorableRecordId(recordId) && pairs.has(pairKey(sourceId, targetId));
+    }
+
+    /**
+     * Count what the repeat policy would do with a measured repeat, writing nothing: there is no
+     * edge here to fold it into, and the weight it would take is not part of a report.
+     * @param policy - the repeat policy
+     * @param tally - the load's counters
+     * @returns true when the repeat would not become an edge of its own
+     */
+    private countRepeat(policy: DuplicatePolicy, tally: ImportTally): boolean {
+        const { kind } = decideRepeat(policy, 0, 0);
+        if (kind === "add") {
+            tally.repeatedKept++;
+            return false;
+        }
+
+        if (kind === "drop") {
+            tally.repeatedDropped++;
+        } else if (kind === "merge") {
+            tally.repeatedMerged++;
+        }
+
+        // "refuse": a real load refuses with E_DUPLICATE_EDGE; a report counts it in `seen`.
+        return true;
     }
 
     /**

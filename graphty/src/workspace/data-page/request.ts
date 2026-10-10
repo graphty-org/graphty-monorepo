@@ -118,8 +118,12 @@ export function whileDataPageOpen(store: WorkspaceStore, take: (request: DataPag
 export function openDataPage(store: WorkspaceStore, request: DataPageRequest): void {
     // Already open (Open project or file... from the page itself): the page takes the files as
     // a drop, rather than the request waiting for a page that never opens again.
+    // A replace from the open page (its "Replace <source>") reopens the page on the request.
     const open = openPages.get(store);
     if (open !== undefined) {
+        if (request.intent === "replace") {
+            requests.set(store, request);
+        }
         open(request);
         return;
     }

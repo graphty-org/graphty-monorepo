@@ -71,6 +71,16 @@
     border-top: 1px solid var(--cm-border);
 }
 
+/* The Add page's line about edges the graph already holds, just above the footer's buttons. */
+.dp-repeats {
+    padding: 8px 16px 0;
+    border-top: 1px solid var(--cm-border);
+}
+
+.dp-repeats + .dp-footer {
+    border-top: none;
+}
+
 .dp-footer {
     display: flex;
     align-items: flex-end;

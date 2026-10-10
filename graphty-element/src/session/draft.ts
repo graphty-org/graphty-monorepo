@@ -43,8 +43,8 @@ import type {
 interface DraftHost {
     /** The data configuration now. */
     config(): SessionDataConfig;
-    /** The node ids the graph holds and its edge count, for a merge. */
-    graph(): { readonly nodes: ReadonlySet<NodeId>; readonly edges: number };
+    /** The node ids the graph holds, its edge count and its edges' endpoint pairs, for a merge. */
+    graph(): NonNullable<DataImportCommand["measure"]>;
     /** Taken synchronously: dispatches a command as the session's next step. */
     importer(): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
     /** Runs an import in a scratch session with this configuration and returns its report. */

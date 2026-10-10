@@ -137,8 +137,14 @@ export interface DataImportCommand {
     /**
      * Count the load instead of refusing it: a limit it passes is recorded in the report, and
      * the graph `present` describes counts as already there. Only a draft's scratch session sends it.
+     * `pairs` holds the graph's edges as `pairKey(source, target)` (both ways on an undirected
+     * graph), so a record repeating one is counted as the real merge counts it.
      */
-    readonly measure?: { readonly nodes: ReadonlySet<NodeId>; readonly edges: number };
+    readonly measure?: {
+        readonly nodes: ReadonlySet<NodeId>;
+        readonly edges: number;
+        readonly pairs?: ReadonlySet<string>;
+    };
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
     /**

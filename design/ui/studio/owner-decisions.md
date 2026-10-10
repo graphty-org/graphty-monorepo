@@ -35,6 +35,15 @@ guess. The app shows a line and a Replace button only when the count is above 0.
 **Alternatives.** File-name matching in the app (a guess, wrong for a renamed copy); an automatic
 replace (a choice the reader makes, not the element).
 
+**As built.** No new field was needed: the load draft's report already has `repeated.seen`
+("records that named an ordered pair the graph already held"), and the load itself counts it
+correctly. Only the draft's report for an addition (`draft.report({ mode: "merge" })`) read 0,
+because it measures in a scratch session that holds none of the graph's edges. The fix hands the
+scratch session the graph's endpoint pairs (both ways on an undirected graph), so the report now
+says 41 for friends-v2.csv over friends.csv, as the load does. No public type changed, so the API
+report is unchanged. A record with its own edge id is still matched only by id in a real load and
+not at all in a report; counting those waits for a consumer that needs it.
+
 ## 2026-10-09 -- Decided by the team: a click on a node's label can pick the node (`LabelStyle.pickable`)
 
 **What.** graphty-element's label style (`node.labelStyle`, the `LabelStyle` type) gains

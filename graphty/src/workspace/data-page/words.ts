@@ -148,6 +148,18 @@ function withDirection(text: string, edges: number | null, directed: boolean | "
 }
 
 /**
+ * The Add page's line when the file's edges repeat edges the graph already holds (same two ends,
+ * same direction), so a newer copy of a loaded file is not added on top of it unnoticed.
+ * @param repeats - how many of the file's edges repeat one (`LoadReport.repeated.seen`).
+ * @param graph - the open project's name.
+ * @returns "41 edges in this file are already in friends. Load adds them a second time."
+ */
+export function repeatsWords(repeats: number, graph: string): string {
+    const one = repeats === 1;
+    return `${plural(repeats, "edge")} in this file ${one ? "is" : "are"} already in ${graph}. Load adds ${one ? "it" : "them"} a second time.`;
+}
+
+/**
  * The status line after a load: the graph's name as the header shows it, its size, and the
  * edge rows the load left out.
  * @param name - the project's name.

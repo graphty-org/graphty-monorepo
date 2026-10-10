@@ -24,10 +24,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (`startingValue` in `style/row.ts` reads `descriptor.default`): edge Width 8 and Color A9A9A9
   change nothing. Proposed: the app starts a line on a layer that does not target Everything one
   visible step away (color from the app palette, width double the default). App choice, no door.
-- (2026-10-09) **Rerunning on a newer file: one door fixes two findings.** The Add page offers
-  "friends-v2 adds 0 nodes, 41 edges" and Load doubles ties. Proposed: graphty-element reports how
-  many added edges repeat an existing tie in the add preview (additive); the app says so and offers
-  Replace right there (reusing `useSourceActions`).
+- (2026-10-09) **Built: an Add that repeats loaded ties says so and offers Replace.** The element
+  already had the count (`LoadReport.repeated.seen`); only the draft's merge report read 0, since it
+  measures in a scratch session without the graph's edges. Fixed in the element (pairs handed to
+  the measure); the Add page shows one line above the buttons and "Replace <source>" beside Load,
+  which reopens the page as Replace on the same file. Walk: `design/ui/studio/tmp/t2r2-5/`.
 - (2026-10-09) **Find box, severity 3:** "chapters 10" says only "No match". Proposed: when plain
   text names part of a column the app already lists after "=", hint "=<column> >= `10`"; for bare
   numbers an opt-in element parse option (`bareNumbers`, default off, additive) instead of changing
@@ -53,6 +54,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   each change's test; this file keeps only the lesson.
 
 ## Decisions and reasons
+
+- (2026-10-09) **Read the report type before adding a field.** The task asked for a new count; the
+  report already promised it (`repeated.seen`) and the load already counted it, so the defect was
+  the measured merge, not a missing field -- no API change, a fix every consumer gets. Replace
+  from the Add page calls `replaceSource` (what the source menu's Replace with file... runs after
+  its picker), and an open page restarts on a replace request (`DataPage` keys a view by a
+  counter) rather than taking it as a drop. Rejected: running "Replace with file..." itself (a
+  second file picker for a file already chosen); a new `LoadReport` field for repeats of the graph
+  only (in-file repeats also count today; none of the study files have any).
 
 - (2026-10-09) **Round 2 critique: smallest changes, ranked by what a returning user loses.**
   1 study tool (briefing only), 2 the Add page warns on repeated ties and offers Replace, 3 find's
@@ -189,19 +199,20 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-09) Worked: a one-off element test printing `JSON.stringify(await draft.report(...))`
+  before writing code -- it showed `repeated.seen: 0` beside `counts.edges: 82`, which placed the
+  defect in the measure, not the type. `session.data.import` takes `{ config: { file } }`, not
+  `{ file }`. The app's real-element project is `--project=real-element` (`browser` excludes
+  them); `?raw` imports of `design/ui/studio/tool/files/*.csv` work from graphty tests.
+
 - (2026-10-09) Worked for a critique: reading `insights.md` section 2 first (it answers "was it
   the build or the design"), then grepping `startingValue` and `ruleFromText` to place each fix in
   its package before proposing it; `for f in */session.log; do [ -s $f ] ...` finds the sessions
   where the tool or build spoke.
 
-- (2026-10-09) Did not work: editing `audit.sh` while a run of it is going -- bash reads a
-  script by byte offset, so an edit can run garbage; I put new walks in a copy (`audit2.sh`) that
-  sources the same `walk()`. Did not work: a new script without `chmod +x` (the background run
-  exited 0 with "Permission denied" in its output; read the output, not the exit code). Worked:
-  2x2 `montage` contact sheets of 900 x 700 shots (readable), full-size reads for 1200 x 900; a
-  `--rclick` on a row that has no menu prints nothing, so look at the screenshot to tell. Control
-  names to remember: header chip "Filter: <n> of <m> nodes", source menu "Source actions",
-  step delete is right-click then "role=menuitem:Delete", "Graph" needs "Graph#1".
+- (2026-10-09, condensed) Never edit a script while it runs (bash reads by offset; use a copy);
+  `chmod +x` new scripts and read their output, not the exit code; 2x2 `montage` sheets for 900 x
+  700 shots. Control names: "Filter: <n> of <m> nodes", "Source actions", "Graph#1".
 - (2026-10-09) Did not work: a left-edge test with `getBoundingClientRect().left` of a padded
   `Text` -- the box starts before its padding, so the broken build passed. Worked: a Range over
   the element's contents (`range.selectNodeContents(el).getBoundingClientRect().left`) for where

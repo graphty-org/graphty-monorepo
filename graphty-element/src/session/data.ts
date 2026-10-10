@@ -24,7 +24,7 @@ import type {
     ScopeInput,
 } from "../catalog/types";
 import { isPairConfig } from "../data/CSVDataSource";
-import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
+import { edgeCounterOf, edgeIdOf, pairKey } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
@@ -579,7 +579,17 @@ export class SessionData implements SessionDataApi {
             config: () => this.readConfig(),
             graph: () => {
                 const slice = this.writes.slice();
-                return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size };
+                const snapshot = this.current();
+                const pairs = new Set<string>();
+                for (let edge = 0; edge < snapshot.edgeCount; edge++) {
+                    const source = snapshot.ids.idOf(snapshot.edgeSource(edge));
+                    const target = snapshot.ids.idOf(snapshot.edgeTarget(edge));
+                    pairs.add(pairKey(source, target));
+                    if (!snapshot.directed) {
+                        pairs.add(pairKey(target, source));
+                    }
+                }
+                return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };
             },
             importer: () => this.writes.importer(),
             measure: (command, config) => this.writes.measure(command, config),

@@ -49,7 +49,7 @@ import {
     setWeightMeaning,
     weightHolder,
 } from "./choices";
-import { rememberLoad, takeDataPageRequest, whileDataPageOpen } from "./request";
+import { canReplace, rememberLoad, replaceSource, takeDataPageRequest, whileDataPageOpen } from "./request";
 import { type LoadDraftState, type PageSource, type RowFilter, sourceName, useLoadDraft } from "./useLoadDraft";
 import {
     addWords,
@@ -65,6 +65,7 @@ import {
     READABLE_FORMATS,
     type Refusal,
     refusalFor,
+    repeatsWords,
     replacedWords,
     replaceWords,
     roleWords,
@@ -119,10 +120,29 @@ const TYPE_WORDS: Readonly<Record<string, string>> = {
 /**
  * The Data page (tier1-design.md section 2.10): every data door opens it. The reader sees the
  * file's tables, the role of each column and what the load will make before anything is loaded;
- * graphty-element's load draft supplies every fact and count.
+ * graphty-element's load draft supplies every fact and count. A replace asked for from the page
+ * itself starts it over on that request.
  * @returns The page
  */
 export function DataPage(): React.JSX.Element {
+    const [opened, setOpened] = useState(0);
+    return (
+        <DataPageView
+            key={opened}
+            onRestart={() => {
+                setOpened((value) => value + 1);
+            }}
+        />
+    );
+}
+
+/**
+ * One visit of the Data page, on the request it opened with.
+ * @param props - Component props
+ * @param props.onRestart - Opens the page again on the request just made
+ * @returns The page
+ */
+function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.JSX.Element {
     const workspace = useWorkspace();
     const { store, session } = workspace;
     const [request] = useState(() => takeDataPageRequest(store));
@@ -292,10 +312,29 @@ export function DataPage(): React.JSX.Element {
     useEffect(
         () =>
             whileDataPageOpen(store, (next) => {
+                if (next.intent === "replace") {
+                    onRestart();
+                    return;
+                }
                 addFilesRef.current(next.files ?? [], true);
             }),
-        [store],
+        [store, onRestart],
     );
+
+    // An addition whose edges repeat the graph's says so, and offers the source menu's Replace
+    // with this file beside Load, when the graph's one source can be replaced.
+    const repeats = request.intent === "add" ? (page.report?.repeated.seen ?? 0) : 0;
+    const sources = repeats > 0 && session !== null ? session.data.sources() : [];
+    const file = page.source?.kind === "files" && page.source.files.length === 1 ? page.source.files[0] : undefined;
+    const replace =
+        file !== undefined && canReplace(sources)
+            ? {
+                  label: `Replace ${sources[0].name ?? "the data"}`,
+                  run: () => {
+                      replaceSource(store, sources[0], file);
+                  },
+              }
+            : null;
 
     return (
         <PopoutManager>
@@ -350,8 +389,14 @@ export function DataPage(): React.JSX.Element {
                     </section>
                 </div>
                 <MatchReport page={page} />
+                {repeats > 0 ? (
+                    <Text size="sm" className="dp-repeats" data-testid="repeats">
+                        {repeatsWords(repeats, projectName)}
+                    </Text>
+                ) : null}
                 <Footer
                     page={page}
+                    replace={replace}
                     action={request.intent === "replace" ? "Replace" : "Load"}
                     onCancel={cancel}
                     onLoad={() => {
@@ -1299,6 +1344,7 @@ function loadBlocked(page: LoadDraftState): string | null {
  * @param props - Component props
  * @param props.page - The page state
  * @param props.action - The load button's word: "Replace" on a replace, matching the title
+ * @param props.replace - Replaces the graph's source with this file instead, or null
  * @param props.onCancel - Returns to where the reader came from
  * @param props.onLoad - Loads
  * @returns The footer
@@ -1306,9 +1352,15 @@ function loadBlocked(page: LoadDraftState): string | null {
 function Footer({
     page,
     action,
+    replace,
     onCancel,
     onLoad,
-}: PartProps & { action: "Load" | "Replace"; onCancel: () => void; onLoad: () => void }): React.JSX.Element {
+}: PartProps & {
+    action: "Load" | "Replace";
+    replace: { readonly label: string; readonly run: () => void } | null;
+    onCancel: () => void;
+    onLoad: () => void;
+}): React.JSX.Element {
     const blocked = loadBlocked(page);
     const loadButton = useRef<HTMLButtonElement>(null);
     // A clean file opens with every check green and focus on Load, so a clean drop is one Enter.
@@ -1360,6 +1412,11 @@ function Footer({
                 <Button variant="default" size="sm" onClick={onCancel}>
                     Cancel
                 </Button>
+                {replace === null ? null : (
+                    <Button variant="default" size="sm" onClick={replace.run}>
+                        {replace.label}
+                    </Button>
+                )}
                 <Button
                     ref={loadButton}
                     size="sm"

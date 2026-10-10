@@ -27,10 +27,20 @@ save and reopen.
   the start screen goes through the Data page; focus after Add/Delete step and find's Escape, Enter
   commits and Escape closes a step edit; load words true and spoken once; key says ", out of date";
   no silent Everything in style lines; path Weight starts on the loaded weight.
-- 2026-10-09 **Watch in round 2:** does T22 reach its floor with the hint (if 3+ still fail in the
-  same place, "Select where..." on the column is next); does anyone find the "..." on the source
-  (a menu is less visible than my buttons were); does the start-screen open's extra Load step hurt
-  tier 1's own-file task; focus scripts pass, not just pointer walks.
+- 2026-10-09 **Round 2 answer: the dry run happened and participants mostly met design questions,
+  not broken controls.** About 30 of 355 recorded problems were build faults, none above severity
+  2, no grade decided by one; 12 of the 30 sat on the one detour no walk covered (styling a
+  selection: a new line starts at the element's default, the look every tie already has, so it
+  draws nothing). The worse leak was the study: participants read `tasks.md` (control names,
+  follow-ups), so round 2's route credits are void until re-run with briefing-only sessions.
+- 2026-10-09 **Round 2 results on what I watched:** the "start with =" hint failed its floor (6 of
+  8 typed the data's words, "chapters 10", and got only "No match"; backticks stopped 7); Replace
+  in "..." found 8 of 8 but by guessing and under facilitator leakage; Open on a newer copy still
+  offers only Add, which doubles the ties (82 from 41). Next: column rows in the plain find list,
+  Enter runs the element's corrected rule, a new line opens its value, a doubling Add says so in
+  place with a Replace door. Not "Select where..." yet.
+- 2026-10-09 **A starting value equal to what is drawn is a silent no-op.** A line added with "+"
+  must ask for its value (open the picker), not start on the default the layer below already draws.
 - 2026-10-09 **A visible door beats a new route,** but words at rest do not rise: the Director chose
   a header "..." over my visible buttons. Surface existing commands; do not add homes.
 - 2026-10-09 **The halo tint was a defect, not a design question** (its docs say ring). Read the
@@ -42,11 +52,9 @@ save and reopen.
   setting.
 - 2026-10-07 **Simulated participants are one model and follow their histories.** Trust
   reproductions and causes in code; graders label scripted persona exits.
-- 2026-10-07 **Element English leaks into my refusals.** Refusals in place; words from codes.
 - 2026-10-06 **Change one thing per problem per round,** so the round can tell what helped.
 - 2026-10-06 **Every detour must work or not look clickable. Refusals in place until the value
   changes.**
-- 2026-10-06 **Not doing yet:** first-run tour, toolbar words, names drawn by default.
 - 2026-10-06 **Where a fix goes:** graph logic in graphty-element; flows, focus, words in the app;
   shared control defects in compact-mantine.
 
@@ -229,6 +237,16 @@ text })`; accepted or refused only with `number-needs-backticks` -> "To select b
   browsers at once (click timeouts), missing preflight scripts, one void session not re-run.
   Taught: a dry run that walks only success paths certifies the success paths; detours need
   their own walk.
+
+- 2026-10-09 Tier 2 round 2 (55 valid sessions, frozen build 8f0d5a6f7): worked -- 55 of 55
+  succeeded; no grade decided by a build fault; the in-place load words, Enter/Escape in step
+  edits. Did not -- the find hint (fires only on an exact column plus a condition), backticks, the
+  style "+" starting on the drawn default, selection layers named by count ("13 edges"), Add on a
+  newer copy, focus: second Escape in the find box blurs to the page (`FindBox.tsx` calls
+  `blur()`), Follow arrows land focus on Hops, Tab then Escape drops a step edit silently. Study:
+  facilitator file readable, prompts saying "stand out" manufactured styling, the tool's click by
+  name hit a same-named row. Taught: the dry run must walk what participants are prompted toward
+  (styling), not only the answer key; and a keyboard finding "handed on" to a bar is not fixed.
 
 ## Thinking
 

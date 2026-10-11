@@ -18,6 +18,7 @@ import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, Nod
 import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
+import { NGraphEngine } from "./layout/NGraphLayoutEngine";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
@@ -229,6 +230,11 @@ export class Node {
 
     /** The last measured radius, or null for a node that is not round. */
     private roundRadiusValue: number | null = null;
+
+    /** What {@link Node.drawnRadius} last measured, and the mesh and scaling it measured. */
+    private drawnRadiusMesh: AbstractMesh | null = null;
+    private drawnRadiusScale = 0;
+    private drawnRadiusValue = 0;
 
     /**
      * What the visibility mask says about this node, as the renderer is currently drawing it.
@@ -732,6 +738,13 @@ export class Node {
         // that changes every node's shape ever hitches, the answer is a per-node edge index, not
         // removing the guard.
         if (this.size !== oldSize || this.shapeType !== oldShapeType) {
+            // A layout that keeps nodes apart by their drawn size (`nodeGap`) has to look again;
+            // the frame loop steps it while it is not settled.
+            const engine = this.context.getLayoutManager().layoutEngine;
+            if (engine instanceof NGraphEngine) {
+                engine.wakeForResize();
+            }
+
             const dataManager = this.context.getDataManager();
             for (const edge of dataManager.edges.values()) {
                 if (edge.srcNode === this || edge.dstNode === this) {
@@ -1073,26 +1086,38 @@ export class Node {
      * @returns The scaling for a unit-diameter overlay sphere.
      */
     private haloScale(multiplier: number): number {
-        // THE NODE'S OWN EXTENT, not its world one. The halo is a sibling of the node under
-        // `graph-root`, and an XR gesture scales that root -- so measuring in world space and
-        // then writing a local scaling would count the gesture twice and the halo would grow away
-        // from the node every time a reader pinched to zoom.
-        const box = this.mesh.isDisposed() ? null : this.mesh.getBoundingInfo().boundingBox;
-        const own = this.mesh.scaling;
-        const radius =
-            box === null
-                ? 0
-                : Math.max(box.extendSize.x, box.extendSize.y, box.extendSize.z) *
-                  Math.max(Math.abs(own.x), Math.abs(own.y), Math.abs(own.z));
-
-        // A mesh whose bounds have not been computed yet answers zero, which would collapse the
-        // halo. Falling back to the style's own size keeps a halo on screen at roughly the right
-        // place until the next pass measures it properly.
-        const drawn = radius > 0 ? radius : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
-
         // Doubled because the source is a sphere of DIAMETER one, so a scaling of `s` draws a
         // radius of `s / 2`.
-        return 2 * drawn * multiplier;
+        return 2 * this.drawnRadius * multiplier;
+    }
+
+    /**
+     * How far the node's drawn surface reaches from its centre at most: its largest half-extent,
+     * in the units its position is laid out in.
+     *
+     * THE NODE'S OWN EXTENT, not its world one. The node and the halo are children of
+     * `graph-root`, and an XR gesture scales that root -- so measuring in world space would
+     * count the gesture in a value that is compared with layout coordinates and local scalings.
+     *
+     * Read by the selection halo and by a layout that keeps nodes apart by their drawn size
+     * (`ngraph`'s `nodeGap`). Measured once per mesh and scaling: a bounding-box read per node per
+     * layout step is the cost {@link Node.roundRadius} documents.
+     * @returns The radius; the style's own size when the mesh has no bounds yet.
+     */
+    get drawnRadius(): number {
+        const own = this.mesh.scaling;
+        const scale = Math.max(Math.abs(own.x), Math.abs(own.y), Math.abs(own.z));
+        if (this.drawnRadiusMesh !== this.mesh || this.drawnRadiusScale !== scale || this.drawnRadiusValue <= 0) {
+            const box = this.mesh.isDisposed() ? null : this.mesh.getBoundingInfo().boundingBox;
+            this.drawnRadiusMesh = this.mesh;
+            this.drawnRadiusScale = scale;
+            this.drawnRadiusValue =
+                box === null ? 0 : Math.max(box.extendSize.x, box.extendSize.y, box.extendSize.z) * scale;
+        }
+
+        // A mesh whose bounds have not been computed yet answers zero. Falling back to the
+        // style's own size keeps the answer roughly right until the mesh is measured.
+        return this.drawnRadiusValue > 0 ? this.drawnRadiusValue : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
     }
 
     /**

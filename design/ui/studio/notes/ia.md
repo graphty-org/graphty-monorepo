@@ -7,36 +7,38 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-1. (2026-10-11) Round 4: 53 of 53 succeeded; bars 9 (b) and 10 fail. My two items: the find box
-   offers "=`10`" for a bare number not in the column, then refuses it (sev 3); with a filter step
-   on, the table lists everything under "41 edges" while every other count says "12 of 41" (sev 2).
-2. (2026-10-11) Proposed for round 5, IA: (a) never offer a rule the element refuses -- check the
-   rewrite before showing it, else the example-rule line; (b) element find offers an "or more" row
-   for any number inside a numeric column's range (additive `FindResult.atLeast`); (c) the table
-   lists what the steps keep and its count reads like the top bar ("12 of 41 edges").
-3. (2026-10-11) Do NOT change for round 5: the toolbar Filters door (7 of 7 first and only door),
-   Shift-click, Filters' and Replace's homes, find's hint and Enter, Analyze search (typing found
-   Shortest path first 15 of 15), Neighborhood in "...", the second path run replacing the first,
-   the key's scope words ("full graph" is a true fact only shown while a step is on).
-4. (2026-10-11) Overlapping labels, dots and ties are graphty-element's (label placement, spacing
-   by drawn size). No app hints, no app hover workarounds.
-5. (2026-10-11) Two "same number, two answers" places in one round (find's suggestion, the table)
-   share one cause: the app shows a thing the element was never asked about. Ask the element
-   first, show second.
-6. (2026-10-11) Study evidence is weaker than it looks: the briefing's file table named Mo and Nia
-   and the unmatched row; personas script count-checking. Discount "noticed unprompted".
-7. (2026-10-10) Readers type the prompt's most prominent data word first: a column name OR a bare
-   number. The find box must turn both into a working rule -- including a number no row holds.
-8. (2026-10-10) A description match is a weak signal; a name or alias match is a strong one.
-9. (2026-10-10) Rule of the round: no feature moves, no second door where one is being measured,
-   words at rest go down. Words shown only while typing are not "at rest".
-10. (2026-10-10) A command that makes a run should make a new row, never overwrite a sibling
-    (second Find path) -- interaction designer's call; not this round.
-11. (2026-10-09) The column is every user's second place: a door to existing homes, never a home.
-12. (2026-10-09) Element-first: repeat-edge count, highlight look, hop distance, numbers in rules.
-    The app never parses rules, counts duplicates or measures distance.
-13. (2026-10-09) A number names its unit and whole; a count under a filter names whose numbers.
-14. (2026-10-07) One popover per job, every door opens it; a working door nobody sees is not a door.
+1. (2026-10-11) Round 4 closed: 53 of 53 valid succeeded, 3 owed re-runs (r4-s05b, s20b, s28b).
+   Bars 9 (b) and 10 fail. Round 5 does not start until the gate refuses in `real.mjs --start` and
+   briefings name files by kind only.
+2. (2026-10-11) Decided for round 5 from my proposals: the element never suggests a rule its
+   selector refuses (`suggestBackticks`, element-side, not an app guard -- my app-side check was
+   overruled, rightly); `FindResult.atLeast` rows for a number inside a column's range; the table
+   scoped "visible" with "12 of 41 edges". All three are IA doors or words for existing homes.
+3. (2026-10-11) New: element `rulePath(path)` names a column the way a typed rule does; the app's
+   `columnText` copy is deleted. Lesson: an app helper that "knows how a name resolves" is element
+   logic copied -- look for these in FindBox.
+4. (2026-10-11) Watch in round 5: does "10" on bus stops reach the right selection without a
+   refusal? Credit by reaching the selection, not by the "or more" word matching the prompt.
+5. (2026-10-11) Watch in round 5: T17 with the table open under a step -- do the table's count and
+   the top bar's now read as one fact? Is the table stale after toggling a step?
+6. (2026-10-11) Off filter step turning itself on when its editor closes (`Filters.tsx`) is fixed:
+   the step's checkbox stays the one home for on/off; a leave without an edit changes nothing.
+7. (2026-10-11) Bar 9 (b): scope words (", full graph", "of nodes") stay if the diff names them;
+   a true fact is not cut to pass a count. Propose no word cuts before the diff exists.
+8. (2026-10-11) Do NOT change: toolbar Filters door, Shift-click, Replace in "...", Analyze search,
+   Neighborhood in "...", second path replacing the first, key scope words, "Settings" rail label.
+9. (2026-10-11) Overlapping labels, dots and ties are graphty-element's (owner's list). No app
+   fonts, offsets, seeds or setups that hide names.
+10. (2026-10-11) Study evidence is weaker than it looks: briefings leaked Mo, Nia, `s11`, "6 - w";
+    histories pointed at the toolbar; personas script count-checking. Discount "unprompted".
+11. (2026-10-11) Ask the element first, show second: every "same number, two answers" so far was
+    the app showing something the element was never asked about.
+12. (2026-10-10) Readers type the prompt's most prominent data word first: a column name OR a bare
+    number, including a number no row holds.
+13. (2026-10-10) Rule of the round: no feature moves, no second door where one is measured, words
+    at rest go down; words shown only while typing are not "at rest".
+14. (2026-10-09) The column is a door to existing homes, never a home; a count names its unit and
+    whole; under a filter it names whose numbers.
 15. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
     in the Summary; a Style-tab pointer to Label; Size pre-bound to the row's result.
 
@@ -135,20 +137,10 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   Not taken -- Edit source retitle; Hops grouped by step. Reason throughout: one variable per
   path, each change a door or a word for an existing home, facts in the element.
 
-- 2026-10-10 (IA proposal for tier 2 round 4, after round 3): four door and word fixes, no new
-  places, no moves. (1) Analyze search shows only name or alias matches when any exist (a
-  description-only match shows only when nothing else does); evidence: "path" and "shortest path"
-  ranked Betweenness first in 7 sessions plus 2 experts, "linked" marked Louvain
-  (`visual/path/02.png`); file `analyze/words.ts` `matches`/`groupAlgorithms`. (2) A bare number in
-  find: the Values row reads "<column> is 10" and, for a numeric column, "<column> is at least 10",
-  each with the element's count at the right; drops "Select where" (cut at the panel edge,
-  `r3-s10/02.png`; 4 of 4 typed "10" first, 2 took "is 10"). Shown only while typing, so no words
-  at rest. File `graph-place/FindBox.tsx`. (3) A Filters icon in the canvas toolbar that opens Data
-    > Filters (5 of 8 T17 looked on the Graph place first: toolbar Layout and Everything's style,
-    > `r3-s33/03.png`). A door, not a home. (4) At Hops 2 or 3 the neighbor list's value column is the
-    > step count (1, 2, 3) from the element (an additive fact on the neighborhood selection); evidence
-    > r3-s48, figma 18, visual 16 (`visual/path/10.png`). Reason for all: each is a door or a word for an
-    > existing home, and each puts the fact in the element.
+- 2026-10-10 (IA proposal for round 4, summarized 2026-10-11): Analyze search shows name or alias
+  matches first; a bare number in find gives "<column> is N" and "is N or more" rows; a toolbar
+  Filters icon opening Data > Filters (a door, not a home); Hops 2-3 shows the element's step count.
+  All adopted; the first three worked in round 4 (see Tried).
 
 - 2026-10-11 (IA proposal for tier 2 round 5, after round 4): three fixes, no new places, no
   moves. (1) FindBox never shows a rule the element refuses: `ruleFromText`'s backtick rewrite is
@@ -162,6 +154,16 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   filter steps ("visible", not "graph", `TableDock.tsx`), its count "12 of 41 edges" while a step
   is on. Evidence: `sessions/r4-s27/09.png`, r4-s21. Reason: one number per fact; the step's
   checkbox stays the one home for on/off. Kept away: the key's scope words, overlaps (element).
+
+- 2026-10-11 (round 4 decisions, by the Design Director): adopted -- element `suggestBackticks`
+  offers only a rewrite its selector accepts (parse plus one attribute read); element
+  `FindResult.atLeast` plus app rendering; element `rulePath` export, app `columnText` deleted;
+  table scope "visible" and "12 of 41 edges", re-rendered on visibility change; off step stays off
+  when its editor is left unedited; Cancel in notes focuses "+". Overruled -- my app-side
+  `scope.count` check before showing the suggestion: it hides an element defect from every other
+  consumer. Held -- Values above records for a number (second change on one problem), a "lists
+  everything" line over the table (a notice where a fix exists). Known gap: table export still
+  writes every record; the fix is a scope on the element's export.
 
 ## Tried: worked / did not work
 
@@ -240,6 +242,12 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 - 2026-10-11 -- A count drawn in three places and a list in a fourth: did not hold. Two readers
   doubted a right answer because the table disagreed with the chip, the step and the Overview.
 
+- 2026-10-11 (round 4 close) -- Proposing an app-side guard for a wrong element suggestion: did
+  not hold; the fix belongs in the element function that made the suggestion. Next time trace a
+  wrong suggestion to the function that builds it before proposing where the check goes.
+- 2026-10-11 -- Counting "noticed unprompted" without reading the briefings: did not work; the
+  file table primed T4 and T21. Read the briefing before crediting a door.
+
 ## Thinking
 
 - **Tier 1 IA questions (2026-10-06)** were answered by rounds 1-3: the intake, names and
@@ -267,6 +275,8 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   picture, export the numbers, save and reopen.
 
 ## Sources
+
+- `tier2/rounds/round-4/insights.md`, `decisions.md` (changes 3, 4, 5, 8, 9, 12) (2026-10-11)
 
 - `tier2/rounds/round-4/insights.md`, `scores.md` (bars 9 (b), 10; T17, T22, T23), `expert/figma.md`;
   screenshots `expert/figma/find/04.png`, `08.png`, `sessions/r4-s27/09.png`;

@@ -12,31 +12,25 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- 2026-10-10 -- Round 3 does not start until the study is fixed: participant folders outside the
-  studio tree, a transcript leak check that voids sessions, pilot-derived dry-run routes, and every
-  bar script proven on a planted fault. A study that leaks credits routes it never measured.
-- 2026-10-10 -- Re-run before crediting: r2-s05, T20 load-time weight, T21 Replace, T22 rule hint,
-  T17/T18 follow-ups (second-time measure). Until then those routes are "held, weak", not "worked".
-- 2026-10-10 -- Watch in round 3 (find box): does "No match" plus the example line, a runnable hint
-  with its "=", and Enter on the hint get 3+ of 8 past the dead end? If 3+ still stall, "Select
-  where..." on a column is next. Bare numbers stay owner-side (breaking).
-- 2026-10-10 -- Watch (newer file): does the repeat-edge count with "Replace <source>" beside Load
-  stop the 82-edge doubling for everyone, including a reader who does not read numbers?
-- 2026-10-10 -- Watch (styling a selection): new Color/Width start at the element's highlight look
-  (black, 3x width), so adding one shows on the drawing. Pixel check after the selection clears.
-  Width units stay owner-side; the app must not scale widths.
-- 2026-10-10 -- Watch: a rule layer named by its rule ("minutes >= `10`") -- do readers read the key
-  as a meaning, or stop on the backticks? Backticks are still a leak.
-- 2026-10-10 -- Watch: Shortest path found by readers' words (paths bar 11 at or under 8 steps);
-  weighted run row "minutes 14" removes the "4 hops" doubt; words at rest back under round 1.
-- 2026-10-10 -- Keyboard faults found in a dry run are fixed before freeze, never handed on.
-  Round 3: find-box double Escape, Follow arrows jumping to Hops, Tab out of a step editor.
-- 2026-10-10 -- Prompts for T22 and T24 lose "stand out"; compare them with round 2 on outcome
-  only. Discount behavior a prompt asks for ("who was first before", "make sure").
-- 2026-10-09 -- Each round finds the route nobody walked. The fix is pilots' real routes, not last
-  round's list.
+- 2026-10-10 -- Round 3: 54 of 56 succeeded; the one real app failure is Shift/Ctrl-click on a node
+  replacing the selection (element; edges already add). It breaks the spreadsheet habit of every
+  returning user. First fix for round 4, with a real-modifier-click test.
+- 2026-10-10 -- A prompt and its answer key must name the same outcome, and every key route must be
+  walked on the build before a task runs. T24 failed on the key, not the app (r3-s43/13.png).
+- 2026-10-10 -- Find box now gets readers past the dead end (4 of 4 on T22), but a bare "10" offers
+  only "is equal to", cut off. Next: an "or more" row beside it, never cut. Not "Select where..."
+  on a column (no one stalled).
+- 2026-10-10 -- Script every one-specialist claim before it changes the build: Enter on Shortest
+  path drops focus, Undo leaves "Made with" naming the undone run, the key covering Depot.
+- 2026-10-10 -- Repeat work: a second Find path replaces the first silently. Smallest fix is to say
+  so with Undo, not to keep both (the loss cost 0 of 7).
+- 2026-10-10 -- Filters: 5 of 8 looked on the Graph place first. A Filters row among the layers is a
+  door to the one editor, not a second home; try it, measure first moves.
+- 2026-10-10 -- Keep what worked: Recent entry in Analyze (6 of 7 reused it), Replace and its
+  out-of-date marks (0 of 8 misread), the repeat-edge warning, the load-time weight.
 - 2026-10-09 -- Simulated passes are weak; failures and script repros count. A problem found
-  despite a leak is robust.
+  despite a leak is robust. The study tool's own faults (leak check reading nothing, --end deleting
+  notes, bar 9 counting data names) come first.
 - 2026-10-09 -- Known to keep failing bar 10: drawn names overlapping (element label placement).
   The app must not hide it with small fonts or a seed.
 - 2026-10-07 -- Top risk still: a picture that looks right and answers wrong (stale key, overlapping
@@ -101,6 +95,18 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- 2026-10-10 (me, tier 2 round 3 critique) -- Round 4 changes, smallest first: (1) element: Shift
+  or Ctrl-click on a node adds to the selection, as an edge click does (a defect fix matching the
+  edge's behavior; recorded as the team's call, owner list only if someone shows a consumer relying
+  on replace); (2) T24 key credits any end state marking Gus and Ivan and nobody else, routes walked
+  first; (3) find box: a bare number adds "or more" beside "is", rows wrap instead of cutting, the
+  backticks refusal becomes a runnable "Did you mean" row; (4) Analyze search ranks a name or alias
+  match above a description match (Shortest path first for "path"); (5) a second path run says it
+  replaced the first, with Undo; (6) a Filters row in the Graph place's layer list opening the one
+  Filters editor; (7) the three focus faults and the Add page warning tied to Load, each after a
+  script repro. Not changed: label overlap (element, owner), Replace's place, names off by default,
+  Select endpoints in "...", the rule syntax (owner), the Recent entry. Reason: each fixes a
+  confirmed failure or detour on a returning user's route; the rest held.
 - 2026-10-10 (Design Director, round 2 close; my position after) -- Fifteen changes, study first
   (sev 4: leak closed, pilot-route dry run with keyboard faults fixed, bar scripts proven), then
   one per confirmed problem in its owning package: find-box miss shows the example, hint runnable
@@ -134,8 +140,6 @@ something, or change my mind. Summarize when it passes about 25 KB.
   lines; halo ring without tint (element); Weight list starts on the loaded weight. Reason: one
   door per confirmed problem so round 2 can credit each change alone. I drop my column-menu
   "higher means" and undoable "Back to start" (second home; Back already asks when unsaved).
-- 2026-10-09 (me, tier 2 round 1 critique) -- Proposed seven round 2 fixes on routes participants
-  took; superseded by the entry above where they differ (column menus, undoable Back).
 - 2026-10-09 (me) -- A dry run must walk the commonest detours, not only the answer key. Reason:
   round 1's dry run cleared every walked route (0 broken controls met there), and every build
   fault participants did meet was on a detour (styling Edges while a run layer was open, the
@@ -232,6 +236,11 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Tried: worked / did not work
 
+- 2026-10-10 -- TIER 2 ROUND 3. WORKED: find box hint and example (T22 4 of 4, one detour each);
+  Recent entry in Analyze; Replace with its marks; Filters found 8 of 8; repeat follow-ups at
+  target (weak: simulated memory). DID NOT: Shift-click on nodes; T24's key vs its prompt; the
+  round's gate (prompt pilots skipped, leak check read nothing, --end deleted notes); 0 of 8 typed
+  "=" unprompted, so the rule language is copied, never discovered.
 - 2026-10-10 -- DID NOT WORK: refusing a session folder without a briefing as the leak fix --
   a participant can still read upward. Moving folders out of the tree plus a transcript check is
   the fix. Also: a preflight that claims scripts exist without running them on a planted fault.
@@ -277,6 +286,8 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Sources
 
+- `design/ui/studio/tier2/rounds/round-3/insights.md`, `scores.md`, `expert/*.md`; screenshots
+  `sessions/r3-s10/02.png`, `r3-s33/03.png`, `r3-s43/13.png` (2026-10-10).
 - `design/ui/studio/tier2/rounds/round-1/insights.md`, `scores.md`, `expert/*.md`;
   screenshots `sessions/r1-s46/12.png`, `r1-s29/08.png`, `r1-s28/07.png` (2026-10-09).
 - `design/ui/studio/digests/decisions.md`, `framework.md`, `owner-voice.md`, `study-rounds.md`,

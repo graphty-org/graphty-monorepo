@@ -27,11 +27,18 @@ import { type ExportCapabilities, type GraphExporter, type GraphImporter, regist
 
 const pkg = fileURLToPath(new URL("..", import.meta.url));
 
-/** The source barrel of every package entry (`graph-io` and one per format subpath), from package.json's exports. */
+/**
+ * The source barrel of every package entry (`graph-io`, one per format subpath and the styles module), from
+ * package.json's exports.
+ */
 const ENTRIES: Readonly<Record<string, string>> = Object.fromEntries(
-    Object.keys((JSON.parse(readFileSync(`${pkg}package.json`, "utf8")) as { exports: object }).exports).map((k) =>
-        k === "." ? ["graph-io", "src/index.ts"] : [k.slice(2), `src/formats/${k.slice(2)}/index.ts`],
-    ),
+    Object.keys((JSON.parse(readFileSync(`${pkg}package.json`, "utf8")) as { exports: object }).exports).map((k) => {
+        if (k === ".") {
+            return ["graph-io", "src/index.ts"];
+        }
+        const name = k.slice(2);
+        return [name, name === "styles" ? "src/styles/index.ts" : `src/formats/${name}/index.ts`];
+    }),
 );
 const docsDir = `${pkg}docs/`;
 

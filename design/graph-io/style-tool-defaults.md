@@ -10,7 +10,7 @@ URL) and the tool version. Paths under `tmp/` are local copies of those sources 
 prototype; they are not committed. Colors are `#RRGGBB`; "px" is the tool's own drawing unit.
 
 How graph-io uses this table, and the choices it makes where a default is a rule rather than a
-value (section 12 below), are in `style-import-design.md`, "Defaults of the writing tool" and
+value (section 13 below), are in `style-import-design.md`, "Defaults of the writing tool" and
 Appendix A.
 
 ## 1. Summary: which defaults apply to which file
@@ -25,7 +25,8 @@ Appendix A.
 | JSON                | Cytoscape desktop export (`generated_by: "cytoscape-<version>"`, `format_version`)                        | see 9, open question 2                                           |
 | JSON                | vis-network (`nodes[].id` + `edges[].from/to`)                                                            | vis-network (7)                                                  |
 | JSON                | graphology serialization (`options.type`, `nodes[].key`, `nodes[].attributes`)                            | sigma (8), the renderer graphology files are drawn with          |
-| JSON                | d3 / NetworkX node-link, JGF                                                                              | none                                                             |
+| JSON                | NetworkX node-link (`directed`, `multigraph`, `graph`, `nodes` and `links` or `edges` keys)               | NetworkX (11)                                                    |
+| JSON                | d3 node-link (`nodes` and `links` only), JGF                                                              | none                                                             |
 | DOT                 | any (always drawn by Graphviz)                                                                            | Graphviz (4)                                                     |
 | GraphML             | yEd / yFiles 2 / visone (`xmlns:y="http://www.yworks.com/xml/graphml"`, key `yfiles.type="nodegraphics"`) | yEd (5.1)                                                        |
 | GraphML             | yFiles 3 / yEd Live (`yfiles-common/3.0` or `yjs` namespaces, `SharedData` key)                           | yFiles 3 styles (5.2)                                            |
@@ -37,7 +38,7 @@ Appendix A.
 | GML                 | Cytoscape 2.x (`Creator "Cytoscape"`)                                                                     | Cytoscape "default" style (2.1)                                  |
 | GML                 | Gephi (`Creator "Gephi"` or `Creator Gephi` unquoted, inside `graph [`)                                   | Gephi (6)                                                        |
 | GML                 | OGDF (`Creator "ogdf::GraphAttributes::writeGML"`)                                                        | OGDF (10)                                                        |
-| GML                 | igraph (`Creator "igraph version ..."`), NetworkX (no Creator), SNDlib, Newman's files, unknown           | none                                                             |
+| GML                 | igraph (`Creator "igraph version ..."`, 12), NetworkX (no Creator), SNDlib, Newman's files, unknown       | none                                                             |
 | Pajek               | Pajek                                                                                                     | Pajek (9), partly unverified                                     |
 | CSV, Neo4j CSV, OBO | no drawing tool                                                                                           | none                                                             |
 
@@ -286,14 +287,56 @@ ogdf/ogdf `master` (commit 1a40505ac006); local `src/ogdf-LayoutStandards.*`.
 Node 20 x 20 `Rect`, fill White, stroke Black width 1.0 solid; edge stroke Black width 1.0, arrow
 `Undefined` (left to the writer / graph direction).
 
-## 11. Formats and writers that add no defaults
+## 11. NetworkX (NetworkX node-link JSON)
 
-Plain CSV, Neo4j CSV, OBO, JSON node-link (d3, NetworkX), JGF, and GraphML / GML from NetworkX,
-igraph, SNDlib or an unknown writer. These files come from data tools, not drawing programs.
-(NetworkX's `draw` and igraph's `plot` have drawing defaults, but nothing in the file says it was
-drawn with them.)
+Version: networkx 3.7 (`main`, commit 6da4704cbf32, retrieved 2026-10-11). Source:
+`networkx/drawing/nx_pylab.py` (https://github.com/networkx/networkx/blob/main/networkx/drawing/nx_pylab.py),
+local copy `tmp/style-impl-core/nx_pylab.py`. `draw_networkx` and its helpers state every value as
+a keyword default, and the newer `display()` states the same values in one `defaults` table
+(lines 533-575), so the two drawing paths agree.
 
-## 12. Things the implementation has to decide
+How the writer is recognized: `node_link_data` writes the keys `directed`, `multigraph`, `graph`
+and `nodes`, plus `edges` (3.4 and later) or `links` (earlier)
+(`networkx/readwrite/json_graph/node_link.py` lines 32, 127-129). A d3 node-link file has only
+`nodes` and `links`, so the three extra keys identify NetworkX. NetworkX's GraphML and GML writers
+leave no signature (no generator comment, no `Creator` line), so those files get no defaults.
+
+| Property      | Value                                                                                                                                                     | nx_pylab.py line |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| Node fill     | `#1F78B4`, alpha 1                                                                                                                                        | 1378, 549        |
+| Node shape    | `o` (circle)                                                                                                                                              | 1379             |
+| Node size     | `node_size` 300, a marker AREA in points squared (matplotlib `scatter`), so a diameter of sqrt(300) = 17.3205 points                                      | 1377             |
+| Node border   | not added: `edgecolors` None (`display()`: `"face"`, the fill color), so no visible border                                                                | 1386, 551        |
+| Node label    | `#000000` (`"k"`), 12, `sans-serif`, normal weight, centered                                                                                              | 2142-2149        |
+| Label content | not added: `draw_networkx` labels every node with its id (`with_labels=True`, line 1184) but `draw` does not, and nothing in the file says which was used | 1184             |
+| Edge color    | `#000000` (`"k"`), alpha 1                                                                                                                                | 1768, 568        |
+| Edge width    | 1.0 points                                                                                                                                                | 1767             |
+| Edge style    | `solid`                                                                                                                                                   | 1769             |
+| Edge arrows   | `-\|>` (a filled triangle at the target) for a directed graph, `-` (none) for an undirected one                                                           | 1848-1849        |
+| Edge label    | `#000000`, 12, `sans-serif`, normal                                                                                                                       | 555-559          |
+| Background    | not added: it is matplotlib's figure color, not NetworkX's                                                                                                | --               |
+
+## 12. Tools left out, and why
+
+- **igraph** (GML `Creator "igraph version ..."`, GraphML). The `Creator` line is written by
+  igraph's C core (`src/io/gml.c` lines 950-958 in igraph/igraph `master`), which both front ends
+  share, and the R and Python front ends draw with different defaults: python-igraph's `plot`
+  draws vertices red, size 20, black frame 1, labels black 14 `sans-serif`, edges `#444` width 1
+  (`src/igraph/drawing/cairo/vertex.py` `VisualVertexBuilder` and `edge.py` lines 53-61,
+  igraph/python-igraph `main` commit 6188691e703f, package 1.0.0), while R igraph's `plot` draws
+  vertices in the first palette color, size 15, labels `darkblue`, edges `darkgrey`
+  (`R/plot.common.R` lines 4890-4932, igraph/rigraph `main` commit b4a4d3381d5a). A file says
+  which C library wrote it, not which program drew it, so igraph files get no defaults.
+- **Neo4j Browser** (Neo4j CSV). Neo4j Browser assigns node colors from a palette in the order it
+  first sees each label (`findAvailableDefaultColor`, `src/neo4j-arc/graph-visualization/models/GraphStyle.ts`
+  lines 269-280 and 357 in neo4j/neo4j-browser `master`), so the same file is drawn with
+  different colors depending on the query and the user's saved style; there is no fixed default to
+  apply. A Neo4j CSV file is an import file, not a drawing.
+- **NetworkX GraphML and GML**: not recognizable (section 11).
+- **Plain CSV, OBO, d3 node-link, JGF, SNDlib and unknown GraphML or GML writers**: these files
+  come from data tools, not drawing programs.
+
+## 13. Things the implementation has to decide
 
 1. Derived defaults. Two tools' defaults are not constants: Gephi colors an edge from its source
    node (Overview) or the mix of both ends (Preview), and vis-network colors an uncolored edge

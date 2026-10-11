@@ -59,9 +59,16 @@ const config: KnipConfig = {
             project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
         },
 
-        // graph-io package (src/index.ts re-exports every per-format subpath barrel)
+        // graph-io package (src/index.ts re-exports every per-format subpath barrel; src/styles/index.ts is
+        // the format-independent @graphty/graph-io/styles entry)
         "graph-io": {
-            entry: ["src/index.ts!", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
+            entry: [
+                "src/index.ts!",
+                "src/styles/index.ts!",
+                "test/**/*.test.ts",
+                "test/types/**/*.test-d.ts",
+                "scripts/**/*.{ts,js}",
+            ],
             project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
         },
 

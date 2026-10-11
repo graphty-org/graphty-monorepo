@@ -10,6 +10,7 @@ export default defineConfig({
     // the documentation examples (docs/examples/) import the package by its published name, as a reader does
     resolve: {
         alias: [
+            { find: /^@graphty\/graph-io\/styles$/, replacement: `${src}styles/index.ts` },
             { find: /^@graphty\/graph-io\/([a-z0-9]+)$/, replacement: `${src}formats/$1/index.ts` },
             { find: /^@graphty\/graph-io$/, replacement: `${src}index.ts` },
             // the notebook examples import it from a CDN, as a page without a bundler does

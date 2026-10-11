@@ -76,6 +76,11 @@
             "types": "./dist/cys.d.ts",
             "import": "./dist/cys.js",
             "default": "./dist/cys.js"
+        },
+        "./styles": {
+            "types": "./dist/styles.d.ts",
+            "import": "./dist/styles.js",
+            "default": "./dist/styles.js"
         }
     },
     "sideEffects": false,

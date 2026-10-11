@@ -294,7 +294,8 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
         const pkg = JSON.parse(readFileSync(join(here, "..", "..", "package.json"), "utf-8")) as {
             exports: Record<string, Record<string, string>>;
         };
-        expect(Object.keys(pkg.exports).sort()).toEqual([".", ...FORMATS.map((f) => `./${f}`)].sort());
+        // the format subpaths, plus the format-independent styles module
+        expect(Object.keys(pkg.exports).sort()).toEqual([".", ...FORMATS.map((f) => `./${f}`), "./styles"].sort());
         for (const [key, entry] of Object.entries(pkg.exports)) {
             const name = key === "." ? "graph-io" : key.slice(2);
             expect(Object.keys(entry)[0], `${key}: types must come first`).toBe("types");

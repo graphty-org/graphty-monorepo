@@ -16,7 +16,7 @@ export interface VocabEntry {
 }
 
 /** A vocabulary entry with how well it matched. */
-export interface Candidate {
+interface Candidate {
     entry: VocabEntry;
     score: number;
 }
@@ -29,7 +29,7 @@ const SOUND = 0.85;
  * @param s - the text
  * @returns the squashed text ("Page Rank" becomes "pagerank")
  */
-export const squash = (s: string): string => s.toLowerCase().replaceAll(/[^a-z0-9.]/g, "");
+const squash = (s: string): string => s.toLowerCase().replaceAll(/[^a-z0-9.]/g, "");
 
 /**
  * How alike a heard text and a spoken form are, 0 to 1.

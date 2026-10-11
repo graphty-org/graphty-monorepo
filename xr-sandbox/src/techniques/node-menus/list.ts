@@ -9,7 +9,7 @@ import { CylinderPanel, GUI3DManager, HolographicButton, TextBlock } from "@baby
 import type { Verb } from "./verbs";
 
 /** The last item of every list: closes it, choosing nothing. */
-export const CLOSE: Verb = { id: "close", label: "Close" };
+const CLOSE: Verb = { id: "close", label: "Close" };
 
 /** Button size in meters (one GUI 3D unit). */
 const UNIT_M = 0.045;

@@ -7,7 +7,7 @@ import type { TechniqueContext } from "../../../framework/technique";
 import { guiButton, guiText } from "../../../scene/ui";
 
 /** The sieve as the palette sees it: why it cannot be taken (null when it can), and take it. */
-export interface SieveHandle {
+interface SieveHandle {
     reason(): string | null;
     take(): void;
 }

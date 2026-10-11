@@ -11,12 +11,12 @@
 export const JOINTS = 25;
 const HAND = JOINTS * 16;
 /** handy-work's .handpose layout: [joint count, left 25x16, right 25x16, left weights, right weights]. */
-export const TEMPLATE_LENGTH = 1 + 2 * HAND + 2 * JOINTS;
+const TEMPLATE_LENGTH = 1 + 2 * HAND + 2 * JOINTS;
 /** The thumb's joints (metacarpal to tip). */
 export const THUMB = [1, 2, 3, 4];
 
 /** Which hand. */
-export type Side = "left" | "right";
+type Side = "left" | "right";
 
 /**
  * One hand's 25 joint matrices inside a template.

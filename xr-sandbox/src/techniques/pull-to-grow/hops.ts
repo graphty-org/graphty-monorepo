@@ -12,7 +12,7 @@ export interface HopSteps {
     hystM: number;
 }
 
-export const DEFAULT_STEPS: HopSteps = { deadM: 0.06, stepM: 0.08, hystM: 0.02 };
+const DEFAULT_STEPS: HopSteps = { deadM: 0.06, stepM: 0.08, hystM: 0.02 };
 
 /**
  * The boundary between `k - 1` and `k` hops.

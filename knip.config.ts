@@ -285,7 +285,7 @@ const config: KnipConfig = {
         // xr-sandbox: the private XR technique playground (design/xr/sandbox/design.md); index.html loads
         // src/main.ts, which imports the emulator and the dry-run hooks lazily
         "xr-sandbox": {
-            entry: ["src/main.ts!", "test/**/*.test.ts", "dryrun/**/*.mjs"],
+            entry: ["test/**/*.test.ts", "dryrun/**/*.mjs"],
             project: ["src/**/*.ts!", "test/**/*.ts", "dryrun/**/*.mjs"],
         },
 

@@ -104,7 +104,7 @@ const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
  * @param word - the word, for a "word" slot
  * @returns its entries
  */
-export function vocabulary(kind: SlotKind, lex: Lexicon, word?: string): VocabEntry[] {
+function vocabulary(kind: SlotKind, lex: Lexicon, word?: string): VocabEntry[] {
     const nodes = (): VocabEntry[] => lex.nodes.map((n, i) => ({ id: String(i), label: n, spoken: [n.toLowerCase()] }));
     switch (kind) {
         case "verb":
@@ -221,7 +221,7 @@ function fill(tokens: string[], i: number, slot: Slot | { kind: "verb" }, lex: L
  * @param word - the word, for a "word" slot
  * @returns the chip, its alternatives ranked by how its text sounds
  */
-export function chipFor(kind: SlotKind, value: string, lex: Lexicon, from = 0, to = from, word?: string): SentenceChip {
+function chipFor(kind: SlotKind, value: string, lex: Lexicon, from = 0, to = from, word?: string): SentenceChip {
     const vocab = vocabulary(kind, lex, word);
     const entry = vocab.find((e) => e.id === value);
     const text = entry?.label ?? value;
@@ -435,11 +435,11 @@ export const complete = (chips: readonly SentenceChip[]): boolean =>
     chips.length > 0 && chips[0].kind === "verb" && chips.every((c) => c.state === "ok");
 
 /** A command the sentence means, or why it cannot run. */
-export type Intent =
+type Intent =
     { [C in CommandCode]: { code: C; params: CommandParams[C] } }[CommandCode] | { code: "undo" } | { error: string };
 
 /** What "these" and "this" point at. */
-export interface Deixis {
+interface Deixis {
     selection: readonly number[];
     /** The node the dominant hand pointed at when the speech began, or -1. */
     hovered: number;

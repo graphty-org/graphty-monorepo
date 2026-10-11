@@ -24,7 +24,7 @@ const PAST: Record<string, string> = {
  * @param label - the step's label ("Color by PageRank")
  * @returns "Colored by PageRank -- Undo"
  */
-export const toastText = (label: string): string => {
+const toastText = (label: string): string => {
     const [verb, ...rest] = label.split(" ");
     return `${[PAST[verb] ?? verb, ...rest].join(" ")} -- Undo`;
 };

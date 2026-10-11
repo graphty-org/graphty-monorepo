@@ -41,7 +41,7 @@ export function readJoints(frame: XRFrame, hand: XRHand, space: XRReferenceSpace
 }
 
 /** A recording, as logged. */
-export interface Recording {
+interface Recording {
     name: string;
     hands: ("left" | "right")[];
     joints: number;

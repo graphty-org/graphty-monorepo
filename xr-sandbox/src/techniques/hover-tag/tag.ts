@@ -4,7 +4,7 @@
 import type { GraphState } from "../../core/state";
 
 /** What the tag needs from the loaded graph (a subset of GraphData). */
-export interface TagData {
+interface TagData {
     names: string[];
     results: Record<string, Float64Array>;
     rank: Record<string, Uint32Array>;
@@ -19,7 +19,7 @@ export interface TagData {
  * @param state - the graph state
  * @returns a result id, or null
  */
-export function currentResult(data: TagData, state: Readonly<GraphState>): string | null {
+function currentResult(data: TagData, state: Readonly<GraphState>): string | null {
     if (state.colorBy && !data.categorical[state.colorBy]) {
         return state.colorBy;
     }

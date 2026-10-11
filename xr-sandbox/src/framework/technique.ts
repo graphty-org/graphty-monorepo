@@ -176,22 +176,3 @@ export interface Technique {
     onPress?(p: OwnedPress, hand: Hand): PressSession | undefined;
     smoke?: SmokeStep;
 }
-
-/**
- * A technique that is not built yet: its real id, name, color, needs and claims, so the registry,
- * presets, gear panel and input map are complete before it exists.
- * @param t - the technique's identity and claims
- * @returns the stub
- */
-export function stub(
-    t: Pick<Technique, "id" | "name" | "color" | "claims"> & Partial<Pick<Technique, "needs" | "arm">>,
-): Technique {
-    return {
-        ...t,
-        settings: [],
-        unavailable: "not built yet",
-        prepare: () => undefined,
-        activate: () => undefined,
-        deactivate: () => undefined,
-    };
-}

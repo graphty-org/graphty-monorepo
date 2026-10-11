@@ -7,9 +7,9 @@
 import { type Mesh, Quaternion, type Scene, SixDofDragBehavior, type TransformNode, Vector3 } from "@babylonjs/core";
 
 /** Snap back when dropped this close to the slot (meters). */
-export const SNAP_M = 0.1;
+const SNAP_M = 0.1;
 /** ...and facing within this angle of the slot (degrees). */
-export const SNAP_DEG = 70;
+const SNAP_DEG = 70;
 
 /** One card's tear-off state. */
 export interface TearOff {
@@ -30,7 +30,7 @@ export interface TearOff {
  * @param slot.fwd - world forward
  * @returns true when within SNAP_M and facing within SNAP_DEG
  */
-export function snaps(card: { pos: Vector3; fwd: Vector3 }, slot: { pos: Vector3; fwd: Vector3 }): boolean {
+function snaps(card: { pos: Vector3; fwd: Vector3 }, slot: { pos: Vector3; fwd: Vector3 }): boolean {
     const cos = Vector3.Dot(card.fwd.normalizeToNew(), slot.fwd.normalizeToNew());
     return Vector3.Distance(card.pos, slot.pos) <= SNAP_M && cos >= Math.cos((SNAP_DEG * Math.PI) / 180);
 }

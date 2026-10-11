@@ -13,15 +13,15 @@ export const COMMANDS = ["none", "next color", "previous color", "undo", "redo",
 export type Command = (typeof COMMANDS)[number];
 
 /** Quest thumb microgestures, as Babylon's oculus-hand profile names them (gamepad buttons 5 to 9). */
-export const MICRO = ["swipe-left", "swipe-right", "swipe-forward", "swipe-backward", "tap-thumb"] as const;
+const MICRO = ["swipe-left", "swipe-right", "swipe-forward", "swipe-backward", "tap-thumb"] as const;
 
 /** Paired swipe settings and what each choice binds. */
-export const SWIPES_LR: Record<string, [Command, Command]> = {
+const SWIPES_LR: Record<string, [Command, Command]> = {
     "previous / next color": ["previous color", "next color"],
     "undo / redo": ["undo", "redo"],
     none: ["none", "none"],
 };
-export const SWIPES_FB: Record<string, [Command, Command]> = {
+const SWIPES_FB: Record<string, [Command, Command]> = {
     "redo / undo": ["redo", "undo"],
     "next / previous color": ["next color", "previous color"],
     none: ["none", "none"],

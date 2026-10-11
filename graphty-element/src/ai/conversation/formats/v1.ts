@@ -3,8 +3,8 @@
  * section 5.1), as strict zod schemas.
  *
  * This is the one definition of a saved message: the engine's `SavedMessage` and `SavedPart` are
- * these types. It defines only the part and pending kinds the element writes today: a kind a later
- * feature needs is added with that feature, before the version is released. Every part has an
+ * these types. It defines only the part and pending kinds the element's features write: a kind a
+ * later feature needs is added with that feature, before the version is released. Every part has an
  * `origin`; `providerState` is the only opaque field.
  *
  * Once this file's JSON Schema (`graphty-ai-conversation.v1.schema.json`) is on master it never
@@ -64,7 +64,8 @@ const toolCallPart = z.strictObject({
 
 const toolResultPart = z.strictObject({
     type: z.literal("tool-result"),
-    origin: z.literal("graph-data"),
+    /** `graph-data` for what a tool returned; `reader` for the reader's answer to a question. */
+    origin: z.enum(["graph-data", "reader"]),
     callId: id,
     code: resultCode,
     params: resultParams,
@@ -88,6 +89,26 @@ const outcomePart = z.strictObject({
     params: resultParams,
 });
 
+const role = z.enum(["user", "assistant", "tool"]);
+
+/** One message of a helper's conversation: any part but another helper's (helpers do not delegate). */
+const helperMessageSchema = z.strictObject({
+    id,
+    role,
+    parts: z.array(z.discriminatedUnion("type", [textPart, toolCallPart, toolResultPart, reasoningPart, outcomePart])),
+});
+
+/** A helper's conversation, run for one `delegate` call of the message it sits in. */
+const agentRefPart = z.strictObject({
+    type: z.literal("agent-ref"),
+    origin: z.literal("graphty"),
+    /** The helper's role name. */
+    agent: id,
+    /** The `delegate` call it answers. */
+    callId: id,
+    messages: z.array(helperMessageSchema),
+});
+
 /** One part of a message. */
 export const partSchema = z.discriminatedUnion("type", [
     textPart,
@@ -95,12 +116,13 @@ export const partSchema = z.discriminatedUnion("type", [
     toolResultPart,
     reasoningPart,
     outcomePart,
+    agentRefPart,
 ]);
 
 /** One message of a conversation. */
 export const messageSchema = z.strictObject({
     id,
-    role: z.enum(["user", "assistant", "tool"]),
+    role,
     parts: z.array(partSchema),
 });
 
@@ -125,8 +147,10 @@ const approvalPending = z.strictObject({
     id,
     /** The assistant message whose calls are held. */
     messageId: id,
-    /** Why it was held (`large`, `policy`, ...). Open. */
+    /** Why it was held (`large`, `policy`, `plan`, ...). Open. */
     gate: id,
+    /** The helper whose calls are held, when a helper made them. */
+    agent: id.optional(),
     calls: z.array(z.strictObject({ callId: id, command: id, arguments: callArguments })).min(1),
     preview: previewSchema,
     /** The graph when it was held, to tell whether it changed since. */
@@ -142,8 +166,45 @@ const approvalPending = z.strictObject({
     createdAt: timestamp,
 });
 
+/** A question the model asked the reader, waiting on the answer. */
+const questionPending = z.strictObject({
+    kind: z.literal("question"),
+    id,
+    /** The assistant message that asked. */
+    messageId: id,
+    /** The `ask_reader` call the answer becomes the result of. */
+    callId: id,
+    question: z.string(),
+    choices: z.array(z.string()).min(2).max(10),
+    /** Whether the reader may pick more than one. */
+    multiple: z.boolean(),
+    claim,
+    createdAt: timestamp,
+});
+
+/** A plan's steps still to run once what holds the message ends. */
+const planStepPending = z.strictObject({
+    kind: z.literal("plan-step"),
+    id,
+    messageId: id,
+    plan: z.strictObject({
+        steps: z
+            .array(
+                z.strictObject({
+                    agents: z.array(id).min(1),
+                    order: z.enum(["parallel", "sequence"]).optional(),
+                }),
+            )
+            .min(1),
+    }),
+    /** The index in `plan.steps` of the step to run next. */
+    next: z.number().int().nonnegative(),
+    claim,
+    createdAt: timestamp,
+});
+
 /** Something waiting on the reader. */
-export const pendingSchema = z.discriminatedUnion("kind", [approvalPending]);
+export const pendingSchema = z.discriminatedUnion("kind", [approvalPending, questionPending, planStepPending]);
 
 /** One saved conversation. */
 export const conversationSchema = z.strictObject({

@@ -144,7 +144,7 @@ describe("approvals that survive a reload", () => {
             assistant.controller.getPendingApprovals().map((pending) => pending.id),
             [request],
         );
-        assert.deepStrictEqual(assistant.controller.getStatus().pending, { approvals: 1 });
+        assert.deepStrictEqual(assistant.controller.getStatus().pending, { approvals: 1, questions: 0 });
         assert.deepStrictEqual(replays(assistant.events), [], "not asked before a listener can be added");
         assert.deepStrictEqual(
             assistant.controller.getConversation()?.pending.map((pending) => pending.id),

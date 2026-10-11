@@ -30,7 +30,12 @@ describe("the published list of the assistant's tools", () => {
             }));
         assert.deepStrictEqual(
             generated,
-            ASSISTANT_TOOLS.map(({ name, core, actions }) => ({ name, core, actions: [...actions] })),
+            // The loop's own tools (`delegate`, `ask_reader`) are offered by no profile and not generated.
+            ASSISTANT_TOOLS.filter((tool) => tool.profiles.length > 0).map(({ name, core, actions }) => ({
+                name,
+                core,
+                actions: [...actions],
+            })),
         );
     });
 

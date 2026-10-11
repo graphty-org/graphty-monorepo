@@ -8,7 +8,7 @@
  */
 
 import { AI_CONVERSATION_FORMAT, AI_CONVERSATION_FORMAT_VERSION } from "../../../catalog/ai";
-import { type ConversationRecordV1, conversationSchema, TOOL_RESULT_MAX_CHARS } from "./v1";
+import { type ConversationRecordV1, conversationSchema, type SavedMessage, TOOL_RESULT_MAX_CHARS } from "./v1";
 
 export type { ConversationRecordV1 as ConversationRecord } from "./v1";
 
@@ -79,17 +79,19 @@ export function writeConversation(record: ConversationRecordV1, options: WriteCo
     const secrets = (options.secrets ?? []).filter((secret) => secret.length > 0);
     const redact = (text: string): string =>
         secrets.reduce((out, secret) => out.replaceAll(secret, KEY_PLACEHOLDER), text);
-    const capped = {
-        ...record,
-        messages: record.messages.map((message) => ({
+    const cap = (messages: readonly SavedMessage[]): unknown[] =>
+        messages.map((message) => ({
             ...message,
-            parts: message.parts.map((part) =>
-                part.type === "tool-result"
-                    ? { ...part, content: redact(part.content).slice(0, TOOL_RESULT_MAX_CHARS) }
-                    : part,
-            ),
-        })),
-    };
+            parts: message.parts.map((part) => {
+                if (part.type === "tool-result") {
+                    return { ...part, content: redact(part.content).slice(0, TOOL_RESULT_MAX_CHARS) };
+                }
+
+                // A helper's messages hold no agent-ref, so this recursion is one level deep.
+                return part.type === "agent-ref" ? { ...part, messages: cap(part.messages) } : part;
+            }),
+        }));
+    const capped = { ...record, messages: cap(record.messages) };
     const valid = conversationSchema.parse(canonical(capped, redact));
     return `${JSON.stringify(
         canonical(valid, (text) => text),

@@ -62,8 +62,8 @@ export interface AiStatus {
     /** Whether the current operation can be cancelled */
     canCancel: boolean;
 
-    /** What waits on the reader: open approval requests. Absent when nothing does. */
-    pending?: { approvals: number };
+    /** What waits on the reader: open approval requests and questions. Absent when nothing does. */
+    pending?: { approvals: number; questions: number };
 }
 
 /** Callback type for status change subscriptions */
@@ -130,8 +130,9 @@ export class AiStatusManager {
      * @param approvals - The open requests.
      */
     setPendingApprovals(approvals: number): void {
-        const { pending: _was, ...rest } = this.status;
-        this.status = approvals > 0 ? { ...rest, pending: { approvals } } : rest;
+        const { pending: was, ...rest } = this.status;
+        const questions = was?.questions ?? 0;
+        this.status = approvals + questions > 0 ? { ...rest, pending: { approvals, questions } } : rest;
         this.notify();
     }
 

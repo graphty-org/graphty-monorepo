@@ -350,9 +350,86 @@ describe("the saved conversation format", () => {
                 assert.deepEqual(readConversation(input), invalid, JSON.stringify(input)?.slice(0, 80));
             }
         });
+        it("a helper's conversation holding another helper's is an invalid record", () => {
+            const record = goldenObject();
+            const messages = record.messages as { id: string; parts: { type: string; messages?: unknown[] }[] }[];
+            const ref = messages
+                .find((message) => message.id === "m8")
+                ?.parts.find((part) => part.type === "agent-ref");
+            assert.isDefined(ref);
+            ref?.messages?.push({
+                id: "h4",
+                role: "assistant",
+                parts: [{ type: "agent-ref", origin: "graphty", agent: "counter", callId: "d2", messages: [] }],
+            });
+            assert.deepEqual(readConversation(record), {
+                ok: false,
+                code: "AI_HISTORY_UNAVAILABLE",
+                params: { reason: "invalid-record" },
+            });
+        });
+
+        it("a question with fewer than two choices, or more than ten, is an invalid record", () => {
+            for (const choices of [["yes"], Array.from({ length: 11 }, (_, index) => String(index))]) {
+                const record = goldenObject();
+                const pending = record.pending as { kind: string; choices?: string[] }[];
+                const question = pending.find((entry) => entry.kind === "question");
+                assert.isDefined(question);
+                if (question) {
+                    question.choices = choices;
+                }
+
+                assert.deepEqual(readConversation(record), {
+                    ok: false,
+                    code: "AI_HISTORY_UNAVAILABLE",
+                    params: { reason: "invalid-record" },
+                });
+            }
+        });
     });
 
     describe("writing", () => {
+        it("cuts a tool result's text inside a helper's conversation too", () => {
+            const record = golden();
+            const long: ConversationRecord = {
+                ...record,
+                messages: [
+                    {
+                        id: "m1",
+                        role: "assistant",
+                        parts: [
+                            {
+                                type: "agent-ref",
+                                origin: "graphty",
+                                agent: "counter",
+                                callId: "d1",
+                                messages: [
+                                    {
+                                        id: "h1",
+                                        role: "tool",
+                                        parts: [
+                                            {
+                                                type: "tool-result",
+                                                origin: "graph-data",
+                                                callId: "t1",
+                                                code: "AI_COMPLETED",
+                                                params: {},
+                                                content: "x".repeat(9000),
+                                            },
+                                        ],
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            };
+            const read = readConversation(writeConversation(long));
+            const ref = read.ok ? read.record.messages[0].parts[0] : undefined;
+            const part = ref?.type === "agent-ref" ? ref.messages[0].parts[0] : undefined;
+            assert.strictEqual(part?.type === "tool-result" ? part.content.length : -1, 8000);
+        });
+
         it("cuts a tool result's text to 8,000 characters", () => {
             const record = golden();
             const long: ConversationRecord = {

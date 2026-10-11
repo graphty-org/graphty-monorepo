@@ -73,6 +73,8 @@ export interface GraphtyElementJSXProps {
     "node-data"?: string;
     "node-id-path"?: string;
     "node-label-path"?: string;
+    "onai-agent-end"?: (event: CustomEvent<EventOfType<"ai-agent-end">>) => void;
+    "onai-agent-start"?: (event: CustomEvent<EventOfType<"ai-agent-start">>) => void;
     "onai-approval-requested"?: (event: CustomEvent<EventOfType<"ai-approval-requested">>) => void;
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
     "onai-command-complete"?: (event: CustomEvent<EventOfType<"ai-command-complete">>) => void;
@@ -81,6 +83,7 @@ export interface GraphtyElementJSXProps {
     "onai-conversation-changed"?: (event: CustomEvent<EventOfType<"ai-conversation-changed">>) => void;
     "onai-export-ready"?: (event: CustomEvent<EventOfType<"ai-export-ready">>) => void;
     "onai-pending-resolved"?: (event: CustomEvent<EventOfType<"ai-pending-resolved">>) => void;
+    "onai-question-asked"?: (event: CustomEvent<EventOfType<"ai-question-asked">>) => void;
     "onai-status-change"?: (event: CustomEvent<EventOfType<"ai-status-change">>) => void;
     "onai-stream-chunk"?: (event: CustomEvent<EventOfType<"ai-stream-chunk">>) => void;
     "onai-stream-tool-call"?: (event: CustomEvent<EventOfType<"ai-stream-tool-call">>) => void;

@@ -303,6 +303,14 @@ export interface GraphtyElementJSXProps {
      */
     "acceleration-min-nodes"?: string;
     /**
+     * A helper finished its task.
+     */
+    "onai-agent-end"?: (event: CustomEvent<EventOfType<"ai-agent-end">>) => void;
+    /**
+     * The assistant handed a task to a helper (`AiAgentRole`), which starts on it.
+     */
+    "onai-agent-start"?: (event: CustomEvent<EventOfType<"ai-agent-start">>) => void;
+    /**
      * The assistant held a batch of its changes for the reader's approval: it was large, slow, replaced the graph, could not be undone or fetched a URL the reader did not give. Nothing it asked for has happened. Answer with `resolveAiApproval(request.id, { approve })`; the id expires at the reader's next message. A host that listens for none of these never runs a held batch.
      */
     "onai-approval-requested"?: (event: CustomEvent<EventOfType<"ai-approval-requested">>) => void;
@@ -334,6 +342,10 @@ export interface GraphtyElementJSXProps {
      * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`), cancelled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
      */
     "onai-pending-resolved"?: (event: CustomEvent<EventOfType<"ai-pending-resolved">>) => void;
+    /**
+     * The model asked the reader a question with a few choices, and the message waits for the answer (the command resolved `AI_QUESTION_ASKED`). Draw the question and its choices; answer with `answerAiQuestion(request.id, choice)`, by the choice's value. Only with `questions: true`.
+     */
+    "onai-question-asked"?: (event: CustomEvent<EventOfType<"ai-question-asked">>) => void;
     /**
      * Main event for UI binding - single source of truth for AI status
      */

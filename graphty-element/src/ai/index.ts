@@ -29,6 +29,10 @@ export type {
     AiConversationSummary,
 } from "./conversation/snapshot";
 
+// Helpers, plans and their configuration errors
+export type { AiAgentRole, AiPlan, AiRouter } from "./agents";
+export { AiConfigError } from "./agents";
+
 // Manager (Phase 3)
 export type { AiManagerConfig, KeyPersistenceConfig } from "./AiManager";
 export { AiManager, createAiManager } from "./AiManager";

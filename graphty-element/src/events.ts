@@ -738,7 +738,10 @@ export type AiEvent =
     | AiApprovalRequestedEvent
     | AiExportReadyEvent
     | AiConversationChangedEvent
-    | AiPendingResolvedEvent;
+    | AiPendingResolvedEvent
+    | AiQuestionAskedEvent
+    | AiAgentStartEvent
+    | AiAgentEndEvent;
 
 /** Main event for UI binding - single source of truth for AI status */
 export interface AiStatusChangeEvent {
@@ -837,8 +840,11 @@ export interface AiApprovalRequestedEvent {
 export interface AiApprovalRequest {
     /** The single-use id `resolveAiApproval` takes. */
     readonly id: string;
-    /** Why it was held; `"policy"` when the host's approval policy asked. OPEN UNION. */
-    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | (string & {}); // NOSONAR(S4335): the open-union idiom
+    /**
+     * Why it was held; `"policy"` when the host's approval policy asked, `"plan"` for a hand-off
+     * to a helper while `confirmPlans` is set. OPEN UNION.
+     */
+    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | (string & {}); // NOSONAR(S4335): the open-union idiom
     /** The tool calls held, as the model made them. */
     readonly calls: readonly { readonly tool: string; readonly arguments: Readonly<Record<string, unknown>> }[];
     /** What the reader is shown before approving; empty for a `"policy"` hold. */
@@ -849,6 +855,62 @@ export interface AiApprovalRequest {
     readonly messageId?: string;
     /** When it was held, as an ISO 8601 time. */
     readonly createdAt?: string;
+    /** The helper (`AiAgentRole.name`) whose calls are held, when a helper made them. */
+    readonly agent?: string;
+}
+
+/**
+ * The model asked the reader a question with a few choices, and the message waits for the answer
+ * (the command resolved `AI_QUESTION_ASKED`). Draw the question and its choices; answer with
+ * `answerAiQuestion(request.id, choice)`, by the choice's value. Only with `questions: true`.
+ */
+export interface AiQuestionAskedEvent {
+    /** The event's name. */
+    type: "ai-question-asked";
+    /** What the reader is asked. */
+    request: AiQuestionRequest;
+    /** True when the question was asked earlier and is asked again, as for an approval. */
+    replayed: boolean;
+}
+
+/** A question the model asks the reader. */
+export interface AiQuestionRequest {
+    /** The single-use id `answerAiQuestion` takes. */
+    readonly id: string;
+    /** The question, as the model wrote it, in the reader's language. */
+    readonly question: string;
+    /** The answers the reader may give, as the model wrote them: two to ten. */
+    readonly choices: readonly string[];
+    /** Whether the reader may pick more than one. */
+    readonly multiple: boolean;
+    /** The saved conversation it belongs to, when the assistant keeps `history`. */
+    readonly conversationId?: string;
+    /** The conversation message that asked. */
+    readonly messageId?: string;
+    /** When it was asked, as an ISO 8601 time. */
+    readonly createdAt?: string;
+}
+
+/** The assistant handed a task to a helper (`AiAgentRole`), which starts on it. */
+export interface AiAgentStartEvent {
+    /** The event's name. */
+    type: "ai-agent-start";
+    /** The helper's name. */
+    agent: string;
+    /** The task it was handed, as the main model or the plan wrote it. */
+    task: string;
+}
+
+/** A helper finished its task. */
+export interface AiAgentEndEvent {
+    /** The event's name. */
+    type: "ai-agent-end";
+    /** The helper's name. */
+    agent: string;
+    /** How it ended, as an AI command's result code. */
+    code: AiResultCode;
+    /** The facts behind `code`, with the tokens it used (`inputTokens`, `outputTokens`). */
+    params: AiResultParams;
 }
 
 /**
@@ -859,10 +921,10 @@ export interface AiApprovalRequest {
 export interface AiPendingResolvedEvent {
     /** The event's name. */
     type: "ai-pending-resolved";
-    /** The request's id, as `ai-approval-requested` gave it. */
+    /** The request's id, as `ai-approval-requested` or `ai-question-asked` gave it. */
     id: string;
     /** What was waiting. OPEN UNION. */
-    kind: "approval" | (string & {}); // NOSONAR(S4335): the open-union idiom
+    kind: "approval" | "question" | (string & {}); // NOSONAR(S4335): the open-union idiom
     /**
      * How it ended: `AI_COMPLETED` (approved), `AI_APPROVAL_DENIED`, `AI_APPROVAL_STALE`,
      * `AI_CANCELLED` or `AI_UNDONE`.

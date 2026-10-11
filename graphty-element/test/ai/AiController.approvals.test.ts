@@ -72,7 +72,7 @@ describe("approval policies decide before anything runs", () => {
         assert.deepStrictEqual(request.preview, {});
         assert.isString(request.messageId);
         assert.isString(request.createdAt);
-        assert.deepStrictEqual(assistant.controller.getStatus().pending, { approvals: 1 });
+        assert.deepStrictEqual(assistant.controller.getStatus().pending, { approvals: 1, questions: 0 });
     });
 
     it("{ ask } holds only the batches that call the named tools", async () => {

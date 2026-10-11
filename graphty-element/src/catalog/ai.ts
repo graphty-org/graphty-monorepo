@@ -245,6 +245,17 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  *   happened. `{ gate, request }`: answer with `resolveAiApproval(request, { approve })`, which
  *   continues the message and resolves with its final result -- this code again, with a new
  *   request, when the change is held for another reason.
+ * - `AI_QUESTION_ASKED` -- the model asked the reader a question and waits for the answer.
+ *   `{ request }`: answer with `answerAiQuestion(request, answer)`, which continues the message and
+ *   resolves with its final result.
+ * - `AI_ANSWER_INVALID` -- an answer to a question is not one of its choices (or more than one
+ *   for a question that takes one). `{ request }`: nothing continued and the question stays open;
+ *   its choices are in `getPendingAiQuestions()`.
+ * - `AI_CONFIG_INVALID` -- the assistant's configuration names something it cannot use (the
+ *   code of an `AiConfigError` from `enableAiControl`), or a router's plan names an unknown
+ *   helper; nothing was sent. `{ agent, field, reason }`: the helper, the field
+ *   (`"name"`, `"purpose"`, `"commands"`, `"provider"`, `"router"`) and why (`"unknown-command"`,
+ *   `"unknown-agent"`, `"duplicate"`, `"reserved"`, `"empty"`).
  * - `AI_ROLLBACK_PARTIAL` -- taking the message back stopped at someone else's step. `{ steps }`.
  * - `AI_APPROVAL_STALE` -- a held change was not run because its request ended without a
  *   decision. `{ request, reason }`: `"graph-changed"` (answered after the graph changed; the
@@ -298,6 +309,9 @@ export const AI_RESULT_CODES = Object.freeze([
     "AI_HISTORY_UNAVAILABLE",
     "AI_HISTORY_NEWER_FORMAT",
     "AI_STORAGE_FAILED",
+    "AI_QUESTION_ASKED",
+    "AI_ANSWER_INVALID",
+    "AI_CONFIG_INVALID",
 ] as const);
 
 /**

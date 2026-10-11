@@ -40,7 +40,7 @@ export interface AssistantToolDescriptor {
     readonly core: boolean;
     /**
      * The profiles that offer it directly. The small profile reaches every other tool through
-     * `call`.
+     * `call`. Empty for a tool the assistant's loop offers when a setting switches it on.
      */
     readonly profiles: readonly AssistantToolProfile[];
     /** Its actions, the values of its `action` field. OPEN LIST: actions may be added in a minor release. */
@@ -211,6 +211,10 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         actions: ["enter", "exit", "support"],
     },
     { name: "call", plainName: "Call a tool", core: true, profiles: ["small"], actions: [] },
+    // The loop's own tools, offered by no profile: `delegate` when helpers are configured
+    // (`agents`), `ask_reader` when questions are switched on (`questions: true`).
+    { name: "delegate", plainName: "Delegate to a helper", core: true, profiles: [], actions: [] },
+    { name: "ask_reader", plainName: "Ask the reader", core: true, profiles: [], actions: [] },
 ]);
 
 /**

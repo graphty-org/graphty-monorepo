@@ -54,6 +54,10 @@ export type {
 } from "./src/ai/index";
 export { AiController } from "./src/ai/index";
 
+// Helpers the assistant hands tasks to, the plans that order them, and a configuration error
+export type { AiAgentRole, AiPlan, AiRouter } from "./src/ai/index";
+export { AiConfigError } from "./src/ai/index";
+
 // AI Manager
 export type { AiManagerConfig, KeyPersistenceConfig } from "./src/ai/index";
 export { AiManager, createAiManager } from "./src/ai/index";
@@ -63,12 +67,16 @@ export { AiManager, createAiManager } from "./src/ai/index";
 export type { AssistantGateLimits } from "./src/ai/tools/types";
 export { DEFAULT_ASSISTANT_GATE_LIMITS } from "./src/ai/tools/types";
 export type {
+    AiAgentEndEvent,
+    AiAgentStartEvent,
     AiApprovalPreview,
     AiApprovalRequest,
     AiApprovalRequestedEvent,
     AiConversationChangedEvent,
     AiExportReadyEvent,
     AiPendingResolvedEvent,
+    AiQuestionAskedEvent,
+    AiQuestionRequest,
 } from "./src/events";
 
 // AI Commands

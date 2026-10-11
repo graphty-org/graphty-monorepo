@@ -52,6 +52,30 @@ import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod';
 
 // @public
+export interface AiAgentEndEvent {
+    agent: string;
+    code: AiResultCode;
+    params: AiResultParams;
+    type: "ai-agent-end";
+}
+
+// @public
+export interface AiAgentRole {
+    readonly commands: readonly string[];
+    readonly model?: string;
+    readonly name: string;
+    readonly provider?: AiProviderId;
+    readonly purpose: string;
+}
+
+// @public
+export interface AiAgentStartEvent {
+    agent: string;
+    task: string;
+    type: "ai-agent-start";
+}
+
+// @public
 export interface AiApprovalAnswer {
     readonly approve: boolean;
     readonly calls?: readonly {
@@ -80,13 +104,14 @@ export interface AiApprovalPreview {
 
 // @public
 export interface AiApprovalRequest {
+    readonly agent?: string;
     readonly calls: readonly {
         readonly tool: string;
         readonly arguments: Readonly<Record<string, unknown>>;
     }[];
     readonly conversationId?: string;
     readonly createdAt?: string;
-    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | (string & {});
+    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | (string & {});
     readonly id: string;
     readonly messageId?: string;
     readonly preview: AiApprovalPreview;
@@ -121,6 +146,13 @@ export interface AiCallRecord {
 export interface AiCommandOptions {
     readonly conversation?: string;
     readonly via?: "text" | "voice";
+}
+
+// @public
+export class AiConfigError extends Error {
+    constructor(params: AiResultParams);
+    readonly code = "AI_CONFIG_INVALID";
+    readonly params: AiResultParams;
 }
 
 // @public
@@ -279,10 +311,39 @@ export interface AiManagerConfig {
 export interface AiPendingResolvedEvent {
     code: AiResultCode;
     id: string;
-    kind: "approval" | (string & {});
+    kind: "approval" | "question" | (string & {});
     params: AiResultParams;
     type: "ai-pending-resolved";
 }
+
+// @public
+export interface AiPlan {
+    readonly steps: readonly {
+        readonly agents: readonly string[];
+        readonly order?: "parallel" | "sequence";
+    }[];
+}
+
+// @public
+export interface AiQuestionAskedEvent {
+    replayed: boolean;
+    request: AiQuestionRequest;
+    type: "ai-question-asked";
+}
+
+// @public
+export interface AiQuestionRequest {
+    readonly choices: readonly string[];
+    readonly conversationId?: string;
+    readonly createdAt?: string;
+    readonly id: string;
+    readonly messageId?: string;
+    readonly multiple: boolean;
+    readonly question: string;
+}
+
+// @public
+export type AiRouter = "model" | "classifier" | ((input: string) => AiPlan);
 
 // @public
 export type AiStage = (typeof AI_STAGES)[number];
@@ -298,6 +359,7 @@ export interface AiStatus {
     error?: Error;
     pending?: {
         approvals: number;
+        questions: number;
     };
     stage?: AiStage;
     stageMessage?: string;

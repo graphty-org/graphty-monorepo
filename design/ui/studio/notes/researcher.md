@@ -10,35 +10,33 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-11 -- Round 4 planned (`tier2/rounds/round-4/plan.md`, 56 sessions): T24 at 8 (full
-  size is 8 for every task; round 3 ran it at 4), core four 32, T22/T23/T4 at 4, T12R 2, T19 2.
-  No persona repeats a round 3 half; T24 runs first.
-- 2026-10-11 -- A gate failure ENDS THE TIER: `workflow-tier2.js` breaks out of the round loop
-  into the final report and the landing PR. Never leave the gate to fail on a fixable gap;
-  provision the evidence before the plan returns.
-- 2026-10-11 -- The gate reads pilots only under `<round>/pilot/**/<T20A>/`; the dry run's
-  pilots lived in `rounds/r4d1/pilot/`. Copied unchanged to `round-4/pilot/r4d1/`.
-- 2026-10-11 -- Shift-click on a node adds on 5277e2cbe (`round-4/pilot/T24A/07.png`, B `07.png`);
-  Ctrl-click still replaces. Key now names the Shift route.
-- 2026-10-11 -- OWED: T24's new prompt never ran with briefed participants (no way to spawn
-  fresh agents from the plan step). Round 4 grades flag "prompt-decided"; if any, run prompt
-  pilots BEFORE the next plan, by the orchestrator.
-- 2026-10-11 -- `--expect-not "2 nodes selected"` failed after Escape although the screen had
-  cleared: it reads text not drawn (likely a live region). Trust the screenshot; tool note.
-- 2026-10-11 -- Round 3 lesson: 54 of 56 passed, yet the only app failure (Shift-click) and both
-  T24 failures were found only after skeptics read the source.
-- 2026-10-11 -- One variant per problem, no words added at rest: round 4 must say which fix
-  worked (T24 Shift, T22 "or more", T18 order/focus/Made with, T17 toolbar Filters and counts).
-- 2026-10-11 -- One-specialist claims are scripted before fixing; no repro on 26f3bb968 = closed.
-- 2026-10-11 -- Chosen segment face (T4 Add/Leave out, Hops) is the owner's Figma choice; watch
-  for misreads, likely sev 3 on T4.
-- 2026-10-11 -- T17: chip and Filters row name both counts; expect read-wrong 12 (B 51) if any.
-- 2026-10-11 -- Drawn-names sev 3 was measured with "Show all labels" on (declutter off). T24
-  setups still tick it; graders say whether an overlap would remain with declutter on.
-- 2026-10-11 -- Held, first in line if a second session meets it: per-name distance at Hops 2.
-- 2026-10-10 -- "=" typed unprompted 0 of 16: the rule language is copied, not discovered.
-- 2026-10-10 -- A check that inspects zero items must fail: grep every "no leaks"/"0 found" for
-  its denominator. Briefing check: `tmp/researcher/t2r4/brief-all.py <scratch dir>`.
+- 2026-10-11 -- Round 4 scored (`tier2/rounds/round-4/scores.md`): 53 of 53 valid S/SD, 3 void
+  (r4-s05, s20, s28) NOT re-run; bar 1 and bar 6 now hold (T24 7 of 7). Fails: 5 (unfiltered data
+  table, conservative reading), 9 (b) (edge inspector 29 vs 27), 10 (5 confirmed sev 3). Bars
+  7a and 8 hold on my after-the-fact bars.mjs run (`tmp/researcher/t2r4/bars/`).
+- 2026-10-11 -- OWED before round 5: r4-s05b, r4-s20b, r4-s28b; and a runner fix. Mechanism: the
+  runner started participants with no free slot; `--start` outlasted the shell limit, went to the
+  background, the participant armed a monitor and ended its turn, which is a workflow agent's
+  return. Logs: `wf_893310e3-28b/agent-a1b284d02fae1037a.jsonl`, `agent-a1bedbc37d9933b28.jsonl`.
+- 2026-10-11 -- The gate did not pass and sessions ran anyway, two rounds running: no "Gate
+  evidence" in plan.md, no `round-4/bars/`. I ran bars.mjs after the fact into
+  `tmp/researcher/t2r4/bars/`. The runner must refuse to start without gate exit 0.
+- 2026-10-11 -- T24: 7 of 7 by Shift-click from habit; Select endpoints 0 of 7; prompt-decided 0.
+  T17: toolbar Filters 7 of 7, wrong turns 0. Habit-matching doors get used; menu commands do not.
+- 2026-10-11 -- New confirmed sev 3s: data table ignores a filter (r4-s21, s27); "or more" layer
+  named "data.minutes >= `5`" (visual 1, a11y 5); "or more" row under the fold (audit 1, visual 5);
+  bare non-value number offers "=`10`" then refuses it (controls 2, visual 27).
+- 2026-10-11 -- One-specialist sev 3s to script first: off step turns itself on when its editor
+  closes (a11y 1, `Filters.tsx`); New project > Discard crash (controls 1); one-session sev 3:
+  rule on a missing column says only "Nothing matches" (r4-s12).
+- 2026-10-11 -- Segmented chosen face: 0 misreads of 4 on T4. Close the predicted sev 3.
+- 2026-10-11 -- T22 steps median 8 vs 6 (route choice: table, Style); "=" typed unprompted 0 of 24
+  over three rounds. Rule language is copied, never learned.
+- 2026-10-11 -- Bar 5 read conservatively: a reader's own check counts, so the study cannot pass
+  on "not on the key's path". Skeptics may weaken; record their reasons.
+- 2026-10-11 -- Drawn-name overlaps that cost T24 clicks are label-over-tie and label-over-dot;
+  declutter (label-on-label only) would not remove them. Element owner item stands.
+- 2026-10-11 -- A check that inspects zero items must fail; leak check now reads 1 log per session.
 
 ## Priorities and values
 
@@ -79,6 +77,16 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-11 (researcher, tier 2 round 4 scored) -- `round-4/scores.md` from 53 graded sessions,
+  3 voids, four expert reports, and my own bars.mjs run on 5277e2cbe (the gate's run never
+  happened). Voids scored beside, not as failures; bar 1 checked worst case (all owed re-runs
+  fail: still holds). Bar 5 scored FAILS on two participants' own table check under a filter,
+  with the strict "key's path" reading (holds) given beside it, because a technicality must not
+  pass the study. Bar 10 confirmed list: 4 two-specialist sev 3s plus the two-session table one,
+  flagged as needing a specialist under bar 10's own rule. Ease and steps kept round 3's readings so
+  rounds compare; T12R path 4 on this build. Mechanism of the voids traced in the participants'
+  own logs before writing it, rather than repeating the graders' "agent ended".
+
 - 2026-10-11 (researcher, round 4 plan) -- Sizes from the frozen rule: bar 1 says full size is
   8 for every task, so T24 (below its bar) runs at 8, not round 3's 4; core four 32; tasks a change
   touched at 4 (T22, T23, T4), T12R at its full 2: 54, and the last 2 to T19 (untouched, but the
@@ -95,34 +103,12 @@ reasons, in short:
   scripted before fixing. Not changed: label placement (element, owner list), rule syntax
   (breaking), Replace, weight at load, Recent, find-box example. Top of mind rewritten.
 
-- 2026-10-11 (researcher, key matched to the first pilots on 5277e2cbe) -- T4 A, T12R A/B, T17 A,
-  T18 A, T24 A/B. No value changed, so only citations and finer descriptions: T4's first summary
-  line stays after "Show the 1 unmatched row" (the key said "only"); T18's follow-up tie through
-  Quinn placed by coordinates, because "Ravi to Pia" cannot be confirmed without names on, and
-  a grader must not be told more than the screen says; T24 A has B's curved-line icon, the
-  Stadium label covers its ring too; T12R B tie inspector has no number (so no 6-from-the-tie
-  misread on B). The tmp-folder citation for T17's new counts kept beside the pilot one: the
-  pilot is the committed evidence. No prompt was wrong; tasks.md unchanged; no bar changed.
-
-- 2026-10-11 (researcher, key matched to the first r4 pilots on 38e180aac230) -- T4 A/B, T12R A,
-  T17 A/B, T19 B, T20 A, T21 A, T24 B. A build section plus in-place notes, old wording kept as
-  "on earlier builds". Two real changes: (1) the chosen segment is now dark with a light outline
-  and the unchosen part keeps the lighter gray fill (pixels: Leave out rgb 44,44,44 vs Add 56,56,56;
-  white on 897d9aed9ffe), although the build note says "chosen segment's face restored" -- the
-  screen wins; the inverted cue is a likely sev 3 for T4 (Add read as chosen), fix in
-  compact-mantine. (2) T17's chip and Filters row count edges for an edge-column step, so the
-  people count is only in Overview "Nodes showing"; the S line now says "read where it is shown"
-  (same criterion, not a bar) and reporting the tie count as people is `read-wrong`. Also the
-  toolbar Filters tool as a third door (opens with an empty Attribute). T12R B not walked (no
-  browser slot): owed before round 4. No prompt was wrong; tasks.md unchanged.
-- 2026-10-11 (researcher, drawn-names finding) -- graphty-element already declutters labels
-  (`layoutBehavior.labels.declutter`) and the app turns it on; the `*-ranked-names.txt` setups
-  tick "Show all labels", which turns it off, so round 3's sev 3 "names cover each other" measured
-  the setup, not the app. Round 4: re-score with declutter on; tick "Show all labels" only where a
-  task needs every name, with the reason in tasks.md. What may remain is separate: declutter avoids
-  label-on-label only, not a label over a dot or an edge, and nodes can overlap in the layout
-  (Chloe and Farah, r3-s43/01.png). Treating dots as obstacles would be an additive element option
-  (the team's call). It is not one of the owner's open items.
+- 2026-10-11 (key matches to 5277e2cbe and 38e180aac230, drawn-names finding, folded) -- Build
+  section plus in-place notes, old wording kept as "on earlier builds"; the screen wins over a
+  build's change note (pixels sampled before contradicting it); T17 people count only in Overview
+  for an edge step; drawn-names sev 3 in round 3 was measured with declutter off (setups tick "Show
+  all labels"), so tick it only where a task reads every name; dots as label obstacles would be an
+  additive element option.
 - 2026-10-10 (researcher, T24 wording before round 4) -- Changed the prompt, not the key: both
   halves end "so that whatever you do next applies only to those two"; words-changed log in
   `tasks.md`; criteria log entry. Removed the key's Shift route rather than leaving it: on
@@ -206,6 +192,13 @@ reasons, in short:
   the app; personas validate, never generate features.
 
 ## Tried: worked / did not work
+
+- 2026-10-11 (round 4 scoring, after a token-limit stop) -- Worked: `git status` and a listing
+  first (no scores.md, sessions untracked, so nothing half-done); `score.py` asserting voids have no
+  session.json or screenshots and every leaks.json read exactly one log; grepping each grade's
+  "## Measures" into one scratch file and reading it once; finding void participants' logs by
+  grepping agent logs in the round's time window for the session path. Did not work: matching
+  participant logs by their first lines (the harness prefix hides the session path).
 
 - 2026-10-11 (round 4 plan, after a token-limit stop) -- Worked: `git status`, the round
   listing and `real.mjs` gateCheck read first; no round-4 folder existed, so nothing was half-done.

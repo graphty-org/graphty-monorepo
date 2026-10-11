@@ -276,7 +276,13 @@ async function main() {
     }
     const all = localShards(JSON.parse(affectedArg));
     const changed = base
-        ? execFileSync("git", ["diff", "--name-only", base, "HEAD"], { cwd: ROOT, encoding: "utf8" })
+        ? // A branch can change tens of thousands of files (a study's screenshots): past the default
+          // 1 MB output buffer, execFileSync kills git and throws ENOBUFS.
+          execFileSync("git", ["diff", "--name-only", base, "HEAD"], {
+              cwd: ROOT,
+              encoding: "utf8",
+              maxBuffer: 256 * 1024 * 1024,
+          })
               .split("\n")
               .filter(Boolean)
         : null;

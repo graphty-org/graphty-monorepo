@@ -11,6 +11,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **A pressed "Filter to neighbors" already gives a screen reader its reason: nothing
+  built.** On 26f3bb968, keyboard focus on it reads the description "The drawing already shows
+  only this neighborhood. Its step in Filters turns it off" at once, and still after Enter
+  presses it (compact-mantine's Tooltip opens on focus; Mantine sets aria-describedby while open,
+  and the dismissed-on-key tooltip is only hidden, so the description stays). A pointer press
+  gets it after the 1 s hover delay. New tool check: `--expect "described=<text>"` reads the
+  focused control's accessible description (`tmp/t2r3-r4-12/frozen/`: 06 and 09 fail as planted,
+  10-14 pass). Still open from the audit: the hidden tooltip after a pointer press (visual only)
+  and the disabled look like an empty text field.
 - (2026-10-10) **"Or more" beside a typed number in the find box: built** (commit 9b69ca650).
   Element: `FindValueRow.atLeast: { count, target }` on a number value, target the typed rule
   `{ text: "=data.<col> >= \`N\`" }` (with the find's scope). App: a second row "<column> is N
@@ -49,12 +58,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (compact-mantine's disabled Button); the repeated-ties warning on "Add to" is plain text with Load
   still primary; Escape does nothing on the Data pages. New for the element: sized nodes drawn
   inside each other (layout spaces centers, not sizes) -- the cause under "Farah under Chloe".
-- (2026-10-10) **Round 2 closed; its lesson for me: a study that leaks proves only failures.**
-  Participants read the facilitator's task file, so the three routes added for round 2 (weight
-  meaning at load, Replace in the source's "..." menu, the find box's rule hint) are NOT credited
-  until round 3 re-measures them clean. Do not reword or move them meanwhile. Round 3 does not
-  start until the study-tool fixes (no participant read outside its own folder, dry run from pilot
-  routes, every named bar script proven on a planted fault) pass.
+- (2026-10-10, condensed) **A study that leaks proves only failures.** Round 2's three new routes
+  (weight meaning at load, Replace in the source's "...", the find box's rule hint) count only
+  once a clean round re-measures them; do not reword or move them meanwhile.
 - (2026-10-10) **The dry run must walk what participants do, not last round's list.** 12 of about
   30 build faults sat on the one detour nobody walked (styling a selection). Round 3: two
   throwaway pilots per task on the candidate build, script their routes, walk them plus round 2's
@@ -245,6 +251,11 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
 
 ## Tried: worked / did not work
 
+- (2026-10-10) **Tried: checking an accessible description with `--expect` or `--sr`. Did not
+  work:** neither read descriptions (`--sr`'s focus line is role, name, value, states). Worked:
+  `--expect "described=<text>"` in real.mjs (CDP's AX node `description` of the focused control).
+  A pointer click is not focus-visible, so Mantine's focus opening does not fire on it; to test
+  what a keyboard user hears, reach the control by Tab or Shift+Tab.
 - (2026-10-10) **Tried: test data keyed `shared_chapters` in an element unit test. Did not work
   as written:** lint's camelcase rule flags the key, prettier strips quotes, and a literal
   computed key trips no-useless-computed-key. Worked: a `const WEIGHT = "shared_chapters"` and

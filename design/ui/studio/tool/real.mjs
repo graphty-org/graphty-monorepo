@@ -40,7 +40,7 @@
 //   --wait <ms>            lets the app run on its own for a moment
 //   --read                 reads the open dialog, or else the region around focus, as a screen
 //                          reader's browse mode would: text, headings and controls in order
-//   --expect | --expect-not "<text>"  (role=<role>, role=<role>:<name>, selected=N)
+//   --expect | --expect-not "<text>"  (role=<role>, role=<role>:<name>, selected=N, described=<text>)
 // A file is a path, or a bare name from files/ beside this tool.
 //
 // Headless Chromium cancels the File System Access pickers at once, so the tool answers them: the
@@ -1681,6 +1681,20 @@ async function run(s, steps, out, clickMs = CLICK_MS) {
                 if (seen !== (a === "--expect")) {
                     out.push(
                         `${n} row${n === 1 ? " is" : "s are"} selected; ${a === "--expect" ? "expected" : "expected other than"} ${sel[1]}`,
+                    );
+                    code = 1;
+                }
+                continue;
+            }
+            // what a screen reader reads after the focused control's name: its accessible description
+            const desc = v.match(/^described=(.*)$/s);
+            if (desc) {
+                s.cdp ??= await s.context.newCDPSession(s.page);
+                const f = await evalObject(s, FOCUSED);
+                const said = (f && (await axOf(s, f))?.description?.value) || "";
+                if (said.includes(desc[1]) !== (a === "--expect")) {
+                    out.push(
+                        `focus is described as ${JSON.stringify(said)}; ${a === "--expect" ? "expected" : "expected other than"} ${JSON.stringify(desc[1])}`,
                     );
                     code = 1;
                 }

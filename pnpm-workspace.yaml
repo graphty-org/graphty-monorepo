@@ -80,3 +80,11 @@ overrides:
     "@tanstack/ai-openai>openai": 7.32.0
     "@tanstack/ai-anthropic>@anthropic-ai/sdk": 0.97.1
     "@tanstack/ai-gemini>@google/genai": 2.28.0
+    # The TanStack packages the adapters pull in, and the OpenAI SDK under the shared OpenAI base,
+    # pinned the same way: each is built in too, and a caret range would let a lockfile refresh
+    # move it. @tanstack/ai-utils has five dependents, all TanStack's, so it is pinned once.
+    "@tanstack/ai-openai>@tanstack/openai-base": 0.13.1
+    "@tanstack/openai-base>openai": 7.32.0
+    "@tanstack/ai>@tanstack/ai-event-client": 0.13.1
+    "@tanstack/ai-event-client>@tanstack/devtools-event-client": 0.4.4
+    "@tanstack/ai-utils": 0.4.1

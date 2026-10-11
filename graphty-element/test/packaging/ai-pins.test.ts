@@ -92,6 +92,48 @@ function pinProblems(
 }
 
 /**
+ * Every framework package the built-in ones reach that its dependent leaves open (a range, not one
+ * version) with no exact override for it, scoped (`dependent>dependency`) or not: a lockfile
+ * refresh could move what ships.
+ * @param roots - The built-in framework packages, graphty-element's own pins.
+ * @param overrides - The workspace's overrides, key -> version.
+ * @param dependenciesOf - An installed package's dependencies, or undefined when it is not installed.
+ * @returns One message per open edge.
+ */
+function closureProblems(
+    roots: readonly string[],
+    overrides: Readonly<Record<string, string>>,
+    dependenciesOf: (name: string) => Readonly<Record<string, string>> | undefined,
+): string[] {
+    const problems: string[] = [];
+    const seen = new Set<string>();
+    const queue = [...roots];
+    for (let name = queue.shift(); name !== undefined; name = queue.shift()) {
+        if (seen.has(name)) {
+            continue;
+        }
+
+        seen.add(name);
+        for (const [dependency, range] of Object.entries(dependenciesOf(name) ?? {})) {
+            if (frameworkFamily(dependency) === undefined) {
+                continue;
+            }
+
+            const pinned = [range, overrides[`${name}>${dependency}`], overrides[dependency]].some(
+                (version) => version !== undefined && EXACT.test(version),
+            );
+            if (!pinned) {
+                problems.push(`${name} > ${dependency} is "${range}" with no exact override`);
+            }
+
+            queue.push(dependency);
+        }
+    }
+
+    return problems;
+}
+
+/**
  * The workspace's overrides, from pnpm-workspace.yaml's `overrides:` block.
  * @returns key -> version
  */
@@ -128,10 +170,65 @@ function installedRange(dependent: string, dependency: string): string | undefin
     return undefined;
 }
 
+/**
+ * An installed package's dependencies (the first version the store holds).
+ * @param name - The package.
+ * @returns Its dependencies, or undefined when it is not installed.
+ */
+function installedDependencies(name: string): Record<string, string> | undefined {
+    const store = join(REPO_ROOT, "node_modules/.pnpm");
+    const prefix = `${name.replace("/", "+")}@`;
+    const entry = existsSync(store) ? readdirSync(store).find((e) => e.startsWith(prefix)) : undefined;
+    if (entry === undefined) {
+        return undefined;
+    }
+
+    const manifest = JSON.parse(readFileSync(join(store, entry, "node_modules", name, "package.json"), "utf8")) as {
+        dependencies?: Record<string, string>;
+    };
+    return manifest.dependencies ?? {};
+}
+
 describe("AI framework pins", () => {
     it("pins every TanStack and provider package, and every scoped override fits its dependent", () => {
         const manifest = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")) as Manifest;
         assert.deepEqual(pinProblems(manifest, workspaceOverrides(), installedRange), []);
+    });
+
+    it("pins every TanStack and provider package the built-in ones pull in", () => {
+        const manifest = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")) as Manifest;
+        const roots = Object.keys(manifest.devDependencies ?? {}).filter(
+            (name) => frameworkFamily(name) !== undefined && !(name in PIN_EXEMPT),
+        );
+        assert.isAbove(roots.length, 0);
+        assert.deepEqual(closureProblems(roots, workspaceOverrides(), installedDependencies), []);
+    });
+
+    it("refuses an open edge in the closure, and takes a scoped or a global pin", () => {
+        const graph: Record<string, Record<string, string>> = {
+            "@tanstack/ai": { "@tanstack/ai-utils": "^0.4.1", "@ag-ui/core": "1.0.0", "partial-json": "^0.1.7" },
+            "@tanstack/ai-openai": { "@tanstack/openai-base": "^0.13.1", "@tanstack/ai-utils": "^0.4.1" },
+            "@tanstack/openai-base": { openai: "^7.30.0" },
+        };
+        assert.deepEqual(
+            closureProblems(
+                ["@tanstack/ai", "@tanstack/ai-openai"],
+                { "@tanstack/ai-utils": "0.4.1" },
+                (n) => graph[n],
+            ),
+            [
+                '@tanstack/ai-openai > @tanstack/openai-base is "^0.13.1" with no exact override',
+                '@tanstack/openai-base > openai is "^7.30.0" with no exact override',
+            ],
+        );
+        assert.deepEqual(
+            closureProblems(
+                ["@tanstack/ai-openai"],
+                { "@tanstack/ai-openai>@tanstack/openai-base": "0.13.1", "@tanstack/openai-base>openai": "7.32.0" },
+                (n) => graph[n],
+            ),
+            ['@tanstack/ai-openai > @tanstack/ai-utils is "^0.4.1" with no exact override'],
+        );
     });
 
     it("reads the workspace's overrides", () => {

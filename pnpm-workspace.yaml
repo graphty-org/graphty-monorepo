@@ -70,3 +70,11 @@ overrides:
     "undici@<6.28.0": ^6.28.0
     # vitepress 1.x depends on vite 5, which the Vite 6.4.3 advisories do not patch.
     "vite@<6.4.3": ^6.4.3
+    # graphty-element builds TanStack AI and the provider SDKs it drives into its own chunks, so
+    # the versions the contract suite and the paid regression run tested are the versions that
+    # ship: each SDK is pinned exactly under the TanStack adapter that declares it, inside that
+    # adapter's own range (graphty-element/test/packaging/ai-pins.test.ts checks both). Move them
+    # together with the @tanstack/ai* pins (design/ai/tanstack-ai-harness-design.md, section 3.1).
+    "@tanstack/ai-openai>openai": 7.32.0
+    "@tanstack/ai-anthropic>@anthropic-ai/sdk": 0.97.1
+    "@tanstack/ai-gemini>@google/genai": 2.28.0

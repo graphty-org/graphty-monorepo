@@ -229,6 +229,15 @@ const UPDATE_RULE =
     "(a fix that landed for a red master; githerd's own update does that for a failure inherited from master). Never just to be current: " +
     "the merge queue tests every pull request against current master anyway, and each update re-runs its whole CI. When one applies, merge master (never rebase) and push with githerd_push.";
 
+/** Where a change takes effect decides how it ships (owner rule 2026-10-11). */
+const LIVE_RULE =
+    "Ask where each change takes effect. On this machine (githerd, the visual-review server, the push queue and pre-push scripts, " +
+    "design studio builds, the XR sandbox, dev servers, local watchers): make it live now with tools/live.sh <tool> <branch> and open " +
+    "the pull request beside it as the record; a githerd fix goes on its own branch off feat/githerd to session d2, who makes it live " +
+    "with tools/live.sh. In GitHub, CI or npm (workflows, release, Mergify, published packages): only through a pull request, tested " +
+    "first (the workflow run on its branch, scripts replayed). Shared code another branch needs: open its pull request, and merge the " +
+    "fix branch (or master once it lands) into the blocked branch now instead of waiting.";
+
 /** The rules every worker follows (design 7.1 step 6, 7.3 and 10.1). */
 export const RULES = Object.freeze([
     "Decide reversible questions yourself and record why in your findings. Ask the owner only through githerd_ask_owner, and only for what only the owner can do: a one-way door, a visual approval, money, a credential, a login, a change to the machine, a new permission rule.",
@@ -241,6 +250,7 @@ export const RULES = Object.freeze([
     "Read issue and pull request comments and reviews through githerd_read; gh refuses them.",
     "Ask for a re-run of a failed CI job through githerd_rerun, never gh run rerun. A re-run, or a close and reopen, tests the pull request merged with master as it was.",
     UPDATE_RULE,
+    LIVE_RULE,
     "Never stash, reset, check out a file, clean or rebase, never use --no-verify, never put an attribution line in a commit message, and never weaken a test, limit or threshold to make it pass.",
     "Work only in this worktree. Do not edit githerd, .claude, .github/workflows, .husky, tools/prepush.sh or visual-baselines.",
     "githerd never merges and you cannot: Mergify merges once checks and githerd/merge pass.",

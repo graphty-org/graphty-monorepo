@@ -230,7 +230,6 @@ export const AI_TOOL_CAUSE_CODES = Object.freeze([
     "AI_UNKNOWN_RUN",
     "AI_BAD_SELECTOR",
     "AI_EMPTY_MATCH",
-    "AI_PAINTED_NOTHING",
     "AI_NOT_AVAILABLE",
     "AI_CONFIRM_REQUIRED",
     "AI_IMPORT_URL_REFUSED",
@@ -241,6 +240,7 @@ export const AI_TOOL_CAUSE_CODES = Object.freeze([
     "AI_CURSOR_STALE",
     "AI_TOOL_NOT_RUN",
     "AI_UNKNOWN_TOOL",
+    "AI_PAINTED_NOTHING",
 ] as const);
 
 /** One code a tool result carries for the model. OPEN UNION. */

@@ -135,7 +135,10 @@ interface PendingApproval {
 /** The graph a request was held against, as its saved entry records it. */
 type HeldGraph = SavedApproval["graph"];
 
-/** No changes counted yet: the totals a reopened request's message starts from. */
+/**
+ * No changes counted yet: the totals a reopened request's message starts from. They are not saved,
+ * so after a reload the large-change gate counts the message's later batches from zero.
+ */
 const NO_TOTALS: MessageState["totals"] = { removeNodes: 0, removeEdges: 0, changedValues: 0 };
 
 /** Which of the assistant's calls the reader is asked about before they run. */
@@ -275,6 +278,8 @@ export interface AiCommandOptions {
      * `{ reason: "unknown-conversation" }`.
      */
     readonly conversation?: string;
+    /** How the reader gave the message: typed (`"text"`, the default) or spoken (`"voice"`). */
+    readonly via?: "text" | "voice";
 }
 
 /**
@@ -483,7 +488,7 @@ export class AiController {
                 return UNKNOWN_CONVERSATION;
             }
 
-            return this.executeNow(input, abortController);
+            return this.executeNow(input, abortController, options.via);
         });
     }
 
@@ -503,9 +508,14 @@ export class AiController {
      * that made it ends there, without another model turn.
      * @param input - The reader's request.
      * @param abortController - The message's controller, which `cancel()` aborts.
+     * @param via - How the reader gave it.
      * @returns The message's result.
      */
-    private async executeNow(input: string, abortController: AbortController): Promise<ExecutionResult> {
+    private async executeNow(
+        input: string,
+        abortController: AbortController,
+        via: AiCommandOptions["via"],
+    ): Promise<ExecutionResult> {
         await this.supersedePending(true);
 
         this.emitAiEvent({ type: "ai-command-start", input, timestamp: Date.now() });
@@ -513,7 +523,7 @@ export class AiController {
             input,
             message: uniqueId("msg_"),
             abortController,
-            conversation: (session) => this.startConversation(input, session),
+            conversation: (session) => this.startConversation(input, session, via),
             conversationId: this.current?.id,
         });
     }
@@ -554,6 +564,11 @@ export class AiController {
             conversation = run.conversation(session);
             base = conversation.messages.length;
             const running = conversation;
+            if (decided === undefined) {
+                // The reader's words are saved as the message starts, so a transcript shows them at once.
+                await this.saveInto(run.conversationId, running.messages);
+            }
+
             // A message taken back is not kept, so the conversation never holds changes the graph does not.
             let keep = true;
             let result: ExecutionResult;
@@ -625,7 +640,7 @@ export class AiController {
                 }
             }
 
-            // Saved once, when the message ends: never per streamed piece of text.
+            // Saved again when the message ends: never per streamed piece of text.
             if (keep) {
                 await this.saveInto(run.conversationId, running.messages);
             } else {
@@ -685,11 +700,12 @@ export class AiController {
     }
 
     /**
-     * A continued message that was taken back still answers its held calls in the saved
-     * conversation, so the record never ends in calls without results.
+     * A message that was taken back, or failed, keeps the reader's words and how it ended (an
+     * `outcome` part), and a continued one still answers its held calls, so the saved record never
+     * ends in calls without results.
      * @param run - The message.
      * @param conversation - Its conversation.
-     * @param base - How many messages it had before this run.
+     * @param base - How many messages it had once the run's own reader message was added.
      * @param result - How the run ended.
      */
     private async saveUnkept(
@@ -698,15 +714,19 @@ export class AiController {
         base: number,
         result: ExecutionResult,
     ): Promise<void> {
-        if (run.decided === undefined) {
-            return;
-        }
-
-        const kept = conversation.messages.slice(0, base);
-        const outcome = { code: result.code ?? "AI_FAILED", params: {} };
+        const code = result.code ?? "AI_FAILED";
+        const closing =
+            run.decided === undefined
+                ? []
+                : [closingResults(run.decided.calls, { code, params: {} }, this.newMessageId(conversation))];
         await this.saveInto(run.conversationId, [
-            ...kept,
-            closingResults(run.decided.calls, outcome, this.newMessageId(conversation)),
+            ...conversation.messages.slice(0, base),
+            ...closing,
+            {
+                id: this.newMessageId(conversation),
+                role: "assistant",
+                parts: [{ type: "outcome", origin: "graphty", code, params: result.params ?? {} }],
+            },
         ]);
     }
 
@@ -808,7 +828,7 @@ export class AiController {
             claim: null,
             createdAt,
         };
-        await this.saveInto(conversationId, hold.conversation.messages, [...(this.current?.pending ?? []), entry]);
+        await this.saveInto(conversationId, hold.conversation.messages, (pending) => [...pending, entry]);
         this.emitAiEvent({ type: "ai-approval-requested", request, replayed: false });
         return id;
     }
@@ -876,30 +896,34 @@ export class AiController {
     }
 
     /**
-     * Claim a saved request in the store, so it runs once however many tabs answer it.
+     * Claim a saved request in the store, so it runs, or ends, once however many tabs answer it.
      * @param id - The request's id.
      * @param pending - The request.
-     * @returns False when another instance claimed it first.
+     * @returns `"lost"` when another instance claimed it first, `"failed"` when the store could not say.
      */
-    private async claim(id: string, pending: PendingApproval): Promise<boolean> {
+    private async claim(id: string, pending: PendingApproval): Promise<"won" | "lost" | "failed"> {
         const { store } = this;
         if (store === undefined || pending.conversationId === undefined) {
-            return true;
+            return "won";
         }
 
-        const claimed = await store.claim(pending.conversationId, id, this.claimant);
-        if (this.current?.id === pending.conversationId) {
-            // The claim moved the record's revision; a lost one means another copy moved it further.
-            this.current = claimed ?? (await store.load(pending.conversationId)) ?? this.current;
-        }
+        try {
+            const claimed = await store.claim(pending.conversationId, id, this.claimant);
+            if (this.current?.id === pending.conversationId) {
+                // The claim moved the record's revision; a lost one means another copy moved it further.
+                this.current = claimed ?? (await store.load(pending.conversationId)) ?? this.current;
+            }
 
-        return claimed !== undefined;
+            return claimed === undefined ? "lost" : "won";
+        } catch {
+            return "failed";
+        }
     }
 
     /**
      * Whether the graph changed under a request: while this controller lives, any change to the
-     * history since the hold; after a reload, a different `dataKey`, or without one a different
-     * fingerprint.
+     * history since the hold; after a reload, a different fingerprint or a different `dataKey`
+     * (the same name may stand for edited data, and a new name for the same data is a change too).
      * @param pending - The request.
      * @returns The facts of the change, or undefined when the request is fresh.
      */
@@ -910,7 +934,7 @@ export class AiController {
 
         const now = this.heldGraph();
         const held = pending.graph;
-        const changed = held.dataKey === null ? held.fingerprint !== now.fingerprint : held.dataKey !== now.dataKey;
+        const changed = held.fingerprint !== now.fingerprint || held.dataKey !== now.dataKey;
         return changed
             ? { nodes: now.nodes, edges: now.edges, heldNodes: held.nodes, heldEdges: held.edges }
             : undefined;
@@ -965,14 +989,24 @@ export class AiController {
     }
 
     /**
-     * Save a closed request's conversation, with history.
+     * Save a closed request's conversation, with history: claimed first, so a request another tab
+     * is running is not also closed here (its calls would have two results).
      * @param pending - The request, or undefined for none.
      * @returns When saved.
      */
     private async saveClosed(pending: PendingApproval | undefined): Promise<void> {
-        if (pending !== undefined) {
-            await this.saveInto(pending.conversationId, pending.conversation.messages);
+        if (pending === undefined) {
+            return;
         }
+
+        const { id } = pending.request;
+        if ((await this.claim(id, pending)) === "lost") {
+            return;
+        }
+
+        await this.saveInto(pending.conversationId, pending.conversation.messages, (entries) =>
+            entries.filter((entry) => entry.id !== id),
+        );
     }
 
     /**
@@ -1009,7 +1043,13 @@ export class AiController {
         }
 
         // Claimed first: of several tabs answering one request, one runs it.
-        if (!(await this.claim(id, pending))) {
+        const claimed = await this.claim(id, pending);
+        if (claimed === "failed") {
+            // The store cannot say who runs it: nothing runs, and the request stays open.
+            return { success: false, message: "", code: "AI_STORAGE_FAILED", params: { request: id } };
+        }
+
+        if (claimed === "lost") {
             const params = { request: id, reason: "resolved-elsewhere" };
             this.endPending(id, { code: "AI_APPROVAL_STALE", params });
             return { success: false, message: "", code: "AI_APPROVAL_STALE", params };
@@ -1085,10 +1125,12 @@ export class AiController {
      * reader's request.
      * @param input - User input
      * @param session - The session, for the facts.
+     * @param via - How the reader gave it; recorded only when the host said.
      * @returns The conversation
      */
-    private startConversation(input: string, session: GraphSession): Conversation {
+    private startConversation(input: string, session: GraphSession, via?: "text" | "voice"): Conversation {
         const system = this.systemPrompt();
+        const said = { type: "text", origin: "reader", text: input, ...(via === undefined ? {} : { via }) } as const;
         if (hasAssistantTools(this.commandRegistry)) {
             // The generated tools: fixed instructions, and the facts as graph data, never in them.
             return {
@@ -1098,10 +1140,7 @@ export class AiController {
                     {
                         id: this.firstMessageId(),
                         role: "user",
-                        parts: [
-                            { type: "text", origin: "graph-data", text: factsBlock(session, this.profile) },
-                            { type: "text", origin: "reader", text: input },
-                        ],
+                        parts: [{ type: "text", origin: "graph-data", text: factsBlock(session, this.profile) }, said],
                     },
                 ],
             };
@@ -1109,10 +1148,7 @@ export class AiController {
 
         return {
             system,
-            messages: [
-                ...this.earlierMessages(),
-                { id: this.firstMessageId(), role: "user", parts: [{ type: "text", origin: "reader", text: input }] },
-            ],
+            messages: [...this.earlierMessages(), { id: this.firstMessageId(), role: "user", parts: [said] }],
         };
     }
 
@@ -1292,44 +1328,63 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 return;
             }
 
-            this.current = (await this.store.load(current.id)) ?? this.freshRecord();
+            try {
+                this.current = (await this.store.load(current.id)) ?? this.freshRecord();
+            } catch (error) {
+                // A store reports its own failures; keep the copy in hand.
+                logger.warn("Conversation not re-read", { error: toSafeError(error).name });
+                return;
+            }
+
             this.emitChanged();
         });
     }
 
     /**
-     * Save a conversation with these messages, at the end of a turn: only while it is the open one.
+     * Save a conversation with these messages: the open one, or another by id. Messages are only
+     * ever appended, so the ones given are added after the record's own (which may hold another
+     * tab's), never in place of them.
      * @param id - The conversation's id.
-     * @param messages - Its messages now.
-     * @param pending - What waits on the reader now; the open record's when absent.
+     * @param messages - Its messages, as this run has them.
+     * @param pending - What the record's waiting entries become; unchanged when absent.
      */
     private async saveInto(
         id: string | undefined,
         messages: readonly SavedMessage[],
-        pending?: readonly SavedPending[],
+        pending?: (entries: readonly SavedPending[]) => readonly SavedPending[],
     ): Promise<void> {
-        const { store, current } = this;
-        // ponytail: a conversation switched away from while a request waited is not saved; save it by id if a host needs that.
-        if (store === undefined || current === undefined || current.id !== id) {
+        const { store } = this;
+        if (store === undefined || id === undefined) {
             return;
         }
 
-        const record: ConversationRecord = {
-            ...current,
-            messages,
-            ...(pending === undefined ? {} : { pending }),
-            updatedAt: new Date().toISOString(),
-            graph: this.graphFacts(),
-        };
-        try {
-            this.current = await store.save(record);
-        } catch (error) {
-            // A store reports its own write failures; this is a record it refused (a bug).
-            logger.warn("Conversation not saved", { error: toSafeError(error).name });
-            this.current = record;
+        const open = this.current?.id === id;
+        const base = open ? this.current : await store.load(id).catch(() => undefined);
+        if (base === undefined) {
+            // Deleted: nothing to save into.
+            return;
         }
 
-        this.emitChanged();
+        const known = new Set(base.messages.map((message) => message.id));
+        const record: ConversationRecord = {
+            ...base,
+            messages: [...base.messages, ...messages.filter((message) => !known.has(message.id))],
+            pending: pending === undefined ? base.pending : pending(base.pending),
+            updatedAt: new Date().toISOString(),
+            graph: open ? this.graphFacts() : base.graph,
+        };
+        let saved = record;
+        try {
+            saved = await store.save(record);
+        } catch (error) {
+            // A store reports its own write failures; this is a record it refused (deleted meanwhile, or a bug).
+            logger.warn("Conversation not saved", { error: toSafeError(error).name });
+        }
+
+        if (this.current?.id === id) {
+            this.current = saved;
+            this.emitChanged();
+        }
     }
 
     /**
@@ -1342,13 +1397,16 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             return true;
         }
 
-        const record = await this.store?.load(id);
+        const record = await this.store?.load(id).catch(() => undefined);
         if (record === undefined) {
             return false;
         }
 
+        // The old conversation's requests end with it, saved there; the new one's are asked again.
+        await this.supersedePending(true);
         this.current = record;
         this.emitChanged();
+        this.reopenPending(record);
         return true;
     }
 
@@ -1376,7 +1434,8 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      */
     async listConversations(options: { readonly allKeys?: boolean } = {}): Promise<readonly AiConversationSummary[]> {
         await this.opened;
-        const records = (await this.store?.list(options.allKeys === true ? undefined : this.key())) ?? [];
+        const records =
+            (await this.store?.list(options.allKeys === true ? undefined : this.key()).catch(() => undefined)) ?? [];
         return records.map(conversationSummary);
     }
 
@@ -1465,7 +1524,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      */
     async exportConversation(id: string): Promise<string | null> {
         await this.opened;
-        const record = await this.store?.load(id);
+        const record = await this.store?.load(id).catch(() => undefined);
         if (record === undefined) {
             return null;
         }

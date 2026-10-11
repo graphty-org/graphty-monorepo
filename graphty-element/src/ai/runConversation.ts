@@ -291,6 +291,84 @@ function trimmedHistory(messages: readonly SavedMessage[]): SavedMessage[] {
     );
 }
 
+/** A saved tool result. */
+type ResultPart = Extract<SavedPart, { type: "tool-result" }>;
+
+/**
+ * The conversation as a model may be sent it: every call followed at once by exactly one result.
+ * A result saved further on (another tab appended between) is moved up to its call, a second one
+ * is dropped, and a call with none -- a record cut short when a tab closed, or a request ended
+ * there -- is answered `AI_TOOL_NOT_RUN`, since a provider rejects a call left unanswered. An
+ * `outcome` part goes as the text it stands for. The saved messages are never changed.
+ * @param messages - The conversation.
+ * @returns The messages to send.
+ */
+export function pairedForModel(messages: readonly SavedMessage[]): SavedMessage[] {
+    const results = new Map<string, ResultPart>();
+    for (const part of messages.flatMap((message) => message.parts)) {
+        if (part.type === "tool-result" && !results.has(part.callId)) {
+            results.set(part.callId, part);
+        }
+    }
+
+    const out: SavedMessage[] = [];
+    messages.forEach((message, index) => {
+        if (message.role === "tool") {
+            // Sent only right after its calls, below.
+            return;
+        }
+
+        out.push(
+            message.parts.some((part) => part.type === "outcome")
+                ? {
+                      ...message,
+                      parts: message.parts.map((part): SavedPart =>
+                          part.type === "outcome"
+                              ? {
+                                    type: "text",
+                                    origin: "graphty",
+                                    text: `This request ended without an answer: ${JSON.stringify({ code: part.code, ...part.params })}`,
+                                }
+                              : part,
+                      ),
+                  }
+                : message,
+        );
+        const calls = message.parts.flatMap((part) => (part.type === "tool-call" ? [part] : []));
+        if (calls.length === 0) {
+            return;
+        }
+
+        const next = messages[index + 1];
+        const exact =
+            next?.role === "tool" &&
+            next.parts.length === calls.length &&
+            next.parts.every((part, at) => part.type === "tool-result" && part.callId === calls[at].callId);
+        out.push(
+            exact
+                ? next
+                : {
+                      id: `${message.id}:results`,
+                      role: "tool",
+                      parts: calls.map((call): SavedPart => {
+                          const params = { tool: call.command };
+                          return (
+                              results.get(call.callId) ?? {
+                                  type: "tool-result",
+                                  origin: "graph-data",
+                                  callId: call.callId,
+                                  code: "AI_TOOL_NOT_RUN",
+                                  params,
+                                  content: resultText({ code: "AI_TOOL_NOT_RUN", params }, RESULT_CAP.small),
+                              }
+                          );
+                      }),
+                  },
+        );
+    });
+    return out;
+}
+
 /** What the message's batches added up to. */
 interface MessageTally {
     readonly results: CallResult[];
@@ -675,7 +753,7 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
         const answerOnly = turn > MAX_ASSISTANT_TOOL_TURNS || tally.held !== undefined;
         const offered = turnTools(tools, profile, conversation.messages);
         const shown = historyWindow(
-            conversation.messages,
+            pairedForModel(conversation.messages),
             run.historyBudgetTokens ?? DEFAULT_HISTORY_BUDGET_TOKENS[profile],
         );
         const history = profile === "small" ? trimmedHistory(shown) : shown;

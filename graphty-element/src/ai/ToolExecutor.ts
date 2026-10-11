@@ -29,6 +29,7 @@ import { toJson } from "./tools/shape";
 import { type AssistantTool, type CheckedCall, isAssistantTool } from "./tools/toolset";
 import {
     type ActionResult,
+    gated,
     GateHold,
     type GateKind,
     type JsonObject,
@@ -385,8 +386,7 @@ export async function runToolBatch(batch: ToolBatch): Promise<BatchOutcome> {
  */
 function judge(batch: ToolBatch, ready: readonly PreparedCall[], writes: boolean): BatchOutcome | undefined {
     const { policy, approved } = batch.message;
-    // A batch the reader approved is not asked about again.
-    if (policy === undefined || approved !== undefined) {
+    if (policy === undefined) {
         return undefined;
     }
 
@@ -415,7 +415,10 @@ function judge(batch: ToolBatch, ready: readonly PreparedCall[], writes: boolean
         };
     }
 
-    return verdicts.every((verdict) => verdict === "allow") ? undefined : held("policy", {}, batch, ready, writes);
+    // A batch the reader approved is not asked about again; a deny of its (edited) calls still stands.
+    return approved !== undefined || verdicts.every((verdict) => verdict === "allow")
+        ? undefined
+        : held("policy", {}, batch, ready, writes);
 }
 
 /**
@@ -551,7 +554,7 @@ async function runInTransaction(
     }
 
     const { gate, totals } = batch.message;
-    if (gate !== false && batch.message.approved !== "large") {
+    if (gate !== false && gated(batch.message, "large")) {
         const removeNodes = totals.removeNodes + measured.removeNodes;
         // The share is of the graph before the message removed anything: what is left plus what went.
         const large =

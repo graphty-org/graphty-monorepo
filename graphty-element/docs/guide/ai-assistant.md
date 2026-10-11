@@ -216,14 +216,30 @@ The methods, on the element (and on `Graph`):
 | `clearAiHistory()`                  | delete every saved conversation and open request in the store, of every key                    |
 | `exportAiConversation(id)`          | the saved record as JSON text (the [conversation format](./ai-conversation-format)), or `null` |
 
-An unknown id, or any id with `history: "none"`, resolves `AI_HISTORY_UNAVAILABLE` with
-`reason: "unknown-conversation"`.
+`aiCommand` with an unknown `conversation`, or any `conversation` with `history: "none"`,
+resolves `AI_HISTORY_UNAVAILABLE` with `reason: "unknown-conversation"` and sends nothing.
+`openAiConversation` and `exportAiConversation` return `null` for an unknown id, and
+`deleteAiConversation` of an unknown id does nothing.
+
+Opening or sending into another conversation ends the requests still waiting in the open one
+(`AI_APPROVAL_STALE`, `reason: "superseded"`, saved in that conversation), and asks again about
+any saved in the one opened.
 
 `getAiConversation()` returns `{ id, key, formatVersion, messages, pending }`. Each message is
-either the reader's, `{ role: "reader", text, via }` (`via` is `"text"` or `"voice"`), or the
-assistant's, `{ role: "assistant", text, calls }`, where each call is
+either the reader's, `{ role: "reader", text, via }`, or the assistant's,
+`{ role: "assistant", text, calls, outcome? }`, where each call is
 `{ command, arguments, code, params }`. It holds what the reader and the model said, never the
 instructions or graph facts the element sends the model.
+
+- **The reader's message is saved as it is sent**, so it is in the conversation while the
+  assistant works on it.
+- **`via`** is `"voice"` when you sent the message with `aiCommand(text, { via: "voice" })` --
+  pass it for a transcript from `startVoiceInput` -- and `"text"` otherwise.
+- **`outcome`** (`{ code, params }`) is set on the assistant entry of a message that failed or
+  was taken back, instead of an answer: the code `aiCommand` resolved with (`AI_PROVIDER_ERROR`,
+  `AI_CANCELLED`, ...). Word it as you word that result.
+- **Roles may be added in a minor release.** Give a `switch (message.role)` a `default` branch
+  that skips a role it does not know.
 
 `ai-conversation-changed { conversationId }` fires on every save, reopen and switch, and when
 another tab changed the conversation: read it again with `getAiConversation()`. With `code` set,
@@ -238,7 +254,9 @@ element.addEventListener("ai-conversation-changed", () => {
     list.replaceChildren(
         ...(element.getAiConversation()?.messages ?? []).map((message) => {
             const item = document.createElement("li");
-            item.textContent = `${message.role}: ${message.text}`;
+            // A failed message has no text: say how it ended, in your own words for its code.
+            const ended = message.role === "assistant" ? message.outcome?.code : undefined;
+            item.textContent = `${message.role}: ${ended ?? message.text}`;
             return item;
         }),
     );
@@ -251,8 +269,10 @@ element.addEventListener("ai-conversation-changed", () => {
 - **It stays on the reader's device.** `"browser"` writes to the browser's IndexedDB for this
   origin; nothing is sent anywhere but to the model provider, as every message is.
 - **It is not encrypted.** Any script on the same origin can read it.
-- **No API key is saved.** A configured key that appears in any saved text is replaced with
-  `[api-key]`.
+- **No API key given to the element is saved.** Every key passed to `enableAiControl` or
+  `setApiKey` while the page is open, a replaced one included, is replaced with `[api-key]`
+  wherever it appears in saved or exported text. A credential your page uses some other way (a
+  proxy token, a header of its own provider) is not known to the element and is not removed.
 - **Readers can see and remove it.** `listAiConversations`, `exportAiConversation`,
   `deleteAiConversation` and `clearAiHistory` let your page offer that.
 - **Shared headsets and kiosks:** call `clearAiHistory()` when a session ends, so the next reader

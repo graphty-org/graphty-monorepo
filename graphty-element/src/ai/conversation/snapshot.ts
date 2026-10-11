@@ -23,9 +23,14 @@ export interface AiCallRecord {
     readonly params: AiResultParams;
 }
 
-/** One message of a conversation, as a reader sees it. OPEN UNION: roles may be added in a minor release. */
+/**
+ * One message of a conversation, as a reader sees it. OPEN UNION: roles may be added in a minor
+ * release, so a `switch (message.role)` needs a `default` branch that skips (or generically draws)
+ * a role it does not know.
+ */
 export type AiConversationMessage =
     | {
+          /** The message's id, stable across saves and reloads. */
           readonly id: string;
           readonly role: "reader";
           /** What the reader said. */
@@ -34,16 +39,23 @@ export type AiConversationMessage =
           readonly via: "text" | "voice";
       }
     | {
+          /** The message's id, stable across saves and reloads. */
           readonly id: string;
           readonly role: "assistant";
           /** What the model said in this message; empty when it only called tools. */
           readonly text: string;
           /** The calls it made, in order. */
           readonly calls: readonly AiCallRecord[];
+          /**
+           * How the reader's message ended when it failed or was taken back, instead of an answer:
+           * the code (and facts) `aiCommand` resolved with. Absent on an answer.
+           */
+          readonly outcome?: { readonly code: AiResultCode; readonly params: AiResultParams };
       };
 
 /** A conversation, as an application draws it. */
 export interface AiConversationSnapshot {
+    /** The conversation's id, as `openAiConversation` and `aiCommand(text, { conversation })` take it. */
     readonly id: string;
     /** The scope it is saved under. */
     readonly key: string;
@@ -57,6 +69,7 @@ export interface AiConversationSnapshot {
 
 /** One saved conversation, for a list. */
 export interface AiConversationSummary {
+    /** The conversation's id, as `openAiConversation` and `aiCommand(text, { conversation })` take it. */
     readonly id: string;
     /** The scope it is saved under. */
     readonly key: string;
@@ -117,8 +130,13 @@ function snapshotMessages(messages: readonly SavedMessage[]): AiConversationMess
                       ]
                     : [],
             );
-            if (text !== "" || calls.length > 0) {
-                out.push({ id: message.id, role: "assistant", text, calls });
+            const ended = message.parts.find((part) => part.type === "outcome");
+            const outcome =
+                ended?.type === "outcome"
+                    ? { outcome: { code: ended.code as AiResultCode, params: { ...ended.params } } }
+                    : {};
+            if (text !== "" || calls.length > 0 || ended !== undefined) {
+                out.push({ id: message.id, role: "assistant", text, calls, ...outcome });
             }
         }
     }

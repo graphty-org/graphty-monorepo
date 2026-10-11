@@ -94,39 +94,16 @@
             "role": "tool"
         },
         {
-            "agent": "researcher",
             "id": "m4",
             "parts": [
                 {
-                    "callId": "h1",
-                    "origin": "web",
-                    "sources": [
-                        {
-                            "title": "Karate club",
-                            "url": "https://example.org/karate"
-                        },
-                        {
-                            "url": "http://example.org/plain"
-                        }
-                    ],
-                    "status": "done",
-                    "tool": "web-search",
-                    "type": "hosted-tool"
-                },
-                {
-                    "agent": "researcher",
-                    "code": "AI_COMPLETED",
-                    "conversationId": "c-helper-1",
+                    "code": "AI_PROVIDER_ERROR",
                     "origin": "graphty",
                     "params": {
-                        "toolCalls": 1
+                        "provider": "google",
+                        "status": 503
                     },
-                    "type": "agent-ref"
-                },
-                {
-                    "origin": "model",
-                    "text": "I found the source.",
-                    "type": "live-transcript"
+                    "type": "outcome"
                 }
             ],
             "role": "assistant"
@@ -137,7 +114,7 @@
                 {
                     "origin": "reader",
                     "text": "thanks",
-                    "type": "live-transcript"
+                    "type": "text"
                 }
             ],
             "role": "user"
@@ -177,56 +154,6 @@
                 "removeEdges": 0,
                 "removeNodes": 12
             }
-        },
-        {
-            "agent": "researcher",
-            "callId": "t3",
-            "choices": [
-                "1",
-                "2"
-            ],
-            "claim": null,
-            "createdAt": "2026-10-11T09:02:00.000Z",
-            "id": "q1",
-            "kind": "question",
-            "messageId": "m4",
-            "multiple": false,
-            "question": "Which community?"
-        },
-        {
-            "agents": [
-                "styler"
-            ],
-            "claim": "tab-2",
-            "createdAt": "2026-10-11T09:03:00.000Z",
-            "id": "p1",
-            "kind": "plan-step",
-            "messageId": "m4",
-            "order": "sequence",
-            "planId": "plan-1",
-            "step": 1
-        },
-        {
-            "claim": null,
-            "createdAt": "2026-10-11T09:04:00.000Z",
-            "id": "p2",
-            "kind": "plan-confirmation",
-            "messageId": "m4",
-            "planId": "plan-1",
-            "steps": [
-                {
-                    "agents": [
-                        "researcher",
-                        "analyst"
-                    ],
-                    "order": "parallel"
-                },
-                {
-                    "agents": [
-                        "styler"
-                    ]
-                }
-            ]
         }
     ],
     "revision": 7,

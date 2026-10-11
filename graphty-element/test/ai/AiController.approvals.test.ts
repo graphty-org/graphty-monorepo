@@ -216,6 +216,51 @@ describe("a decision continues the message", () => {
     });
 });
 
+describe("one approval per change", () => {
+    const REMOVE_E = { tool: "edit_data", args: { action: "remove_nodes", ids: ["e"] } };
+
+    it("runs a write the policy held at once, even when it is also a large share of a small graph", async () => {
+        const session = await assistantSession();
+        // One of five nodes is 20% of the graph: the size gate's share on its own would hold it too.
+        const assistant = new ScriptedAssistant(session, { approvals: "writes" });
+        const { result, events } = await assistant.say("remove e", [REMOVE_E]);
+        assert.strictEqual(result.params?.gate, "policy");
+
+        assistant.engine.push(textTurn("Removed e."));
+        const approved = await assistant.controller.resolveAiApproval(requestOf(events), { approve: true });
+
+        assert.strictEqual(approved.code, "AI_COMPLETED", JSON.stringify(approved));
+        assert.notExists(session.data.node("e"));
+        assert.deepStrictEqual(assistant.controller.getPendingApprovals(), [], "nothing is asked a second time");
+    });
+
+    it("still refuses edited arguments the policy denies", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session, {
+            approvals: {
+                policy: (call) => {
+                    if (JSON.stringify(call.arguments).includes('"a"')) {
+                        return "deny";
+                    }
+
+                    return call.effect === "write" ? "ask" : "allow";
+                },
+            },
+        });
+        const { events } = await assistant.say("remove e", [REMOVE_E]);
+
+        assistant.engine.push(textTurn("Could not."));
+        const result = await assistant.controller.resolveAiApproval(requestOf(events), {
+            approve: true,
+            calls: [{ arguments: { action: "remove_nodes", ids: ["a"] } }],
+        });
+
+        assert.strictEqual(result.code, "AI_TOOL_DENIED_BY_POLICY");
+        assert.exists(session.data.node("a"), "the protected node stays");
+        assert.exists(session.data.node("e"));
+    });
+});
+
 describe("a waiting request ends only on an event", () => {
     it("a new message supersedes it, and the held message ends without another model turn", async () => {
         const session = await assistantSession();

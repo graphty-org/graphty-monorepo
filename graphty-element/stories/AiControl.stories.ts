@@ -709,7 +709,7 @@ async function setupShowcase(): Promise<void> {
 
                             if (shouldAutoExecute) {
                                 // Auto-execute: send command immediately
-                                void graph.aiCommand(text).then((result) => {
+                                void graph.aiCommand(text, { via: "voice" }).then((result) => {
                                     ui.responseOutput.textContent = result.message;
                                     logCommand(
                                         `🎤 ${text}`,

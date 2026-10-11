@@ -3974,7 +3974,8 @@ export class Graphty extends LitElement {
      * console.log('AI response:', result.message);
      * ```
      * @param options - The saved conversation to send it into (with `history` set); an unknown
-     *     one resolves `AI_HISTORY_UNAVAILABLE` with `{ reason: "unknown-conversation" }`.
+     *     one resolves `AI_HISTORY_UNAVAILABLE` with `{ reason: "unknown-conversation" }`. `via:
+     *     "voice"` records that the reader spoke it (a transcript from `startVoiceInput`).
      */
     async aiCommand(
         message: string,
@@ -4214,7 +4215,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * const started = element.startVoiceInput({
      *   onTranscript: (text, isFinal) => {
-     *     if (isFinal) element.aiCommand(text);
+     *     if (isFinal) element.aiCommand(text, { via: "voice" });
      *   },
      *   onStart: (started) => console.log('Voice started:', started)
      * });

@@ -254,8 +254,14 @@ describe("the saved conversation format", () => {
         describe("self-tests: each check fails on one planted violation", () => {
             it("a fixture missing a kind", () => {
                 const record = golden();
-                const without = { ...record, pending: record.pending.filter((entry) => entry.kind !== "question") };
-                assert.deepEqual(uncoveredKinds(without), ["the fixture has no question"]);
+                const without = {
+                    ...record,
+                    messages: record.messages.map((message) => ({
+                        ...message,
+                        parts: message.parts.filter((part) => part.type !== "outcome"),
+                    })),
+                };
+                assert.deepEqual(uncoveredKinds(without), ["the fixture has no outcome"]);
             });
 
             it("a schema file that differs from the definition", () => {
@@ -335,16 +341,7 @@ describe("the saved conversation format", () => {
                         {
                             id: "m1",
                             role: "assistant",
-                            parts: [
-                                {
-                                    type: "hosted-tool",
-                                    origin: "web",
-                                    callId: "h",
-                                    tool: "web-fetch",
-                                    status: "done",
-                                    sources: [{ url: "javascript:alert(1)" }],
-                                },
-                            ],
+                            parts: [{ type: "outcome", origin: "graphty", code: "failed", params: {} }],
                         },
                     ],
                 },

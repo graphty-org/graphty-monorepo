@@ -6288,7 +6288,8 @@ export class Graph implements GraphContext {
      * await graph.aiCommand('Show in 2D');
      * ```
      * @param options - The saved conversation to send it into (with `history` set); an unknown
-     *     one resolves `AI_HISTORY_UNAVAILABLE` with `{ reason: "unknown-conversation" }`.
+     *     one resolves `AI_HISTORY_UNAVAILABLE` with `{ reason: "unknown-conversation" }`. `via:
+     *     "voice"` records that the reader spoke it (a transcript from `startVoiceInput`).
      */
     async aiCommand(
         input: string,
@@ -6628,7 +6629,7 @@ export class Graph implements GraphContext {
      *   onTranscript: (text, isFinal) => {
      *     console.log('Transcript:', text, isFinal ? '(final)' : '(interim)');
      *     if (isFinal) {
-     *       graph.aiCommand(text);
+     *       graph.aiCommand(text, { via: "voice" });
      *     }
      *   },
      * });

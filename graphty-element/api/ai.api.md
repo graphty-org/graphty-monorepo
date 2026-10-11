@@ -120,6 +120,7 @@ export interface AiCallRecord {
 // @public
 export interface AiCommandOptions {
     readonly conversation?: string;
+    readonly via?: "text" | "voice";
 }
 
 // @public
@@ -181,12 +182,15 @@ export type AiConversationMessage = {
     readonly role: "assistant";
     readonly text: string;
     readonly calls: readonly AiCallRecord[];
+    readonly outcome?: {
+        readonly code: AiResultCode;
+        readonly params: AiResultParams;
+    };
 };
 
 // @public
 export interface AiConversationSnapshot {
     readonly formatVersion: number;
-    // (undocumented)
     readonly id: string;
     readonly key: string;
     readonly messages: readonly AiConversationMessage[];
@@ -197,7 +201,6 @@ export interface AiConversationSnapshot {
 export interface AiConversationSummary {
     readonly createdAt: string;
     readonly dataKey: string | null;
-    // (undocumented)
     readonly id: string;
     readonly key: string;
     readonly messageCount: number;

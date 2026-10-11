@@ -290,7 +290,12 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
             counts: { nodes: nodeCount, edges: edgeCount, visibleNodes: nodeCount, visibleEdges: edgeCount },
             directed: false,
         },
-        data: { attributes: () => [] },
+        // What the facts block reads: the node ids, in order, and how many there are.
+        data: {
+            attributes: () => [],
+            snapshot: () => ({ nodeCount, ids: { idOf: (index: number) => nodeId(index) } }),
+            fingerprint: () => `mock:${String(nodeCount)}:${String(edgeCount)}`,
+        },
         runs: { list: () => [] },
         catalog: SESSION_CATALOG_TABLES,
         selection: { size: 0 },

@@ -208,6 +208,68 @@ describe("the IndexedDB conversation store", () => {
         assert.equal(put.mock.calls.length, 0, "the next save stays in memory");
     });
 
+    it("keeps every earlier conversation, and its waiting entry, after a write fails", async () => {
+        const { store } = await open(databaseName());
+        await store.save(record());
+        await store.save({ ...record(), id: "c2", pending: [] });
+        vi.spyOn(IDBObjectStore.prototype, "put").mockImplementation(() => {
+            throw new DOMException("quota", "QuotaExceededError");
+        });
+
+        await store.save({ ...record(), id: "c3", pending: [] });
+
+        assert.sameMembers(
+            (await store.list()).map((r) => r.id),
+            ["c1", "c2", "c3"],
+        );
+        assert.equal((await store.claim("c1", "p1", "a"))?.pending[0].claim, "a", "a claim still works");
+        assert.isUndefined(await store.claim("c1", "p1", "b"), "and is still exclusive here");
+    });
+
+    it("does not bring back a conversation another instance deleted", async () => {
+        const database = databaseName();
+        const a = (await open(database)).store;
+        const b = (await open(database)).store;
+        const saved = await a.save(record());
+        const copy = (await b.load("c1"))!;
+
+        await a.clear();
+        const late = b.save({ ...copy, messages: [...copy.messages, message("late")] });
+
+        const error = await late.then(
+            () => undefined,
+            (thrown: unknown) => thrown,
+        );
+        assert.instanceOf(error, DOMException);
+        assert.equal(error.name, "NotFoundError");
+        assert.isUndefined(await a.load("c1"));
+        assert.deepEqual(await a.list(), []);
+        // A new conversation (never saved) is still created.
+        assert.equal((await b.save({ ...record(), id: "c9", revision: 0 })).revision, 1);
+        assert.equal(saved.revision, 1);
+    });
+
+    it("answers reads with a code, not a throw, once another tab closed its connection", async () => {
+        const database = databaseName();
+        const { store } = await open(database);
+        await store.save(record());
+        const failed = nextChange(store);
+
+        // A newer version opened elsewhere closes this store's connection (onversionchange).
+        const newer = await new Promise<IDBDatabase>((resolve, reject) => {
+            const request = indexedDB.open(database, 2);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error ?? new Error("open failed"));
+        });
+        newer.close();
+
+        assert.deepEqual(await store.list(), []);
+        assert.isUndefined(await store.load("c1"));
+        const change = await failed;
+        assert.equal(change.code, "AI_STORAGE_FAILED");
+        assert.equal(change.params?.reason, "InvalidStateError");
+    });
+
     it("keeps a configured key out of what it writes", async () => {
         const database = databaseName();
         const result = await openConversationStore({ store: "browser", database, secrets: () => ["sk-secret-123"] });

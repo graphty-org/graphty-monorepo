@@ -87,27 +87,24 @@ marked "open" may gain values in a minor release, so a reader treats an unknown 
 
 ## Messages and parts
 
-A message is `{ id, role, parts }`, with `role` one of `"user"`, `"assistant"` or `"tool"`, and an
-optional `agent` naming the helper that wrote it. Each part has a `type` and an `origin`, which
-says where its content came from: `"reader"`, `"model"`, `"graph-data"` (the graph's own data, as
-a tool read it), `"graphty"` (the element) or `"web"`.
+A message is `{ id, role, parts }`, with `role` one of `"user"`, `"assistant"` or `"tool"`. Each
+part has a `type` and an `origin`, which says where its content came from: `"reader"`, `"model"`,
+`"graph-data"` (the graph's own data, as a tool read it) or `"graphty"` (the element).
 
-| `type`            | Fields                                                                                                                           |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `text`            | `text`; `via` (`"text"` or `"voice"`) for the reader's words                                                                     |
-| `tool-call`       | `callId`, `command` (the tool), `arguments`                                                                                      |
-| `tool-result`     | `callId`, `code`, `params`, `content` (the text the model read, at most 8,000 characters)                                        |
-| `hosted-tool`     | `callId`, `tool` (open), `status` (`"done"` or `"result-unavailable"`), `sources` (`{ url, title? }`, `http:` and `https:` only) |
-| `reasoning`       | `text`, when the provider returned the model's reasoning in the clear                                                            |
-| `agent-ref`       | `agent`, `conversationId` (a helper's own conversation), optional `code` and `params`                                            |
-| `live-transcript` | `text` of a live voice exchange                                                                                                  |
+| `type`        | Fields                                                                                                           |
+| ------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `text`        | `text`; `via` (`"text"` or `"voice"`) for the reader's words, when the page said how they were given             |
+| `tool-call`   | `callId`, `command` (the tool), `arguments`                                                                      |
+| `tool-result` | `callId`, `code`, `params`, `content` (the text the model read, at most 8,000 characters)                        |
+| `reasoning`   | `text`, when the provider returned the model's reasoning in the clear                                            |
+| `outcome`     | `code`, `params`: how a message that failed or was taken back ended, in place of an answer (`origin: "graphty"`) |
 
 Text the element adds for the model is saved too: facts about the graph beside the reader's
 words (`origin: "graph-data"`) and instructions (`origin: "graphty"`). `getAiConversation()` leaves
 them out; a page that shows a transcript from an exported record should show only `"reader"` and
 `"model"` text.
 
-**`providerState`** may appear on `tool-call`, `hosted-tool` and `reasoning` parts:
+**`providerState`** may appear on `tool-call` and `reasoning` parts:
 `{ engine, provider, model, data }`. It is the one opaque field, data a provider needs back on
 the next turn (a signature over the model's reasoning, for instance). It is sent back only to the
 same engine, provider and model, and any reader may drop it: a conversation without it continues.
@@ -117,20 +114,19 @@ same engine, provider and model, and any reader may drop it: a conversation with
 Each entry has `kind`, `id`, `messageId` (the message waiting), `claim` (`null` until a tab or
 element takes it, so only one resolves it) and `createdAt`.
 
-| `kind`              | Fields                                                                                                                                                                                                            |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `approval`          | `gate` (open), `calls` (`{ callId, command, arguments }`), `preview` (as `AiApprovalRequest.preview`), `graph` (`dataKey`, `fingerprint`, `nodes`, `edges` when it was held), `historyRevision`, optional `agent` |
-| `question`          | `question`, `choices`, `multiple`, optional `callId` and `agent`                                                                                                                                                  |
-| `plan-step`         | `planId`, `step` (from 0), `agents`, optional `order` (`"parallel"` or `"sequence"`)                                                                                                                              |
-| `plan-confirmation` | `planId`, `steps` (`{ agents, order? }`)                                                                                                                                                                          |
+| `kind`     | Fields                                                                                                                                                                                          |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `approval` | `gate` (open), `calls` (`{ callId, command, arguments }`), `preview` (as `AiApprovalRequest.preview`), `graph` (`dataKey`, `fingerprint`, `nodes`, `edges` when it was held), `historyRevision` |
 
-This release asks only approvals. The other kinds are part of version 1 so that later features
-need no new version.
+A conversation reopened after a reload checks a waiting approval against the loaded graph: a
+different `fingerprint`, or a different `dataKey`, makes it stale (`AI_APPROVAL_STALE`,
+`reason: "graph-changed"`).
 
 ## What is never in a record
 
-- **No API key.** A configured key anywhere in the text is replaced with `[api-key]`.
-- **No audio**, and no raw web pages or search payloads: a hosted tool keeps only its sources.
+- **No API key given to the element.** Any key passed to `enableAiControl` or `setApiKey` while
+  the page was open is replaced with `[api-key]` wherever it appears.
+- **No audio.**
 - **No framework or vendor shapes.** Messages are in this format only, whichever provider wrote
   them, so a conversation can move between providers and releases.
 

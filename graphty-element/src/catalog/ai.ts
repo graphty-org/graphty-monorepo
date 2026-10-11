@@ -267,7 +267,9 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_HISTORY_NEWER_FORMAT` -- a saved conversation was written by a newer release, in a format
  *   version this one cannot read; it is left untouched. `{ version }`.
  * - `AI_STORAGE_FAILED` -- saving the conversation failed (quota, private mode); it continues in
- *   memory. `{ reason }`: the error's name, such as `"QuotaExceededError"`.
+ *   memory. `{ reason }`: the error's name, such as `"QuotaExceededError"`. From
+ *   `resolveAiApproval`, `{ request }`: the store could not record who runs the request, so
+ *   nothing ran and the request stays open.
  *
  * OPEN UNION: codes may be added in a minor release. Handle a code you do not know, for example
  * by `success` alone.

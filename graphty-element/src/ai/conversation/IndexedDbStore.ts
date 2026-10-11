@@ -7,8 +7,9 @@
  * bumped -- format versions live per record -- and one object store, `conversations`, keyed by id.
  * Every write is one `readwrite` transaction that reads the stored record and writes in the same
  * transaction, so two instances never lose each other's messages and only one claimant of a
- * pending entry wins. A `BroadcastChannel` tells the other instances to re-read. A failed write
- * reports `AI_STORAGE_FAILED` and the store carries on in memory.
+ * pending entry wins. A `BroadcastChannel` tells the other instances to re-read. A failed read or
+ * write reports `AI_STORAGE_FAILED` and the store carries on in memory, from what it could still
+ * read. A save never brings back a record another instance deleted.
  */
 
 import type {
@@ -100,8 +101,8 @@ function errorName(error: unknown): string {
 class IndexedDbStore implements ConversationStore {
     private readonly listeners = new Set<(change: ConversationStoreChange) => void>();
     private readonly channel?: BroadcastChannel;
-    /** Where the conversations live after a write failed. */
-    private fallback?: MemoryStore;
+    /** Where the conversations live after a read or a write failed. */
+    private fallback?: Promise<MemoryStore>;
 
     /**
      * A store on an open database.
@@ -129,19 +130,24 @@ class IndexedDbStore implements ConversationStore {
      * @returns The records.
      */
     async list(key?: string): Promise<ConversationRecord[]> {
-        if (this.fallback) {
-            return this.fallback.list(key);
-        }
+        return this.read(
+            async () => newestFirst((await this.readAll()).filter((record) => key === undefined || record.key === key)),
+            (memory) => memory.list(key),
+        );
+    }
 
+    /**
+     * Every readable record in the database.
+     * @returns The records, unordered.
+     */
+    private async readAll(): Promise<ConversationRecord[]> {
         const tx = this.db.transaction(STORE, "readonly");
         const all = tx.objectStore(STORE).getAll();
         await settled(tx);
-        return newestFirst(
-            (all.result as unknown[]).flatMap((value) => {
-                const read = readConversation(value);
-                return read.ok && (key === undefined || read.record.key === key) ? [read.record] : [];
-            }),
-        );
+        return (all.result as unknown[]).flatMap((value) => {
+            const read = readConversation(value);
+            return read.ok ? [read.record] : [];
+        });
     }
 
     /**
@@ -150,30 +156,43 @@ class IndexedDbStore implements ConversationStore {
      * @returns The record, or undefined when there is none or it cannot be read.
      */
     async load(id: string): Promise<ConversationRecord | undefined> {
-        if (this.fallback) {
-            return this.fallback.load(id);
-        }
-
-        const tx = this.db.transaction(STORE, "readonly");
-        const get = tx.objectStore(STORE).get(id);
-        await settled(tx);
-        const read = get.result === undefined ? undefined : readConversation(get.result);
-        return read?.ok ? read.record : undefined;
+        return this.read(
+            async () => {
+                const tx = this.db.transaction(STORE, "readonly");
+                const get = tx.objectStore(STORE).get(id);
+                await settled(tx);
+                const read = get.result === undefined ? undefined : readConversation(get.result);
+                return read?.ok ? read.record : undefined;
+            },
+            (memory) => memory.load(id),
+        );
     }
 
     /**
-     * Save a record: as it is at its loaded revision, else merged into the stored one.
+     * Save a record: as it is at its loaded revision, else merged into the stored one. A record
+     * saved before (revision above 0) that is no longer stored was deleted -- by `clearAiHistory`
+     * in another tab, say -- and is not written back.
      * @param record - The record.
      * @returns The record as stored.
+     * @throws {DOMException} `NotFoundError` when the record was deleted.
      */
     async save(record: ConversationRecord): Promise<ConversationRecord> {
         // Validates (a bug in the caller throws here) and keeps configured keys out.
         const written = JSON.parse(writeConversation(record, { secrets: this.secrets?.() })) as ConversationRecord;
+        let deleted = false;
         const saved = await this.write(
-            () => this.update(record.id, (stored) => nextRevision(stored, written)),
+            () =>
+                this.update(record.id, (stored) => {
+                    deleted = stored === undefined && written.revision > 0;
+                    return deleted ? undefined : nextRevision(stored, written);
+                }),
             (memory) => memory.save(written),
             record.id,
         );
+        if (deleted) {
+            throw new DOMException("The conversation was deleted", "NotFoundError");
+        }
+
         return saved ?? written;
     }
 
@@ -187,7 +206,14 @@ class IndexedDbStore implements ConversationStore {
     async claim(conversationId: string, pendingId: string, claimant: string): Promise<ConversationRecord | undefined> {
         return this.write(
             () => this.update(conversationId, (stored) => claimEntry(stored, pendingId, claimant)),
-            (memory) => memory.claim(conversationId, pendingId, claimant),
+            async (memory) => {
+                // Not even readable when storage failed: nobody can say who claimed it.
+                if ((await memory.load(conversationId)) === undefined) {
+                    throw new DOMException("The conversation is not readable", "NotFoundError");
+                }
+
+                return memory.claim(conversationId, pendingId, claimant);
+            },
             conversationId,
         );
     }
@@ -261,23 +287,48 @@ class IndexedDbStore implements ConversationStore {
         inMemory: (memory: MemoryStore) => Promise<T>,
         conversationId?: string,
     ): Promise<T> {
-        if (this.fallback) {
-            return inMemory(this.fallback);
+        let written = false;
+        const result = await this.read(async () => {
+            const value = await attempt();
+            written = true;
+            return value;
+        }, inMemory);
+        if (written) {
+            const message: ChangeMessage = conversationId === undefined ? {} : { conversationId };
+            this.channel?.postMessage(message);
         }
 
-        let result: T;
-        try {
-            result = await attempt();
-        } catch (error) {
-            // ponytail: everything moves to memory after one failed write; retry IndexedDB if hosts need it.
-            this.fallback = new MemoryStore();
-            this.emit({ code: "AI_STORAGE_FAILED", params: { reason: errorName(error) } });
-            return inMemory(this.fallback);
-        }
-
-        const message: ChangeMessage = conversationId === undefined ? {} : { conversationId };
-        this.channel?.postMessage(message);
         return result;
+    }
+
+    /**
+     * Run an operation against IndexedDB; once one failed (a full disk, a connection another tab
+     * closed), against the memory store instead.
+     * @param attempt - The IndexedDB operation.
+     * @param inMemory - The same operation on the memory store.
+     * @returns What it returned.
+     */
+    private async read<T>(attempt: () => Promise<T>, inMemory: (memory: MemoryStore) => Promise<T>): Promise<T> {
+        if (this.fallback === undefined) {
+            try {
+                return await attempt();
+            } catch (error) {
+                // ponytail: everything moves to memory after one failure; retry IndexedDB if hosts need it.
+                this.fallback ??= this.fallBack(error);
+            }
+        }
+
+        return inMemory(await this.fallback);
+    }
+
+    /**
+     * Report a failure and move to memory, holding what IndexedDB can still give.
+     * @param error - What failed.
+     * @returns The memory store.
+     */
+    private async fallBack(error: unknown): Promise<MemoryStore> {
+        this.emit({ code: "AI_STORAGE_FAILED", params: { reason: errorName(error) } });
+        return new MemoryStore(await this.readAll().catch(() => []));
     }
 
     /**

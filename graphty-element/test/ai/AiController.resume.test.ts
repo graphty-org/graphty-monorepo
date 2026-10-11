@@ -8,6 +8,7 @@
 
 import { assert, describe, it, vi } from "vitest";
 
+import type { ConversationStoreChange } from "../../src/ai/conversation/Conversation";
 import { readConversation, writeConversation } from "../../src/ai/conversation/formats";
 import { MemoryStore } from "../../src/ai/conversation/MemoryStore";
 import type { TurnRequest } from "../../src/ai/engine/types";
@@ -210,7 +211,7 @@ describe("approvals that survive a reload", () => {
         assert.deepStrictEqual(lastResults(assistant.engine.requests[0]), ["t0-0:AI_APPROVAL_STALE"]);
     });
 
-    it("checks the dataKey, not the fingerprint, when the host named the data", async () => {
+    it("checks the dataKey as well as the fingerprint when the host named the data", async () => {
         const { json, request } = await heldRecord({ store: "memory", dataKey: "sales-v1" });
         // Reopened by fingerprint: the same graph, under a newer name.
         const { assistant } = await reopened(json, { store: "memory", dataKey: "sales-v2" });
@@ -220,6 +221,129 @@ describe("approvals that survive a reload", () => {
 
         assert.strictEqual(result.code, "AI_APPROVAL_STALE");
         assert.strictEqual(result.params?.reason, "graph-changed");
+    });
+
+    it("checks the fingerprint even when the dataKey is the same: the name may stand for edited data", async () => {
+        const { json, request } = await heldRecord({ store: "memory", dataKey: "sales" });
+        const { assistant } = await reopened(json, { store: "memory", dataKey: "sales" });
+        await assistant.session.data.removeNodes(["e"]);
+        assistant.engine.push(textTurn("the data changed"));
+
+        const result = await assistant.controller.resolveAiApproval(request, { approve: true });
+
+        assert.strictEqual(result.code, "AI_APPROVAL_STALE");
+        assert.strictEqual(result.params?.reason, "graph-changed");
+        assert.notExists(assistant.session.data.node("f"));
+    });
+
+    it("sends a call whose run was cut short (claimed, never saved) with a result, so the provider accepts it", async () => {
+        const { json, request } = await heldRecord();
+        const store = new MemoryStore();
+        const { assistant: first } = await reopened(json, "memory", store);
+        const conversation = first.controller.getConversation()?.id ?? "";
+        // The tab claims the request and closes before its run saves anything.
+        assert.exists(await store.claim(conversation, request, "closed-tab"));
+        first.controller.dispose();
+
+        const { assistant } = await reopened(json, "memory", store);
+        assert.deepStrictEqual(assistant.controller.getPendingApprovals(), []);
+        await assistant.say("count the nodes");
+
+        const [sent] = assistant.engine.requests;
+        const calls = sent.messages.flatMap((message) =>
+            message.parts.flatMap((part) => (part.type === "tool-call" ? [part.callId] : [])),
+        );
+        assert.isNotEmpty(calls);
+        for (const callId of calls) {
+            const at = sent.messages.findIndex((message) =>
+                message.parts.some((part) => part.type === "tool-call" && part.callId === callId),
+            );
+            const next = sent.messages[at + 1];
+            assert.strictEqual(next?.role, "tool", "a call is followed at once by its result");
+            const results = next.parts.filter((part) => part.type === "tool-result" && part.callId === callId);
+            assert.lengthOf(results, 1);
+            assert.strictEqual(results[0].type === "tool-result" ? results[0].code : "", "AI_TOOL_NOT_RUN");
+        }
+    });
+
+    it("leaves a request another tab is running alone when a new message here supersedes it", async () => {
+        const { json, request } = await heldRecord();
+        const store = new MemoryStore();
+        const { assistant } = await reopened(json, "memory", store);
+        const conversation = assistant.controller.getConversation()?.id ?? "";
+        // Another tab claimed it and is running it now.
+        assert.exists(await store.claim(conversation, request, "other-tab"));
+
+        await assistant.say("never mind");
+
+        const saved = await store.load(conversation);
+        const results = (saved?.messages ?? []).flatMap((message) =>
+            message.parts.flatMap((part) => (part.type === "tool-result" && part.callId === "t0-0" ? [part.code] : [])),
+        );
+        assert.deepStrictEqual(results, [], "no closing result beside the one the other tab will write");
+        assert.strictEqual(saved?.pending[0]?.claim, "other-tab");
+    });
+
+    it("keeps another tab's messages when a request closed here was copied before them", async () => {
+        /** A memory store that tells its listeners when "another tab" wrote. */
+        class SharedStore extends MemoryStore {
+            readonly listeners = new Set<(change: ConversationStoreChange) => void>();
+            override subscribe(listener: (change: ConversationStoreChange) => void): () => void {
+                this.listeners.add(listener);
+                return () => this.listeners.delete(listener);
+            }
+        }
+        const { json } = await heldRecord();
+        const store = new SharedStore();
+        const { assistant } = await reopened(json, "memory", store);
+        const conversation = assistant.controller.getConversation()?.id ?? "";
+        // Another tab appends a message; this one hears of it and re-reads.
+        const stored = await store.load(conversation);
+        assert.exists(stored);
+        await store.save({
+            ...stored,
+            messages: [
+                ...stored.messages,
+                {
+                    id: "m_other",
+                    role: "user",
+                    parts: [{ type: "text", origin: "reader", text: "from the other tab" }],
+                },
+            ],
+        });
+        for (const listener of store.listeners) {
+            listener({ conversationId: conversation });
+        }
+
+        // A new message here supersedes the request, whose conversation was copied before the append.
+        await assistant.say("never mind");
+
+        const saved = await store.load(conversation);
+        const readerTexts = (saved?.messages ?? []).flatMap((message) =>
+            message.parts.flatMap((part) => (part.type === "text" && part.origin === "reader" ? [part.text] : [])),
+        );
+        assert.deepStrictEqual(readerTexts, ["add f", "from the other tab", "never mind"]);
+    });
+
+    it("says the store failed, not that another tab answered, when a claim cannot be written", async () => {
+        /** A store whose storage failed under it. */
+        class FailingStore extends MemoryStore {
+            override claim(): Promise<undefined> {
+                return Promise.reject(new DOMException("not readable", "NotFoundError"));
+            }
+        }
+        const { json, request } = await heldRecord();
+        const { assistant } = await reopened(json, "memory", new FailingStore());
+
+        const result = await assistant.controller.resolveAiApproval(request, { approve: true });
+
+        assert.deepStrictEqual([result.code, result.params], ["AI_STORAGE_FAILED", { request }]);
+        assert.notExists(assistant.session.data.node("f"));
+        assert.deepStrictEqual(
+            assistant.controller.getPendingApprovals().map((pending) => pending.id),
+            [request],
+            "the request stays open",
+        );
     });
 
     it("runs a request two controllers answer once; the other hears it was resolved elsewhere", async () => {

@@ -12,6 +12,16 @@ export class MemoryStore implements ConversationStore {
     private readonly records = new Map<string, ConversationRecord>();
 
     /**
+     * A store, empty or holding copies of these records as they are (their revisions kept).
+     * @param records - What it starts with.
+     */
+    constructor(records: Iterable<ConversationRecord> = []) {
+        for (const record of records) {
+            this.records.set(record.id, structuredClone(record));
+        }
+    }
+
+    /**
      * The saved conversations, newest first.
      * @param key - Only those of this scope; every one when absent.
      * @returns Copies of them.

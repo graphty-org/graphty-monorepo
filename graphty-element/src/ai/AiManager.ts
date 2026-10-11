@@ -20,6 +20,7 @@ import {
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import { CommandRegistry } from "./commands";
 import { offeredName } from "./commands/CommandRegistry";
+import { defaultConversationKey } from "./conversation/scope";
 import type { AiConversationSnapshot, AiConversationSummary } from "./conversation/snapshot";
 import { ApiKeyManager } from "./keys";
 import { createProvider, type ProviderType } from "./providers";
@@ -133,7 +134,10 @@ function historyFor(history: AiManagerConfig["history"], graph: Graph): AiContro
         ...options,
         key:
             options.key ??
-            `${scopeId((graph as { element?: Element }).element)}:${globalThis.location?.pathname ?? ""}`,
+            defaultConversationKey(
+                scopeId((graph as { element?: Element }).element),
+                globalThis.location?.pathname ?? "",
+            ),
     };
 }
 
@@ -159,6 +163,8 @@ export class AiManager {
     private provider: LlmProvider | null = null;
     private commandRegistry: CommandRegistry;
     private apiKeyManager: ApiKeyManager;
+    /** Every API key the page has given, kept out of saved and exported conversations. */
+    private readonly keysSeen = new Set<string>();
     private statusManager: AiStatusManager;
     private schemaManager: SchemaManager | null = null;
     private dataAddedListenerId: symbol | null = null;
@@ -206,6 +212,7 @@ export class AiManager {
 
             // Configure the provider with API key if provided (will be persisted if persistence enabled)
             if (config.apiKey) {
+                this.keysSeen.add(config.apiKey);
                 this.apiKeyManager.setKey(config.provider, config.apiKey);
                 this.provider.configure({
                     apiKey: config.apiKey,
@@ -239,10 +246,14 @@ export class AiManager {
                 ? {}
                 : {
                       history,
-                      secrets: () =>
-                          this.apiKeyManager
-                              .getConfiguredProviders()
-                              .flatMap((provider) => this.apiKeyManager.getKey(provider) ?? []),
+                      // Every key the page has given, rotated or removed ones included.
+                      secrets: () => {
+                          for (const provider of this.apiKeyManager.getConfiguredProviders()) {
+                              this.keysSeen.add(this.apiKeyManager.getKey(provider) ?? "");
+                          }
+
+                          return [...this.keysSeen];
+                      },
                   }),
             // Onto the graph's own event channel, so `addListener` and the element's DOM
             // forwarder both deliver every AI event.
@@ -450,6 +461,7 @@ export class AiManager {
      * @param key - The API key
      */
     setApiKey(provider: ProviderType, key: string): void {
+        this.keysSeen.add(key);
         this.apiKeyManager.setKey(provider, key);
 
         // If this is the current provider, update it

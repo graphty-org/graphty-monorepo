@@ -7,8 +7,10 @@
 import { assert, describe, expect, it, vi } from "vitest";
 
 import { readConversation } from "../../src/ai/conversation/formats";
+import { MemoryStore } from "../../src/ai/conversation/MemoryStore";
+import type { AiConversationMessage } from "../../src/ai/conversation/snapshot";
 import type { TurnRequest } from "../../src/ai/engine/types";
-import { assistantSession, ScriptedAssistant } from "../helpers/assistant";
+import { assistantSession, ScriptedAssistant, textTurn } from "../helpers/assistant";
 
 /**
  * What a turn sent, without the tools' schemas: the instructions, the messages and the tool names.
@@ -149,6 +151,120 @@ describe("AiController history", () => {
             assert.deepStrictEqual(result.params, { reason: "unknown-conversation" });
             assert.strictEqual(assistant.engine.requests.length, 0);
         }
+    });
+
+    it("shows the reader's words while the message runs, and how a failed one ended", async () => {
+        const assistant = new ScriptedAssistant(await assistantSession(), { history: "memory" });
+        let during: readonly AiConversationMessage[] = [];
+        assistant.engine.push(() => {
+            during = assistant.controller.getConversation()?.messages ?? [];
+            throw new Error("the provider is down");
+        });
+
+        const result = await assistant.controller.execute("count the nodes");
+
+        assert.isFalse(result.success);
+        assert.deepStrictEqual(
+            during.map((message) => [message.role, message.text]),
+            [["reader", "count the nodes"]],
+        );
+        const after = assistant.controller.getConversation()?.messages ?? [];
+        assert.deepStrictEqual(
+            after.map((message) => message.role),
+            ["reader", "assistant"],
+        );
+        const ended = after[1];
+        assert.deepStrictEqual(ended.role === "assistant" ? ended.outcome : undefined, {
+            code: result.code ?? "",
+            params: result.params ?? {},
+        });
+
+        // The next message is sent with the failed one, as text the provider accepts.
+        assistant.engine.push(textTurn("there are five"));
+        await assistant.controller.execute("try again");
+        const sent = assistant.engine.requests.at(-1);
+        assert.deepStrictEqual(
+            sent?.messages.map((message) => message.role),
+            ["user", "assistant", "user"],
+        );
+        assert.include(JSON.stringify(sent?.messages[1]), result.code ?? "?");
+    });
+
+    it('records a spoken message as via "voice", and a typed one as "text"', async () => {
+        const assistant = new ScriptedAssistant(await assistantSession(), { history: "memory" });
+        assistant.engine.push(textTurn("ok"), textTurn("ok"));
+        await assistant.controller.execute("color the servers red", { via: "voice" });
+        await assistant.controller.execute("thanks");
+
+        const readers = (assistant.controller.getConversation()?.messages ?? []).flatMap((message) =>
+            message.role === "reader" ? [[message.text, message.via]] : [],
+        );
+        assert.deepStrictEqual(readers, [
+            ["color the servers red", "voice"],
+            ["thanks", "text"],
+        ]);
+    });
+
+    it("ends a waiting request in the conversation it belongs to when the reader switches away", async () => {
+        const store = new MemoryStore();
+        const assistant = new ScriptedAssistant(await assistantSession(), {
+            history: "memory",
+            approvals: "writes",
+            store,
+        });
+        await assistant.say("hello");
+        const first = assistant.controller.getConversation()?.id ?? "";
+        await assistant.controller.newConversation();
+        const held = await assistant.say("add f", [ADD_NODE]);
+        assert.strictEqual(held.result.code, "AI_CONFIRMATION_NEEDED");
+        const second = assistant.controller.getConversation()?.id ?? "";
+
+        await assistant.sayInto(first, "back to the first");
+
+        const saved = await store.load(second);
+        assert.deepStrictEqual(saved?.pending, [], "the switched-away conversation waits on nothing");
+        const last = saved?.messages.at(-1);
+        assert.strictEqual(last?.role, "tool");
+        assert.deepStrictEqual(
+            last?.parts.map((part) => (part.type === "tool-result" ? [part.code, part.params.reason] : [])),
+            [["AI_APPROVAL_STALE", "superseded"]],
+        );
+        assert.deepStrictEqual(assistant.controller.getPendingApprovals(), []);
+        assert.notExists(assistant.session.data.node("f"));
+    });
+
+    it("asks again about a saved request of the conversation it opens, and runs it on approval", async () => {
+        const store = new MemoryStore();
+        const other = new ScriptedAssistant(await assistantSession(), {
+            history: "memory",
+            approvals: "writes",
+            store,
+        });
+        const held = await other.say("add f", [ADD_NODE]);
+        const request = String(held.result.params?.request);
+        const waiting = other.controller.getConversation()?.id ?? "";
+        other.controller.dispose();
+
+        const assistant = new ScriptedAssistant(await assistantSession(), {
+            history: { store: "memory", key: "elsewhere" },
+            approvals: "writes",
+            store,
+        });
+        await assistant.controller.ready();
+        const opened = await assistant.controller.openConversation(waiting);
+
+        assert.deepStrictEqual(
+            opened?.pending.map((pending) => pending.id),
+            [request],
+        );
+        assert.deepStrictEqual(
+            assistant.controller.getPendingApprovals().map((pending) => pending.id),
+            [request],
+        );
+        assistant.engine.push(textTurn("added f"));
+        const result = await assistant.controller.resolveAiApproval(request, { approve: true });
+        assert.strictEqual(result.code, "AI_COMPLETED", JSON.stringify(result));
+        assert.exists(assistant.session.data.node("f"));
     });
 
     it("gives every message an id no other controller gives, also after a reload", async () => {

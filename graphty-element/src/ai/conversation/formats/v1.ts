@@ -3,9 +3,9 @@
  * section 5.1), as strict zod schemas.
  *
  * This is the one definition of a saved message: the engine's `SavedMessage` and `SavedPart` are
- * these types. Every part kind and pending kind version 1 needs is defined here, including the ones
- * later milestones fill (hosted tools, helpers, voice, questions and plans), so the format does not
- * change under them. Every part has an `origin`; `providerState` is the only opaque field.
+ * these types. It defines only the part and pending kinds the element writes today: a kind a later
+ * feature needs is added with that feature, before the version is released. Every part has an
+ * `origin`; `providerState` is the only opaque field.
  *
  * Once this file's JSON Schema (`graphty-ai-conversation.v1.schema.json`) is on master it never
  * changes: a change to the format is version 2, with an upgrade from version 1.
@@ -43,7 +43,7 @@ const providerStateSchema = z.strictObject({
 });
 
 /** Where a part of a message came from. */
-const originSchema = z.enum(["reader", "model", "graph-data", "graphty", "web"]);
+const originSchema = z.enum(["reader", "model", "graph-data", "graphty"]);
 
 const textPart = z.strictObject({
     type: z.literal("text"),
@@ -72,23 +72,6 @@ const toolResultPart = z.strictObject({
     content: z.string().max(TOOL_RESULT_MAX_CHARS),
 });
 
-const hostedToolPart = z.strictObject({
-    type: z.literal("hosted-tool"),
-    origin: z.literal("web"),
-    callId: id,
-    /** The provider-hosted tool (`web-search`, `web-fetch`, `in-page-code`). Open. */
-    tool: id,
-    status: z.enum(["done", "result-unavailable"]),
-    /** The sources it read; raw payloads are never saved. */
-    sources: z.array(
-        z.strictObject({
-            url: z.string().regex(/^https?:\/\/\S+$/),
-            title: z.string().optional(),
-        }),
-    ),
-    providerState: providerStateSchema.optional(),
-});
-
 const reasoningPart = z.strictObject({
     type: z.literal("reasoning"),
     origin: z.literal("model"),
@@ -97,21 +80,12 @@ const reasoningPart = z.strictObject({
     providerState: providerStateSchema.optional(),
 });
 
-const agentRefPart = z.strictObject({
-    type: z.literal("agent-ref"),
+/** How a message that was taken back, or failed, ended: what the reader is told instead of an answer. */
+const outcomePart = z.strictObject({
+    type: z.literal("outcome"),
     origin: z.literal("graphty"),
-    /** The helper's role name. */
-    agent: id,
-    /** The helper's own conversation record. */
-    conversationId: id,
-    code: resultCode.optional(),
-    params: resultParams.optional(),
-});
-
-const liveTranscriptPart = z.strictObject({
-    type: z.literal("live-transcript"),
-    origin: z.enum(["reader", "model"]),
-    text: z.string(),
+    code: resultCode,
+    params: resultParams,
 });
 
 /** One part of a message. */
@@ -119,10 +93,8 @@ export const partSchema = z.discriminatedUnion("type", [
     textPart,
     toolCallPart,
     toolResultPart,
-    hostedToolPart,
     reasoningPart,
-    agentRefPart,
-    liveTranscriptPart,
+    outcomePart,
 ]);
 
 /** One message of a conversation. */
@@ -130,8 +102,6 @@ export const messageSchema = z.strictObject({
     id,
     role: z.enum(["user", "assistant", "tool"]),
     parts: z.array(partSchema),
-    /** The helper that wrote it, for a helper's message. */
-    agent: id.optional(),
 });
 
 /** What a held change would do, as `AiApprovalPreview` states it. */
@@ -168,56 +138,12 @@ const approvalPending = z.strictObject({
     }),
     /** The element's history revision when it was held. */
     historyRevision: z.number().int().nonnegative(),
-    agent: id.optional(),
-    claim,
-    createdAt: timestamp,
-});
-
-const questionPending = z.strictObject({
-    kind: z.literal("question"),
-    id,
-    messageId: id,
-    callId: id.optional(),
-    question: z.string(),
-    choices: z.array(z.string()),
-    multiple: z.boolean(),
-    agent: id.optional(),
-    claim,
-    createdAt: timestamp,
-});
-
-const planOrder = z.enum(["parallel", "sequence"]);
-
-const planStepPending = z.strictObject({
-    kind: z.literal("plan-step"),
-    id,
-    messageId: id,
-    planId: id,
-    /** The step's place in its plan, from 0. */
-    step: z.number().int().nonnegative(),
-    agents: z.array(id).min(1),
-    order: planOrder.optional(),
-    claim,
-    createdAt: timestamp,
-});
-
-const planConfirmationPending = z.strictObject({
-    kind: z.literal("plan-confirmation"),
-    id,
-    messageId: id,
-    planId: id,
-    steps: z.array(z.strictObject({ agents: z.array(id).min(1), order: planOrder.optional() })).min(1),
     claim,
     createdAt: timestamp,
 });
 
 /** Something waiting on the reader. */
-export const pendingSchema = z.discriminatedUnion("kind", [
-    approvalPending,
-    questionPending,
-    planStepPending,
-    planConfirmationPending,
-]);
+export const pendingSchema = z.discriminatedUnion("kind", [approvalPending]);
 
 /** One saved conversation. */
 export const conversationSchema = z.strictObject({

@@ -107,7 +107,6 @@ function messageChars(message: SavedMessage): number {
 function partChars(part: SavedPart): number {
     switch (part.type) {
         case "text":
-        case "live-transcript":
             return part.text.length;
         case "reasoning":
             return part.text?.length ?? 0;

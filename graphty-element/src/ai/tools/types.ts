@@ -200,13 +200,15 @@ export interface MessageState {
     /** The gate's limits, or false when it is off. */
     readonly gate: Readonly<AssistantGateLimits> | false;
     /**
-     * The one hold the reader approved, while that batch runs again: only that kind is let
-     * through, and every other limit still holds.
+     * The hold the reader approved, while that batch runs again: only that kind is let through,
+     * and every other limit still holds -- except after a `"policy"` hold, whose reader approved
+     * these exact calls before any ran, so no limit asks them again.
      */
     readonly approved?: GateKind;
     /**
      * The host's approval policy, judged per call before a batch runs; absent, every call is
-     * allowed. Not consulted again for a batch the reader already approved.
+     * allowed. For a batch the reader already approved only a `"deny"` counts, so edited
+     * arguments cannot get past it.
      */
     readonly policy?: (call: AiToolCallFacts) => AiApprovalVerdict;
     /** The message's id, its steps' `provenance.message`. */
@@ -221,13 +223,13 @@ export interface MessageState {
 
 /**
  * Whether a change of one kind is held for approval in this message: the gate is on, and the
- * reader has not already approved that kind for the batch running now.
+ * reader has not already approved that kind (or the batch's exact calls) for the batch running now.
  * @param message - The message.
  * @param kind - Why it would be held.
  * @returns True when the action must throw a `GateHold`.
  */
 export function gated(message: MessageState, kind: GateKind): boolean {
-    return message.gate !== false && message.approved !== kind;
+    return message.gate !== false && message.approved !== kind && message.approved !== "policy";
 }
 
 /** Everything an action runs with. */

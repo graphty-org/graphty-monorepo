@@ -323,7 +323,7 @@ export interface GraphtyElementJSXProps {
      */
     "onai-command-start"?: (event: CustomEvent<EventOfType<"ai-command-start">>) => void;
     /**
-     * The open conversation changed: it was saved, reopened, switched to or changed by another tab, or its store failed. Read it again with `getAiConversation()`. Only with `history` set.
+     * The open conversation changed: it was saved, reopened, switched to, started anew (`newAiConversation`, `clearAiHistory`) or changed by another tab, or its store failed. Read it again with `getAiConversation()`. Only with `history` set.
      */
     "onai-conversation-changed"?: (event: CustomEvent<EventOfType<"ai-conversation-changed">>) => void;
     /**
@@ -331,7 +331,7 @@ export interface GraphtyElementJSXProps {
      */
     "onai-export-ready"?: (event: CustomEvent<EventOfType<"ai-export-ready">>) => void;
     /**
-     * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message (`AI_APPROVAL_STALE` with `reason: "superseded"`), cancelled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
+     * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`), cancelled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
      */
     "onai-pending-resolved"?: (event: CustomEvent<EventOfType<"ai-pending-resolved">>) => void;
     /**

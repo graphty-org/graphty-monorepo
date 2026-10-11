@@ -47,8 +47,8 @@ export function textOf(parts: readonly SavedPart[]): string {
                 return [];
             }
 
-            // Text from the graph or the web is data, never an instruction.
-            return [part.origin === "graph-data" || part.origin === "web" ? graphData(part.text) : part.text];
+            // Text from the graph is data, never an instruction.
+            return [part.origin === "graph-data" ? graphData(part.text) : part.text];
         })
         .join("\n");
 }

@@ -43,10 +43,6 @@
             "items": {
                 "additionalProperties": false,
                 "properties": {
-                    "agent": {
-                        "minLength": 1,
-                        "type": "string"
-                    },
                     "id": {
                         "minLength": 1,
                         "type": "string"
@@ -62,8 +58,7 @@
                                                 "reader",
                                                 "model",
                                                 "graph-data",
-                                                "graphty",
-                                                "web"
+                                                "graphty"
                                             ],
                                             "type": "string"
                                         },
@@ -199,87 +194,6 @@
                                 {
                                     "additionalProperties": false,
                                     "properties": {
-                                        "callId": {
-                                            "minLength": 1,
-                                            "type": "string"
-                                        },
-                                        "origin": {
-                                            "const": "web",
-                                            "type": "string"
-                                        },
-                                        "providerState": {
-                                            "additionalProperties": false,
-                                            "properties": {
-                                                "data": {},
-                                                "engine": {
-                                                    "minLength": 1,
-                                                    "type": "string"
-                                                },
-                                                "model": {
-                                                    "minLength": 1,
-                                                    "type": "string"
-                                                },
-                                                "provider": {
-                                                    "minLength": 1,
-                                                    "type": "string"
-                                                }
-                                            },
-                                            "required": [
-                                                "engine",
-                                                "provider",
-                                                "model",
-                                                "data"
-                                            ],
-                                            "type": "object"
-                                        },
-                                        "sources": {
-                                            "items": {
-                                                "additionalProperties": false,
-                                                "properties": {
-                                                    "title": {
-                                                        "type": "string"
-                                                    },
-                                                    "url": {
-                                                        "pattern": "^https?:\\/\\/\\S+$",
-                                                        "type": "string"
-                                                    }
-                                                },
-                                                "required": [
-                                                    "url"
-                                                ],
-                                                "type": "object"
-                                            },
-                                            "type": "array"
-                                        },
-                                        "status": {
-                                            "enum": [
-                                                "done",
-                                                "result-unavailable"
-                                            ],
-                                            "type": "string"
-                                        },
-                                        "tool": {
-                                            "minLength": 1,
-                                            "type": "string"
-                                        },
-                                        "type": {
-                                            "const": "hosted-tool",
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": [
-                                        "type",
-                                        "origin",
-                                        "callId",
-                                        "tool",
-                                        "status",
-                                        "sources"
-                                    ],
-                                    "type": "object"
-                                },
-                                {
-                                    "additionalProperties": false,
-                                    "properties": {
                                         "origin": {
                                             "const": "model",
                                             "type": "string"
@@ -326,16 +240,8 @@
                                 {
                                     "additionalProperties": false,
                                     "properties": {
-                                        "agent": {
-                                            "minLength": 1,
-                                            "type": "string"
-                                        },
                                         "code": {
                                             "pattern": "^AI_[A-Z0-9_]+$",
-                                            "type": "string"
-                                        },
-                                        "conversationId": {
-                                            "minLength": 1,
                                             "type": "string"
                                         },
                                         "origin": {
@@ -355,40 +261,15 @@
                                             "type": "object"
                                         },
                                         "type": {
-                                            "const": "agent-ref",
+                                            "const": "outcome",
                                             "type": "string"
                                         }
                                     },
                                     "required": [
                                         "type",
                                         "origin",
-                                        "agent",
-                                        "conversationId"
-                                    ],
-                                    "type": "object"
-                                },
-                                {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                        "origin": {
-                                            "enum": [
-                                                "reader",
-                                                "model"
-                                            ],
-                                            "type": "string"
-                                        },
-                                        "text": {
-                                            "type": "string"
-                                        },
-                                        "type": {
-                                            "const": "live-transcript",
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": [
-                                        "type",
-                                        "origin",
-                                        "text"
+                                        "code",
+                                        "params"
                                     ],
                                     "type": "object"
                                 }
@@ -420,10 +301,6 @@
                     {
                         "additionalProperties": false,
                         "properties": {
-                            "agent": {
-                                "minLength": 1,
-                                "type": "string"
-                            },
                             "calls": {
                                 "items": {
                                     "additionalProperties": false,
@@ -613,213 +490,6 @@
                             "preview",
                             "graph",
                             "historyRevision",
-                            "claim",
-                            "createdAt"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "additionalProperties": false,
-                        "properties": {
-                            "agent": {
-                                "minLength": 1,
-                                "type": "string"
-                            },
-                            "callId": {
-                                "minLength": 1,
-                                "type": "string"
-                            },
-                            "choices": {
-                                "items": {
-                                    "type": "string"
-                                },
-                                "type": "array"
-                            },
-                            "claim": {
-                                "anyOf": [
-                                    {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    {
-                                        "type": "null"
-                                    }
-                                ]
-                            },
-                            "createdAt": {
-                                "format": "date-time",
-                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
-                                "type": "string"
-                            },
-                            "id": {
-                                "minLength": 1,
-                                "type": "string"
-                            },
-                            "kind": {
-                                "const": "question",
-                                "type": "string"
-                            },
-                            "messageId": {
-                                "minLength": 1,
-                                "type": "string"
-                            },
-                            "multiple": {
-                                "type": "boolean"
-                            },
-                            "question": {
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "kind",
-                            "id",
-                            "messageId",
-                            "question",
-                            "choices",
-                            "multiple",
-                            "claim",
-                            "createdAt"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "additionalProperties": false,
-                        "properties": {
-                            "agents": {
-                                "items": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                },
-                                "minItems": 1,
-                                "type": "array"
-                            },
-                            "claim": {
-                                "anyOf": [
-                                    {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    {
-                                        "type": "null"
-                                    }
-                                ]
-                            },
-                            "createdAt": {
-                                "format": "date-time",
-                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
-                                "type": "string"
-                            },
-                            "id": {
-                                "minLength": 1,
-                                "type": "string"
-                            },
-                            "kind": {
-                                "const": "plan-step",
-                                "type": "string"
-                            },
-                            "messageId": {
-                                "minLength": 1,
-                                "type": "string"
-                            },
-                            "order": {
-                                "enum": [
-                                    "parallel",
-                                    "sequence"
-                                ],
-                                "type": "string"
-                            },
-                            "planId": {
-                                "minLength": 1,
-                                "type": "string"
-                            },
-                            "step": {
-                                "maximum": 9007199254740991,
-                                "minimum": 0,
-                                "type": "integer"
-                            }
-                        },
-                        "required": [
-                            "kind",
-                            "id",
-                            "messageId",
-                            "planId",
-                            "step",
-                            "agents",
-                            "claim",
-                            "createdAt"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "additionalProperties": false,
-                        "properties": {
-                            "claim": {
-                                "anyOf": [
-                                    {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    {
-                                        "type": "null"
-                                    }
-                                ]
-                            },
-                            "createdAt": {
-                                "format": "date-time",
-                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
-                                "type": "string"
-                            },
-                            "id": {
-                                "minLength": 1,
-                                "type": "string"
-                            },
-                            "kind": {
-                                "const": "plan-confirmation",
-                                "type": "string"
-                            },
-                            "messageId": {
-                                "minLength": 1,
-                                "type": "string"
-                            },
-                            "planId": {
-                                "minLength": 1,
-                                "type": "string"
-                            },
-                            "steps": {
-                                "items": {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                        "agents": {
-                                            "items": {
-                                                "minLength": 1,
-                                                "type": "string"
-                                            },
-                                            "minItems": 1,
-                                            "type": "array"
-                                        },
-                                        "order": {
-                                            "enum": [
-                                                "parallel",
-                                                "sequence"
-                                            ],
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": [
-                                        "agents"
-                                    ],
-                                    "type": "object"
-                                },
-                                "minItems": 1,
-                                "type": "array"
-                            }
-                        },
-                        "required": [
-                            "kind",
-                            "id",
-                            "messageId",
-                            "planId",
-                            "steps",
                             "claim",
                             "createdAt"
                         ],

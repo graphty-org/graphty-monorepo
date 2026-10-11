@@ -61,6 +61,25 @@ describe("AiManager", () => {
     });
 
     describe("API key management", () => {
+        it("keeps every key the page gave out of a saved conversation, a replaced one too", async () => {
+            const remembering = new AiManager();
+            remembering.init(createMockGraphContext({ nodeCount: 3, edgeCount: 2 }), {
+                provider: "mock",
+                history: "memory",
+            });
+            await remembering.ready();
+            remembering.setApiKey("openai", "sk-old-key-0123456789");
+            remembering.setApiKey("openai", "sk-new-key-9876543210");
+
+            await remembering.execute("my old key was sk-old-key-0123456789");
+            const json = await remembering.exportConversation(remembering.getConversation()?.id ?? "");
+            remembering.dispose();
+
+            assert.isString(json);
+            assert.include(json, "my old key was [api-key]");
+            assert.notInclude(json, "sk-old-key-0123456789");
+        });
+
         it("can set API keys without throwing", () => {
             // Should not throw
             manager.setApiKey("openai", "sk-test-key");

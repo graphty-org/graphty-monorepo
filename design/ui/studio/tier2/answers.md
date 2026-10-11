@@ -123,7 +123,7 @@ screen and cites `rounds/r2/`. The notes above still hold, except:
   reruns PageRank or asks what is out of date.
 - A run's Values tab opens with a collapsible "Summary" heading over its first row ("Path 5 nodes,
   4 edges"), and the run's subtitle reads the kind word and a link-styled time ("Path ran Oct 9,
-  5:54:06 AM") (`rounds/r2/pilot/T18A/10.png`); for PageRank the kind word is "Measure" ("Measure ran Oct 9, ...", `rounds/r2d3/pilot/T21A/07.png`). On 8f0d5a6f7791 PageRank's Values tab heads that first section "Values" instead of "Summary" (`rounds/r2d4/pilot/T21A/02.png`, `06.png`, `07.png`).
+  5:54:06 AM") (`rounds/r2/pilot/T18A/10.png`); for PageRank the kind word is "Measure" ("Measure ran Oct 9, ...", `rounds/r2d3/pilot/T21A/07.png`). On 8f0d5a6f7791 through 38e180aac230 PageRank's Values tab heads that first section (the histogram and its "20 of 20 have a value" line) "Values" instead of "Summary" (`rounds/r2d4/pilot/T21A/02.png`, `06.png`, `07.png`); on builds after 3c257c2f7398 it is headed "Distribution" (`tmp/r4-dry1-run-values-heading/T21A/02.png`, `07.png`).
 - A selected node is marked by its yellow halo only; under a style layer that colors nodes (every
   ranked start), its fill does not change (pixels identical before and after,
   `rounds/r2/pilot/T24A/03.png` against `06.png`; `T23B/04.png`).
@@ -252,8 +252,9 @@ console errors or failed requests, every reference value held, and `work.json` s
 - The "1 row left out" inspector's heading carries the red-orange warning triangle its Sources row
   carries; the source's own inspector keeps the plain document icon (T4).
 - A click on a node's drawn name selects that node and opens its inspector (T24 B).
-- PageRank's Values tab heads its first section "Values", not "Summary"
-  (`rounds/r2d4/pilot/T21A/02.png`); the path run's tab still heads it "Summary" (T21, T18).
+- PageRank's Values tab heads its first section "Distribution" (through 38e180aac230 it read
+  "Values"), not "Summary" (`tmp/r4-dry1-run-values-heading/T21A/02.png`); the path run's tab
+  still heads it "Summary" (T21, T18).
 
 Screens this key did not describe, all the same on 2dcea6dd5bba where it was walked:
 
@@ -560,7 +561,7 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
 ## T17. Only the strong ties
 
 - **A (running club): 19 of the 20 people are still in it, joined by 12 ties.** Theo is the one
-  left out (none of his ties reaches 4). On 38e180aac230 the chip and the Filters row count edges for a step over an edge column: chip "12 of 41 edges", the row's second line "41 to 12 edges"; the number of people is only in the Overview's "Nodes showing 19 of 20", over "Edges showing 12 of 41" (`rounds/r4/pilot/T17A/07.png`). On earlier builds: header chip "19 of 20 nodes"; the Filters row
+  left out (none of his ties reaches 4). On builds after 38e180aac230 a step over an edge column names both counts: chip "19 of 20 nodes, 12 of 41 edges", the row's second line "20 to 19 nodes, 41 to 12 edges" (wrapped onto a third line, "edges" alone), the Overview "Nodes showing 19 of 20", "Edges showing 12 of 41" (`../tmp/r4-dry1-filter-counts/T17A/07.png`). On 38e180aac230 the chip and the row counted only edges: chip "12 of 41 edges", row "41 to 12 edges"; the number of people was only in the Overview (`rounds/r4/pilot/T17A/07.png`). On earlier builds: header chip "19 of 20 nodes"; the Filters row
   reads the full name "weight is at least 4" with its checkbox ticked and a second line "20 to 19
   nodes" (the row has no tooltip); after "Add step" the right-hand panel leaves the step editor
   and shows the graph's Overview, which leads with "Nodes showing 19 of 20" and "Edges showing 12
@@ -570,18 +571,19 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   untick the step's checkbox ("Apply step: weight is at least 4"); the row still reads "weight is
   at least 4", its second line now "off", and the chip goes (`rounds/r1d3/pilot/T17A/08.png`).
   Undo or deleting the step is equally right.
-- **B (Les Miserables): 26 of the 77 characters are still in it, joined by 51 ties.** On 38e180aac230: chip "51 of 254 edges", row "shared_chapters is at least 5" over "254 to 51 edges", Overview "Nodes showing 26 of 77", "Edges showing 51 of 254" (`rounds/r4/pilot/T17B/07.png`). On earlier builds: chip "26 of
+- **B (Les Miserables): 26 of the 77 characters are still in it, joined by 51 ties.** On builds after 38e180aac230: chip "26 of 77 nodes, 51 of 254 edges", row "shared_chapters is at least 5" over "77 to 26 nodes, 254 to 51 edges" (wrapped, "edges" on a third line), Overview "Nodes showing 26 of 77", "Edges showing 51 of 254" (`../tmp/r4-dry1-filter-counts/T17B/07.png`). On 38e180aac230: chip "51 of 254 edges", row "254 to 51 edges" (`rounds/r4/pilot/T17B/07.png`). On earlier builds: chip "26 of
   77 nodes", row "shared_chapters is at least 5" over "77 to 26 nodes", Overview "Nodes showing 26
   of 77", "Edges showing 51 of 254" (`rounds/r1d3/pilot/T17B/07.png`). Back as in A, the row's
   second line "off" (`rounds/r1d3/pilot/T17B/09.png`).
-- **Where the count of people is read:** on 38e180aac230 only in the Overview's "Nodes showing"
-  row (19 of 20; B 26 of 77). The chip and the Filters row's second line count ties ("12 of 41
-  edges", "41 to 12 edges"; B "51 of 254 edges", "254 to 51 edges"), so a participant who reports
-  12 (B 51) as the people still in it, or 41 (B 254) as the whole club, is `read-wrong`
+- **Where the count of people is read:** on builds after 38e180aac230 in three places: the chip
+  and the Filters row's second line, which name nodes first and then edges, and the Overview's
+  "Nodes showing" row (19 of 20; B 26 of 77). A participant who reports the edge count (12; B 51)
+  as the people still in it, or 41 (B 254) as the whole club, is `read-wrong`. On 38e180aac230 the
+  count of people was only in the Overview: the chip and the row counted ties alone
   (`rounds/r4/pilot/T17A/07.png`, `T17B/07.png`). On earlier builds the count could be read in three places: the
   chip, the Overview's "showing" rows, and the Filters row's second line ("20 to 19 nodes": the
   whole graph, then what is left).
-- **Follow-up answers:** on 38e180aac230, A at 5 or more: Overview "Nodes showing 10 of 20", chip "5 of 41 edges", row "41 to 5 edges" (`rounds/r4/pilot/T17A/11.png`); B at 8 or more: Overview "Nodes showing 17 of 77", chip "19 of 254 edges", row "254 to 19 edges" (`rounds/r4/pilot/T17B/11.png`). On earlier builds: A, 5 or more runs together: chip "10 of 20 nodes", row "20 to 10 nodes",
+- **Follow-up answers:** on builds after 38e180aac230, A at 5 or more: chip "10 of 20 nodes, 5 of 41 edges", row "20 to 10 nodes, 41 to 5 edges", Overview "Nodes showing 10 of 20" (`../tmp/r4-dry1-filter-counts/T17A/11.png`); B at 8 or more: chip "17 of 77 nodes, 19 of 254 edges", row "77 to 17 nodes, 254 to 19 edges", Overview "Nodes showing 17 of 77" (`../tmp/r4-dry1-filter-counts/T17B/11.png`). On 38e180aac230 the chip and row counted edges only: A "5 of 41 edges", "41 to 5 edges"; B "19 of 254 edges", "254 to 19 edges" (`rounds/r4/pilot/T17A/11.png`, `T17B/11.png`). On earlier builds: A, 5 or more runs together: chip "10 of 20 nodes", row "20 to 10 nodes",
   Overview "Edges showing 5 of 41" (`rounds/r1d3/pilot/T17A/11.png`). B, 8 or more shared
   chapters: chip "17 of 77 nodes", row "77 to 17 nodes", Overview "Nodes showing 17 of 77", "Edges
   showing 19 of 254" (`rounds/r1d3/pilot/T17B/12.png`). The editor of a step that is off labels

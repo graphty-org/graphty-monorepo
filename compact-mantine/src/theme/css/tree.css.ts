@@ -140,10 +140,11 @@ const css = `
 .cm-tree-row[data-dimmed] .cm-tree-icon { color: var(--cm-text-tertiary); }
 .cm-tree-row .cm-rename { flex: none; width: 176px; }
 /* A row that shows its description: the name, then the description on a second 16px line in the
-   secondary ink; the row grows to 44 and its pill and ring to 36. */
-.cm-tree-row[data-two-line] { height: 44px; }
-.cm-tree-row[data-two-line]::after { height: 36px; }
-.cm-tree-row[data-two-line] .cm-tree-ring { height: 36px; }
+   secondary ink; the row grows to 44 and its pill and ring to 36. A description too long for one
+   line wraps onto more, and the row, pill and ring grow with it: it is never cut. */
+.cm-tree-row[data-two-line] { height: auto; min-height: 44px; padding-block: 6px; }
+.cm-tree-row[data-two-line]::after { height: auto; bottom: 4px; }
+.cm-tree-row[data-two-line] .cm-tree-ring { height: auto; bottom: 4px; }
 .cm-tree-lines {
     flex: 1 1 auto;
     display: flex;
@@ -154,9 +155,7 @@ const css = `
 }
 .cm-tree-lines .cm-tree-name { flex: none; margin-inline-start: 0; }
 .cm-tree-description {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     color: var(--cm-text-secondary);
     font-weight: 400;
     font-variant-numeric: tabular-nums;

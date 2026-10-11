@@ -50,13 +50,15 @@ describe("the Filters words", () => {
     });
 
     it("gives a step's outcome, and says off in words for a step that is off", () => {
-        assert.equal(outcomeWords(true, 22, 9), "22 to 9 nodes");
-        assert.equal(outcomeWords(false, 22, 9), "off");
-        assert.equal(outcomeWords(true, undefined, 9), "");
-        assert.equal(outcomeWords(true, 41, 20, "edges"), "41 to 20 edges");
+        const before = { nodes: 22, edges: 41 };
+        const after = { nodes: 9, edges: 20 };
+        assert.equal(outcomeWords(true, before, after), "22 to 9 nodes");
+        assert.equal(outcomeWords(false, before, after), "off");
+        assert.equal(outcomeWords(true, undefined, after), "");
+        assert.equal(outcomeWords(true, before, after, true), "22 to 9 nodes, 41 to 20 edges");
     });
 
-    it("counts a step over an edge column in edges, on its row and on the chip", () => {
+    it("names both counts for a step over an edge column, on its row and on the chip", () => {
         const edge = {
             id: "e",
             on: true,
@@ -65,9 +67,10 @@ describe("the Filters words", () => {
         const node = { id: "n", on: true, rule: { kind: "range", attribute: "data.age", min: 3 } } as const;
         assert.isTrue(overEdges(edge));
         assert.isFalse(overEdges(node));
-        assert.equal(chipWords(SHOWING, [edge]), "14 of 30 edges");
-        // A step over nodes that is on keeps the chip in nodes; an edge step that is off does not count.
-        assert.equal(chipWords(SHOWING, [edge, node]), "9 of 22 nodes");
+        assert.equal(chipWords(SHOWING, [edge]), "9 of 22 nodes, 14 of 30 edges");
+        // A mix keeps the nodes and adds the edges; an edge step that is off does not count.
+        assert.equal(chipWords(SHOWING, [edge, node]), "9 of 22 nodes, 14 of 30 edges");
+        assert.equal(chipWords(SHOWING, [node]), "9 of 22 nodes");
         assert.equal(chipWords(SHOWING, [{ ...edge, on: false }, node]), "9 of 22 nodes");
         assert.equal(statusWords([edge], SHOWING), "Filter on: 9 of 22 nodes, 14 edges");
     });

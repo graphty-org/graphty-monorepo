@@ -38,12 +38,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   inspector 27 / 31 / 28 (one over). Bar 8 runs two focus actions proven on planted drops (both
   now fixed). The find list's axe `scrollable-region-focusable` is excused only while its scroll
   check holds (`tmp/t2r3-r4-04/`).
-- (2026-10-10, condensed) **A filter step over an edge column counts edges: built** (8ab196fb3,
-  app only; the element already counts edges). Row and chip read "41 to 20 edges" / "20 of 41
-  edges" (`tmp/t2r3-r4-11/fresh/`). **Re-record the T17A answer key ("12 of 41 edges" / "41 to 12
-  edges") before round 4 freezes.**
-  Two tests still expect "8 to 5 nodes" / "8 to 4 nodes" (`Filters.real-element.test.tsx`,
-  `FilterFocus.real-element.test.tsx`) and fail on this change: update them to the edge words.
+- (2026-10-11) **A filter step over an edge column names both counts: built** (app words,
+  shared Tree CSS). Row "20 to 19 nodes, 41 to 12 edges", chip "19 of 20 nodes, 12 of 41 edges";
+  a node step keeps "N to M nodes"; a mix adds edges to the chip when any step that is on is over
+  an edge column. Counts are the element's (`plan` steps' `{ nodes, edges }`, the summary). The
+  longer row did not fit the 240 left panel, so compact-mantine's Tree now wraps a visible
+  description and grows the row (min 44, pill and ring follow) instead of cutting it. T17 answer
+  key updated. Fresh build: `tmp/r4-dry1-filter-counts/T17A/07.png`, `11.png`;
+  `T17B/07.png`, `11.png` (all acceptance counts match).
 - (2026-10-10, condensed) **Two screen-reader descriptions:** the Add page's repeated-ties line is
   now a warning (danger glyph, id `dp-repeats`) that Load's `aria-describedby` lists (built,
   `tmp/t2r3-r4-10/fresh/`); a pressed "Filter to neighbors" already reads its reason on keyboard
@@ -244,6 +246,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-11) Worked: wrapping the Tree description in compact-mantine (`overflow-wrap:
+  anywhere`, row `height: auto; min-height: 44px; padding-block: 6px`, pill and ring `bottom:
+  4px`). One-line rows look the same (44). Did not do: no-break spaces inside each count phrase so
+  "41 to 12" and "edges" stay together; the wrap puts "edges" alone on a third line, which reads
+  fine and the acceptance allows.
+
 - (2026-10-11) **real.mjs cannot click an aria-disabled button.** Its click is Playwright's, which
   waits for an "enabled" element and treats aria-disabled as disabled, so `--click "Add step"` on
   the disabled button only retries. A person's click goes through. What worked: prove "a press adds
@@ -253,35 +261,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   writing HEAD plus my edits to a blob and `git update-index --cacheinfo`; another agent's commit
   can sweep up a test I added to a shared test file (my toolbar test landed in 115bc0aa4).
 
-- (2026-10-10) **Proving where focus landed in real.mjs without `--sr`.** A programmatic focus
-  after a pointer click draws no ring, so the screenshot cannot show it. Worked: `--key ArrowDown`
-  after the click; a focused Mantine Select opens its list (`tmp/t2r3-r4-09/fresh/04.png`). In a
-  real-element test, a top-level `it` outside the describe runs at the 414 px default viewport
-  and the left panel is not drawn; put toolbar tests inside the describe that sets 1366 x 768.
-
-- (2026-10-10) **Finding why `useFocusLine` lost a line.** Worked: `console.log` in the hook's
-  effect and a mount/unmount effect, run under the real-element test; it showed the focus landed and
-  the tab then unmounted. Rule: a module-level focus ask consumed by a component that is about to
-  remount must be re-armed in a layout cleanup (a passive cleanup runs after the nodes are gone,
-  when `activeElement` is already body).
-- (2026-10-10) **Scripting the Analyze focus drop.** Did not work: typing "shortest path" and
-  Enter (the first row is Betweenness, which keeps focus on Run); Shift+A while the find box has
-  focus (types "A" into the find). Worked: `--click role=button:Analyze`, type, three ArrowDowns,
-  Enter, `--expect role=button:Find path` (the expect fails the move if a build reorders the rows).
-  `--click` is refused in an `--sr` session; explore with keys there, then walk without `--sr`.
-  A new tool check that reads the page goes in `measure.mjs` with a planted case in `plant()`, and a
-  browser test beside it (`bar8-9.test.mjs`) that fails on the old code.
-- (2026-10-10) **Reaching "Add to <graph>" in real.mjs.** Did not work: `--drop` on the Graph
-  canvas (nothing takes it), `--click "Add data"` in the Data place (the Sources "+" is not
-  rendered for a loaded project). Worked: `--key Control+k`, `--type "Add data"`, `--key Enter`,
-  then `--click "choose a file..." --upload <file>`. Load takes focus on a clean file, so
-  `--expect "described=..."` reads Load directly. Test of a description: resolve
-  `aria-describedby` ids to text in the real-element test (no extra dependency).
-- (2026-10-10) **Tried: checking an accessible description with `--expect` or `--sr`. Did not
-  work:** neither read descriptions (`--sr`'s focus line is role, name, value, states). Worked:
-  `--expect "described=<text>"` in real.mjs (CDP's AX node `description` of the focused control).
-  A pointer click is not focus-visible, so Mantine's focus opening does not fire on it; to test
-  what a keyboard user hears, reach the control by Tab or Shift+Tab.
+- (2026-10-10, summarized 2026-10-11) **Focus and description proofs.** Focus after a pointer
+  click draws no ring: `--key ArrowDown` opens a focused Mantine Select (`tmp/t2r3-r4-09/fresh/04.png`).
+  Toolbar real-element tests go inside the describe that sets 1366 x 768. A module-level focus ask
+  consumed by a component about to remount is re-armed in a layout cleanup. Analyze rows: `--click
+  role=button:Analyze`, type, ArrowDowns, Enter, then `--expect role=button:<name>`; `--click` is
+  refused under `--sr`. "Add to <graph>": `--key Control+k`, type "Add data", Enter. Descriptions:
+  `--expect "described=<text>"` (CDP AX description); reach the control by Tab to hear what a
+  keyboard user hears. A new tool check goes in `measure.mjs` with a planted case and a browser test.
 - (2026-10-10, summarized) **Smaller lessons from 10-10.** Lint wants a test key like
   `shared_chapters` as `const WEIGHT = "shared_chapters"` and `[WEIGHT]:`. Shift-add needed
   `selection.size` from the session (the manager's own index skipped a click). Audit walks: one

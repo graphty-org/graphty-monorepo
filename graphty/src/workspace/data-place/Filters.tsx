@@ -33,6 +33,7 @@ import {
     chipTip,
     chipWords,
     ENDS_LINE,
+    type Left,
     missingTip,
     outcomeWords,
     overEdges,
@@ -42,12 +43,6 @@ import {
     type StepMissing,
 } from "./filterWords";
 import { useVisibilityVersion } from "./useVisibilityVersion";
-
-/** What is left: nodes and edges. */
-interface Left {
-    readonly nodes: number;
-    readonly edges: number;
-}
 
 /** What is left before the first step and after each step that is on, by step id. */
 interface Outcomes {
@@ -149,9 +144,8 @@ export function FiltersSection(): React.JSX.Element {
     const items: TreeNodeData[] = steps.map((step) => {
         const words = session === null ? "" : stepWords(session, step);
         const after = step.on ? outcomes?.after.get(step.id) : undefined;
-        // A step over an edge column is counted in edges; the element counts both.
-        const unit = overEdges(step) ? "edges" : "nodes";
-        const outcome = outcomeWords(step.on, before?.[unit], after?.[unit], unit);
+        // A step over an edge column changes both counts, so it names both; the element counts both.
+        const outcome = outcomeWords(step.on, before, after, overEdges(step));
         if (step.on && after !== undefined) {
             before = after;
         }

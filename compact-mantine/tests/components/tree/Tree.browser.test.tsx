@@ -103,6 +103,31 @@ describe("Tree: semantics", () => {
         expect(row("hidden").getBoundingClientRect().height).toBe(32);
     });
 
+    it("wraps a description too long for one line, and the row grows to hold it", async () => {
+        const words = "77 to 26 nodes, 254 to 51 edges";
+        await renderThemed(
+            <div style={{ width: 180 }}>
+                <Tree
+                    items={[
+                        {
+                            id: "s",
+                            name: "shared_chapters is at least 5",
+                            description: words,
+                            descriptionVisible: true,
+                        },
+                    ]}
+                />
+            </div>,
+        );
+        const item = row("shared_chapters is at least 5");
+        const line = within(item).getByText(words);
+        // The whole description shows, on more than one line, inside the row.
+        expect(line.scrollWidth).toBeLessThanOrEqual(line.clientWidth);
+        expect(line.getBoundingClientRect().height).toBeGreaterThan(16);
+        expect(item.getBoundingClientRect().height).toBeGreaterThan(44);
+        expect(line.getBoundingClientRect().bottom).toBeLessThanOrEqual(item.getBoundingClientRect().bottom);
+    });
+
     it("has one Tab stop, on the selected row", async () => {
         await renderThemed(
             <>

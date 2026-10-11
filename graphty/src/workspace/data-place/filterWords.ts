@@ -48,7 +48,7 @@ export const ENDS_LINE = "Keeps edges that pass and the nodes at their ends.";
 
 /**
  * Whether a step is over an edge column (its rule keeps edges and the nodes at their ends), so
- * its outcome is counted in edges.
+ * its outcome names the edges as well as the nodes.
  * @param step - the step.
  * @returns true for an edge step.
  */
@@ -57,25 +57,31 @@ export function overEdges(step: FilterStep): boolean {
     return (rule.kind === "range" || rule.kind === "categories") && rule.nodes === "ends";
 }
 
+/** How many nodes and edges are left, as the element's plan counts them. */
+export interface Left {
+    readonly nodes: number;
+    readonly edges: number;
+}
+
 /**
- * A step's outcome, shown after its sentence: "22 to 9 nodes" ("41 to 20 edges" for a step over
- * an edge column), or "off" for a step that is off.
+ * A step's outcome, shown after its sentence: "22 to 9 nodes", or for a step over an edge
+ * column, which keeps edges and the nodes at their ends, "20 to 19 nodes, 41 to 12 edges";
+ * "off" for a step that is off.
  * @param on - whether the step is on.
- * @param before - the nodes (or edges) left before it, or undefined until counted.
- * @param after - the nodes (or edges) left after it, or undefined until counted.
- * @param unit - what the counts are of.
+ * @param before - what is left before it, or undefined until counted.
+ * @param after - what is left after it, or undefined until counted.
+ * @param edges - whether the edges are named too (a step over an edge column).
  * @returns the words, or "" while uncounted.
  */
-export function outcomeWords(
-    on: boolean,
-    before: number | undefined,
-    after: number | undefined,
-    unit: "nodes" | "edges" = "nodes",
-): string {
+export function outcomeWords(on: boolean, before: Left | undefined, after: Left | undefined, edges = false): string {
     if (!on) {
         return "off";
     }
-    return before === undefined || after === undefined ? "" : `${String(before)} to ${String(after)} ${unit}`;
+    if (before === undefined || after === undefined) {
+        return "";
+    }
+    const nodes = `${String(before.nodes)} to ${String(after.nodes)} nodes`;
+    return edges ? `${nodes}, ${String(before.edges)} to ${String(after.edges)} edges` : nodes;
 }
 
 /**
@@ -166,17 +172,17 @@ interface Showing {
 }
 
 /**
- * The header chip: "9 of 22 nodes", or "20 of 41 edges" while every step that is on is over an
- * edge column.
+ * The header chip: "9 of 22 nodes", and the edges too ("9 of 22 nodes, 20 of 41 edges") while a
+ * step that is on is over an edge column.
  * @param showing - the element's visibility summary.
  * @param steps - the steps.
  * @returns the words.
  */
 export function chipWords(showing: Showing, steps: readonly FilterStep[] = []): string {
-    const on = steps.filter((step) => step.on);
-    return on.length > 0 && on.every(overEdges)
-        ? `${String(showing.visibleEdges)} of ${String(showing.totalEdges)} edges`
-        : `${String(showing.visibleNodes)} of ${String(showing.totalNodes)} nodes`;
+    const nodes = `${String(showing.visibleNodes)} of ${String(showing.totalNodes)} nodes`;
+    return steps.some((step) => step.on && overEdges(step))
+        ? `${nodes}, ${String(showing.visibleEdges)} of ${String(showing.totalEdges)} edges`
+        : nodes;
 }
 
 /**

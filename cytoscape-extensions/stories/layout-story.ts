@@ -28,8 +28,8 @@ export interface LayoutArgs extends RunArgs {
  * @returns the story root
  */
 export function renderLayout(args: LayoutArgs): HTMLElement {
-    return renderDemo(args, `graphty-${args.layout}`, ({ cy, gpuMode, extra }) =>
-        layOutNetwork(cy, args, gpuMode, extra),
+    return renderDemo(args, `graphty-${args.layout}`, ({ cy, edges, gpuMode, extra }) =>
+        layOutNetwork(cy, args, gpuMode, extra, edges),
     );
 }
 
@@ -42,6 +42,7 @@ export function renderLayout(args: LayoutArgs): HTMLElement {
  * @param args - the layout, the network size, the seed, the iterations and whether to animate
  * @param gpuMode - the backend
  * @param extra - more layout options
+ * @param edges - the network's edge count, when the core may hold fewer (the nodes only)
  * @returns which backend ran and why
  */
 export async function layOutNetwork(
@@ -49,6 +50,7 @@ export async function layOutNetwork(
     args: Pick<LayoutArgs, "layout" | "size" | "seed" | "iterations" | "animate">,
     gpuMode: "auto" | "off" | "require",
     extra: Record<string, unknown>,
+    edges = cy.edges().length,
 ): Promise<Outcome> {
     // 2,000 nodes and up: a CPU run until settled takes long enough to hold the page past a capture's 30 s render wait
     const large = SIZES[args.size] >= 2_000;
@@ -88,7 +90,6 @@ export async function layOutNetwork(
             // a browser without a GPU takes longer than a capture waits to draw 160,000 edges: at 50,000 nodes, the
             // nodes only
             const many = SIZES[args.size] >= 50_000;
-            const edges = cy.edges().length;
             if (many) {
                 cy.edges().remove();
             }

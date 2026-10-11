@@ -26,10 +26,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-11) **Also built after the dry run:** step editor's disabled submit says what is
   missing (`filterWords.ts` `missingTip`); a measure run's first Values section is
   "Distribution".
-- (2026-10-11) **Owed before round 4 starts:** the second dry run on the refrozen build pilots
-  T24 (new prompt and key, every key route walked), T22, T18, T17 on both halves and T12R B in
-  `rounds/r4d2/pilot/`. The criteria still named 38e180aac; confirm the refrozen build holds
-  c9f2ceed3 and 5277e2cbe before piloting.
+- (2026-10-11) **Round 4 screenshot audit on 5277e2cbe (`tier2/rounds/round-4/expert/engineer.md`),
+  38 findings, 5 new.** Worst new one (sev 3): a bare number in the find box lists every matching
+  edge first, so "weight is 4 or more" sits below the fold of a fixed ~280 px list even at 1200 x
+  900 -- T22's change may go unseen; fix the section order or list height in `FindBox.tsx`. Also
+  new: the key keeps a re-run's range after Undo (script app vs element layer first); the Analyze
+  box jumps up to 357 px as the list narrows (popover grows from the toolbar); a run under a filter
+  is "out of date" / "Ran on 20 nodes" / "full graph" at once; the step editor's blank Attribute.
+  Round 3's "+"-tooltip-over-checkbox and segment dot are gone.
 - (2026-10-11) **Watch in round 4:** T17 first moves (5 of 8 looked on the Graph place first in
   round 3 -- does the toolbar Filters tool end that?); T22 readers type the prompt's most prominent
   data word first, so the find box must answer a column name and a bare number; T24 with Shift-
@@ -228,6 +232,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   is "replace"); weigh those findings up, not down.
 
 ## Tried: worked / did not work
+
+- (2026-10-11) **Audit without a wrapper script worked:** one Bash call per walk, each line a
+  direct `node real.mjs --step <own folder> ...` with output to `<walk>.log`, run in the background
+  (four machine slots were mostly taken by other experts; each start waited, none failed); a later
+  batch chained behind the earlier with `until grep -q "session ended" <log>`. Names that changed
+  since round 3: "Save and turn on" is "Save step"; "Graph" and "Data" need `role=button:`; the find
+  list's lower rows need `--wheel x,y,800` before a screenshot shows them; `--hover-at` on a tree
+  row's icon prints its accessible name and tooltip (how the "out of date" name was found).
 
 - (2026-10-11) Worked: copying `graphty/dist` into the session folder and pointing REAL_DIST at
   the copy, so another agent's rebuild cannot swap the app mid-pilot; delete the copy after

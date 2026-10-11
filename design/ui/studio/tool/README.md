@@ -316,9 +316,17 @@ A round may not start until its folder holds, for the frozen build named on the 
 --dist <frozen build>`, with every planted case caught (a failing bar does not stop the gate).
 
 It prints a `FAIL:` line per missing piece and exits 1. When all are there it writes a "Gate
-evidence" section at the end of `plan.md` listing each file, and exits 0. The round runner
-(`../tier2/rounds/workflow-tier2.js`) runs the bars and the gate after the plan and stops the round
-on a failure, and runs the round's leak check before scoring.
+evidence" section at the end of `plan.md` listing each file, and exits 0.
+
+`--start` checks for that section itself: a session folder of a round
+(`rounds/<round>/sessions/<id>`, or the participant's folder that mirrors one) is refused, exit 1
+and one `FAIL:` line, unless the round's `plan.md` holds a "Gate evidence" section written for the
+frozen build. So no runner, continuation script or start by hand can run a session the gate never
+passed. Pilots (`<round>/pilot/`) and expert walkthroughs (`<round>/expert/`) are not sessions of
+the round and start without it.
+
+The round runner (`../tier2/rounds/workflow-tier2.js`) runs the bars and the gate after the plan
+and stops the round on a failure, and runs the round's leak check before scoring.
 
 ## Browsers
 
@@ -334,6 +342,15 @@ slot (it runs its session process through the gate), `--prove` runs the gate its
 it starts, and `--step`, `--end` and `--brief` launch no browser, so all five are called directly;
 wrapped in the gate by mistake, they run at once instead of holding one slot while waiting for a
 second.
+
+**A start that must not wait in the background.** A start that waits longer than the caller's
+shell call allows is moved to the background, and an agent whose turn then ends never comes back
+to it (round 4 of tier 2: r4-s05, r4-s20 and r4-s28 never started). `REAL_SLOT_WAIT_SECONDS=<s>`
+bounds the wait: with no slot free after that long, `--start` stops its waiting session process
+and exits 4 with nothing started, and the caller runs the same command again. The round runner
+starts each participant's session this way, in a step of its own, before the participant's turn
+begins, so a participant never waits for a slot. A session whose start never produced `01.png` is
+not a session: the runner re-runs it from a new folder (`<id>b`) and the scores name it.
 
 **Why round 1 of tier 2 ran more than four browsers (2026-10-09).** Until then `with-browser.sh`
 kept a pool of its own, four lock files in `/tmp/graphty-design-browser-slots/`, while the pre-push
@@ -375,7 +392,7 @@ one whose step names nothing, one whose click never becomes clickable), a screen
 text, the highlighted option of the find box, a planted region that arrives filled marked
 unconfirmed, `--read` in the Export dialog, the first Tab after a setup landing on Main menu), a
 planted position pick between the open Attribute list's option "weight" and the Data panel's row
-"weight" that must be refused, an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json` and keeps a note written in the round's folder before it, a round's leak check that fails naming a session with no readable log, and a gate that refuses a round folder with no pilot results and no bars run, then passes and lists the evidence in the plan). It prints `ok` or `FAIL` per check and exits 1 on any failure.
+"weight" that must be refused, an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json` and keeps a note written in the round's folder before it, a round's leak check that fails naming a session with no readable log, a start refused for a session of a round whose plan holds no gate evidence, and a gate that refuses a round folder with no pilot results and no bars run, then passes and lists the evidence in the plan; then, with every slot of a planted one-slot pool full, a start bounded by `REAL_SLOT_WAIT_SECONDS` that exits 4 with nothing started, and the same start run again that starts the session once the slot frees). It prints `ok` or `FAIL` per check and exits 1 on any failure.
 Its sessions are written under `design/ui/studio/tmp/prove/`, which it clears first; set
 `REAL_PROVE_DIR=<folder>` to run it beside another self-test.
 

@@ -27,7 +27,8 @@ if [[ "$*" =~ real\.mjs\ --(start|step|end|brief|prove)( |$) ]]; then
     exec "$@"
 fi
 main=$(dirname "$(git -C "$here" rev-parse --path-format=absolute --git-common-dir)")
-DIR="$main/tmp/browser-slots"
+# BROWSER_SLOT_DIR: another pool, for the self-test that fills every slot
+DIR="${BROWSER_SLOT_DIR:-$main/tmp/browser-slots}"
 mkdir -p "$DIR"
 while true; do
     for i in $(seq 1 "$SLOTS"); do

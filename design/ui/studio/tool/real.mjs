@@ -13,6 +13,9 @@
 //       highlighted option (aria-activedescendant) is reported with that option, as a screen reader
 //       reads it. A region that arrived with its text already in it is marked unconfirmed: many
 //       screen readers read only a change to a region already on the page (role=alert excepted).
+//       A session of a round (rounds/<round>/sessions/<id>) starts only once --gate has passed for
+//       the frozen build. REAL_SLOT_WAIT_SECONDS=<s> gives up after that long without a free
+//       browser slot: exit 4, nothing started, run it again.
 //   node real.mjs --step <session dir> <steps...>
 //       acts on the live session, waits for the drawing to settle, saves the next NN.png and prints
 //       what a participant would notice
@@ -22,7 +25,9 @@
 //   node real.mjs --leaks <session dir | round dir>
 //       what the participant opened outside its folder; a session whose log it cannot read fails
 //   node real.mjs --gate <round dir>
-//       refuses a round with no pilot of a planned task half or no bars run on the frozen build
+//       refuses a round with no pilot of a planned task half or no bars run on the frozen build; on
+//       exit 0 it writes the plan's "Gate evidence" section, without which --start refuses (exit 1)
+//       every session of the round
 //   node real.mjs --prove
 //       a self-test against the real app; exit 1 on any miss
 //
@@ -505,6 +510,23 @@ function gateCheck(rd) {
     return { sha, problems, evidence };
 }
 
+// Why --start must not open a session of a round: the round's plan.md holds no "Gate evidence"
+// section that --gate wrote for the frozen build. Checked at the start itself, so no runner,
+// continuation script or hand start skips the gate (round 4 ran all its sessions without one).
+function gateRefusal(dir) {
+    const home = studioOf(dir) ?? dir;
+    if (!ROUND_SESSION.test(home)) return null;
+    const plan = join(dirname(dirname(home)), "plan.md");
+    const sha = readFileSync(join(tier2, "criteria.md"), "utf8").match(/build ([0-9a-f]{7,40})/)?.[1];
+    const text = existsSync(plan) ? readFileSync(plan, "utf8") : "";
+    const at = text.match(/^## Gate evidence\n\nChecked by `real\.mjs --gate` on \S+, build ([0-9a-f]+):/m)?.[1];
+    if (!at)
+        return `${plan} holds no "Gate evidence" section, so no session of this round may start; run real.mjs --gate ${dirname(plan)} until it exits 0`;
+    if (!sha || !(at.startsWith(sha) || sha.startsWith(at)))
+        return `${plan} holds gate evidence for build ${at}, not the frozen build ${sha}; run real.mjs --gate ${dirname(plan)} again`;
+    return null;
+}
+
 // ---------- steps: what each takes, checked before anything opens ----------
 const CLICKS = {
     "--click": {},
@@ -638,6 +660,11 @@ async function start(dir, how, sr, task) {
         console.error(refused);
         return 2;
     }
+    const ungated = gateRefusal(dir);
+    if (ungated) {
+        console.log(`FAIL: ${ungated}`);
+        return 1;
+    }
     if (existsSync(sockOf(dir))) {
         const alive = await ask(dir, { op: "ping" }).catch(() => null);
         if (alive) {
@@ -696,10 +723,23 @@ async function start(dir, how, sr, task) {
     let exited = null;
     child.on("exit", (c) => (exited = c));
     let waited = 0;
+    // REAL_SLOT_WAIT_SECONDS bounds the wait for a browser slot, so a caller whose shell call has a
+    // time limit gets "nothing started" (exit 4) and runs the same start again, instead of a start
+    // left waiting in the background that nobody resumes (round 4: r4-s05, r4-s20, r4-s28, void)
+    const waitFor = Number(process.env.REAL_SLOT_WAIT_SECONDS) || 0;
     while (!existsSync(sockOf(dir))) {
         if (exited !== null) {
             console.error(`the session process stopped (exit ${exited}); see ${join(dir, "session.log")}`);
             return 1;
+        }
+        if (waitFor && waited * 500 >= waitFor * 1000) {
+            try {
+                process.kill(-child.pid, "SIGTERM");
+            } catch {
+                // already gone
+            }
+            console.error(`no browser slot came free in ${waitFor} s; nothing started, run the same --start again`);
+            return 4;
         }
         if (waited === 10) console.log("waiting for a free browser slot ...");
         await new Promise((r) => setTimeout(r, 500));
@@ -2156,6 +2196,16 @@ async function prove() {
                 readFileSync(bf, "utf8").includes(`--start ${own} `),
             `exit ${r.status} ${r.stdout}${r.stderr}`,
         );
+        r = node(["--start", own, "empty"]);
+        check(
+            "a start refuses a session of a round whose plan holds no gate evidence",
+            r.status === 1 &&
+                /^FAIL: .*plan\.md holds no "Gate evidence" section/.test(r.stdout) &&
+                r.stdout.trim().split("\n").length === 1 &&
+                !existsSync(sockOf(own)) &&
+                !pngs(own).length,
+            `exit ${r.status} ${r.stdout}${r.stderr}`,
+        );
         // planted logs: the participant's (reads tasks.md), a clean one, and another agent's
         const C = join(base, "claude");
         const plantLog = (name, prompt, calls) =>
@@ -2259,6 +2309,55 @@ async function prove() {
             r.status === 0 && plan.includes(`pilot T20A: ${pilot}/`) && plan.includes(join(R, "bars/bars.json")),
             `exit ${r.status} ${r.stdout}${r.stderr}`,
         );
+        // with the gate passed, a session of the round starts, even when every browser slot is
+        // full at first: a bounded wait gives up with nothing started, and the same start run
+        // again takes the slot as soon as it frees (planted in a pool of one slot of its own)
+        const S4 = join(R, "sessions/r9-s04");
+        const own4 = scratchOf(S4);
+        node(["--brief", S4, "--task", "T20A", "--persona", "Grace"]);
+        const pool = join(base, "slots");
+        await mkdir(pool, { recursive: true });
+        // flock hands its lock to the sleep it runs, so the holder is let go by its process group
+        const holder = spawn("flock", [join(pool, "slot1"), "sleep", "600"], { stdio: "ignore", detached: true });
+        const release = () => {
+            try {
+                process.kill(-holder.pid);
+            } catch {
+                // already let go
+            }
+        };
+        while (spawnSync("flock", ["-n", join(pool, "slot1"), "true"]).status === 0)
+            await new Promise((ok) => setTimeout(ok, 100));
+        const full = { ...process.env, BROWSER_SLOT_DIR: pool, BROWSER_SLOTS: "1" };
+        r = spawnSync(process.execPath, [self, "--start", own4, "empty"], {
+            encoding: "utf8",
+            env: { ...full, REAL_SLOT_WAIT_SECONDS: "2" },
+        });
+        check(
+            "with every slot full, a bounded start gives up with exit 4 and nothing started",
+            r.status === 4 &&
+                /no browser slot came free/.test(r.stderr) &&
+                !existsSync(sockOf(own4)) &&
+                !pngs(own4).length,
+            `exit ${r.status} ${r.stdout}${r.stderr}`,
+        );
+        const later = spawn(process.execPath, [self, "--start", own4, "empty"], {
+            env: { ...full, REAL_SLOT_WAIT_SECONDS: "120" },
+        });
+        let said = "";
+        later.stdout.on("data", (d) => {
+            said += d;
+            if (said.includes("waiting for a free browser slot")) release();
+        });
+        later.stderr.on("data", (d) => (said += d));
+        const status = await new Promise((ok) => later.on("exit", ok));
+        release();
+        check(
+            "the same start, run again, starts the session once the slot frees",
+            status === 0 && pngs(own4).includes("01.png") && existsSync(sockOf(own4)),
+            `exit ${status} ${said}`,
+        );
+        node(["--end", own4]);
     }
 
     // refused before anything opens

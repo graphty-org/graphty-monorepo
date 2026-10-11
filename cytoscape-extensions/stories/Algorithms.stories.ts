@@ -35,12 +35,13 @@ type Story = StoryObj<AlgorithmArgs>;
 /**
  * A story for one group: its first algorithm on the group's network, any of the others from the control.
  * @param group - the group
+ * @param size - the network's size; default 100 nodes
  * @returns the story
  */
-function storyOf(group: AlgorithmGroupName): Story {
+function storyOf(group: AlgorithmGroupName, size: RunArgs["size"] = "small"): Story {
     const g = ALGORITHM_GROUPS[group];
     return {
-        args: { ...networkArgs, network: g.network, directed: g.directed, algorithm: g.algorithms[0] },
+        args: { ...networkArgs, network: g.network, size, directed: g.directed, algorithm: g.algorithms[0] },
         argTypes: { algorithm: { control: "select", options: g.algorithms } },
     };
 }
@@ -62,3 +63,15 @@ export const FlowsAndCuts = storyOf("FlowsAndCuts");
 
 /** Link prediction: scores of node pairs, predicted links, and the evaluations against held-out edges. */
 export const LinkPrediction = storyOf("LinkPrediction");
+
+// The same groups on 2,000 nodes, so a capture shows what a larger network looks like (a capture takes each story at
+// its default args, so a size picked from the control is never captured).
+
+/** Centrality on 2,000 nodes. */
+export const Centrality2000Nodes = storyOf("Centrality", "medium");
+
+/** Communities on 2,000 nodes. */
+export const Communities2000Nodes = storyOf("Communities", "medium");
+
+/** Paths and trees on 2,000 nodes. */
+export const PathsAndTrees2000Nodes = storyOf("PathsAndTrees", "medium");

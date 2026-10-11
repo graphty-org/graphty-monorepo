@@ -1534,7 +1534,11 @@ const IMPLS = {
     hierarchicalClustering: (
         c: Ctx,
         _o: AlgorithmOptions & HierarchicalOptions = {},
-    ): { cut(height: number): Partition; readonly merges: number } => {
+    ): {
+        cut(height: number): Partition;
+        cutAt(by: { readonly clusters: number } | { readonly distance: number }): Partition;
+        readonly merges: number;
+    } => {
         const r = hierarchicalClustering(c.s, c.rest);
         const quiet: Ctx = { ...c, field: undefined };
         const cut = (h: number): Partition => {
@@ -1546,7 +1550,9 @@ const IMPLS = {
             });
             return partition(quiet, labels, {});
         };
-        return { merges: r.left.length, cut };
+        const cutAt = (by: { readonly clusters: number } | { readonly distance: number }): Partition =>
+            partition(quiet, r.cutAt(by).labels, {});
+        return { merges: r.left.length, cut, cutAt };
     },
     teraHAC: (c: Ctx, _o: AlgorithmOptions & TeraHacOptions = {}): Partition<{ merges: number }> => {
         const r = teraHAC(c.s, c.rest);
@@ -1875,11 +1881,7 @@ async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOp
             d.gpu.accelerator.release(snapshot);
         }
     }
-    const backend = backendOf(
-        d,
-        rec?.used() ?? false,
-        "the options or the graph need the CPU implementation (the @graphty/algorithms dispatcher does not say which)",
-    );
+    const backend = backendOf(d, rec?.used() ?? false, "the options or the graph need the CPU implementation");
     return Object.assign(value, { backend });
 }
 

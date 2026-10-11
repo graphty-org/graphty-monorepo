@@ -1,18 +1,19 @@
 /**
  * Getting graphs in and out: cy.graphtyGenerate, cy.graphtyDataset, cy.graphtyImport and cy.graphtyExport.
  *
- * Every picture is deterministic: the generators are seeded, the datasets are bundled (no download), and the
- * layout is ForceAtlas2 with a fixed seed and iteration count, held on the CPU so the picture is the same on every
- * machine. The status line says so.
+ * Every picture is deterministic: the generators are seeded, the datasets are bundled (no download), and every
+ * layout is seeded and held on the CPU, so the picture is the same on every machine. Generate and Dataset draw each
+ * graph as the gallery does: the layout and coloring that show the generator's model or the dataset's content.
  */
 
 import { DATASETS } from "@graphty/graph-samples";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
 import type { ExportFormat, GeneratorName } from "../src/index.js";
-import { FORMATS, GENERATOR_PRESETS, presetWithSeed } from "./catalog.js";
-import { networkArgs, renderDemo, type RunArgs } from "./demo.js";
-import { BUNDLED_DATASETS, colorBy, counts, CPU_LAYOUT, placeForAlgorithm, roundTrip } from "./run.js";
+import { BUNDLED_DATASETS, FORMATS, GENERATOR_PRESETS, presetWithSeed } from "./catalog.js";
+import { fadeManyEdges, markDirected, networkArgs, renderDemo, type RunArgs } from "./demo.js";
+import { colorBy, counts, CPU_LAYOUT, placeForAlgorithm, roundTrip } from "./run.js";
+import { arrangeGenerated, showDataset } from "./showcase.js";
 
 /** Hides the network controls the frame defines but these stories do not use. */
 const HIDDEN = Object.fromEntries(
@@ -47,14 +48,14 @@ export const Generate: StoryObj<GenerateArgs> = {
         generatorOptions: { control: "text" },
     },
     render: (args) => {
-        const call = { title: "" };
+        const call = { title: "", directed: false };
         return renderDemo(
             args,
             "cy.graphtyGenerate",
             async ({ cy }) => {
-                colorBy(cy, cy.nodes().some((n) => n.data("community") !== undefined) ? "community" : null);
-                await placeForAlgorithm(cy, args.seed);
-                return { ...CPU_LAYOUT, note: call.title };
+                // the gallery's picture of the generator; with other options it may show less of the model
+                const note = await arrangeGenerated(cy, args.generator, args.seed, call.directed);
+                return { ran: "cpu", detail: null, note: `${call.title}\n${note}` };
             },
             async (cy) => {
                 const options = {
@@ -63,6 +64,7 @@ export const Generate: StoryObj<GenerateArgs> = {
                 };
                 call.title = `cy.graphtyGenerate(${JSON.stringify(args.generator)}, ${JSON.stringify(options)})`;
                 const r = await cy.graphtyGenerate(args.generator, options as never);
+                call.directed = r.directed;
                 return `${args.generator}, ${counts(cy)}${r.directed ? ", directed" : ""}`;
             },
         );
@@ -79,12 +81,17 @@ export const Dataset: StoryObj<DatasetArgs> = {
             args,
             "cy.graphtyDataset",
             async ({ cy }) => {
-                colorBy(cy, info?.groundTruth ?? null);
-                await placeForAlgorithm(cy, args.seed);
-                return { ...CPU_LAYOUT, note: info ? `${info.title}; license: ${info.license}` : undefined };
+                const note = await showDataset(cy, args.dataset, args.seed);
+                return {
+                    ran: "cpu",
+                    detail: null,
+                    note: info ? `${note}\n${info.title}; license: ${info.license}` : note,
+                };
             },
             async (cy) => {
                 const r = await cy.graphtyDataset(args.dataset);
+                markDirected(cy, r.directed);
+                fadeManyEdges(cy);
                 return `${args.dataset}, ${counts(cy)}${r.directed ? ", directed" : ""}`;
             },
         );
@@ -92,9 +99,9 @@ export const Dataset: StoryObj<DatasetArgs> = {
 };
 
 /**
- * cy.graphtyExport then cy.graphtyImport: lays out a dataset, writes it in the chosen format (the text is shown
- * under the graph), clears the core and reads the text back. Formats that carry positions keep the picture; the
- * others are laid out again.
+ * cy.graphtyExport then cy.graphtyImport: loads the bundled karate dataset into Cytoscape, lays it out, writes the live
+ * graph in the chosen format (the text is shown under the graph), clears the core and reads the text back. Formats
+ * that carry positions keep the picture; the others are laid out again.
  */
 export const ExportAndImport: StoryObj<ExportArgs> = {
     args: { ...networkArgs, format: "graphml" },
@@ -118,10 +125,21 @@ export const ExportAndImport: StoryObj<ExportArgs> = {
             },
             async (cy) => {
                 await cy.graphtyDataset("karate");
-                return `karate, ${counts(cy)}`;
+                return `karate (built-in dataset, ${counts(cy)})`;
             },
+            // the source is the live Cytoscape graph, not a file
+            (graph) => `${graph} in Cytoscape -> written as ${args.format.toUpperCase()} -> read back`,
         );
         root.append(pre);
         return root;
     },
 };
+
+/** Export and import in GEXF, a format that carries the node positions, so the picture comes back as it was. */
+export const ExportAndImportGexf: StoryObj<ExportArgs> = {
+    ...ExportAndImport,
+    args: { ...networkArgs, format: "gexf" },
+};
+
+/** cy.graphtyDataset with a larger dataset than karate: the 2000 American college football season, by conference. */
+export const DatasetFootball: StoryObj<DatasetArgs> = { ...Dataset, args: { ...networkArgs, dataset: "football" } };

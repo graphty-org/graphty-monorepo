@@ -15,7 +15,14 @@ import {
     type SampleGraph,
     wattsStrogatzGraph,
 } from "@graphty/graph-samples/generators";
-import cytoscape, { type Collection, type Core, type ElementDefinition } from "cytoscape";
+import cytoscape, {
+    type Collection,
+    type Core,
+    type EdgeSingular,
+    type ElementDefinition,
+    type NodeSingular,
+    type StylesheetJson,
+} from "cytoscape";
 
 import graphtyCytoscape, { configureWebGpu } from "../src/index.js";
 import { type Network, NETWORKS } from "./catalog.js";
@@ -90,14 +97,21 @@ export const GENERATE: Record<Network, (n: number, seed: number) => SampleGraph>
 };
 
 /**
- * Cytoscape elements for a sample graph: node "n<i>", edge "e<i>", weight in data("w") when weighted.
+ * Cytoscape elements for a sample graph: node "n<i>", edge "e<i>", weight in data("w") when weighted, and the
+ * generator's ground-truth group in data("community") when it has one (planted partition, SBM, LFR).
  * @param g - the graph
  * @returns the elements
  */
 export function elementsOf(g: SampleGraph): ElementDefinition[] {
     const els: ElementDefinition[] = [];
+    const col = g.nodeColumns?.community;
+    const community = col === undefined || !ArrayBuffer.isView(col) ? undefined : (col as ArrayLike<number>);
     for (let i = 0; i < g.nodeCount; i++) {
-        els.push({ group: "nodes", data: { id: `n${i}` } });
+        const data: Record<string, unknown> = { id: `n${i}` };
+        if (community) {
+            data.community = community[i];
+        }
+        els.push({ group: "nodes", data });
     }
     for (let e = 0; e < g.src.length; e++) {
         const data: Record<string, unknown> = { id: `e${e}`, source: `n${g.src[e]}`, target: `n${g.dst[e]}` };
@@ -109,15 +123,127 @@ export function elementsOf(g: SampleGraph): ElementDefinition[] {
     return els;
 }
 
-const STYLE = [
+/**
+ * Per core, a factor on node sizes and edge widths: below 1 when the main-component fit zoomed in past far-flung
+ * outliers (so the main graph spreads out instead of its nodes growing), and on a large network so its nodes stay
+ * apart (see newCore).
+ */
+const SCALE = new WeakMap<Core, { network: number; zoom: number; view: number }>();
+const sized =
+    (size: number, minPixels = 0) =>
+    (ele: { cy(): Core }): number => {
+        const s = SCALE.get(ele.cy());
+        // never under minPixels on screen at the fitted zoom, so 50,000 nodes do not fade to nothing
+        return s === undefined ? size : Math.max(size * s.network * s.zoom, minPixels / s.view);
+    };
+
+/** A node's size: 8 units, times its data("scale") when a story sizes nodes by a value (degree, population, ...). */
+const nodeSize = (ele: { cy(): Core; data(key: string): unknown }): number => {
+    const scale = ele.data("scale");
+    return sized(8, 2)(ele) * (typeof scale === "number" ? scale : 1);
+};
+
+const STYLE: StylesheetJson = [
     {
         selector: "node",
-        style: { width: 8, height: 8, "background-color": "#7a8aa6", "border-width": 0 },
+        style: { width: nodeSize, height: nodeSize, "background-color": "#7a8aa6", "border-width": 0 },
     },
     { selector: "node[color]", style: { "background-color": "data(color)" } },
-    { selector: "edge", style: { width: 0.5, "line-color": "#b8c0cc", "curve-style": "straight" } },
-    { selector: "edge[color]", style: { "line-color": "data(color)", width: 2 } },
+    // a node a run starts from or is about (a root, a source, a seed): larger, with a dark ring
+    {
+        selector: "node[?mark]",
+        style: { width: sized(14, 7), height: sized(14, 7), "border-width": sized(2, 1.5), "border-color": "#1f2937" },
+    },
+    // a node whose size shows a count (a component's members)
+    {
+        selector: "node[size]",
+        style: {
+            width: (n: NodeSingular) => sized(n.data("size") as number, 6)(n),
+            height: (n: NodeSingular) => sized(n.data("size") as number, 6)(n),
+        },
+    },
+    // a short label beside a node: its place in an order, "s" and "t", a component's size ("tag", so a graph's own
+    // label field, from a file or a dataset, is never drawn by this rule)
+    {
+        selector: "node[tag]",
+        style: {
+            label: "data(tag)",
+            "font-size": sized(9, 9),
+            "text-valign": "top",
+            "text-margin-y": sized(-2),
+            color: "#1f2937",
+        },
+    },
+    { selector: "edge", style: { width: sized(0.5, 0.6), "line-color": "#b8c0cc", "curve-style": "straight" } },
+    // a directed graph's edges point from source to target (markDirected)
+    {
+        selector: "edge.directed",
+        style: { "target-arrow-shape": "triangle", "target-arrow-color": "#9aa3b2", "arrow-scale": sized(0.6) },
+    },
+    // a result edge: wide enough to see in a small gallery tile
+    { selector: "edge[color]", style: { "line-color": "data(color)", width: sized(2, 2.5), "z-index": 1 } },
+    { selector: "edge.directed[color]", style: { "target-arrow-color": "data(color)" } },
+    // an edge whose width shows a value (a flow)
+    { selector: "edge[thick]", style: { width: (e: EdgeSingular) => sized(e.data("thick") as number, 1)(e) } },
+    // a link the run proposes or tests, not one in the graph
+    {
+        selector: "edge.proposed",
+        style: { "line-style": "dashed", "line-dash-pattern": [6, 3], "line-color": "#aab2bf" },
+    },
+    { selector: "edge.proposed[color]", style: { "line-color": "data(color)" } },
+    { selector: "edge.proposed[label]", style: { label: "data(label)", "font-size": sized(9, 9), color: "#1f2937" } },
 ];
+
+/**
+ * A large network's extra style: thin, faint edges, so tens of thousands of them read as a haze that shows where the
+ * connections run without covering the nodes. Haystack edges draw fastest; a haystack radius of 0 joins the node
+ * centers, where the default picks a random point inside each node and the picture would differ on every run.
+ * @param edgeCount - the number of edges
+ * @returns the style rules
+ */
+function largeStyle(edgeCount: number): StylesheetJson {
+    // fainter as the edges grow: 0.12 up to 40,000 edges, 0.03 at 160,000
+    const opacity = Math.min(0.12, (0.12 * 40_000) / Math.max(1, edgeCount));
+    return [
+        {
+            selector: "edge",
+            style: {
+                "curve-style": "haystack",
+                "haystack-radius": 0,
+                "line-opacity": opacity,
+                "line-color": "#6b7280",
+            },
+        },
+    ];
+}
+
+/** A network with more nodes than this is drawn as a large one (newCore); the force stories go up to 50,000. */
+const LARGE = 5_000;
+
+/**
+ * Draws the edges of a graph added after the core was made as the large style draws them, when there are more than
+ * 5,000: faint and thin, so they read as a haze instead of covering the nodes.
+ * @param cy - the core
+ */
+export function fadeManyEdges(cy: Core): void {
+    const edges = cy.edges().length;
+    if (edges > LARGE) {
+        cy.style()
+            .fromJson([...STYLE, ...largeStyle(edges)])
+            .update();
+    }
+}
+
+/**
+ * Draws arrows on the edges of a directed graph.
+ * @param cy - the core
+ * @param directed - whether the graph is directed
+ */
+export function markDirected(cy: Core, directed: boolean): void {
+    if (directed && cy.edges().length <= LARGE) {
+        cy.edges().addClass("directed");
+    }
+}
 
 let live: Core[] = [];
 
@@ -128,22 +254,107 @@ let live: Core[] = [];
  * @returns the core
  */
 export function newCore(container: HTMLElement, elements: ElementDefinition[] = []): Core {
-    const big = elements.length > 5_000;
+    const nodeCount = elements.filter((e) => e.group === "nodes").length;
+    const big = nodeCount > LARGE;
     const cy = cytoscape({
         container,
-        // haystack edges draw fastest, but each picks a random end point inside its nodes, so they are kept for the
-        // large networks no snapshot shows
-        style: big ? [...STYLE, { selector: "edge", style: { "curve-style": "haystack" } }] : STYLE,
-        // ponytail: cheap viewport tricks only; Cytoscape's WebGL renderer is the upgrade for 50k nodes
+        style: big ? [...STYLE, ...largeStyle(elements.length - nodeCount)] : STYLE,
+        // Cytoscape's WebGL renderer (3.31 and later) draws tens of thousands of nodes at interactive frame rates;
+        // edges are still hidden while the view moves
+        ...(big ? { renderer: { name: "canvas", webgl: true } } : {}),
         hideEdgesOnViewport: big,
         textureOnViewport: big,
         elements,
         layout: { name: "preset" },
     });
+    if (big) {
+        // smaller nodes as the network grows (about 3.6 pixels at 10,000 nodes, 2 at 50,000), so they stay apart
+        SCALE.set(cy, { network: Math.max(0.25, Math.sqrt(2_000 / nodeCount)), zoom: 1, view: 1 });
+    }
     live.push(cy);
+    // the container's size can change after the layout fitted the graph to it (the window or Storybook's panels
+    // resize, the toolbar's full-screen button): fit it again, so the graph always fills the space it has
+    let size = `${container.clientWidth}x${container.clientHeight}`;
+    const watch = new ResizeObserver(() => {
+        const now = `${container.clientWidth}x${container.clientHeight}`;
+        if (now !== size) {
+            size = now;
+            fitToContainer(cy);
+        }
+    });
+    watch.observe(container);
+    cy.one("destroy", () => watch.disconnect());
     // for poking at from the browser console
     (window as unknown as { cy?: Core }).cy = cy;
     return cy;
+}
+
+/** The space left around the graph when it is fitted, in pixels: Cytoscape's default layout padding. */
+const FIT_PADDING = 30;
+
+/**
+ * Fits the graph to the container's current size: cy.resize() reads the size, cy.fit() zooms and pans to it. The
+ * view is fitted to the largest connected component when it holds most of the nodes, not to the farthest node: a
+ * force layout pushes isolated nodes and small pieces far out (ForceAtlas2's gravity, Fruchterman-Reingold has none),
+ * and fitted to them the main graph shrank to a few percent of the picture. They are still drawn, outside the view.
+ * @param cy - the core
+ * @returns how many nodes lie outside the view
+ */
+export function fitToContainer(cy: Core): number {
+    cy.resize();
+    const nodes = cy.nodes();
+    let main = cy.collection();
+    for (const c of cy.elements().components()) {
+        if (c.nodes().length > main.nodes().length) {
+            main = c;
+        }
+    }
+    cy.fit(undefined, FIT_PADDING);
+    const all = cy.zoom();
+    if (main.nodes().length * 2 > nodes.length) {
+        cy.fit(main, FIT_PADDING);
+        // pieces set close to the main one (no farther than its own size) are part of the picture: keep them in view
+        if (all / cy.zoom() > 0.5) {
+            cy.fit(undefined, FIT_PADDING);
+        }
+    }
+    const s = SCALE.get(cy) ?? { network: 1, zoom: 1, view: 1 };
+    const zoom = all / cy.zoom();
+    if (zoom !== s.zoom || cy.zoom() !== s.view) {
+        SCALE.set(cy, { ...s, zoom, view: cy.zoom() });
+        cy.style().update();
+    }
+    const { x1, x2, y1, y2 } = cy.extent();
+    return nodes.filter((n) => {
+        const p = n.position();
+        return p.x < x1 || p.x > x2 || p.y < y1 || p.y > y2;
+    }).length;
+}
+
+/**
+ * Fits the view to the nodes' centers, read straight from their positions: cy.fit measures every element's bounding
+ * box first, which takes seconds on a network of 50,000 nodes.
+ * @param cy - the core
+ */
+function fitToPositions(cy: Core): void {
+    cy.resize();
+    let [x1, y1, x2, y2] = [Infinity, Infinity, -Infinity, -Infinity];
+    cy.nodes().forEach((n) => {
+        const { x, y } = n.position();
+        [x1, y1, x2, y2] = [Math.min(x1, x), Math.min(y1, y), Math.max(x2, x), Math.max(y2, y)];
+    });
+    const zoom = Math.min(
+        (cy.width() - 2 * FIT_PADDING) / (x2 - x1 || 1),
+        (cy.height() - 2 * FIT_PADDING) / (y2 - y1 || 1),
+    );
+    cy.viewport({
+        zoom,
+        pan: { x: cy.width() / 2 - (zoom * (x1 + x2)) / 2, y: cy.height() / 2 - (zoom * (y1 + y2)) / 2 },
+    });
+    // as fitToContainer does: nodes keep their least size on screen at this zoom
+    const s = SCALE.get(cy) ?? { network: 1, zoom: 1, view: 1 };
+    SCALE.set(cy, { ...s, zoom: 1, view: zoom });
+    cy.style().update();
 }
 
 /** Destroys every core the demo made, before a story draws new ones. */
@@ -216,8 +427,11 @@ export function reportFailure(what: string, e: unknown): void {
 }
 
 /** What the status line reports about one run. */
+/** The reason an algorithm with no GPU implementation gives for running on the CPU; the gallery leaves it out. */
+export const NO_GPU = "no GPU implementation of this algorithm";
+
 export interface Outcome {
-    /** "gpu" or "cpu". */
+    /** "gpu", "cpu", or "not run" (detail then says why). */
     ran: string;
     /** Why the CPU ran, or the device the GPU run used. */
     detail: string | null;
@@ -225,6 +439,11 @@ export interface Outcome {
     note?: string;
     /** The time of the work itself, when the run did more (an algorithm lays the graph out first). */
     ms?: number;
+    /**
+     * "nodes": fit the view to the nodes' centers only, skipping the search for the main piece and the bounding boxes,
+     * which take seconds on a network of 50,000 nodes.
+     */
+    fit?: "nodes";
 }
 
 interface Demo {
@@ -242,6 +461,7 @@ interface Demo {
  * @param title - what is being run, for the status line
  * @param run - the work: returns which backend ran
  * @param load - puts the graph into the empty core and describes it; default: the network the args pick
+ * @param headline - the status line's first line from the graph's description; default "<title> on <graph>"
  * @returns the story's root element
  */
 export function renderDemo(
@@ -249,11 +469,13 @@ export function renderDemo(
     title: string,
     run: (d: Demo) => Promise<Outcome>,
     load?: (cy: Core) => Promise<string>,
+    headline: (graph: string) => string = (graph) => `${title} on ${graph}`,
 ): HTMLElement {
     retireAll();
 
     const root = document.createElement("div");
-    root.style.cssText = "display:flex;flex-direction:column;height:100vh;font:13px system-ui,sans-serif;";
+    // the whole viewport: the status bar on top, the graph in all the rest (Storybook's layout is "fullscreen")
+    root.style.cssText = "display:flex;flex-direction:column;width:100%;height:100vh;font:13px system-ui,sans-serif;";
     const bar = document.createElement("div");
     // a fixed height: a status line that grows would shrink the canvas under a graph already fitted to it
     bar.style.cssText =
@@ -265,7 +487,7 @@ export function renderDemo(
     status.style.cssText = "white-space:pre-wrap;flex:1;";
     bar.append(button, status);
     const canvas = document.createElement("div");
-    canvas.style.cssText = "flex:1;min-height:400px;";
+    canvas.style.cssText = "flex:1;min-height:0;position:relative;";
     root.append(bar, canvas);
 
     const setStatus = (text: string, kind: "info" | "ok" | "error" = "info"): void => {
@@ -289,21 +511,36 @@ export function renderDemo(
         try {
             retireAll();
             setStatus("Generating the network...");
-            await new Promise((r) => setTimeout(r, 0)); // let the frame paint first
+            // let a frame paint first (and a capture see the story rendered) before generating a large network holds
+            // the page
+            await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
             const g = load === undefined ? GENERATE[args.network](SIZES[args.size], args.seed) : undefined;
             const cy = newCore(canvas, g === undefined ? [] : elementsOf(g));
             const graph =
                 g === undefined
                     ? await (load as (cy: Core) => Promise<string>)(cy)
                     : `${args.network}, ${g.nodeCount.toLocaleString()} nodes, ${g.src.length.toLocaleString()} edges, seed ${args.seed}`;
-            setStatus(`${title} on ${graph}: running...`);
+            setStatus(`${headline(graph)}: running...`);
             const t0 = performance.now();
             const out = await run({ cy, root, gpuMode: GPU_MODE[args.backend], extra, setStatus });
+            // a layout fits the graph to the size the container had when it started; fit it to the size it has now
+            let outside = 0;
+            if (out.fit === "nodes") {
+                fitToPositions(cy);
+            } else {
+                outside = fitToContainer(cy);
+            }
             const ms = Math.round(out.ms ?? performance.now() - t0);
             const why = out.detail ? `\n${out.ran === "gpu" ? "device" : "why the CPU"}: ${out.detail}` : "";
             const time = CAPTURE ? "" : ` in ${ms.toLocaleString()} ms`;
+            const off =
+                outside === 0
+                    ? ""
+                    : `; ${outside.toLocaleString()} node${outside === 1 ? "" : "s"} outside the view (zoom out to see them)`;
             setStatus(
-                `${title} on ${graph}\nran on ${out.ran.toUpperCase()}${time}${why}${out.note ? `\n${out.note}` : ""}`,
+                out.ran === "not run"
+                    ? `${headline(graph)}\ndid not run: ${out.detail ?? ""}`
+                    : `${headline(graph)}\nran on ${out.ran.toUpperCase()}${time}${off}${why}${out.note ? `\n${out.note}` : ""}`,
                 "ok",
             );
         } catch (e) {
@@ -320,6 +557,58 @@ export function renderDemo(
     };
     markDone(root, () => running);
     return root;
+}
+
+/**
+ * Covers the canvas while a large network is laid out without animation: what runs, the time so far, and how far the nodes moved in
+ * the last half second, which falls toward 0 as the layout settles. The page stays live: the timer keeps counting
+ * while a GPU run or an animated CPU run steps (a non-animated CPU run holds the page until it ends).
+ * @param canvas - the canvas element to cover
+ * @param cy - the core, whose node positions are sampled
+ * @param what - what runs, for the first line
+ * @returns removes the overlay
+ */
+export function showWorking(canvas: HTMLElement, cy: Core, what: string): () => void {
+    const panel = document.createElement("div");
+    panel.dataset.testid = "working";
+    panel.style.cssText =
+        "position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:#fff;";
+    const text = document.createElement("div");
+    text.style.cssText = "white-space:pre-wrap;text-align:center;line-height:1.6;color:#333;";
+    panel.append(text);
+    canvas.append(panel);
+    const t0 = performance.now();
+    // about 300 nodes spread over the whole graph
+    const nodes = cy.nodes();
+    const sample: NodeSingular[] = [];
+    for (let i = 0; i < nodes.length; i += Math.ceil(nodes.length / 300)) {
+        sample.push(nodes[i]);
+    }
+    let last: { x: number; y: number }[] | undefined;
+    let moved = "";
+    const update = (): void => {
+        const now = sample.map((n) => ({ ...n.position() }));
+        const before = last;
+        if (before !== undefined) {
+            const cx = now.reduce((a, p) => a + p.x, 0) / now.length;
+            const cyy = now.reduce((a, p) => a + p.y, 0) / now.length;
+            const radius = Math.sqrt(now.reduce((a, p) => a + (p.x - cx) ** 2 + (p.y - cyy) ** 2, 0) / now.length);
+            const step = now.reduce((a, p, i) => a + Math.hypot(p.x - before[i].x, p.y - before[i].y), 0) / now.length;
+            moved =
+                radius === 0 || step === 0
+                    ? "the nodes are drawn when the run ends"
+                    : `the nodes moved ${((100 * step) / radius).toFixed(2)}% of the graph's radius in the last half second; it settles as this falls toward 0`;
+        }
+        last = now;
+        const seconds = Math.round((performance.now() - t0) / 1_000);
+        text.textContent = `${what}\nlaying out... ${seconds} s${moved ? `\n${moved}` : ""}`;
+    };
+    update();
+    const timer = setInterval(update, 500);
+    return () => {
+        clearInterval(timer);
+        panel.remove();
+    };
 }
 
 /** Ten distinguishable colors for clusters. */

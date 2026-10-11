@@ -1,3 +1,13 @@
+## 3.24.2 (2026-10-11)
+
+### 🩹 Fixes
+
+- **graphty-element:** open no engine for an element that is never used ([#1977](https://github.com/graphty-org/graphty-monorepo/issues/1977))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.24.1 (2026-10-11)
 
 ### 🚀 Features

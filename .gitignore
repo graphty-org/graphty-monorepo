@@ -84,7 +84,7 @@ coverage/
 .env.*.local
 *.local
 # Backups a script makes before rewriting .env. One of these was sitting untracked and
-# unignored in the repository root on 2026-09-22 holding four Chromatic project tokens and
+# unignored in the repository root on 2026-09-22 holding four project tokens and
 # three LLM API keys, which `git add -A` would have staged.
 .env.bak
 .env.bak.*
@@ -120,10 +120,6 @@ playwright-report/
 **/playwright/visual/screenshots-diff/
 **/playwright/visual/screenshots-actual/
 **/playwright/generated/*.visual.spec.ts
-
-# Chromatic
-chromatic-diagnostics.json
-stories/auto-generated/
 
 # GitHub Pages build output
 gh-pages/

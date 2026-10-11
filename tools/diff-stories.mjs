@@ -16,7 +16,7 @@
  *     <storybook-a/b>  built Storybooks (e.g. a storybook-static from master and from the branch)
  *     <story-id>       ids as in ?path=/story/<id>, e.g. styles-node--default
  *     --viewport       default 1000x800
- *     --out            default tmp/chromatic-diffs
+ *     --out            default tmp/story-diffs
  *     --settle         how long to let each story render before the screenshot (default 4500)
  */
 
@@ -34,7 +34,7 @@ const { values, positionals } = parseArgs({
     allowPositionals: true,
     options: {
         viewport: { type: "string", default: "1000x800" },
-        out: { type: "string", default: "tmp/chromatic-diffs" },
+        out: { type: "string", default: "tmp/story-diffs" },
         settle: { type: "string", default: "4500" },
     },
 });

@@ -12,7 +12,7 @@ import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
 
 // Demo stories carry no play function, so opening one in the sidebar or on the docs page does
 // not pop a menu over the page. The assertions live on the `*Interactions` twins, hidden from the
-// sidebar and the docs page and still run by the test runner and Chromatic.
+// sidebar and the docs page and still run by the test runner and the visual capture.
 const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
 
 /**

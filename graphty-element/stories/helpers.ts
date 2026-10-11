@@ -4,7 +4,6 @@
  */
 
 import type { Meta } from "@storybook/web-components-vite";
-import isChromatic from "chromatic/isChromatic";
 import lodash from "lodash";
 // Using direct property access instead of destructuring to avoid unbound-method warnings
 const deepSet = lodash.set.bind(lodash);
@@ -289,7 +288,7 @@ interface StorySetup {
     startingCameraDistance?: number;
     /** Algorithms to run once the data has loaded: names, or `{ algorithm, style, ... }` entries. */
     algorithms?: readonly AlgorithmOnLoad[];
-    /** How many layout steps to run before the first frame is drawn, under Chromatic. */
+    /** How many layout steps to run before the first frame is drawn, under capture. */
     preSteps?: number;
     /**
      * How many iterations a simulation layout computes per frame while it animates, for a story
@@ -310,24 +309,32 @@ interface StorySetup {
 export type StoryArgs = Graphty & { setup: StorySetup };
 
 /**
- * How many layout steps to run before the first frame, given what a story asks for under Chromatic.
+ * True inside a visual-review capture, whose story URL carries `chromatic=true`.
+ * @returns Whether this page is being captured.
+ */
+export function isVisualCapture(): boolean {
+    return /[?&]chromatic=true/.test(globalThis.location?.search ?? "");
+}
+
+/**
+ * How many layout steps to run before the first frame, given what a story asks for under capture.
  *
- * PRE-STEPS ARE FOR CHROMATIC ONLY. They are what makes a snapshot the same picture twice: a
+ * PRE-STEPS ARE FOR THE VISUAL CAPTURE ONLY. They are what makes a snapshot the same picture twice: a
  * physics layout that has not been stepped is a graph in mid-flight, and how far it has flown
  * depends on when the screenshot was taken. A reader in Storybook, and the Storybook test project,
  * get zero instead, so the layout animates and settles in front of them -- the play functions wait
  * for that settled frame with {@link waitForGraphSettled}.
- * @param chromaticSteps - The steps this story runs under Chromatic.
+ * @param captureSteps - The steps this story runs under capture.
  * @returns The steps to run here.
  */
-function preStepsHere(chromaticSteps: number): number {
-    return isChromatic() ? chromaticSteps : 0;
+function preStepsHere(captureSteps: number): number {
+    return isVisualCapture() ? captureSteps : 0;
 }
 
 /**
  * Fill in the defaults every story shares.
  *
- * The only one is the layout pre-step count. A story's `preSteps` is its Chromatic count, 2000
+ * The only one is the layout pre-step count. A story's `preSteps` is its capture count, 2000
  * when it names none; everywhere else it is zero, so the layout animates (see
  * {@link preStepsHere}).
  * @param opts - What this story wants.
@@ -400,13 +407,13 @@ function writeChannelControl(setup: StorySetup, name: string, value: unknown): b
 }
 
 /**
- * How many layout steps to run before the first frame is drawn, under Chromatic.
+ * How many layout steps to run before the first frame is drawn, under capture.
  *
  * Stories with a render function of their own call this, because they build the element
- * themselves and so do not pass through {@link applyConfiguration}. Outside Chromatic it sets
+ * themselves and so do not pass through {@link applyConfiguration}. Outside a capture it sets
  * zero, so the layout animates (see {@link preStepsHere}).
  * @param element - The element to configure.
- * @param preSteps - How many steps to run before the first frame under Chromatic.
+ * @param preSteps - How many steps to run before the first frame under capture.
  */
 export function setLayoutPreSteps(element: Graphty, preSteps: number): void {
     element.layoutBehavior = { layout: { preSteps: preStepsHere(preSteps) } };

@@ -1034,7 +1034,7 @@ like every other:
   published page does not cite).
 - `Default` is the first story and is driven by `args`, so the Controls table edits it.
 - `States` is the second, with `parameters: BOTH_SCHEMES` from `stories/helpers/schemes.ts`, so
-  the page shows every state in light and dark side by side. Chromatic still captures every story
+  the page shows every state in light and dark side by side. The visual capture still takes every story
   once per scheme.
 - Feature stories follow, then `Keyboard`, `Translated` and `RightToLeft`. Every story has a
   one-sentence JSDoc comment, and a story whose job is to test behavior keeps a `play` function.

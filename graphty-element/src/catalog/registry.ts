@@ -187,17 +187,20 @@ export function registeredAlgorithmByKey(key: AlgorithmKey): RegisteredAlgorithm
 const undescribed = new Set<string>();
 
 /**
- * Record whether an algorithm class registered under an address declares a descriptor. One that
- * does not still runs, by its address, but the catalogue knows nothing of it.
+ * Record that an algorithm class registered under an address declares no descriptor. It still
+ * runs, by its address, but the catalogue knows nothing of it.
  * @param address - `namespace:type`.
- * @param described - Whether it declared a descriptor.
  */
-export function noteAlgorithmDescriptor(address: string, described: boolean): void {
-    if (described) {
-        undescribed.delete(address);
-    } else {
-        undescribed.add(address);
-    }
+export function noteUndescribedAlgorithm(address: string): void {
+    undescribed.add(address);
+}
+
+/**
+ * Record that an algorithm class registered under an address declares a descriptor.
+ * @param address - `namespace:type`.
+ */
+export function noteDescribedAlgorithm(address: string): void {
+    undescribed.delete(address);
 }
 
 /**

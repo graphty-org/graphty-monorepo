@@ -157,10 +157,7 @@ export class AssistantTool implements GraphCommand {
         this.parameters = flat;
         this.conflicts = conflicts;
         const names = definition.actions.map((action) => action.name);
-        const list =
-            names.length > 1
-                ? ` Actions: ${definition.actions.map((action) => (action.summary === "" ? action.name : `${action.name} (${action.summary})`)).join("; ")}.`
-                : "";
+        const list = names.length > 1 ? ` Actions: ${definition.actions.map(actionLine).join("; ")}.` : "";
         this.description = `${definition.description}${list} Example: ${JSON.stringify(definition.example)}`;
     }
 
@@ -314,12 +311,16 @@ export function isAssistantTool(command: GraphCommand | undefined): command is A
 }
 
 /**
- * One flat object for the provider: an `action` enum plus every action's fields, each optional and
- * described with the actions that use it.
+ * A tool's fields across its actions: each field's first declaration, the actions that use it, and
+ * the fields two actions declare with different types.
  * @param definition - The tool.
- * @returns The schema, and the fields two actions declare with different types.
+ * @returns The fields.
  */
-function flatSchema(definition: ToolDefinition): { flat: z.ZodObject; conflicts: string[] } {
+function fieldsOf(definition: ToolDefinition): {
+    shape: Record<string, z.ZodType>;
+    seen: Map<string, { json: string; actions: string[] }>;
+    conflicts: string[];
+} {
     const shape: Record<string, z.ZodType> = {};
     const seen = new Map<string, { json: string; actions: string[] }>();
     const conflicts: string[] = [];
@@ -330,15 +331,38 @@ function flatSchema(definition: ToolDefinition): { flat: z.ZodObject; conflicts:
             if (prior === undefined) {
                 seen.set(key, { json, actions: [action.name] });
                 shape[key] = field as z.ZodType;
-            } else {
-                prior.actions.push(action.name);
-                if (prior.json !== json && !sameType(prior.json, json)) {
-                    conflicts.push(`${definition.name}.${key}`);
-                }
+                continue;
+            }
+
+            prior.actions.push(action.name);
+            if (prior.json !== json && !sameType(prior.json, json)) {
+                conflicts.push(`${definition.name}.${key}`);
             }
         }
     }
 
+    return { shape, seen, conflicts };
+}
+
+/**
+ * An action as a tool's description lists it: its name, and its summary when it has one.
+ * @param action - The action.
+ * @param action.name - Its name.
+ * @param action.summary - Its summary.
+ * @returns The line.
+ */
+function actionLine(action: { name: string; summary: string }): string {
+    return action.summary === "" ? action.name : `${action.name} (${action.summary})`;
+}
+
+/**
+ * One flat object for the provider: an `action` enum plus every action's fields, each optional and
+ * described with the actions that use it.
+ * @param definition - The tool.
+ * @returns The schema, and the fields two actions declare with different types.
+ */
+function flatSchema(definition: ToolDefinition): { flat: z.ZodObject; conflicts: string[] } {
+    const { shape, seen, conflicts } = fieldsOf(definition);
     const all = definition.actions.length;
     for (const [key, { actions }] of seen) {
         const field = shape[key];

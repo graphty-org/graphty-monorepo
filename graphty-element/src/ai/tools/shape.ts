@@ -18,30 +18,37 @@ export const DEFAULT_LIMIT = 20;
 export const MAX_LIMIT = 50;
 
 /**
+ * A primitive as plain JSON: strings cut, numbers rounded, a non-finite number or a bigint as text.
+ * @param value - The value.
+ * @returns The JSON value, or undefined when it is not a primitive.
+ */
+function primitiveJson(value: unknown): JsonValue | undefined {
+    switch (typeof value) {
+        case "undefined":
+            return null;
+        case "string":
+            return value.length > MAX_TEXT ? `${value.slice(0, MAX_TEXT)}...` : value;
+        case "number":
+            return Number.isFinite(value) ? Math.round(value * 1e6) / 1e6 : String(value);
+        case "boolean":
+            return value;
+        case "bigint":
+            return String(value);
+        default:
+            return value === null ? null : undefined;
+    }
+}
+
+/**
  * A value as plain JSON: strings cut, typed arrays and maps flattened, functions dropped.
  * @param value - The value.
  * @param depth - How deep this is, to stop on a cycle.
  * @returns The JSON value.
  */
 export function toJson(value: unknown, depth = 0): JsonValue {
-    if (value === null || value === undefined) {
-        return null;
-    }
-
-    if (typeof value === "string") {
-        return value.length > MAX_TEXT ? `${value.slice(0, MAX_TEXT)}...` : value;
-    }
-
-    if (typeof value === "number") {
-        return Number.isFinite(value) ? Math.round(value * 1e6) / 1e6 : String(value);
-    }
-
-    if (typeof value === "boolean") {
-        return value;
-    }
-
-    if (typeof value === "bigint") {
-        return String(value);
+    const primitive = primitiveJson(value);
+    if (primitive !== undefined) {
+        return primitive;
     }
 
     // Deep enough for a field's schema in a refusal; the guard is against a cycle.
@@ -297,30 +304,44 @@ export function resultText(result: ActionResult & { code: string }, cap: number)
         return text;
     }
 
-    // Drop records from the end of the longest array until it fits. A page's own records keep a
-    // cursor to the first one dropped, so paging on reads every record.
-    const data = structuredClone(body.data ?? null);
-    const list = Array.isArray(data) ? data : findList(data);
-    if (list !== undefined) {
-        const paged = Array.isArray(data) && result.page !== undefined && at !== undefined;
-        const total = paged ? page.total : list.length;
-        while (list.length > 0 && text.length > cap) {
-            list.pop();
-            const next = paged ? at.offset + list.length : 0;
-            const cursor = paged && next < total ? { cursor: cursorOf(next, at.revision) } : {};
-            text = JSON.stringify({
-                ...body,
-                data,
-                page: { total, returned: list.length, truncated: true, ...cursor },
-            });
-        }
-    }
-
+    text = dropRecords(body, cap, result.page === undefined ? undefined : { at, total: page.total }) ?? text;
     if (text.length > cap) {
         text = JSON.stringify({ code: result.code, params: result.params ?? {}, truncated: true });
     }
 
     return text.length > cap ? JSON.stringify({ code: result.code, truncated: true }) : text;
+}
+
+/**
+ * A result's text with records dropped from the end of its longest array until it fits. A page's
+ * own records keep a cursor to the first one dropped, so paging on reads every record.
+ * @param body - The result's body.
+ * @param cap - The most characters.
+ * @param page - Where the page starts and how many records there are, for a paged result.
+ * @returns The text, or undefined when the result holds no records to drop.
+ */
+function dropRecords(
+    body: JsonObject,
+    cap: number,
+    page: { at: NonNullable<ActionResult["page"]>["at"]; total: number } | undefined,
+): string | undefined {
+    const data = structuredClone(body.data ?? null);
+    const list = Array.isArray(data) ? data : findList(data);
+    if (list === undefined) {
+        return undefined;
+    }
+
+    const at = Array.isArray(data) ? page?.at : undefined;
+    const total = at === undefined ? list.length : (page?.total ?? list.length);
+    let text = JSON.stringify(body);
+    while (list.length > 0 && text.length > cap) {
+        list.pop();
+        const next = at === undefined ? 0 : at.offset + list.length;
+        const cursor = at !== undefined && next < total ? { cursor: cursorOf(next, at.revision) } : {};
+        text = JSON.stringify({ ...body, data, page: { total, returned: list.length, truncated: true, ...cursor } });
+    }
+
+    return text;
 }
 
 /**

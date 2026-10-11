@@ -100,9 +100,76 @@ function channelSpelling(written: string, names: readonly string[]): string {
         return written;
     }
 
-    const flat = (name: string): string => name.replace(/[._\s-]/g, "").toLowerCase();
+    const flat = (name: string): string => name.replaceAll(/[._\s-]/g, "").toLowerCase();
     const matches = names.filter((name) => flat(name) === flat(written));
     return matches.length === 1 ? matches[0] : written;
+}
+
+/**
+ * Values as written, flat: `{ node: { color: "red" } }` and `{ node: "red" }` (the element's color,
+ * which the color channel's own check confirms) as `{ "node.color": "red" }`.
+ * @param values - The values as written.
+ * @returns Channel name to value.
+ */
+function flatValues(values: Record<string, unknown>): Record<string, unknown> {
+    const flat: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(values)) {
+        const element = key === "node" || key === "edge";
+        if (element && value !== null && typeof value === "object" && !Array.isArray(value)) {
+            for (const [inner, innerValue] of Object.entries(value as Record<string, unknown>)) {
+                flat[`${key}.${inner}`] = innerValue;
+            }
+        } else {
+            flat[element && typeof value === "string" ? `${key}.color` : key] = value;
+        }
+    }
+
+    return flat;
+}
+
+/**
+ * The drawn channel a name names.
+ * @param key - The channel name.
+ * @param channels - The channel table.
+ * @param names - Its names.
+ * @returns The channel.
+ * @throws {ToolRefusal} For an unknown channel, or one that is not drawn.
+ */
+function channelOf(key: string, channels: readonly ChannelDescriptor[], names: readonly string[]): ChannelDescriptor {
+    const descriptor = channels.find((channel) => channel.channel === key);
+    if (descriptor === undefined) {
+        throw new ToolRefusal("AI_UNKNOWN_ENTRY", { kind: "channel", name: key, didYouMean: suggest(key, names) });
+    }
+
+    if (!descriptor.renderable) {
+        throw new ToolRefusal("AI_NOT_AVAILABLE", { name: key, requirement: "not-drawn" });
+    }
+
+    return descriptor;
+}
+
+/**
+ * A channel's value, checked.
+ * @param descriptor - The channel.
+ * @param value - The value as written.
+ * @returns The value as the channel takes it.
+ * @throws {ToolRefusal} For a value the channel does not take.
+ */
+function channelChecked(descriptor: ChannelDescriptor, value: unknown): unknown {
+    const parsed = channelValue(descriptor).safeParse(value);
+    if (parsed.success) {
+        return parsed.data;
+    }
+
+    const issue = parsed.error.issues[0];
+    const range = issue.code === "too_big" || issue.code === "too_small";
+    throw new ToolRefusal(range ? "AI_ARG_OUT_OF_RANGE" : "AI_ARG_INVALID", {
+        path: `values.${descriptor.channel}`,
+        expected: descriptor.accepts,
+        ...(descriptor.values === undefined ? {} : { allowed: [...descriptor.values] }),
+        ...(descriptor.min === undefined ? {} : { min: descriptor.min }),
+        ...(descriptor.accepts === "number" ? { max: descriptor.max ?? MAX_CHANNEL_NUMBER } : {}),
+    });
 }
 
 /**
@@ -118,53 +185,12 @@ export function checkValues(
     channels: readonly ChannelDescriptor[],
     both = false,
 ): { set: StaticStyle; target: "node" | "edge" } {
-    const flat: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(values)) {
-        if (
-            (key === "node" || key === "edge") &&
-            value !== null &&
-            typeof value === "object" &&
-            !Array.isArray(value)
-        ) {
-            for (const [inner, innerValue] of Object.entries(value as Record<string, unknown>)) {
-                flat[`${key}.${inner}`] = innerValue;
-            }
-        } else if ((key === "node" || key === "edge") && typeof value === "string") {
-            // `{ node: "red" }`: the element's color, which the color channel's own check confirms.
-            flat[`${key}.color`] = value;
-        } else {
-            flat[key] = value;
-        }
-    }
-
     const names = channels.map((channel) => channel.channel);
     const set: Partial<Record<Channel, unknown>> = {};
     const targets = new Set<"node" | "edge">();
-    for (const [written, value] of Object.entries(flat)) {
-        const key = channelSpelling(written, names);
-        const descriptor = channels.find((channel) => channel.channel === key);
-        if (descriptor === undefined) {
-            throw new ToolRefusal("AI_UNKNOWN_ENTRY", { kind: "channel", name: key, didYouMean: suggest(key, names) });
-        }
-
-        if (!descriptor.renderable) {
-            throw new ToolRefusal("AI_NOT_AVAILABLE", { name: key, requirement: "not-drawn" });
-        }
-
-        const parsed = channelValue(descriptor).safeParse(value);
-        if (!parsed.success) {
-            const issue = parsed.error.issues[0];
-            const range = issue.code === "too_big" || issue.code === "too_small";
-            throw new ToolRefusal(range ? "AI_ARG_OUT_OF_RANGE" : "AI_ARG_INVALID", {
-                path: `values.${key}`,
-                expected: descriptor.accepts,
-                ...(descriptor.values === undefined ? {} : { allowed: [...descriptor.values] }),
-                ...(descriptor.min === undefined ? {} : { min: descriptor.min }),
-                ...(descriptor.accepts === "number" ? { max: descriptor.max ?? MAX_CHANNEL_NUMBER } : {}),
-            });
-        }
-
-        set[descriptor.channel] = parsed.data;
+    for (const [written, value] of Object.entries(flatValues(values))) {
+        const descriptor = channelOf(channelSpelling(written, names), channels, names);
+        set[descriptor.channel] = channelChecked(descriptor, value);
         targets.add(descriptor.target);
     }
 
@@ -250,7 +276,8 @@ function selectorOf(target: Target, kind: "node" | "edge"): Selector {
 function layerOf(tx: TransactionScope, name: unknown): Layer {
     const wanted = text(name);
     const layers = tx.styles.list();
-    const found = layers.find((layer) => layer.id === wanted) ?? layers.filter((layer) => layer.name === wanted).at(-1);
+    const found =
+        layers.find((layer) => layer.id === wanted) ?? [...layers].reverse().find((layer) => layer.name === wanted);
     if (found === undefined) {
         throw new ToolRefusal("AI_UNKNOWN_ENTRY", {
             kind: "layer",
@@ -348,6 +375,95 @@ async function addLayer(
     return ok({ layer: layer.id, name: layer.name }, { ...notes, ...facts, layer: layer.id }, "style.add-layer");
 }
 
+/** The `encode` argument of a call. */
+interface EncodeSpec {
+    channel: string;
+    attribute?: string;
+    run?: string;
+    field?: string;
+    palette?: string;
+    scale?: string;
+    domain?: [number, number];
+    missing?: string;
+    midpoint?: number;
+    reverse?: boolean;
+    scaleOptions?: Record<string, unknown>;
+}
+
+/** Where an encoding reads its values. */
+type EncodeSource = { run: string; field?: string } | { column: { kind: "node" | "edge"; name: string } };
+
+/**
+ * An encoding's scale and its options, checked against the catalog. A midpoint and a direction are
+ * scale options; the model names them where it thinks of them.
+ * @param spec - The encoding.
+ * @param catalog - The catalog.
+ * @returns The scale's name, if any, and its options.
+ */
+function encodeScale(
+    spec: EncodeSpec,
+    catalog: CatalogView,
+): { scaleName?: string; scaleOptions: Record<string, unknown> } {
+    const scaleName = spec.scale ?? (spec.midpoint === undefined ? undefined : "linear");
+    if (scaleName === undefined) {
+        return { scaleOptions: spec.reverse === undefined ? {} : { reverse: spec.reverse } };
+    }
+
+    requireEntry(
+        "scale",
+        scaleName,
+        catalog.scales.map((each) => each.name),
+    );
+    const folded = {
+        ...spec.scaleOptions,
+        ...(spec.midpoint === undefined ? {} : { midpoint: spec.midpoint }),
+        ...(spec.reverse === undefined ? {} : { reverse: spec.reverse }),
+    };
+    const scale = catalog.scales.find((each) => each.name === scaleName);
+    const parsed = optionsSchema(scale?.options ?? []).schema.safeParse(folded);
+    if (!parsed.success) {
+        throw new ToolRefusal("AI_ARG_INVALID", { path: "encode.scaleOptions", expected: "the scale's options" });
+    }
+
+    return { scaleName, scaleOptions: parsed.data };
+}
+
+/**
+ * Where an encoding reads its values: a run's result or an attribute.
+ * @param tx - The session.
+ * @param spec - The encoding.
+ * @param kind - Nodes or edges.
+ * @returns The source and the path a layer reads it at.
+ */
+function encodeSource(
+    tx: TransactionScope,
+    spec: EncodeSpec,
+    kind: "node" | "edge",
+): { source: EncodeSource; path: string } {
+    if (spec.run !== undefined) {
+        const run = resolveRun(tx, spec.run);
+        return {
+            source: { run, ...(spec.field === undefined ? {} : { field: spec.field }) },
+            path: tx.results.path(run, spec.field),
+        };
+    }
+
+    if (spec.attribute === undefined) {
+        throw new ToolRefusal("AI_ARG_INVALID", { path: "encode", expected: "attribute, or run and field" });
+    }
+
+    const name = spec.attribute.replace(/^data\./, "");
+    if (!attributeNames(tx, kind).includes(name)) {
+        throw new ToolRefusal("AI_UNKNOWN_COLUMN", {
+            name,
+            on: kind,
+            didYouMean: suggest(name, attributeNames(tx, kind)),
+        });
+    }
+
+    return { source: { column: { kind, name } }, path: `data.${name}` };
+}
+
 /**
  * Bind a channel to an attribute or a run's result.
  * @param context - The action's context.
@@ -361,26 +477,7 @@ async function encode(
     catalog: CatalogView,
 ): Promise<ActionResult> {
     const { tx } = context;
-    const spec = (args.encode ?? {}) as {
-        channel: string;
-        attribute?: string;
-        run?: string;
-        field?: string;
-        palette?: string;
-        scale?: string;
-        domain?: [number, number];
-        missing?: string;
-        midpoint?: number;
-        reverse?: boolean;
-        scaleOptions?: Record<string, unknown>;
-    };
-    // A midpoint and a direction are scale options; the model names them where it thinks of them.
-    const folded = {
-        ...spec.scaleOptions,
-        ...(spec.midpoint === undefined ? {} : { midpoint: spec.midpoint }),
-        ...(spec.reverse === undefined ? {} : { reverse: spec.reverse }),
-    };
-    const scaleName = spec.scale ?? (spec.midpoint === undefined ? undefined : "linear");
+    const spec = (args.encode ?? {}) as EncodeSpec;
     const channel = requireEntry(
         "channel",
         text(spec.channel),
@@ -394,86 +491,66 @@ async function encode(
         );
     }
 
-    let scaleOptions: Record<string, unknown> = spec.reverse === undefined ? {} : { reverse: spec.reverse };
-    if (scaleName !== undefined) {
-        requireEntry(
-            "scale",
-            scaleName,
-            catalog.scales.map((each) => each.name),
-        );
-        const scale = catalog.scales.find((each) => each.name === scaleName);
-        const parsed = optionsSchema(scale?.options ?? []).schema.safeParse(folded);
-        if (!parsed.success) {
-            throw new ToolRefusal("AI_ARG_INVALID", { path: "encode.scaleOptions", expected: "the scale's options" });
-        }
-
-        scaleOptions = parsed.data;
-    }
-
+    const { scaleName, scaleOptions } = encodeScale(spec, catalog);
     const kind = channel.startsWith("node.") ? "node" : "edge";
-    let path: string;
-    let source: { run: string; field?: string } | { column: { kind: "node" | "edge"; name: string } };
-    if (spec.run !== undefined) {
-        const run = resolveRun(tx, spec.run);
-        source = { run, ...(spec.field === undefined ? {} : { field: spec.field }) };
-        path = tx.results.path(run, spec.field);
-    } else if (spec.attribute !== undefined) {
-        const name = spec.attribute.replace(/^data\./, "");
-        if (!attributeNames(tx, kind).includes(name)) {
-            throw new ToolRefusal("AI_UNKNOWN_COLUMN", {
-                name,
-                on: kind,
-                didYouMean: suggest(name, attributeNames(tx, kind)),
-            });
-        }
-
-        source = { column: { kind, name } };
-        path = `data.${name}`;
-    } else {
-        throw new ToolRefusal("AI_ARG_INVALID", { path: "encode", expected: "attribute, or run and field" });
-    }
-
+    const { source, path } = encodeSource(tx, spec, kind);
     const binding = {
         ...(spec.palette === undefined ? {} : { palette: spec.palette }),
         ...(scaleName === undefined ? {} : { scale: scaleName }),
         ...(spec.domain === undefined ? {} : { domain: spec.domain }),
         ...(spec.missing === undefined ? {} : { missing: { value: spec.missing } }),
     };
-    let layer: Layer;
-    if (Object.keys(scaleOptions).every((key) => key === "reverse")) {
-        const request = {
-            ...source,
-            channel,
-            ...binding,
-            ...scaleOptions,
-            ...(typeof args.name === "string" ? { name: args.name } : {}),
-        };
-        // Why a column cannot be drawn on the channel, as a code the model can act on.
-        const proposal = codedNow(() => tx.styles.proposeEncoding(request));
-        if (!proposal.ok) {
-            throw new ToolRefusal(proposal.refusal.code, {
-                ...(toJson(proposal.refusal.params) as JsonObject),
-                channel,
-            });
-        }
+    const name = typeof args.name === "string" ? args.name : undefined;
+    const layer = Object.keys(scaleOptions).every((key) => key === "reverse")
+        ? await encodeChannel(tx, {
+              ...source,
+              channel,
+              ...binding,
+              ...scaleOptions,
+              ...(name === undefined ? {} : { name }),
+          })
+        : await encodeLayer(tx, {
+              name: name ?? `assistant ${channel}`,
+              target: kind,
+              kind: "encoding",
+              source: ASSISTANT_LAYER_SOURCE,
+              selector: { match: "has", path },
+              encode: { [channel]: { by: path, ...binding, ...scaleOptions } },
+          });
+    return ok({ layer: layer.id, name: layer.name }, { layer: layer.id }, "style.encode");
+}
 
-        layer = await coded(() => tx.styles.encode(request));
-    } else {
-        // `styles.encode` takes no bins, midpoint or exponent; a layer's own binding does. Scoped to
-        // the elements carrying the value, as an encoding is.
-        const spec2: LayerSpec = {
-            name: typeof args.name === "string" ? args.name : `assistant ${channel}`,
-            target: kind,
-            kind: "encoding",
-            source: ASSISTANT_LAYER_SOURCE,
-            selector: { match: "has", path },
-            encode: { [channel]: { by: path, ...binding, ...scaleOptions } },
-        };
-        validate(tx, spec2);
-        layer = await coded(() => tx.styles.add(spec2));
+/**
+ * Encode through `styles.encode`, its refusal reported as a code the model can act on.
+ * @param tx - The session.
+ * @param request - The encoding request.
+ * @returns The layer.
+ */
+async function encodeChannel(
+    tx: TransactionScope,
+    request: Parameters<TransactionScope["styles"]["encode"]>[0],
+): Promise<Layer> {
+    const proposal = codedNow(() => tx.styles.proposeEncoding(request));
+    if (!proposal.ok) {
+        throw new ToolRefusal(proposal.refusal.code, {
+            ...(toJson(proposal.refusal.params) as JsonObject),
+            channel: request.channel,
+        });
     }
 
-    return ok({ layer: layer.id, name: layer.name }, { layer: layer.id }, "style.encode");
+    return coded(() => tx.styles.encode(request));
+}
+
+/**
+ * Encode as a layer of its own: `styles.encode` takes no bins, midpoint or exponent; a layer's own
+ * binding does. Scoped to the elements carrying the value, as an encoding is.
+ * @param tx - The session.
+ * @param spec - The layer.
+ * @returns The layer.
+ */
+async function encodeLayer(tx: TransactionScope, spec: LayerSpec): Promise<Layer> {
+    validate(tx, spec);
+    return coded(() => tx.styles.add(spec));
 }
 
 const values = z

@@ -281,8 +281,29 @@ function httpUrl(text: string): URL | undefined {
     }
 }
 
-/** Punctuation a sentence puts around a URL, which is not part of it. */
-const WRAPPING = /^[<("'[{]+|[>)"'\]},.;:!?]+$/g;
+/** Punctuation a sentence puts before a URL, which is not part of it. */
+const OPENERS = `<("'[{`;
+/** Punctuation a sentence puts after a URL, which is not part of it. */
+const CLOSERS = `>)"']},.;:!?`;
+
+/**
+ * A word without the punctuation a sentence puts around it.
+ * @param word - The word.
+ * @returns It, unwrapped.
+ */
+function unwrapped(word: string): string {
+    let start = 0;
+    let end = word.length;
+    while (start < end && OPENERS.includes(word[start])) {
+        start++;
+    }
+
+    while (end > start && CLOSERS.includes(word[end - 1])) {
+        end--;
+    }
+
+    return word.slice(start, end);
+}
 
 /**
  * Whether the reader's own text holds this URL: one of its words is the same absolute URL, as
@@ -294,8 +315,76 @@ const WRAPPING = /^[<("'[{]+|[>)"'\]},.;:!?]+$/g;
 function readerGave(url: URL, readerText: string): boolean {
     return readerText
         .split(/\s+/)
-        .flatMap((word) => [word, word.replace(WRAPPING, "")])
+        .flatMap((word) => [word, unwrapped(word)])
         .some((word) => httpUrl(word)?.href === url.href);
+}
+
+/**
+ * Where an import reads from: the text, or a URL the reader gave or the host admits.
+ * @param url - The URL argument.
+ * @param document - The text argument.
+ * @param host - The conversation, for the reader's text and the URL policy.
+ * @returns The URL parsed, if any, and the URL that goes to the network without the reader typing it.
+ * @throws {ToolRefusal} When both or neither is given, or the URL is not one the reader gave.
+ */
+function importSource(
+    url: string | undefined,
+    document: string | undefined,
+    host: ActionContext["host"],
+): { parsed?: URL; network?: string } {
+    if ((url === undefined) === (document === undefined)) {
+        throw new ToolRefusal("AI_ARG_INVALID", { path: "text", expected: "exactly one of text, url" });
+    }
+
+    if (url === undefined) {
+        return {};
+    }
+
+    const parsed = httpUrl(url);
+    if (parsed === undefined) {
+        throw new ToolRefusal("AI_ARG_INVALID", { path: "url", expected: "an absolute http or https URL" });
+    }
+
+    if (readerGave(parsed, host.readerText)) {
+        return { parsed };
+    }
+
+    if (host.allowImportUrl?.(parsed) !== true) {
+        throw new ToolRefusal("AI_IMPORT_URL_REFUSED", { url: parsed.href });
+    }
+
+    return { parsed, network: parsed.href };
+}
+
+/**
+ * An import's reader options, checked against its format's.
+ * @param catalog - The catalog.
+ * @param formats - The importable formats.
+ * @param args - The call's arguments.
+ * @returns The options.
+ * @throws {ToolRefusal} When they do not fit the format, or there is no format to check them against.
+ */
+function readerOptionsOf(
+    catalog: CatalogView,
+    formats: readonly string[],
+    args: Record<string, unknown>,
+): Record<string, unknown> {
+    if (args.format === undefined) {
+        if (args.options !== undefined) {
+            throw new ToolRefusal("AI_ARG_INVALID", { path: "options", expected: "a format for its options" });
+        }
+
+        return {};
+    }
+
+    requireEntry("format", text(args.format), formats);
+    const options = catalog.formats.find((each) => each.id === args.format)?.options ?? [];
+    const parsed = optionsSchema(options).schema.safeParse(args.options ?? {});
+    if (!parsed.success) {
+        throw new ToolRefusal("AI_ARG_INVALID", { path: "options", allowed: options.map((option) => option.name) });
+    }
+
+    return parsed.data;
 }
 
 /**
@@ -335,29 +424,8 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
                     ...formats.map((id) => ({ catalog: `formats/${id}` })),
                 ],
                 run: async ({ tx, host, message }, args) => {
-                    const url = args.url as string | undefined;
                     const document = args.text as string | undefined;
-                    if ((url === undefined) === (document === undefined)) {
-                        throw new ToolRefusal("AI_ARG_INVALID", { path: "text", expected: "exactly one of text, url" });
-                    }
-
-                    const parsed = url === undefined ? undefined : httpUrl(url);
-                    if (url !== undefined && parsed === undefined) {
-                        throw new ToolRefusal("AI_ARG_INVALID", {
-                            path: "url",
-                            expected: "an absolute http or https URL",
-                        });
-                    }
-
-                    let network: string | undefined;
-                    if (parsed !== undefined && !readerGave(parsed, host.readerText)) {
-                        if (host.allowImportUrl?.(parsed) !== true) {
-                            throw new ToolRefusal("AI_IMPORT_URL_REFUSED", { url: parsed.href });
-                        }
-
-                        network = parsed.href;
-                    }
-
+                    const { parsed, network } = importSource(args.url as string | undefined, document, host);
                     const mode = args.mode === "replace" ? "replace" : "merge";
                     const { nodes } = tx.status.counts;
                     const hold = network === undefined ? "replaces" : "network";
@@ -369,25 +437,7 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
                         });
                     }
 
-                    let readerOptions: Record<string, unknown> = {};
-                    if (args.format !== undefined) {
-                        requireEntry("format", text(args.format), formats);
-                        const options = catalog.formats.find((each) => each.id === args.format)?.options ?? [];
-                        const parsed = optionsSchema(options).schema.safeParse(args.options ?? {});
-                        if (!parsed.success) {
-                            throw new ToolRefusal("AI_ARG_INVALID", {
-                                path: "options",
-                                allowed: options.map((option) => option.name),
-                            });
-                        }
-
-                        readerOptions = parsed.data;
-                    } else if (args.options !== undefined) {
-                        throw new ToolRefusal("AI_ARG_INVALID", {
-                            path: "options",
-                            expected: "a format for its options",
-                        });
-                    }
+                    const readerOptions = readerOptionsOf(catalog, formats, args);
 
                     await coded(() =>
                         tx.data.import(

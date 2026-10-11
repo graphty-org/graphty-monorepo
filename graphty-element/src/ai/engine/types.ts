@@ -32,7 +32,7 @@ export interface ProviderState {
 export type PartOrigin = "reader" | "model" | "graph-data" | "graphty";
 
 /** The envelope's own tags, in any case and spacing, which text inside it may not carry. */
-const ENVELOPE_TAG = /<\s*\/?\s*graph-data\s*>/gi;
+const ENVELOPE_TAG = /<[\s/]*graph-data\s*>/gi;
 
 /**
  * Text read from the graph as a model is shown it: inside a fixed envelope the system prompt
@@ -42,7 +42,7 @@ const ENVELOPE_TAG = /<\s*\/?\s*graph-data\s*>/gi;
  * @returns It, enveloped.
  */
 export function graphData(text: string): string {
-    return `<graph-data>\n${text.replace(ENVELOPE_TAG, "")}\n</graph-data>`;
+    return `<graph-data>\n${text.replaceAll(ENVELOPE_TAG, "")}\n</graph-data>`;
 }
 
 /**

@@ -180,27 +180,32 @@ function toolSpec(command: GraphCommand): ToolSpec {
  * @returns The tool names.
  */
 function loadedTools(messages: readonly SavedMessage[]): string[] {
-    const named: string[] = [];
+    const named = new Set<string>();
     for (const message of [...messages].reverse()) {
         for (const part of message.parts) {
-            if (part.type !== "tool-result") {
-                continue;
-            }
-
-            try {
-                const { params } = JSON.parse(part.content) as { params?: { load?: unknown } };
-                for (const tool of Array.isArray(params?.load) ? params.load : []) {
-                    if (typeof tool === "string" && !named.includes(tool)) {
-                        named.push(tool);
-                    }
-                }
-            } catch {
-                // A result that is not JSON names nothing.
+            for (const tool of part.type === "tool-result" ? toolsNamed(part.content) : []) {
+                named.add(tool);
             }
         }
     }
 
-    return named.slice(0, MAX_LOADED_TOOLS);
+    return [...named].slice(0, MAX_LOADED_TOOLS);
+}
+
+/**
+ * The on-demand tools one catalog result names (`params.load`).
+ * @param content - The result's text.
+ * @returns The tool names; none for a result that is not JSON.
+ */
+function toolsNamed(content: string): string[] {
+    try {
+        const { params } = JSON.parse(content) as { params?: { load?: unknown } };
+        return (Array.isArray(params?.load) ? params.load : []).filter(
+            (tool): tool is string => typeof tool === "string",
+        );
+    } catch {
+        return [];
+    }
 }
 
 /**

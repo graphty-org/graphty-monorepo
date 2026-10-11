@@ -71,13 +71,7 @@ export function compactSchema(node: unknown): unknown {
     const out: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(node)) {
         if (key === "items" && Array.isArray(value)) {
-            // A tuple (draft 7's array of item schemas), which providers refuse: one schema for
-            // every item, the strict check holding each position to its own.
-            const kinds = [...new Set(value.map((item) => JSON.stringify(compactSchema(item))))];
-            out.items =
-                kinds.length === 1
-                    ? (JSON.parse(kinds[0]) as unknown)
-                    : { anyOf: kinds.map((kind) => JSON.parse(kind) as unknown) };
+            out.items = compactTuple(value);
             continue;
         }
 
@@ -87,20 +81,40 @@ export function compactSchema(node: unknown): unknown {
                       Object.entries(value as object).map(([name, child]) => [name, compactSchema(child)]),
                   )
                 : compactSchema(value);
-        if (
-            PROVIDER_OMITS.has(key) ||
-            (key === "description" && value === "") ||
-            ((key === "maximum" || key === "minimum") &&
-                typeof value === "number" &&
-                Math.abs(value) >= SANITY_BOUND) ||
-            (key === "propertyNames" && JSON.stringify(compact) === '{"type":"string"}') ||
-            (key === "additionalProperties" && JSON.stringify(compact) === "{}")
-        ) {
-            continue;
+        if (!providerDrops(key, value, compact)) {
+            out[key] = compact;
         }
-
-        out[key] = compact;
     }
 
     return out;
+}
+
+/**
+ * A tuple (draft 7's array of item schemas), which providers refuse, as one schema for every item;
+ * the strict check holds each position to its own.
+ * @param items - The item schemas.
+ * @returns The one schema.
+ */
+function compactTuple(items: unknown[]): unknown {
+    const kinds = [...new Set(items.map((item) => JSON.stringify(compactSchema(item))))];
+    return kinds.length === 1
+        ? (JSON.parse(kinds[0]) as unknown)
+        : { anyOf: kinds.map((kind) => JSON.parse(kind) as unknown) };
+}
+
+/**
+ * Whether a provider is sent a schema without this keyword.
+ * @param key - The keyword.
+ * @param value - Its value.
+ * @param compact - Its value, compacted.
+ * @returns True when it is left out.
+ */
+function providerDrops(key: string, value: unknown, compact: unknown): boolean {
+    return (
+        PROVIDER_OMITS.has(key) ||
+        (key === "description" && value === "") ||
+        ((key === "maximum" || key === "minimum") && typeof value === "number" && Math.abs(value) >= SANITY_BOUND) ||
+        (key === "propertyNames" && JSON.stringify(compact) === '{"type":"string"}') ||
+        (key === "additionalProperties" && JSON.stringify(compact) === "{}")
+    );
 }

@@ -66,9 +66,8 @@ export function factsBlock(session: GraphSession, profile: ToolProfile): string 
         `Graph: ${String(counts.nodes)} nodes, ${String(counts.edges)} edges, ${directed ? "directed" : "undirected"}, ${session.layout.dimension}, layout ${session.layout.id}.`,
     ];
     if (shown.length > 0) {
-        lines.push(
-            `Attributes: ${shown.map((attribute) => `${attribute.path} (${attribute.kind} ${attribute.type})`).join(", ")}${attributes.length > shown.length ? ", ..." : ""}.`,
-        );
+        const listed = shown.map((attribute) => `${attribute.path} (${attribute.kind} ${attribute.type})`);
+        lines.push(`Attributes: ${listed.join(", ")}${attributes.length > shown.length ? ", ..." : ""}.`);
     }
 
     if (profile === "standard") {

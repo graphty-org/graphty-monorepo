@@ -70,10 +70,11 @@ export function settingSchema(group: SettingGroup): z.ZodType {
         const parts = path.split(".").slice(1);
         let at = tree;
         for (const part of parts.slice(0, -1)) {
-            at = (at[part] ??= {}) as LeafTree;
+            at[part] ??= {};
+            at = at[part] as LeafTree;
         }
 
-        at[parts[parts.length - 1]] = unwrap(key.schema);
+        at[parts.at(-1) ?? ""] = unwrap(key.schema);
     }
 
     return objectOf(tree);

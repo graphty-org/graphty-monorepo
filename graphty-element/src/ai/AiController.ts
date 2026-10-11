@@ -460,7 +460,7 @@ export class AiController {
         const pending = this.approvals.get(id);
         this.approvals.delete(id);
         const session = this.graph.getSession();
-        if (pending === undefined || revisionOf(session) !== pending.revision) {
+        if (pending?.revision !== revisionOf(session)) {
             return { success: false, message: "", code: "AI_APPROVAL_STALE", params: { request: id } };
         }
 

@@ -394,7 +394,7 @@ async function settleLast(
         return outcome;
     }
 
-    const call = ready[ready.length - 1];
+    const call = ready.at(-1) as PreparedCall;
     const results = outcome.results.slice(0, -1);
     let result: CallResult;
     try {
@@ -599,71 +599,99 @@ function failureOf(result: CallResult, tool: string): Outcome {
  * @throws {GateHold} When the action held itself for approval.
  */
 async function runOne(batch: ToolBatch, call: PreparedCall, tx: TransactionScope, last = false): Promise<CallResult> {
-    const { graph, sink, abort, session } = batch;
-    const { request, command } = call;
-    logger.debug("Executing command", { name: command.name });
-    started(batch, request);
-    let result: CallResult;
-    if (call.checked !== undefined) {
-        try {
-            let outcome = await call.checked.tool.run(call.checked, {
-                tx,
-                session,
-                graph,
-                signal: abort.signal,
-                message: batch.message,
-                host: batch.host,
-            });
-            if (outcome.settle !== undefined && last && tx !== session) {
-                // Left for after the commit: reported once it has settled.
-                return { ...resultOf(outcome, call), settle: outcome.settle };
-            }
-
-            if (outcome.settle !== undefined) {
-                const { settle } = outcome;
-                outcome = await coded(() => settle(contextOf(batch)));
-            }
-
-            result = resultOf(outcome, call);
-        } catch (error) {
-            if (!(error instanceof ToolRefusal)) {
-                throw error;
-            }
-
-            // A failed write leaves the message's earlier writes pending: fix and retry, or they go.
-            result = refused(
-                error.code,
-                call.writes ? { ...error.params, rollback: "pending" } : error.params,
-                call.writes,
-            );
-        }
-    } else {
-        const context: CommandContext = {
-            graph,
-            tx,
-            abortSignal: abort.signal,
-            emitEvent: (type: string) => {
-                // Commands emit plain type/data events; they are logged, not forwarded.
-                logger.debug("Command emitted event", { name: command.name, type });
-            },
-            updateStatus: (updates) => {
-                if (updates.stageMessage) {
-                    sink.status.setStage("executing", updates.stageMessage);
-                }
-            },
-        };
-        const own = await command.execute(graph, call.args, context);
-        // A consumer command with no code keeps showing the model its message.
-        result = {
-            ...own,
-            code: own.code ?? (own.success ? "AI_OK" : "AI_TOOL_FAILED"),
-            params: own.params ?? (own.message === "" ? {} : { message: own.message }),
-            writes: call.writes,
-        };
+    logger.debug("Executing command", { name: call.command.name });
+    started(batch, call.request);
+    const result =
+        call.checked === undefined
+            ? await runCommand(batch, call, tx)
+            : await runChecked(batch, call, call.checked, tx, last);
+    if (result.settle === undefined) {
+        finished(batch, call.request, result);
     }
 
-    finished(batch, request, result);
     return result;
+}
+
+/**
+ * Run a generated tool's action.
+ * @param batch - The batch.
+ * @param call - The call.
+ * @param checked - Its checked arguments.
+ * @param tx - Where it writes.
+ * @param last - Whether it is the batch's last call.
+ * @returns Its result; one left to settle after the commit carries `settle`.
+ * @throws {GateHold} When the action held itself for approval.
+ */
+async function runChecked(
+    batch: ToolBatch,
+    call: PreparedCall,
+    checked: NonNullable<PreparedCall["checked"]>,
+    tx: TransactionScope,
+    last: boolean,
+): Promise<CallResult> {
+    const { graph, abort, session } = batch;
+    try {
+        let outcome = await checked.tool.run(checked, {
+            tx,
+            session,
+            graph,
+            signal: abort.signal,
+            message: batch.message,
+            host: batch.host,
+        });
+        if (outcome.settle !== undefined && last && tx !== session) {
+            // Left for after the commit: reported once it has settled.
+            return { ...resultOf(outcome, call), settle: outcome.settle };
+        }
+
+        if (outcome.settle !== undefined) {
+            const { settle } = outcome;
+            outcome = await coded(() => settle(contextOf(batch)));
+        }
+
+        return resultOf(outcome, call);
+    } catch (error) {
+        if (!(error instanceof ToolRefusal)) {
+            throw error;
+        }
+
+        // A failed write leaves the message's earlier writes pending: fix and retry, or they go.
+        return refused(error.code, call.writes ? { ...error.params, rollback: "pending" } : error.params, call.writes);
+    }
+}
+
+/**
+ * Run a consumer's own command.
+ * @param batch - The batch.
+ * @param call - The call.
+ * @param tx - Where it writes.
+ * @returns Its result.
+ */
+async function runCommand(batch: ToolBatch, call: PreparedCall, tx: TransactionScope): Promise<CallResult> {
+    const { graph, sink, abort } = batch;
+    const { command } = call;
+    const context: CommandContext = {
+        graph,
+        tx,
+        abortSignal: abort.signal,
+        emitEvent: (type: string) => {
+            // Commands emit plain type/data events; they are logged, not forwarded.
+            logger.debug("Command emitted event", { name: command.name, type });
+        },
+        updateStatus: (updates) => {
+            if (updates.stageMessage) {
+                sink.status.setStage("executing", updates.stageMessage);
+            }
+        },
+    };
+    const own = await command.execute(graph, call.args, context);
+    // A consumer command with no code keeps showing the model its message.
+    return {
+        ...own,
+        code: own.code ?? (own.success ? "AI_OK" : "AI_TOOL_FAILED"),
+        params: own.params ?? (own.message === "" ? {} : { message: own.message }),
+        writes: call.writes,
+    };
 }
 
 /**

@@ -4,9 +4,9 @@
  * exact-id boost. No embeddings and no network, so it works the same on every engine.
  */
 
-import { CATALOG_KINDS, type CatalogKind } from "../../catalog/assistant";
+import type { CatalogKind } from "../../catalog/assistant";
 
-export { CATALOG_KINDS, type CatalogKind };
+export { CATALOG_KINDS, type CatalogKind } from "../../catalog/assistant";
 
 /** One entry the index can find. */
 export interface IndexEntry {
@@ -106,10 +106,8 @@ export class SearchIndex {
             }
         }
 
-        return scored
-            .sort((a, b) => b.score - a.score)
-            .slice(0, options.limit ?? 5)
-            .map((hit) => hit.entry);
+        scored.sort((a, b) => b.score - a.score);
+        return scored.slice(0, options.limit ?? 5).map((hit) => hit.entry);
     }
 
     /**

@@ -104,7 +104,7 @@ const BEFORE_VALUE = /(==|!=|<=|>=|<|>)\s*$/;
  * @returns The literal.
  */
 export function rawString(value: string): string {
-    return `'${value.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`;
+    return `'${value.replaceAll("\\", String.raw`\\`).replaceAll("'", String.raw`\'`)}'`;
 }
 
 /**
@@ -117,36 +117,50 @@ export function rawString(value: string): string {
  */
 function literalQuotes(where: string): string {
     let out = "";
-    for (let at = 0; at < where.length; at++) {
+    let at = 0;
+    while (at < where.length) {
         const character = where[at];
         if (character !== "'" && character !== "`" && character !== '"') {
             out += character;
+            at++;
             continue;
         }
 
-        let close = at + 1;
-        while (close < where.length && where[close] !== character) {
-            close += where[close] === "\\" ? 2 : 1;
-        }
-
+        const close = closingQuote(where, at);
         const run = where.slice(at, close + 1);
-        if (character === '"' && close < where.length && BEFORE_VALUE.test(out)) {
-            let value = run.slice(1, -1);
-            try {
-                value = JSON.parse(run) as string;
-            } catch {
-                // Not JSON's escapes: the characters as written.
-            }
-
-            out += rawString(value);
-        } else {
-            out += run;
-        }
-
-        at = close;
+        out += character === '"' && close < where.length && BEFORE_VALUE.test(out) ? rawString(unquoted(run)) : run;
+        at = close + 1;
     }
 
     return out;
+}
+
+/**
+ * Where the quoted run that opens at a position closes, past escaped characters.
+ * @param where - The selector.
+ * @param at - The opening quote.
+ * @returns The closing quote's position, or the length when it never closes.
+ */
+function closingQuote(where: string, at: number): number {
+    let close = at + 1;
+    while (close < where.length && where[close] !== where[at]) {
+        close += where[close] === "\\" ? 2 : 1;
+    }
+
+    return close;
+}
+
+/**
+ * The text of a double-quoted run: JSON's escapes read, or the characters as written.
+ * @param run - The run, quotes included.
+ * @returns Its text.
+ */
+function unquoted(run: string): string {
+    try {
+        return JSON.parse(run) as string;
+    } catch {
+        return run.slice(1, -1);
+    }
 }
 
 /**
@@ -161,17 +175,17 @@ export function repairSelector(where: string, attributes: readonly string[]): st
     let out = literalQuotes(where);
     for (const name of attributes) {
         // A bare name at the start or after a boolean operator or parenthesis, not already a path.
-        const bare = new RegExp(`(^|[\\s(!&|])(${escapeRegExp(name)})(?=\\s*(==|!=|<=|>=|<|>|\\)|$))`, "g");
-        out = out.replace(bare, (_match: string, lead: string, key: string) => `${lead}data.${key}`);
+        const bare = new RegExp(String.raw`(^|[\s(!&|])(${escapeRegExp(name)})(?=\s*(==|!=|<=|>=|<|>|\)|$))`, "g");
+        out = out.replaceAll(bare, (_match: string, lead: string, key: string) => `${lead}data.${key}`);
     }
 
-    return out.replace(/(==|!=|<=|>=|<|>)\s*(-?\d+(?:\.\d+)?)(?![\d`.])/g, (_match, op: string, num: string) => {
+    return out.replaceAll(/(==|!=|<=|>=|<|>)\s*(-?\d+(?:\.\d+)?)(?![\d`.])/g, (_match, op: string, num: string) => {
         return `${op} \`${num}\``;
     });
 }
 
 /** `results.<run>.<field>`, the run written as an id, an algorithm key (quoted or not) or "latest". */
-const RESULT_REFERENCE = /results\.(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([A-Za-z0-9_:-]+))\.([A-Za-z_][A-Za-z0-9_]*)/g;
+const RESULT_REFERENCE = /results\.(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([\w:-]+))\.([A-Za-z_]\w*)/g;
 
 /**
  * Rewrite each run a selector names by what the model knows -- its algorithm key, quoted or not, or
@@ -183,7 +197,7 @@ const RESULT_REFERENCE = /results\.(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([A-Za-z0-9_
  * @returns The selector, its run references resolved.
  */
 function resultReferences(session: Pick<GraphSession, "runs" | "results">, where: string): string {
-    return where.replace(
+    return where.replaceAll(
         RESULT_REFERENCE,
         (match: string, double?: string, single?: string, tick?: string, bare?: string, field = ""): string => {
             const name = double ?? single ?? tick ?? bare ?? "";
@@ -202,7 +216,7 @@ function resultReferences(session: Pick<GraphSession, "runs" | "results">, where
  * @returns It, escaped.
  */
 function escapeRegExp(text: string): string {
-    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return text.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
 /**

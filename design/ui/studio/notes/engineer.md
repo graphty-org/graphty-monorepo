@@ -11,10 +11,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-10) **Round 3 critique: five smallest changes, in order.** (1) graphty-element:
-  Shift-click (and Ctrl, Meta on macOS) on a node adds, through the same `selection.applyNow(...,
-"add", "user")` the edge click uses -- the round's only confirmed app-caused severity 3 (4 of 4
-  T24; `NodeBehavior.handleClick` always replaces). (2) Element adds an optional "or more" target
+- (2026-10-10) **Shift-click on a node adds: built** in graphty-element (`SelectionManager.add`,
+  called from `NodeBehavior.handleClick` on Shift). Shift only -- Ctrl and Meta stay out (macOS
+  Ctrl-click is the context menu). Checked on a fresh build: Gus then Shift Ivan reads Selection
+  2, a plain click on Theo reads 1 (`design/ui/studio/tmp/t2r3-r4-03/`).
+- (2026-10-10) **Round 3 critique: five smallest changes, in order.** (1) Shift-click on a node
+  adds (built, above) -- the round's only confirmed app-caused severity 3 (4 of 4 T24). (2) Element adds an optional "or more" target
   to a numeric `FindValueRow`; the app shows "is 10" and "is 10 or more" under a "Select where"
   heading so the value is not cut. (3) Analyze filter puts name matches first ("path" finds
   Shortest path before Betweenness), app-only in `analyze/words.ts`. (4) Element adds `depth` to
@@ -76,10 +78,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
-- (2026-10-10) **Shift-click on a node adding is a defect fix, not an API change.** The edge
-  click already adds on Shift; nothing documents a node replacing on Shift; no option, nothing
-  removed, `node-click` still fires. Ctrl adds on Windows and Linux, Meta on macOS (Ctrl-click is
-  the macOS context-menu gesture). A Shift-drag still drags.
+- (2026-10-10) **Shift-click on a node adding is a defect fix; its one API change is additive.**
+  The edge click already adds on Shift; nothing documents a node replacing on Shift; `node-click`
+  still fires; a Shift-drag still drags; XR `select()` still replaces (no pointer event). Shift
+  only, per owner-decisions.md. Routed through a new `SelectionManager.add(node)` rather than
+  `session.selection.applyNow` straight from NodeBehavior: the context only exposes the public
+  `GraphSession` (no `applyNow`, and its `apply` is async with cause "api"), and bypassing the
+  manager would leave its index stale.
 - (2026-10-10) **A distance per neighbor is the element's fact, never the app's.** The 2- and
   3-hop list reads `selection.nodes` sorted by name; splitting it by the 1-hop page would be a
   neighbor lookup in the app (forbidden). Additive `depth` option and `hops` field instead.
@@ -224,6 +229,10 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
 
 ## Tried: worked / did not work
 
+- (2026-10-10) **Tried: Shift-add through the session only. Did not work.** The manager's
+  `select()` skipped a click on a node when its OWN index held one node, so click C, Shift A,
+  click C left {A, C}. Fixed by counting `selection.size` from the session. The interaction test
+  covers both (each half fails alone without its fix, checked by reverting).
 - (2026-10-10) **Round 3 audit method.** Worked: every walk as one data line (`engineer/walks.txt`:
   name|start|step|step...) read by an inline loop in one background Bash command, each walk its own
   session folder calling real.mjs directly; all 34 walks queued at once and waited on the shared

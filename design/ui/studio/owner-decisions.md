@@ -39,6 +39,14 @@ replaces. If a consumer is shown relying on replace, this moves to the owner's l
 session's); Ctrl and Meta as well (on macOS Ctrl-click opens the context menu, and a second key
 convention is a separate decision).
 
+**Built (2026-10-10).** One additive method, `SelectionManager.add(node)`: it adds the node to the
+session's selection with cause "user" and keeps the manager's own index and highlight in step, so
+the node click reaches the session through the manager it already used instead of reaching past
+it. `SelectionManager.select(node)` now counts the session's whole selection (nodes and edges)
+before deciding a click on the only selected node has nothing to do; it counted only the
+manager's own index, so a plain click on a node that was one of several selected left the others
+selected.
+
 ## 2026-10-10 -- Decided by the owner: every breaking row of #1727 ships as a minor
 
 **What.** The owner judged every open row of #1727's breaking-changes table a minor change and a

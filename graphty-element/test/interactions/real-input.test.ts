@@ -215,6 +215,36 @@ describe("the mouse", () => {
             assert.isNull(element.getSelectedNode(), "a click on empty canvas clears the selection");
         });
 
+        it("Shift-click adds a node to the selection, a plain click replaces it", async () => {
+            const element = await mounted(viewMode);
+
+            await click(element, at(element, "a"));
+            await click(element, at(element, "b"), { shift: true });
+            await frames();
+            assert.sameMembers([...element.session.selection.nodes], ["a", "b"], "Shift-click added b to a");
+
+            await click(element, at(element, "c"));
+            await frames();
+            assert.sameMembers([...element.session.selection.nodes], ["c"], "a plain click replaced the selection");
+
+            await click(element, at(element, "a"), { shift: true });
+            await click(element, at(element, "c"));
+            await frames();
+            assert.sameMembers(
+                [...element.session.selection.nodes],
+                ["c"],
+                "a plain click on a node already selected leaves only that node",
+            );
+
+            const from = at(element, "a");
+            const to = { x: from.x + 50, y: from.y + 40 };
+            await drag(element, from, to, 8, undefined, { shift: true });
+            await frames();
+            const now = at(element, "a");
+            assert.closeTo(now.x, to.x, 3, "a drag with Shift held still moves the node");
+            assert.closeTo(now.y, to.y, 3);
+        });
+
         it("a click on empty canvas is published, with or without a selection", async () => {
             const element = await mounted(viewMode);
             let heard = 0;

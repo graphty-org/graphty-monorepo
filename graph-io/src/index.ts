@@ -148,11 +148,13 @@ export {
     GEXF_1_2_CAPABILITIES,
     GEXF_ISSUE,
     GEXF_LOSS,
+    GEXF_STYLE_CAPABILITIES,
     gexfExporter,
     type GexfExportOptions,
     gexfImporter,
     type GexfImportOptions,
     type GexfVersion,
+    GRAPHTY_XML_NAMESPACE,
 } from "./formats/gexf/index.js";
 export {
     GML_ISSUE,

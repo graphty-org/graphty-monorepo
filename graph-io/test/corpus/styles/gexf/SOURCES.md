@@ -19,12 +19,17 @@ Files under `generated/` were written for this project by seeded scripts, MIT li
 | `generated/distinct-64-keyed.gexf.gz` | Generated for this project by a seeded script | MIT (generated for this project) |  |
 | `generated/distinct-65-keyed.gexf.gz` | Generated for this project by a seeded script | MIT (generated for this project) |  |
 | `generated/distinct-8-keyed.gexf.gz` | Generated for this project by a seeded script | MIT (generated for this project) |  |
+| `generated/gexf10-edges-first.gexf` | Generated for this project by a seeded script | MIT (generated for this project) | GEXF 1.0 as Gephi 0.6 wrote it: `type="dir"` edges before their nodes, `<attvalue id>`, `pid="0"` |
 | `generated/gexf13-hex-and-labels.gexf` | Generated for this project by a seeded script | MIT (generated for this project) |  |
+| `generated/graphty-written.gexf` | Generated for this project: `generated/random-all-60.gexf` written with its styles (`test/formats/gexf/styles.test.ts`, `UPDATE_GEXF_TAMPER=1`) | MIT (generated for this project) | the untouched file the block-tamper fixtures start from |
 | `generated/joint-100-classes.gexf.gz` | Generated for this project by a seeded script | MIT (generated for this project) |  |
 | `generated/nonlinear-ramps.gexf` | Generated for this project by a seeded script | MIT (generated for this project) |  |
 | `generated/random-all-60.gexf` | Generated for this project by a seeded script | MIT (generated for this project) |  |
 | `generated/random-all-600.gexf` | Generated for this project by a seeded script | MIT (generated for this project) |  |
 | `generated/random-all-6000.gexf.gz` | Generated for this project by a seeded script | MIT (generated for this project) |  |
+| `generated/tamper-block-truncated.gexf` | Generated for this project: `graphty-written.gexf` with its `graphty.styles` block cut in half | MIT (generated for this project) | block-tamper fixture: the block is ignored (NOT_JSON) |
+| `generated/tamper-native-edited.gexf` | Generated for this project: `graphty-written.gexf` with one node's `viz:color` changed | MIT (generated for this project) | block-tamper fixture: the edit comes back as one exception |
+| `generated/tamper-node-added.gexf` | Generated for this project: `graphty-written.gexf` with one node added | MIT (generated for this project) | block-tamper fixture: the block is ignored (FINGERPRINT) |
 | `gexfjs-celegans.gexf.gz` | https://raw.githubusercontent.com/raphv/gexf-js/master/celegans.gexf | MIT |  |
 | `gexfjs-miserables.gexf` | https://raw.githubusercontent.com/raphv/gexf-js/master/miserables.gexf | MIT |  |
 | `glxxyz_hskhsk.com__HSK1-3_chars_v09.gexf.gz` | https://raw.githubusercontent.com/glxxyz/hskhsk.com/8a6f229c699e2fd7ac8708156c55c3afb2be7e1f/hanzigraphs/gexf/HSK1-3_chars_v09.gexf | MIT | GitHub glxxyz/hskhsk.com hanzigraphs/gexf/HSK1-3_chars_v09.gexf |

@@ -59,6 +59,7 @@ import {
     TIMED_STATIC_CODE,
     TIMESTAMP_CONFLICT_CODE,
     UNKNOWN_ATTRIBUTE_CODE,
+    UNKNOWN_PID_CODE,
     VALUE_OUTSIDE_OPTIONS_CODE,
     VIZ_DYNAMIC_CODE,
     VIZ_SKIPPED_CODE,
@@ -69,6 +70,7 @@ import {
 export { GEXF_1_2_CAPABILITIES, GEXF_LOSS, gexfExporter, type GexfExportOptions } from "./exporter.js";
 export { gexfImporter, type GexfImportOptions } from "./importer.js";
 export { type GexfVersion } from "./schema.js";
+export { GEXF_STYLE_CAPABILITIES, GRAPHTY_XML_NAMESPACE } from "./styles.js";
 
 /**
  * The issue codes the GEXF importer records, by name: the codes shared with
@@ -124,6 +126,11 @@ export const GEXF_ISSUE = Object.freeze({
     EDGE_TYPE: EDGE_TYPE_CODE,
     /** A `pid` / `<parent for>` naming an unknown node, a `<parent>` without for, or the children of a skipped node. */
     UNKNOWN_PARENT: UNKNOWN_PARENT_CODE,
+    /**
+     * GEXF 1.0 only: a `pid` naming no node. Gephi 0.6 wrote `pid="0"` on its top-level nodes; the node stays
+     * top-level.
+     */
+    UNKNOWN_PID: UNKNOWN_PID_CODE,
     /** A `pid` / nested containment that would close a parent cycle; that link is dropped. */
     PARENT_CYCLE: PARENT_CYCLE_CODE,
     /** An inverted interval (start after end) of an element, a spell or a value; it is not kept. */

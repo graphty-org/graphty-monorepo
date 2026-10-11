@@ -144,7 +144,12 @@ export function planStyles(values: StyleValues, features: StyleFeatures, options
     const columns = { node: new Map<string, StyleColumn>(), edge: new Map<string, StyleColumn>() };
     const allFeatures = { node: [] as StyleFeature[], edge: [] as StyleFeature[] };
     for (const target of ["node", "edge"] as const) {
-        const out = values[target];
+        const given = values[target];
+        // a reader's own tool-default rules (Gephi's arrows on directed edges) go with the tool's constants
+        const out =
+            options.toolDefaults === false && given?.rules !== undefined
+                ? { ...given, rules: given.rules.filter((r) => r.origin !== "tool") }
+                : given;
         allFeatures[target] = [...features[target], ...(out?.features ?? [])];
         let toolSet: Record<string, StyleValue> | null = null;
         if (defaults !== null) {

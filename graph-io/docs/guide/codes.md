@@ -237,6 +237,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_GEXF_TIMED_VALUE_ON_STATIC"></a>`W_GEXF_TIMED_VALUE_ON_STATIC`: A timed value on an attribute of a static group. Import: [gexf](./formats/gexf.md).
 - <a id="W_GEXF_TIMESTAMP_CONFLICT"></a>`W_GEXF_TIMESTAMP_CONFLICT`: Both `timestamp` and `start` / `end` on one element or value. Import: [gexf](./formats/gexf.md).
 - <a id="W_GEXF_UNKNOWN_ATTRIBUTE"></a>`W_GEXF_UNKNOWN_ATTRIBUTE`: An `<attvalue for>` naming an undeclared attribute. Import: [gexf](./formats/gexf.md).
+- <a id="W_GEXF_UNKNOWN_PID"></a>`W_GEXF_UNKNOWN_PID`: GEXF 1.0 only: a `pid` naming no node. Gephi 0.6 wrote `pid="0"` on its top-level nodes; the node stays top-level. Import: [gexf](./formats/gexf.md).
 - <a id="W_GEXF_VALUE_OUTSIDE_OPTIONS"></a>`W_GEXF_VALUE_OUTSIDE_OPTIONS`: A value outside the declared `<options>` (kept). Import: [gexf](./formats/gexf.md).
 - <a id="W_GEXF_VIZ_DTYPE"></a>`W_GEXF_VIZ_DTYPE`: A visual attribute (position, color, size, thickness) is stored at another precision than the importer gives it; a position reads back as a 64-bit float, a color, size or thickness as a 32-bit float. Save: [gexf](./formats/gexf.md).
 - <a id="W_GEXF_VIZ_DYNAMIC_DROPPED"></a>`W_GEXF_VIZ_DYNAMIC_DROPPED`: A 1.2 dynamic viz element whose bounds were dropped. Import: [gexf](./formats/gexf.md).

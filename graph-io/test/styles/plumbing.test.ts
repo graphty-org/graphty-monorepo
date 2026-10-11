@@ -297,20 +297,22 @@ describe("role columns and styles on export", () => {
         expect(checkExport(snapshot, "graphml", { styles }).map((n) => n.code)).not.toContain("W_VIZ_DROPPED");
     });
 
-    it("keeps a role column's data and writes nothing into GEXF's slots from it when styles are given", async () => {
+    it("keeps a role column's data and writes only the styles into GEXF's slots when styles are given", async () => {
         const b = new GraphBuilder({ directed: true });
         b.addNode("a");
         const color = b.declareNodeColumn({ name: "color", dtype: "f32", components: 4, role: "color" });
         b.setNodeValue(color, 0, [1, 0, 0, 1]);
         const snapshot = b.freeze();
         const styles = planStyles(
-            { format: "test", node: { values: { fill: ["#ff0000"] } }, fingerprint: styleFingerprint(snapshot) },
+            { format: "test", node: { values: { fill: ["#0000ff"] } }, fingerprint: styleFingerprint(snapshot) },
             { node: featuresOf(snapshot, "node"), edge: [] },
         );
         const plain = await exportGraphToString(snapshot, "gexf");
-        expect(plain).toContain("<viz:color");
+        expect(plain).toContain('<viz:color r="255" g="0" b="0"/>');
         const styled = await exportGraphToString(snapshot, "gexf", { styles });
-        expect(styled).not.toContain("<viz:color");
+        // the slot holds the styles' blue; the red role column is kept as data only
+        expect(styled.match(/<viz:color /g)).toEqual(["<viz:color "]);
+        expect(styled).toContain('<viz:color r="0" g="0" b="255"/>');
         expect(styled).toContain('title="color"');
     });
 

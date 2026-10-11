@@ -441,7 +441,8 @@ export function checkStyles(
                     result.declaredEmpty++;
                 }
             }
-            if (r.origin === "tool") {
+            // a file graphty wrote carries the writing tool's rules in its block, not in the table of "graphty"
+            if (r.origin === "tool" && ex.styles.source.tool !== "graphty") {
                 checkToolRule(r, target, tool, fail);
             }
         }
@@ -520,7 +521,8 @@ function checkToolRule(
     tool: ReturnType<typeof toolDefaults>,
     fail: (line: string) => void,
 ): void {
-    if (rule.map !== undefined) {
+    // a default that is itself per element (Gephi's edge in its source node's color) maps a style column
+    if (rule.map !== undefined && rule.facts?.reason !== "SOURCE_NODE_COLOR") {
         fail(`the tool-defaults rule ${rule.id} maps values instead of setting them`);
     }
     if (!("all" in rule.where)) {
@@ -606,7 +608,8 @@ function checkProperty(
         const file = fileValues?.[i] ?? null;
         const have = got[i];
         if (file === null) {
-            if (provider !== null && provider.origin !== "tool") {
+            // a file graphty wrote: where its own slot lost a value (an outside edit), the block's rules still give it
+            if (provider !== null && provider.origin !== "tool" && ex.styles.source.tool !== "graphty") {
                 fail(
                     `${elementName(snapshot, target, i)} ${property}: rule ${provider.id} paints ${JSON.stringify(have)}, the file leaves it unstyled`,
                 );

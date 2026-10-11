@@ -148,7 +148,12 @@ describe('an exporter with block: "attributes"', () => {
         const reg = createRegistry().registerExporter(attributes);
         const info = reg.listFormats().find((f) => f.format === "mine");
         expect(info?.capabilities?.styles).toEqual({ node: [], edge: [], block: "attributes" });
-        expect(listFormats().every((f) => f.capabilities?.styles === undefined)).toBe(true);
+        const builtIn = createRegistry();
+        expect(
+            listFormats().every(
+                (f) => !f.canExport || f.capabilities?.styles === builtIn.exporter(f.format).styles?.capabilities,
+            ),
+        ).toBe(true);
     });
 });
 

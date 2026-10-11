@@ -734,6 +734,22 @@ export type ImporterStyles =
           readonly graph?: GraphStyle;
           /** The reader's notes. */
           readonly notes?: readonly StyleNote[];
+          /**
+           * The text of a `graphty.styles` block the file holds in a place of its own (an XML element, an aspect, a
+           * comment) rather than as a graph attribute; graph-io reads it exactly as it reads a block carried as a
+           * graph attribute.
+           */
+          readonly block?: string | null;
+          /**
+           * The data columns the values were read from (a format's own style columns), per target: they hold the
+           * styles themselves, so they are not offered to the planner as columns that explain them.
+           */
+          readonly readFrom?: {
+              /** Node columns. */
+              readonly node?: readonly string[];
+              /** Edge columns. */
+              readonly edge?: readonly string[];
+          };
       };
 
 // ============================================================ writing styles (the exporter contract)

@@ -74,6 +74,8 @@ interface StyleTruth {
     readonly edge: ReaderOutput;
     readonly raw: { readonly node: readonly string[]; readonly edge: readonly string[] };
     readonly notes: readonly StyleNote[];
+    /** A `graphty.styles` block the importer found outside the graph attributes, or null. */
+    readonly block?: string | null;
 }
 
 /**
@@ -100,7 +102,7 @@ export function extractStyles(
     const budget = options.budget ?? new StyleBudget();
     const canonical = readStyleValues(importer, snapshot, report, { notes, budget, signal });
     const fingerprint = styleFingerprint(snapshot);
-    const blockText = graphValue(snapshot, STYLE_BLOCK_NAME);
+    const blockText = canonical?.block ?? graphValue(snapshot, STYLE_BLOCK_NAME);
     if (blockText !== undefined) {
         const parsed = parseStyleBlock(blockText, fingerprint);
         if (parsed.ok) {
@@ -244,8 +246,9 @@ function canonicalOf(
             graph: got.graph ?? {},
             node: got.node ?? { values: {} },
             edge: got.edge ?? { values: {} },
-            raw: { node: [], edge: [] },
+            raw: { node: got.readFrom?.node ?? [], edge: got.readFrom?.edge ?? [] },
             notes: got.notes ?? [],
+            block: got.block ?? null,
         };
     }
     const { dialect } = got;

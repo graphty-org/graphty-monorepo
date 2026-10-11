@@ -266,6 +266,7 @@ The codes this format's import report can hold. They are also exported as `GEXF_
 - `E_MISSING_ENDPOINT` (error): An edge without a source or target.
 - `E_GEXF_EDGE_TYPE` (error): An edge `type` outside directed / undirected / mutual.
 - `E_UNKNOWN_PARENT` (error): A `pid` / `<parent for>` naming an unknown node, a `<parent>` without for, or the children of a skipped node.
+- `W_GEXF_UNKNOWN_PID` (warning): GEXF 1.0 only: a `pid` naming no node. Gephi 0.6 wrote `pid="0"` on its top-level nodes; the node stays top-level.
 - `E_PARENT_CYCLE` (error): A `pid` / nested containment that would close a parent cycle; that link is dropped.
 - `E_BAD_VALUE` (error): An inverted interval (start after end) of an element, a spell or a value; it is not kept.
 - `E_GEXF_ATTRIBUTES_CLASS` (error): An `<attributes class>` outside node / edge.

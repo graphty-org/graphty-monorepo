@@ -29,6 +29,7 @@ import { formatTemporal, formatTimeValue, type TimeFormat } from "../../common/t
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
+import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
     canonicalScalarType,
@@ -47,6 +48,7 @@ import {
     TEMPORAL_COLUMNS,
     VIZ_NAMESPACE,
 } from "./schema.js";
+import { GEXF_STYLE_CAPABILITIES, type GexfStyledExport, gexfStyledExport } from "./styles.js";
 
 /**
  * The format-specific options of the GEXF exporter.
@@ -1551,15 +1553,17 @@ function edgeType(snapshot: GraphSnapshot, e: number, folding: PairFolding): Gex
 
 /**
  * Write the document as text parts.
- * @param snapshot - the snapshot
+ * @param given - the snapshot
  * @param options - the caller's options
  * @yields one part per element or line group
  * @returns nothing
  */
 function* writeGexf(
-    snapshot: GraphSnapshot,
-    options: (GexfExportOptions & CommonExportOptions) | undefined,
+    given: GraphSnapshot,
+    options: (GexfExportOptions & CommonExportOptions & ExporterStyleOptions) | undefined,
 ): Generator<string, void, undefined> {
+    const styled = gexfStyledExport(given, options?.styles);
+    const snapshot = styled?.snapshot ?? given;
     const plan = planExport(snapshot, options);
     const { version } = plan;
     const ids = sanitizeIds(snapshot, "any", plan.options.sanitizeIds);
@@ -1569,7 +1573,7 @@ function* writeGexf(
 
     yield '<?xml version="1.0" encoding="UTF-8"?>\n';
     yield `<gexf xmlns="${ns.gexf}" xmlns:viz="${ns.viz}" version="${version}">\n`;
-    yield metaElement(meta);
+    yield metaElement(meta, styled);
     yield graphStart(snapshot, plan);
     yield attributesGroups("node", plan.nodeAttrs, "    ");
     yield attributesGroups("edge", plan.edgeAttrs, "    ");
@@ -1600,6 +1604,7 @@ function* writeGexf(
         }
         body += spellsElement(nodeRoles, i, plan, "        ");
         body += vizElements(nodeRoles, i, "        ", writeZ);
+        body += styled?.node(i, "        ") ?? "";
         yield body.length === 0 ? `      <node${attrs}/>\n` : `      <node${attrs}>\n${body}      </node>\n`;
     }
     yield "    </nodes>\n";
@@ -1647,6 +1652,7 @@ function* writeGexf(
         let body = attvaluesElement(plan.edgeAttrs, e, plan, "        ");
         body += spellsElement(edgeRoles, e, plan, "        ");
         body += vizElements(edgeRoles, e, "        ", false);
+        body += styled?.edge(e, "        ") ?? "";
         yield body.length === 0 ? `      <edge${attrs}/>\n` : `      <edge${attrs}>\n${body}      </edge>\n`;
     }
     yield "    </edges>\n";
@@ -1657,9 +1663,10 @@ function* writeGexf(
 /**
  * The `<meta>` element.
  * @param meta - the graph meta
+ * @param styled - the export's styles, whose block goes into `<meta>`, or null
  * @returns the lines, or an empty string when nothing is set
  */
-function metaElement(meta: GraphSnapshot["meta"]): string {
+function metaElement(meta: GraphSnapshot["meta"], styled: GexfStyledExport | null): string {
     let body = "";
     if (meta.creator !== null) {
         body += `    <creator>${escapeXmlText(meta.creator)}</creator>\n`;
@@ -1669,6 +1676,9 @@ function metaElement(meta: GraphSnapshot["meta"]): string {
     }
     if (meta.keywords.length > 0) {
         body += `    <keywords>${escapeXmlText(meta.keywords.join(", "))}</keywords>\n`;
+    }
+    if (styled !== null) {
+        body += `    ${styled.blockElement}\n`;
     }
     const modified = meta.modified === null ? "" : ` lastmodifieddate="${escapeXmlAttribute(meta.modified)}"`;
     if (body.length === 0 && modified.length === 0) {
@@ -1772,14 +1782,19 @@ export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
     format: GEXF_FORMAT,
     options: Object.freeze(["version"]),
     capabilities: CAPABILITIES_1_3,
+    styles: Object.freeze({ capabilities: GEXF_STYLE_CAPABILITIES }),
     /**
      * Pre-flight: what export() would lose.
      * @param snapshot - the snapshot
      * @param options - format-specific and common options
      * @returns the loss notes, empty when the export is exact
      */
-    check(snapshot: GraphSnapshot, options?: GexfExportOptions & CommonExportOptions): readonly LossNote[] {
-        return Object.freeze(planExport(snapshot, options).notes);
+    check(
+        snapshot: GraphSnapshot,
+        options?: GexfExportOptions & CommonExportOptions & ExporterStyleOptions,
+    ): readonly LossNote[] {
+        const styled = gexfStyledExport(snapshot, options?.styles);
+        return Object.freeze([...planExport(styled?.snapshot ?? snapshot, options).notes, ...(styled?.notes ?? [])]);
     },
     /**
      * Write the snapshot as UTF-8 chunks.
@@ -1787,7 +1802,10 @@ export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
      * @param options - format-specific and common options
      * @returns the chunks
      */
-    export(snapshot: GraphSnapshot, options?: GexfExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
+    export(
+        snapshot: GraphSnapshot,
+        options?: GexfExportOptions & CommonExportOptions & ExporterStyleOptions,
+    ): AsyncIterable<Uint8Array> {
         return encodeChunks(writeGexf(snapshot, options));
     },
     /**
@@ -1796,7 +1814,10 @@ export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
      * @param options - format-specific and common options
      * @returns the document
      */
-    async exportToString(snapshot: GraphSnapshot, options?: GexfExportOptions & CommonExportOptions): Promise<string> {
+    async exportToString(
+        snapshot: GraphSnapshot,
+        options?: GexfExportOptions & CommonExportOptions & ExporterStyleOptions,
+    ): Promise<string> {
         return joinText(writeGexf(snapshot, options));
     },
 });

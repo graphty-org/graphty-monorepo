@@ -95,6 +95,7 @@ import {
     XmlNestingError,
     XmlSyntaxError,
 } from "../../common/xml.js";
+import { MAX_STYLE_BLOCK_LENGTH } from "../../styles/io/block.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
 import {
     EDGE_DECLS,
@@ -111,6 +112,7 @@ import {
     TIME_FORMATS,
     TIME_REPRESENTATIONS,
 } from "./schema.js";
+import { canonVizColor, gexfStyles, GRAPHTY_XML_NAMESPACE } from "./styles.js";
 
 /**
  * The format-specific options of the GEXF importer.
@@ -187,6 +189,11 @@ export const WEIGHT_IGNORED_CODE = "W_GEXF_WEIGHT_IGNORED";
  */
 export const VIZ_SKIPPED_CODE = "W_GEXF_VIZ_SKIPPED";
 /**
+ * GEXF 1.0 only: a `pid` naming no node. Gephi 0.6 wrote `pid="0"` on top-level nodes; the node stays top-level.
+ * @category Built-in formats
+ */
+export const UNKNOWN_PID_CODE = "W_GEXF_UNKNOWN_PID";
+/**
  * A 1.2 dynamic viz element (its bounds are dropped, the value kept).
  * @category Issue and loss codes
  */
@@ -236,6 +243,10 @@ const VERSIONS: ReadonlySet<string> = new Set(["1.0", "1.1", "1.2", "1.3"]);
  * @returns the version, or null
  */
 function namespaceVersion(ns: string | null): string | null {
+    if (ns !== null && /gephi\.org\/gexf\/?$/.test(ns)) {
+        // GEXF 1.0, as Gephi 0.6 wrote it
+        return "1.0";
+    }
     const match = ns === null ? null : /gexf\.net\/(1\.[0-3])/.exec(ns);
     return match === null ? null : match[1];
 }
@@ -315,8 +326,16 @@ const EDGE_TYPES: ReadonlySet<string> = new Set(["directed", "undirected", "mutu
  * @returns the text trimmed and in lower case
  */
 function edgeTypeKeyword(text: string): string {
-    return text.trim().toLowerCase();
+    const keyword = text.trim().toLowerCase();
+    return EDGE_TYPE_ALIASES.get(keyword) ?? keyword;
 }
+
+/** GEXF 1.0's spellings of the edge types. */
+const EDGE_TYPE_ALIASES: ReadonlyMap<string, string> = new Map([
+    ["dir", "directed"],
+    ["undir", "undirected"],
+    ["double", "mutual"],
+]);
 const ABORT_CHECK_INTERVAL = 64;
 
 /** The XML attributes the importer reads on `<node>`; any other one is reported once. */
@@ -539,6 +558,8 @@ const enum Ctx {
     Edges,
     Edge,
     Skip,
+    /** graphty's `graphty.styles` block inside `<meta>`. */
+    StyleBlock,
 }
 
 /** An open `<node>`: its index (INVALID_INDEX when the node was skipped) and location. */
@@ -604,6 +625,15 @@ class GexfReader implements XmlHandler {
     private metaText = "";
 
     private metaField: "creator" | "description" | "keywords" | null = null;
+
+    /** The text of graphty's `graphty.styles` block, read up to one character past the longest block read. */
+    private styleBlock = "";
+
+    /** GEXF 1.0 only: nodes added for edges read before `<nodes>`, until their `<node>` declares them. */
+    private readonly implicitNodes = new Set<number>();
+
+    /** GEXF 1.0 only: `<edges>` came before `<nodes>`, so an edge's ends are added until `<node>` declares them. */
+    private edgesFirst = false;
 
     private readonly nodeAttrs = new Map<string, TrackedAttribute>();
 
@@ -750,6 +780,7 @@ class GexfReader implements XmlHandler {
             parent !== Ctx.Skip &&
             parent !== Ctx.MetaText &&
             parent !== Ctx.AttributeText &&
+            parent !== Ctx.StyleBlock &&
             !name.startsWith("viz:")
         ) {
             // an undeclared prefix or a name that is not namespace-well-formed (<:node>, <a:b:node>)
@@ -769,7 +800,7 @@ class GexfReader implements XmlHandler {
                 this.startInGexf(name, local, attrs, line);
                 return;
             case Ctx.Meta:
-                this.startInMeta(name, local, line);
+                this.startInMeta(name, local, line, ns);
                 return;
             case Ctx.Graph:
                 this.startInGraph(name, local, attrs, line);
@@ -803,6 +834,7 @@ class GexfReader implements XmlHandler {
                 return;
             case Ctx.MetaText:
             case Ctx.AttributeText:
+            case Ctx.StyleBlock:
             case Ctx.Skip:
                 this.ctx.push(Ctx.Skip);
                 return;
@@ -825,8 +857,19 @@ class GexfReader implements XmlHandler {
             case Ctx.MetaText:
                 this.finishMetaText();
                 return;
+            case Ctx.StyleBlock:
+                this.report.keepForStyles(this.styleBlock);
+                this.styleBlock = "";
+                return;
             case Ctx.Graph:
                 this.resolveParents();
+                if (!this.nodesSeen && this.implicitNodes.size > 0) {
+                    this.report.error(
+                        "validation-error",
+                        MISSING_NODES_CODE,
+                        "the graph declares <edges> but no <nodes>",
+                    );
+                }
                 return;
             case Ctx.Attributes:
                 this.attributeGroup = null;
@@ -879,6 +922,12 @@ class GexfReader implements XmlHandler {
                 return;
             case Ctx.AttributeText:
                 this.attributeTextValue += text;
+                return;
+            case Ctx.StyleBlock:
+                // past the longest block read, one more character is enough to say it is too large
+                if (this.styleBlock.length <= MAX_STYLE_BLOCK_LENGTH) {
+                    this.styleBlock += text.slice(0, MAX_STYLE_BLOCK_LENGTH + 1 - this.styleBlock.length);
+                }
                 return;
             case Ctx.Skip:
                 return;
@@ -992,8 +1041,14 @@ class GexfReader implements XmlHandler {
      * @param name - the element name
      * @param local - its local name
      * @param line - the line
+     * @param ns - its namespace
      */
-    private startInMeta(name: string, local: string, line: number): void {
+    private startInMeta(name: string, local: string, line: number, ns: string | null): void {
+        if (ns === GRAPHTY_XML_NAMESPACE && local === "styles") {
+            this.styleBlock = "";
+            this.ctx.push(Ctx.StyleBlock);
+            return;
+        }
         if (local === "creator" || local === "description" || local === "keywords") {
             this.metaField = local;
             this.metaText = "";
@@ -1136,7 +1191,10 @@ class GexfReader implements XmlHandler {
                 this.beginSection(attrs, "node", line);
                 return;
             case "edges":
-                if (!this.nodesSeen) {
+                if (!this.nodesSeen && this.meta.sourceVersion === "1.0") {
+                    // GEXF 1.0 files (Gephi 0.6) may list their edges before their nodes
+                    this.edgesFirst = true;
+                } else if (!this.nodesSeen) {
                     this.report.error(
                         "validation-error",
                         MISSING_NODES_CODE,
@@ -1493,7 +1551,9 @@ class GexfReader implements XmlHandler {
         try {
             const id = this.coerceId(idText, where);
             const existing = sink.indexOf(id);
-            if (existing !== INVALID_INDEX) {
+            if (existing !== INVALID_INDEX && this.implicitNodes.delete(existing)) {
+                index = existing;
+            } else if (existing !== INVALID_INDEX) {
                 report.warning(
                     "validation-error",
                     DUPLICATE_NODE_CODE,
@@ -1690,6 +1750,15 @@ class GexfReader implements XmlHandler {
             let parent = ref.parentIndex;
             if (ref.parentId !== null) {
                 parent = sink.indexOf(ref.parentId);
+                if (parent === INVALID_INDEX && this.meta.sourceVersion === "1.0") {
+                    report.warnOnce(
+                        "missing-value",
+                        UNKNOWN_PID_CODE,
+                        `pid "${String(ref.parentId)}" names no node; GEXF 1.0 files write it on top-level nodes, which stay top-level`,
+                        ref.where,
+                    );
+                    continue;
+                }
                 if (parent === INVALID_INDEX) {
                     report.error(
                         "missing-value",
@@ -1818,6 +1887,14 @@ class GexfReader implements XmlHandler {
         try {
             const source = this.coerceId(sourceText, where);
             const target = this.coerceId(targetText, where);
+            if (this.edgesFirst && !this.nodesSeen) {
+                for (const end of [source, target]) {
+                    if (sink.indexOf(end) === INVALID_INDEX) {
+                        this.implicitNodes.add(sink.addNode(end));
+                        report.counts.nodes++;
+                    }
+                }
+            }
             if (!options.addMissingNodes) {
                 if (sink.indexOf(source) === INVALID_INDEX) {
                     throw new GraphFormatError("E_UNKNOWN_NODE", `edge references undeclared node "${sourceText}"`, {
@@ -1989,7 +2066,8 @@ class GexfReader implements XmlHandler {
         if (index === INVALID_INDEX) {
             return;
         }
-        const forId = attrs.get("for");
+        // GEXF 1.0 names the attribute with `id`
+        const forId = attrs.get("for") ?? attrs.get("id");
         const { valueWhere } = this;
         valueWhere.line = line;
         valueWhere.element = element;
@@ -2555,7 +2633,7 @@ class GexfReader implements XmlHandler {
         try {
             switch (local) {
                 case "color":
-                    columns.color.set(sink, report, index, parseColor(attrs), where);
+                    columns.color.set(sink, report, index, this.vizColor(attrs, name, where), where);
                     break;
                 case "position": {
                     const x = vizNumber(attrs, "x");
@@ -2595,6 +2673,48 @@ class GexfReader implements XmlHandler {
             }
             report.warning("validation-error", VIZ_VALUE_CODE, `<${name}> skipped: ${err.message}`, where);
         }
+    }
+
+    /**
+     * `<viz:color r g b a hex>` as rgba in 0..1 (design section 5.5: role color, f32 x4). `hex` is read as
+     * `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`; a channel outside 0..255 or an alpha outside 0..1 is clamped and
+     * reported, as Gephi clamps it.
+     * @param attrs - the element's attributes
+     * @param name - the element name as written
+     * @param where - the element's location
+     * @returns [r, g, b, a]
+     */
+    private vizColor(attrs: ReadonlyMap<string, string>, name: string, where: IssueLocation): number[] {
+        const hex = attrs.get("hex");
+        let rgba: number[];
+        if (hex !== undefined && !attrs.has("r")) {
+            const c = canonVizColor(hex);
+            if (c === null) {
+                throw new GraphFormatError(
+                    "E_COLUMN_TYPE",
+                    `viz hex="${hex}" is not a #RRGGBB, #RGB or #RRGGBBAA color`,
+                    { attribute: "hex" },
+                );
+            }
+            rgba = [...c];
+            if (attrs.has("a")) {
+                rgba[3] = vizNumber(attrs, "a");
+            }
+        } else {
+            rgba = [vizNumber(attrs, "r"), vizNumber(attrs, "g"), vizNumber(attrs, "b")];
+            rgba.push(attrs.has("a") ? vizNumber(attrs, "a") : 1);
+        }
+        const max = [255, 255, 255, 1];
+        if (rgba.some((v, i) => v < 0 || v > max[i])) {
+            this.report.warning(
+                "validation-error",
+                VIZ_VALUE_CODE,
+                `<${name}> has a channel outside 0..255 or an alpha outside 0..1; clamped`,
+                where,
+            );
+            rgba = rgba.map((v, i) => Math.max(0, Math.min(max[i], v)));
+        }
+        return [rgba[0] / 255, rgba[1] / 255, rgba[2] / 255, rgba[3]];
     }
 
     // ---------------------------------------------------------------- helpers
@@ -2780,35 +2900,6 @@ function vizNumber(attrs: ReadonlyMap<string, string>, name: string): number {
     return value;
 }
 
-/**
- * Parse `<viz:color r g b a hex>` into rgba in 0..1 (design section 5.5: role color, f32 x4).
- * @param attrs - the element's attributes
- * @returns [r, g, b, a]
- */
-function parseColor(attrs: ReadonlyMap<string, string>): number[] {
-    let r: number;
-    let g: number;
-    let b: number;
-    const hex = attrs.get("hex");
-    if (hex !== undefined && !attrs.has("r")) {
-        const digits = hex.startsWith("#") ? hex.slice(1) : hex;
-        if (!/^[0-9a-fA-F]{6}$/.test(digits)) {
-            throw new GraphFormatError("E_COLUMN_TYPE", `viz hex="${hex}" is not a #RRGGBB color`, {
-                attribute: "hex",
-            });
-        }
-        r = Number.parseInt(digits.slice(0, 2), 16);
-        g = Number.parseInt(digits.slice(2, 4), 16);
-        b = Number.parseInt(digits.slice(4, 6), 16);
-    } else {
-        r = vizNumber(attrs, "r");
-        g = vizNumber(attrs, "g");
-        b = vizNumber(attrs, "b");
-    }
-    const a = attrs.has("a") ? vizNumber(attrs, "a") : 1;
-    return [r / 255, g / 255, b / 255, a];
-}
-
 /** A head that starts with markup, after an optional byte-order mark and whitespace. */
 const XML_START = /^\uFEFF?\s*</;
 
@@ -2859,6 +2950,7 @@ export const gexfImporter: GraphImporter<GexfImportOptions> = Object.freeze({
     extensions: Object.freeze([".gexf"]),
     mimeTypes: Object.freeze(["application/gexf+xml", "application/xml", "text/xml"]),
     sniff: sniffGexf,
+    styles: gexfStyles,
     /**
      * Read a GEXF document into the sink in one streaming pass.
      * @param input - the document as text, bytes, a stream or chunks

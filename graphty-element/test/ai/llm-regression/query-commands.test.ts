@@ -102,8 +102,10 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
     });
 
     describe("sampleData", () => {
-        it("calls sampleData for 'Show me some example nodes'", async () => {
-            const result = await harness.testPrompt("Show me some example nodes");
+        // Asks for whole records, not just which nodes: findNodes returns only node IDs, so
+        // "Show me some example nodes" was also a fair request for findNodes with a limit (#1991).
+        it("calls sampleData for 'Show me a few example nodes with all their data'", async () => {
+            const result = await harness.testPrompt("Show me a few example nodes with all their data");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
             const call = assertCalled(result, "sampleData");
@@ -140,8 +142,11 @@ describe.skipIf(skipIfNoApiKey())("Query Commands LLM Regression", () => {
     });
 
     describe("describeProperty", () => {
-        it("calls describeProperty for 'What values does type have?'", async () => {
-            const result = await harness.testPrompt("What values does the type property have?");
+        // Asks for the distribution, not the list of values: getSchema's nodeTypes query lists the
+        // values of `type` too, so "What values does the type property have?" had two right
+        // answers (#1991). Only describeProperty returns how often each value occurs.
+        it("calls describeProperty for 'What is the distribution of values of the type property?'", async () => {
+            const result = await harness.testPrompt("What is the distribution of values of the type property?");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
             const call = assertCalled(result, "describeProperty");

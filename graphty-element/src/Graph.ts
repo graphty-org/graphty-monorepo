@@ -4354,6 +4354,10 @@ export class Graph implements GraphContext {
 
     /**
      * Where a node is drawn on screen, in the same pixels {@link worldToScreen} returns.
+     * @remarks
+     * Read off the node's mesh, which a frame places: before the first frame after a node is
+     * created it reports the hidden mesh template's position, off screen and not visible. Wait
+     * for {@link Graph.waitForStableFrame} first.
      * @param nodeId - The node's id.
      * @returns The centre, whether it is drawn on screen, and its radius in pixels; undefined for
      *     an id the graph does not hold.
@@ -4527,6 +4531,11 @@ export class Graph implements GraphContext {
      * regression snapshot -- wait for {@link Graph.waitForStableFrame} instead, which waits for
      * this queue AND for the layout to converge AND for the camera to finish framing AND for a
      * frame to be drawn in that state.
+     *
+     * Nor does it wait for a frame, and a node's mesh is moved to its layout position only by a
+     * frame. So `Node.getPosition()` and {@link Graph.nodeScreenPosition} read right after this
+     * resolves can still see a new node at its mesh template's position; wait for
+     * {@link Graph.waitForStableFrame} before reading where nodes are drawn.
      * @returns Promise that resolves when all operations are complete
      * @since 1.0.0
      * @see {@link zoomToFit} to zoom after settling
@@ -4587,7 +4596,8 @@ export class Graph implements GraphContext {
      * @remarks
      * Resolves when all four of these are true, in this order: every queued operation has run,
      * the layout has converged, the camera has finished framing what the layout arrived at, and a
-     * frame has been drawn showing it.
+     * frame has been drawn showing it. Every node's mesh is then where the layout put it, so this
+     * is what to wait for before reading `Node.getPosition()` or {@link Graph.nodeScreenPosition}.
      *
      * The `graph-settled` event is NOT that moment. It fires the instant the layout engine
      * reports convergence, in the same update pass that merely ASKS for the final framing, so a

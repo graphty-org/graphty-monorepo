@@ -277,5 +277,16 @@ export const Keyboard: Story = {
         await expect(radios[radios.length - 1]).toHaveFocus();
         await userEvent.keyboard("{Home}");
         await expect(move).toHaveFocus();
+        // Focus shows Move's tooltip after the 1000 ms cold delay (spec 8.3). Wait for it, so the
+        // story ends settled: a screenshot taken while that timer runs shows the tooltip or not
+        // depending on how long the capture took.
+        await waitFor(
+            () => {
+                const tip = within(document.body).getByRole("tooltip");
+                expect(tip).toHaveTextContent(/Move/);
+                expect(tip).toBeVisible();
+            },
+            { timeout: 2000 },
+        );
     },
 };

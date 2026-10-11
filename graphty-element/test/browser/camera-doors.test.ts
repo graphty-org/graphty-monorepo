@@ -12,12 +12,13 @@
  * pin that the app's calls and the element's members agree.
  */
 
-import { afterEach, assert, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { CameraState } from "../../src/screenshot/types";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { stateDigest } from "../../src/session/project/digest";
+import { assertPlaced } from "../helpers/placed-position";
 
 /** How close two camera coordinates must be to count as the same place. */
 const TOLERANCE = 1e-6;
@@ -53,14 +54,9 @@ async function loadedGraph(mode: "2d" | "3d"): Promise<Graph> {
         { src: "n2", dst: "n3" },
     ]);
     await operationQueueOf(graph).waitForCompletion();
-    await graph.waitForSettled();
-    // The views frame the laid-out box, so wait for the nodes to be where the layout put them.
-    await vi.waitFor(
-        () => {
-            assert.isFalse(graph.getLayoutManager().running, "the layout came to rest");
-        },
-        { timeout: 10_000 },
-    );
+    // The views frame the laid-out box, so wait for the nodes to be where the layout put them:
+    // the layout at rest AND a frame drawn, since only a frame moves a mesh off the template.
+    await graph.waitForStableFrame();
     cleanups.push(() => {
         graph.dispose();
         container.remove();
@@ -94,6 +90,7 @@ async function appZoomStep(graph: Graph, direction: "in" | "out"): Promise<void>
 async function appZoomToSelection(graph: Graph, nodeId: string): Promise<void> {
     const mesh = graph.getNodeMesh(nodeId);
     assert.isNotNull(mesh);
+    assertPlaced(mesh.position, `node ${nodeId}`);
     const { x, y, z } = mesh.position;
     await graph.setCameraTarget({ x, y, z });
 }
@@ -263,6 +260,7 @@ describe("camera doors", () => {
             const node = graph.getNode("n1");
             assert.isDefined(node);
             const at = node.getPosition();
+            assertPlaced(at, "n1");
             await graph.zoomToNodes("n1");
             const state = graph.getCameraState();
             if (mode === "2d") {

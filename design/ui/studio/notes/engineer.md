@@ -11,30 +11,20 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
-- (2026-10-10) **Analyze list ranks name and alias matches first: built** (app only, `words.ts`).
-  While a filter is typed, entries matching on their app name or an alias come first within each
-  heading, and a heading whose first entry is such a match comes before headings holding only
-  description matches (stable sort, so ties keep catalog order). Key and technical name count as
-  description-level: All-pairs distance's technical name "All-pairs shortest paths" would otherwise
-  lift the Rank heading above Shortest path for "path". While a filter is typed, "Start here" is
-  drawn only on the first result and only when that entry is a marked one (`wearsStartHere`).
-  Fresh build check in `tmp/t2r3-r4-08/fresh/`.
-- (2026-10-10) **Both scripted focus drops fixed: built** (app only). (a) The path form swapped
-  into an open Analyze popover had only `data-autofocus`, which Mantine's focus trap reads only on
-  open; From (and Find path, when the selection fills both ends) now also carry `autoFocus`, and
-  the From list stays shut (no text, no hits). (b) A selection's first Color line: the OLD Style
-  tab drew the line first, `useFocusLine` focused it and cleared the ask, then the tab remounted on
-  the new layer row and focus fell to the body (traced with logs: focus, unmount, mount, unmount).
-  Fix inside `useFocusLine`: a layout-effect cleanup (runs before the nodes leave the page) re-asks
-  for the line it handed focus to when focus is still on it; no second mechanism. Real-key tests in
-  PathForm and StyleTab real-element files fail on the old code. Fresh build:
-  `tmp/t2r3-r4-06/fresh/08.png` (ring on the Color line), `17.png` (ring in From, no list).
-  `bars.mjs` on the fresh build (`tmp/t2r3-r4-06/bars-fresh.log`): both focus actions "kept", each
-  planted drop caught. Its exit 1 is not this change: the tier 1 "node's Values with its neighbors"
-  click times out on round 3's build too, and the edge inspector is 29 of 27 words ("Settings" on
-  the rail is new since round 3).
-  Note: Escape on a focused inspector control still clears the selection -- that is the app's
-  designed Escape order (`selection.clear` on Escape), not a focus drop.
+- (2026-10-10) **A Filters tool on the canvas toolbar: built** (app only, commit d2280466e).
+  Icon-only (ListFilter glyph), tooltip "Filters", after Table; command `filters.open` (group
+  Data, disabled with nothing drawn) runs `openStepEditor(store, NEW)`, which already moves to
+  the Data place. A new step's editor (`id === NEW`, from the toolbar or Filters' "+") now
+  autofocuses Keep; Escape still returns focus to "+". No words at rest added. Fresh build:
+  `tmp/t2r3-r4-09/fresh/01.png` (rest), `02.png` (tooltip), `03.png` (Data place, New filter
+  step), `04.png` (ArrowDown opens Keep's list: focus is there). Round 4 should record T17's first
+  moves against round 3 (5 of 8 looked on the Graph place first).
+- (2026-10-10, condensed) **Built in the app, round 4:** Analyze ranks name and alias matches
+  first within and across headings (key and technical name count as description-level; "Start
+  here" only on a marked first result while filtering; `tmp/t2r3-r4-08/fresh/`). Two focus drops
+  fixed: the swapped-in path form needs `autoFocus` (Mantine reads `data-autofocus` only on open),
+  and `useFocusLine` re-asks in a layout cleanup when the Style tab remounts
+  (`tmp/t2r3-r4-06/fresh/`). Escape on an inspector control clearing the selection is designed.
 - (2026-10-10, condensed) **`bars.mjs` measures bars 8 and 9 as the criteria word them.** Bar 9
   leaves out the data's names (matched as written); round 1 / 2 / 3 rest screen 49 / 51 / 45, edge
   inspector 27 / 31 / 28 (one over). Bar 8 runs two focus actions proven on planted drops (both
@@ -44,21 +34,16 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   app only; the element already counts edges). Row and chip read "41 to 20 edges" / "20 of 41
   edges" (`tmp/t2r3-r4-11/fresh/`). **Re-record the T17A answer key ("12 of 41 edges" / "41 to 12
   edges") before round 4 freezes.**
+  Two tests still expect "8 to 5 nodes" / "8 to 4 nodes" (`Filters.real-element.test.tsx`,
+  `FilterFocus.real-element.test.tsx`) and fail on this change: update them to the edge words.
 - (2026-10-10, condensed) **Two screen-reader descriptions:** the Add page's repeated-ties line is
   now a warning (danger glyph, id `dp-repeats`) that Load's `aria-describedby` lists (built,
   `tmp/t2r3-r4-10/fresh/`); a pressed "Filter to neighbors" already reads its reason on keyboard
   focus (nothing built; `--expect "described=<text>"` added to real.mjs, `tmp/t2r3-r4-12/`). Still
   open: the hidden tooltip after a pointer press, and the disabled look like an empty field.
-- (2026-10-10) **"Or more" beside a typed number in the find box: built** (commit 9b69ca650).
-  Element: `FindValueRow.atLeast: { count, target }` on a number value, target the typed rule
-  `{ text: "=data.<col> >= \`N\`" }` (with the find's scope). App: a second row "<column> is N
-or more (count)"; visible rows drop "Select where", accessible names keep it. Fresh build, Les
-Miserables, "10": rows "shared_chapters is 10 (2)" and "... 10 or more (13)", neither cut;
-picking it selects the 13 ties the file holds at 10 or more (`tmp/t2r3-r4-07/lesmis/03.png`,
-`04.png`). Bars on that build (`tmp/t2r3-r4-07/bars/`): bar 10 no cut text anywhere, find box
-included; words at rest identical to round 3 (42; tier 2 screens 49/61/33/31). It exits 1 on two
-items ALSO failing on round 3's build: axe `scrollable-region-focusable` on the find list's
-  viewport (now an excused exception, top bullet) and the edge inspector one word over.
+- (2026-10-10, condensed) **"Or more" in the find box: built** (9b69ca650). Element
+  `FindValueRow.atLeast: { count, target }`; app row "<column> is N or more (count)"; Les
+  Miserables "10" selects 13 ties (`tmp/t2r3-r4-07/`). Words at rest unchanged (42).
 - (2026-10-10, condensed) **Built in graphty-element:** after Undo of a re-run, Made with shows
   the restored run (`Run.params`/`seed` read the handle, undo swapped only `runs`;
   `tmp/t2r3-r4-05/fixed/`); Shift-click on a node adds (`SelectionManager.add`; Shift only,
@@ -252,6 +237,12 @@ items ALSO failing on round 3's build: axe `scrollable-region-focusable` on the 
   is "replace"); weigh those findings up, not down.
 
 ## Tried: worked / did not work
+
+- (2026-10-10) **Proving where focus landed in real.mjs without `--sr`.** A programmatic focus
+  after a pointer click draws no ring, so the screenshot cannot show it. Worked: `--key ArrowDown`
+  after the click; a focused Mantine Select opens its list (`tmp/t2r3-r4-09/fresh/04.png`). In a
+  real-element test, a top-level `it` outside the describe runs at the 414 px default viewport
+  and the left panel is not drawn; put toolbar tests inside the describe that sets 1366 x 768.
 
 - (2026-10-10) **Finding why `useFocusLine` lost a line.** Worked: `console.log` in the hook's
   effect and a mount/unmount effect, run under the real-element test; it showed the focus landed and

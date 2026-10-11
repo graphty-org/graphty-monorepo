@@ -5,6 +5,7 @@ import type { GraphSession, ScopeInput, SummaryGroup } from "@graphty/graphty-el
 import { ActionIcon, Button, Menu, Pill, Tabs, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { runName } from "../runWords";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -196,6 +197,20 @@ function recordTotal(session: GraphSession, kind: RecordKind, scope: ScopeInput)
 }
 
 /**
+ * The tab's count: "41 edges", or "12 of 41 edges" while a filter step hides some, in the
+ * filter chip's words.
+ * @param session - the element's session.
+ * @param kind - nodes or edges.
+ * @param scope - the records showing.
+ * @returns the words.
+ */
+function recordCount(session: GraphSession, kind: RecordKind, scope: ScopeInput): string {
+    const shown = recordTotal(session, kind, scope);
+    const all = scope === "visible" ? recordTotal(session, kind, "graph") : shown;
+    return shown === all ? countOf(all, kind) : `${shown.toLocaleString("en-US")} of ${countOf(all, kind)}`;
+}
+
+/**
  * The chip naming the group the Nodes tab is narrowed to; its x shows every node again.
  * @param props - Component props
  * @param props.members - The group shown
@@ -273,6 +288,8 @@ export function TableDock(): React.JSX.Element {
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
     const tab = useWorkspaceState((state) => state.dockTab);
     useSessionVersion(session);
+    // A filter step changes which records the table lists.
+    useVisibilityVersion(session);
     const [arrangement, setArrangement] = useState<Arrangement>(() => ARRANGEMENTS.get(store) ?? FIRST_ARRANGEMENT);
     useEffect(() => {
         ARRANGEMENTS.set(store, arrangement);
@@ -346,7 +363,8 @@ export function TableDock(): React.JSX.Element {
     const sorted = visible.find((choice) => choice.id === view.sort?.id);
     // A chip whose run went away (undo, remove) goes with it.
     const shownMembers = groups.some((run) => run.id === members?.run) ? members : null;
-    const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : "graph";
+    // The table lists what the filter steps keep; a group shows its members.
+    const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : "visible";
     const tableHeight = Math.max(32, dockHeight - CHROME_HEIGHT);
 
     const setView = (change: Partial<View>): void => {
@@ -355,7 +373,7 @@ export function TableDock(): React.JSX.Element {
 
     const count =
         groupRun === undefined
-            ? countOf(recordTotal(session, kind, scope), kind)
+            ? recordCount(session, kind, scope)
             : countOf(groupRun.groups.length, "group");
 
     return (

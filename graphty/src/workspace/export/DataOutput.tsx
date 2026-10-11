@@ -50,9 +50,9 @@ function partName(part: unknown): string {
 }
 
 const SUMMARIES: Readonly<Record<string, string>> = {
-    nodes: "One row per node, with every computed value",
-    edges: "One row per edge, with every edge attribute and computed value",
-    adjacency: "One row per node, listing its neighbors",
+    nodes: "One row for every node, with every computed value",
+    edges: "One row for every edge, with every edge attribute and computed value",
+    adjacency: "One row for every node, listing its neighbors",
 };
 
 /**

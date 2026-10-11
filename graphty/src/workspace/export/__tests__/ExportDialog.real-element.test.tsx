@@ -102,7 +102,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         await userEvent.click(await screen.findByRole("option", { name: "CSV" }));
         await userEvent.click(within(again).getByLabelText("Table", { selector: "input" }));
         await userEvent.click(await screen.findByRole("option", { name: "Nodes" }));
-        assert.isNotNull(within(again).getByText(/^One row per node, with every computed value/));
+        assert.isNotNull(within(again).getByText(/^One row for every node, with every computed value/));
         const header = session.results.path(root.runId, "value");
         await waitFor(() => {
             assert.include(within(again).getByLabelText("Preview of the exported data").textContent, header);

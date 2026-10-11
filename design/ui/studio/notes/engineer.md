@@ -11,6 +11,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-11) **The table lists what the filter steps keep.** `TableDock.tsx` reads scope
+  `"visible"` (a group keeps its member scope) and re-renders on `useVisibilityVersion`; the count
+  reads "12 of 41 edges" while a step hides some, "41 edges" when not, in the top bar's words. No
+  notice line. Export summaries now say "One row for every edge/node": Export writes every record
+  (the element's export cannot be limited to what is showing, #875, #820; left alone). Fresh build:
+  `tmp/t2r4-8/fresh/04-07.png`; real-element test in `TableDock.real-element.test.tsx`.
 - (2026-10-11) **Cancel in the note editor puts focus on "+"** (`NotesPlace.tsx`: the editor's
   `close()` calls `onClosed`, which focuses "+" as Delete of the last note does; Esc on an empty
   note too). Frozen 5277e2cbe: `focus: nothing (the page itself)`; fresh build: `focus: button
@@ -33,28 +39,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-11) **Owed: r4-s05b, r4-s20b, r4-s28b.** They need fresh participant agents (never seen
   the key or plan); an implement step has no way to start one. Round 4 needs its gate evidence
   first (bars on 5277e2cbe, then `--gate`), or `--start` now refuses them.
-- (2026-10-11) **Bar 9 (b), edge inspector: no word cut; it fails honestly, 29 against 27.** Same
-  state on both builds (round 1's build recounts 27). Added "Settings" (rail), ", full graph" and
-  "on 20 nodes" (key scope words); removed "On the path". "of nodes" was never new. No repeat on
-  screen, so nothing to cut (`tier2/rounds/round-4/bars/edge-inspector-words.md`).
-- (2026-10-11) **Round 4 closed: 53 of 53 valid sessions succeeded; bars 9 (b) and 10 fail.** Bar 10
-  on two confirmed severity 3s: drawn names and nodes covering ties and dots (element, owner's
-  list, not mine in the app) and the find box offering "=`10`" for a bare number and then refusing
-  it. Shift-click carried T24 from 2 of 4 to 7 of 7. Three sessions void (runner start on a full
-  browser slot); the briefings' file table leaked answers.
-- (2026-10-11) **Round 4 critique, six changes proposed, each with its mechanism read in source:**
-  (1) DONE 2026-10-11: element `suggestBackticks` now suggests only a rewrite that parses AND
-  reads an attribute; a lone `10` gets no suggestion, so the find box shows "No match" + example.
-  (2) DONE 2026-10-11: `FindResult.atLeast: FindAtLeastRow[]` (element `atLeastRows` in
-  `session/query.ts`); the app maps each row onto its existing "or more" value option. Bus stops
-  "10" shows "minutes is 10 or more (3)" and selects the 3 links (`tmp/t2r4-4/s1/04-05.png`).
-  (3) app `FindBox.tsx`: Values section before the record sections when the text is a number.
-  (4) element `atLeastOf` (`session/query.ts`) writes `data.minutes`; write the bare name as the
-  app's `columnText` does (unreleased field, 9b69ca650 is only on the studio branch: not breaking).
-  (5) app `TableDock.tsx:349` reads scope "graph"; the element already offers `scope: "visible"`,
-  so the table lists what the drawing keeps, count "12 of 41 edges" only while they differ.
-  (6) DONE 2026-10-11: app `Filters.tsx` leave handler skips a rule equal to the step's own,
-  on or off, so leaving an off step's editor leaves it off (bars.mjs focus move + real-element test).
+- (2026-10-11) **Bar 9 (b), edge inspector: fails honestly, 29 against 27.** Added "Settings",
+  ", full graph", "on 20 nodes"; removed "On the path"; no repeat to cut
+  (`tier2/rounds/round-4/bars/edge-inspector-words.md`).
+- (2026-10-11) **Round 4 closed: 53 of 53 valid sessions succeeded; bars 9 (b) and 10 fail.**
+  Bar 10: drawn names covering ties and dots (element, owner's list) and the find box's "=`10`"
+  (fixed since). Shift-click carried T24 to 7 of 7. Three sessions void (full browser slot).
+- (2026-10-11) **Round 4 critique, six changes:** (1) DONE: element `suggestBackticks` suggests
+  only a rewrite that parses and reads an attribute. (2) DONE: `FindResult.atLeast` rows; bus stops
+  "10" offers "minutes is 10 or more (3)". (3) open: app `FindBox.tsx` puts Values first for a
+  number. (4) open: element `atLeastOf` writes `data.minutes`; write the bare name (unreleased,
+  not breaking). (5) DONE: table lists what the steps keep. (6) DONE: leaving an off step's
+  editor unedited leaves it off.
 - (2026-10-11) **Not to change after round 4:** Shift-click, toolbar Filters door, Replace place,
   scope words, names off in setups, T18 (8 against 8: no new step there), second path replacing
   the first (no task needs both; decided), any label placement in the app.
@@ -65,8 +61,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   neither typing nor overlay) -> `selection.clear`, inspector swaps, focus to page -> app keeps a
   panel's Escape; (c) a click on the "Stadium" chip over the tie selects Stadium (app sets
   `label.pickable`; an unset label plane still stops the ray, `Node.ts`) -> element question.
-- (2026-10-11) **Watch in round 5:** T22 A on bus stops typing "10"; T17 with the table open
-  under a step.
 - (2026-10-11) **Held, first in line:** distance per name at Hops 2/3 (element `depth` option and
   `hops` per `Neighbor`, additive); "4 hops" vs "5 nodes, 4 edges" (sev 1); `nodesInRect(..., {
   labels: true })`; a second Find path replacing the first.
@@ -82,6 +76,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-11) **The table's count names the whole only while they differ.** "12 of 41 edges"
+  matches the top bar's filter chip word for word, so a reader sees one phrase for one fact; with
+  nothing hidden it stays "41 edges", so the unfiltered screen gains no words. Bar 9's screens never
+  show the table or the Export dialog, so their counts cannot move. The Export words changed
+  "per" to "for every" (same word count + 1, on a screen no bar counts) because the table now
+  shows less than Export writes.
 - (2026-10-11) **A closed note editor hands focus to "+", where a note is opened.** Same target
   Delete uses when no note is left, so the Notes place has one rule: focus never falls to the page.
   No words change. The real-element test (`NoteDraftFocus.real-element.test.tsx`) failed on the old
@@ -187,6 +187,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Thinking
 
+- (2026-10-11) **Watch in round 5:** T22 A on bus stops typing "10"; T17 with the table open
+  under a step.
 - (2026-10-10) The dry run must walk what participants do, not last round's list: 12 of about 30
   build faults sat on the one detour nobody walked (styling a selection). Pilot each task on the
   candidate build, script the routes, keyboard-press every control, and fix before freeze.
@@ -200,6 +202,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-11) Worked: the new table test failed on the old scope ("6 of 13 edges" never
+  appeared) by a one-line sed back to `"graph"` and forward again, no stash. In real.mjs, `--click
+  weight` hit the table's weight header, not the attribute row; `--click "role=treeitem:weight,
+  edge attribute"` reaches the row.
 - (2026-10-11) Did not work as a check on the frozen build: the bars.mjs Cancel move. The
   "returning" walk stops earlier there, at "leaving an off step's editor unedited" (the off-step
   bug fixed in 8f6426ab6), so every later move is MISS. Checked the frozen build directly instead

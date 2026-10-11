@@ -16,6 +16,7 @@ import { assert, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 /** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
@@ -176,7 +177,7 @@ describe("the table dock", () => {
         await userEvent.click(within(dock).getByRole("button", { name: "Table options" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Export..." }));
         const dialog = await screen.findByRole("dialog", { name: "Export" });
-        await within(dialog).findByText(/^One row per edge/);
+        await within(dialog).findByText(/^One row for every edge/);
         // The file holds every edge: its first line is the header, then one line per edge.
         const preview = within(dialog).getByLabelText("Preview of the exported data");
         await waitFor(
@@ -202,5 +203,48 @@ describe("the table dock", () => {
         assert.equal(within(reopened).getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
         await userEvent.click(within(reopened).getByRole("tab", { name: "Nodes" }));
         await within(reopened).findByRole("button", { name: `Columns: ${String(Number(all) - 1)} of ${all}` });
+    });
+    it("lists only what an on filter step keeps, counted against the whole graph", async () => {
+        const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place: "data" });
+        render(<Workspace store={store} />);
+        let session: GraphSession | undefined;
+        await waitFor(
+            () => {
+                session = document.querySelector("graphty-element")?.session;
+                assert.isDefined(session);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        const live = session;
+        await live.data.addNodes(NODES);
+        // Weights 0 to 12: "weight is at least 7" keeps 6 of the 13 edges.
+        await live.data.addEdges(EDGES.map((edge, i) => ({ ...edge, weight: i })));
+        await live.visibility.setSteps([
+            { id: "w", on: false, rule: { kind: "range", attribute: "data.weight", min: 7, nodes: "ends" } },
+        ]);
+
+        await userEvent.keyboard("{Shift>}T{/Shift}");
+        const dock = await screen.findByRole("region", { name: "Table" });
+        await userEvent.click(within(dock).getByRole("tab", { name: "Edges" }));
+        await within(dock).findByText("13 edges");
+        assert.lengthOf(drawnRows("Edges"), 13);
+
+        // The step turned on from its checkbox: the table lists the 6 edges it keeps.
+        await userEvent.click(await screen.findByRole("checkbox", { name: /^Apply step: / }));
+        await within(dock).findByText("6 of 13 edges");
+        await waitFor(() => {
+            assert.lengthOf(drawnRows("Edges"), 6);
+        });
+        assert.equal(live.visibility.summary.visibleEdges, 6);
+
+        // Off again: every edge, and the count says only that.
+        await userEvent.click(screen.getByRole("checkbox", { name: /^Apply step: / }));
+        await within(dock).findByText("13 edges");
+        await waitFor(() => {
+            assert.lengthOf(drawnRows("Edges"), 13);
+        });
     });
 });

@@ -20,7 +20,7 @@ describe("the Export dialog", () => {
 
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         assert.isNotNull(within(dialog).getByRole("heading", { name: "Data" }));
-        assert.isNotNull(within(dialog).getByText(/^One row per edge/));
+        assert.isNotNull(within(dialog).getByText(/^One row for every edge/));
         assert.isNotNull(within(dialog).getByText(SAVED_LOCALLY));
 
         await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));

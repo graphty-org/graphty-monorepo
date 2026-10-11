@@ -917,3 +917,12 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   rewrite the selector accepts; a dragged pop-out stays where it was put when its sidebar anchor
   changes. Every new-build preflight item runs on this build before round 5's first session. No
   bar, floor, step limit or prompt changed.
+- **2026-10-11, before round 5: the answer key matched to the first pilots on 8c015b806.** T4 B,
+  T18 B, T20 A and T12R B were piloted on the frozen build (`rounds/r5/pilot/`), each reaching its
+  end state with no script, console or request errors. Every value the key gives held. Two notes
+  in T18 still described the shortest path's legend as "Shortest path" over an "On the path"
+  entry; the screen draws one row, a black swatch beside "Shortest path", as the key's own "Known
+  on this build" note already said, so those notes now say so. The key now also says the PageRank
+  colors on T18 B run from near-black brown (Medici) to orange, not plain orange, and that B's
+  "Edges per node" value fits on one line on T4. No prompt was wrong, so `tasks.md` is unchanged.
+  No bar, floor, step limit or success path's end state changed.

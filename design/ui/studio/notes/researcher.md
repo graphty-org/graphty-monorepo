@@ -10,6 +10,10 @@ made and evidence comes in.
 
 ## Top of mind
 
+- 2026-10-11 -- Round 5 key vs first pilots on 8c015b806 (T4 B, T18 B, T20 A, T12R B): every
+  value held; only T18's stale "On the path" legend notes and "orange" wording fixed. A pilot
+  report's claim that a sibling folder "looks interrupted" was wrong: T12R A was mid-run by
+  another agent (files appearing by the minute). Check mtimes before calling a pilot lost.
 - 2026-10-11 -- Round 4 critique: four app/element changes, each one place. (1) the element's
   backtick suggestion must be a rule selection accepts, not just one that parses (`=\`10\`` parses,
   then is refused); (2) "or more" row for any number inside a column's range; (3) the data table
@@ -200,6 +204,12 @@ reasons, in short:
   toolbar; reword it if Dana is ever given a task that starts there.
 
 ## Tried: worked / did not work
+
+- 2026-10-11 (round 5 key match, after a token-limit stop) -- Worked: `git status`, `git log`
+  and a pilot-folder listing with mtimes first (nothing half-done; T12R A and B still being
+  written by other agents); asserted (old, new) pairs in `tmp/researcher/r5/edit-answers.py`;
+  fixing a stale note in place with the old wording as a parenthetical. Did not work: trusting a
+  pilot's word about its sibling folders.
 
 - 2026-10-11 -- Worked: diffing per-round bars.json word lists showed the edge-inspector rise is
   the rail's "Settings" label plus data names moving to "left"; scores.md had blamed scope words.

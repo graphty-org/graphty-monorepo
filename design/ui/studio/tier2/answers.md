@@ -59,7 +59,8 @@ Across tasks on this build:
 - A run's Made with "Ran" row and the inspector's subtitle show the date and the time ("Oct 8,
   4:31:04 PM"), so two runs, or a run before and after Rerun, can be told apart on screen.
 - A shortest path is drawn in black on the ranked starts, and the legend has one heading,
-  "Shortest path", over one entry, "On the path".
+  "Shortest path", over one entry, "On the path". (Later builds, 8c015b806 among them, draw one
+  row, a black swatch beside "Shortest path", with no "On the path" entry; see T18.)
 - A session's `session.json` records under "commit" the studio worktree's commit at the time of
   the session, not the build served; the "buildStamp" (`909b19b578d4 graphty@0.8.56`) names the
   build. Check the build by the stamp.
@@ -263,8 +264,11 @@ Screens this key did not describe, all the same on 2dcea6dd5bba where it was wal
 - T17: the T17 notes hold on this build, A walked with its follow-up (`rounds/r2d4/pilot/T17A/07.png`,
   `08.png`, `11.png`, `12.png`; pixel for pixel the same as `rounds/r2d3/pilot/T17A/07.png`).
 - T18 B: the ranked start's key already holds two PageRank rows, "Size: PageRank" (a gray wedge)
-  and "Color: PageRank" (an orange gradient), both 0.03066 to 0.1458 (`rounds/r2d4/pilot/T18B/01.png`);
-  after the run "Shortest path / On the path" (black swatch) sits above them, and the five path
+  and "Color: PageRank" (a gradient from dark brown to orange; the largest node, Medici, is the
+  near-black brown end), both 0.03066 to 0.1458 (`rounds/r2d4/pilot/T18B/01.png`;
+  `rounds/r5/pilot/T18B/01.png`); after the run one row, a black swatch beside "Shortest path",
+  with no "On the path" entry, sits above them (recorded as "Shortest path / On the path" on
+  2dcea6dd5bba; one row on 8c015b806, `rounds/r5/pilot/T18B/07.png`, `11.png`), and the five path
   nodes are drawn black although the key still shows the orange PageRank gradient
   (`07.png`, `11.png`). Record any participant who reads a black node as off the gradient.
 - T19: after Tab moves focus from a half-written note to the editor's Cancel button, Escape removes
@@ -499,7 +503,8 @@ node row) | 6`, with a red-orange warning triangle before p13 and p13 drawn in r
   names a node missing from the node rows", line 17, `s04, s11 (no node row), 3`, under the caption "1 unmatched row: s11 has no node row", which ends in a "Show all rows" link (on the same line, above the table) once "Show the 1 unmatched row" is clicked (`rounds/r2d1/pilot/T4B/10.png`), and the Tables
   list's edge table "Edges: passes.csv" with the warning triangle and "18 rows, 1 left out"
   (`rounds/r1d4/pilot/T4B/07.png` to `09.png`); after Load: "From 2 files", 10 nodes, 17 edges,
-  Density 0.1889, Components 1, "Edges per node 2 to 4, mean 3.4" (`10.png`); on the Data page the
+  Density 0.1889, Components 1, "Edges per node 2 to 4, mean 3.4" (`10.png`; on B the value fits
+  on one line, unlike A's, `rounds/r5/pilot/T4B/11.png`); on the Data page the
   source's row shows in full on two lines, "players.csv and passes.csv" over "10 nodes, 17 edges",
   with three rows under it: players.csv, passes.csv and "1 row left out", the last with the
   red-orange warning triangle (`11.png`); hovering the source row shows no tooltip; the
@@ -708,8 +713,12 @@ file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); 
   Ridolfi 2, Medici 3, Salviati 4, Pazzi 5; Made with Analysis "Shortest path", Ran "Oct 8,
   10:35:38 PM", From "Strozzi", To "Pazzi", Weight "None" with "Each edge counts as 1." under it,
   and a collapsed Advanced run settings; the Graph tree's new row reads "Shortest path 4 hops"; the
-  legend adds "Shortest path" over one black "On the path" swatch; the five nodes and four ties are
-  black on the orange drawing (`06.png`). Advanced run settings opens to Method "Dijkstra, chosen
+  legend adds one row, a black swatch beside "Shortest path", with no "On the path" entry (written
+  on this walk as "Shortest path" over one black "On the path" swatch; one row on 8c015b806,
+  `rounds/r5/pilot/T18B/07.png`, `11.png`); the five nodes and four ties are black on the
+  PageRank colors, which run from near-black brown (Medici, the largest node, before it turns
+  black) to orange, so a grader reading "black on orange" should know the darkest node off the
+  path is near-black brown (`06.png`; `rounds/r5/pilot/T18B/01.png`, `07.png`). Advanced run settings opens to Method "Dijkstra, chosen
   automatically" (`07.png`). The follow-up: `p` again brings back empty From and To and covers the
   lower end of the drawn path (`08.png`); Peruzzi to Ginori (`09.png`) gives Peruzzi 1, Bischeri 2,
   Guadagni 3, Albizzi 4, Ginori 5, "5 nodes, 4 edges", Ran "10:36:11 PM", and the first chain is

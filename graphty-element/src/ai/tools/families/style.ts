@@ -264,7 +264,7 @@ function selectorOf(target: Target, kind: "node" | "edge"): Selector {
         return { match: "expression", where: target.where };
     }
 
-    return kind === "node" ? { match: "ids", nodes: target.ids } : { match: "ids", edges: target.ids };
+    return kind === "node" ? { match: "ids", nodes: target.ids } : { match: "ids", edges: target.ids.map(String) };
 }
 
 /**
@@ -339,6 +339,33 @@ function positionOf(
 }
 
 /**
+ * What a layer paints, read back from the stack after the write: how many elements it matches and,
+ * per channel, on how many it is the layer the picture shows. A write that paints nothing is
+ * refused, so the batch rolls back and the model reads why, instead of reporting a change the
+ * reader cannot see.
+ * @param tx - The session.
+ * @param id - The layer.
+ * @param shown - Whether the layer is meant to show (false for one the call hides).
+ * @returns The counts, as facts.
+ * @throws {ToolRefusal} `AI_EMPTY_MATCH` when the layer matches nothing; `AI_PAINTED_NOTHING`
+ *     when layers above it cover every element it matches.
+ */
+export function paintedFacts(tx: TransactionScope, id: string, shown = true): JsonObject {
+    const counts = tx.styles.counts(id);
+    const painted = toJson(counts.painted) as JsonObject;
+    if (counts.matched === 0) {
+        throw new ToolRefusal("AI_EMPTY_MATCH", { layer: id, matched: 0 });
+    }
+
+    const channels = Object.values(counts.painted);
+    if (shown && channels.length > 0 && channels.every((count) => count === 0)) {
+        throw new ToolRefusal("AI_PAINTED_NOTHING", { layer: id, matched: counts.matched, painted });
+    }
+
+    return { matched: counts.matched, painted };
+}
+
+/**
  * Add a literal style layer.
  * @param context - The action's context.
  * @param args - The call.
@@ -372,7 +399,11 @@ async function addLayer(
     };
     const facts = validate(tx, spec);
     const layer = await coded(() => tx.styles.add(spec, positionOf(tx, args)));
-    return ok({ layer: layer.id, name: layer.name }, { ...notes, ...facts, layer: layer.id }, "style.add-layer");
+    return ok(
+        { layer: layer.id, name: layer.name },
+        { ...notes, ...facts, layer: layer.id, ...paintedFacts(tx, layer.id) },
+        "style.add-layer",
+    );
 }
 
 /** The `encode` argument of a call. */
@@ -517,7 +548,11 @@ async function encode(
               selector: { match: "has", path },
               encode: { [channel]: { by: path, ...binding, ...scaleOptions } },
           });
-    return ok({ layer: layer.id, name: layer.name }, { layer: layer.id }, "style.encode");
+    return ok(
+        { layer: layer.id, name: layer.name },
+        { layer: layer.id, ...paintedFacts(tx, layer.id) },
+        "style.encode",
+    );
 }
 
 /**
@@ -634,7 +669,10 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
                 }
 
                 const updated = await coded(() => tx.styles.update(current.id, patch));
-                return ok({ layer: updated.id }, { ...notes, layer: updated.id });
+                return ok(
+                    { layer: updated.id },
+                    { ...notes, layer: updated.id, ...paintedFacts(tx, updated.id, updated.enabled) },
+                );
             },
         },
         {
@@ -774,7 +812,12 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
                         ...(set === undefined ? {} : { set }),
                     }),
                 );
-                return ok({ layers: layers.map((each) => each.id) }, { run });
+                const matched = layers.reduce((sum, each) => sum + tx.styles.counts(each.id).matched, 0);
+                if (layers.length > 0 && matched === 0) {
+                    throw new ToolRefusal("AI_EMPTY_MATCH", { run, matched: 0 });
+                }
+
+                return ok({ layers: layers.map((each) => each.id) }, { run, matched });
             },
         },
         {

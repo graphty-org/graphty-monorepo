@@ -2,6 +2,7 @@
  * @file Tasks: direct styling checked by end state, and undo, validation, refusal and safety.
  */
 
+import { karate } from "@graphty/graph-samples/datasets/karate";
 import { assert } from "vitest";
 
 import { largeServerNetworkFixture, serverNetworkFixture } from "../llm-regression/fixtures/test-graph-fixtures";
@@ -20,6 +21,18 @@ function recordsOf(fixture: typeof serverNetworkFixture): GraphRecords {
 }
 
 const SERVERS = recordsOf(serverNetworkFixture);
+
+/**
+ * Zachary's karate club as the graphty app loads karate.gml: integer ids 1 to 34, which the GML
+ * importer keeps as numbers.
+ */
+const KARATE_GML: GraphRecords = (() => {
+    const graph = karate();
+    return {
+        nodes: Array.from({ length: graph.nodeCount }, (_, index) => ({ id: index + 1 })),
+        edges: Array.from(graph.src, (source, edge) => ({ source: source + 1, target: graph.dst[edge] + 1 })),
+    };
+})();
 const LARGE_SERVERS = recordsOf(largeServerNetworkFixture);
 
 /** A graph whose data carries an instruction, which must stay data. */
@@ -85,6 +98,35 @@ export const STYLE_TASKS = [
             for (const id of ["3", "4"]) {
                 assert.strictEqual(styleOf(s, id, "node.size"), 1, `${id} is not a server and changed size`);
                 assert.isFalse(isColor(styleOf(s, id, "node.color"), "#0000ff"), `${id} is not a server and is blue`);
+            }
+        },
+    }),
+    defineTask({
+        // A reader's report: the model said it colored the odd ids red and nothing changed.
+        id: "color-odd-ids",
+        source: ["W02"],
+        tier: ["core"],
+        dataset: KARATE_GML,
+        prompts: ["make nodes with odd numbered node ids red"],
+        tools: ["style"],
+        reference: [
+            [
+                [
+                    {
+                        tool: "style",
+                        args: {
+                            action: "add",
+                            ids: Array.from({ length: 17 }, (_, i) => String(2 * i + 1)),
+                            values: { "node.color": "#ff0000" },
+                        },
+                    },
+                ],
+            ],
+        ],
+        check: ({ s }) => {
+            for (let id = 1; id <= 34; id++) {
+                const red = isColor(styleOf(s, id, "node.color"), "#ff0000");
+                assert.strictEqual(red, id % 2 === 1, `node ${String(id)} is ${red ? "" : "not "}red`);
             }
         },
     }),

@@ -496,7 +496,7 @@ export async function matching(s: GraphSession, where: string): Promise<string[]
  * @param channel - The channel, such as node.color.
  * @returns The value, or undefined.
  */
-export function styleOf(s: GraphSession, node: string, channel: string): unknown {
+export function styleOf(s: GraphSession, node: string | number, channel: string): unknown {
     const merged = s.styles.explain({ node }).merged as unknown as Record<string, unknown>;
     if (channel in merged) {
         return merged[channel];

@@ -73,7 +73,7 @@ function recordsAction(kind: "node" | "edge"): ActionSpec {
             };
             if (target?.kind === "ids" && kind === "edge") {
                 const records = target.ids.flatMap((id) => {
-                    const edge = tx.data.edge(id);
+                    const edge = tx.data.edge(String(id));
                     return edge === undefined ? [] : [compactRecord(edge, args.fields as string[] | undefined)];
                 });
                 return Promise.resolve(ok(records, notes));

@@ -4,6 +4,7 @@
  * unambiguous mistakes; a node is named by its id or by a unique label.
  */
 
+import type { NodeId } from "@graphty/graph-format";
 import { z } from "zod";
 
 import { isGraphtyError } from "../../errors";
@@ -89,7 +90,7 @@ export function isForbiddenKey(key: string): boolean {
 export type Target =
     | { readonly kind: "all" }
     | { readonly kind: "where"; readonly where: string }
-    | { readonly kind: "ids"; readonly ids: readonly string[] };
+    | { readonly kind: "ids"; readonly ids: readonly NodeId[] };
 
 /** Words that mean every element. */
 const ALL_WORDS = new Set(["all", "*", "everything", "true"]);
@@ -281,7 +282,9 @@ export function settleTarget(
                 resolved[id] = node;
             }
 
-            return node;
+            // The id as the graph holds it: a model writes "1" for the integer id 1, and a
+            // selector or a set matches ids exactly, so the text spelling would match nothing.
+            return session.data.node(node)?.id ?? node;
         });
         if (Object.keys(resolved).length > 0) {
             notes.resolved = resolved;
@@ -416,7 +419,7 @@ export function resolveNode(session: Pick<GraphSession, "data">, name: string): 
  * @param target - The target.
  * @returns The scope.
  */
-export function scopeOf(target: Target): "graph" | { where: string } | { nodes: readonly string[] } {
+export function scopeOf(target: Target): "graph" | { where: string } | { nodes: readonly NodeId[] } {
     if (target.kind === "all") {
         return "graph";
     }
@@ -441,10 +444,13 @@ export function idsOf(
 ): { ids: string[]; total: number } {
     if (target.kind === "ids") {
         if (kind === "edge") {
-            return { ids: target.ids.filter((id) => session.data.edge(id) !== undefined), total: target.ids.length };
+            return {
+                ids: target.ids.map(String).filter((id) => session.data.edge(id) !== undefined),
+                total: target.ids.length,
+            };
         }
 
-        return { ids: [...target.ids], total: target.ids.length };
+        return { ids: target.ids.map(String), total: target.ids.length };
     }
 
     const options = target.kind === "where" ? { where: target.where, limit } : { limit };

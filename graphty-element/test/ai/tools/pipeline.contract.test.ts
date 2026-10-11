@@ -296,13 +296,21 @@ describe("large, slow, replacing and irreversible changes wait for the host", ()
         assert.strictEqual(session.status.counts.nodes, 0);
     });
 
-    it("refuses an import from a URL the reader did not give, and holds one a host admits", async () => {
+    it("refuses an import from a URL the reader did not give, and holds one the host admits", async () => {
         const session = await assistantSession();
         const assistant = new ScriptedAssistant(session);
         await assistant.say("load the data", [
             { tool: "import_data", args: { action: "import", url: "https://example.com/g.json" } },
         ]);
         assert.strictEqual(assistant.lastResults()[0].code, "AI_IMPORT_URL_REFUSED");
+        assert.strictEqual(session.status.counts.nodes, 5);
+
+        const admitting = new ScriptedAssistant(session, { allowImportUrl: (url) => url.hostname === "example.com" });
+        const { result } = await admitting.say("load the data", [
+            { tool: "import_data", args: { action: "import", url: "https://example.com/g.json" } },
+        ]);
+        assert.strictEqual(result.code, "AI_CONFIRMATION_NEEDED");
+        assert.strictEqual(result.params?.gate, "network");
         assert.strictEqual(session.status.counts.nodes, 5);
     });
 

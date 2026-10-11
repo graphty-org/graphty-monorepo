@@ -305,7 +305,7 @@ describe("every generated action", () => {
             const expected = row.code ?? (read.code.startsWith("style.") ? read.code : "AI_OK");
             assert.strictEqual(read.code, expected, JSON.stringify(read));
             const added = session.history.position - steps;
-            const succeeded = !read.code.startsWith("AI_") || read.code === "AI_OK";
+            const succeeded = read.code === "AI_OK" || read.code.startsWith("style.");
             if (effect === "write" && succeeded) {
                 assert.strictEqual(added, 1, `${key} adds one step (${JSON.stringify(result)})`);
                 await session.undo();
@@ -318,5 +318,36 @@ describe("every generated action", () => {
                 assert.strictEqual(await digest(session), before, `${key} changes nothing a project saves`);
             }
         });
+
+        it(`${key}: refuses a field it does not take, running nothing`, async () => {
+            const session = await assistantSession();
+            const [tool, action] = key.split(".");
+            const assistant = new ScriptedAssistant(session, { graph: RENDERER, gate: false });
+            const before = await digest(session);
+            const steps = session.history.position;
+            const args =
+                tool === "run_algorithm" || tool === "export_graph" ? { ...row.args } : { ...row.args, action };
+            await assistant.say(`stray ${key}`, [{ tool, args: { ...args, notAField: "x" } }]);
+            const [read] = assistant.lastResults();
+            assert.strictEqual(read.code, "AI_ARG_INVALID", JSON.stringify(read));
+            assert.strictEqual(read.params.path, "notAField");
+            assert.strictEqual(session.history.position, steps);
+            assert.strictEqual(await digest(session), before);
+        });
     }
+
+    it("refuses an action a tool does not have, naming the ones it has", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        const tools = buildToolset().tools.filter((tool) => tool.definition.actions.length > 1);
+        for (const tool of tools) {
+            await assistant.say(`no such action of ${tool.name}`, [{ tool: tool.name, args: { action: "teleport" } }]);
+            const [read] = assistant.lastResults();
+            assert.strictEqual(read.code, "AI_UNKNOWN_ACTION", tool.name);
+            assert.deepStrictEqual(
+                read.params.allowed,
+                tool.definition.actions.map((action) => action.name),
+            );
+        }
+    });
 });

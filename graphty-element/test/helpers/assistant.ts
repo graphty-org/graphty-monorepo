@@ -134,6 +134,7 @@ export class ScriptedAssistant {
      * @param options.gate - The gate's limits, or false.
      * @param options.toolProfile - The profile.
      * @param options.graph - A graph to stand behind the session (a renderer stub).
+     * @param options.allowImportUrl - URLs the reader did not type that an import may still ask about.
      */
     constructor(
         readonly session: GraphSession,
@@ -152,6 +153,7 @@ export class ScriptedAssistant {
             emitEvent: (event: AiEvent) => this.events.push(event),
             ...(options.gate === undefined ? {} : { gate: options.gate }),
             ...(options.toolProfile === undefined ? {} : { toolProfile: options.toolProfile }),
+            ...(options.allowImportUrl === undefined ? {} : { allowImportUrl: options.allowImportUrl }),
             [ENGINE_OVERRIDE]: this.engine,
         } as never);
     }

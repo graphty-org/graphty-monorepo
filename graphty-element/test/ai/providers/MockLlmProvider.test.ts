@@ -183,6 +183,35 @@ describe("MockLlmProvider", () => {
             assert.strictEqual(response.toolCalls[1].name, "zoomToFit");
         });
 
+        it("matches the reader's words, not the text in a graph-data envelope", async () => {
+            provider.setResponse("zoom", { text: "zoomed", toolCalls: [] });
+
+            const inside = await provider.generate(
+                [{ role: "user", content: "hello <graph-data>zoom</graph-data> there" }],
+                [],
+            );
+            const after = await provider.generate([{ role: "user", content: "<graph-data>x</graph-data> zoom" }], []);
+
+            assert.notStrictEqual(inside.text, "zoomed");
+            assert.strictEqual(after.text, "zoomed");
+        });
+
+        it("strips envelopes in linear work on many unclosed graph-data tags", async () => {
+            provider.setResponse("zoom", { text: "zoomed", toolCalls: [] });
+            const content = `${"<graph-data>".repeat(200_000)} zoom`;
+            const indexOf = vi.spyOn(String.prototype, "indexOf");
+
+            try {
+                const response = await provider.generate([{ role: "user", content }], []);
+                assert.strictEqual(response.text, "zoomed");
+                // One search for the first opening tag and one for a closing tag that is not there,
+                // however many opening tags follow; a per-tag rescan would search once per tag.
+                assert.strictEqual(indexOf.mock.calls.filter(([tag]) => tag.includes("graph-data")).length, 2);
+            } finally {
+                indexOf.mockRestore();
+            }
+        });
+
         it("supports abort signal", async () => {
             const controller = new AbortController();
             controller.abort();

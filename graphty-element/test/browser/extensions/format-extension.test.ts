@@ -57,7 +57,7 @@
  */
 
 import { afterAll, afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { formatDescriptor, formatsForExtension } from "../../../catalog";
 import {

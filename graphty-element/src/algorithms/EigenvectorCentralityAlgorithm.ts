@@ -1,5 +1,5 @@
 import { ConvergenceError } from "@graphty/algorithms";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { AccelerationPrecision } from "../acceleration/types";
 import type { FieldDescriptor, NodeId } from "../catalog/types";

@@ -1,6 +1,6 @@
 import { type F32, INVALID_INDEX } from "@graphty/graph-format";
 import { multipartite } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { SimpleLayoutConfig } from "./LayoutEngine";

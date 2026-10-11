@@ -8,7 +8,7 @@ import {
     InputEdge as D3InputEdge,
     Node as D3Node,
 } from "d3-force-3d";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import type { Edge } from "../Edge";

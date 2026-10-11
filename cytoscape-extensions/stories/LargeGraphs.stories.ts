@@ -18,6 +18,10 @@ const meta: Meta<LayoutArgs> = {
         iterations: { control: { type: "number", min: 0, step: 10 }, description: "0: until the layout settles" },
         animate: { control: "boolean" },
     },
+    // Not captured by visual review: its capture browser has no WebGPU, so these stories would only show the
+    // "no WebGPU" placeholder. Their real images are checked against approved references by the GPU screenshot
+    // check (scripts/gpu-screenshots.mjs) at push and on the release train.
+    parameters: { chromatic: { disableSnapshot: true } },
 };
 export default meta;
 

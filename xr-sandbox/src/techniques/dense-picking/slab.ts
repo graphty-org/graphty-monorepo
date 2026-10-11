@@ -94,6 +94,9 @@ export function createSlab(
     dots.thinInstanceSetBuffer("matrix", matrices, 16, false);
     dots.thinInstanceSetBuffer("color", colors, 4, false);
     dots.thinInstanceCount = 0;
+    // With no thin instances Babylon draws the base disc itself: a 1 m white disc over the whole view
+    // whenever the slab showed with an empty slice before its first change (dry run pass 1).
+    dots.setEnabled(false);
 
     button.mesh.billboardMode = TransformNode.BILLBOARDMODE_ALL;
     const pin = guiButton("dense-picking-pin", "Pin slab", onPin, 56);

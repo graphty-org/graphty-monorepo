@@ -10,6 +10,13 @@ made and evidence comes in.
 
 ## Top of mind
 
+- 2026-10-11 -- Round 4 critique: four app/element changes, each one place. (1) the element's
+  backtick suggestion must be a rule selection accepts, not just one that parses (`=\`10\`` parses,
+  then is refused); (2) "or more" row for any number inside a column's range; (3) the data table
+  passes scope "visible", not "graph" (`TableDock.tsx`); (4) a path run's key drops ", full graph".
+- 2026-10-11 -- Bar 9 (b) edge inspector: round 3 to 4 rose by ONE word, the rail's "Settings"
+  label (word lists in `tmp/researcher/t2r{3,4}/bars/bars.json`), not scope words. Diff the word
+  lists before blaming a wording.
 - 2026-10-11 -- Round 4 closed (`tier2/rounds/round-4/insights.md`): 53 of 53 valid; bars 9 (b)
   and 10 fail; bar 5 holds by its words (table problem open at sev 2). Bar 10 rests on two sev 3s:
   drawn names over ties and dots (element), and the find box suggesting "=`10`" then refusing it
@@ -28,15 +35,12 @@ made and evidence comes in.
   "Or more" layer named by field path and "or more" row under the fold: both sev 2 now.
 - 2026-10-11 -- Still to script before fixing: off step turns itself on (`Filters.tsx`), New
   project > Discard crash, rule on a missing column says only "Nothing matches" (r4-s12).
-- 2026-10-11 -- Specialist totals rising (139 to 153) is new ground walked, not regression; do not
-  cite raw totals as a trend. Score bar 10 on confirmed findings.
 - 2026-10-11 -- Click-by-name refusals added a step in ~15 sessions (7 of 8 T20): step medians run
   about one high; T18 sits on bar 11's limit.
 - 2026-10-11 -- Raising a severity because participants "named a risk" breaks the opinion rule
   (held one level down); and near-identical lines across sessions are one template, not N people.
 - 2026-10-11 -- Drawn-name overlaps that cost clicks are label-over-tie and label-over-dot;
   declutter would not remove them. Element owner item stands.
-- 2026-10-11 -- A check that inspects zero items must fail; leak check reads 1 log per session.
 
 ## Priorities and values
 
@@ -77,6 +81,17 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-11 (researcher, round 4 critique) -- Proposed the smallest fix per verified problem,
+  traced to source first. Find box: `ruleFromText` offers the element's `number-needs-backticks`
+  suggestion; `suggestBackticks` (graphty-element `session/styles/predicate.ts`) checks only that
+  the rewrite parses, and a bare literal parses, so the fix is one guard there (the rewrite must
+  be a condition), every consumer gets it. The "or more" row comes only from `valueRowOf` over
+  values present (`session/query.ts`); additive element change to offer it for any in-range
+  number. Table: element already has scope "visible"; the app hard-codes "graph" at
+  `TableDock.tsx:349`. Overlaps: element owner item stands; script first whether the label or the
+  dot takes the tie click. Said NOT to change: Shift-click, Filters button, the find hint, the
+  "Settings" rail label, the second-path replace (no cost shown). Reason: fix in the one shared
+  place; do not reword to game a word count.
 - 2026-10-11 (researcher, round 4 skeptic verdicts) -- Wrote `round-4/insights.md`. Rule: two
   drops = dropped, one drop or weaken = weakened unless the other answers with evidence. Verified
   the disputed priming claims myself before applying: the file table is in every briefing (4
@@ -178,6 +193,8 @@ reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-11 -- Worked: diffing per-round bars.json word lists showed the edge-inspector rise is
+  the rail's "Settings" label plus data names moving to "left"; scores.md had blamed scope words.
 - 2026-10-11 (round 4 verdicts, after a token-limit stop) -- Worked: `git status` and a listing
   first (no insights.md, nothing half-done); grepping briefings for the skeptics' priming claims
   instead of trusting either skeptic; viewing each screenshot before citing it. Did not work: my

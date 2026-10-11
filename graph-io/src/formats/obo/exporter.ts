@@ -109,6 +109,8 @@ export const OBO_LOSS = Object.freeze({
     ONTOLOGY_NAME: "W_OBO_ONTOLOGY_NAME",
     /** `[Typedef]` frames read back as nodes only under the importer's `typedefs: "nodes"`; by default they are metadata. */
     TYPEDEF_NODES: TYPEDEF_NODES_CODE,
+    /** A graph without a node `type` column is written as `[Term]` frames and reads back with a `type` column holding Term. */
+    TYPE_GAINED: "W_OBO_TYPE_GAINED",
     /** Edges are written in the frame of their source node, so they read back grouped by source, in node order. */
     EDGE_ORDER: "W_OBO_EDGE_ORDER",
     /**
@@ -1012,6 +1014,14 @@ function plan(snapshot: GraphSnapshot, options: (OboExportOptions & CommonExport
         }
     }
     const { kinds, type } = planKinds(snapshot, frameless);
+    if (rows.length > 0 && !snapshot.nodes.has("type")) {
+        note(
+            OBO_LOSS.TYPE_GAINED,
+            `${rows.length} node${plural(rows.length)} ${agree(rows.length, "is", "are")} written as [Term] frames and ${agree(rows.length, "reads", "read")} back with the type Term in a new node column "type"`,
+            null,
+            rows.length,
+        );
+    }
     const typedefNodes = rows.filter((i) => kinds[i] === "Typedef").length;
     if (typedefNodes > 0) {
         note(

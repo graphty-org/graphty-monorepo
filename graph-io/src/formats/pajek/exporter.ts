@@ -996,16 +996,14 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
         for (const n of checkCapabilities(snapshot, CAPABILITIES, resolved, {
             roles: SLOT_ROLES,
             roleNames: ROLE_NAMES,
+            // the label slot is a vertex slot; an edge label is a parameter under its own name
+            edgeRoleNames: {},
         })) {
             if (n.column !== null && (n.code === LOSS.LIST || n.code === LOSS.DTYPE)) {
                 const domain = n.message.startsWith("node column") ? "node" : "edge";
                 if (owned.has(`${domain}:${n.column}`)) {
                     continue;
                 }
-            }
-            if (n.code === LOSS.COLUMN_NAME_CHANGED && n.message.startsWith("edge column")) {
-                // the label slot is a vertex slot; an edge label is a parameter under its own name
-                continue;
             }
             notes.push(n);
         }

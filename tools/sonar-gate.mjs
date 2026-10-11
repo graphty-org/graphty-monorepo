@@ -11,6 +11,10 @@
 //    `<key>-local` project): block, with the fix.
 // 3. Scan only those files into `<key>-local` (scratch; never `<key>`, which a partial scan would
 //    empty), wait for the server to process it, read its open issues and hotspots.
+//    A network or server fault after the server answered (a DNS failure, a refused, reset or
+//    timed-out connection, an HTTP 5xx, the server closing the connection mid-scan) passes with the
+//    boxed warning like an unreachable server; the scanner's own error and "Caused by" lines say
+//    which. Any other scanner failure blocks.
 // 4. A finding on a changed line (`git diff -M -U0 <merge-base> HEAD`) blocks, unless master's
 //    analysis in `<key>` already has it: an issue with the same rule and line hash in the same file
 //    (following renames); for S3776 and S107 the same rule in the same hunk with a score that did
@@ -256,6 +260,76 @@ function judgeIssue(issue, f, masterIssues, out) {
     }
 }
 
+// What a failed scanner run says about why: the bootstrapper's and the engine's ERROR lines, the
+// engine's top exception (the line after "Error during SonarScanner Engine execution") and every
+// "Caused by" line. The stack frames between them say nothing a reader can act on.
+const CAUSE_LINE = /^\s*(?:\[ERROR\]|Caused by: )/;
+const AFTER_ENGINE_ERROR = /Error during SonarScanner Engine execution/;
+// A network or server fault, as the Node bootstrapper (axios, node:net) and the Java engine (okhttp,
+// the SonarQube web service client) word it. Anything else -- a 401, a 403, a 404, a missing file, a
+// plugin that cannot start -- is not on this list and blocks.
+const NODE_CODES = [
+    "ENOTFOUND",
+    "EAI_AGAIN",
+    "ECONNREFUSED",
+    "ECONNRESET",
+    "ECONNABORTED",
+    "ETIMEDOUT",
+    "EHOSTUNREACH",
+    "ENETUNREACH",
+    "EPIPE",
+    "UND_ERR_SOCKET",
+    "UND_ERR_CONNECT_TIMEOUT",
+    "UND_ERR_HEADERS_TIMEOUT",
+    "UND_ERR_BODY_TIMEOUT",
+];
+const JAVA_NET = [
+    "UnknownHostException",
+    "ConnectException",
+    "NoRouteToHostException",
+    "SocketTimeoutException",
+    "SocketException",
+];
+const NETWORK_FAULT = new RegExp(
+    [
+        String.raw`\b(?:${NODE_CODES.join("|")})\b`,
+        "socket hang up",
+        String.raw`status code 5\d\d\b`,
+        String.raw`timeout of \d+ms exceeded`,
+        String.raw`java\.net\.(?:${JAVA_NET.join("|")})`,
+        String.raw`java\.io\.(?:EOFException|InterruptedIOException)`,
+        "unexpected end of stream",
+        String.raw`HttpException: Error 5\d\d on `,
+    ].join("|"),
+);
+
+/**
+ * Why the scanner failed, from its own output.
+ * @param output - The scanner's output (the token already redacted by startScanner).
+ * @returns `{ cause, network }`: the lines that explain the failure (credentials in URLs masked), and
+ *   whether they name a network or server fault -- a DNS failure, a refused, reset or timed-out
+ *   connection, an HTTP 5xx, or the server closing the connection mid-scan.
+ */
+export function scannerFailure(output) {
+    const lines = output.split("\n");
+    const cause = lines
+        .filter((l, i) => CAUSE_LINE.test(l) || (i > 0 && AFTER_ENGINE_ERROR.test(lines[i - 1])))
+        .map((l) => l.trim().replaceAll(/\/\/[^/@\s]+@/g, "//***@"));
+    return { cause, network: cause.some((l) => NETWORK_FAULT.test(l)) };
+}
+
+/**
+ * Did a Web API call fail because the server or the network did (HTTP 5xx, no answer, a timeout),
+ * rather than because of what was asked?
+ * @param e - What `client().call` threw.
+ * @returns True for a network or server fault.
+ */
+export function isNetworkError(e) {
+    if (e instanceof ApiError) return e.status >= 500;
+    if (e?.name === "TimeoutError" || e?.name === "AbortError") return true;
+    return NETWORK_FAULT.test(String(e?.cause?.code ?? e?.code ?? ""));
+}
+
 // ---------------------------------------------------------------------------------------------
 // The step
 // ---------------------------------------------------------------------------------------------
@@ -271,6 +345,8 @@ class Outcome extends Error {
 }
 const skip = (reason, why) =>
     new Outcome(`skipped:${reason}`, 0, [why, "The next push from the owner's network checks the whole branch."]);
+// The server or the network failed after the server had answered: the same as an unreachable server.
+const serverFault = (why) => skip("server-fault", `The SonarQube server or the network failed: ${why}`);
 
 const git = (args) => execFileSync("git", args, { encoding: "utf8", env: envWithoutToken(), maxBuffer: 256 << 20 });
 
@@ -338,6 +414,7 @@ async function checkSetup(run) {
 
     const api = client(cfg.host, cfg.token);
     const me = await api.call("api/users/current").catch((e) => ({ error: e }));
+    if (me.error && isNetworkError(me.error)) throw serverFault(`api/users/current: ${me.error.message}`);
     if (me.error || !me.isLoggedIn) {
         const why = me.error instanceof ApiError ? `HTTP ${me.error.status}` : (me.error?.message ?? "not logged in");
         throw run.blockSetup(`the token was rejected (${why})`, TOKEN_FIX);
@@ -355,6 +432,7 @@ async function checkSetup(run) {
     try {
         await api.call("api/components/show", { component: localKey });
     } catch (e) {
+        if (isNetworkError(e)) throw serverFault(`api/components/show: ${e.message}`);
         const missing = e instanceof ApiError && e.status === 404;
         throw run.blockSetup(
             missing ? `project ${localKey} is missing` : `api/components/show: ${e.message}`,
@@ -402,7 +480,10 @@ async function scan(run, setup, scanList) {
     const { code, error } = await scanner.done;
     run.scanner = null;
     if (code !== 0) {
-        console.log(output.trim().split("\n").slice(-20).join("\n"));
+        const { cause, network } = scannerFailure(output);
+        // No recognizable cause: the end of the output, as before.
+        console.log((cause.length ? cause : output.trim().split("\n").slice(-20)).join("\n"));
+        if (network) throw serverFault(`the scanner lost the server (exit ${code}; its errors are above)`);
         const detail = error ? `, ${error.message}` : "";
         throw run.blockSetup(`the scanner failed (exit ${code}${detail})`, "read the scanner output above");
     }
@@ -435,7 +516,11 @@ async function masterFindings(api, mainKey, oldPaths) {
         .catch(() => null);
     const issues = new Map();
     const hotspots = new Map();
-    const none = () => [];
+    // A file master never analyzed has nothing; a server that stopped answering is not "nothing".
+    const none = (e) => {
+        if (isNetworkError(e)) throw e;
+        return [];
+    };
     for (const old of oldPaths) {
         const issueQuery = { components: `${mainKey}:${old}`, issueStatuses: "OPEN,CONFIRMED" };
         issues.set(old, await api.all("api/issues/search", issueQuery, "issues").catch(none));
@@ -607,8 +692,9 @@ async function main() {
     try {
         outcome = await check(run);
     } catch (e) {
-        outcome =
-            e instanceof Outcome ? e : new Outcome("blocked", 1, [`${RED}SonarQube step failed: ${e.message}${NC}`]);
+        if (e instanceof Outcome) outcome = e;
+        else if (isNetworkError(e)) outcome = serverFault(e.message);
+        else outcome = new Outcome("blocked", 1, [`${RED}SonarQube step failed: ${e.message}${NC}`]);
     }
     clearTimeout(timer);
     return finish(outcome);

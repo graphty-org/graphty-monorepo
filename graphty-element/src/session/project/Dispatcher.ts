@@ -57,6 +57,7 @@ import {
 } from "./draft";
 import { createdNodes, GraphOps, nodeKey, reshapes, restoresNodes, TouchedIds } from "./graphOps";
 import { frozenFact, History, type HistoryChangeReason, type OpenArrangement } from "./History";
+import { retainedVersion } from "./retained";
 import { createProjectState, type ProjectState } from "./state";
 import { checkInlineKey, checkSoleHolder, strictStateEnabled, verifyRetainedArrays } from "./strict";
 
@@ -813,6 +814,10 @@ export class Dispatcher {
     private nextCache: { key: string; value: NextUndo } | undefined;
     /** `history` reasons not yet published. */
     private readonly reasons: HistoryReason[] = [];
+    /** What the history's charges were last measured against: the resident token and the retained version. */
+    private charged = { token: Number.NaN, retained: -1 };
+    /** The token of every snapshot id index a charged run result reads through. */
+    private readonly indexTokens = new Set<number>();
     /** Above zero while a listener runs: a history call made then waits for a microtask. */
     private emitting = 0;
     /** The ids the steps passed by the history call under way touched; null outside one. */
@@ -1471,10 +1476,17 @@ export class Dispatcher {
      */
     private emit(change: ProjectChange, derived: readonly ProjectChange[]): void {
         if (["graph", "runs", "sets", "notes"].some((slice) => change.slices.includes(slice))) {
-            // What run results and their id indexes cost depends on which snapshot is resident.
+            // What run results and their id indexes cost depends on which snapshot is resident:
+            // a new one moves the charge of an index of the old or the new snapshot. And what
+            // something held by reference retains can grow after it was charged.
             const { token } = this.store.state.graph;
-            const seen = new WeakSet();
-            this.history.recharge((patch) => patchCharge(patch, token, seen));
+            const retained = retainedVersion();
+            const before = this.charged;
+            const full =
+                retained !== before.retained ||
+                (token !== before.token && (this.indexTokens.has(token) || this.indexTokens.has(before.token)));
+            this.charged = { token, retained };
+            this.history.recharge((patch, seen) => patchCharge(patch, token, seen, this.indexTokens), full);
         }
 
         this.notify(() => this.events.project?.(change));

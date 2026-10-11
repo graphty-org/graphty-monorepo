@@ -40,6 +40,8 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
                   PR_URL: ${{ github.event.pull_request.html_url }}
                   HEAD_SHA: ${{ github.event.pull_request.head.sha }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

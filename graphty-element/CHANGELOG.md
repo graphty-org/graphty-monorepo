@@ -1,3 +1,51 @@
+## 3.24.0 (2026-10-11)
+
+### 🚀 Features
+
+- **graphty-element:** draw frames only when the picture changes, opt-in renderOnDemand ([#1824](https://github.com/graphty-org/graphty-monorepo/issues/1824))
+
+### 🩹 Fixes
+
+- **graphty-element:** charge only the new and top history steps on a write ([#1891](https://github.com/graphty-org/graphty-monorepo/issues/1891))
+- **graphty-element:** drawing on demand keeps drawing while a shader is still on its way ([808e352eb](https://github.com/graphty-org/graphty-monorepo/commit/808e352eb))
+- **graphty-element:** drawing on demand reads the scene's lists instead of observing them ([40ce07989](https://github.com/graphty-org/graphty-monorepo/commit/40ce07989))
+- **graphty-element:** a throwing pass-ended listener never holds the derivation lane ([#1824](https://github.com/graphty-org/graphty-monorepo/issues/1824))
+- **graphty-element:** wake the on-demand loop after state changes, recordings and new meshes ([#1824](https://github.com/graphty-org/graphty-monorepo/issues/1824))
+
+### 🔥 Performance
+
+- **graphty-element:** copy only what a derivation pass changed ([#1906](https://github.com/graphty-org/graphty-monorepo/issues/1906))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.44
+- Updated algorithms to 3.4.1
+- Updated graph-io to 0.3.34
+- Updated layout to 2.3.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.23.0 (2026-10-10)
+
+### 🚀 Features
+
+- **graphty-element:** lint rule reporting node mesh position writes outside the funnel ([#1605](https://github.com/graphty-org/graphty-monorepo/issues/1605))
+- **graphty-element:** let a screenshot set how long it waits for the layout ([340165b7c](https://github.com/graphty-org/graphty-monorepo/commit/340165b7c))
+
+### 🩹 Fixes
+
+- **graphty-element:** tell note:changed from the notes a write names, not every note ([#1890](https://github.com/graphty-org/graphty-monorepo/issues/1890), [#1643](https://github.com/graphty-org/graphty-monorepo/issues/1643))
+
+### 🔥 Performance
+
+- **graphty-element:** look up path edge members by key, not by scanning the path ([ebe854d0d](https://github.com/graphty-org/graphty-monorepo/commit/ebe854d0d))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.22.0 (2026-10-10)
 
 ### 🚀 Features

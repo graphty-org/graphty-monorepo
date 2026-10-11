@@ -33,6 +33,7 @@ export {
     usePopoutManager,
     usePopoutRegion,
 } from "./components/popout";
+export { ScrollArea, type ScrollAreaProps } from "./components/ScrollArea";
 export { SegmentedControl } from "./components/SegmentedControl";
 export { StyleNumberInput } from "./components/StyleNumberInput";
 export { StyleSelect } from "./components/StyleSelect";

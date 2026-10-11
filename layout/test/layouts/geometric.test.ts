@@ -1,6 +1,7 @@
 import assert from "node:assert";
 
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
+import { randomTreeGraph } from "@graphty/graph-samples/generators";
 import { describe, it } from "vitest";
 
 import * as layout from "../../src";
@@ -30,6 +31,7 @@ const layouts: Record<string, Run> = {
     grid: (s, o) => layout.grid(s, o),
     random: (s, o) => layout.random(s, { seed: 7, ...o }),
     radial: (s, o) => layout.radial(s, o),
+    "radial sectors": (s, o) => layout.radial(s, { ...o, arrangement: "sectors" }),
 };
 
 describe("geometric layouts: common options", () => {
@@ -208,6 +210,7 @@ describe("geometric layouts reproduce the positional layouts of layout 1.x", () 
     it("shell", () => {
         const nlist = [[0], [1, 2, 3], [4, 5, 6, 7]];
         matchesGolden(layout.shell(s, { nlist, scale: 3 }), golden("shell"));
+        matchesGolden(layout.shell(s, { nlist, scale: 3, rotate: 0 }), golden("shell"));
     });
 
     it("spiral", () => {
@@ -226,6 +229,10 @@ describe("geometric layouts reproduce the positional layouts of layout 1.x", () 
     it("radial, including the default root and the neighbour order of the rings", () => {
         matchesGolden(layout.radial(s), golden("radial"));
         matchesGolden(layout.radial(s, { root: s.ids.indexOf("b"), scale: 4 }), golden("radial root b"));
+    });
+
+    it("radial with the default rotate and arrangement spelled out", () => {
+        matchesGolden(layout.radial(s, { rotate: 0, arrangement: "rings" }), golden("radial"));
     });
 });
 
@@ -336,5 +343,115 @@ describe("edge cases of the shared rows", () => {
 
     it("radial on an empty graph is empty whatever the centre", () => {
         assert.equal(layout.radial(nodes(0), { center: [0, 0, 0] }).n, 0);
+    });
+});
+
+describe("radial sector arrangement", () => {
+    /** Asserts row `i` is at `(cos(theta), sin(theta)) * radius`. */
+    const at = (r: LayoutResult, i: number, radius: number, theta: number): void => {
+        const [x, y] = row(r, i);
+        assert.ok(
+            Math.abs(x - radius * Math.cos(theta)) < 1e-6 && Math.abs(y - radius * Math.sin(theta)) < 1e-6,
+            `node ${i}: ${x},${y}`,
+        );
+    };
+
+    it("gives each child the middle of its share of its parent's sector, in edge order", () => {
+        // nodes h a b c d e f x = indices 0 .. 7; the edges reach d, b, a from h in that order
+        const s = fromEdgeArrays({
+            directed: false,
+            nodeCount: 8,
+            src: Uint32Array.of(0, 0, 2, 0, 1, 4),
+            dst: Uint32Array.of(4, 2, 5, 1, 6, 3),
+        });
+        const r = layout.radial(s, { root: 0, arrangement: "sectors" });
+        // four rings (the isolated x is the fourth) at radii 0, 1/3, 2/3, 1; d, b, a each have one leaf under them, so
+        // each gets a third of the circle, and each one's only child sits on its parent's angle
+        at(r, 0, 0, 0);
+        at(r, 4, 1 / 3, Math.PI / 3);
+        at(r, 2, 1 / 3, Math.PI);
+        at(r, 1, 1 / 3, (5 * Math.PI) / 3);
+        at(r, 3, 2 / 3, Math.PI / 3);
+        at(r, 5, 2 / 3, Math.PI);
+        at(r, 6, 2 / 3, (5 * Math.PI) / 3);
+        at(r, 7, 1, 0);
+    });
+
+    it("shares a sector by leaves and keeps a deeper node's children within its tangent wedge", () => {
+        // root 0 with children 1 (two leaves: 3, 4) and 2 (one leaf: 5)
+        const s = fromEdgeArrays({
+            directed: false,
+            nodeCount: 6,
+            src: Uint32Array.of(0, 0, 1, 1, 2),
+            dst: Uint32Array.of(1, 2, 3, 4, 5),
+        });
+        const r = layout.radial(s, { root: 0, scale: 2, arrangement: "sectors" });
+        // node 1 gets 2/3 of the circle, node 2 the last third
+        at(r, 1, 1, (2 * Math.PI) / 3);
+        at(r, 2, 1, (5 * Math.PI) / 3);
+        // node 1's share (4 pi / 3) is wider than the wedge between its tangents at ring 1 that meet ring 2
+        // (2 acos(1 / 2) = 2 pi / 3), so its two children split that wedge, centred on node 1's angle
+        at(r, 3, 2, (2 * Math.PI) / 3 - Math.PI / 6);
+        at(r, 4, 2, (2 * Math.PI) / 3 + Math.PI / 6);
+        at(r, 5, 2, (5 * Math.PI) / 3);
+    });
+
+    it("draws a seeded 2,000-node random tree with distinct angles and no crossing edges", () => {
+        const t = randomTreeGraph({ n: 2000, seed: 42 });
+        const r = layout.radial(fromEdgeArrays({ directed: false, nodeCount: t.nodeCount, src: t.src, dst: t.dst }), {
+            arrangement: "sectors",
+        });
+        const p = (i: number): number[] => row(r, i);
+        let onAxis = 0;
+        for (let i = 0; i < t.nodeCount; i++) {
+            if (Math.abs(p(i)[1]) < 1e-6) {
+                onAxis++;
+            }
+        }
+        // the root, on the centre; 190 with arrangement "rings"
+        assert.ok(onAxis <= 3, `${onAxis} nodes on the x axis`);
+        const side = (a: number[], b: number[], c: number[]): number =>
+            Math.sign((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
+        let crossings = 0;
+        for (let e = 0; e < t.src.length; e++) {
+            for (let f = e + 1; f < t.src.length; f++) {
+                const [a, b, c, d] = [t.src[e], t.dst[e], t.src[f], t.dst[f]];
+                if (a === c || a === d || b === c || b === d) {
+                    continue;
+                }
+                const [pa, pb, pc, pd] = [p(a), p(b), p(c), p(d)];
+                if (side(pa, pb, pc) * side(pa, pb, pd) < 0 && side(pc, pd, pa) * side(pc, pd, pb) < 0) {
+                    crossings++;
+                }
+            }
+        }
+        assert.equal(crossings, 0);
+    });
+
+    it("turns a lone child of the root, and the only children below it, off both axes", () => {
+        // path 0 - 1 - 2 - 3 from root 0: every node is an only child
+        const s = fromEdgeArrays({
+            directed: false,
+            nodeCount: 4,
+            src: Uint32Array.of(0, 1, 2),
+            dst: Uint32Array.of(1, 2, 3),
+        });
+        const r = layout.radial(s, { root: 0, arrangement: "sectors" });
+        at(r, 1, 1 / 3, Math.PI / 4);
+        at(r, 2, 2 / 3, Math.PI / 4);
+        at(r, 3, 1, Math.PI / 4);
+    });
+
+    it("rejects a rotate, which would turn the rings apart and cross the tree's edges", () => {
+        const s = nodes(3);
+        assert.throws(() => layout.radial(s, { arrangement: "sectors", rotate: 1 }), /rotate/);
+        assert.throws(() => layout.radial(s, { arrangement: "sectors", rotate: "networkx" }), /rotate/);
+        layout.radial(s, { arrangement: "sectors", rotate: 0 });
+    });
+
+    it("rejects an unknown arrangement", () => {
+        // as untyped JavaScript could pass it
+        const options = JSON.parse('{ "arrangement": "spokes" }') as layout.RadialLayoutOptions;
+        assert.throws(() => layout.radial(nodes(3), options), /arrangement/);
     });
 });

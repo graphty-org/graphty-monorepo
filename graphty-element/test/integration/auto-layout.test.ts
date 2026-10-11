@@ -64,6 +64,9 @@ describe("Automatic Layout Updates", () => {
                 labels: {
                     declutter: false,
                 },
+                rendering: {
+                    onDemand: false,
+                },
             },
             data: {
                 knownFields: {

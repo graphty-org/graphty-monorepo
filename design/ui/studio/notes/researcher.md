@@ -10,50 +10,35 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-11 -- Key matched on 5277e2cbe for T4 A, T12R A/B, T17 A, T18 A, T24 A/B: every value
-  held, only citations and finer descriptions changed. T12R B is no longer owed.
-- 2026-10-11 -- Outlined-chosen segment (T4 Add/Leave out, T12R Hops) still on 5277e2cbe on both
-  T12R halves; still the likely sev 3, fix in compact-mantine.
-- 2026-10-11 -- T12R neighborhood group is named by its whole content (heading + Hops + every
-  name): screen-reader finding for the app; also makes `--hover` by heading match two elements.
-- 2026-10-11 -- New likely sev 3 on 38e180aac230: the chosen segment is dark/outlined and the
-  unchosen one keeps the gray fill (T4 Add/Leave out, "a node"/"an edge", T12R Hops). Fix in
-  compact-mantine; the build note says it was restored, the pixels say otherwise.
-- 2026-10-11 -- T17 on 38e180aac230: chip and Filters row count edges; people count only in the
-  Overview. Expect `read-wrong` answers of 12 (B 51); suggest both counts on chip and row.
-- 2026-10-11 -- Drawn-names sev 3 was measured with declutter off (setups tick "Show all
-  labels"). Re-score with the app's default; only label-over-dot and layout overlap remain.
-- 2026-10-10 -- Round 3 critique done (returned, not filed). Six smallest changes: element
-  Shift-click on a node adds (as an edge does); T24 prompt reworded to an outcome only a selection
-  gives, key's Shift route walked; bare number gets an "at least" rule option and its row wraps;
-  name matches lead the Analyze list; a filter button on the canvas toolbar; study tool fixes.
-  Not changed: label placement, second path, Select endpoints' place, Replace, rule syntax.
-- 2026-10-10 -- Round 3 CLOSED (`tier2/rounds/round-3/insights.md`). After the verdicts the one real
-  app-caused failure is Shift/Ctrl-click on a node replacing the selection (graphty-element,
-  `NodeBehavior.handleClick`; edges add). Fix it in the element with a real-input test.
-- 2026-10-10 -- T24 prompt now ends "so that whatever you do next applies only to those
-  two" (tasks, key, criteria log done). OWED before round 4's first session: 2 prompt pilots per
-  half on the frozen round 4 build graded by the key, every key route walked there, results in
-  the round 4 plan. Name the Shift route in the key only after it adds on that build.
-- 2026-10-10 -- Bar 10 now fails on ONE confirmed sev 3 (drawn names, owner's list); second path
-  and the Add page warning are sev 2. Bar 8's axe hit is likely a false positive (combobox with
-  `aria-activedescendant`); bar 9 (b) fails by one word that is a data name the counter should skip.
-- 2026-10-10 -- Study tool before round 4: an empty leak check must FAIL; `--end` must not delete
-  in-session notes; the bar 9 counter must leave out data names; the runner must refuse to start
-  without gate evidence (round 3 skipped prompt pilots and bars).
-- 2026-10-10 -- Sev 2 app work left: bare number offers only "is equal to" (row cut); filtering not
-  reachable from the Graph place (5 of 8); Shortest path ranked under Betweenness; Hops 2 list
-  without distances; second path unannounced.
-- 2026-10-10 -- "=" typed unprompted 0 of 16 across rounds 2 and 3: the rule language is copied,
-  not discovered. Readers type the prompt's most prominent data word first (column or number).
-- 2026-10-10 -- Follow-up "second time" measures are memory, not the app: only the Recent entry
-  (6 of 7) is creditable. Seven identical asides are one model's template, not seven people.
-- 2026-10-10 -- Briefing check: `tmp/researcher/t2r3/brief-all.py <scratch dir>`; words kept on
-  purpose: T20 "longer", T18 "from"/"to", T21 "updated list", T23 "change the drawing so it has
-  only".
-- 2026-10-10 -- A check that inspects zero items must fail: grep every "no leaks"/"0 found" for its
-  denominator before trusting it (preflight "built" in round 2, `leaks.json` in round 3).
-- 2026-10-09 -- A leak voids passes, not problems: a problem found anyway is robust.
+- 2026-10-11 -- Round 3 lesson: 54 of 56 passed, yet the only app-caused failure (Shift/Ctrl-click
+  on a node replaces the selection, graphty-element `NodeBehavior.handleClick`) and both T24
+  failures were found only after skeptics read the source. Round 4 watch: Selection reads 2 after
+  Gus then Shift-click Ivan, proven by a real-input test, before T24 is credited.
+- 2026-10-11 -- Round 4 gate (decided, study first): runner refuses to start without gate evidence
+  listed by file; a check that reads nothing fails; `--end` keeps in-session notes; bar 9 counter
+  skips data names. Each shown failing on a planted fault or on 26f3bb968 before session 1.
+- 2026-10-11 -- T24 prompt now asks for an outcome only a selection gives; 2 prompt pilots per half
+  on the frozen round 4 build, key routes walked there. Name the Shift route only once it adds.
+- 2026-10-11 -- One variant per problem, no words added at rest: round 4 must be able to say which
+  fix worked. Re-run T24, T22 (at least / no cut row), T18 (Made with after Undo, focus drops,
+  name matches first), T17 (Filters icon on canvas, edge counts). Others carry forward.
+- 2026-10-11 -- One-specialist claims are scripted before fixing; no repro on 26f3bb968 = closed.
+- 2026-10-11 -- Key matched on 5277e2cbe (T4 A, T12R A/B, T17 A, T18 A, T24 A/B): values held.
+- 2026-10-11 -- Outlined-chosen segment (T4 Add/Leave out, T12R Hops) still on 5277e2cbe: likely
+  sev 3, fix in compact-mantine; pixels contradict the build note.
+- 2026-10-11 -- T17: chip and Filters row count edges, people only in Overview. Expect read-wrong
+  answers of 12 (B 51); watch whether change 11 fixes it.
+- 2026-10-11 -- T12R neighborhood group is named by its whole content: screen-reader finding.
+- 2026-10-11 -- Drawn-names sev 3 was measured with "Show all labels" on; re-score with declutter
+  on. Label placement stays on the owner's list (element).
+- 2026-10-11 -- Held, first in line if a second session meets it: per-name distance at Hops 2
+  (needs element `hops` on `Neighbor`). Watch Select endpoints after the Shift fix.
+- 2026-10-10 -- "=" typed unprompted 0 of 16: the rule language is copied, not discovered.
+- 2026-10-10 -- "Second time" follow-ups measure memory, not the app; only Recent (6 of 7) counts.
+  Identical asides across sessions are one model's template, not many people.
+- 2026-10-10 -- A check that inspects zero items must fail: grep every "no leaks"/"0 found" for
+  its denominator. A leak voids passes, not problems.
+- 2026-10-10 -- Briefing check: `tmp/researcher/t2r3/brief-all.py <scratch dir>`.
 
 ## Priorities and values
 
@@ -93,6 +78,12 @@ reasons, in short:
   unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
+
+- 2026-10-11 (researcher, round 3 closed) -- Read insights.md and decisions.md. Adopted: study
+  fixed first (gate, T24 prompt/key) because round 3 skipped its pilots and a zero-read leak check
+  said "no leaks"; one variant per problem so round 4 can credit each fix; one-specialist claims
+  scripted before fixing. Not changed: label placement (element, owner list), rule syntax
+  (breaking), Replace, weight at load, Recent, find-box example. Top of mind rewritten.
 
 - 2026-10-11 (researcher, key matched to the first pilots on 5277e2cbe) -- T4 A, T12R A/B, T17 A,
   T18 A, T24 A/B. No value changed, so only citations and finer descriptions: T4's first summary

@@ -71,12 +71,15 @@ interface PendingApproval {
 }
 
 /**
- * The session's revision: it moves on every edit, undo and selection change.
+ * What a held change was measured against: the history, which moves on every change a project
+ * saves and on every undo. (The input tick moves on every frame of a live layout, which would make
+ * every approval on a rendered graph stale.)
  * @param session - The session.
  * @returns The revision.
  */
 function revisionOf(session: GraphSession): string {
-    return session.data.nodePage({ limit: 0 }).revision;
+    const { history } = session;
+    return `${String(history.version)}:${String(history.position)}`;
 }
 
 /** Event emitter callback type */

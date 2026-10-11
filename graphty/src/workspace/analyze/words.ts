@@ -256,16 +256,58 @@ export function matches(descriptor: AlgorithmDescriptor, text: string): boolean 
 }
 
 /**
- * The list under its headings, filtered; a heading with no entries left is dropped.
+ * Whether an entry matches the filter text on its name or one of its aliases, the words a reader
+ * picks it by; a match only on its line, key or technical name does not count.
+ * @param descriptor - the entry.
+ * @param text - what the reader typed.
+ * @returns true for a name or alias match.
+ */
+function matchesByName(descriptor: AlgorithmDescriptor, text: string): boolean {
+    const want = text.trim().toLowerCase();
+    const words = wordsFor(descriptor);
+    return [words.name, ...words.aliases].some((word) => word.toLowerCase().includes(want));
+}
+
+/**
+ * The list under its headings, filtered; a heading with no entries left is dropped. While text is
+ * typed, entries that match on their name or an alias come first, and so do the headings that hold
+ * one; entries matching only on their line follow. A blank filter keeps the list's own order.
  * @param algorithms - the element's catalog.
  * @param text - the filter text.
- * @returns the headings in order, each with its entries in catalog order.
+ * @returns the headings, each with its entries.
  */
 export function groupAlgorithms(algorithms: readonly AlgorithmDescriptor[], text = ""): HeadingEntries[] {
-    return HEADINGS.map((heading) => ({
+    const groups = HEADINGS.map((heading) => ({
         heading,
         entries: algorithms.filter((a) => heading.shapes.includes(a.shape) && matches(a, text)),
     })).filter((group) => group.entries.length > 0);
+    if (text.trim() === "") {
+        return groups;
+    }
+    // Array.prototype.sort is stable, so ties keep the catalog's order.
+    const byName = (a: AlgorithmDescriptor): number => (matchesByName(a, text) ? 0 : 1);
+    return groups
+        .map(({ heading, entries }) => ({ heading, entries: [...entries].sort((a, b) => byName(a) - byName(b)) }))
+        .sort((a, b) => byName(a.entries[0]) - byName(b.entries[0]));
+}
+
+/**
+ * Whether an entry wears "Start here": with a blank filter, each heading's marked entry; while
+ * text is typed, only the first result, and only when it is a marked one.
+ * @param descriptor - the entry.
+ * @param groups - the list as drawn (`groupAlgorithms`).
+ * @param text - the filter text.
+ * @returns true when the badge is drawn on it.
+ */
+export function wearsStartHere(
+    descriptor: AlgorithmDescriptor,
+    groups: readonly HeadingEntries[],
+    text: string,
+): boolean {
+    if (wordsFor(descriptor).startHere !== true) {
+        return false;
+    }
+    return text.trim() === "" || groups[0]?.entries[0] === descriptor;
 }
 
 /**

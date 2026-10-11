@@ -8,7 +8,16 @@ import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
 import { OptionsForm } from "../options/OptionsForm";
 import { PATH_ALGORITHM, PathForm } from "./PathForm";
-import { costLine, groupAlgorithms, type Heading, HEADINGS, optionWords, runRefusalWords, wordsFor } from "./words";
+import {
+    costLine,
+    groupAlgorithms,
+    type Heading,
+    HEADINGS,
+    optionWords,
+    runRefusalWords,
+    wearsStartHere,
+    wordsFor,
+} from "./words";
 
 /** The type icon of the row a run adds, by heading. */
 const ROW_ICON: Readonly<Record<Heading["id"], React.ReactNode>> = {
@@ -271,7 +280,7 @@ export function AnalyzePopover({
                             <Text size="sm" c={reason === null ? undefined : "dimmed"}>
                                 {words.name}
                             </Text>
-                            {showStart && words.startHere === true ? (
+                            {showStart && wearsStartHere(descriptor, groups, filter) ? (
                                 <Badge size="xs" variant="light">
                                     Start here
                                 </Badge>

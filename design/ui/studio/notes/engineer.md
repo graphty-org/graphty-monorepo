@@ -11,6 +11,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Analyze list ranks name and alias matches first: built** (app only, `words.ts`).
+  While a filter is typed, entries matching on their app name or an alias come first within each
+  heading, and a heading whose first entry is such a match comes before headings holding only
+  description matches (stable sort, so ties keep catalog order). Key and technical name count as
+  description-level: All-pairs distance's technical name "All-pairs shortest paths" would otherwise
+  lift the Rank heading above Shortest path for "path". While a filter is typed, "Start here" is
+  drawn only on the first result and only when that entry is a marked one (`wearsStartHere`).
+  Fresh build check in `tmp/t2r3-r4-08/fresh/`.
 - (2026-10-10) **Both scripted focus drops fixed: built** (app only). (a) The path form swapped
   into an open Analyze popover had only `data-autofocus`, which Mantine's focus trap reads only on
   open; From (and Find path, when the selection fills both ends) now also carry `autoFocus`, and
@@ -27,27 +35,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the rail is new since round 3).
   Note: Escape on a focused inspector control still clears the selection -- that is the app's
   designed Escape order (`selection.clear` on Escape), not a focus drop.
-- (2026-10-10) **`bars.mjs` now measures bars 8 and 9 as the criteria word them.** Bar 9 leaves
-  out the data's names (source, file stem, tables, imported columns, node names, matched as written
-  so the app's "Weight" still counts). Corrected, round 1 / 2 / 3: rest screen 49 / 51 / 45, path
-  inspector 63 / 67 / 58, neighbor list 33 / 36 / 31, edge inspector 27 / 31 / 28; tier 1 36 on all.
-  `bars-limits.json` now holds round 1's corrected counts; the edge inspector is still one over.
-  Bar 8 runs two new focus actions, each proven on a planted drop: Enter on Shortest path typed
-  into the Analyze list, and Color from Add to Line on a rule selection. Both FELL on 26f3bb968
-  and 9ac5f9f3e; both fixed since (top bullet). The find list keeps its
-  active option in view after 18 ArrowDowns, so axe's `scrollable-region-focusable` on its
-  viewport is excused, only while that check holds (`tmp/t2r3-r4-04/`, scores.md round 3).
-- (2026-10-10) **A filter step over an edge column counts edges: built** (app only, 8ab196fb3).
-  Scripted on 26f3bb968 first: friends, "weight is at least 3" read "20 to 20 nodes" on its row
-  and "20 of 20 nodes" on the chip while the element's Overview said "Edges showing 20 of 41"
-  (`tmp/t2r3-r4-11/frozen/05.png`). The element already counts both (`plan` steps effect has
-  `edges`; `visibility.summary` has `visibleEdges`/`totalEdges`), so no element change. Row uses
-  edges for a step whose rule has `nodes: "ends"`; the chip uses edges only while EVERY step that
-  is on is such a step (a mixed set stays in nodes, since node steps change what the chip is
-  for). Status line unchanged (it names both). Fresh build: "41 to 20 edges", chip "20 of 41
-  edges", Overview agrees; unticked, chip goes, row "off" (`tmp/t2r3-r4-11/fresh/04.png`,
-  `05.png`). Same word count. **The T17A answer key's "19 of 20 nodes" / "20 to 19 nodes" become
-  "12 of 41 edges" / "41 to 12 edges" on the next build** -- re-record it before round 4 freezes.
+- (2026-10-10, condensed) **`bars.mjs` measures bars 8 and 9 as the criteria word them.** Bar 9
+  leaves out the data's names (matched as written); round 1 / 2 / 3 rest screen 49 / 51 / 45, edge
+  inspector 27 / 31 / 28 (one over). Bar 8 runs two focus actions proven on planted drops (both
+  now fixed). The find list's axe `scrollable-region-focusable` is excused only while its scroll
+  check holds (`tmp/t2r3-r4-04/`).
+- (2026-10-10, condensed) **A filter step over an edge column counts edges: built** (8ab196fb3,
+  app only; the element already counts edges). Row and chip read "41 to 20 edges" / "20 of 41
+  edges" (`tmp/t2r3-r4-11/fresh/`). **Re-record the T17A answer key ("12 of 41 edges" / "41 to 12
+  edges") before round 4 freezes.**
 - (2026-10-10, condensed) **Two screen-reader descriptions:** the Add page's repeated-ties line is
   now a warning (danger glyph, id `dp-repeats`) that Load's `aria-describedby` lists (built,
   `tmp/t2r3-r4-10/fresh/`); a pressed "Filter to neighbors" already reads its reason on keyboard
@@ -97,12 +93,16 @@ items ALSO failing on round 3's build: axe `scrollable-region-focusable` on the 
   actions and no reason; "Edit source..." lands on "Replace: ..."; neighbor Back row scrolls the
   inspector sideways; path popover covers the nodes it asks for; 900 x 700 canvas is 363 px. The
   "Full graph" section under a filter is frozen and reads right at both sizes.
+## Decisions and reasons
+
 - (2026-10-09) Script before calling it a defect (two round 2 "app faults" were the study tool's
   click by name landing on a same-named control); every study-tool change gets a planted-failure
   check.
-
-## Decisions and reasons
-
+- (2026-10-10) **Typed filter: the badge stays on a marked entry, never moves to an unmarked first
+  result.** "Start here" is the studio's recommendation; drawing it on Betweenness because "brokers"
+  found it would invent a recommendation. So "brokers" shows no badge, "linked" one (Shortest
+  path). Nothing is hidden: description-only matches stay listed after the name matches, because
+  hiding them would stop line words finding anything once any name matched.
 - (2026-10-10) **Bar 9's data names are matched as written; ids and values stay case-blind.** The
   column "weight" and the app's "Weight" label differ only in case, and the label is the app's word.
   Known ceiling: an app word spelled exactly like a data name ("Loaded weight") is left out too.

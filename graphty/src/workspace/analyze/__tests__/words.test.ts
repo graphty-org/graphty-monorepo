@@ -14,6 +14,7 @@ import {
     optionWords,
     pathWords,
     ranOptionWords,
+    wearsStartHere,
     weightName,
     weightRead,
     wordsFor,
@@ -92,6 +93,33 @@ describe("the Analyze popover's words", () => {
             const keys = groupAlgorithms(BUILT_IN_ALGORITHMS, word).flatMap((g) => g.entries.map((d) => d.key));
             assert.include(keys, "shortest-path", word);
         }
+    });
+
+    it("puts a name or alias match first, with its heading, and keeps description-only matches after", () => {
+        for (const word of ["path", "shortest path", "linked"]) {
+            const keys = groupAlgorithms(BUILT_IN_ALGORITHMS, word).flatMap((g) => g.entries.map((d) => d.key));
+            assert.equal(keys[0], "shortest-path", word);
+        }
+        // "path" also finds Betweenness by its line ("shortest paths"): still listed, after.
+        const keys = groupAlgorithms(BUILT_IN_ALGORITHMS, "path").flatMap((g) => g.entries.map((d) => d.key));
+        assert.include(keys, "betweenness");
+        assert.deepEqual(
+            groupAlgorithms(BUILT_IN_ALGORITHMS, "brokers").flatMap((g) => g.entries.map((d) => d.key)),
+            ["betweenness"],
+        );
+    });
+
+    it("draws one Start here while a filter is typed, on the first result, and every heading's with none", () => {
+        const badged = (text: string): string[] => {
+            const groups = groupAlgorithms(BUILT_IN_ALGORITHMS, text);
+            return groups.flatMap((g) => g.entries.filter((d) => wearsStartHere(d, groups, text)).map((d) => d.key));
+        };
+        assert.deepEqual(badged("linked"), ["shortest-path"]);
+        assert.deepEqual(badged(""), ["pagerank", "louvain", "shortest-path"]);
+        assert.deepEqual(
+            groupAlgorithms(BUILT_IN_ALGORITHMS, "  ").map((g) => g.entries.map((d) => d.key)),
+            groupAlgorithms(BUILT_IN_ALGORITHMS).map((g) => g.entries.map((d) => d.key)),
+        );
     });
 
     it("never shows a raw option key or choice value as a label", () => {

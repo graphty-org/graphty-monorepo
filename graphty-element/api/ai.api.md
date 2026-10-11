@@ -88,16 +88,39 @@ export interface AiApprovalRequestedEvent {
 }
 
 // @public
+export interface AiCallRecord {
+    readonly arguments: Readonly<Record<string, unknown>>;
+    readonly code: AiResultCode;
+    readonly command: string;
+    readonly params: AiResultParams;
+}
+
+// @public
+export interface AiCommandOptions {
+    readonly conversation?: string;
+}
+
+// @public
 export class AiController {
     constructor(options: AiControllerOptions);
     cancel(): void;
+    clearHistory(): Promise<void>;
     clearLastError(): void;
+    deleteConversation(id: string): Promise<void>;
     dispose(): void;
-    execute(input: string): Promise<ExecutionResult>;
+    execute(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
+    exportConversation(id: string): Promise<string | null>;
+    getConversation(): AiConversationSnapshot | null;
     getLastError(): Error | null;
     getLastInput(): string | null;
     getStatus(): AiStatus;
+    listConversations(options?: {
+        readonly allKeys?: boolean;
+    }): Promise<readonly AiConversationSummary[]>;
+    newConversation(): Promise<AiConversationSnapshot | null>;
     onStatusChange(callback: StatusChangeCallback): () => void;
+    openConversation(id: string): Promise<AiConversationSnapshot | null>;
+    ready(): Promise<void>;
     resolveAiApproval(id: string, answer: {
         readonly approve: boolean;
     }): Promise<ExecutionResult>;
@@ -110,9 +133,54 @@ export interface AiControllerOptions {
     emitEvent?: AiEventEmitter;
     gate?: Partial<AssistantGateLimits> | false;
     graph: CommandContext["graph"];
+    history?: "none" | "memory" | "browser" | AiHistoryOptions;
     provider: LlmProvider;
     schemaManager?: SchemaManager | null;
+    secrets?: () => readonly string[];
     toolProfile?: "standard" | "small";
+}
+
+// @public
+export interface AiConversationChangedEvent {
+    code?: AiResultCode;
+    conversationId: string;
+    params?: AiResultParams;
+    type: "ai-conversation-changed";
+}
+
+// @public
+export type AiConversationMessage = {
+    readonly id: string;
+    readonly role: "reader";
+    readonly text: string;
+    readonly via: "text" | "voice";
+} | {
+    readonly id: string;
+    readonly role: "assistant";
+    readonly text: string;
+    readonly calls: readonly AiCallRecord[];
+};
+
+// @public
+export interface AiConversationSnapshot {
+    readonly formatVersion: number;
+    // (undocumented)
+    readonly id: string;
+    readonly key: string;
+    readonly messages: readonly AiConversationMessage[];
+    readonly pending: readonly AiApprovalRequest[];
+}
+
+// @public
+export interface AiConversationSummary {
+    readonly createdAt: string;
+    readonly dataKey: string | null;
+    // (undocumented)
+    readonly id: string;
+    readonly key: string;
+    readonly messageCount: number;
+    readonly pendingCount: number;
+    readonly updatedAt: string;
 }
 
 // @public
@@ -127,20 +195,39 @@ export interface AiExportReadyEvent {
 }
 
 // @public
+export interface AiHistoryOptions {
+    readonly budgetTokens?: number;
+    readonly database?: string;
+    readonly dataKey?: string;
+    readonly key?: string;
+    readonly store: "memory" | "browser";
+}
+
+// @public
 export class AiManager {
     constructor();
     cancel(): void;
+    clearHistory(): Promise<void>;
+    deleteConversation(id: string): Promise<void>;
     dispose(): void;
-    execute(input: string): Promise<ExecutionResult>;
+    execute(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
+    exportConversation(id: string): Promise<string | null>;
     getApiKeyManager(): ApiKeyManager;
     getCommandRegistry(): CommandRegistry;
     getController(): AiController | null;
+    getConversation(): AiConversationSnapshot | null;
     getProvider(): LlmProvider | null;
     getRegisteredCommands(): string[];
     getSchemaManager(): SchemaManager | null;
     getStatus(): AiStatus;
     init(graph: Graph, config: AiManagerConfig): void;
+    listConversations(options?: {
+        readonly allKeys?: boolean;
+    }): Promise<readonly AiConversationSummary[]>;
+    newConversation(): Promise<AiConversationSnapshot | null>;
     onStatusChange(callback: StatusChangeCallback): () => void;
+    openConversation(id: string): Promise<AiConversationSnapshot | null>;
+    ready(): Promise<void>;
     registerCommand(command: Parameters<CommandRegistry["register"]>[0]): void;
     resolveAiApproval(id: string, answer: {
         readonly approve: boolean;
@@ -154,6 +241,7 @@ export interface AiManagerConfig {
     allowImportUrl?: (url: URL) => boolean;
     apiKey?: string;
     gate?: Partial<AssistantGateLimits> | false;
+    history?: "none" | "memory" | "browser" | AiHistoryOptions;
     keyPersistence?: KeyPersistenceConfig;
     model?: string;
     provider: ProviderType;

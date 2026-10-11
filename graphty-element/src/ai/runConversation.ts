@@ -105,6 +105,11 @@ export interface ConversationRun {
      * @returns The approval request's id, or undefined when nothing can approve it.
      */
     readonly hold?: (held: HeldBatch) => string | undefined;
+    /**
+     * Ids for the messages the loop adds; `m<n>` (the message's place) when absent. A saved
+     * conversation passes unique ones, so two copies merged by id keep both.
+     */
+    readonly newId?: () => string;
 }
 
 /** The model's turn failed: the provider refused or failed, or the turn was cancelled. */
@@ -413,6 +418,7 @@ function partOutcome(call: ToolCallRequest, result: CallResult | undefined, batc
  * @param calls - The calls it made.
  * @param batch - What running them did.
  * @param cap - The most characters one result may take.
+ * @param newId - Makes each new message's id.
  */
 function appendRound(
     conversation: Conversation,
@@ -420,47 +426,45 @@ function appendRound(
     calls: ToolCallRequest[],
     batch: BatchOutcome,
     cap: number,
+    newId: () => string,
 ): void {
     const { messages } = conversation;
-    const id = messages.length + 1;
-    messages.push(
-        {
-            id: `m${id}`,
-            role: "assistant",
-            parts: [
-                ...(text ? [{ type: "text" as const, origin: "model" as const, text }] : []),
-                ...calls.map((call) => ({
-                    type: "tool-call" as const,
-                    origin: "model" as const,
-                    callId: call.id,
-                    command: call.name,
-                    arguments: call.arguments,
-                    // Opaque round-trip data (Gemini's thought signature): the engine that wrote it
-                    // sends it back with the call; any other engine ignores it.
-                    ...(call.providerState && { providerState: call.providerState }),
-                })),
-            ],
-        },
-        {
-            id: `m${id + 1}`,
-            role: "tool",
-            parts: calls.map((call, index) => {
-                const result = batch.results.at(index);
-                const outcome = partOutcome(call, result, batch);
-                const view =
-                    outcome.code === "AI_TOOL_NOT_RUN" && result?.success === true
-                        ? { code: "AI_TOOL_NOT_RUN", params: { tool: call.name, rolledBack: true } }
-                        : modelView(result, call.name);
-                return {
-                    type: "tool-result" as const,
-                    origin: "graph-data" as const,
-                    callId: call.id,
-                    ...outcome,
-                    content: resultText(view, cap),
-                };
-            }),
-        },
-    );
+    messages.push({
+        id: newId(),
+        role: "assistant",
+        parts: [
+            ...(text ? [{ type: "text" as const, origin: "model" as const, text }] : []),
+            ...calls.map((call) => ({
+                type: "tool-call" as const,
+                origin: "model" as const,
+                callId: call.id,
+                command: call.name,
+                arguments: call.arguments,
+                // Opaque round-trip data (Gemini's thought signature): the engine that wrote it
+                // sends it back with the call; any other engine ignores it.
+                ...(call.providerState && { providerState: call.providerState }),
+            })),
+        ],
+    });
+    messages.push({
+        id: newId(),
+        role: "tool",
+        parts: calls.map((call, index) => {
+            const result = batch.results.at(index);
+            const outcome = partOutcome(call, result, batch);
+            const view =
+                outcome.code === "AI_TOOL_NOT_RUN" && result?.success === true
+                    ? { code: "AI_TOOL_NOT_RUN", params: { tool: call.name, rolledBack: true } }
+                    : modelView(result, call.name);
+            return {
+                type: "tool-result" as const,
+                origin: "graph-data" as const,
+                callId: call.id,
+                ...outcome,
+                content: resultText(view, cap),
+            };
+        }),
+    });
 }
 
 /**
@@ -566,6 +570,7 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
     // once, it would stop after looking and the person would get nothing.
     const tally: MessageTally = { results: [], committed: 0 };
     const texts: string[] = [];
+    const newId = run.newId ?? ((): string => `m${String(conversation.messages.length + 1)}`);
 
     for (let turn = 1; ; turn++) {
         // Past the tool turns, a text answer only: a model that spent every turn looking and never
@@ -604,6 +609,15 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
 
         // A provider that ignores toolMode may still call tools on the answer-only ask: they do not run.
         if (answerOnly || calls.length === 0) {
+            if (text) {
+                // The answer stays in the conversation, for a host that keeps it.
+                conversation.messages.push({
+                    id: newId(),
+                    role: "assistant",
+                    parts: [{ type: "text", origin: "model", text }],
+                });
+            }
+
             break;
         }
 
@@ -615,7 +629,7 @@ export async function runConversation(run: ConversationRun): Promise<ExecutionRe
             return combineResults(tally, joinTexts(texts));
         });
         tallyBatch(tally, batch, run);
-        appendRound(conversation, text, calls, batch, RESULT_CAP[profile]);
+        appendRound(conversation, text, calls, batch, RESULT_CAP[profile], newId);
     }
 
     const result = combineResults(tally, joinTexts(texts));

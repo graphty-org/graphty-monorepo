@@ -3,15 +3,33 @@
  * @module ai/AiController
  */
 
-import type { AiResultCode, AiResultParams } from "../catalog/ai";
+import {
+    AI_CONVERSATION_FORMAT,
+    AI_CONVERSATION_FORMAT_VERSION,
+    type AiResultCode,
+    type AiResultParams,
+} from "../catalog/ai";
 import type { AiEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession } from "../session/types";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, CommandResult } from "./commands/types";
+import {
+    type ConversationStore,
+    type ConversationStoreChange,
+    openConversationStore,
+} from "./conversation/Conversation";
+import type { ConversationRecord } from "./conversation/formats";
+import { conversationToReopen } from "./conversation/scope";
+import {
+    type AiConversationSnapshot,
+    type AiConversationSummary,
+    conversationSnapshot,
+    conversationSummary,
+} from "./conversation/snapshot";
 import { ENGINE_OVERRIDE, engineFor } from "./engine/load";
-import type { AiEngine } from "./engine/types";
+import type { AiEngine, SavedMessage } from "./engine/types";
 import type { LlmProvider } from "./providers/types";
 import { type Conversation, latestStepOf, MessageRolledBack, runConversation, TurnFailed } from "./runConversation";
 import { toSafeError } from "./safeError";
@@ -24,8 +42,17 @@ import { type AssistantGateLimits, DEFAULT_ASSISTANT_GATE_LIMITS } from "./tools
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
 
-/** Numbers each message, so its steps can be found in the history by their provenance. */
-let messageCount = 0;
+/**
+ * An id no other message, conversation or page load gives: a prefix and 128 random bits. A
+ * message's id is stamped on its steps' provenance, so it must stay unique across reloads.
+ * @param prefix - What kind of id it is.
+ * @returns The id.
+ */
+function uniqueId(prefix: string): string {
+    // getRandomValues, unlike randomUUID, is there on a page served over plain http too.
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    return prefix + Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 /** Numbers each approval request. */
 let approvalCount = 0;
@@ -93,6 +120,61 @@ function revisionOf(session: GraphSession): string {
 /** Event emitter callback type */
 export type AiEventEmitter = (event: AiEvent) => void;
 
+/** Where the assistant keeps its conversations, and how much of one a turn is shown. */
+export interface AiHistoryOptions {
+    /** `"memory"` keeps them while the page lives; `"browser"` keeps them in IndexedDB, across reloads. */
+    readonly store: "memory" | "browser";
+    /**
+     * The scope conversations are saved and listed under. Default: the element's `id` and the
+     * page's path, so two elements, or two pages, keep their conversations apart.
+     */
+    readonly key?: string;
+    /**
+     * The host's name for the loaded data. The conversation reopened at `enableAiControl` is the
+     * newest of the scope whose `dataKey` matches; without one, whose graph fingerprint matches.
+     */
+    readonly dataKey?: string;
+    /** The IndexedDB database, for `"browser"`. Default `"graphty-ai"`. */
+    readonly database?: string;
+    /**
+     * How many tokens of the conversation a turn is shown (counted as characters / 4); older
+     * exchanges drop out of what the model sees, never out of what is saved. Default 16,000, or
+     * 3,000 for the small tool profile.
+     */
+    readonly budgetTokens?: number;
+}
+
+/** Options a message is sent with. */
+export interface AiCommandOptions {
+    /**
+     * The saved conversation to send it into, which becomes the open one. An id that is not saved,
+     * or any id when the assistant keeps no history, resolves `AI_HISTORY_UNAVAILABLE` with
+     * `{ reason: "unknown-conversation" }`.
+     */
+    readonly conversation?: string;
+}
+
+/**
+ * The history options a setting stands for.
+ * @param history - The setting.
+ * @returns The options, or undefined for none.
+ */
+function historyOptionsOf(history: AiControllerOptions["history"]): AiHistoryOptions | undefined {
+    if (history === undefined || history === "none") {
+        return undefined;
+    }
+
+    return typeof history === "string" ? { store: history } : history;
+}
+
+/** What `aiCommand` resolves for a conversation it cannot open. */
+const UNKNOWN_CONVERSATION: ExecutionResult = {
+    success: false,
+    message: "",
+    code: "AI_HISTORY_UNAVAILABLE",
+    params: { reason: "unknown-conversation" },
+};
+
 /** Options for creating an AiController */
 export interface AiControllerOptions {
     /** The LLM provider to use */
@@ -122,6 +204,13 @@ export interface AiControllerOptions {
      * approval. Absent, only URLs in the reader's own message are imported.
      */
     allowImportUrl?: (url: URL) => boolean;
+    /**
+     * Whether the assistant keeps one conversation across messages: `"none"` (the default: every
+     * message starts afresh), `"memory"`, `"browser"`, or the options.
+     */
+    history?: "none" | "memory" | "browser" | AiHistoryOptions;
+    /** The configured API keys, kept out of every saved or exported conversation. */
+    secrets?: () => readonly string[];
 }
 
 /** Combined result from execution */
@@ -166,7 +255,17 @@ export class AiController {
      * The controller's turns, one at a time: a message, or an approval, waits for the one before
      * it, so two never write into each other's transactions or share the status.
      */
-    private queue: Promise<unknown> = Promise.resolve();
+    private queue: Promise<unknown>;
+    /** Where conversations are kept, and how; undefined when none are. */
+    private readonly history: AiHistoryOptions | undefined;
+    private readonly secrets: () => readonly string[];
+    /** The open history store, once opened. */
+    private store: ConversationStore | undefined;
+    private stopStore = (): void => undefined;
+    /** The open conversation, as last saved or loaded. */
+    private current: ConversationRecord | undefined;
+    /** Settles once the store is open and the conversation reopened. */
+    private readonly opened: Promise<void>;
 
     /**
      * Creates a new AiController instance.
@@ -185,6 +284,11 @@ export class AiController {
         this.profile = options.toolProfile ?? "standard";
         this.gate = options.gate === false ? false : { ...DEFAULT_ASSISTANT_GATE_LIMITS, ...options.gate };
         this.allowImportUrl = options.allowImportUrl;
+        this.history = historyOptionsOf(options.history);
+        this.secrets = options.secrets ?? ((): readonly string[] => []);
+        this.opened = this.history === undefined ? Promise.resolve() : this.openHistory(this.history);
+        // Every turn waits for the saved conversation.
+        this.queue = this.opened;
 
         // Subscribe to status changes to emit events
         this.statusManager.subscribe((status) => {
@@ -208,9 +312,10 @@ export class AiController {
     /**
      * Execute a natural language command.
      * @param input - The user's natural language input
+     * @param options - The conversation to send it into.
      * @returns Promise resolving to the execution result
      */
-    async execute(input: string): Promise<ExecutionResult> {
+    async execute(input: string, options: AiCommandOptions = {}): Promise<ExecutionResult> {
         logger.debug("User input", { inputLength: input.length });
 
         if (this.disposed) {
@@ -232,6 +337,11 @@ export class AiController {
             if (abortController.signal.aborted) {
                 this.running.delete(abortController);
                 return { success: false, message: "", code: "AI_CANCELLED", params: {} };
+            }
+
+            if (options.conversation !== undefined && !(await this.switchTo(options.conversation))) {
+                this.running.delete(abortController);
+                return UNKNOWN_CONVERSATION;
             }
 
             return this.executeNow(input, abortController);
@@ -274,7 +384,7 @@ export class AiController {
         // nothing is held while the model thinks and the person's own edits go through. Every
         // batch after the first continues the message's step (`after`), merging into it while it
         // is the newest step. An undo of one of its steps while the message is going ends it.
-        const message = String(++messageCount);
+        const message = uniqueId("msg_");
         // A held batch's approval expires when the reader says something new.
         this.approvals.clear();
         let stopWatching = (): void => undefined;
@@ -290,13 +400,16 @@ export class AiController {
                 }
             });
 
+            const conversation = this.startConversation(input, session);
+            // A message taken back is not kept, so the conversation never holds changes the graph does not.
+            let keep = true;
             let result: ExecutionResult;
             try {
                 const emit = (event: AiEvent): void => {
                     this.emitAiEvent(event);
                 };
                 result = await runConversation({
-                    conversation: this.startConversation(input, session),
+                    conversation,
                     engine: this.engine,
                     tools: this.commandRegistry,
                     graph: this.graph,
@@ -319,6 +432,14 @@ export class AiController {
                         ...(this.allowImportUrl === undefined ? {} : { allowImportUrl: this.allowImportUrl }),
                     },
                     hold: (held) => this.hold(held, message, input, session),
+                    ...(this.history === undefined
+                        ? {}
+                        : {
+                              newId: () => uniqueId("m_"),
+                              ...(this.history.budgetTokens === undefined
+                                  ? {}
+                                  : { historyBudgetTokens: this.history.budgetTokens }),
+                          }),
                 });
             } catch (error) {
                 // A tool threw, the message was cancelled or undone, or the model failed: what the
@@ -332,6 +453,8 @@ export class AiController {
                     throw error;
                 }
 
+                keep = false;
+
                 ({ result } = error);
                 if (remaining > 0) {
                     result = { ...result, code: "AI_ROLLBACK_PARTIAL", params: { ...result.params, steps: remaining } };
@@ -340,6 +463,11 @@ export class AiController {
                 if (this.cancelled.has(abortController)) {
                     result = { ...result, code: "AI_CANCELLED", params: {} };
                 }
+            }
+
+            // Saved once, when the message ends: never per streamed piece of text.
+            if (keep) {
+                await this.save(conversation.messages);
             }
 
             // Complete
@@ -580,8 +708,9 @@ export class AiController {
             return {
                 system: assistantInstructions(this.profile, consumer),
                 messages: [
+                    ...this.earlierMessages(),
                     {
-                        id: "m1",
+                        id: this.firstMessageId(),
                         role: "user",
                         parts: [
                             { type: "text", origin: "graph-data", text: factsBlock(session, this.profile) },
@@ -605,7 +734,10 @@ When the user asks you to perform an action, use the appropriate tool. If no too
 
         return {
             system,
-            messages: [{ id: "m1", role: "user", parts: [{ type: "text", origin: "reader", text: input }] }],
+            messages: [
+                ...this.earlierMessages(),
+                { id: this.firstMessageId(), role: "user", parts: [{ type: "text", origin: "reader", text: input }] },
+            ],
         };
     }
 
@@ -625,6 +757,274 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         }
 
         return `\n${this.schemaManager.getFormattedSchema()}\n`;
+    }
+
+    /**
+     * The open conversation's messages, which a new message continues; none without history.
+     * @returns Copies of them.
+     */
+    private earlierMessages(): SavedMessage[] {
+        return [...(this.current?.messages ?? [])];
+    }
+
+    /**
+     * The id of a message's reader message: `m1` when every message starts afresh, as before.
+     * @returns The id.
+     */
+    private firstMessageId(): string {
+        return this.history === undefined ? "m1" : uniqueId("m_");
+    }
+
+    /**
+     * Open the store and reopen the conversation of this scope and graph, or start one.
+     * @param history - Where conversations are kept.
+     * @returns When open; never rejects.
+     */
+    private async openHistory(history: AiHistoryOptions): Promise<void> {
+        try {
+            const { store, failure } = await openConversationStore({
+                store: history.store,
+                ...(history.database === undefined ? {} : { database: history.database }),
+                secrets: this.secrets,
+            });
+            this.store = store;
+            this.stopStore = store.subscribe((change) => {
+                this.storeChanged(change);
+            });
+            const reopened = conversationToReopen(await store.list(this.key()), this.key(), this.graphFacts());
+            this.current = reopened ?? this.freshRecord();
+            if (failure !== undefined) {
+                this.emitChanged(failure);
+            }
+
+            if (reopened !== undefined) {
+                this.emitChanged();
+            }
+        } catch (error) {
+            // ponytail: an unreadable store reads as no history; the controller still answers.
+            logger.warn("History could not open", { error: toSafeError(error).name });
+            this.current = undefined;
+        }
+    }
+
+    /**
+     * The scope conversations are kept under.
+     * @returns The key.
+     */
+    private key(): string {
+        return this.history?.key ?? "";
+    }
+
+    /**
+     * The loaded graph, as a conversation records it.
+     * @returns Its data key and fingerprint.
+     */
+    private graphFacts(): { dataKey: string | null; fingerprint: string } {
+        return { dataKey: this.history?.dataKey ?? null, fingerprint: this.graph.getSession().data.fingerprint() };
+    }
+
+    /**
+     * A new, empty conversation, saved with its first message.
+     * @returns The record.
+     */
+    private freshRecord(): ConversationRecord {
+        const now = new Date().toISOString();
+        return {
+            format: AI_CONVERSATION_FORMAT,
+            version: AI_CONVERSATION_FORMAT_VERSION,
+            revision: 0,
+            id: uniqueId("c_"),
+            key: this.key(),
+            createdAt: now,
+            updatedAt: now,
+            graph: this.graphFacts(),
+            messages: [],
+            pending: [],
+        };
+    }
+
+    /**
+     * Tell the host the open conversation changed, or that its store failed.
+     * @param failure - The store's failure, if that is the news.
+     * @param failure.code - Its code.
+     * @param failure.params - Its facts.
+     */
+    private emitChanged(failure?: { readonly code: AiResultCode; readonly params: AiResultParams }): void {
+        this.emitAiEvent({
+            type: "ai-conversation-changed",
+            conversationId: this.current?.id ?? "",
+            ...(failure === undefined ? {} : { code: failure.code, params: failure.params }),
+        });
+    }
+
+    /**
+     * What the store said: a failure, or another instance changed a conversation.
+     * @param change - What it said.
+     */
+    private storeChanged(change: ConversationStoreChange): void {
+        if (change.code !== undefined) {
+            this.emitChanged({ code: change.code, params: change.params ?? {} });
+            return;
+        }
+
+        const { current } = this;
+        if (current === undefined || (change.conversationId !== undefined && change.conversationId !== current.id)) {
+            return;
+        }
+
+        // Re-read it between turns, so a message never loses the copy it is writing.
+        void this.enqueue(async () => {
+            if (this.current?.id !== current.id || this.store === undefined) {
+                return;
+            }
+
+            this.current = (await this.store.load(current.id)) ?? this.freshRecord();
+            this.emitChanged();
+        });
+    }
+
+    /**
+     * Save the open conversation with these messages, at the end of a turn.
+     * @param messages - Its messages now.
+     */
+    private async save(messages: readonly SavedMessage[]): Promise<void> {
+        const { store, current } = this;
+        if (store === undefined || current === undefined) {
+            return;
+        }
+
+        const record: ConversationRecord = {
+            ...current,
+            messages,
+            updatedAt: new Date().toISOString(),
+            graph: this.graphFacts(),
+        };
+        try {
+            this.current = await store.save(record);
+        } catch (error) {
+            // A store reports its own write failures; this is a record it refused (a bug).
+            logger.warn("Conversation not saved", { error: toSafeError(error).name });
+            this.current = record;
+        }
+
+        this.emitChanged();
+    }
+
+    /**
+     * Make a saved conversation the open one, its turn come.
+     * @param id - Its id.
+     * @returns Whether it exists.
+     */
+    private async switchTo(id: string): Promise<boolean> {
+        if (this.current?.id === id) {
+            return true;
+        }
+
+        const record = await this.store?.load(id);
+        if (record === undefined) {
+            return false;
+        }
+
+        this.current = record;
+        this.emitChanged();
+        return true;
+    }
+
+    /**
+     * Resolves once the saved conversation is open (at once without history).
+     * @returns When ready.
+     */
+    ready(): Promise<void> {
+        return this.opened;
+    }
+
+    /**
+     * The open conversation, as an application draws it.
+     * @returns Its snapshot, or null without history.
+     */
+    getConversation(): AiConversationSnapshot | null {
+        return this.current === undefined ? null : conversationSnapshot(this.current);
+    }
+
+    /**
+     * The saved conversations, newest first.
+     * @param options - Which.
+     * @param options.allKeys - True for every scope's, not only this one's.
+     * @returns Their summaries; none without history.
+     */
+    async listConversations(options: { readonly allKeys?: boolean } = {}): Promise<readonly AiConversationSummary[]> {
+        await this.opened;
+        const records = (await this.store?.list(options.allKeys === true ? undefined : this.key())) ?? [];
+        return records.map(conversationSummary);
+    }
+
+    /**
+     * Make a saved conversation the open one; the next message continues it.
+     * @param id - Its id.
+     * @returns Its snapshot, or null when there is no such conversation.
+     */
+    openConversation(id: string): Promise<AiConversationSnapshot | null> {
+        return this.enqueue(async () => ((await this.switchTo(id)) ? this.getConversation() : null));
+    }
+
+    /**
+     * Start a new conversation; the one open stays saved and listed. It is saved with its first message.
+     * @returns Its snapshot, or null without history.
+     */
+    newConversation(): Promise<AiConversationSnapshot | null> {
+        return this.enqueue(() => {
+            if (this.store !== undefined) {
+                this.current = this.freshRecord();
+            }
+
+            return Promise.resolve(this.getConversation());
+        });
+    }
+
+    /**
+     * Delete a saved conversation; deleting the open one starts a new one.
+     * @param id - Its id.
+     * @returns When done.
+     */
+    deleteConversation(id: string): Promise<void> {
+        return this.enqueue(async () => {
+            await this.store?.delete(id);
+            if (this.current?.id === id) {
+                this.current = this.freshRecord();
+            }
+        });
+    }
+
+    /**
+     * Delete every saved conversation, of every scope, and start a new one: for a shared device's
+     * "end session".
+     * @returns When done.
+     */
+    clearHistory(): Promise<void> {
+        return this.enqueue(async () => {
+            if (this.store === undefined) {
+                return;
+            }
+
+            await this.store.clear();
+            this.current = this.freshRecord();
+        });
+    }
+
+    /**
+     * A saved conversation in the published `graphty-ai-conversation` format, version 1.
+     * @param id - Its id.
+     * @returns Its JSON text, or null when there is no such conversation.
+     */
+    async exportConversation(id: string): Promise<string | null> {
+        await this.opened;
+        const record = await this.store?.load(id);
+        if (record === undefined) {
+            return null;
+        }
+
+        const { writeConversation } = await import("./conversation/formats");
+        return writeConversation(record, { secrets: this.secrets() });
     }
 
     /**
@@ -665,6 +1065,9 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     dispose(): void {
         this.disposed = true;
         this.cancel();
+        this.stopStore();
+        // Closed once the turns before it have settled, so the last save still lands.
+        void this.queue.then(() => this.store?.close());
         this.engine.dispose();
         this.statusManager.reset();
     }

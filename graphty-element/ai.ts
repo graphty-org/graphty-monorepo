@@ -33,7 +33,21 @@ export type {
 export { AiStatusManager } from "./src/ai/index";
 
 // AI Controller
-export type { AiControllerOptions, AiEventEmitter, ExecutionResult } from "./src/ai/index";
+export type {
+    AiCommandOptions,
+    AiControllerOptions,
+    AiEventEmitter,
+    AiHistoryOptions,
+    ExecutionResult,
+} from "./src/ai/index";
+
+// Saved conversations, as an application reads them
+export type {
+    AiCallRecord,
+    AiConversationMessage,
+    AiConversationSnapshot,
+    AiConversationSummary,
+} from "./src/ai/index";
 export { AiController } from "./src/ai/index";
 
 // AI Manager
@@ -44,7 +58,13 @@ export { AiManager, createAiManager } from "./src/ai/index";
 // the host is asked and handed.
 export type { AssistantGateLimits } from "./src/ai/tools/types";
 export { DEFAULT_ASSISTANT_GATE_LIMITS } from "./src/ai/tools/types";
-export type { AiApprovalPreview, AiApprovalRequest, AiApprovalRequestedEvent, AiExportReadyEvent } from "./src/events";
+export type {
+    AiApprovalPreview,
+    AiApprovalRequest,
+    AiApprovalRequestedEvent,
+    AiConversationChangedEvent,
+    AiExportReadyEvent,
+} from "./src/events";
 
 // AI Commands
 export type { CommandContext, CommandExample, CommandResult, GraphCommand } from "./src/ai/index";

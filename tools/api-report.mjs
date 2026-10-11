@@ -150,6 +150,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "version",
     "at",
     "startedAt",
+    "createdAt",
+    "updatedAt",
     "path",
     "mediaType",
     "color",

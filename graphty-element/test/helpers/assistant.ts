@@ -7,7 +7,7 @@
  */
 
 import { createGraphSession, type GraphSession } from "../../session";
-import { AiController, type ExecutionResult } from "../../src/ai/AiController";
+import { AiController, type AiControllerOptions, type ExecutionResult } from "../../src/ai/AiController";
 import { CommandRegistry } from "../../src/ai/commands";
 import type { CommandContext } from "../../src/ai/commands/types";
 import { FakeEngine, type FakeTurn } from "../../src/ai/engine/FakeEngine";
@@ -135,6 +135,7 @@ export class ScriptedAssistant {
      * @param options.toolProfile - The profile.
      * @param options.graph - A graph to stand behind the session (a renderer stub).
      * @param options.allowImportUrl - URLs the reader did not type that an import may still ask about.
+     * @param options.history - Where conversations are kept; none when absent.
      */
     constructor(
         readonly session: GraphSession,
@@ -143,6 +144,7 @@ export class ScriptedAssistant {
             toolProfile?: "standard" | "small";
             graph?: object;
             allowImportUrl?: (url: URL) => boolean;
+            history?: AiControllerOptions["history"];
         } = {},
     ) {
         installAssistantTools(this.registry, session);
@@ -155,6 +157,7 @@ export class ScriptedAssistant {
             ...(options.gate === undefined ? {} : { gate: options.gate }),
             ...(options.toolProfile === undefined ? {} : { toolProfile: options.toolProfile }),
             ...(options.allowImportUrl === undefined ? {} : { allowImportUrl: options.allowImportUrl }),
+            ...(options.history === undefined ? {} : { history: options.history }),
             [ENGINE_OVERRIDE]: this.engine,
         } as never);
     }
@@ -166,10 +169,25 @@ export class ScriptedAssistant {
      * @returns What the message did.
      */
     async say(text: string, ...batches: { tool: string; args?: Record<string, unknown> }[][]): Promise<MessageRun> {
+        return this.sayInto(undefined, text, ...batches);
+    }
+
+    /**
+     * Send one message into a saved conversation, as `say` does.
+     * @param conversation - The conversation's id, or undefined for the open one.
+     * @param text - The reader's message.
+     * @param batches - Each turn's calls.
+     * @returns What the message did.
+     */
+    async sayInto(
+        conversation: string | undefined,
+        text: string,
+        ...batches: { tool: string; args?: Record<string, unknown> }[][]
+    ): Promise<MessageRun> {
         const start = this.events.length;
         const turns: FakeTurn[] = batches.map((calls, turn) => callsTurn(calls, turn));
         this.engine.push(...turns, textTurn("done"));
-        const result = await this.controller.execute(text);
+        const result = await this.controller.execute(text, conversation === undefined ? undefined : { conversation });
         return { result, events: this.events.slice(start), engine: this.engine };
     }
 

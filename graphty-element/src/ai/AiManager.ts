@@ -7,10 +7,17 @@
 import debounce from "lodash/debounce.js";
 
 import type { Graph } from "../Graph";
-import { AiController, type ExecutionResult } from "./AiController";
+import {
+    type AiCommandOptions,
+    AiController,
+    type AiControllerOptions,
+    type AiHistoryOptions,
+    type ExecutionResult,
+} from "./AiController";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import { CommandRegistry } from "./commands";
 import { offeredName } from "./commands/CommandRegistry";
+import type { AiConversationSnapshot, AiConversationSummary } from "./conversation/snapshot";
 import { ApiKeyManager } from "./keys";
 import { createProvider, type ProviderType } from "./providers";
 import type { LlmProvider } from "./providers/types";
@@ -77,6 +84,45 @@ export interface AiManagerConfig {
     providerInstance?: LlmProvider;
     /** Key persistence configuration for encrypted storage */
     keyPersistence?: KeyPersistenceConfig;
+    /**
+     * Whether the assistant remembers: `"none"` (the default: every message starts a new
+     * conversation), `"memory"` (one conversation across messages, while the page lives),
+     * `"browser"` (kept in IndexedDB, reopened after a reload), or `AiHistoryOptions`. Saved
+     * conversations stay on the reader's device, unencrypted; no API key is saved.
+     */
+    history?: "none" | "memory" | "browser" | AiHistoryOptions;
+}
+
+/**
+ * The id that scopes an element's conversations: the `<graphty-element>`'s own, when the graph
+ * draws inside one, else the graph's container's.
+ * @param element - The graph's container.
+ * @returns The id.
+ */
+function scopeId(element: Element | undefined): string {
+    const root = element?.getRootNode();
+    const host = typeof ShadowRoot !== "undefined" && root instanceof ShadowRoot ? root.host : element;
+    return host?.id ?? "";
+}
+
+/**
+ * The history options the controller gets: the setting, with the default key filled in.
+ * @param history - The setting.
+ * @param graph - The graph, for its element.
+ * @returns The options, or undefined for none.
+ */
+function historyFor(history: AiManagerConfig["history"], graph: Graph): AiControllerOptions["history"] {
+    if (history === undefined || history === "none") {
+        return undefined;
+    }
+
+    const options: AiHistoryOptions = typeof history === "string" ? { store: history } : history;
+    return {
+        ...options,
+        key:
+            options.key ??
+            `${scopeId((graph as { element?: Element }).element)}:${globalThis.location?.pathname ?? ""}`,
+    };
 }
 
 /**
@@ -167,6 +213,7 @@ export class AiManager {
         // Create the controller. WebLLM's models break past a handful of tools.
         const profile = config.toolProfile ?? "auto";
         const smallModel = config.provider === "webllm";
+        const history = historyFor(config.history, graph);
         this.controller = new AiController({
             provider: this.provider,
             commandRegistry: this.commandRegistry,
@@ -175,6 +222,15 @@ export class AiManager {
             toolProfile: profile === "auto" ? toolProfileFor(smallModel) : profile,
             ...(config.gate === undefined ? {} : { gate: config.gate }),
             ...(config.allowImportUrl === undefined ? {} : { allowImportUrl: config.allowImportUrl }),
+            ...(history === undefined
+                ? {}
+                : {
+                      history,
+                      secrets: () =>
+                          this.apiKeyManager
+                              .getConfiguredProviders()
+                              .flatMap((provider) => this.apiKeyManager.getKey(provider) ?? []),
+                  }),
             // Onto the graph's own event channel, so `addListener` and the element's DOM
             // forwarder both deliver every AI event.
             emitEvent: (event) => {
@@ -274,9 +330,10 @@ export class AiManager {
     /**
      * Execute a natural language command.
      * @param input - The user's natural language input
+     * @param options - The saved conversation to send it into.
      * @returns Promise resolving to the execution result
      */
-    async execute(input: string): Promise<ExecutionResult> {
+    async execute(input: string, options?: AiCommandOptions): Promise<ExecutionResult> {
         if (this.disposed) {
             return {
                 success: false,
@@ -295,7 +352,73 @@ export class AiManager {
             };
         }
 
-        return this.controller.execute(input);
+        return this.controller.execute(input, options);
+    }
+
+    /**
+     * Resolves once the saved conversation is open: at once without `history`.
+     * @returns When ready.
+     */
+    async ready(): Promise<void> {
+        await this.controller?.ready();
+    }
+
+    /**
+     * The open conversation, as an application draws it: what the reader and the model said, and
+     * the calls the model made with their outcomes as codes.
+     * @returns Its snapshot, or null without `history`.
+     */
+    getConversation(): AiConversationSnapshot | null {
+        return this.controller?.getConversation() ?? null;
+    }
+
+    /**
+     * The saved conversations of this element's scope, newest first.
+     * @param options - Which.
+     * @param options.allKeys - True for every scope's.
+     * @returns Their summaries; none without `history`.
+     */
+    async listConversations(options?: { readonly allKeys?: boolean }): Promise<readonly AiConversationSummary[]> {
+        return (await this.controller?.listConversations(options)) ?? [];
+    }
+
+    /**
+     * Make a saved conversation the open one; the next message continues it.
+     * @param id - Its id.
+     * @returns Its snapshot, or null when there is none.
+     */
+    async openConversation(id: string): Promise<AiConversationSnapshot | null> {
+        return (await this.controller?.openConversation(id)) ?? null;
+    }
+
+    /**
+     * Start a new conversation; the open one stays saved.
+     * @returns Its snapshot, or null without `history`.
+     */
+    async newConversation(): Promise<AiConversationSnapshot | null> {
+        return (await this.controller?.newConversation()) ?? null;
+    }
+
+    /**
+     * Delete a saved conversation.
+     * @param id - Its id.
+     */
+    async deleteConversation(id: string): Promise<void> {
+        await this.controller?.deleteConversation(id);
+    }
+
+    /** Delete every saved conversation, of every scope: for a shared device's "end session". */
+    async clearHistory(): Promise<void> {
+        await this.controller?.clearHistory();
+    }
+
+    /**
+     * A saved conversation as JSON, in the published `graphty-ai-conversation` format.
+     * @param id - Its id.
+     * @returns The JSON text, or null when there is none.
+     */
+    async exportConversation(id: string): Promise<string | null> {
+        return (await this.controller?.exportConversation(id)) ?? null;
     }
 
     /**

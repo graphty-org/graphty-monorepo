@@ -323,6 +323,10 @@ export interface GraphtyElementJSXProps {
      */
     "onai-command-start"?: (event: CustomEvent<EventOfType<"ai-command-start">>) => void;
     /**
+     * The open conversation changed: it was saved, reopened, switched to or changed by another tab, or its store failed. Read it again with `getAiConversation()`. Only with `history` set.
+     */
+    "onai-conversation-changed"?: (event: CustomEvent<EventOfType<"ai-conversation-changed">>) => void;
+    /**
      * The assistant exported the graph or captured a picture or a video: the document is handed to the application, which saves or shows it. The model receives only its size.
      */
     "onai-export-ready"?: (event: CustomEvent<EventOfType<"ai-export-ready">>) => void;

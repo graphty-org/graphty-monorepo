@@ -2,6 +2,7 @@ import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
 
 import type { AiStatus } from "./ai/AiStatus";
 import type { CommandResult } from "./ai/commands/types";
+import type { AiResultCode, AiResultParams } from "./catalog/ai";
 import type { EdgeId, FormatId, NodeId } from "./catalog/types";
 import type { NodeIdType } from "./config";
 import type { ExportLoss } from "./data/export";
@@ -735,7 +736,8 @@ export type AiEvent =
     | AiVoiceTranscriptEvent
     | AiVoiceEndEvent
     | AiApprovalRequestedEvent
-    | AiExportReadyEvent;
+    | AiExportReadyEvent
+    | AiConversationChangedEvent;
 
 /** Main event for UI binding - single source of truth for AI status */
 export interface AiStatusChangeEvent {
@@ -883,6 +885,24 @@ export interface AiExportReadyEvent {
     data: string | Blob;
     /** What the format could not carry, as coded facts. */
     losses: readonly ExportLoss[];
+}
+
+/**
+ * The open conversation changed: it was saved, reopened, switched to or changed by another tab,
+ * or its store failed. Read it again with `getAiConversation()`. Only with `history` set.
+ */
+export interface AiConversationChangedEvent {
+    /** The event's name. */
+    type: "ai-conversation-changed";
+    /** The open conversation's id. */
+    conversationId: string;
+    /**
+     * Set when the store failed: `AI_STORAGE_FAILED` (a write failed; the conversation carries on
+     * in memory) or `AI_HISTORY_UNAVAILABLE` (the browser's storage could not open).
+     */
+    code?: AiResultCode;
+    /** The facts behind `code`. */
+    params?: AiResultParams;
 }
 
 /** Emitted when voice input ends */

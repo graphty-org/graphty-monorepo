@@ -255,7 +255,9 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  *   batch failed or the batch was taken back. `{ tool }`.
  * - `AI_HISTORY_UNAVAILABLE` -- saved history cannot be used. `{ reason }`: `"invalid-record"`
  *   for a saved conversation that is not a valid record (it is skipped, never thrown);
- *   `"storage-unavailable"` when the browser's storage cannot open, and history is kept in memory.
+ *   `"storage-unavailable"` when the browser's storage cannot open, and history is kept in memory;
+ *   `"unknown-conversation"` when `aiCommand` names a conversation that is not saved, or any
+ *   conversation while the assistant keeps no history (nothing is sent).
  * - `AI_HISTORY_NEWER_FORMAT` -- a saved conversation was written by a newer release, in a format
  *   version this one cannot read; it is left untouched. `{ version }`.
  * - `AI_STORAGE_FAILED` -- saving the conversation failed (quota, private mode); it continues in

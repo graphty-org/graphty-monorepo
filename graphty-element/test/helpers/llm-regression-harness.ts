@@ -197,6 +197,8 @@ export interface LlmRegressionTestHarnessOptions {
     temperature?: number;
     /** A session to work on instead of one built from `graphData`: a task's dataset. */
     session?: GraphSession;
+    /** Whether the assistant keeps one conversation across prompts; none, as the element's default, when absent. */
+    history?: AiControllerOptions["history"];
 }
 
 /**
@@ -408,6 +410,7 @@ export class LlmRegressionTestHarness {
             commandRegistry,
             graph,
             toolProfile: process.env.LLM_REGRESSION_TOOL_PROFILE === "small" ? "small" : "standard",
+            ...(options.history === undefined ? {} : { history: options.history }),
             [ENGINE_OVERRIDE]: engine,
         };
         const controller = new AiController(controllerOptions);

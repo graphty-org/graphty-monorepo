@@ -8,8 +8,22 @@ export type { AiStage, AiState, AiStatus, StatusChangeCallback, ToolCallStatus, 
 export { AiStatusManager } from "./AiStatus";
 
 // Controller
-export type { AiControllerOptions, AiEventEmitter, ExecutionResult } from "./AiController";
+export type {
+    AiCommandOptions,
+    AiControllerOptions,
+    AiEventEmitter,
+    AiHistoryOptions,
+    ExecutionResult,
+} from "./AiController";
 export { AiController } from "./AiController";
+
+// Saved conversations, as an application reads them
+export type {
+    AiCallRecord,
+    AiConversationMessage,
+    AiConversationSnapshot,
+    AiConversationSummary,
+} from "./conversation/snapshot";
 
 // Manager (Phase 3)
 export type { AiManagerConfig, KeyPersistenceConfig } from "./AiManager";

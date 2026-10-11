@@ -14,7 +14,7 @@ import { NodeMesh } from "../../src/meshes/NodeMesh";
  * branch is taken and the memory bound holds; they cannot prove that a real
  * `createLinearGradient` / `createRadialGradient` call succeeds with the arguments this code
  * passes. That is what runs here. The final claim, that the ramp LOOKS like a gradient, is a
- * Chromatic screenshot review -- "it renders" is the whole claim of this change, and no unit test
+ * visual-review screenshot review -- "it renders" is the whole claim of this change, and no unit test
  * can make it.
  *
  * THE DEFECT: `NodeMesh.createMaterial` handled only a hex string and `{colorType: "solid"}`, and

@@ -74,13 +74,6 @@
                 "command": "npm run build-storybook",
                 "cwd": "graphty"
             }
-        },
-        "test:visual": {
-            "executor": "nx:run-commands",
-            "options": {
-                "command": "npm run test:visual",
-                "cwd": "graphty"
-            }
         }
     },
     "release": {

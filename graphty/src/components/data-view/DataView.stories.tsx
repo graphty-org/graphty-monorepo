@@ -80,7 +80,7 @@ export const WithCopyButton: Story = {
 /** Large dataset for performance testing */
 export const LargeDataset: Story = {
     args: {
-        // Use deterministic values instead of Math.random() to ensure consistent Chromatic snapshots
+        // Use deterministic values instead of Math.random() to ensure consistent visual snapshots
         data: Array.from({ length: 100 }, (_, i) => ({
             id: `item-${i}`,
             name: `Item ${i}`,

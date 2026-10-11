@@ -122,6 +122,24 @@ function bigFile(nodes: number): File {
     return new File([JSON.stringify({ nodes: records, edges: [] })], "big.json");
 }
 
+/**
+ * A file whose whole-content read waits until `release` is called, so a load of it finishes
+ * after whatever the test runs in between.
+ */
+function heldFile(data: string): { file: File; release: () => void } {
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    const file = new File([data], "held.json");
+    const read = file.arrayBuffer.bind(file);
+    file.arrayBuffer = async () => {
+        await gate;
+        return read();
+    };
+    return { file, release };
+}
+
 describe("the load CALLED last wins", () => {
     beforeEach(() => {
         document.body.innerHTML = "";
@@ -150,10 +168,11 @@ describe("the load CALLED last wins", () => {
     test("load ids rise in call order, not in the order the reads finish", async () => {
         const graph = await graphWith(GOOD);
 
-        const fileLoad = graph.loadFromFile(bigFile(20000));
-        const lateLoad = graph.addDataFromSource("json", { data: JSON.stringify({ nodes: [{ id: "late" }] }) });
-
-        const [file, late] = await Promise.all([fileLoad, lateLoad]);
+        const held = heldFile(OTHER);
+        const fileLoad = graph.loadFromFile(held.file);
+        const late = await graph.addDataFromSource("json", { data: JSON.stringify({ nodes: [{ id: "late" }] }) });
+        held.release();
+        const file = await fileLoad;
 
         assert.isBelow(file.loadId, late.loadId);
     });

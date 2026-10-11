@@ -11,6 +11,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-10) **Round 3 critique: five smallest changes, in order.** (1) graphty-element:
+  Shift-click (and Ctrl, Meta on macOS) on a node adds, through the same `selection.applyNow(...,
+"add", "user")` the edge click uses -- the round's only confirmed app-caused severity 3 (4 of 4
+  T24; `NodeBehavior.handleClick` always replaces). (2) Element adds an optional "or more" target
+  to a numeric `FindValueRow`; the app shows "is 10" and "is 10 or more" under a "Select where"
+  heading so the value is not cut. (3) Analyze filter puts name matches first ("path" finds
+  Shortest path before Betweenness), app-only in `analyze/words.ts`. (4) Element adds `depth` to
+  `data.neighbors` and `hops` to each `Neighbor`; the app shows each name's hops (today it lists
+  the selection by name and cannot know distance without computing over the graph). (5) A Filter
+  button on the Graph toolbar opening the Data place's Filters (5 of 8 T17 looked there first).
+- (2026-10-10) **Hold still in round 4:** second Find path replacing the first, "Select endpoints"
+  in "..." (confounded with Shift-click), the "=" hint and backtick wording (measure "or more"
+  alone), round 2's routes (now passing clean), label and node overlap (element, owner's list).
 - (2026-10-10) **Round 3 screenshot audit done: 38 findings, 0 at severity 4, 2 at 3 (both
   element label placement), 12 at 2.** `tier2/rounds/round-3/expert/engineer.md`. New this round
   and mine to fix in the app: the disabled "Filter to neighbors" shows no reason to the person who
@@ -62,6 +75,14 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   check.
 
 ## Decisions and reasons
+
+- (2026-10-10) **Shift-click on a node adding is a defect fix, not an API change.** The edge
+  click already adds on Shift; nothing documents a node replacing on Shift; no option, nothing
+  removed, `node-click` still fires. Ctrl adds on Windows and Linux, Meta on macOS (Ctrl-click is
+  the macOS context-menu gesture). A Shift-drag still drags.
+- (2026-10-10) **A distance per neighbor is the element's fact, never the app's.** The 2- and
+  3-hop list reads `selection.nodes` sorted by name; splitting it by the 1-hop page would be a
+  neighbor lookup in the app (forbidden). Additive `depth` option and `hops` field instead.
 
 - (2026-10-10) **Round 2 decisions I build to (from round 2's decisions.md).** One change per
   confirmed problem, in its owning package (graph facts in the element, shared controls in
@@ -162,9 +183,6 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   rest. **Label picks** are an opt-in per-layer style field resolved in `pickNodeId` (click, hover,
   drag and `elementAt` agree), recorded under "decided by the team".
 
-- (2026-10-09, condensed) **A landed click is read from Playwright's call log** ("click action
-  done"), not by a longer limit for everyone; setup clicks get 20 s.
-
 - (2026-10-09, summarized) **Smaller standing facts:** the path's Weight list starts on the loaded
   weight; a live region is in the page before its words arrive (`Frame.tsx`); the selection halo
   draws only back faces (`createOverlaySource`); ", out of date" only on `data-changed`; the
@@ -249,8 +267,6 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   agent rebuilt it mid-run (ENOENT on index.html). Copy the dist into the task folder and pass
   `--dist`. Seen, not mine: tier 1's "a node's Values with its neighbors" step misses (click on
   "Degree" times out) on 7fe0a48412cc.
-- (2026-10-10) Write Python edit scripts to a file (heredoc quoting breaks). `openKarate("data")`
-  puts Filters beside the inspector in a real-element test.
 - (2026-10-10) Did not work: a Python `str.replace` to add an assertion after a line two tests
   shared put it in both (the unweighted test then failed on "minutes 14"); anchor test edits on a
   line unique to the test. Worked: proving the row test fails without the fix by writing
@@ -266,43 +282,19 @@ stable`), rather than moving the header out of the pane: one CSS line, and the A
   `insights.md` section 2 first, then grep to place each fix in its package. Seen, not mine:
   `bars.mjs` misses "a node's Values with its neighbors" (Degree click times out).
 
-- (2026-10-09, condensed) Never edit a script while it runs (bash reads by offset; use a copy);
-  `chmod +x` new scripts and read their output, not the exit code; 2x2 `montage` sheets for 900 x
-  700 shots. Control names: "Filter: <n> of <m> nodes", "Source actions", "Graph#1".
-- (2026-10-09, summarized 2026-10-10) **Geometry and proof in tests.** Where text is drawn:
-  a Range over the element's contents, not a padded box's `left`. A point on a drawn name: walk up
-  from `nodeScreenPosition(id)` past its `radius` to the first point `elementAt` answers. Prove a
-  test fails without the change by writing `git show HEAD:<file>` over the source, running, and
-  copying back (no stash); tool files with `node --test` on HEAD copies; prettier checks
-  `design/ui/studio/tool/`. Pilot walks: rebuild from `repilot.sh` and its shots, run it bare,
-  contact sheets with `montage`.
-
-- (2026-10-09, summarized 2026-10-10) **Measure before fixing a look; walk lessons.** Probe
-  computed `display` and real overflow under `with-browser.sh` before CSS; `--expect selected=N`
-  counts rows; a pilot's exact steps are in `.claudehistory/<session>/subagents/`; re-walk every
-  walk whose path uses a changed door; a second test load needs `{ mode: "merge" }`; prove
-  "nothing follows" by spying, never a sleep; hooks: copy `.husky/_/` AND top-level hooks.
-
-- (2026-10-09, condensed) Did not work: leaving edits uncommitted while others commit in the same
-  files (`17bf87085` swept my hunks); commit as soon as hunks pass. Did not work:
-  `open(p, "w").write(f(open(p).read()))` empties the file before the read; read first, then write.
-- (2026-10-09, condensed) Worked: polling `/proc/*/fd` for slot-file holders (`tmp/t2r1-1/holders.sh`;
-  `fuser` prints nothing useful); staging only my hunks of shared files (`git update-index
---cacheinfo`), since real.mjs edits reach every agent's next session; `real.mjs --sr` with Tab and
-  Enter to check a live line prints once (pick the visible line by `role !== "status"`); finding a
-  layout cause in Mantine's CSS first; reading `scores.md` beside `insights.md`; `long-names.csv`
-  for truncation audits, with PIL 4x crops for small text. `--click Graph` takes the rail button.
-- (2026-10-08, summarized) **Older tool and test lessons.** Pilot on a `cp -r graphty/dist` copy;
-  read `setup.log` after every `--start`; step N lands in screenshot N+1; `--sr` focus lines tell
-  "not focused" from "focused, no ring"; hover tooltips need `{ timeout: 3000 }`; assert
-  `checkVisibility()`; a hung browser test is a sync loop (bisect with `-t`); `pgrep -f` matches
-  itself (wait by PID).
-- (2026-10-06 to 10-08, condensed) Shared worktree: stage only my hunks (`git apply --cached`, or a
-  private `GIT_INDEX_FILE`), commit from an empty `git diff --cached`; wait for a clean `tsc` before
-  building over others' half-saved files; grep every route of a value before calling a change done; never commit `api:report` output wholesale. Builds:
+- (2026-10-06 to 10-09, summarized 2026-10-10) **Older tool, test and worktree lessons.** Never
+  edit a running script (copy it); read script output, not exit codes; step N lands in screenshot
+  N+1; read `setup.log` after `--start`; pilot on a copied dist; `--sr` tells "not focused" from
+  "focused, no ring"; hover tooltips need `{ timeout: 3000 }`; `pgrep -f` matches itself. Where
+  text is drawn: a Range over the contents; a point on a name: walk up from `nodeScreenPosition`
+  past its `radius` to the first `elementAt` hit. Probe computed CSS under `with-browser.sh` before
+  a CSS fix; prove "nothing follows" by spying, never a sleep; a second test load needs `{ mode:
+"merge" }`. Shared worktree: stage only my hunks (`git apply --cached` or `update-index
+--cacheinfo`), commit as soon as they pass (`17bf87085` swept mine), never commit `api:report`
+  wholesale, wait for a clean `tsc`; read a file before opening it for write. Builds:
   `NODE_OPTIONS=--max-old-space-size=8192`. Element facts: a `Run` is thenable; per-node values via
-  `session.data.nodePage({ columns: [runId] })`; `selection.apply` throws synchronously on a bad
-  selector (unfiled); `data.name()` returns the id until `knownFields.nodeLabelPath` is set.
+  `data.nodePage({ columns: [runId] })`; `selection.apply` throws synchronously on a bad selector;
+  `data.name()` returns the id until `knownFields.nodeLabelPath` is set.
 
 ## Sources
 

@@ -56,6 +56,8 @@ const VITEST_ARGS = [
     "--reporter=json",
     // in CI also the JUnit report for Mergify Test Insights (its path comes from vitest.config.ts)
     ...(process.env.CI ? ["--reporter=junit"] : []),
+    // and the time-budget check when it is on (tools/vitest-time-budget.mjs)
+    ...(process.env.VITEST_BUDGET_CHECK === "1" ? ["--reporter=../tools/vitest-time-budget.mjs"] : []),
     `--outputFile=${RESULTS_FILE}`,
 ];
 

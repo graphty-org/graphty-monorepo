@@ -258,9 +258,13 @@ records `"followUp": "given <time>"` (never the words).
 
 `--end` on a participant's folder (one under `tmp/studio-sessions/`) copies the whole folder,
 screenshots, `transcript.md`, `saved/` and `downloads/` included, to the round's session folder it
-was briefed from, replacing an earlier attempt's copy (never one that already holds a `grade.md`),
-and writes `leaks.json` beside it: what the participant opened outside its own folder. It prints
-`copied to <folder>` and the check's result. A first `--end` that hands over a follow-up copies
+was briefed from (never one that already holds a `grade.md`), and writes `leaks.json` beside it:
+what the participant opened outside its own folder. The copy only adds: it refreshes the tool's own
+records (the numbered screenshots, `briefing.md`, `session.json`, `session.log`, `setup.log`,
+`work-start.json`, `work.json`, `leaks.json`) and never removes or rewrites any other file already
+in the round's folder, such as the step notes a participant writes there during the session; a
+file of the same name that differs is kept as it was and named in a `kept ... as it was` line. It
+prints `copied to <folder>` and the check's result. A first `--end` that hands over a follow-up copies
 nothing; the second does. An `--end` after the session closed itself still copies.
 
 ```bash
@@ -270,7 +274,9 @@ node $T/real.mjs --leaks <session folder> [transcript.jsonl ...]
 The check reads every tool call of the participant's Claude Code transcripts. Without transcript
 paths it finds them itself: the session logs under `~/.claude/projects/` (or
 `$CLAUDE_CONFIG_DIR/projects/`) written since the briefing whose opening prompt names the folder
-and a study participant, so the follow-up's agent counts and the facilitator's own agents do not.
+(its own folder under `tmp/studio-sessions/`, or the round's `sessions/<id>` folder the round runner
+names) and a study participant, so the follow-up's agent counts and the facilitator's own agents do
+not.
 A session is void, and is re-run rather than graded, if any call opened:
 
 - a facilitator file, by name, anywhere: `tasks.md`, `answers.md`, `criteria.md`, `roster.md`,
@@ -282,7 +288,37 @@ A session is void, and is re-run rather than graded, if any call opened:
 
 It prints one `VOID: the participant opened <what>, <path> (<tool>, <transcript>)` line per call
 and exits 1; with none, one `leak check:` line with the counts and exit 0; with no transcript
-found, exit 2, which is no verdict: run it again with the transcript's path.
+found, a `FAIL:` line and exit 2, which is no verdict: run it again with the transcript's path.
+
+```bash
+node $T/real.mjs --leaks <round folder>     # e.g. tier2/rounds/round-4
+```
+
+The round's check runs the same check on every session the round's `plan.md` lists or its
+`sessions/` holds, rewrites each session's `leaks.json`, and prints `leak check: <n> participant
+logs read for <m> of <k> sessions`, each `VOID` line with its session, and `FAIL: no participant
+log read for <n> sessions: <ids>` when it could not read a session's log. It exits 1 on either: a
+check that read nothing never reports "no leaks".
+
+## Before a round's first session: the gate
+
+```bash
+node $T/real.mjs --gate <round folder>
+```
+
+A round may not start until its folder holds, for the frozen build named on the first line of
+`../tier2/criteria.md`:
+
+- a pilot of every task half its `plan.md` runs: a session folder named for the half (`T20A`,
+  `T12RB`) anywhere under `<round folder>/pilot/`, with its screenshots and a `session.json` whose
+  build stamp is that build;
+- the bars run on that build: `<round folder>/bars/bars.json` from `bars.mjs <round folder>/bars
+--dist <frozen build>`, with every planted case caught (a failing bar does not stop the gate).
+
+It prints a `FAIL:` line per missing piece and exits 1. When all are there it writes a "Gate
+evidence" section at the end of `plan.md` listing each file, and exits 0. The round runner
+(`../tier2/rounds/workflow-tier2.js`) runs the bars and the gate after the plan and stops the round
+on a failure, and runs the round's leak check before scoring.
 
 ## Browsers
 
@@ -339,7 +375,7 @@ one whose step names nothing, one whose click never becomes clickable), a screen
 text, the highlighted option of the find box, a planted region that arrives filled marked
 unconfirmed, `--read` in the Export dialog, the first Tab after a setup landing on Main menu), a
 planted position pick between the open Attribute list's option "weight" and the Data panel's row
-"weight" that must be refused, an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json`). It prints `ok` or `FAIL` per check and exits 1 on any failure.
+"weight" that must be refused, an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json` and keeps a note written in the round's folder before it, a round's leak check that fails naming a session with no readable log, and a gate that refuses a round folder with no pilot results and no bars run, then passes and lists the evidence in the plan). It prints `ok` or `FAIL` per check and exits 1 on any failure.
 Its sessions are written under `design/ui/studio/tmp/prove/`, which it clears first; set
 `REAL_PROVE_DIR=<folder>` to run it beside another self-test.
 

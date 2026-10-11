@@ -17,7 +17,12 @@
 //       acts on the live session, waits for the drawing to settle, saves the next NN.png and prints
 //       what a participant would notice
 //   node real.mjs --end <session dir>
-//       closes the browser and frees its browser slot
+//       closes the browser and frees its browser slot; a participant's folder is copied to the
+//       round's, adding files and never removing or rewriting a note already there
+//   node real.mjs --leaks <session dir | round dir>
+//       what the participant opened outside its folder; a session whose log it cannot read fails
+//   node real.mjs --gate <round dir>
+//       refuses a round with no pilot of a planned task half or no bars run on the frozen build
 //   node real.mjs --prove
 //       a self-test against the real app; exit 1 on any miss
 //
@@ -315,11 +320,17 @@ function headOf(f, bytes = 256 * 1024) {
         closeSync(fd);
     }
 }
-// the logs of agents prompted as the participant of this folder, written to since its briefing
+// whether a prompt names this folder (r3-s1 is not named by a prompt that names r3-s10)
+const reEscape = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const names = (text, dir) => new RegExp(`${reEscape(dir)}(?![\\w.-])`).test(text);
+// the logs of agents prompted as the participant of this folder, by its own path or by the round's
+// sessions/<id> path the round runner names (round 3's runner named only that one, so its leak
+// check read no log at all), written to since its briefing
 function transcriptsFor(own) {
     const root = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "projects");
-    const b = join(own, "briefing.md");
-    if (!existsSync(root) || !existsSync(b)) return [];
+    const dirs = [own, studioOf(own)].filter(Boolean);
+    const b = dirs.map((d) => join(d, "briefing.md")).find((f) => existsSync(f));
+    if (!existsSync(root) || !b) return [];
     const since = statSync(b).mtimeMs;
     return readdirSync(root, { recursive: true })
         .map(String)
@@ -328,7 +339,7 @@ function transcriptsFor(own) {
         .filter((f) => statSync(f).mtimeMs >= since)
         .filter((f) => {
             const p = promptOf(jsonLines(headOf(f)));
-            return p.includes(own) && PARTICIPANT_PROMPT.test(p);
+            return dirs.some((d) => names(p, d)) && PARTICIPANT_PROMPT.test(p);
         });
 }
 const stringsIn = (v) =>
@@ -367,7 +378,8 @@ function leakCheck(own, given = []) {
     return { checked: new Date().toISOString(), transcripts, calls, leaks };
 }
 function leakLines(l, own) {
-    if (!l.transcripts.length) return [`leak check: no participant transcript names ${own}`];
+    if (!l.transcripts.length)
+        return [`FAIL: the leak check read no participant log for ${own}; it cannot say the session did not leak`];
     if (!l.leaks.length)
         return [
             `leak check: ${l.calls} tool calls in ${l.transcripts.length} participant transcripts; none opened a file outside the session folder`,
@@ -376,20 +388,121 @@ function leakLines(l, own) {
         (k) => `VOID: the participant opened ${k.why}, ${k.what} (${k.tool}, ${basename(k.transcript)})`,
     );
 }
+// What the tool itself writes in a session folder; an --end may replace these in the round's copy.
+const TOOL_RECORD = /^(\d+\.png|briefing\.md|session\.(json|log)|setup\.log|work(-start)?\.json|leaks\.json)$/;
 // --end of a participant's session: its folder, copied where the round's graders read it, with
-// leaks.json beside it. A copy already graded is left alone.
+// leaks.json beside it. Notes written in the round's copy during the session (the runner asks for
+// transcript.md there) are kept: the copy only adds files and refreshes the tool's own records, and
+// never removes or rewrites anything else (round 3's --end cleared the folder first and lost five
+// sessions' notes). A copy already graded is left alone.
 async function copyBack(own, home) {
     if (!existsSync(own) || !readdirSync(own).some((f) => /^\d+\.png$/.test(f))) return;
     if (existsSync(join(home, "grade.md"))) {
         console.log(`not copied: ${home} is already graded`);
         return;
     }
-    await rm(home, { recursive: true, force: true });
-    await cp(own, home, { recursive: true });
+    const kept = [];
+    await cp(own, home, {
+        recursive: true,
+        preserveTimestamps: true,
+        filter: (src, dest) => {
+            if (src === own || !existsSync(dest) || statSync(src).isDirectory()) return true;
+            if (TOOL_RECORD.test(basename(src)) && dirname(src) === own) return true;
+            if (!readFileSync(src).equals(readFileSync(dest))) kept.push(dest);
+            return false;
+        },
+    });
+    for (const k of kept) console.log(`kept ${k} as it was; the session folder's copy differs`);
     const l = leakCheck(own);
     await writeFile(join(home, "leaks.json"), JSON.stringify(l, null, 1) + "\n");
     console.log(`copied to ${home}`);
     for (const line of leakLines(l, own)) console.log(line);
+}
+
+// ---------- a round: its leak check and its gate ----------
+// the session rows of a round's plan.md ("| r4-s01 | T20 | A: ... | Nadia | `empty` |")
+const planRows = (rd) => {
+    const p = join(rd, "plan.md");
+    if (!existsSync(p)) return [];
+    return readFileSync(p, "utf8")
+        .split("\n")
+        .map((l) => l.split("|").map((c) => c.trim()))
+        .filter((c) => /^r\d+-s\d+b?$/.test(c[1] ?? ""));
+};
+// Every session of a round, planned or run, with its leak check; a session whose participant log
+// cannot be read fails the round's check by name, so "no leaks" is never reported from nothing.
+async function roundLeaks(rd) {
+    const sd = join(rd, "sessions");
+    const ids = [...new Set([...planRows(rd).map((c) => c[1]), ...(existsSync(sd) ? readdirSync(sd) : [])])].sort();
+    const unread = [];
+    const lines = [];
+    let logs = 0;
+    for (const id of ids) {
+        const home = join(sd, id);
+        const l = leakCheck(scratchOf(home));
+        logs += l.transcripts.length;
+        if (!l.transcripts.length) unread.push(id);
+        else
+            lines.push(
+                ...leakLines(l, id)
+                    .filter((x) => x.startsWith("VOID"))
+                    .map((x) => `${id}: ${x}`),
+            );
+        if (existsSync(home)) await writeFile(join(home, "leaks.json"), JSON.stringify(l, null, 1) + "\n");
+    }
+    lines.unshift(
+        `leak check: ${logs} participant logs read for ${ids.length - unread.length} of ${ids.length} sessions`,
+    );
+    if (unread.length) lines.push(`FAIL: no participant log read for ${unread.length} sessions: ${unread.join(", ")}`);
+    return { lines, failed: unread.length > 0 || lines.some((x) => x.includes("VOID")) };
+}
+// Before a round's first session: a pilot on the frozen build of every task half the plan runs
+// (<round>/pilot/**/<T20A>/session.json and its screenshots) and bars.mjs run on that build
+// (<round>/bars/bars.json, every planted case caught). Round 3 started without either.
+function gateCheck(rd) {
+    const sha = readFileSync(join(tier2, "criteria.md"), "utf8").match(/build ([0-9a-f]{7,40})/)?.[1];
+    if (!sha)
+        return { problems: [`${join(tier2, "criteria.md")} names no frozen build on its first line`], evidence: [] };
+    const problems = [];
+    const evidence = [];
+    const halves = [
+        ...new Set(
+            planRows(rd)
+                .map((c) => sessionTask(join(rd, "sessions", c[1])))
+                .filter(Boolean)
+                .map((t) => t.task + t.half),
+        ),
+    ].sort();
+    if (!halves.length) problems.push(`${join(rd, "plan.md")} lists no session`);
+    const pd = join(rd, "pilot");
+    const piloted = new Map();
+    for (const f of existsSync(pd) ? readdirSync(pd, { recursive: true }).map(String) : []) {
+        if (basename(f) !== "session.json") continue;
+        const dir = join(pd, dirname(f));
+        let stamp = "";
+        try {
+            stamp = JSON.parse(readFileSync(join(pd, f), "utf8")).buildStamp ?? "";
+        } catch {
+            // an unreadable session.json is no pilot result
+        }
+        if (stamp.startsWith(sha) && readdirSync(dir).some((x) => /^\d+\.png$/.test(x)))
+            piloted.set(basename(dir), dir);
+    }
+    for (const h of halves)
+        if (piloted.has(h)) evidence.push(`pilot ${h}: ${piloted.get(h)}/`);
+        else problems.push(`no pilot of ${h} on build ${sha} under ${pd}/`);
+    const bj = join(rd, "bars/bars.json");
+    let bars = null;
+    try {
+        bars = JSON.parse(readFileSync(bj, "utf8"));
+    } catch {
+        // missing or unreadable: no bars run
+    }
+    if (!bars) problems.push(`no bars run: ${bj} is missing (node bars.mjs ${join(rd, "bars")} --dist <frozen build>)`);
+    else if (!String(bars.build).startsWith(sha)) problems.push(`${bj} measured build ${bars.build}, not ${sha}`);
+    else if (bars.untrusted?.length) problems.push(`${bj} missed planted cases: ${bars.untrusted.join("; ")}`);
+    else evidence.push(`bars on ${bars.build}: ${bj}`);
+    return { sha, problems, evidence };
 }
 
 // ---------- steps: what each takes, checked before anything opens ----------
@@ -2079,8 +2192,13 @@ async function prove() {
             r.status === 0 && /none opened a file outside the session folder/.test(r.stdout),
             `exit ${r.status} ${r.stdout}${r.stderr}`,
         );
-        // --end copies the participant's folder to the studio one, with what the check found
+        // --end copies the participant's folder to the studio one, with what the check found, and
+        // keeps the notes the participant wrote in the studio one during the session
         await writeFile(join(own, "01.png"), "");
+        await mkdir(S1, { recursive: true });
+        const note = "## Step 1\nI see the start screen and will open my file.\n";
+        await writeFile(join(S1, "transcript.md"), note);
+        await writeFile(join(own, "transcript.md"), "a different file of the same name\n");
         r = spawnSync(process.execPath, [self, "--end", own], { encoding: "utf8", env });
         const lj = join(S1, "leaks.json");
         const found = existsSync(lj) ? JSON.parse(readFileSync(lj, "utf8")).leaks : [];
@@ -2091,6 +2209,54 @@ async function prove() {
                 existsSync(join(S1, "briefing.md")) &&
                 found.some((k) => k.what.endsWith("tasks.md")) &&
                 /VOID: /.test(r.stdout),
+            `exit ${r.status} ${r.stdout}${r.stderr}`,
+        );
+        const kept = existsSync(join(S1, "transcript.md")) ? readFileSync(join(S1, "transcript.md"), "utf8") : "";
+        check(
+            "an end keeps a note written in the round's folder before it, word for word",
+            kept === note && /kept .*transcript\.md/.test(r.stdout),
+            `transcript.md now reads ${JSON.stringify(kept)}; ${r.stdout}`,
+        );
+        // the round's leak check: a session whose log cannot be read fails it by name; a log
+        // whose prompt names the round's sessions/<id> folder (the runner's way) is read
+        const S2 = join(R, "sessions/r9-s02");
+        const S3 = join(R, "sessions/r9-s03");
+        for (const d of [S2, S3]) {
+            await mkdir(d, { recursive: true });
+            await writeFile(join(d, "briefing.md"), "a briefing\n");
+            await writeFile(join(d, "01.png"), "");
+        }
+        await plantLog("s03.jsonl", `YOU ARE A STUDY PARTICIPANT. Read only ${S3}/briefing.md.`, [
+            ["Read", { file_path: join(S3, "01.png") }],
+        ]);
+        r = spawnSync(process.execPath, [self, "--leaks", R], { encoding: "utf8", env });
+        check(
+            "the round's leak check fails on a session with no readable log, naming it",
+            r.status === 1 &&
+                /for 2 of 3 sessions/.test(r.stdout) &&
+                /FAIL: no participant log read for 1 sessions: r9-s02$/m.test(r.stdout),
+            `exit ${r.status} ${r.stdout}${r.stderr}`,
+        );
+        // the gate: a round folder with no pilot results and no bars run may not start
+        const sha = readFileSync(join(tier2, "criteria.md"), "utf8").match(/build ([0-9a-f]{7,40})/)?.[1];
+        await writeFile(join(R, "plan.md"), "| r9-s01 | T20 | A: bus stops, bus-stops.csv | Grace | `empty` |\n");
+        r = node(["--gate", R]);
+        check(
+            "the gate refuses a round folder with no pilot results and no bars run",
+            r.status === 1 && /FAIL: no pilot of T20A on build/.test(r.stdout) && /FAIL: no bars run/.test(r.stdout),
+            `exit ${r.status} ${r.stdout}${r.stderr}`,
+        );
+        const pilot = join(R, "pilot/r9/T20A");
+        await mkdir(pilot, { recursive: true });
+        await writeFile(join(pilot, "session.json"), JSON.stringify({ buildStamp: `${sha} graphty@0` }));
+        await writeFile(join(pilot, "01.png"), "");
+        await mkdir(join(R, "bars"), { recursive: true });
+        await writeFile(join(R, "bars/bars.json"), JSON.stringify({ build: `${sha} graphty@0`, untrusted: [] }));
+        r = node(["--gate", R]);
+        const plan = readFileSync(join(R, "plan.md"), "utf8");
+        check(
+            "the gate passes with both, and the plan lists the evidence by file",
+            r.status === 0 && plan.includes(`pilot T20A: ${pilot}/`) && plan.includes(join(R, "bars/bars.json")),
             `exit ${r.status} ${r.stdout}${r.stderr}`,
         );
     }
@@ -2603,8 +2769,12 @@ if (mode === "--serve") {
 } else if (mode === "--leaks") {
     const [dir, ...given] = args.slice(1);
     if (!dir) {
-        console.error("usage: real.mjs --leaks <session dir> [transcript.jsonl ...]");
+        console.error("usage: real.mjs --leaks <session dir> [transcript.jsonl ...] | --leaks <round dir>");
         code = 2;
+    } else if (existsSync(join(resolve(dir), "sessions")) || existsSync(join(resolve(dir), "plan.md"))) {
+        const r = await roundLeaks(resolve(dir));
+        for (const line of r.lines) console.log(line);
+        code = r.failed ? 1 : 0;
     } else {
         const own = under(resolve(dir), STUDIO) ? scratchOf(resolve(dir)) : resolve(dir);
         const l = leakCheck(
@@ -2614,11 +2784,28 @@ if (mode === "--serve") {
         for (const line of leakLines(l, own)) console.log(line);
         code = l.leaks.length ? 1 : l.transcripts.length ? 0 : 2;
     }
+} else if (mode === "--gate") {
+    if (!args[1]) {
+        console.error("usage: real.mjs --gate <round dir>");
+        code = 2;
+    } else {
+        const g = gateCheck(resolve(args[1]));
+        for (const p of g.problems) console.log(`FAIL: ${p}`);
+        if (!g.problems.length) {
+            // the plan names its gate evidence by file before the first session
+            const plan = join(resolve(args[1]), "plan.md");
+            const text = readFileSync(plan, "utf8").replace(/\n## Gate evidence\n[\s\S]*?(?=\n## |$(?![\s\S]))/, "");
+            const section = `\n## Gate evidence\n\nChecked by \`real.mjs --gate\` on ${new Date().toISOString().slice(0, 10)}, build ${g.sha}:\n\n${g.evidence.map((e) => `- ${e}`).join("\n")}\n`;
+            await writeFile(plan, text.trimEnd() + "\n" + section);
+            console.log(`gate passed: ${g.evidence.length} files of evidence, listed in ${plan}`);
+        }
+        code = g.problems.length ? 1 : 0;
+    }
 } else if (mode === "--prove") {
     code = await prove();
 } else {
     console.error(
-        "usage: real.mjs --brief <dir> | --start <dir> [empty|setup:<file>] [--sr] [--task T17A] | --step <dir> <steps...> | --end <dir> | --leaks <dir> [transcript.jsonl ...] | --prove",
+        "usage: real.mjs --brief <dir> | --start <dir> [empty|setup:<file>] [--sr] [--task T17A] | --step <dir> <steps...> | --end <dir> | --leaks <dir> [transcript.jsonl ...] | --leaks <round dir> | --gate <round dir> | --prove",
     );
     code = 2;
 }

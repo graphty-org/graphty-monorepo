@@ -61,7 +61,8 @@ const ADAPTER_MESSAGE = "The AI adapter folder is loaded only by src/ai/engine/l
  * @param source - The source.
  * @returns The literal, `/` escaped.
  */
-const literal = (source) => `/${source.replaceAll(/(?<!\\)\//g, String.raw`\/`)}/`;
+const ESCAPED_SLASH = String.raw`\/`;
+const literal = (source) => `/${source.replaceAll(/(?<!\\)\//g, ESCAPED_SLASH)}/`;
 
 /**
  * The two rules for one group of files.

@@ -1,5 +1,5 @@
-The study runs on build 5277e2cbe served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r4d1-5277e2cbe/`
-(graphty@0.8.64, commit 5277e2cbe), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build 8c015b806 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r5-8c015b806/`
+(graphty@0.8.65, commit 8c015b806), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -906,3 +906,14 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   where (`roster.md`; `tasks.md`, T17, words-changed log). A count check by the nonprofit analyst
   or the student, whose personas carry that habit, is scored as their habit, not as unprompted.
   No bar, floor, step limit, prompt or answer-key route changed.
+- **2026-10-11, before round 5: the build moved from 5277e2cbe to 8c015b806.** The previous
+  build, served from `.study-builds/tier2-r4d1-5277e2cbe/`, stays frozen as it was. The new build
+  (`.study-builds/tier2-r5-8c015b806/`) is a fresh build of the worktree's current commit, with
+  master merged in. It carries these changes to what a participant meets: the data table lists
+  only the rows the filter steps keep; Cancel in the note editor puts focus on Add note; New
+  project, then Discard, opens the empty project instead of the error page; leaving an off filter
+  step's editor without an edit leaves the step off; find offers "N or more" for a number inside a
+  column's range, names a column the way a typed rule does, and suggests backticks only for a
+  rewrite the selector accepts; a dragged pop-out stays where it was put when its sidebar anchor
+  changes. Every new-build preflight item runs on this build before round 5's first session. No
+  bar, floor, step limit or prompt changed.

@@ -10,29 +10,37 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-11 -- **Round 5 (b re-runs) scored: 55 of 55 valid succeed; bars 9 (b) and 10 fail.**
-  Bar 9 (b): edge inspector 29 vs 27, unchanged since round 4. Bar 10: one confirmed sev 3 (names
-  and nodes over each other, element owner) and totals 153 to 162. r5-s02b void, r5-s02bb owed.
-- 2026-10-11 -- T18 bar 11 holds on the limit (8 of 8) ONLY because two answered by hand; tool
-  users' median is 8.5. The path tool's route is the cost; P key 0 of 74 over five rounds.
-- 2026-10-11 -- Bar 5 held by ABSENCE (no reader opened the table under a step). A bar that holds
-  because nobody went there is not evidence of the fix; say so in every score.
+- 2026-10-11 -- **Round 5 verdicts applied (`round-5/insights.md`).** 55 of 55 valid succeed; bars
+  9 (b) and 10 fail (one sev 3: names and nodes over each other, graphty-element). Strictly read,
+  the stall rule is met: core four +2, the sev 3 fix seen only by specialists, bar 5 by absence.
+- 2026-10-11 -- **Step counts are not comparable.** The key counts type+pick as one step;
+  participants send two calls; refused clicks and hovers counted. r5-s19b's 8 is about 5. Bar 11's
+  T18 "on the limit" dropped. Recount participants and key the same way before any cost claim.
+- 2026-10-11 -- The tasks have hit a ceiling: every task succeeds and no prompt routes a reader
+  through a fixed screen (T17 asks a count the top bar shows). Next round needs routes that reach
+  the fixes, or real people.
+- 2026-10-11 -- Histories steer: all 3 who went to Style on T22 have histories naming the Style
+  tab; none without it went. Grep history against every first move BEFORE writing an insight.
+- 2026-10-11 -- Setups contradict histories: T21 and T19 setups never save while histories say
+  "saved". Fix setups or histories before those tasks run again.
+- 2026-10-11 -- Prompt words create what is scored: T22 "without taking anything off" made the
+  funnel hesitation; T20 "more minutes = longer trip" hid the weight default. Read the prompt for
+  the behavior before scoring it.
+- 2026-10-11 -- New one-session sev 2 (r5-s38b `04.png`): the Add page leaves new people out by
+  default ("adds 0 nodes", "Leave out") and blames "node rows" a file without node rows lacks.
+- 2026-10-11 -- A tool refusal is not reader confusion: "Graph" ambiguous click (r5-s45b, s48b) is
+  an accessible-name defect to script, not a sighted reader's wrong turn.
 - 2026-10-11 -- Leak-check VOID lines are text matches: read the participant's own log before
-  voiding (s03b's ".." was legend prose, s53b's path a heredoc variable). Name both in scores.
-- 2026-10-11 -- Setups steer findings: T19's wrong note target starts from the run the setup leaves
-  open; T21 histories say "saved" but setups never save. Check setup against history before a round.
+  voiding (s03b's ".." was legend prose, s53b's path a heredoc variable).
 - 2026-10-11 -- bars.mjs has two silent MISS lines in rounds 4 and 5 (Enter on Shortest path picks
   All-pairs distance; tier 1 Degree click). Read the bars log's MISS lines, not only the JSON.
-- 2026-10-11 -- A continuation script is a fork: check the run's script and the journal for the
-  gate step after any usage-limit stop. The gate worked this time.
-- 2026-10-11 -- T22: the "N or more" row works (3 of 3 bare "10"), but its funnel icon made all
-  three hesitate; 3 of 7 looked in Everything > Style > Edges first. "=" unprompted 0 of 31.
+- 2026-10-11 -- r5-s02bb (Ruth, T22 B) owed; no bar depends on it.
 - 2026-10-11 -- Priming has four sources: prompt, history, persona playing rules, briefing. Grep
   all four before "unprompted".
 - 2026-10-11 -- Raising a severity because participants "named a risk" breaks the opinion rule;
-  held the Add page's Load-primary trap at 2 though one grade said 3.
-- 2026-10-11 -- Habit-matching fixes land at once; a rule written down fails; a refusal in the tool
-  works for a session, but only the runner's own gate step protects a round.
+  debrief words ("almost copied") are opinion when the session shows the reader did the right thing.
+- 2026-10-11 -- Habit-matching fixes land at once; a rule written down fails; only the runner's own
+  gate step protects a round.
 
 ## Priorities and values
 
@@ -73,6 +81,20 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-11 (researcher, round 5 skeptic verdicts) -- Rewrote `round-5/insights.md` for the b
+  re-runs (the old file described the void first run). Rule: two drops = dropped, one = weakened
+  unless answered with evidence. Verified the disputed claims myself first: the roster's Style-tab
+  lines (Grace, Dev, Elena, Alex, Jordan; the three Style visitors are all in it), the key's
+  one-step type+pick (answers.md T18 A), r5-s38b's "Leave out" default in grade and transcript, and
+  viewed every cited screenshot. Dropped: T18 cost as a design finding; the Style tab as the second
+  place users look. Weakened to sev 1: funnel icon, Style threshold, T20 numeric default, old Top 10
+  after Replace, second path, stale From, neighbor list behind a menu, Follow, "full graph", T17
+  column name and who-dropped. Kept sev 2: no names drawn, Replace hidden, Load filled, backticks,
+  note subject, Hops heading, Filter to neighbors. Added one-session sev 2: Add page leaves new
+  people out. Reported "Not stalled" as lenient only; strict reading meets the stall rule. Top five
+  for the owner: overlaps, study artifacts (counting, histories, setups, prompts), stall, Add page,
+  Replace.
+
 - 2026-10-11 (researcher, round 5 scored from the b re-runs) -- Rewrote `round-5/scores.md` from
   55 valid grades, the gate's `bars/bars.json`, four expert reports and the leak check;
   `tmp/researcher/t2r5/score-b.py` asserts every row. Kept r5-s03b and s53b after reading their
@@ -89,39 +111,13 @@ reasons, in short:
   gate"; bar 10 on one sev 3; "or more" under the fold to sev 2. Re-planned as `<id>b` rows with the
   void folders kept as record.
 
-- 2026-10-11 (researcher, round 4 closed) -- Read `round-4/insights.md` and `decisions.md`.
-  Taught: a fix that matches a habit lands at once (Shift-click T24 2/4 to 7/7; toolbar Filters
-  first door 7/7 T17), and a rule written down fails twice while a refusal in the tool works --
-  the gate skipped two rounds running and briefings leaked answers. Decided (director): study
-  first (sev 4: `--start` refuses without gate and runs on a free slot; briefings name file and
-  kind only, leak check reads briefings; `--shift-click` stays), then one fix per problem in its
-  owning package: backtick suggestion only if selection accepts it; "or more" row inside a
-  column's range; off step stays off on leave; New project > Discard scripted then fixed; table
-  uses scope "visible"; `rulePath` export (team-decided, additive); note Cancel focuses "+"; T17
-  histories say what, not where; bar 9 (b) diff words before cutting, scope words stay. Held:
-  one warning look for load problems (1 session), "out of date" accessible name, second-path
-  notice. Watch in round 5: T22 A picks of the "or more" row are prompt-matching, not discovery;
-  gate evidence in plan.md; leak check on briefings; persona habits not scored as unprompted.
-
-- 2026-10-11 (researcher, round 4 critique) -- Proposed the smallest fix per verified problem,
-  traced to source first. Find box: `ruleFromText` offers the element's `number-needs-backticks`
-  suggestion; `suggestBackticks` (graphty-element `session/styles/predicate.ts`) checks only that
-  the rewrite parses, and a bare literal parses, so the fix is one guard there (the rewrite must
-  be a condition), every consumer gets it. The "or more" row comes only from `valueRowOf` over
-  values present (`session/query.ts`); additive element change to offer it for any in-range
-  number. Table: element already has scope "visible"; the app hard-codes "graph" at
-  `TableDock.tsx:349`. Overlaps: element owner item stands; script first whether the label or the
-  dot takes the tie click. Said NOT to change: Shift-click, Filters button, the find hint, the
-  "Settings" rail label, the second-path replace (no cost shown). Reason: fix in the one shared
-  place; do not reword to game a word count.
-- 2026-10-11 (researcher, round 4 skeptic verdicts) -- Wrote `round-4/insights.md`. Rule: two
-  drops = dropped, one drop or weaken = weakened unless the other answers with evidence. Verified
-  the disputed priming claims myself before applying: the file table is in every briefing (4
-  answer lines in each T21 one), r4-s38's transcript names Mo and Nia at the Replace page, the
-  nonprofit persona file says "Checks counts before and after", 6 of 7 T17 briefings say "toolbar".
-  Kept bar 10 failing on two sev 3s; bar 5 holds by its words; dropped the "Shortest path"
-  shared name (same command). Cited only screenshots I viewed. Top five for the owner: overlaps,
-  bare-number refusal, study faults, unfiltered table, Shift-click.
+- 2026-10-11 (round 4 closed, critique and verdicts, folded) -- Fixes chosen one per problem in
+  its owning package, traced to source first (backtick suggestion guard in graphty-element
+  `predicate.ts`; "or more" row for any in-range number; table scope "visible"; off step stays off;
+  New project > Discard; note Cancel focus; `rulePath` export, team-decided). Held: second-path
+  notice, Shift-click, Filters button. Verdicts verified by grepping briefings and viewing each cited
+  screenshot; bar 10 failed on two sev 3s. Lesson: habit-matching fixes land at once; written rules
+  fail; only a refusal in the tool or the runner's gate protects a round.
 
 - 2026-10-11 (round 4 plan, scoring and key matches, folded) -- Sizes from the frozen rule; missing
   pilots recorded NOT MET with a mitigation; scored on valid grades with voids beside; key edits per
@@ -176,6 +172,12 @@ reasons, in short:
   toolbar; reword it if Dana is ever given a task that starts there.
 
 ## Tried: worked / did not work
+
+- 2026-10-11 (round 5 verdicts) -- Worked: settling each disputed claim at its source in one or
+  two greps (roster lines for the Style histories, the key's step line, the grade's problem table)
+  before applying either skeptic; viewing all six cited screenshots. Did not work: my own scores'
+  candidate insights, written without grepping histories (insight 2 failed its own refutation
+  test) and without checking how the key counts steps (insight 3).
 
 - 2026-10-11 (round 5 b scoring) -- Worked: a 20-line call dump of each flagged participant log
   (`t2r5/calls.py`) settled both leak flags and the void's mechanism in minutes; reading the bars
@@ -240,6 +242,10 @@ reasons, in short:
   once; editing a script while it runs; a harness that exits 0 printing nothing; mocks.
 
 ## Thinking
+
+- 2026-10-11 -- A study near its ceiling produces mostly study artifacts: when every task passes,
+  what is left to find is how the prompt, history, setup and step count shaped behavior. Audit those
+  four first in any round where success is at 100%.
 
 - 2026-10-11 -- When every task passes, the stall rule can only be met by bars, and a bar can hold
   because nobody visited its screen. Next rounds need a reader route that reaches each fixed screen

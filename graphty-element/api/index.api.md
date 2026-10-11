@@ -130,7 +130,7 @@ export type AdHocData<KeyType extends string | number = string> = Record<KeyType
     readonly __brand?: "AdHocData";
 };
 
-// @public (undocumented)
+// @public
 export type AiEventType = AiEvent["type"];
 
 // @public
@@ -1418,7 +1418,7 @@ export class EventManager implements Manager {
     withRetry<T>(operation: () => Promise<T>, context: GraphErrorEvent["context"], graph: Graph | GraphContext | null, details?: Record<string, unknown>): Promise<T>;
 }
 
-// @public (undocumented)
+// @public
 export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEventType;
 
 // @public

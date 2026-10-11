@@ -480,6 +480,10 @@ const unsubscribe = graph.onAiStatusChange((status) => {
 graph.disableAiControl();
 ```
 
+The assistant's events (`ai-status-change`, `ai-command-complete` and the others in `AiEvent`) are
+an open union: a later minor release may add events. A listener subscribed by name receives only
+the event it named; code that switches over `AiEvent["type"]` needs a `default`.
+
 One message is one undoable step. A command you register with
 `graph.getAiManager()?.registerCommand(...)` joins that step only through `ctx.tx`; see
 [Undo and History](./undo#commands-you-register-with-the-ai-assistant).
@@ -511,7 +515,9 @@ catalogue holds no labels and no order: choose your own.
 
 Every result of `aiCommand()` carries a `code` and its `params`, so you can tell a missing key
 from a cancelled command or a failed tool without reading `result.message`, which is English
-for a log and may change. `AI_RESULT_CODES` lists every code:
+for a log and may change. `AI_RESULT_CODES` lists every code this release has. `AiResultCode` is
+an open union: a later minor release may add codes, so handle an unknown code (by `success` alone,
+for example):
 
 ```typescript
 import type { AiResultCode } from "@graphty/graphty-element/catalog";

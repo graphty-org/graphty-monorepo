@@ -12,6 +12,10 @@ import type { Node } from "./Node";
 import type { StyleChange } from "./session/styles/StylesApi";
 import type { HistoryCause } from "./session/types";
 
+/**
+ * Every event name a listener can subscribe to. OPEN UNION: event names may be added in a minor
+ * release (the assistant's among them), so a `switch` over it needs a `default`.
+ */
 export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEventType;
 export type EventCallbackType = (evt: GraphEvent | NodeEvent | EdgeEvent | AiEvent) => void;
 
@@ -33,6 +37,7 @@ export type EventOfType<K extends EventType> = AnyEvent extends infer E
 export type GraphEventType = GraphEvent["type"];
 export type NodeEventType = NodeEvent["type"];
 export type EdgeEventType = EdgeEvent["type"];
+/** The name of an event the AI assistant emits. OPEN UNION: event names may be added in a minor release. */
 export type AiEventType = AiEvent["type"];
 
 /**

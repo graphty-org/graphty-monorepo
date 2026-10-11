@@ -176,11 +176,11 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   each with the element's count at the right; drops "Select where" (cut at the panel edge,
   `r3-s10/02.png`; 4 of 4 typed "10" first, 2 took "is 10"). Shown only while typing, so no words
   at rest. File `graph-place/FindBox.tsx`. (3) A Filters icon in the canvas toolbar that opens Data
-  > Filters (5 of 8 T17 looked on the Graph place first: toolbar Layout and Everything's style,
-  `r3-s33/03.png`). A door, not a home. (4) At Hops 2 or 3 the neighbor list's value column is the
-  step count (1, 2, 3) from the element (an additive fact on the neighborhood selection); evidence
-  r3-s48, figma 18, visual 16 (`visual/path/10.png`). Reason for all: each is a door or a word for an
-  existing home, and each puts the fact in the element.
+    > Filters (5 of 8 T17 looked on the Graph place first: toolbar Layout and Everything's style,
+    > `r3-s33/03.png`). A door, not a home. (4) At Hops 2 or 3 the neighbor list's value column is the
+    > step count (1, 2, 3) from the element (an additive fact on the neighborhood selection); evidence
+    > r3-s48, figma 18, visual 16 (`visual/path/10.png`). Reason for all: each is a door or a word for an
+    > existing home, and each puts the fact in the element.
 
 ## Tried: worked / did not work
 

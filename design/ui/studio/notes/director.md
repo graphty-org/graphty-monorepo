@@ -115,7 +115,7 @@ Last updated: 2026-10-10 (tier 2 round 3 decided; round 4 changes in `tier2/roun
   focus drop traced in `useFocusLine`; (7) find box: drop "Select where" from the visible row,
   element adds `FindValueRow.atLeast`; (8) Analyze ranks name/alias matches first, never hides,
   one "Start here" while filtering; (9) a Filters toolbar icon through `openStepEditor(store,
-  NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) edge filter
+NEW)`; (10) repeated-ties line linked to Load and given the warning glyph; (11) edge filter
   steps count edges, scripted first; (12) disabled reason to a screen reader, check first, fix in
   compact-mantine Tooltip. Took the red team on: no second-path notice, no layer-list Filters row,
   no wrap, no refusal reword, no pressed toggle, no Ctrl/Meta, rank but never hide. Over the red

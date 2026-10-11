@@ -236,7 +236,7 @@ reasons, in short:
 - 2026-10-10 (round 3 verdicts, after a token-limit stop) -- Worked: `git status`, `git log` and a
   listing of `round-3/` first; no `insights.md` and no uncommitted edits existed, so nothing was
   half-done. Worked: checking each skeptic's code claim at the build commit (`git show
-  26f3bb968:<file>`) and each disputed session claim in its `grade.md` before ruling a split.
+26f3bb968:<file>`) and each disputed session claim in its `grade.md` before ruling a split.
   Worked: viewing every screenshot cited to the owner.
 
 - 2026-10-10 (round 3 scoring, after a token-limit stop) -- Worked: `git status` and a listing

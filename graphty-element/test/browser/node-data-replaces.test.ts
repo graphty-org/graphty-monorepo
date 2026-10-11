@@ -62,19 +62,24 @@ describe("nodeData", () => {
             selector: { match: "expression", where: "data.hot == `true`" },
             set: { "node.color": "crimson" },
         });
-        await graph.waitForSettled();
+        // A drawn frame, not just an empty queue: the layout's position reaches a node's mesh
+        // only in a frame's update pass, so before one the mesh still sits where Babylon put the
+        // new instance (the hidden template's y = -10000), and both reads below compared that
+        // placeholder with itself -- or failed when a frame landed between them (issue #1996).
+        await graph.waitForStableFrame();
 
         const dm = graph.getDataManager();
         const painters = (): string[] => session.styles.explain({ node: "a" }).contributions.map((c) => c.name);
         assert.notInclude(painters(), "hot nodes");
         const at = (): string => JSON.stringify(dm.nodes.get("a")?.getPosition());
         const before = at();
+        assert.notInclude(before, "-10000", "the layout placed the node before its position was read");
         const edgeIds = [...dm.edges.keys()];
         const steps = session.history.steps.length;
 
         element.nodeData = [{ id: "a", hot: true }, { id: "b" }];
         await operationQueueOf(graph).waitForCompletion();
-        await graph.waitForSettled();
+        await graph.waitForStableFrame();
 
         assert.deepStrictEqual({ ...dm.nodes.get("a")?.data }, { id: "a", hot: true }, "the record it was just given");
         assert.include(painters(), "hot nodes", "the layer reading the field repainted");

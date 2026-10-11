@@ -213,7 +213,12 @@ describe("a worker killed mid-push", () => {
         ).toMatchObject({
             queued: true,
         });
-        await until(() => existsSync(join(repo.tmp, "gate-pid")));
+        // The shell creates gate-pid before echo writes the pid into it: wait for the whole line.
+        await until(
+            () =>
+                existsSync(join(repo.tmp, "gate-pid")) &&
+                readFileSync(join(repo.tmp, "gate-pid"), "utf8").endsWith("\n"),
+        );
         const gatePid = Number(readFileSync(join(repo.tmp, "gate-pid"), "utf8"));
         // The gate's git runs in the worktree too; a stale index.lock waits until nothing uses it.
         const lock = git(dir, "rev-parse", "--path-format=absolute", "--git-path", "index.lock");

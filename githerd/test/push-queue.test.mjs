@@ -771,7 +771,13 @@ describe("stop", () => {
         const b = workingJob("b");
         await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
         await queue.request({ job: "b", branch: "githerd/b", expectHead: b.head }, "s-b");
-        await until(() => existsSync(join(repo.tmp, "gate-pid")));
+        // gate-pid is the gate's first line, written before it reads the pushed refs: waiting on it
+        // let stop kill the gate before it logged the branch. The log is what the test checks.
+        await until(
+            () =>
+                existsSync(join(repo.tmp, "gate-log")) &&
+                readFileSync(join(repo.tmp, "gate-log"), "utf8").endsWith("\n"),
+        );
         queue.stop();
         await queue.drain();
         expect(groupsUsing(repo.tmp)).toEqual([]);

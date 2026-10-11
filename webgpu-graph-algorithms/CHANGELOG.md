@@ -1,3 +1,19 @@
+## 0.6.45 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.12
+- Updated algorithms to 3.4.2
+- Updated layout to 2.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.44 (2026-10-11)
 
 ### 🧱 Updated Dependencies

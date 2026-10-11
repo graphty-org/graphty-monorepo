@@ -111,7 +111,7 @@ export class Graphty extends LitElement {
         }
     `;
 
-    #graph: Graph;
+    #builtGraph: Graph | undefined;
     #element: Element;
     #resizeObserver: ResizeObserver | null = null;
     #capabilitiesMirrored = false;
@@ -137,13 +137,28 @@ export class Graphty extends LitElement {
         // the host's box, never from the canvas's intrinsic 2:1 ratio; being positioned also
         // anchors the absolutely positioned XR UI overlay.
         this.#element.setAttribute("style", "position: absolute; inset: 0; display: block;");
-        this.#graph = new Graph(this.#element);
-        // The graph is never rebuilt, so this subscription lives as long as the element.
-        this.#graph.onNodeLabelCounts.add((counts) => {
-            this.dispatchEvent(
-                new CustomEvent("graphty-label-change", { detail: counts, bubbles: true, composed: true }),
-            );
-        });
+    }
+
+    /**
+     * The graph this element draws, built the first time anything needs it: being attached, or a
+     * property, attribute, method or `session` reached before that. Building it opens a Babylon
+     * engine and so a WebGL context, and a browser keeps only about 16 of those per page, evicting
+     * the oldest live one -- so an element that is created and never used opens none.
+     * @returns The graph.
+     */
+    get #graph(): Graph {
+        if (this.#builtGraph === undefined) {
+            const graph = new Graph(this.#element);
+            this.#builtGraph = graph;
+            // The graph is never rebuilt, so this subscription lives as long as the element.
+            graph.onNodeLabelCounts.add((counts) => {
+                this.dispatchEvent(
+                    new CustomEvent("graphty-label-change", { detail: counts, bubbles: true, composed: true }),
+                );
+            });
+        }
+
+        return this.#builtGraph;
     }
 
     /**

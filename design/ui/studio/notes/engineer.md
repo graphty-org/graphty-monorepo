@@ -11,6 +11,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-11) **Bar 9 (b), edge inspector: no word cut; it fails honestly, 29 against 27.** Same
+  state on both builds (round 1's build recounts 27). Added "Settings" (rail), ", full graph" and
+  "on 20 nodes" (key scope words); removed "On the path". "of nodes" was never new. No repeat on
+  screen, so nothing to cut (`tier2/rounds/round-4/bars/edge-inspector-words.md`).
 - (2026-10-11) **Built: `rulePath` (element, `./session`)**; the find box and "or more" both use it.
   On a fresh build, bus stops "5" -> "minutes is 5 or more (10)" -> Style, Width: the layer is
   "minutes >= `5`" (`tmp/t2r4-9/s1/08.png`).
@@ -37,8 +41,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   the first (no task needs both; decided), any label placement in the app.
 - (2026-10-11) **Script first, from round 4:** New project then Discard showing the error page; a
   rule on a missing column answering only "Nothing matches" (element has `E_UNKNOWN_ATTRIBUTE`;
-  a coded fact would let the app say the column is missing); the edge inspector's 29 words (find
-  which two to cut with `bars.mjs` before cutting).
+  a coded fact would let the app say the column is missing).
 - (2026-10-11) **Watch in round 5:** T22 A on bus stops typing "10" (the prompt's own number);
   T17 with the table open under a step; the owed re-runs r4-s05b, s20b, s28b.
 - (2026-10-11) **One variant per problem, one change per task's route.** Words at rest never rise.
@@ -61,6 +64,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-11) **A word count is diffed by word against the limit's own build before any word is
+  cut.** The roles' three diagnoses of the edge inspector's +2 were partly wrong ("of nodes" was
+  in round 1's count too); `bars.mjs <out> --dist <build>` on both frozen builds named the real
+  change in one run each (about 10 minutes). Scope words stay; only a repeat on the same screen
+  may go.
 - (2026-10-11) **A rule names a column through the element's `rulePath(path)`** (new `./session`
   export beside `quotePath`): the bare name for a `data.` column whose name is one unquoted
   identifier, else `quotePath(path)`. The find box's own `columnText` is deleted and calls it, and
@@ -224,6 +232,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-11) WORKED: `bars.mjs` already targets any build with `--dist`; its word lists are in
+  the printed log (`bar 9 (b)` lines) and in `bars.json` under `tier2.words`. The edge inspector is
+  screenshot 20 of `sessions/returning-1440x900/`. Round 1's build exits 1 (later moves miss on its
+  older screens); that does not touch the screens measured before the miss. A bars run on
+  5277e2cbe is in `tmp/t2r4-12/r4-5277e2cbe/bars.json` (not the round's gate run).
 - (2026-10-11) WORKED: the "or more" row for a number no value equals, all in the element. A
   number column is one whose every indexed value is a number (id column skipped); its row is
   offered when some value lies below N, some above, none equal, deduplicated by path across

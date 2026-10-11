@@ -634,7 +634,9 @@ re-run) is announced as a comment on the one open `Release status` issue (label 
 that do nothing announce nothing. A run that ends badly before it announces anything (no job
 started, a job never got a runner, the announce step failed, a failure after the release pull request
 was announced) is announced there by `release-watch.yml` instead. A release pull request that leaves the merge queue unmerged (Mergify labels it `dequeued`) is
-announced there by `release-dequeued.yml`, with the failing checks and the queue run. Never edit or push to a release branch, and never close one
+announced there by `release-dequeued.yml`, with the failing checks and the queue run. Each announcement, plus a
+train attempt that starts testing a candidate (or retries after a fix or a re-run), is also pushed to the owner's
+phone through Pushover (secrets `PUSHOVER_APP_TOKEN`, `PUSHOVER_USER_KEY`). Never edit or push to a release branch, and never close one
 unless it must be replaced: while one is open, no new train runs. An ad hoc release cuts the same
 pull request at once, for the owner or an agent the owner asked:
 `gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never

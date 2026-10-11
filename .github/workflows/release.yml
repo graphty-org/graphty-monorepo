@@ -193,7 +193,28 @@ jobs:
                       echo "release=false" >> "$GITHUB_OUTPUT"
                   else
                       echo "release=true" >> "$GITHUB_OUTPUT"
+                      tags=$(git log -1 --format=%b "$commit" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1@\2/p' | paste -sd, -)
+                      echo "tags=${tags}" >> "$GITHUB_OUTPUT"
                   fi
+
+            # The owner's phone hears that a train began testing a releasable candidate (tools/release-status.mjs
+            # started; attempts that do nothing stay silent): "Release RETRYING" for a restart after a fix (the
+            # pushed commit's subject names the fix) or a re-run of the whole run. A failure here holds nothing.
+            - name: Announce the train attempt
+              if: ${{ steps.releasable.outputs.release == 'true' }}
+              continue-on-error: true
+              env:
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+                  SHA: ${{ steps.pending.outputs.sha }}
+                  TAGS: ${{ steps.releasable.outputs.tags }}
+              run: |
+                  restart=()
+                  if [ "$TRIGGER" = workflow_run ]; then
+                      restart=(--restart --issue "$(tools/release-held.sh find --train)" --fix "$(git log -1 --format=%s "$SHA")")
+                  fi
+                  node tools/release-status.mjs started --sha "$SHA" --tags "$TAGS" "${restart[@]}" \
+                      --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
     # The full CI suite on exactly the candidate: every shard of every package, the links, the cost estimates,
     # the screenshots, and the per-package builds this release ships (no artifact of any other run is used).
@@ -460,6 +481,8 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
                   WHAT: ${{ steps.hold.outputs.what }}
                   ISSUE: ${{ steps.hold.outputs.issue }}
               run: |
@@ -606,6 +629,8 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
                   SHA: ${{ needs.pick.outputs.sha }}
                   PR: ${{ steps.open.outputs.pr }}
                   TAGS: ${{ steps.open.outputs.tags }}
@@ -645,6 +670,17 @@ jobs:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
+
+            # A re-run of a failed publish (gh run rerun <id> --failed) tells the owner's phone it is retrying.
+            - name: Announce a re-run of the publish
+              if: ${{ github.run_attempt > 1 }}
+              continue-on-error: true
+              env:
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+              run: |
+                  node tools/release-status.mjs started --sha "$GITHUB_SHA" --attempt "$GITHUB_RUN_ATTEMPT" \
+                      --what "Re-run ${GITHUB_RUN_ATTEMPT} of the failed publish" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
             # The version commit this push brought onto master, and the green commit below it. Its builds must be
             # the ones a train run on master kept: that ties the publish to a commit the train found green.
@@ -838,6 +874,8 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
                   OUTCOME: ${{ job.status == 'success' && 'published' || 'publish-failed' }}
                   TAGS: ${{ steps.tags.outputs.tags }}
                   ISSUE: ${{ steps.report.outputs.issue }}

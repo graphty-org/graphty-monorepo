@@ -69,7 +69,7 @@ export type {
     LegendReading,
     LegendSwatch,
 } from "./legend";
-export { quotePath } from "./predicate";
+export { quotePath, rulePath } from "./predicate";
 export type { ElementPaint } from "./repaint";
 export type { Selector } from "./selector";
 export type {

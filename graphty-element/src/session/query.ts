@@ -25,7 +25,7 @@ import { searchOf, type SelectionTarget } from "./selection/targets";
 import {
     columnsFor,
     compileExpressionPredicate,
-    quotePath,
+    rulePath,
     type SelectorSource,
     type SelectorTarget,
 } from "./styles/predicate";
@@ -739,7 +739,7 @@ function atLeastOf(
         }
     }
 
-    const text = `=${quotePath(path)} >= \`${JSON.stringify(value)}\``;
+    const text = `=${rulePath(path)} >= \`${JSON.stringify(value)}\``;
     return {
         count,
         target: request.scopeInput === undefined ? { text } : { text, scope: request.scopeInput },

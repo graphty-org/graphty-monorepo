@@ -177,6 +177,7 @@ describe("finding without selecting", () => {
         const row = session.find("10").values.find((value) => value.path === "data.shared_chapters");
         assert.isDefined(row);
         assert.isDefined(row?.atLeast);
+        assert.deepStrictEqual(row?.atLeast?.target, { text: "=shared_chapters >= `10`" }, "the column by its bare name");
         const counted = await session.selection.count(row?.atLeast?.target ?? { invert: true });
         assert.strictEqual(row?.atLeast?.count, counted.edges + counted.nodes);
         assert.isAbove(row?.atLeast?.count ?? 0, row?.count ?? 0, "ties above 10 come too");

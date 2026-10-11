@@ -11,6 +11,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-11) **Built: `rulePath` (element, `./session`)**; the find box and "or more" both use it.
+  On a fresh build, bus stops "5" -> "minutes is 5 or more (10)" -> Style, Width: the layer is
+  "minutes >= `5`" (`tmp/t2r4-9/s1/08.png`).
 - (2026-10-11) **Round 4 closed: 53 of 53 valid sessions succeeded; bars 9 (b) and 10 fail.** Bar 10
   on two confirmed severity 3s: drawn names and nodes covering ties and dots (element, owner's
   list, not mine in the app) and the find box offering "=`10`" for a bare number and then refusing
@@ -57,11 +60,18 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
-- (2026-10-11) Built for round 4 (all walked on fresh builds, evidence `tmp/t2r3-r4-*/`,
-  `tmp/r4-dry1-*/`): Shift-click adds (element `SelectionManager.add`), Made with after Undo, two
-  focus drops, find-box "or more" (`FindValueRow.atLeast`), Analyze name matches first, toolbar
-  Filters, repeated-ties warning in Load's description, filter step counts edges, disabled submit
-  says what is missing, "Distribution" heading.
+- (2026-10-11) **A rule names a column through the element's `rulePath(path)`** (new `./session`
+  export beside `quotePath`): the bare name for a `data.` column whose name is one unquoted
+  identifier, else `quotePath(path)`. The find box's own `columnText` is deleted and calls it, and
+  `atLeastOf` uses it, so the "or more" layer reads "minutes >= `5`". Reason: the app was the only
+  place that knew the short spelling, and the element's own rule text disagreed with it. Additive
+  (`atLeast` is unreleased); recorded in `owner-decisions.md`. A dotted name ("a.b") stays
+  `data.a.b`: the grammar joins segments into one key, so `quotePath` never quotes a dot.
+
+- (2026-10-11, condensed) Built for round 4, walked on fresh builds (`tmp/t2r3-r4-*/`): Shift-click
+  adds, Made with after Undo, two focus drops, find "or more" (9b69ca650), Analyze name matches
+  first, toolbar Filters (`filters.open`), repeated-ties warning in Load's description, filter step
+  counts edges (element `plan`), disabled submit says what is missing, "Distribution" heading.
 - (2026-10-11) **The table follows the drawing, by the element's own scope.** Reason: under a filter
   step the table listed 41 edges beside "12 of 41" everywhere else (r4-s27, s21); the element
   already has `scope: "visible"`, so the app needs no computing, only the scope it asks for.
@@ -72,13 +82,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   and out-of-date marks (8 of 8), the weight's meaning at load, Recent in Analyze, the find box's
   example rule, names not drawn by default (the app's consumer choice), "PageRank, full graph"
   under a filter. Reason: each was read right by every session that met it.
-- (2026-10-11, condensed from Top of mind) Distribution heading: `RunValues.tsx`, section is a
-  `role="group"` (ControlSection). Disabled step-editor submit: Tooltip plus aria-disabled,
-  `commit()` returns on incomplete or unchanged; Attribute not prefilled. Toolbar Filters:
-  command `filters.open`, new step autofocuses Keep (d2280466e). Filter step over an edge column:
-  row "20 to 19 nodes, 41 to 12 edges", counts are the element's `plan` steps; compact-mantine
-  Tree wraps a visible description. "Or more" in find box: 9b69ca650.
-
 - (2026-10-11) Heading a histogram and its range "Distribution": a heading that repeats its tab's
   name tells the reader nothing, and "distribution" is the standard word for that pair.
 - (2026-10-11) Still open from the round 3 critique: element `depth` on `data.neighbors` and `hops`
@@ -94,18 +97,12 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   an unmarked first result (it would invent a recommendation); description-only matches stay listed.
   **Bar 9 matches data names as written; ids and values case-blind** (ceiling: an app word spelled
   exactly like a data name). The axe exception is code, excused only while the scroll check holds.
-- (2026-10-10) **A warning that changes what Load does is part of Load's description, and the
-  warning glyph marks it.** One `aria-describedby` list built from the ids that show (blocked
-  reason, repeats), so a screen reader on Load hears why the button may surprise; the glyph is
-  `aria-hidden` (the sentence carries the meaning). Replace is not promoted: Load adding a second
-  copy is a legitimate choice, and the round measures the words and mark alone.
-- (2026-10-10) **"Or more" counts both kinds of a column, because the rule does.** The target is
-  the rule text, not an id list, so it reads every node and edge with that column; counting only
-  the row's kind would let `count` and `selection.count(target)` disagree when nodes and edges
-  share a column name. A value row stays one kind (its exact target is ids of that kind). Rule
-  written with `quotePath(path)` and the number as a JSON literal in backticks; non-finite numbers
-  get no `atLeast`. The scope input is carried on `SearchRequest.scopeInput` so a scoped find's
-  rule is scoped too. API report updated (index and session entries): additive.
+- (2026-10-10) **A warning that changes what Load does is part of Load's description**
+  (`aria-describedby` from the ids that show); the glyph is `aria-hidden`. Replace not promoted.
+- (2026-10-10, condensed 2026-10-11) **"Or more" counts both kinds of a column, because the rule
+  does.** The target is rule text, so it reads every node and edge with that column; a value row
+  stays one kind. Number as a JSON literal in backticks; non-finite numbers get no `atLeast`;
+  `SearchRequest.scopeInput` keeps a scoped find's rule scoped. Column written with `rulePath`.
 - (2026-10-10, condensed 2026-10-11) **Element calls, round 4.** A run's `params`/`seed` read the
   held record history put back, and `rerun()` adopts them (not breaking: documented as "the
   current execution's"). Shift-click on a node adds through a new `SelectionManager.add(node)`
@@ -225,6 +222,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   is "replace"); weigh those findings up, not down.
 
 ## Tried: worked / did not work
+
+- (2026-10-11) DID NOT WORK at first: another agent rewrote `predicate.ts` from its own read while
+  I edited it, and my `rulePath` vanished ("rulePath is not a function"). Re-applied as a
+  targeted insert. In the shared worktree, re-check `git diff` on a shared file before building.
+  A one-off "failed to resolve" in vitest was a dependency `dist` mid-rebuild; reran clean.
 
 - (2026-10-11) WORKED: the bare-number suggestion fix belonged in the element, not the app. The
   selector's acceptance test is "parses and reads at least one attribute" (compileExpressionPredicate);

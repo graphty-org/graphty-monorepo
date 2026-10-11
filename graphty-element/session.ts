@@ -496,7 +496,7 @@ export type {
     UnboundLayerCode,
     ValidationResult,
 } from "./src/session/styles";
-export { quotePath } from "./src/session/styles";
+export { quotePath, rulePath } from "./src/session/styles";
 
 // ---------------------------------------------------------------------------------------------
 // What a host may ask this session for before it offers a feature

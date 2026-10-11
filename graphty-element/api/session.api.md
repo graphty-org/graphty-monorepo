@@ -2559,6 +2559,9 @@ export interface RowUpdate<Id> {
 }
 
 // @public
+export function rulePath(path: Path): Query;
+
+// @public
 export type RuleTree = {
     readonly kind: "expression";
     readonly where: Query;

@@ -1,6 +1,6 @@
 import { ResultRow, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
-import { type GraphSession, isGraphtyError, quotePath } from "@graphty/graphty-element/session";
+import { type GraphSession, isGraphtyError, rulePath } from "@graphty/graphty-element/session";
 import { ScrollArea, Text, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -35,7 +35,7 @@ function exampleRule(session: GraphSession): string {
         return "weight > `3`";
     }
     const middle = column.min === undefined || column.max === undefined ? 3 : (column.min + column.max) / 2;
-    return `${columnText(column.path)} > \`${String(Math.round(middle))}\``;
+    return `${rulePath(column.path)} > \`${String(Math.round(middle))}\``;
 }
 
 /**
@@ -147,18 +147,6 @@ interface ColumnOption {
 }
 
 /**
- * How a rule names a column: a data column by its bare name when that needs no quotes, else
- * the column key quoted by the element.
- * @param path - the column key.
- * @returns the text to insert.
- */
-function columnText(path: string): string {
-    const quoted = quotePath(path);
-    const bare = quoted.slice("data.".length);
-    return quoted.startsWith("data.") && !/[."]/.test(bare) ? bare : quoted;
-}
-
-/**
  * The attribute name at the end of a rule: its trailing run of word characters, from the first
  * letter or underscore in it. Scanned by hand, since a regular expression anchored at the end
  * backtracks from every position.
@@ -194,7 +182,7 @@ function columnOptions(session: GraphSession, typed: string): { word: string; co
     }
     const byText = new Map<string, { name: string; insert: string; kinds: Set<"node" | "edge"> }>();
     for (const attribute of session.data.attributes()) {
-        const insert = columnText(attribute.path);
+        const insert = rulePath(attribute.path);
         if (insert === word || !attribute.name.toLowerCase().includes(word.toLowerCase())) {
             continue;
         }

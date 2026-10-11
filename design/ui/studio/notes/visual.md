@@ -5,39 +5,35 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-10 (tier 2 round 2 closed: insights and decisions read).
+Last updated: 2026-10-10 (tier 2 round 3 expert walk written).
 
 ## Top of mind
 
-1. (2026-10-10) Round 3 watch: does a "+" Color or Width on a selection's layer now start at the
-   highlight look (`session.styles.highlightStyle`, app black, 3x width) and stay visible after the
-   selection clears? Pixel-check it myself on the frozen build; this was my top round 2 fix.
-2. (2026-10-10) Round 3 watch: a rule selection's layer is named by its rule ("minutes >= `10`");
-   check the key ellipsizes it and shows it whole on hover, and that backticks do not read as noise.
-3. (2026-10-10) Round 3 watch: the doubling warning line sits above Load in body text with Replace
-   beside it -- check it is not the smallest text on the page and Load is not still the only blue.
-4. (2026-10-10) Round 3 watch: the find box's "No match" plus example line, and the rule as Enter's
-   option -- the marked option must look like every other Enter option (one idea, one look).
-5. (2026-10-10) Round 3 watch: extra-small checkbox's invisible 24 px hit area must not change the
-   drawn box or steal the next 20 px row's click.
-6. (2026-10-10) Words at rest must go down (bar 9 b failed: every tier 2 screen rose). Any visual
-   proposal I make adds no word at rest; prefer weight and position over a new label.
-7. (2026-10-10) Round 2 evidence: routes that worked are weak (participants read the facilitator
-   file); problems found anyway are robust. Only cite round 2 problems, never round 2 successes.
-8. (2026-10-10) Edge width is not a renderer bug: W draws as 10 x W / d px. It is on the owner's
-   breaking list; the app must never scale widths to hide it.
-9. (2026-10-10) Still severity 3 and not fixed: drawn names covering names and ties
-   (`r2-s52/02.png`, "Stadium" over its tie). graphty-element, reported as a class, unseeded layout.
-10. (2026-10-10) Held, re-measure clean before touching: out-of-date mark, Replace's place,
-    "Higher means" at load, "Components 1" under a filter, halo, selection two-looks.
-11. (2026-10-10) Dry runs now start from pilot routes, not last round's detours; when I walk,
-    walk where pilots went plus every control on the screen, and fix before freeze.
-12. (2026-10-10) "Stand out" removed from T22/T24 prompts: expect fewer styling detours, so the
-    styling fix may be met only by the dry run -- make sure it walks it.
-13. Parked polish: three left edges in the right panel, ragged Top 10 digits, header colors,
-    label-vs-value rule, two-table inspector missing "...", inspector edge list cutting names.
-14. Device scale 1 screenshots break letter spacing; confirm at scale 2.
-15. Walk detours, not only answer-key routes.
+1. (2026-10-10) Round 3 walk: 34 findings (2 sev 3, 19 sev 2, 13 sev 1) against 25. Four new sev 2
+   sit on round 3's own changes (doubling warning weight, "Filter to neighbors" done state, two
+   current rows in the find list, "linked" leading to Louvain). Expect bar 10 to fail on count.
+2. (2026-10-10) New sev 3: the key grows over the drawing and covers a node ("Depot",
+   `round-3/expert/visual/find/07.png`). Key placement is the app's; propose it avoids nodes or
+   docks, not a smaller font.
+3. (2026-10-10) Label overlap now has a pointer consequence: a click at Farah's center selects
+   Chloe (`round-3/expert/visual/notes/04.png`). Use this to argue for the element fix.
+4. (2026-10-10) Doubling warning: words are right, weight is wrong. Lead proposal: the same
+   red-orange triangle the unmatched row uses, and Replace not 1,000 px from the line.
+5. (2026-10-10) Key: black swatch vanishes on the dark key; two heading styles; name said twice.
+   One proposal: a 1 px light outline on every swatch, one title style.
+6. (2026-10-10) Edge-only filters read as "nothing happened" (chip, step line and key count nodes
+   only; `legendWords.ts` `rowName`). Content and app; I own the chip's look.
+7. (2026-10-10) Verified fixed: "+" Color starts at the highlight look and stays after clearing;
+   rule-named layer; 24 px checkbox target; find box miss leads on; key scope words at rest.
+8. Words at rest must go down. Any visual proposal adds no word at rest; weight and position first.
+9. Still severity 3: drawn names covering names and ties. graphty-element, a class, not a seed.
+10. Held and still open: out-of-date mark, halo, selection two-looks, two-table "...", emphasis
+    rules, neighbor list shape, step labels, notes loudness, ragged digits, popover cover.
+11. Edge width is not a renderer bug (10 x W / d px); on the owner's breaking list; no app scaling.
+12. Walk detours and every control on a screen, not only answer-key routes.
+13. Browser slots are contended: start the next walk in the background while stepping another;
+    never wrap `real.mjs --start` in a `timeout` (a killed waiting start can orphan).
+14. Device scale 1 screenshots break letter spacing; never report it.
 
 ## Priorities and values
 
@@ -60,6 +56,16 @@ Last updated: 2026-10-10 (tier 2 round 2 closed: insights and decisions read).
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- 2026-10-10 (round 3 walk): Rated the key covering a node severity 3 (criteria: "text or the key
+  covering a node"); owner graphty app, since the key is the app's overlay
+  (`round-3/expert/visual/find/07.png`).
+- 2026-10-10 (round 3 walk): Rated the doubling warning severity 2, not 3: the count and the words
+  are on screen; what fails is weight and distance from Replace (`replace/04.png`).
+- 2026-10-10 (round 3 walk): Counted the "Filter to neighbors" done state as a visual defect (gray =
+  unavailable), even though the command change itself was right.
+- 2026-10-10 (round 3 walk): Found the key's run-scope rule compares node counts only; reported it
+  with the filter chip as one finding so the fix is one rule for chip, step line and key.
 
 - 2026-10-10 (round 2 closed): My "+" starting-value fix was adopted in a better form: not an app
   choice of color, but the element's own highlight look exposed additively
@@ -121,6 +127,14 @@ Last updated: 2026-10-10 (tier 2 round 2 closed: insights and decisions read).
 
 ## Tried: worked / did not work
 
+- 2026-10-10 worked: checking each round 3 change on screen first, then walking every control
+  around it; four of the new findings sit right beside the changes.
+- 2026-10-10 worked: reading the app source at the frozen commit (`git show 26f3bb968:<path>`) to
+  name a mechanism (key compares nodes only; the neighbor button is aria-disabled when on).
+- 2026-10-10 did not work: `timeout 590` around `real.mjs --start` while slots were full; it killed
+  the waiting start. Start in the background and poll the output file instead.
+- 2026-10-10 worked: `REAL_VIEWPORT=1280x800` on `--start` for the narrow check.
+
 - 2026-10-10 worked: proposing one function-sized change per confirmed problem; all three of my
   round 2 proposals were adopted. Reading the element first turned up a better owner (the element
   already had a neutral highlight look nobody could read).
@@ -169,6 +183,7 @@ Last updated: 2026-10-10 (tier 2 round 2 closed: insights and decisions read).
 
 ## Sources
 
+- `design/ui/studio/tier2/rounds/round-3/expert/visual.md` (round 3 findings)
 - `design/ui/studio/tier2/rounds/round-2/insights.md`, `decisions.md` (round 3 change list)
 
 - `design/ui/studio/tier2/criteria.md` (bar 8 screens, bar 10 scoring)

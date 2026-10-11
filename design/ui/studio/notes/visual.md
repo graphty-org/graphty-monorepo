@@ -5,38 +5,33 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-11 (tier 2 round 4 closed).
+Last updated: 2026-10-11 (tier 2 round 5 walk).
 
 ## Top of mind
 
-1. (2026-10-11 round 4 closed) Round 5 waits on the study fixes: a session refuses to start
-   without the round's gate, and briefings name data files only (they leaked answers). Counts
-   from round 4 are limited by both; do not lean on them.
-2. My lead fix was adopted as change 8 (severity 2): the table under a filter step asks scope
-   "visible" and reads "12 of 41 edges". Watch in round 5: T17 with the table open under a step.
-3. Bare number "10" on bus stops (sev 3): the element offers a suggestion only when it parses
-   (change 3), and a number inside a column's range offers "is N or more" (change 4). Watch
-   whether T22 readers pick the "or more" row; it may still sit below the fold.
-4. Layer names: the element exports `rulePath`; the app's `columnText` copy is deleted (change 9).
-   The text change was NOT breaking after all: `atLeast` is in no released tag. Check tags on the
-   right commit before routing anything to the owner.
-5. Still open sev 3, owner's list: drawn names and dots covering names, ties and nodes. Bar 10
-   fails on it honestly. No app font, offset, seed or label-off setup.
-6. Bar 9 (b) edge inspector, 29 vs 27 words: diff the word lists first. Scope words (", full
-   graph", "of nodes") stay even if the bar fails; cut only a repeat.
-7. Held, first in line on a second session: one warning look for every load problem, removed once
-   the reader chooses (r4-s50 only). Bring it back only with new evidence.
+1. (2026-10-11 round 5 walk) Two sev 3 open, both old: drawn names over nodes and ties (element,
+   owner's list) and the key covering "Depot" (app placement). Round 4's field-path name is fixed.
+2. Lead candidate for the round 5 critique: the key's and strip's scope rule counts nodes only. A
+   step that drops ties but keeps every node leaves a broken path under a plain "Shortest path" key
+   and a strip reading "Ran on 20 nodes; 20 shown now" (`round-5/expert/visual/narrow/13.png`).
+3. New sev 2 on a round 5 change: an off step's editor shows a blue "Save and turn on" with no
+   edit, while an on step shows a disabled "Save step". One rule: no edit, no primary button.
+4. New sev 2, mechanism unread: at 1280 x 800 Find path shrinks the drawing to half; not at 1440.
+   Read the framing code at 8c015b806 before proposing anything.
+5. Neighbor list ignoring the filter now shows a node with no tie after Filter to neighbors.
+   Still needs a script to name the owner.
+6. Bar 9 (b): the edge inspector is From, To, weight only on this build. Check the count on disk.
+7. Held, first in line on a second session: one warning look for every load problem. Still two
+   looks on this build.
 8. Held, do not change: Values rows order, key placement, halo, selection two-looks, out-of-date
-   mark, polish bundle, "Settings" rail label (a visible label for an icon button).
-9. Round 4 changes that held, do not touch: toolbar Filters (7 of 7 first door), one "Start
-   here", Shift-click (T24 7 of 7), edge counts, the "or more" row's sibling look.
-10. Rejected: "Filter to neighbors" as a pressed toggle. Do not re-propose without new evidence.
-11. One path per problem: propose one fix, not variants; the director cuts variants anyway.
-12. Check what the element already offers before proposing (scope "visible" made the fix one word).
-13. A claim only one specialist made is scripted on the frozen build before fixing (change 7:
-    missing-column rule, Escape on a swatch, a label taking a click aimed at a tie).
-14. Words at rest never rise. Weight and position first. One mark per problem.
-15. Never wrap `real.mjs --start` in `timeout`; start walks in the background and poll a file.
+   mark, polish bundle, "Settings" rail label.
+9. Rejected: "Filter to neighbors" as a pressed toggle. Do not re-propose without new evidence.
+10. One path per problem: propose one fix, not variants.
+11. Check what the element already offers before proposing.
+12. A claim only one specialist made is scripted on the frozen build before fixing.
+13. Words at rest never rise. Weight and position first. One mark per problem.
+14. Never wrap `real.mjs --start` in `timeout`; start walks in the background and poll a file.
+15. Escape does not blur the find box: click empty canvas before Shift+A, or keys type into it.
 
 ## Priorities and values
 
@@ -59,6 +54,17 @@ Last updated: 2026-10-11 (tier 2 round 4 closed).
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- 2026-10-11 (round 5 walk): Rated the broken path under a node-keeping filter severity 2, not 3:
+  the layer list's clock and Rerun are on screen, so the stale state has a mark; what fails is the
+  key and the strip's words (bar 5 kind, but marked). Owner graphty app, from round 3's reading of
+  the scope rule; not re-read at 8c015b806.
+- 2026-10-11 (round 5 walk): Rated "Save and turn on" severity 2: it is the most saturated element
+  on the panel after the reader's own choice, and it is a round 5 change's neighbor.
+- 2026-10-11 (round 5 walk): Left the 1280 x 800 reframe and the missing-column answer with no
+  owner: I saw both on screen but did not read which package decides.
+- 2026-10-11 (round 5 walk): Counted 52 against 42 and said why (new walks at 1280, a filter after
+  a path, new screens), as the round 4 count lesson asks.
 
 - 2026-10-11 (round 4 closed): Adopted from my critique: the table under a filter step (change 8,
   as proposed, one word plus the "of" count), the bare-number suggestion fixed in the element
@@ -188,6 +194,15 @@ Last updated: 2026-10-11 (tier 2 round 4 closed).
 
 ## Tried: worked / did not work
 
+- 2026-10-11 worked: walking the 1280 x 800 session past the find list (path, then a filter, then
+  the run) found two sev 2s the round 4 narrow walk could not; keep the narrow walk a full walk.
+- 2026-10-11 worked: adding a filter AFTER a path, not before, showed the node-only scope rule on
+  the drawing itself.
+- 2026-10-11 did not work: Escape then Shift+A from the find box typed "A path..." into it (the
+  same trap as round 1's "/"); click empty canvas first.
+- 2026-10-11 worked: a separate short session for the table under a step checked the round's
+  headline fix in four steps without disturbing the main walk.
+
 - 2026-10-11 did not work: four variants per problem in a critique. The director picked one path
   each and listed the rest as held; variants cost review time and none survived beside the main one.
 - 2026-10-11 did not work: citing word lists for bar 9 that were not on disk. Write the
@@ -275,6 +290,8 @@ Last updated: 2026-10-11 (tier 2 round 4 closed).
   designers too.
 
 ## Sources
+
+- `design/ui/studio/tier2/rounds/round-5/expert/visual.md` (round 5 findings, 52)
 
 - `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md` (verified round 4 problems)
 - `graphty/src/workspace/table/TableDock.tsx` line 349 at 5277e2cbe (table scope); `graphty/src/workspace/graph-place/FindBox.tsx` `columnText`, `ruleFromText`

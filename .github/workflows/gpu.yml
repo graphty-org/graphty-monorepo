@@ -132,13 +132,9 @@ jobs:
               run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
             # The large-graph screenshot check (below) draws with the pinned fonts every visual-review capture uses
             # and compares with reference images; both are Git LFS objects, which checkout leaves as pointer files.
-            # Cached like ci.yml's visual job, so a run downloads only what changed since the cache was saved.
-            - name: Cache the Git LFS objects of the pinned fonts and the GPU screenshot references
-              uses: actions/cache@v4
-              with:
-                  path: .git/lfs/objects
-                  key: lfs-gpu-screenshots-${{ hashFiles('visual-fonts/fonts/**', 'cytoscape-extensions/test/gpu-screenshots/**') }}
-                  restore-keys: lfs-gpu-screenshots-
+            # Pulled fresh every run, never cached: a dispatch can run any branch's code, and a cache it saved would
+            # be restored by the release train on the default branch (CodeQL actions/cache-poisoning). About 120 MB,
+            # a few seconds.
             - name: Fetch the pinned fonts and the GPU screenshot references from Git LFS
               working-directory: .
               run: git lfs pull --include "visual-fonts/**,cytoscape-extensions/test/gpu-screenshots/**"

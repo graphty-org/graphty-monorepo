@@ -1550,6 +1550,8 @@ describe("gpu.yml", () => {
             t4,
             /if: \$\{\{ !cancelled\(\) && steps\.shots\.outcome == 'failure' \}\}[\s\S]*?::error::[\s\S]*?exit 1\n/,
         );
+        // never cached: a dispatch of any branch could save a cache the release train restores (CodeQL cache poisoning)
+        assert.doesNotMatch(t4, /path: \.git\/lfs\/objects/);
         // --update writes references; only a person on a GPU machine runs it
         assert.doesNotMatch(gpu, /gpu-screenshots\.mjs --update/);
     });

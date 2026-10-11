@@ -89,7 +89,11 @@ describe("Filters focus and keys on the real element", () => {
             });
         });
         const saved = await within(filters()).findByRole("treeitem", { name: "value is at least 10" });
-        await within(saved).findByText(`8 to ${String(session.visibility.summary.visibleNodes)} nodes`);
+        // A step over an edge column names both counts.
+        const { visibleNodes, totalEdges, visibleEdges } = session.visibility.summary;
+        await within(saved).findByText(
+            `8 to ${String(visibleNodes)} nodes, ${String(totalEdges)} to ${String(visibleEdges)} edges`,
+        );
         await waitFor(() => {
             assert.strictEqual(document.activeElement, saved);
         });

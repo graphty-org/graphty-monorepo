@@ -75,18 +75,22 @@ describe("Filters on the real element", () => {
             });
             const [step] = session.visibility.steps;
             assert.deepEqual(step.rule, { kind: "range", attribute: "data.value", min: 9, nodes: "ends" });
-            const { visibleNodes, totalNodes, visibleEdges } = session.visibility.summary;
+            const { visibleNodes, totalNodes, visibleEdges, totalEdges } = session.visibility.summary;
             assert.deepEqual([visibleNodes, totalNodes, visibleEdges], [5, 8, 4]);
+            // A step over an edge column names both counts, on its row and on the header chip.
+            const edgesShown = `5 of 8 nodes, ${String(visibleEdges)} of ${String(totalEdges)} edges`;
 
             const stepRow = await within(filters()).findByRole("treeitem", { name: "value is at least 9" });
             // The outcome shows under the sentence, on the row's second line.
             await waitFor(() => {
-                const outcome = within(stepRow).getByText("8 to 5 nodes");
+                const outcome = within(stepRow).getByText(
+                    `8 to 5 nodes, ${String(totalEdges)} to ${String(visibleEdges)} edges`,
+                );
                 assert.isTrue(outcome.checkVisibility());
             });
             assert.isNull(stepRow.getAttribute("data-dimmed"));
             // The chip's tooltip names the step that is on.
-            const chip = screen.getByRole("button", { name: "Filter: 5 of 8 nodes" });
+            const chip = screen.getByRole("button", { name: `Filter: ${edgesShown}` });
             await userEvent.hover(chip);
             await screen.findByText(
                 'Showing only: "value is at least 9". Click to open Filters, where you can turn it off.',
@@ -159,11 +163,11 @@ describe("Filters on the real element", () => {
                 assert.isTrue(session.visibility.steps[0]?.on);
                 assert.equal(store.get().notice?.message, 'Undid turning off "value is at least 9".');
             });
-            await screen.findByRole("button", { name: "Filter: 5 of 8 nodes" });
+            await screen.findByRole("button", { name: `Filter: ${edgesShown}` });
 
             // The chip opens the Data place.
             store.set({ place: "graph" });
-            await userEvent.click(screen.getByRole("button", { name: "Filter: 5 of 8 nodes" }));
+            await userEvent.click(screen.getByRole("button", { name: `Filter: ${edgesShown}` }));
             assert.equal(store.get().place, "data");
 
             // The row menu deletes the step.
@@ -173,6 +177,44 @@ describe("Filters on the real element", () => {
             await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
             await waitFor(() => {
                 assert.lengthOf(session.visibility.steps, 0);
+            });
+        },
+        TIMEOUT_MS,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "the toolbar's Filters tool opens an editor whose disabled Add step says what is missing",
+        async () => {
+            const { session, store } = await openWithGraph();
+            store.set({ place: "graph" });
+            await userEvent.click(await screen.findByRole("button", { name: "Filters" }));
+            const add = await screen.findByRole("button", { name: "Add step" });
+            assert.equal(add.getAttribute("aria-disabled"), "true");
+
+            // Hover names the missing attribute; a click adds nothing.
+            await userEvent.hover(add);
+            await screen.findByText("Choose an attribute first", {}, { timeout: 3000 });
+            await userEvent.click(add);
+            assert.lengthOf(session.visibility.steps, 0);
+            await userEvent.unhover(add);
+
+            // With an attribute and no value, focus names the missing value; Enter adds nothing.
+            await userEvent.click(screen.getByRole("combobox", { name: "Attribute" }));
+            await userEvent.click(await screen.findByRole("option", { name: "value" }));
+            await userEvent.click(screen.getByRole("textbox", { name: "Value" }));
+            await userEvent.keyboard("{Enter}");
+            assert.lengthOf(session.visibility.steps, 0);
+            await userEvent.tab();
+            assert.equal(document.activeElement, add);
+            await screen.findByText("Type a value first", {}, { timeout: 3000 });
+
+            // A whole rule enables it, and it adds the step.
+            await userEvent.type(screen.getByRole("textbox", { name: "Value" }), "9");
+            assert.isNull(add.getAttribute("aria-disabled"));
+            await userEvent.click(add);
+            await waitFor(() => {
+                assert.lengthOf(session.visibility.steps, 1);
             });
         },
         TIMEOUT_MS,

@@ -9,7 +9,6 @@ import type { Core, NodeCollection, NodeSingular } from "cytoscape";
 
 import { GENERATOR_OPTION_NAMES } from "../src/algorithm-options.js";
 import type { GeneratorName } from "../src/index.js";
-import { presetWithSeed } from "./catalog.js";
 import { colorByValue, elementsOf, GENERATE, markDirected, type Outcome, PALETTE } from "./demo.js";
 import { colorBy, counts, placeSettled, runLayout } from "./run.js";
 
@@ -510,18 +509,6 @@ const GENERATOR_SHOWCASE: Record<GeneratorName, GeneratorShowcase> = {
 };
 
 /**
- * Generates `name` with its gallery preset, then arranges it (see arrangeGenerated).
- * @param cy - the empty core
- * @param name - the generator
- * @param seed - the seed
- * @returns the caption and the counts
- */
-export async function showGenerator(cy: Core, name: GeneratorName, seed: number): Promise<string> {
-    const { directed } = await cy.graphtyGenerate(name, presetWithSeed(name, seed) as never);
-    return arrangeGenerated(cy, name, seed, directed);
-}
-
-/**
  * Lays a generated graph out and colors it as GENERATOR_SHOWCASE says.
  * @param cy - the core, holding the generated graph
  * @param name - the generator
@@ -695,16 +682,23 @@ function colorByExpression(cy: Core, field: string): void {
  * @param layout - the name without "graphty-"
  * @param seed - the seed
  * @param gpuMode - the backend control, for the simulations
+ * @param run - the iterations (0: until settled), whether to animate, and more options over the tile's own
  * @returns which backend ran, and the caption
  */
-export async function showLayout(cy: Core, layout: string, seed: number, gpuMode: "auto" | "off"): Promise<Outcome> {
+export async function showLayout(
+    cy: Core,
+    layout: string,
+    seed: number,
+    gpuMode: "auto" | "off" | "require",
+    run: { iterations: number; animate: boolean; extra: Record<string, unknown> },
+): Promise<Outcome> {
     const show = LAYOUT_SHOWCASE[layout];
     const out = await runLayout(cy, layout, {
         gpuMode,
         seed,
-        iterations: 0,
-        animate: false,
-        extra: show.options?.(cy),
+        iterations: run.iterations,
+        animate: run.animate,
+        extra: { ...show.options?.(cy), ...run.extra },
     });
     show.paint?.(cy);
     return { ...out, note: show.caption };

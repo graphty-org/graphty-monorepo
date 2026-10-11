@@ -33,7 +33,7 @@ cytoscape.use(graphtyCytoscape);
  * True inside a visual-review capture (its URL carries chromatic=true, as Chromatic's does). Captures leave out run
  * times, which differ on every run.
  */
-const CAPTURE = /[?&]chromatic=true/.test(globalThis.location?.search ?? "");
+export const CAPTURE = /[?&]chromatic=true/.test(globalThis.location?.search ?? "");
 
 /** Node counts; "large" and "huge" are where the GPU is meant to pay off. */
 export const SIZES = { small: 100, medium: 2_000, large: 10_000, huge: 50_000 };

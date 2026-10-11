@@ -4,13 +4,14 @@ import { networkArgs, networkArgTypes, SIZES } from "./demo.js";
 import { type LayoutArgs, renderLayout } from "./layout-story.js";
 
 /**
- * Each force simulation at each demo size, on the planted partition network (groups of nodes densely linked inside,
- * sparsely between), with each node colored by its group. Every run goes until the layout settles. Only the 100-node
- * stories are animated; on the larger ones a panel shows what runs, the time so far and how far the nodes still move,
- * until the result is drawn.
+ * Each force simulation on 2,000, 10,000 and 50,000 nodes of the planted partition network (groups of nodes densely
+ * linked inside, sparsely between), with each node colored by its group. Every run goes until the layout settles, on
+ * WebGPU (gpu: "require"): a panel shows what runs, the time so far and how far the nodes still move, until the
+ * result is drawn. Without WebGPU a story says so and draws each group in its own place instead. The backend control
+ * runs the layout on the CPU, which at these sizes takes minutes to hours.
  */
 const meta: Meta<LayoutArgs> = {
-    title: "Demo/Force Layouts By Size",
+    title: "Large graphs",
     render: renderLayout,
     argTypes: {
         ...networkArgTypes,
@@ -36,10 +37,10 @@ function at(layout: string, size: keyof typeof SIZES, extra: Record<string, unkn
         size,
         layout,
         iterations: 0,
-        // animated only at 100 nodes: drawing every frame of 2,000 nodes cost six times the layout itself
-        animate: size === "small",
-        // the CPU simulations compare every pair of nodes: about 17 s per iteration at 50,000 nodes, hours to settle
-        backend: size === "huge" ? "gpu" : "auto",
+        // not animated: drawing every frame of 2,000 nodes cost six times the layout itself
+        animate: false,
+        // on WebGPU only: the CPU simulations compare every pair of nodes (about 17 s per iteration at 50,000 nodes)
+        backend: "gpu",
         options: JSON.stringify(extra),
     };
 }
@@ -48,20 +49,15 @@ function at(layout: string, size: keyof typeof SIZES, extra: Record<string, unkn
 // attraction the 20 groups of the 10,000-node network overlap in one disc.
 const LINLOG = { linlog: true };
 
-/** ForceAtlas2 on 100 nodes in 4 groups. */
-export const ForceAtlas2At100: Story = { args: at("forceatlas2", "small") };
 /** ForceAtlas2 on 2,000 nodes in 9 groups. */
 export const ForceAtlas2At2000: Story = { args: at("forceatlas2", "medium") };
 /** ForceAtlas2 with LinLog attraction on 10,000 nodes in 20 groups: the groups come apart. */
 export const ForceAtlas2At10000: Story = { args: at("forceatlas2", "large", LINLOG) };
 /**
- * ForceAtlas2 with LinLog attraction on 50,000 nodes in 45 groups, on the GPU only: the CPU simulation would take
- * hours. Without WebGPU the story says so and draws each group in its own place instead.
+ * ForceAtlas2 with LinLog attraction on 50,000 nodes in 45 groups: the CPU simulation would take hours.
  */
 export const ForceAtlas2At50000: Story = { args: at("forceatlas2", "huge", LINLOG) };
 
-/** Fruchterman-Reingold (adaptive cooling) on 100 nodes in 4 groups. */
-export const FruchtermanReingoldAt100: Story = { args: at("fruchterman-reingold", "small") };
 /** Fruchterman-Reingold (adaptive cooling) on 2,000 nodes in 9 groups. */
 export const FruchtermanReingoldAt2000: Story = { args: at("fruchterman-reingold", "medium") };
 /**
@@ -71,13 +67,10 @@ export const FruchtermanReingoldAt2000: Story = { args: at("fruchterman-reingold
  */
 export const FruchtermanReingoldAt10000: Story = { args: at("fruchterman-reingold", "large") };
 /**
- * Fruchterman-Reingold (adaptive cooling) on 50,000 nodes in 45 groups, on the GPU only (the CPU would take hours).
- * As at 10,000 nodes, the groups stay tangled.
+ * Fruchterman-Reingold (adaptive cooling) on 50,000 nodes in 45 groups. As at 10,000 nodes, the groups stay tangled.
  */
 export const FruchtermanReingoldAt50000: Story = { args: at("fruchterman-reingold", "huge") };
 
-/** Spring-electrical on 100 nodes in 4 groups: GPU only, so without WebGPU the story says why it did not run and draws each group in its own place instead. */
-export const SpringElectricalAt100: Story = { args: at("spring-electrical", "small") };
 /** Spring-electrical on 2,000 nodes in 9 groups (GPU only). */
 export const SpringElectricalAt2000: Story = { args: at("spring-electrical", "medium") };
 /** Spring-electrical on 10,000 nodes in 20 groups (GPU only). */

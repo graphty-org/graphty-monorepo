@@ -8,6 +8,7 @@
 import type { Core } from "cytoscape";
 
 import {
+    CAPTURE,
     fadeManyEdges,
     failureWords,
     fitToContainer,
@@ -51,7 +52,8 @@ export interface Tile {
  * Renders the tiles in a grid and runs them in order.
  * @param intro - one line above the grid saying what the gallery shows
  * @param tiles - the tiles
- * @param full - one tile filling the window instead of a grid of small ones
+ * @param full - one tile filling the window instead of a grid of small ones, with a "Run again" button and, outside
+ *   a capture, the run's time and how many nodes lie outside the view
  * @returns the story root
  */
 export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLElement {
@@ -72,6 +74,21 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
         title.style.cssText =
             "padding:4px 6px;font:600 11px ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
         title.textContent = t.title;
+        if (full && !CAPTURE) {
+            // left out of a capture, so the picture is the same as the gallery's
+            title.style.cssText += "position:relative;padding-right:90px;";
+            const again = document.createElement("button");
+            again.textContent = "Run again";
+            again.style.cssText = "position:absolute;right:4px;top:1px;font:11px system-ui,sans-serif;";
+            again.onclick = () => {
+                again.disabled = true;
+                retireAll();
+                done = runAll().finally(() => {
+                    again.disabled = false;
+                });
+            };
+            title.append(again);
+        }
         const body = document.createElement("div");
         // a full tile leaves room for the line above it, its heading and its status line
         body.style.cssText = `display:flex;${full ? "height:calc(100vh - 168px);" : "height:170px;"}`;
@@ -103,11 +120,27 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
                 const cy = newCore(canvas);
                 await t.load(cy);
                 fadeManyEdges(cy);
+                status.textContent = "running...";
+                status.style.color = "#333";
+                const t0 = performance.now();
                 const out = await t.run(cy);
+                const ms = Math.round(out.ms ?? performance.now() - t0);
                 // fitted to the main graph, not to far-flung isolated nodes; what the picture shows first, the backend after
-                fitToContainer(cy);
+                const outside = fitToContainer(cy);
                 file.textContent = out.file ?? "";
-                status.textContent = [out.note, statusLine(out)].filter(Boolean).join("\n");
+                const lines = [out.note, statusLine(out)];
+                if (full && !CAPTURE && out.ran !== "not run") {
+                    // the time differs on every run, so a capture leaves it out
+                    // the backend once: in the line above when it gives a reason, else here
+                    const on = out.ran === "" || statusLine(out) !== "" ? "" : ` on the ${out.ran.toUpperCase()}`;
+                    lines.push(`${on === "" ? "Took" : `Ran${on} in`} ${ms.toLocaleString()} ms.`);
+                }
+                if (full && !CAPTURE && outside > 0) {
+                    lines.push(
+                        `${outside.toLocaleString()} node${outside === 1 ? " lies" : "s lie"} outside the view; zoom out to see ${outside === 1 ? "it" : "them"}.`,
+                    );
+                }
+                status.textContent = lines.filter(Boolean).join("\n");
                 status.style.color = "#14532d";
             } catch (e) {
                 status.textContent = `failed: ${failureWords(e)}`;
@@ -117,7 +150,7 @@ export function renderGallery(intro: string, tiles: Tile[], full = false): HTMLE
         }
     };
     // the canvases need their size before Cytoscape mounts
-    const done = new Promise<void>((resolve) => requestAnimationFrame(() => resolve(runAll())));
+    let done = new Promise<void>((resolve) => requestAnimationFrame(() => resolve(runAll())));
     markDone(root, () => done);
     return root;
 }

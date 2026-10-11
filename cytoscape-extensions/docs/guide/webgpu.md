@@ -228,9 +228,11 @@ draw();
 
 ## Try it
 
-The [force simulations](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-layouts--force-simulations)
-and [centrality](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--centrality)
-demos have a `backend` control and an `acceptSoftware` switch, and show which backend ran and why.
+The [ForceAtlas2](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-layouts--force-atlas-2)
+and [PageRank](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-centrality--page-rank)
+stories, like every simulation and algorithm story, have a `backend` control and an `acceptSoftware` switch, and show
+which backend ran and why. The [Large graphs](https://graphty.app/storybook/cytoscape-extensions/?path=/story/large-graphs--force-atlas-2-at-50000) stories run the simulations
+on up to 50,000 nodes with WebGPU.
 
 ## See also
 

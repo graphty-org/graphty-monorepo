@@ -63,8 +63,9 @@ For a single goal, `graphtyAStar({ root, goal, weight, heuristic })` returns `{ 
 
 ## Try it
 
-[Paths and trees demo](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-algorithms--paths-and-trees), and the
-[Dijkstra gallery story](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-paths-and-trees--dijkstra): shortest distances from one node on a weighted graph.
+The [Dijkstra gallery story](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-paths-and-trees--dijkstra): shortest distances from one node on a weighted
+graph, and on generated graphs from its controls; the [paths and trees gallery](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-paths-and-trees--overview)
+shows the other path and tree algorithms.
 
 ## See also
 

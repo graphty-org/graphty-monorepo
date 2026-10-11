@@ -188,6 +188,44 @@ export interface TranscriptTurn {
     toolCalls: (CapturedToolCall & { invalidArguments?: true })[];
     /** The finish reason, or the error code the turn ended with; "none" when it ended with neither. */
     end: string;
+    /** How long the turn took, retries and waits included, in milliseconds. */
+    ms: number;
+    /** Each HTTP request the turn made: its status (or the error it threw) and the wait it asked for. */
+    requests: { status: number | string; retryAfter?: string }[];
+}
+
+/** The turn whose HTTP requests are being recorded, while one runs. */
+let recordingTurn: TranscriptTurn | undefined;
+
+/**
+ * Record each HTTP request a provider's API gets into the turn that made it, for the transcript:
+ * a retry, a rate limit or a refused request is otherwise invisible in it. Installed once.
+ */
+function recordRequests(): void {
+    const marker = globalThis as { __LLM_REGRESSION_FETCH__?: true };
+    if (marker.__LLM_REGRESSION_FETCH__) {
+        return;
+    }
+
+    marker.__LLM_REGRESSION_FETCH__ = true;
+    const inner = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+        const request: TranscriptTurn["requests"][number] = { status: "pending" };
+        recordingTurn?.requests.push(request);
+        try {
+            const response = await inner(input, init);
+            request.status = response.status;
+            const wait = response.headers.get("retry-after-ms") ?? response.headers.get("retry-after");
+            if (wait !== null) {
+                request.retryAfter = wait;
+            }
+
+            return response;
+        } catch (error) {
+            request.status = error instanceof Error ? error.name : "error";
+            throw error;
+        }
+    };
 }
 
 /**
@@ -215,9 +253,26 @@ export class RecordingEngine implements AiEngine {
         // Counted per test file and printed by setup.ts, so a run reports what it cost.
         const counter = globalThis as { __LLM_REGRESSION_API_CALLS__?: number };
         counter.__LLM_REGRESSION_API_CALLS__ = (counter.__LLM_REGRESSION_API_CALLS__ ?? 0) + 1;
-        const turn: TranscriptTurn = { text: "", toolCalls: [], end: "none" };
+        const turn: TranscriptTurn = { text: "", toolCalls: [], end: "none", ms: 0, requests: [] };
         this.capturedTurns.push(turn);
-        for await (const event of this.inner.turn(request, signal)) {
+        recordingTurn = turn;
+        const start = Date.now();
+        try {
+            yield* this.recordTurn(turn, this.inner.turn(request, signal));
+        } finally {
+            turn.ms = Date.now() - start;
+            recordingTurn = undefined;
+        }
+    }
+
+    /**
+     * Pass a turn's events on, recording them.
+     * @param turn - Where the turn is recorded.
+     * @param events - The inner engine's events.
+     * @yields Each event, unchanged.
+     */
+    private async *recordTurn(turn: TranscriptTurn, events: AsyncIterable<TurnEvent>): AsyncIterable<TurnEvent> {
+        for await (const event of events) {
             if (event.type === "text") {
                 turn.text += event.delta;
             } else if (event.type === "finish") {
@@ -289,6 +344,10 @@ export class LlmRegressionTestHarness {
             throw new Error(
                 `${getLlmRegressionKeyVariable()} environment variable is required for LLM regression tests`,
             );
+        }
+
+        if (process.env.LLM_REGRESSION_TRANSCRIPT) {
+            recordRequests();
         }
 
         // The provider VITE_LLM_REGRESSION_PROVIDER names (google by default)
